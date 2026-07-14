@@ -1,5 +1,6 @@
-import { MercadoPagoConfig, Preference } from 'mercadopago';
 import { NextResponse } from 'next/server';
+
+export const runtime = 'edge';
 
 export async function POST(req) {
   try {
@@ -16,11 +17,14 @@ export async function POST(req) {
       });
     }
 
-    const client = new MercadoPagoConfig({ accessToken });
-    const preference = new Preference(client);
-
-    const result = await preference.create({
-      body: {
+    // Direct HTTP request to Mercado Pago checkout API (Edge-compatible, no node 'crypto' dependencies)
+    const response = await fetch('https://api.mercadopago.com/v1/checkout/preferences', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
         items: [
           {
             id: formData.selectedPackage || 'personal_song',
@@ -37,9 +41,15 @@ export async function POST(req) {
         },
         auto_return: 'approved',
         notification_url: `${siteUrl}/api/webhooks/mercadopago`,
-      }
+      })
     });
 
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Mercado Pago API error: ${errorText}`);
+    }
+
+    const result = await response.json();
     return NextResponse.json({ init_point: result.init_point });
   } catch (error) {
     console.error("Erro ao criar preferência de pagamento:", error);
