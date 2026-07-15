@@ -2,7 +2,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { signInWithEmailAndPassword, onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { 
+  signInWithEmailAndPassword, 
+  onAuthStateChanged, 
+  GoogleAuthProvider, 
+  signInWithRedirect, 
+  getRedirectResult 
+} from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import Link from 'next/link';
 
@@ -13,6 +19,23 @@ export default function AdminLogin() {
   const [loading, setLoading] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
   const router = useRouter();
+
+  // Handle redirect result on mount
+  useEffect(() => {
+    const handleRedirect = async () => {
+      try {
+        const result = await getRedirectResult(auth);
+        if (result) {
+          router.push('/admin');
+          return;
+        }
+      } catch (err) {
+        console.error("Erro ao obter resultado do redirecionamento:", err);
+        setError('Falha ao autenticar via redirecionamento do Google.');
+      }
+    };
+    handleRedirect();
+  }, [router]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -51,11 +74,11 @@ export default function AdminLogin() {
     const provider = new GoogleAuthProvider();
     
     try {
-      await signInWithPopup(auth, provider);
-      router.push('/admin');
+      // Use redirect instead of popup to bypass browser popup blockers
+      await signInWithRedirect(auth, provider);
     } catch (err) {
-      console.error(err);
-      setError('Falha ao fazer login com o Google ou login cancelado.');
+      console.error("Erro ao redirecionar para login do Google:", err);
+      setError('Falha ao iniciar login com o Google.');
       setLoading(false);
     }
   };
