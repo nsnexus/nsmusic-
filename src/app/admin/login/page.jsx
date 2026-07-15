@@ -31,9 +31,14 @@ export default function AdminLogin() {
         }
       } catch (err) {
         console.error("Erro ao obter resultado do redirecionamento:", err);
-        setError('Falha ao autenticar via redirecionamento do Google.');
+        setError('Falha ao obter login do Google: ' + (err.message || err.toString()));
       }
     };
+    console.log("Firebase Env Check:", {
+      apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY ? "DEFINED" : "UNDEFINED",
+      authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN ? "DEFINED" : "UNDEFINED",
+      projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ? "DEFINED" : "UNDEFINED"
+    });
     handleRedirect();
   }, [router]);
 
@@ -78,7 +83,7 @@ export default function AdminLogin() {
       await signInWithRedirect(auth, provider);
     } catch (err) {
       console.error("Erro ao redirecionar para login do Google:", err);
-      setError('Falha ao iniciar login com o Google.');
+      setError('Falha ao iniciar login com o Google: ' + (err.message || err.toString()));
       setLoading(false);
     }
   };
