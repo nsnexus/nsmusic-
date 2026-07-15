@@ -1,43 +1,35 @@
 import { NextResponse } from 'next/server';
+import { getTask } from '@/lib/db';
 
 export const runtime = 'edge';
 
 export async function GET(req) {
   try {
     const { searchParams } = new URL(req.url);
-    const ids = searchParams.get('ids');
+    const taskId = searchParams.get('taskId');
 
-    if (!ids) {
-      return NextResponse.json({ error: "IDs não informados." }, { status: 400 });
+    if (!taskId) {
+      return NextResponse.json({ error: "taskId é obrigatório" }, { status: 400 });
     }
 
-    const cookieStr = process.env.SUNO_COOKIE || '';
-    if (!cookieStr) {
-      return NextResponse.json({ error: "SUNO_COOKIE não configurado." }, { status: 400 });
+    const task = getTask(taskId);
+
+    if (!task) {
+      return NextResponse.json({ status: "NOT_FOUND" });
     }
 
-    const cleanCookie = cookieStr
-      .split(';')
-      .map(c => c.trim())
-      .filter(c => !c.startsWith('Optanon') && !c.startsWith('_uetsid') && !c.startsWith('_uetvid'))
-      .join('; ');
-
-    // Call Suno direct API for status via Render!
-    const response = await fetch(`https://suno-api-khm7.onrender.com/api/get?ids=${ids}`, {
-      headers: {
-        'Cookie': cleanCookie
+    if (task.status === "COMPLETED") {
+      // Retorna as tracks se a Kie.ai enviou na propriedade "data"
+      let tracks = [];
+      if (task.result && task.result.data) {
+          tracks = Array.isArray(task.result.data) ? task.result.data : [task.result.data];
       }
-    });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(`Suno Proxy (Render) retornou erro de status: ${errText}`);
+      return NextResponse.json({ status: "COMPLETED", tracks: tracks });
     }
 
-    const data = await response.json();
-    return NextResponse.json(data);
+    return NextResponse.json({ status: task.status });
   } catch (error) {
-    console.error("Erro ao buscar status via Proxy Render:", error);
+    console.error("Erro consultando status:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

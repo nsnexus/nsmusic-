@@ -352,19 +352,13 @@ export default function CriarMusica() {
       }
 
       const data = await response.json();
-      const tracks = data.tracks;
-
-      if (!tracks || tracks.length === 0) {
-        throw new Error('Nenhum áudio retornado do Suno.');
+      
+      if (!data.taskId) {
+        throw new Error('Nenhum taskId retornado pela API.');
       }
 
-      setFormData(prev => ({
-        ...prev,
-        sunoTracks: tracks
-      }));
-
       // Poll status for completing audio rendering
-      pollSunoStatus(tracks.map(t => t.id).join(','));
+      pollSunoStatus(data.taskId);
     } catch (err) {
       console.error("Erro na chamada do Suno:", err);
       updateField('sunoStatus', 'error');
@@ -372,34 +366,32 @@ export default function CriarMusica() {
     }
   };
 
-  const pollSunoStatus = (ids) => {
+  const pollSunoStatus = (taskId) => {
     let attempts = 0;
-    const maxAttempts = 30; // 150 seconds max
+    const maxAttempts = 40; // 200 seconds max
     updateField('sunoProgress', 'Aguardando o Suno compor e renderizar os áudios (1 a 2 min)...');
 
     const interval = setInterval(async () => {
       attempts++;
       try {
-        const res = await fetch(`/api/suno/status?ids=${ids}`);
+        const res = await fetch(`/api/suno/status?taskId=${taskId}`);
         if (res.ok) {
           const statusData = await res.json();
-          const isComplete = statusData.every(t => t.status === 'complete');
-          const hasAudio = statusData.every(t => t.audio_url);
-
-          if (isComplete || hasAudio) {
+          
+          if (statusData.status === 'COMPLETED' && statusData.tracks && statusData.tracks.length > 0) {
             setFormData(prev => ({
               ...prev,
-              sunoTracks: statusData,
+              sunoTracks: statusData.tracks,
               sunoStatus: 'generated'
             }));
             clearInterval(interval);
 
             // Save audioUrls to Firestore automatically
             if (orderId) {
-              const primaryAudio = statusData.find(t => t.audio_url)?.audio_url || '';
+              const primaryAudio = statusData.tracks[0]?.audio_url || '';
               await updateDoc(doc(db, 'orders', orderId), {
                 audioUrl: primaryAudio,
-                audioFiles: statusData.map(t => t.audio_url).filter(Boolean)
+                audioFiles: statusData.tracks.map(t => t.audio_url).filter(Boolean)
               });
             }
           } else {

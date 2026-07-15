@@ -179,16 +179,12 @@ export default function OrderDetailsAdmin() {
       }
 
       const data = await response.json();
-      const tracks = data.tracks;
-
-      if (!tracks || tracks.length === 0) {
-        throw new Error("Nenhuma faixa retornada pela API.");
-      }
-
-      setGeneratedTracks(tracks);
       
-      const trackIds = tracks.map(t => t.id).join(',');
-      pollSunoStatus(trackIds);
+      if (!data.taskId) {
+        throw new Error("Nenhum taskId retornado pela API.");
+      }
+      
+      pollSunoStatus(data.taskId);
     } catch (err) {
       console.error(err);
       setSunoError(err.message || 'Ocorreu um erro.');
@@ -196,29 +192,27 @@ export default function OrderDetailsAdmin() {
     }
   };
 
-  const pollSunoStatus = (ids) => {
+  const pollSunoStatus = (taskId) => {
     let attempts = 0;
-    const maxAttempts = 30; // 150 seconds max
+    const maxAttempts = 40; // 200 seconds max
     
     setPollingStatus('Aguardando Suno compor e renderizar áudios (1 a 2 min)...');
     
     const interval = setInterval(async () => {
       attempts++;
       try {
-        const res = await fetch(`/api/suno/status?ids=${ids}`);
+        const res = await fetch(`/api/suno/status?taskId=${taskId}`);
         if (res.ok) {
           const statusData = await res.json();
-          const isComplete = statusData.every(t => t.status === 'complete');
-          const hasAudio = statusData.every(t => t.audio_url);
           
-          if (isComplete || hasAudio) {
-            setGeneratedTracks(statusData);
+          if (statusData.status === 'COMPLETED' && statusData.tracks && statusData.tracks.length > 0) {
+            setGeneratedTracks(statusData.tracks);
             setPollingStatus('✅ Geração concluída com sucesso!');
             clearInterval(interval);
             setGeneratingSuno(false);
             
             // Automatically set first complete track as audio link
-            const validTrack = statusData.find(t => t.audio_url);
+            const validTrack = statusData.tracks.find(t => t.audio_url);
             if (validTrack) {
               setAudioUrl(validTrack.audio_url);
             }
@@ -233,7 +227,7 @@ export default function OrderDetailsAdmin() {
       if (attempts >= maxAttempts) {
         clearInterval(interval);
         setPollingStatus('');
-        setSunoError('Tempo limite esgotado. Verifique os áudios diretamente no seu Suno.');
+        setSunoError('Tempo limite esgotado. Verifique a página ou tente de novo.');
         setGeneratingSuno(false);
       }
     }, 5000);
