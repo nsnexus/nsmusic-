@@ -324,11 +324,11 @@ class SunoApi {
       // await this.click(page, { x: 318, y: 13 });
     } catch(e) {}
 
-    const textarea = page.locator('textarea').first();
+    const textarea = page.locator('.custom-textarea');
     await this.click(textarea);
     await textarea.pressSequentially('Lorem ipsum', { delay: 80 });
 
-    const button = page.getByRole('button', { name: /create/i }).first();
+    const button = page.locator('button[aria-label="Create"]').locator('div.flex');
     this.click(button);
 
     const controller = new AbortController();
