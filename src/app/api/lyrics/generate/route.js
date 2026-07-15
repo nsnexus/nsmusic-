@@ -111,13 +111,7 @@ Dados da Solicitação:
 - Clima/Humor: ${musicMood}
 - Tipo de Voz: ${voiceType}`;
 
-    let lyrics;
-    try {
-      lyrics = await runGeminiWithFailover(prompt);
-    } catch (apiError) {
-      console.error("Falha ao chamar API do Gemini. Usando fallback rico:", apiError);
-      lyrics = generateRichFallbackLyrics(body);
-    }
+    const lyrics = await runGeminiWithFailover(prompt);
 
     return NextResponse.json({ lyrics });
   } catch (error) {
