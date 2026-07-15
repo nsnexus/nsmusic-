@@ -25,8 +25,8 @@ export async function POST(req) {
         title: `Pedido ${orderId ? orderId.substring(0, 8) : 'Novo'}`,
         make_instrumental: false,
         wait_audio: false,
-        model: "chirp-v3-5",
-        mv: "chirp-v3-5"
+        model: "v4",
+        mv: "chirp-v4"
       })
     });
 
