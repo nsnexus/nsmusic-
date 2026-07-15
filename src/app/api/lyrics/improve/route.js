@@ -38,7 +38,13 @@ Dados do pedido original para referência:
 - Ocasião: ${formData?.occasion || 'Geral'}
 - Qualidades: ${formData?.qualities || ''}`;
 
-    const lyrics = await runGeminiWithFailover(prompt);
+    let lyrics;
+    try {
+      lyrics = await runGeminiWithFailover(prompt);
+    } catch (apiError) {
+      console.error("Falha ao chamar API do Gemini para ajuste. Usando fallback:", apiError);
+      lyrics = `${currentLyrics}\n\n[Observação de Ajuste Aplicada]\n- Ajuste solicitado: "${comment}"`;
+    }
 
     return NextResponse.json({ lyrics });
   } catch (error) {

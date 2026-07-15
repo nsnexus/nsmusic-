@@ -1,7 +1,9 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 export default function CriarMusica() {
   const [step, setStep] = useState(1);
@@ -53,6 +55,42 @@ export default function CriarMusica() {
 
   const totalWizardSteps = 9;
   const audioRef = useRef(null);
+
+  // States for packages and addons loaded dynamically from Firestore
+  const [packagesList, setPackagesList] = useState([
+    { id: 'essencial', name: 'Essencial', price: 49.90, desc: '1 Música + MP3 + Capa Simples' },
+    { id: 'presente', name: 'Presente Completo', price: 79.90, desc: '1 Música + MP3/WAV + Capa Personalizada + QR Code' },
+    { id: 'tres_versoes', name: 'Multi-Estilos (3 Versões)', price: 119.90, desc: '3 Versões com ritmos diferentes + Capa + QR Code' }
+  ]);
+
+  const [addonsConfig, setAddonsConfig] = useState([
+    { id: 'extraSongs2', name: '➕ 2 Músicas adicionais (mesma letra, estilos diferentes)', price: 39.90 },
+    { id: 'extraSongs3', name: '➕ 3 Músicas adicionais (mesma letra, estilos diferentes)', price: 59.90 },
+    { id: 'photoVideo', name: '🎥 Vídeo com fotos (sincronizado com a música)', price: 49.90 },
+    { id: 'spotifyDistribution', name: '🎧 Publicação no Spotify e plataformas de streaming', price: 99.90 },
+    { id: 'premiumCover', name: '🖼️ Capa Premium personalizada profissional', price: 19.90 },
+    { id: 'qrCode', name: '📱 QR Code da música para cartões e presentes', price: 9.90 },
+    { id: 'instrumentalVersion', name: '🎤 Versão Instrumental (Sem voz - para karaokê)', price: 19.90 },
+    { id: 'wavFormat', name: '💿 Áudio em formato WAV (Qualidade de estúdio)', price: 9.90 },
+    { id: 'priorityDelivery', name: '🚀 Entrega Prioritária em até 24 horas', price: 29.90 },
+  ]);
+
+  // Load prices dynamically from Firestore database config document
+  useEffect(() => {
+    const loadPricing = async () => {
+      try {
+        const docSnap = await getDoc(doc(db, 'config', 'pricing'));
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (data.packages) setPackagesList(data.packages);
+          if (data.addons) setAddonsConfig(data.addons);
+        }
+      } catch (err) {
+        console.error("Erro ao carregar preços do banco de dados:", err);
+      }
+    };
+    loadPricing();
+  }, []);
 
   // Configuration options
   const recipients = [
@@ -125,27 +163,29 @@ export default function CriarMusica() {
     { id: 'Nostálgica', label: 'Nostálgica', icon: '🍂' },
   ];
 
-  const packagesList = [
-    { id: 'essencial', name: 'Essencial', price: 49.90, desc: '1 Música + MP3 + Capa Simples' },
-    { id: 'presente', name: 'Presente Completo', price: 79.90, desc: '1 Música + MP3/WAV + Capa Personalizada + QR Code' },
-    { id: 'tres_versoes', name: 'Multi-Estilos (3 Versões)', price: 119.90, desc: '3 Versões com ritmos diferentes + Capa + QR Code' }
-  ];
-
-  const addonsConfig = [
-    { id: 'extraSongs2', name: '➕ 2 Músicas adicionais (mesma letra, estilos diferentes)', price: 39.90 },
-    { id: 'extraSongs3', name: '➕ 3 Músicas adicionais (mesma letra, estilos diferentes)', price: 59.90 },
-    { id: 'photoVideo', name: '🎥 Vídeo com fotos (sincronizado com a música)', price: 49.90 },
-    { id: 'spotifyDistribution', name: '🎧 Publicação no Spotify e plataformas de streaming', price: 99.90 },
-    { id: 'premiumCover', name: '🖼️ Capa Premium personalizada profissional', price: 19.90 },
-    { id: 'qrCode', name: '📱 QR Code da música para cartões e presentes', price: 9.90 },
-    { id: 'instrumentalVersion', name: '🎤 Versão Instrumental (Sem voz - para karaokê)', price: 19.90 },
-    { id: 'wavFormat', name: '💿 Áudio em formato WAV (Qualidade de estúdio)', price: 9.90 },
-    { id: 'priorityDelivery', name: '🚀 Entrega Prioritária em até 24 horas', price: 29.90 },
-  ];
-
   // Helper functions
   const updateField = (name, value) => {
     setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handlePhoneChange = (value) => {
+    const clean = value.replace(/\D/g, '');
+    let formatted = clean;
+    if (clean.length > 0) {
+      formatted = `(${clean.slice(0, 2)}`;
+    }
+    if (clean.length > 2) {
+      formatted += `) ${clean.slice(2, 7)}`;
+    }
+    if (clean.length > 7) {
+      formatted += `-${clean.slice(7, 11)}`;
+    }
+    updateField('customerPhone', formatted);
+  };
+
+  const isPhoneValid = (phone) => {
+    const clean = phone.replace(/\D/g, '');
+    return clean.length === 11 || clean.length === 10;
   };
 
   const updateAddon = (id, value) => {
@@ -195,7 +235,6 @@ export default function CriarMusica() {
       }
     } catch (err) {
       console.error(err);
-      // Fallback composition to make it reliable
       setTimeout(() => {
         setFormData(prev => ({
           ...prev,
@@ -257,7 +296,7 @@ export default function CriarMusica() {
     if (step === 5 && formData.story.length < 50) return true;
     if (step === 6 && !formData.musicStyle) return true;
     if (step === 7 && !formData.musicMood) return true;
-    if (step === 9 && (!formData.customerName || !formData.customerPhone)) return true;
+    if (step === 9 && (!formData.customerName || !isPhoneValid(formData.customerPhone))) return true;
     if (step === 10 && formData.lyricsStatus !== 'generated') return true;
     if (step === 11 && !formData.selectedPackage) return true;
     return false;
@@ -586,10 +625,13 @@ export default function CriarMusica() {
                 <input 
                   type="tel" 
                   value={formData.customerPhone}
-                  onChange={(e) => updateField('customerPhone', e.target.value)}
+                  onChange={(e) => handlePhoneChange(e.target.value)}
                   placeholder="(99) 99999-9999" 
                   style={styles.wizardInput}
                 />
+                <span style={{ fontSize: '0.75rem', color: isPhoneValid(formData.customerPhone) ? 'var(--success)' : 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
+                  {isPhoneValid(formData.customerPhone) ? '✓ WhatsApp válido' : 'Digite o DDD + 9 dígitos'}
+                </span>
               </div>
 
               <div style={{ marginBottom: '20px' }}>
@@ -797,15 +839,15 @@ export default function CriarMusica() {
                         if (data.init_point) {
                           window.location.href = data.init_point;
                         } else {
-                          alert('Usando fluxo de simulação para desenvolvimento.');
-                          window.location.href = `/acompanhar?id=MOCK-ORDER-12345`;
+                          alert('Erro ao redirecionar para a tela de pagamento do Mercado Pago.');
                         }
                       } else {
-                        throw new Error('Falha no pagamento');
+                        const errData = await response.json();
+                        alert(`Erro do Mercado Pago: ${errData.error || 'Falha no processamento.'}`);
                       }
                     } catch (err) {
                       console.error(err);
-                      window.location.href = `/acompanhar?id=MOCK-ORDER-12345`;
+                      alert('Ocorreu um erro de rede ao tentar iniciar o pagamento. Verifique as configurações de token do Mercado Pago.');
                     }
                   }}
                   className="btn btn-primary"

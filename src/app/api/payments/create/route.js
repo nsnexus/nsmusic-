@@ -11,10 +11,7 @@ export async function POST(req) {
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 
     if (!accessToken) {
-      console.warn("MERCADO_PAGO_ACCESS_TOKEN não configurada. Usando pagamento simulado.");
-      return NextResponse.json({
-        init_point: `${siteUrl}/acompanhar?id=MOCK-ORDER-12345`
-      });
+      throw new Error("Mercado Pago access token is not configured in environment variables.");
     }
 
     // Direct HTTP request to Mercado Pago checkout API (Edge-compatible, no node 'crypto' dependencies)

@@ -32,7 +32,7 @@ export default function OrderDetailsAdmin() {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (authUser) => {
-      if (!authUser) {
+      if (!authUser || authUser.email !== 'narcisofelizardo@gmail.com') {
         router.push('/admin/login');
       } else {
         setUser(authUser);

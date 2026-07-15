@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import Link from 'next/link';
 
@@ -13,11 +13,39 @@ export default function AdminDashboard() {
   const [orders, setOrders] = useState([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [filter, setFilter] = useState('ALL'); // 'ALL', 'NEW', 'PRODUCTION', 'FINISHED'
+  
+  // Pricing tab state
+  const [activeTab, setActiveTab] = useState('ORDERS'); // 'ORDERS', 'PRICING'
+  const [packages, setPackages] = useState([]);
+  const [addons, setAddons] = useState([]);
+  const [loadingPricing, setLoadingPricing] = useState(false);
+  const [savingPricing, setSavingPricing] = useState(false);
+  const [pricingMessage, setPricingMessage] = useState('');
+
   const router = useRouter();
+
+  // Default values to initialize or fallback
+  const defaultPackages = [
+    { id: 'essencial', name: 'Essencial', price: 49.90, desc: '1 Música + MP3 + Capa Simples' },
+    { id: 'presente', name: 'Presente Completo', price: 79.90, desc: '1 Música + MP3/WAV + Capa Personalizada + QR Code' },
+    { id: 'tres_versoes', name: 'Multi-Estilos (3 Versões)', price: 119.90, desc: '3 Versões com ritmos diferentes + Capa + QR Code' }
+  ];
+
+  const defaultAddons = [
+    { id: 'extraSongs2', name: '➕ 2 Músicas adicionais (mesma letra, estilos diferentes)', price: 39.90 },
+    { id: 'extraSongs3', name: '➕ 3 Músicas adicionais (mesma letra, estilos diferentes)', price: 59.90 },
+    { id: 'photoVideo', name: '🎥 Vídeo com fotos (sincronizado com a música)', price: 49.90 },
+    { id: 'spotifyDistribution', name: '🎧 Publicação no Spotify e plataformas de streaming', price: 99.90 },
+    { id: 'premiumCover', name: '🖼️ Capa Premium personalizada profissional', price: 19.90 },
+    { id: 'qrCode', name: '📱 QR Code da música para cartões e presentes', price: 9.90 },
+    { id: 'instrumentalVersion', name: '🎤 Versão Instrumental (Sem voz - para karaokê)', price: 19.90 },
+    { id: 'wavFormat', name: '💿 Áudio em formato WAV (Qualidade de estúdio)', price: 9.90 },
+    { id: 'priorityDelivery', name: '🚀 Entrega Prioritária em até 24 horas', price: 29.90 },
+  ];
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (authUser) => {
-      if (!authUser) {
+      if (!authUser || authUser.email !== 'narcisofelizardo@gmail.com') {
         router.push('/admin/login');
       } else {
         setUser(authUser);
@@ -27,10 +55,10 @@ export default function AdminDashboard() {
     return () => unsubscribe();
   }, [router]);
 
+  // Load orders
   useEffect(() => {
     if (!user) return;
 
-    // Load orders in real-time from Firestore database
     const q = query(collection(db, 'orders'), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const ordersData = [];
@@ -41,7 +69,6 @@ export default function AdminDashboard() {
       setLoadingOrders(false);
     }, (error) => {
       console.error("Erro ao escutar pedidos:", error);
-      // Fallback local mock data for testing/offline presentation
       setOrders([
         {
           id: 'MOCK-ORDER-12345',
@@ -50,13 +77,13 @@ export default function AdminDashboard() {
           customerEmail: 'joao@email.com',
           customerPhone: '11999999999',
           honoreeName: 'Ana Maria',
-          occasion: 'namoro',
-          musicStyle: 'acoustic_folk',
+          occasion: 'Aniversário',
+          musicStyle: 'Romântica',
           voiceType: 'feminina',
           package: 'presente',
           total: 79.90,
           paymentStatus: 'PAGAMENTO_APROVADO',
-          productionStatus: 'EM_PRODUCAO',
+          productionStatus: 'LETRA_APROVADA',
           createdAt: { toDate: () => new Date() }
         }
       ]);
@@ -64,6 +91,33 @@ export default function AdminDashboard() {
     });
 
     return () => unsubscribe();
+  }, [user]);
+
+  // Load pricing
+  useEffect(() => {
+    if (!user) return;
+
+    const loadPricing = async () => {
+      setLoadingPricing(true);
+      try {
+        const docSnap = await getDoc(doc(db, 'config', 'pricing'));
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          setPackages(data.packages || defaultPackages);
+          setAddons(data.addons || defaultAddons);
+        } else {
+          setPackages(defaultPackages);
+          setAddons(defaultAddons);
+        }
+      } catch (err) {
+        console.error("Erro ao carregar preços:", err);
+        setPackages(defaultPackages);
+        setAddons(defaultAddons);
+      }
+      setLoadingPricing(false);
+    };
+
+    loadPricing();
   }, [user]);
 
   const handleLogout = async () => {
@@ -96,11 +150,10 @@ export default function AdminDashboard() {
 
   const getOccasionEmoji = (occ) => {
     switch (occ) {
-      case 'aniversario': return '🎂';
-      case 'casamento': return '💒';
-      case 'namoro': return '💕';
-      case 'mae_pai': return '👩‍👦';
-      case 'empresa': return '🏢';
+      case 'Aniversário': return '🎂';
+      case 'Aniv. de Casamento': return '💎';
+      case 'Dia dos Namorados': return '💝';
+      case 'Dia das Mães': return '🌷';
       default: return '✨';
     }
   };
@@ -122,6 +175,54 @@ export default function AdminDashboard() {
     }
   };
 
+  // Pricing edit handlers
+  const handleUpdatePackage = (index, field, value) => {
+    const updated = [...packages];
+    updated[index][field] = field === 'price' ? parseFloat(value) || 0 : value;
+    setPackages(updated);
+  };
+
+  const handleUpdateAddon = (index, field, value) => {
+    const updated = [...addons];
+    updated[index][field] = field === 'price' ? parseFloat(value) || 0 : value;
+    setAddons(updated);
+  };
+
+  const handleAddPackage = () => {
+    const newId = `pacote_${Date.now()}`;
+    setPackages([...packages, { id: newId, name: 'Novo Pacote', price: 99.90, desc: 'Descrição do pacote...' }]);
+  };
+
+  const handleRemovePackage = (index) => {
+    setPackages(packages.filter((_, i) => i !== index));
+  };
+
+  const handleAddAddon = () => {
+    const newId = `addon_${Date.now()}`;
+    setAddons([...addons, { id: newId, name: 'Novo Adicional', price: 9.90 }]);
+  };
+
+  const handleRemoveAddon = (index) => {
+    setAddons(addons.filter((_, i) => i !== index));
+  };
+
+  const handleSavePricing = async () => {
+    setSavingPricing(true);
+    setPricingMessage('');
+    try {
+      await setDoc(doc(db, 'config', 'pricing'), {
+        packages,
+        addons
+      });
+      setPricingMessage('✅ Configurações de preços salvas com sucesso!');
+      setTimeout(() => setPricingMessage(''), 4000);
+    } catch (err) {
+      console.error(err);
+      setPricingMessage('❌ Erro ao salvar preços no Firestore.');
+    }
+    setSavingPricing(false);
+  };
+
   if (checkingAuth) {
     return (
       <div style={styles.loadingWrapper}>
@@ -137,10 +238,39 @@ export default function AdminDashboard() {
       {/* Sidebar/Header */}
       <header style={styles.header} className="glass-panel">
         <div style={styles.headerContainer}>
-          <Link href="/admin" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <img src="/logo.png" alt="NSMusic" style={{ height: '36px', width: 'auto' }} />
-            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Admin</span>
-          </Link>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <Link href="/admin" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <img src="/logo.png" alt="NSMusic" style={{ height: '36px', width: 'auto' }} />
+              <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Admin</span>
+            </Link>
+            
+            {/* Tabs Navigation */}
+            <div style={{ display: 'flex', gap: '8px', marginLeft: '24px' }}>
+              <button 
+                onClick={() => setActiveTab('ORDERS')}
+                style={{
+                  ...styles.tabBtn,
+                  backgroundColor: activeTab === 'ORDERS' ? 'rgba(124, 58, 237, 0.15)' : 'transparent',
+                  color: activeTab === 'ORDERS' ? '#fff' : 'var(--text-secondary)',
+                  borderColor: activeTab === 'ORDERS' ? 'var(--primary)' : 'transparent'
+                }}
+              >
+                📦 Pedidos
+              </button>
+              <button 
+                onClick={() => setActiveTab('PRICING')}
+                style={{
+                  ...styles.tabBtn,
+                  backgroundColor: activeTab === 'PRICING' ? 'rgba(124, 58, 237, 0.15)' : 'transparent',
+                  color: activeTab === 'PRICING' ? '#fff' : 'var(--text-secondary)',
+                  borderColor: activeTab === 'PRICING' ? 'var(--primary)' : 'transparent'
+                }}
+              >
+                💵 Preços & Pacotes
+              </button>
+            </div>
+          </div>
+
           <div style={styles.userInfo}>
             <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{user.email}</span>
             <button onClick={handleLogout} style={styles.logoutBtn}>Sair ➔</button>
@@ -151,128 +281,257 @@ export default function AdminDashboard() {
       <main style={{ flex: 1, padding: '40px 0' }}>
         <div className="container">
           
-          {/* Metrics summary cards */}
-          <div style={styles.metricsGrid}>
-            <div style={styles.metricCard} className="glass-card">
-              <span style={styles.metricLabel}>Faturamento Total</span>
-              <h2 style={styles.metricValue} className="gradient-text">R$ {getFaturamentoTotal().toFixed(2)}</h2>
-            </div>
-            <div style={styles.metricCard} className="glass-card">
-              <span style={styles.metricLabel}>Total de Pedidos</span>
-              <h2 style={styles.metricValue}>{orders.length}</h2>
-            </div>
-            <div style={styles.metricCard} className="glass-card">
-              <span style={styles.metricLabel}>Novos (Aguardando Produção)</span>
-              <h2 style={styles.metricValue}>{orders.filter(o => o.productionStatus === 'LETRA_APROVADA').length}</h2>
-            </div>
-            <div style={styles.metricCard} className="glass-card">
-              <span style={styles.metricLabel}>Em Produção</span>
-              <h2 style={styles.metricValue}>{orders.filter(o => o.productionStatus === 'EM_PRODUCAO').length}</h2>
-            </div>
-          </div>
+          {activeTab === 'ORDERS' ? (
+            <div>
+              {/* Metrics summary cards */}
+              <div style={styles.metricsGrid}>
+                <div style={styles.metricCard} className="glass-card">
+                  <span style={styles.metricLabel}>Faturamento Total</span>
+                  <h2 style={styles.metricValue} className="gradient-text">R$ {getFaturamentoTotal().toFixed(2)}</h2>
+                </div>
+                <div style={styles.metricCard} className="glass-card">
+                  <span style={styles.metricLabel}>Total de Pedidos</span>
+                  <h2 style={styles.metricValue}>{orders.length}</h2>
+                </div>
+                <div style={styles.metricCard} className="glass-card">
+                  <span style={styles.metricLabel}>Novos (Aguardando Produção)</span>
+                  <h2 style={styles.metricValue}>{orders.filter(o => o.productionStatus === 'LETRA_APROVADA').length}</h2>
+                </div>
+                <div style={styles.metricCard} className="glass-card">
+                  <span style={styles.metricLabel}>Em Produção</span>
+                  <h2 style={styles.metricValue}>{orders.filter(o => o.productionStatus === 'EM_PRODUCAO').length}</h2>
+                </div>
+              </div>
 
-          {/* Filters and List */}
-          <div style={{ marginTop: '40px' }}>
-            <div style={styles.filterBar}>
-              <div style={styles.filterTitle}>
-                <h3 style={{ fontSize: '1.25rem', fontFamily: 'var(--font-family-title)' }}>Pedidos Recebidos</h3>
-              </div>
-              <div style={styles.filterBtns}>
-                <button 
-                  onClick={() => setFilter('ALL')} 
-                  style={{ ...styles.filterBtn, borderBottom: filter === 'ALL' ? '2px solid var(--primary)' : 'none', color: filter === 'ALL' ? '#fff' : 'var(--text-muted)' }}
-                >
-                  Todos ({orders.length})
-                </button>
-                <button 
-                  onClick={() => setFilter('NEW')} 
-                  style={{ ...styles.filterBtn, borderBottom: filter === 'NEW' ? '2px solid var(--primary)' : 'none', color: filter === 'NEW' ? '#fff' : 'var(--text-muted)' }}
-                >
-                  Novos ({orders.filter(o => o.paymentStatus === 'PAGAMENTO_APROVADO' && o.productionStatus === 'LETRA_APROVADA').length})
-                </button>
-                <button 
-                  onClick={() => setFilter('PRODUCTION')} 
-                  style={{ ...styles.filterBtn, borderBottom: filter === 'PRODUCTION' ? '2px solid var(--primary)' : 'none', color: filter === 'PRODUCTION' ? '#fff' : 'var(--text-muted)' }}
-                >
-                  Em Produção ({orders.filter(o => o.productionStatus === 'EM_PRODUCAO' || o.productionStatus === 'VERSOES_EM_PRODUCAO').length})
-                </button>
-                <button 
-                  onClick={() => setFilter('FINISHED')} 
-                  style={{ ...styles.filterBtn, borderBottom: filter === 'FINISHED' ? '2px solid var(--primary)' : 'none', color: filter === 'FINISHED' ? '#fff' : 'var(--text-muted)' }}
-                >
-                  Finalizados ({orders.filter(o => o.productionStatus === 'FINALIZADO' || o.productionStatus === 'ENTREGUE').length})
-                </button>
+              {/* Filters and List */}
+              <div style={{ marginTop: '40px' }}>
+                <div style={styles.filterBar}>
+                  <div style={styles.filterTitle}>
+                    <h3 style={{ fontSize: '1.25rem', fontFamily: 'var(--font-family-title)' }}>Pedidos Recebidos</h3>
+                  </div>
+                  <div style={styles.filterBtns}>
+                    <button 
+                      onClick={() => setFilter('ALL')} 
+                      style={{ ...styles.filterBtn, borderBottom: filter === 'ALL' ? '2px solid var(--primary)' : 'none', color: filter === 'ALL' ? '#fff' : 'var(--text-muted)' }}
+                    >
+                      Todos ({orders.length})
+                    </button>
+                    <button 
+                      onClick={() => setFilter('NEW')} 
+                      style={{ ...styles.filterBtn, borderBottom: filter === 'NEW' ? '2px solid var(--primary)' : 'none', color: filter === 'NEW' ? '#fff' : 'var(--text-muted)' }}
+                    >
+                      Novos ({orders.filter(o => o.paymentStatus === 'PAGAMENTO_APROVADO' && o.productionStatus === 'LETRA_APROVADA').length})
+                    </button>
+                    <button 
+                      onClick={() => setFilter('PRODUCTION')} 
+                      style={{ ...styles.filterBtn, borderBottom: filter === 'PRODUCTION' ? '2px solid var(--primary)' : 'none', color: filter === 'PRODUCTION' ? '#fff' : 'var(--text-muted)' }}
+                    >
+                      Em Produção ({orders.filter(o => o.productionStatus === 'EM_PRODUCAO' || o.productionStatus === 'VERSOES_EM_PRODUCAO').length})
+                    </button>
+                    <button 
+                      onClick={() => setFilter('FINISHED')} 
+                      style={{ ...styles.filterBtn, borderBottom: filter === 'FINISHED' ? '2px solid var(--primary)' : 'none', color: filter === 'FINISHED' ? '#fff' : 'var(--text-muted)' }}
+                    >
+                      Finalizados ({orders.filter(o => o.productionStatus === 'FINALIZADO' || o.productionStatus === 'ENTREGUE').length})
+                    </button>
+                  </div>
+                </div>
+
+                {loadingOrders ? (
+                  <div style={styles.loadingOrders}>
+                    <div style={styles.spinner} />
+                    <p style={{ marginTop: '16px', color: 'var(--text-secondary)' }}>Carregando listagem de pedidos...</p>
+                  </div>
+                ) : filteredOrders.length === 0 ? (
+                  <div style={styles.emptyState} className="glass-card">
+                    <span>📭</span>
+                    <h4>Nenhum pedido encontrado</h4>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '4px' }}>Nenhum registro se enquadra no filtro selecionado.</p>
+                  </div>
+                ) : (
+                  <div style={styles.tableCard} className="glass-card">
+                    <table style={styles.table}>
+                      <thead>
+                        <tr style={styles.thRow}>
+                          <th style={styles.th}>Código</th>
+                          <th style={styles.th}>Cliente</th>
+                          <th style={styles.th}>Homenageado</th>
+                          <th style={styles.th}>Estilo/Voz</th>
+                          <th style={styles.th}>Pacote</th>
+                          <th style={styles.th}>Valor</th>
+                          <th style={styles.th}>Pagamento</th>
+                          <th style={styles.th}>Produção</th>
+                          <th style={styles.th}>Data</th>
+                          <th style={styles.th}>Ação</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredOrders.map((o) => (
+                          <tr key={o.id} style={styles.tr}>
+                            <td style={{ ...styles.td, fontWeight: '700' }}>{o.orderNumber || o.id.substring(0, 8)}</td>
+                            <td style={styles.td}>
+                              <div>{o.customerName}</div>
+                              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{o.customerPhone}</div>
+                            </td>
+                            <td style={styles.td}>
+                              {getOccasionEmoji(o.occasion)} {o.honoreeName}
+                            </td>
+                            <td style={{ ...styles.td, fontSize: '0.85rem' }}>
+                              <div>{o.musicStyle}</div>
+                              <div style={{ color: 'var(--text-muted)' }}>{o.voiceType}</div>
+                            </td>
+                            <td style={{ ...styles.td, textTransform: 'capitalize' }}>{o.package}</td>
+                            <td style={{ ...styles.td, fontWeight: '700' }}>R$ {(Number(o.total) || 0).toFixed(2)}</td>
+                            <td style={styles.td}>
+                              <span style={{ ...styles.statusBadge, border: `1px solid ${getStatusBadgeColor(o.paymentStatus)}22`, color: getStatusBadgeColor(o.paymentStatus), backgroundColor: `${getStatusBadgeColor(o.paymentStatus)}08` }}>
+                                {o.paymentStatus === 'PAGAMENTO_APROVADO' ? 'Aprovado' : 'Aguardando'}
+                              </span>
+                            </td>
+                            <td style={styles.td}>
+                              <span style={{ ...styles.statusBadge, border: `1px solid ${getStatusBadgeColor(o.productionStatus)}22`, color: getStatusBadgeColor(o.productionStatus), backgroundColor: `${getStatusBadgeColor(o.productionStatus)}08` }}>
+                                {o.productionStatus}
+                              </span>
+                            </td>
+                            <td style={styles.td}>{o.createdAt?.toDate ? o.createdAt.toDate().toLocaleDateString('pt-BR') : o.createdAt || 'N/A'}</td>
+                            <td style={styles.td}>
+                              <Link href={`/admin/pedidos/${o.id}`} className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '0.8rem' }}>
+                                Gerenciar ⚙️
+                              </Link>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             </div>
+          ) : (
+            // Pricing management tab
+            <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                <h2 style={{ fontSize: '1.5rem', fontFamily: 'var(--font-family-title)' }}>Configurações de Preços e Pacotes</h2>
+                <button 
+                  onClick={handleSavePricing}
+                  disabled={savingPricing}
+                  className="btn btn-primary"
+                  style={{ padding: '12px 28px', fontSize: '0.95rem' }}
+                >
+                  {savingPricing ? 'Salvando...' : 'Salvar Alterações 💾'}
+                </button>
+              </div>
 
-            {loadingOrders ? (
-              <div style={styles.loadingOrders}>
-                <div style={styles.spinner} />
-                <p style={{ marginTop: '16px', color: 'var(--text-secondary)' }}>Carregando listagem de pedidos...</p>
-              </div>
-            ) : filteredOrders.length === 0 ? (
-              <div style={styles.emptyState} className="glass-card">
-                <span>📭</span>
-                <h4>Nenhum pedido encontrado</h4>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '4px' }}>Nenhum registro se enquadra no filtro selecionado.</p>
-              </div>
-            ) : (
-              <div style={styles.tableCard} className="glass-card">
-                <table style={styles.table}>
-                  <thead>
-                    <tr style={styles.thRow}>
-                      <th style={styles.th}>Código</th>
-                      <th style={styles.th}>Cliente</th>
-                      <th style={styles.th}>Homenageado</th>
-                      <th style={styles.th}>Estilo/Voz</th>
-                      <th style={styles.th}>Pacote</th>
-                      <th style={styles.th}>Valor</th>
-                      <th style={styles.th}>Pagamento</th>
-                      <th style={styles.th}>Produção</th>
-                      <th style={styles.th}>Data</th>
-                      <th style={styles.th}>Ação</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredOrders.map((o) => (
-                      <tr key={o.id} style={styles.tr}>
-                        <td style={{ ...styles.td, fontWeight: '700' }}>{o.orderNumber || o.id.substring(0, 8)}</td>
-                        <td style={styles.td}>
-                          <div>{o.customerName}</div>
-                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{o.customerPhone}</div>
-                        </td>
-                        <td style={styles.td}>
-                          {getOccasionEmoji(o.occasion)} {o.honoreeName}
-                        </td>
-                        <td style={{ ...styles.td, fontSize: '0.85rem' }}>
-                          <div>{o.musicStyle}</div>
-                          <div style={{ color: 'var(--text-muted)' }}>{o.voiceType}</div>
-                        </td>
-                        <td style={{ ...styles.td, textTransform: 'capitalize' }}>{o.package}</td>
-                        <td style={{ ...styles.td, fontWeight: '700' }}>R$ {(Number(o.total) || 0).toFixed(2)}</td>
-                        <td style={styles.td}>
-                          <span style={{ ...styles.statusBadge, border: `1px solid ${getStatusBadgeColor(o.paymentStatus)}22`, color: getStatusBadgeColor(o.paymentStatus), backgroundColor: `${getStatusBadgeColor(o.paymentStatus)}08` }}>
-                            {o.paymentStatus === 'PAGAMENTO_APROVADO' ? 'Aprovado' : 'Aguardando'}
-                          </span>
-                        </td>
-                        <td style={styles.td}>
-                          <span style={{ ...styles.statusBadge, border: `1px solid ${getStatusBadgeColor(o.productionStatus)}22`, color: getStatusBadgeColor(o.productionStatus), backgroundColor: `${getStatusBadgeColor(o.productionStatus)}08` }}>
-                            {o.productionStatus}
-                          </span>
-                        </td>
-                        <td style={styles.td}>{o.createdAt?.toDate ? o.createdAt.toDate().toLocaleDateString('pt-BR') : o.createdAt || 'N/A'}</td>
-                        <td style={styles.td}>
-                          <Link href={`/admin/pedidos/${o.id}`} className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '0.8rem' }}>
-                            Gerenciar ⚙️
-                          </Link>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+              {pricingMessage && (
+                <div style={{ ...styles.infoAlert, backgroundColor: 'rgba(16, 185, 129, 0.1)', borderColor: 'var(--success)', color: '#fff', marginBottom: '20px' }}>
+                  {pricingMessage}
+                </div>
+              )}
+
+              {loadingPricing ? (
+                <div style={styles.loadingOrders}>
+                  <div style={styles.spinner} />
+                  <p style={{ marginTop: '16px', color: 'var(--text-secondary)' }}>Carregando dados de preços...</p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+                  
+                  {/* Pacotes section */}
+                  <div className="glass-card" style={{ padding: '24px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                      <h3 style={{ fontSize: '1.2rem', color: 'var(--primary)' }}>Pacotes de Áudio</h3>
+                      <button onClick={handleAddPackage} className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '0.85rem' }}>
+                        ➕ Adicionar Pacote
+                      </button>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                      {packages.map((pkg, idx) => (
+                        <div key={pkg.id || idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', paddingBottom: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                          <div style={{ display: 'flex', gap: '16px' }}>
+                            <div style={{ flex: 2 }}>
+                              <label style={styles.formLabel}>Nome do Pacote</label>
+                              <input 
+                                type="text" 
+                                value={pkg.name}
+                                onChange={(e) => handleUpdatePackage(idx, 'name', e.target.value)}
+                                style={styles.adminInput}
+                              />
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <label style={styles.formLabel}>Preço (R$)</label>
+                              <input 
+                                type="number" 
+                                step="0.01"
+                                value={pkg.price}
+                                onChange={(e) => handleUpdatePackage(idx, 'price', e.target.value)}
+                                style={styles.adminInput}
+                              />
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                              <button onClick={() => handleRemovePackage(idx)} className="btn btn-secondary" style={{ padding: '14px', color: 'var(--danger)' }}>
+                                🗑️
+                              </button>
+                            </div>
+                          </div>
+                          <div>
+                            <label style={styles.formLabel}>Descrição / Benefícios</label>
+                            <input 
+                              type="text" 
+                              value={pkg.desc}
+                              onChange={(e) => handleUpdatePackage(idx, 'desc', e.target.value)}
+                              style={styles.adminInput}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Adicionais section */}
+                  <div className="glass-card" style={{ padding: '24px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                      <h3 style={{ fontSize: '1.2rem', color: 'var(--secondary)' }}>Produtos Adicionais (Addons)</h3>
+                      <button onClick={handleAddAddon} className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '0.85rem' }}>
+                        ➕ Adicionar Opcional
+                      </button>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                      {addons.map((addon, idx) => (
+                        <div key={addon.id || idx} style={{ display: 'flex', gap: '16px', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.04)', paddingBottom: '12px' }}>
+                          <div style={{ flex: 3 }}>
+                            <label style={styles.formLabel}>Nome do Adicional</label>
+                            <input 
+                              type="text" 
+                              value={addon.name}
+                              onChange={(e) => handleUpdateAddon(idx, 'name', e.target.value)}
+                              style={styles.adminInput}
+                            />
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <label style={styles.formLabel}>Preço (R$)</label>
+                            <input 
+                              type="number" 
+                              step="0.01"
+                              value={addon.price}
+                              onChange={(e) => handleUpdateAddon(idx, 'price', e.target.value)}
+                              style={styles.adminInput}
+                            />
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'flex-end', marginTop: '22px' }}>
+                            <button onClick={() => handleRemoveAddon(idx)} className="btn btn-secondary" style={{ padding: '14px', color: 'var(--danger)' }}>
+                              🗑️
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                </div>
+              )}
+            </div>
+          )}
 
         </div>
       </main>
@@ -316,20 +575,14 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  logo: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-  },
-  logoIcon: {
-    fontSize: '1.5rem',
-  },
-  logoText: {
-    fontFamily: 'var(--font-family-title)',
-    fontWeight: '800',
-    fontSize: '1.3rem',
-    letterSpacing: '-0.02em',
-    color: '#fff',
+  tabBtn: {
+    padding: '8px 16px',
+    borderRadius: '8px',
+    border: '1px solid transparent',
+    fontSize: '0.9rem',
+    fontWeight: '600',
+    cursor: 'pointer',
+    transition: 'all 0.2s',
   },
   userInfo: {
     display: 'flex',
@@ -445,4 +698,28 @@ const styles = {
     textTransform: 'uppercase',
     letterSpacing: '0.03em',
   },
+  infoAlert: {
+    padding: '16px 20px',
+    borderRadius: '8px',
+    border: '1px solid rgba(255,255,255,0.06)',
+    backgroundColor: 'rgba(255,255,255,0.01)',
+  },
+  formLabel: {
+    fontSize: '0.8rem',
+    fontWeight: '600',
+    color: 'var(--text-secondary)',
+    marginBottom: '4px',
+    display: 'block',
+  },
+  adminInput: {
+    width: '100%',
+    padding: '10px 14px',
+    backgroundColor: 'rgba(255,255,255,0.02)',
+    border: '1px solid var(--border-color)',
+    borderRadius: '6px',
+    color: '#fff',
+    fontFamily: 'var(--font-family-body)',
+    fontSize: '0.9rem',
+    outline: 'none',
+  }
 };
