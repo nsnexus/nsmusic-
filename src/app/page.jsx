@@ -115,7 +115,7 @@ export default function Home() {
         <div style={styles.heroBgGlow} />
         <div className="container" style={styles.heroContainer}>
           <div style={styles.heroBadge} className="glass-card">
-            <span>✨ Transforme histórias em música com IA</span>
+            <span>✨ NSMusic — Transforme histórias em música com IA</span>
           </div>
           <h1 className="hero-title">
             Sua história contada em uma <br />
