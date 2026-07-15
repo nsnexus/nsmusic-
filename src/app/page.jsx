@@ -309,6 +309,10 @@ export default function Home() {
             <p style={styles.footerTagline}>Eternizando momentos marcantes através de acordes e versos únicos.</p>
           </div>
           <div className="footer-rights">
+            <div className="footer-links">
+              <Link href="/politica-de-privacidade" style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Política de Privacidade</Link>
+              <Link href="/termos-de-uso" style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Termos de Uso</Link>
+            </div>
             <p>© {new Date().getFullYear()} NSMusic. Todos os direitos reservados.</p>
             <p style={{ marginTop: '8px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>Projetado e desenvolvido com tecnologia de ponta.</p>
           </div>

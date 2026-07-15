@@ -281,3 +281,17 @@ a {
   }
 }
 
+.footer-links {
+  display: flex;
+  gap: 20px;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 768px) {
+  .footer-links {
+    justify-content: flex-start !important;
+  }
+}
+
