@@ -115,14 +115,14 @@ export default function Home() {
         <div style={styles.heroBgGlow} />
         <div className="container" style={styles.heroContainer}>
           <div style={styles.heroBadge} className="glass-card">
-            <span>✨ NSMusic — Transforme histórias em música com IA</span>
+            <span>✨ Transforme histórias em música com Inteligência Artificial</span>
           </div>
           <h1 className="hero-title">
-            Sua história contada em uma <br />
-            <span className="gradient-text">Canção Exclusiva</span>
+            <span className="gradient-text">NSMusic</span> — Sua história{' '}
+            contada em uma Canção Exclusiva
           </h1>
           <p style={styles.heroSubtitle}>
-            Escolha o estilo, conte os momentos mais marcantes e receba uma música personalizada de alta qualidade com letra emocionante criada especialmente para você ou para presentear.
+            A NSMusic é uma plataforma de criação de músicas personalizadas com Inteligência Artificial. Escolha o estilo, conte os momentos mais marcantes e receba uma canção de alta qualidade com letra emocionante criada especialmente para você ou para presentear quem você ama.
           </p>
           <div style={styles.heroActions}>
             <Link href="/criar" className="btn btn-primary" style={{ fontSize: '1.1rem', padding: '16px 36px' }}>
