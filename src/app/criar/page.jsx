@@ -2,11 +2,13 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, addDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
 export default function CriarMusica() {
   const [step, setStep] = useState(1);
+  const [orderId, setOrderId] = useState('');
+  
   const [formData, setFormData] = useState({
     // Step 1
     recipientType: '',
@@ -37,12 +39,16 @@ export default function CriarMusica() {
     lyricsVersion: 1,
     lyricsStatus: 'idle', // 'idle', 'generating', 'generated', 'error'
     lyricsComment: '',
-    // Step 11: Pricing package
+    // Step 11: Suno AI Audio state
+    sunoStatus: 'idle', // 'idle', 'generating', 'generated', 'error'
+    sunoProgress: '',
+    sunoTracks: [],
+    addVersion2: false,
+    // Step 12: Pricing package
     selectedPackage: '',
-    // Step 12: Addons
+    // Step 13: Addons
     addons: {
-      extraSongs2: false,
-      extraSongs3: false,
+      extraSongs2: false, // will represent version 2 addon
       photoVideo: false,
       spotifyDistribution: false,
       premiumCover: false,
@@ -54,7 +60,8 @@ export default function CriarMusica() {
   });
 
   const totalWizardSteps = 9;
-  const audioRef = useRef(null);
+  const audio1Ref = useRef(null);
+  const audio2Ref = useRef(null);
 
   // States for packages and addons loaded dynamically from Firestore
   const [packagesList, setPackagesList] = useState([
@@ -64,8 +71,7 @@ export default function CriarMusica() {
   ]);
 
   const [addonsConfig, setAddonsConfig] = useState([
-    { id: 'extraSongs2', name: '➕ 2 Músicas adicionais (mesma letra, estilos diferentes)', price: 39.90 },
-    { id: 'extraSongs3', name: '➕ 3 Músicas adicionais (mesma letra, estilos diferentes)', price: 59.90 },
+    { id: 'extraSongs2', name: '➕ Adicionar Versão 2 (Estilo alternativo gerado com IA)', price: 39.90 },
     { id: 'photoVideo', name: '🎥 Vídeo com fotos (sincronizado com a música)', price: 49.90 },
     { id: 'spotifyDistribution', name: '🎧 Publicação no Spotify e plataformas de streaming', price: 99.90 },
     { id: 'premiumCover', name: '🖼️ Capa Premium personalizada profissional', price: 19.90 },
@@ -91,6 +97,11 @@ export default function CriarMusica() {
     };
     loadPricing();
   }, []);
+
+  // Sync Version 2 selection with addons list
+  useEffect(() => {
+    updateAddon('extraSongs2', formData.addVersion2);
+  }, [formData.addVersion2]);
 
   // Configuration options
   const recipients = [
@@ -214,9 +225,34 @@ export default function CriarMusica() {
     return getSelectedPackagePrice() + getAddonsPrice();
   };
 
-  const generateLyrics = async () => {
+  // Step 9: Save Order to Firestore first, then trigger lyrics generation
+  const handleSaveAndGenerateLyrics = async () => {
     updateField('lyricsStatus', 'generating');
+    setStep(10);
     try {
+      // Create initial order in Firestore in 'Aguardando Pagamento'
+      const docRef = await addDoc(collection(db, 'orders'), {
+        orderNumber: `NS-${Math.floor(10000 + Math.random() * 90000)}-2026`,
+        customerName: formData.customerName,
+        customerPhone: formData.customerPhone,
+        customerEmail: formData.customerEmail,
+        honoreeName: formData.honoreeName,
+        recipientType: formData.recipientType,
+        relationship: formData.relationship,
+        occasion: formData.occasion,
+        story: formData.story,
+        importantMoments: formData.importantMoments,
+        musicStyle: formData.musicStyle,
+        musicMood: formData.musicMood,
+        voiceType: formData.voiceType,
+        paymentStatus: 'AGUARDANDO_PAGAMENTO',
+        productionStatus: 'LETRA_GERADA',
+        createdAt: new Date()
+      });
+
+      setOrderId(docRef.id);
+
+      // Call lyrics generation
       const response = await fetch('/api/lyrics/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -230,19 +266,29 @@ export default function CriarMusica() {
           lyrics: data.lyrics,
           lyricsStatus: 'generated'
         }));
+        // Update order in Firestore with generated lyrics
+        await updateDoc(docRef, { lyrics: data.lyrics });
       } else {
         throw new Error('Falha ao gerar letra');
       }
     } catch (err) {
       console.error(err);
-      setTimeout(() => {
-        setFormData(prev => ({
-          ...prev,
-          lyrics: `[Verso 1]\nNo compasso do tempo eu te vi chegar\n${formData.honoreeName || 'Amor'}, seu jeito me ensinou a sonhar\nNossa trilha tem risos, tem carinho e união\nGuardo cada momento no meu coração.\n\n[Refrão]\nCom você, a vida tem outro sabor\nNum abraço apertado esquecemos a dor\n${formData.requiredPhrase || 'Te amo mais que ontem e muito mais que amanhã'},\nNossa melodia é eterna, pura e sã.\n\n[Verso 2]\nLembro de cada detalhe da nossa história singular\nDos planos traçados olhando pro mar\nCom sua voz tão marcante e carinho sem igual\nVocê transformou nossa vida em algo especial.`,
-          lyricsStatus: 'generated'
-        }));
-      }, 2000);
+      const fallbackLyrics = `[Verso 1]\nNo compasso do tempo eu te vi chegar\n${formData.honoreeName || 'Amor'}, seu jeito me ensinou a sonhar\nNossa trilha tem risos, tem carinho e união\nGuardo cada momento no meu coração.\n\n[Refrão]\nCom você, a vida tem outro sabor\nNum abraço apertado esquecemos a dor\n${formData.requiredPhrase || 'Te amo mais que ontem e muito mais que amanhã'},\nNossa melodia é eterna, pura e sã.\n\n[Verso 2]\nLembro de cada detalhe da nossa história singular\nDos planos traçados olhando pro mar\nCom sua voz tão marcante e carinho sem igual\nVocê transformou nossa vida em algo especial.`;
+      
+      setFormData(prev => ({
+        ...prev,
+        lyrics: fallbackLyrics,
+        lyricsStatus: 'generated'
+      }));
+
+      if (orderId) {
+        await updateDoc(doc(db, 'orders', orderId), { lyrics: fallbackLyrics });
+      }
     }
+  };
+
+  const generateLyrics = async () => {
+    // Legacy helper trigger, handled inside handleSaveAndGenerateLyrics
   };
 
   const requestLyricsAdjustment = async () => {
@@ -268,6 +314,10 @@ export default function CriarMusica() {
           lyricsVersion: prev.lyricsVersion + 1,
           lyricsComment: ''
         }));
+        // Update lyrics version in Firestore
+        if (orderId) {
+          await updateDoc(doc(db, 'orders', orderId), { lyrics: data.lyrics });
+        }
       } else {
         throw new Error('Falha ao ajustar');
       }
@@ -277,10 +327,115 @@ export default function CriarMusica() {
     }
   };
 
-  const nextStep = () => {
-    if (step === 9) {
-      generateLyrics();
+  // Step 10 Approval -> Move to Audio Generation preview screen (Step 11)
+  const handleApproveLyrics = async () => {
+    setStep(11);
+    updateField('sunoStatus', 'generating');
+    updateField('sunoProgress', 'Enviando composição de letra ao Suno AI...');
+
+    try {
+      const response = await fetch('/api/suno/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: formData.lyrics,
+          tags: `${formData.musicStyle} ${formData.musicMood} voice ${formData.voiceType}`,
+          orderId
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Falha ao acionar a API do Suno.');
+      }
+
+      const data = await response.json();
+      const tracks = data.tracks;
+
+      if (!tracks || tracks.length === 0) {
+        throw new Error('Nenhum áudio retornado.');
+      }
+
+      setFormData(prev => ({
+        ...prev,
+        sunoTracks: tracks
+      }));
+
+      // Poll status for completing audio rendering
+      pollSunoStatus(tracks.map(t => t.id).join(','));
+    } catch (err) {
+      console.error(err);
+      // Fallback with static presentation tracks if API offline
+      setTimeout(() => {
+        const mockTracks = [
+          { id: 'mock_1', audio_url: '/audio/track1.mp3', status: 'complete', title: 'Versão 1 - Romântica' },
+          { id: 'mock_2', audio_url: '/audio/track2.mp3', status: 'complete', title: 'Versão 2 - Acústica' }
+        ];
+        setFormData(prev => ({
+          ...prev,
+          sunoTracks: mockTracks,
+          sunoStatus: 'generated'
+        }));
+      }, 3000);
     }
+  };
+
+  const pollSunoStatus = (ids) => {
+    let attempts = 0;
+    const maxAttempts = 30; // 150 seconds max
+    updateField('sunoProgress', 'Aguardando o Suno compor e renderizar os áudios (1 a 2 min)...');
+
+    const interval = setInterval(async () => {
+      attempts++;
+      try {
+        const res = await fetch(`/api/suno/status?ids=${ids}`);
+        if (res.ok) {
+          const statusData = await res.json();
+          const isComplete = statusData.every(t => t.status === 'complete');
+          const hasAudio = statusData.every(t => t.audio_url);
+
+          if (isComplete || hasAudio) {
+            setFormData(prev => ({
+              ...prev,
+              sunoTracks: statusData,
+              sunoStatus: 'generated'
+            }));
+            clearInterval(interval);
+
+            // Save audioUrls to Firestore automatically
+            if (orderId) {
+              const primaryAudio = statusData.find(t => t.audio_url)?.audio_url || '';
+              await updateDoc(doc(db, 'orders', orderId), {
+                audioUrl: primaryAudio,
+                audioFiles: statusData.map(t => t.audio_url).filter(Boolean)
+              });
+            }
+          } else {
+            updateField('sunoProgress', `Suno compondo arranjos... Tentativa ${attempts} de ${maxAttempts}`);
+          }
+        }
+      } catch (err) {
+        console.error(err);
+      }
+
+      if (attempts >= maxAttempts) {
+        clearInterval(interval);
+        updateField('sunoStatus', 'error');
+        updateField('sunoProgress', 'Não foi possível concluir em tempo real. Os áudios serão enviados manualmente.');
+      }
+    }, 5000);
+  };
+
+  // Time update handler to lock playback of previews to 60 seconds
+  const handleAudioTimeUpdate = (e, playerIdx) => {
+    const audio = e.target;
+    if (audio.currentTime > 60) {
+      audio.pause();
+      audio.currentTime = 60;
+      alert("🔒 Prévia de 60 segundos finalizada! Efetue o pagamento para liberar a música completa e fazer o download.");
+    }
+  };
+
+  const nextStep = () => {
     setStep(prev => prev + 1);
   };
 
@@ -298,7 +453,8 @@ export default function CriarMusica() {
     if (step === 7 && !formData.musicMood) return true;
     if (step === 9 && (!formData.customerName || !isPhoneValid(formData.customerPhone))) return true;
     if (step === 10 && formData.lyricsStatus !== 'generated') return true;
-    if (step === 11 && !formData.selectedPackage) return true;
+    if (step === 11 && formData.sunoStatus !== 'generated') return true;
+    if (step === 12 && !formData.selectedPackage) return true;
     return false;
   };
 
@@ -674,7 +830,7 @@ export default function CriarMusica() {
             ) : (
               <div>
                 <h1 style={styles.stepTitle}>Sua Letra Exclusiva ✨</h1>
-                <p style={styles.stepSubtitle}>Revisada e gerada com IA especialmente para você. Se gostar, aprove para escolher o pacote!</p>
+                <p style={styles.stepSubtitle}>Revisada e gerada com IA especialmente para você. Se gostar, aprove para compor a música!</p>
                 
                 <div className="responsive-grid-split">
                   <div style={styles.lyricsBox}>
@@ -715,11 +871,104 @@ export default function CriarMusica() {
             )}
           </div>
         );
-      case 11: // Choice of Audio Package
+      case 11: // Direct Suno Audio Generation & 60s Preview Playback
         return (
           <div>
-            <h1 style={styles.stepTitle}>Escolha o Pacote de Áudio 🎧</h1>
-            <p style={styles.stepSubtitle}>Escolha a melhor qualidade e formato de entrega da sua homenagem</p>
+            {formData.sunoStatus === 'generating' ? (
+              <div style={styles.generatingState}>
+                <div style={styles.spinner} />
+                <h3 style={{ marginTop: '24px', fontFamily: 'var(--font-family-title)', fontSize: '1.6rem' }}>Criando os arranjos e gravando áudios...</h3>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', marginTop: '8px', maxWidth: '500px' }}>
+                  {formData.sunoProgress || 'Aguardando o processamento do Suno AI...'}
+                </p>
+              </div>
+            ) : (
+              <div>
+                <h1 style={styles.stepTitle}>Sua Música Está Pronta! 🎧</h1>
+                <p style={styles.stepSubtitle}>Ouça as prévias de 60 segundos geradas exclusivamente para você. Escolha seu pacote para liberar o download!</p>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', maxWidth: '680px', margin: '30px auto 0' }}>
+                  {/* Version 1 Preview Card */}
+                  <div className="glass-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <h3 style={{ fontSize: '1.15rem', fontWeight: '700' }}>🎵 Versão Principal (Versão 1)</h3>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--success)', fontWeight: 'bold' }}>Disponível na Compra ✓</span>
+                    </div>
+                    {formData.sunoTracks[0]?.audio_url ? (
+                      <audio 
+                        ref={audio1Ref}
+                        src={formData.sunoTracks[0].audio_url} 
+                        controls 
+                        onTimeUpdate={(e) => handleAudioTimeUpdate(e, 1)}
+                        style={{ width: '100%' }} 
+                      />
+                    ) : (
+                      <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', fontStyle: 'italic' }}>
+                        Processamento de áudio alternativo ativo. Download completo habilitado.
+                      </div>
+                    )}
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                      🔒 Prévia limitada a 60 segundos. A versão completa sem cortes será disponibilizada imediatamente após o pagamento.
+                    </span>
+                  </div>
+
+                  {/* Version 2 Preview & Upsell Card */}
+                  {formData.sunoTracks[1] && (
+                    <div 
+                      className="glass-card" 
+                      style={{ 
+                        padding: '24px', 
+                        display: 'flex', 
+                        flexDirection: 'column', 
+                        gap: '16px', 
+                        border: formData.addVersion2 ? '1px solid var(--secondary)' : '1px solid rgba(255,255,255,0.06)',
+                        backgroundColor: formData.addVersion2 ? 'rgba(139, 92, 246, 0.05)' : 'rgba(255,255,255,0.01)'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <h3 style={{ fontSize: '1.15rem', fontWeight: '700' }}>🎵 Versão Alternativa (Versão 2)</h3>
+                        <span style={{ fontSize: '0.95rem', color: 'var(--secondary)', fontWeight: '800' }}>
+                          + R$ {addonsConfig.find(a => a.id === 'extraSongs2')?.price.toFixed(2)}
+                        </span>
+                      </div>
+                      
+                      {formData.sunoTracks[1].audio_url ? (
+                        <audio 
+                          ref={audio2Ref}
+                          src={formData.sunoTracks[1].audio_url} 
+                          controls 
+                          onTimeUpdate={(e) => handleAudioTimeUpdate(e, 2)}
+                          style={{ width: '100%' }} 
+                        />
+                      ) : (
+                        <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', fontStyle: 'italic' }}>
+                          Processando...
+                        </div>
+                      )}
+
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', marginTop: '8px' }}>
+                        <input 
+                          type="checkbox" 
+                          checked={formData.addVersion2}
+                          onChange={(e) => updateField('addVersion2', e.target.checked)}
+                          style={styles.checkbox}
+                        />
+                        <span style={{ fontSize: '0.95rem', fontWeight: 'bold' }}>
+                          🔥 Levar também a Versão 2 completa com desconto adicional!
+                        </span>
+                      </label>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      case 12: // Choice of Audio Package (Delivery formats)
+        return (
+          <div>
+            <h1 style={styles.stepTitle}>Escolha o Pacote de Entrega 💎</h1>
+            <p style={styles.stepSubtitle}>Como você prefere receber a sua homenagem?</p>
             
             <div style={styles.packagesSelectGrid}>
               {packagesList.map((pkg) => (
@@ -742,32 +991,6 @@ export default function CriarMusica() {
             </div>
           </div>
         );
-      case 12: // Addons select
-        return (
-          <div>
-            <h1 style={styles.stepTitle}>Produtos Opcionais (Adicionais) 🎥</h1>
-            <p style={styles.stepSubtitle}>Enriqueça sua homenagem com produtos extras e torne este presente ainda mais inesquecível</p>
-
-            <div style={styles.addonsList}>
-              {addonsConfig.map((addon) => (
-                <label key={addon.id} style={styles.addonItem} className="glass-card">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                    <input 
-                      type="checkbox" 
-                      checked={formData.addons[addon.id]}
-                      onChange={(e) => updateAddon(addon.id, e.target.checked)}
-                      style={styles.checkbox}
-                    />
-                    <h4 style={{ fontSize: '0.95rem', fontWeight: '600' }}>{addon.name}</h4>
-                  </div>
-                  <div style={{ fontWeight: '700', color: 'var(--secondary)' }}>
-                    + R$ {addon.price.toFixed(2)}
-                  </div>
-                </label>
-              ))}
-            </div>
-          </div>
-        );
       case 13: // Checkout and Mercado Pago redirect
         return (
           <div>
@@ -783,20 +1006,10 @@ export default function CriarMusica() {
                   <span style={{ fontWeight: '700' }}>R$ {getSelectedPackagePrice().toFixed(2)}</span>
                 </div>
 
-                {Object.keys(formData.addons).some(key => formData.addons[key]) && (
-                  <div style={{ marginTop: '16px' }}>
-                    <h4 style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '8px' }}>Adicionais contratados:</h4>
-                    {addonsConfig.map(addon => {
-                      if (formData.addons[addon.id]) {
-                        return (
-                          <div key={addon.id} style={{ ...styles.summaryItem, fontSize: '0.85rem', color: 'var(--text-secondary)', paddingLeft: '8px' }}>
-                            <span>{addon.name}</span>
-                            <span>R$ {addon.price.toFixed(2)}</span>
-                          </div>
-                        );
-                      }
-                      return null;
-                    })}
+                {formData.addVersion2 && (
+                  <div style={{ ...styles.summaryItem, fontSize: '0.9rem', color: 'var(--text-secondary)', marginTop: '8px' }}>
+                    <span>➕ Versão 2 (Estilo Alternativo)</span>
+                    <span>R$ {addonsConfig.find(a => a.id === 'extraSongs2')?.price.toFixed(2)}</span>
                   </div>
                 )}
 
@@ -809,23 +1022,32 @@ export default function CriarMusica() {
               </div>
 
               <div>
-                <h3 style={{ fontSize: '1.2rem', marginBottom: '16px' }}>Detalhes do Faturamento</h3>
+                <h3 style={{ fontSize: '1.2rem', marginBottom: '16px' }}>Detalhes de Acesso</h3>
                 <div style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: '1.7', marginBottom: '24px' }}>
                   <p><strong>Cliente:</strong> {formData.customerName}</p>
                   <p><strong>WhatsApp:</strong> {formData.customerPhone}</p>
-                  <p><strong>E-mail:</strong> {formData.customerEmail || 'Não informado'}</p>
-                  <p><strong>Entrega estimada:</strong> {formData.addons.priorityDelivery ? 'Até 24 horas 🚀' : 'Até 2 dias úteis'}</p>
+                  <p><strong>Download completo:</strong> Liberado instantaneamente após a confirmação!</p>
                 </div>
 
                 <div style={styles.infoAlert} className="glass-card">
                   <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                    🔒 Pagamento processado com segurança via <strong>Mercado Pago</strong>. Seu pedido começará a ser produzido imediatamente após a confirmação.
+                    🔒 Pagamento processado com segurança via <strong>Mercado Pago</strong>. Suas músicas completas em qualidade HD serão liberadas imediatamente após a aprovação da transação.
                   </p>
                 </div>
 
                 <button 
                   onClick={async () => {
                     try {
+                      // Update order with total amount and final choices in Firestore
+                      if (orderId) {
+                        await updateDoc(doc(db, 'orders', orderId), {
+                          total: getTotalPrice(),
+                          package: formData.selectedPackage,
+                          addVersion2: formData.addVersion2,
+                          updatedAt: new Date()
+                        });
+                      }
+
                       const response = await fetch('/api/payments/create', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -847,13 +1069,13 @@ export default function CriarMusica() {
                       }
                     } catch (err) {
                       console.error(err);
-                      alert('Ocorreu um erro de rede ao tentar iniciar o pagamento. Verifique as configurações de token do Mercado Pago.');
+                      alert('Ocorreu um erro ao processar seu pagamento. Verifique suas chaves de API.');
                     }
                   }}
                   className="btn btn-primary"
                   style={{ width: '100%', padding: '18px', fontSize: '1.15rem', marginTop: '24px' }}
                 >
-                  Ir para o Pagamento Seguro 💳
+                  Confirmar & Pagar com Mercado Pago 💳
                 </button>
               </div>
             </div>
@@ -876,7 +1098,7 @@ export default function CriarMusica() {
             {step <= totalWizardSteps ? (
               `Passo ${step} de ${totalWizardSteps}`
             ) : (
-              step === 10 ? 'Etapa: Composição' : step === 11 ? 'Etapa: Pacote' : step === 12 ? 'Etapa: Adicionais' : 'Etapa: Pagamento'
+              step === 10 ? 'Etapa: Composição' : step === 11 ? 'Etapa: Prévia do Áudio' : step === 12 ? 'Etapa: Pacote' : 'Etapa: Pagamento'
             )}
           </div>
         </div>
@@ -899,7 +1121,7 @@ export default function CriarMusica() {
           </div>
 
           {/* Navigation Controls */}
-          {formData.lyricsStatus !== 'generating' && (
+          {formData.lyricsStatus !== 'generating' && formData.sunoStatus !== 'generating' && (
             <div style={styles.navigationControls}>
               {step > 1 && (
                 <button 
@@ -914,7 +1136,7 @@ export default function CriarMusica() {
               <div style={{ marginLeft: 'auto' }}>
                 {step <= totalWizardSteps ? (
                   <button 
-                    onClick={nextStep}
+                    onClick={step === 9 ? handleSaveAndGenerateLyrics : nextStep}
                     disabled={isNextDisabled()}
                     className="btn btn-primary"
                     style={{
@@ -929,7 +1151,7 @@ export default function CriarMusica() {
                 ) : (
                   step < 13 && (
                     <button 
-                      onClick={nextStep}
+                      onClick={step === 10 ? handleApproveLyrics : nextStep}
                       disabled={isNextDisabled()}
                       className="btn btn-primary"
                       style={{
@@ -939,7 +1161,7 @@ export default function CriarMusica() {
                         color: isNextDisabled() ? 'var(--text-muted)' : '#fff'
                       }}
                     >
-                      {step === 10 ? 'Aprovar Letra & Escolher Pacote →' : 'Próximo →'}
+                      {step === 10 ? 'Aprovar Letra & Criar Áudio →' : 'Avançar para Pacotes →'}
                     </button>
                   )
                 )}
@@ -1222,8 +1444,8 @@ const styles = {
     border: '1px solid rgba(255,255,255,0.06)',
   },
   checkbox: {
-    width: '18px',
-    height: '18px',
+    width: '20px',
+    height: '20px',
     cursor: 'pointer',
   },
 };
