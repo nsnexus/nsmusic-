@@ -1,62 +1,80 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
-export default function EntregaPedido() {
+function EntregaContent() {
+  const searchParams = useSearchParams();
+  const orderId = searchParams.get('id');
+
+  const [loading, setLoading] = useState(true);
+  const [order, setOrder] = useState(null);
   const [rating, setRating] = useState(0);
   const [reviewSubmitted, setReviewSubmitted] = useState(false);
   const [reviewText, setReviewText] = useState('');
 
-  const orderData = {
-    orderNumber: 'NS-98273-2026',
-    customerName: 'João da Silva',
-    honoreeName: 'Ana Maria',
-    musicTitle: 'A Jornada de Nós Dois (Versão Principal)',
-    lyrics: `[Verso 1]
-No calor desse abraço eu encontrei meu lugar
-Com a Ana Maria, aprendi o que é amar
-Desde o início, nossa história foi escrita com emoção
-E hoje trago esse canto direto do coração.
-
-[Pré-Refrão]
-Cada sorriso seu ilumina meu caminho
-Nunca mais me senti sozinho
-
-[Refrão]
-O tempo passa, mas a lembrança fica
-Essa história que a vida nos ensina e simplifica
-Para sempre com você,
-Nossa trilha não tem fim, e nada nos afasta.
-
-[Verso 2]
-Lembro bem de cada detalhe, de cada risada no quintal
-Dos momentos em que tudo parecia especial
-Com as qualidades de carinho e afeto
-Construímos nossa estrada, um destino reto.
-
-[Ponte]
-Nossa música ecoa no silêncio da noite
-Um abraço forte que nos protege do vento
-
-[Refrão Final]
-O tempo passa, mas a lembrança fica
-Essa história que a vida nos ensina e simplifica
-Para sempre com você,
-Nossa trilha não tem fim, e nada nos afasta.`,
-    musicStyle: '🎸 Folk Acústico',
-    voiceType: 'Voz Feminina',
-    deliveredAt: '14/07/2026',
-    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3', // Safe demo audio
-    coverUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=600&auto=format&fit=crop', // Beautiful placeholder cover
-    qrCodeUrl: 'https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=https://nsmusic.vercel.app/entrega?id=NS-98273-2026',
-  };
+  useEffect(() => {
+    const fetchOrder = async () => {
+      if (!orderId) {
+        setLoading(false);
+        return;
+      }
+      try {
+        const docRef = doc(db, 'orders', orderId);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          setOrder(docSnap.data());
+        }
+      } catch (err) {
+        console.error("Erro ao buscar pedido para entrega:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchOrder();
+  }, [orderId]);
 
   const handleReviewSubmit = (e) => {
     e.preventDefault();
     if (rating === 0) return;
     setReviewSubmitted(true);
   };
+
+  if (loading) {
+    return (
+      <div style={styles.wrapper} className="flex-center">
+        <div style={styles.spinner} />
+        <p style={{ marginTop: '20px', color: 'var(--text-secondary)' }}>Carregando sua página de entrega...</p>
+      </div>
+    );
+  }
+
+  if (!order) {
+    return (
+      <div style={styles.wrapper} className="flex-center">
+        <h2 style={{ fontSize: '1.8rem', marginBottom: '16px' }}>Pedido não encontrado 🔍</h2>
+        <p style={{ color: 'var(--text-secondary)', marginBottom: '24px' }}>Verifique o link ou entre em contato com o suporte.</p>
+        <Link href="/" className="btn btn-primary">Voltar ao início</Link>
+      </div>
+    );
+  }
+
+  // Check if order payment is confirmed.
+  const isPaid = order.paymentStatus === 'PAGAMENTO_APROVADO';
+
+  // Get active audio track URL
+  const primaryAudioUrl = order.audioUrl || (order.audioFiles && order.audioFiles[0]) || '';
+  const secondAudioUrl = order.audioFiles && order.audioFiles[1] ? order.audioFiles[1] : '';
+
+  // Get QR Code
+  const deliveryPageUrl = typeof window !== 'undefined' ? window.location.href : '';
+  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(deliveryPageUrl)}`;
+
+  // Default beautiful dynamic cover
+  const coverUrl = order.coverUrl || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=600&auto=format&fit=crop';
 
   return (
     <div style={styles.wrapper}>
@@ -66,7 +84,16 @@ Nossa trilha não tem fim, e nada nos afasta.`,
           <Link href="/" style={{ display: 'flex', alignItems: 'center' }}>
             <img src="/logo.png" alt="NSMusic" style={{ height: '40px', width: 'auto' }} />
           </Link>
-          <span style={styles.statusBadge}>✨ Música Entregue</span>
+          <span 
+            style={{
+              ...styles.statusBadge,
+              color: isPaid ? 'var(--success)' : 'var(--warning)',
+              borderColor: isPaid ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.2)',
+              backgroundColor: isPaid ? 'rgba(16, 185, 129, 0.05)' : 'rgba(245, 158, 11, 0.05)'
+            }}
+          >
+            {isPaid ? '✨ Entrega Liberada' : '⏳ Aguardando Pagamento'}
+          </span>
         </div>
       </header>
 
@@ -76,111 +103,162 @@ Nossa trilha não tem fim, e nada nos afasta.`,
           
           <div style={styles.deliveryCard} className="glass-card">
             <div className="responsive-grid-2">
-              {/* Cover and Player */}
+              
+              {/* Media Player & Downloads */}
               <div style={styles.mediaSide}>
                 <div style={styles.coverWrapper}>
-                  <img src={orderData.coverUrl} alt="Capa da música" style={styles.coverImg} />
+                  <img src={coverUrl} alt="Capa da música" style={styles.coverImg} />
                   <div style={styles.coverOverlay}>
-                    <h2 style={{ fontFamily: 'var(--font-family-title)', fontSize: '1.4rem' }}>{orderData.musicTitle}</h2>
-                    <p style={{ fontSize: '0.85rem', opacity: 0.8 }}>Homenagem para {orderData.honoreeName}</p>
+                    <h2 style={{ fontFamily: 'var(--font-family-title)', fontSize: '1.4rem' }}>
+                      Melodia para {order.honoreeName}
+                    </h2>
+                    <p style={{ fontSize: '0.85rem', opacity: 0.8 }}>Uma homenagem de {order.customerName}</p>
                   </div>
                 </div>
 
-                <div style={styles.audioPlayerContainer} className="glass-card">
-                  <h4 style={{ fontSize: '0.95rem', marginBottom: '12px', fontWeight: '600' }}>Ouvir sua música</h4>
-                  <audio controls style={styles.audioTag} src={orderData.audioUrl}>
-                    Seu navegador não suporta a tag de áudio.
-                  </audio>
-                </div>
+                {isPaid ? (
+                  <>
+                    {/* Audio Player 1 */}
+                    {primaryAudioUrl && (
+                      <div style={styles.audioPlayerContainer} className="glass-card">
+                        <h4 style={{ fontSize: '0.95rem', marginBottom: '12px', fontWeight: '700', color: 'var(--primary)' }}>
+                          🎧 Versão Principal
+                        </h4>
+                        <audio controls style={styles.audioTag} src={primaryAudioUrl}>
+                          Seu navegador não suporta.
+                        </audio>
+                        <div style={{ ...styles.downloadGrid, marginTop: '16px' }}>
+                          <a href={primaryAudioUrl} target="_blank" rel="noopener noreferrer" className="btn btn-primary" style={styles.downloadBtn}>
+                            ⬇ Baixar MP3 (V1)
+                          </a>
+                        </div>
+                      </div>
+                    )}
 
-                <div style={styles.downloadGrid}>
-                  <a href={orderData.audioUrl} download className="btn btn-primary" style={{ padding: '12px 16px', fontSize: '0.9rem' }}>
-                    ⬇ Baixar MP3
-                  </a>
-                  <a href={orderData.audioUrl} download className="btn btn-secondary" style={{ padding: '12px 16px', fontSize: '0.9rem' }}>
-                    💿 Baixar WAV (HD)
-                  </a>
-                </div>
+                    {/* Audio Player 2 (If bought / exists) */}
+                    {secondAudioUrl && (order.addVersion2 || order.package === 'tres_versoes') && (
+                      <div style={styles.audioPlayerContainer} className="glass-card">
+                        <h4 style={{ fontSize: '0.95rem', marginBottom: '12px', fontWeight: '700', color: 'var(--secondary)' }}>
+                          🎧 Versão Alternativa (Versão 2)
+                        </h4>
+                        <audio controls style={styles.audioTag} src={secondAudioUrl}>
+                          Seu navegador não suporta.
+                        </audio>
+                        <div style={{ ...styles.downloadGrid, marginTop: '16px' }}>
+                          <a href={secondAudioUrl} target="_blank" rel="noopener noreferrer" className="btn btn-secondary" style={styles.downloadBtn}>
+                            ⬇ Baixar MP3 (V2)
+                          </a>
+                        </div>
+                      </div>
+                    )}
 
-                {/* QR Code section */}
-                <div style={styles.qrCard} className="glass-card">
-                  <div style={{ flex: 1 }}>
-                    <h4 style={{ fontSize: '1rem', marginBottom: '8px', fontFamily: 'var(--font-family-title)' }}>QR Code Exclusivo</h4>
-                    <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
-                      Imprima ou envie este QR Code para que a pessoa homenageada possa escanear e ouvir a música diretamente pelo celular!
+                    {/* QR Code section */}
+                    <div style={styles.qrCard} className="glass-card">
+                      <div style={{ flex: 1 }}>
+                        <h4 style={{ fontSize: '1rem', marginBottom: '8px', fontFamily: 'var(--font-family-title)' }}>Compartilhar Homenagem</h4>
+                        <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
+                          Quem receber escaneia o QR Code com o celular e ouve as músicas diretamente nessa página personalizada!
+                        </p>
+                        <a href={qrCodeUrl} download={`qrcode-${order.orderNumber}.png`} className="btn btn-secondary" style={{ marginTop: '16px', padding: '8px 16px', fontSize: '0.8rem' }}>
+                          Salvar Imagem QR Code
+                        </a>
+                      </div>
+                      <img src={qrCodeUrl} alt="QR Code" style={styles.qrImg} />
+                    </div>
+                  </>
+                ) : (
+                  <div style={styles.blockedCard} className="glass-card">
+                    <span style={{ fontSize: '2.5rem' }}>🔒</span>
+                    <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginTop: '12px' }}>Downloads Bloqueados</h3>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', textAlign: 'center', marginTop: '8px', lineHeight: '1.5' }}>
+                      O pagamento para este pedido ainda não foi confirmado pelo Mercado Pago. As músicas completas e downloads serão liberados de forma automática imediatamente após a aprovação!
                     </p>
-                    <a href={orderData.qrCodeUrl} download className="btn btn-secondary" style={{ marginTop: '16px', padding: '8px 16px', fontSize: '0.8rem' }}>
-                      Baixar Imagem QR Code
-                    </a>
                   </div>
-                  <img src={orderData.qrCodeUrl} alt="QR Code da música" style={styles.qrImg} />
-                </div>
+                )}
               </div>
 
               {/* Lyrics Side */}
               <div style={styles.lyricsSide} className="glass-card">
-                <h3 style={{ fontSize: '1.25rem', marginBottom: '20px', fontFamily: 'var(--font-family-title)', color: 'var(--primary)' }}>Letra Oficial</h3>
-                <pre style={styles.lyricsText}>{orderData.lyrics}</pre>
+                <h3 style={{ fontSize: '1.25rem', marginBottom: '20px', fontFamily: 'var(--font-family-title)', color: 'var(--primary)' }}>
+                  Letra Oficial 📜
+                </h3>
+                <pre style={styles.lyricsText}>{order.lyrics || 'Letra ainda não gerada para esta composição.'}</pre>
               </div>
+
             </div>
           </div>
 
           {/* Feedback Form */}
-          <div style={styles.feedbackCard} className="glass-card">
-            <h3 style={{ fontSize: '1.25rem', marginBottom: '12px', fontFamily: 'var(--font-family-title)' }}>O que achou do resultado?</h3>
-            
-            {reviewSubmitted ? (
-              <div style={styles.reviewSuccess}>
-                <span style={{ fontSize: '2rem' }}>💖</span>
-                <h4 style={{ marginTop: '12px' }}>Obrigado pela sua avaliação!</h4>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '4px' }}>
-                  Seu feedback é fundamental para continuarmos melhorando nossas produções musicais.
-                </p>
-              </div>
-            ) : (
-              <form onSubmit={handleReviewSubmit} style={styles.reviewForm}>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '16px' }}>
-                  Sua opinião nos ajuda a afinar nossa equipe e melhorar a experiência de novos clientes.
-                </p>
-
-                <div style={styles.starsContainer}>
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <button 
-                      key={star}
-                      type="button"
-                      onClick={() => setRating(star)}
-                      style={{
-                        ...styles.starBtn,
-                        color: rating >= star ? 'var(--warning)' : 'var(--text-muted)'
-                      }}
-                    >
-                      ★
-                    </button>
-                  ))}
+          {isPaid && (
+            <div style={styles.feedbackCard} className="glass-card">
+              <h3 style={{ fontSize: '1.25rem', marginBottom: '12px', fontFamily: 'var(--font-family-title)' }}>O que achou do resultado?</h3>
+              
+              {reviewSubmitted ? (
+                <div style={styles.reviewSuccess}>
+                  <span style={{ fontSize: '2rem' }}>💖</span>
+                  <h4 style={{ marginTop: '12px' }}>Obrigado pela sua avaliação!</h4>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '4px' }}>
+                    Seu depoimento nos ajuda a fazer as composições ficarem cada vez melhores.
+                  </p>
                 </div>
+              ) : (
+                <form onSubmit={handleReviewSubmit} style={styles.reviewForm}>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '16px' }}>
+                    Sua opinião é fundamental para a nossa equipe e para novos clientes!
+                  </p>
 
-                <textarea 
-                  value={reviewText}
-                  onChange={(e) => setReviewText(e.target.value)}
-                  placeholder="Escreva um breve depoimento sobre a sua experiência ou a reação de quem ouviu..."
-                  style={styles.reviewTextarea}
-                />
+                  <div style={styles.starsContainer}>
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button 
+                        key={star}
+                        type="button"
+                        onClick={() => setRating(star)}
+                        style={{
+                          ...styles.starBtn,
+                          color: rating >= star ? 'var(--warning)' : 'var(--text-muted)'
+                        }}
+                      >
+                        ★
+                      </button>
+                    ))}
+                  </div>
 
-                <button 
-                  type="submit"
-                  disabled={rating === 0}
-                  className="btn btn-primary"
-                  style={{ alignSelf: 'flex-start', padding: '12px 24px', fontSize: '0.9rem' }}
-                >
-                  Enviar Avaliação
-                </button>
-              </form>
-            )}
-          </div>
+                  <textarea 
+                    value={reviewText}
+                    onChange={(e) => setReviewText(e.target.value)}
+                    placeholder="Escreva como foi a reação de quem ouviu ou o que você achou das versões..."
+                    style={styles.reviewTextarea}
+                  />
+
+                  <button 
+                    type="submit"
+                    disabled={rating === 0}
+                    className="btn btn-primary"
+                    style={{ alignSelf: 'flex-start', padding: '12px 24px', fontSize: '0.9rem' }}
+                  >
+                    Enviar Avaliação
+                  </button>
+                </form>
+              )}
+            </div>
+          )}
 
         </div>
       </main>
     </div>
+  );
+}
+
+export default function EntregaPedido() {
+  return (
+    <Suspense fallback={
+      <div style={styles.wrapper} className="flex-center">
+        <div style={styles.spinner} />
+        <p style={{ marginTop: '20px', color: 'var(--text-secondary)' }}>Carregando sua página de entrega...</p>
+      </div>
+    }>
+      <EntregaContent />
+    </Suspense>
   );
 }
 
@@ -205,35 +283,17 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  logo: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-  },
-  logoIcon: {
-    fontSize: '1.5rem',
-  },
-  logoText: {
-    fontFamily: 'var(--font-family-title)',
-    fontWeight: '800',
-    fontSize: '1.3rem',
-    letterSpacing: '-0.02em',
-    color: '#fff',
-  },
   statusBadge: {
-    fontSize: '0.9rem',
+    fontSize: '0.85rem',
     fontWeight: '600',
-    color: 'var(--success)',
-    backgroundColor: 'rgba(16, 185, 129, 0.05)',
     padding: '6px 14px',
     borderRadius: '100px',
-    border: '1px solid rgba(16, 185, 129, 0.2)',
+    border: '1px solid',
   },
   deliveryCard: {
     padding: '32px',
     marginBottom: '32px',
   },
-  deliveryLayout: {},
   mediaSide: {
     display: 'flex',
     flexDirection: 'column',
@@ -271,9 +331,15 @@ const styles = {
     outline: 'none',
   },
   downloadGrid: {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: '16px',
+    display: 'flex',
+    gap: '12px',
+  },
+  downloadBtn: {
+    flex: 1,
+    padding: '12px',
+    textAlign: 'center',
+    fontSize: '0.9rem',
+    textDecoration: 'none'
   },
   qrCard: {
     padding: '20px',
@@ -298,6 +364,14 @@ const styles = {
     lineHeight: '1.8',
     color: 'var(--text-secondary)',
     whiteSpace: 'pre-wrap',
+  },
+  blockedCard: {
+    padding: '40px 24px',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    border: '1px solid rgba(245, 158, 11, 0.1)',
   },
   feedbackCard: {
     padding: '32px',
@@ -336,5 +410,13 @@ const styles = {
   reviewSuccess: {
     textAlign: 'center',
     padding: '20px 0',
+  },
+  spinner: {
+    width: '50px',
+    height: '50px',
+    border: '3px solid rgba(255,255,255,0.06)',
+    borderTopColor: 'var(--primary)',
+    borderRadius: '50%',
+    animation: 'spin 1s linear infinite',
   },
 };
