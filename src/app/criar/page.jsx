@@ -814,7 +814,7 @@ export default function CriarMusica() {
             {formData.lyricsStatus === 'generating' ? (
               <div style={styles.generatingState}>
                 <div style={styles.spinner} />
-                <h3 style={{ marginTop: '24px', fontFamily: 'var(--font-family-title)', fontSize: '1.6rem' }}>Compondo versos personalizados com Gemini 3.5...</h3>
+                <h3 style={{ marginTop: '24px', fontFamily: 'var(--font-family-title)', fontSize: '1.6rem' }}>Compondo versos personalizados...</h3>
                 <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', marginTop: '8px', maxWidth: '500px' }}>
                   Unindo suas memórias e transformando em melodia. Isso pode levar alguns segundos.
                 </p>
