@@ -14,12 +14,13 @@ export async function POST(req) {
       }, { status: 400 });
     }
 
-    // O Playwright (no Render) dá crash se enviarmos cookies com caracteres inválidos (como espaços no OptanonConsent).
-    // Então vamos filtrar e enviar apenas as chaves que a API do Suno realmente precisa!
+    // O Playwright (no Render) dá crash se enviarmos cookies com espaços.
+    // E o Clerk (sistema de login) precisa de quase todos os cookies originais para não deslogar o robô.
+    // Solução: Vamos enviar TUDO, exceto os cookies do Optanon que contêm espaços e causam o crash!
     const cleanCookie = cookieStr
       .split(';')
       .map(c => c.trim())
-      .filter(c => c.startsWith('__client=') || c.startsWith('__session='))
+      .filter(c => !c.startsWith('Optanon') && !c.startsWith('_uetsid') && !c.startsWith('_uetvid'))
       .join('; ');
 
     // Call our private Render proxy!

@@ -19,7 +19,7 @@ export async function GET(req) {
     const cleanCookie = cookieStr
       .split(';')
       .map(c => c.trim())
-      .filter(c => c.startsWith('__client=') || c.startsWith('__session='))
+      .filter(c => !c.startsWith('Optanon') && !c.startsWith('_uetsid') && !c.startsWith('_uetvid'))
       .join('; ');
 
     // Call Suno direct API for status via Render!
