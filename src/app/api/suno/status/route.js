@@ -11,21 +11,29 @@ export async function GET(req) {
       return NextResponse.json({ error: "IDs não informados." }, { status: 400 });
     }
 
-    const sunoApiUrl = process.env.SUNO_API_URL || process.env.NEXT_PUBLIC_SUNO_API_URL;
-    if (!sunoApiUrl) {
-      return NextResponse.json({ error: "SUNO_API_URL não configurada." }, { status: 400 });
+    const cookieStr = process.env.SUNO_COOKIE || '';
+    const token = cookieStr.match(/__session=([^;]+)/)?.[1];
+
+    if (!token) {
+      return NextResponse.json({ error: "Token __session não encontrado no SUNO_COOKIE." }, { status: 400 });
     }
 
-    const response = await fetch(`${sunoApiUrl.replace(/\/$/, '')}/api/get?ids=${ids}`);
+    // Call Suno direct API for status!
+    const response = await fetch(`https://studio-api.suno.ai/api/feed/?ids=${ids}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
     if (!response.ok) {
       const errText = await response.text();
-      throw new Error(errText);
+      throw new Error(`Suno direto retornou erro de status: ${errText}`);
     }
 
     const data = await response.json();
     return NextResponse.json(data);
   } catch (error) {
-    console.error("Erro ao buscar status do Suno:", error);
+    console.error("Erro ao buscar status direto do Suno:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

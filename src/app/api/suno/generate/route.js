@@ -6,17 +6,20 @@ export async function POST(req) {
   try {
     const { prompt, tags, orderId } = await req.json();
 
-    const sunoApiUrl = process.env.SUNO_API_URL || process.env.NEXT_PUBLIC_SUNO_API_URL;
-    if (!sunoApiUrl) {
+    const cookieStr = process.env.SUNO_COOKIE || '';
+    const token = cookieStr.match(/__session=([^;]+)/)?.[1];
+
+    if (!token) {
       return NextResponse.json({ 
-        error: "A URL da API do Suno (SUNO_API_URL) não foi configurada nas variáveis de ambiente." 
+        error: "O Token de sessão (__session) não foi encontrado na variável SUNO_COOKIE." 
       }, { status: 400 });
     }
 
-    // Call Suno-API with wait_audio: false to prevent Vercel/NextJS Edge timeout during generation
-    const response = await fetch(`${sunoApiUrl.replace(/\/$/, '')}/api/custom_generate`, {
+    // Call Suno direct API, completely bypassing the Vercel suno-api wrapper!
+    const response = await fetch('https://studio-api.suno.ai/api/generate/v2/', {
       method: 'POST',
       headers: {
+        'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
@@ -24,21 +27,20 @@ export async function POST(req) {
         tags: tags,
         title: `Pedido ${orderId ? orderId.substring(0, 8) : 'Novo'}`,
         make_instrumental: false,
-        wait_audio: false,
-        model: "v4.5",
         mv: "chirp-v4-5"
       })
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Erro na API do Suno: ${errorText}`);
+      throw new Error(`Suno direto retornou erro: ${errorText}`);
     }
 
     const data = await response.json();
-    return NextResponse.json({ tracks: data });
+    // Suno returns { clips: [ ... ] }
+    return NextResponse.json({ tracks: data.clips || [] });
   } catch (error) {
-    console.error("Erro na geração do Suno:", error);
+    console.error("Erro na geração direta do Suno:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
