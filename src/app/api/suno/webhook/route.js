@@ -8,7 +8,7 @@ export async function POST(req) {
     const data = await req.json();
     console.log("Kie.ai Webhook recebido:", data);
 
-    const taskId = data.task_id || data.id || (data.data && data.data.task_id);
+    const taskId = data.task_id || data.id || (data.data && (data.data.taskId || data.data.task_id));
     
     if (taskId) {
       // Kie.ai costuma devolver as tracks no array data.data ou simplesmente enviar o status.

@@ -42,7 +42,7 @@ export async function POST(req) {
     const data = await response.json();
     
     // A Kie.ai retorna um taskId (pode vir como task_id ou id, dependendo do formato exato deles)
-    const taskId = data.task_id || data.id || (data.data && data.data.task_id);
+    const taskId = data.task_id || data.id || (data.data && (data.data.taskId || data.data.task_id));
     
     if (!taskId) {
         throw new Error(`Kie.ai não retornou um taskId válido: ${JSON.stringify(data)}`);
