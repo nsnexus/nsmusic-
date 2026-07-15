@@ -194,9 +194,9 @@ export default function OrderDetailsAdmin() {
 
   const pollSunoStatus = (taskId) => {
     let attempts = 0;
-    const maxAttempts = 40; // 200 seconds max
+    const maxAttempts = 72; // 360 seconds (6 minutos) max
     
-    setPollingStatus('Aguardando Suno compor e renderizar áudios (1 a 2 min)...');
+    setPollingStatus('Aguardando Suno compor e renderizar áudios (2 a 4 min)...');
     
     const interval = setInterval(async () => {
       attempts++;

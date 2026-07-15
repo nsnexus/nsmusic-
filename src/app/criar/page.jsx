@@ -368,8 +368,8 @@ export default function CriarMusica() {
 
   const pollSunoStatus = (taskId) => {
     let attempts = 0;
-    const maxAttempts = 40; // 200 seconds max
-    updateField('sunoProgress', 'Aguardando o Suno compor e renderizar os áudios (1 a 2 min)...');
+    const maxAttempts = 72; // 360 seconds (6 minutos) max
+    updateField('sunoProgress', 'Aguardando o Suno compor e renderizar os áudios (2 a 4 min)...');
 
     const interval = setInterval(async () => {
       attempts++;
