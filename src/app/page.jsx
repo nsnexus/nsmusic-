@@ -1,33 +1,37 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import Link from 'next/link';
 
 export default function Home() {
   const [playingId, setPlayingId] = useState(null);
   const [faqOpen, setFaqOpen] = useState({});
+  const audioRef = useRef(null);
 
   const examples = [
     {
       id: 1,
-      title: 'A Jornada de Nós Dois',
-      occasion: 'Casamento / Romântico',
-      duration: '3:15',
-      style: 'Folk Acústico / Emocional',
+      title: 'A História de um Autista',
+      occasion: 'Homenagem / Emocional',
+      duration: '',
+      style: 'Personalizada',
+      src: '/audio/historia-autista.mp3',
     },
     {
       id: 2,
-      title: 'Parabéns, Pai!',
+      title: 'Feliz Aniversário Filipe',
       occasion: 'Aniversário / Homenagem',
-      duration: '2:45',
-      style: 'MPB / Bossa Nova',
+      duration: '',
+      style: 'Personalizada',
+      src: '/audio/feliz-aniversario.mp3',
     },
     {
       id: 3,
-      title: 'Império do Amanhã',
-      occasion: 'Institucional / Empresa',
-      duration: '3:02',
-      style: 'Pop Rock / Inspirador',
+      title: 'Hino',
+      occasion: 'Institucional / Motivacional',
+      duration: '',
+      style: 'Personalizada',
+      src: '/audio/hino.mp3',
     },
   ];
 
@@ -80,9 +84,23 @@ export default function Home() {
 
   const togglePlay = (id) => {
     if (playingId === id) {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      }
       setPlayingId(null);
     } else {
-      setPlayingId(id);
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+      const track = examples.find(e => e.id === id);
+      if (track) {
+        const audio = new Audio(track.src);
+        audio.play().catch(() => {});
+        audio.onended = () => setPlayingId(null);
+        audioRef.current = audio;
+        setPlayingId(id);
+      }
     }
   };
 
@@ -188,7 +206,7 @@ export default function Home() {
                     <h3 style={styles.playerTitle}>{item.title}</h3>
                     <p style={styles.playerSub}>{item.occasion} • {item.style}</p>
                   </div>
-                  <div style={styles.playerDuration}>{item.duration}</div>
+                  {item.duration && <div style={styles.playerDuration}>{item.duration}</div>}
                 </div>
 
                 {playingId === item.id && (
