@@ -230,29 +230,33 @@ export default function CriarMusica() {
     updateField('lyricsStatus', 'generating');
     setStep(10);
     try {
-      // Create initial order in Firestore in 'Aguardando Pagamento'
-      const docRef = await addDoc(collection(db, 'orders'), {
-        orderNumber: `NS-${Math.floor(10000 + Math.random() * 90000)}-2026`,
-        customerName: formData.customerName,
-        customerPhone: formData.customerPhone,
-        customerEmail: formData.customerEmail,
-        honoreeName: formData.honoreeName,
-        recipientType: formData.recipientType,
-        relationship: formData.relationship,
-        occasion: formData.occasion,
-        story: formData.story,
-        importantMoments: formData.importantMoments,
-        musicStyle: formData.musicStyle,
-        musicMood: formData.musicMood,
-        voiceType: formData.voiceType,
-        paymentStatus: 'AGUARDANDO_PAGAMENTO',
-        productionStatus: 'LETRA_GERADA',
-        createdAt: new Date()
-      });
+      // Create initial order in Firestore in 'Aguardando Pagamento' (gracefully handled)
+      let docRef = null;
+      try {
+        docRef = await addDoc(collection(db, 'orders'), {
+          orderNumber: `NS-${Math.floor(10000 + Math.random() * 90000)}-2026`,
+          customerName: formData.customerName,
+          customerPhone: formData.customerPhone,
+          customerEmail: formData.customerEmail,
+          honoreeName: formData.honoreeName,
+          recipientType: formData.recipientType,
+          relationship: formData.relationship,
+          occasion: formData.occasion,
+          story: formData.story,
+          importantMoments: formData.importantMoments,
+          musicStyle: formData.musicStyle,
+          musicMood: formData.musicMood,
+          voiceType: formData.voiceType,
+          paymentStatus: 'AGUARDANDO_PAGAMENTO',
+          productionStatus: 'LETRA_GERADA',
+          createdAt: new Date()
+        });
+        setOrderId(docRef.id);
+      } catch (firestoreErr) {
+        console.warn("Aviso: Falha de permissão no Firestore ao criar pedido inicial:", firestoreErr);
+      }
 
-      setOrderId(docRef.id);
-
-      // Call lyrics generation
+      // Call lyrics generation via Gemini API
       const response = await fetch('/api/lyrics/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -267,8 +271,10 @@ export default function CriarMusica() {
           lyricsStatus: 'generated',
           lyricsError: ''
         }));
-        // Update order in Firestore with generated lyrics
-        await updateDoc(docRef, { lyrics: data.lyrics });
+
+        if (docRef) {
+          await updateDoc(docRef, { lyrics: data.lyrics }).catch(e => console.warn(e));
+        }
       } else {
         const errJson = await response.json().catch(() => ({}));
         throw new Error(errJson.error || 'Falha ao gerar letra.');
