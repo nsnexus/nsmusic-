@@ -25,12 +25,12 @@ export async function POST(req) {
       },
       body: JSON.stringify({
         prompt: prompt,
-        tags: tags,
-        title: `Pedido ${orderId ? orderId.substring(0, 8) : 'Novo'}`,
-        model: "suno-v3.5",
         customMode: true,
         instrumental: false,
-        callback_url: callbackUrl
+        model: "V3_5",
+        style: tags,
+        title: `Pedido ${orderId ? orderId.substring(0, 8) : 'Novo'}`,
+        callBackUrl: callbackUrl
       })
     });
 
