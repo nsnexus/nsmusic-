@@ -264,16 +264,22 @@ export default function CriarMusica() {
         setFormData(prev => ({
           ...prev,
           lyrics: data.lyrics,
-          lyricsStatus: 'generated'
+          lyricsStatus: 'generated',
+          lyricsError: ''
         }));
         // Update order in Firestore with generated lyrics
         await updateDoc(docRef, { lyrics: data.lyrics });
       } else {
-        throw new Error('Falha ao gerar letra');
+        const errJson = await response.json().catch(() => ({}));
+        throw new Error(errJson.error || 'Falha ao gerar letra.');
       }
     } catch (err) {
       console.error("Erro na geração da letra:", err);
-      updateField('lyricsStatus', 'error');
+      setFormData(prev => ({
+        ...prev,
+        lyricsStatus: 'error',
+        lyricsError: err.message
+      }));
     }
   };
 
@@ -811,7 +817,7 @@ export default function CriarMusica() {
               <div style={styles.generatingState}>
                 <h3 style={{ marginTop: '24px', fontFamily: 'var(--font-family-title)', fontSize: '1.6rem', color: 'var(--danger)' }}>Erro ao comunicar com a Inteligência Artificial</h3>
                 <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', marginTop: '8px', maxWidth: '500px' }}>
-                  Não foi possível conectar com o Gemini 3.5 para gerar sua letra personalizada. Verifique se a variável GEMINI_API_KEYS está configurada na Cloudflare.
+                  {formData.lyricsError || 'Não foi possível conectar com o Gemini para gerar sua letra. Tente novamente.'}
                 </p>
                 <button 
                   onClick={handleSaveAndGenerateLyrics}
