@@ -19,15 +19,16 @@ export async function GET(req) {
     }
 
     // Call Suno direct API for status!
-    const response = await fetch(`https://studio-api.suno.ai/api/feed/?ids=${ids}`, {
+    const response = await fetch(`https://studio-api.suno.com/api/feed/?ids=${ids}`, {
       headers: {
-        'Authorization': `Bearer ${token}`
+        'Authorization': `Bearer ${token}`,
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
       }
     });
 
     if (!response.ok) {
       const errText = await response.text();
-      throw new Error(`Suno direto retornou erro de status: ${errText}`);
+      throw new Error(`Suno direto (suno.com) retornou erro de status: ${errText}`);
     }
 
     const data = await response.json();

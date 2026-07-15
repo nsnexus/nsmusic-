@@ -15,12 +15,13 @@ export async function POST(req) {
       }, { status: 400 });
     }
 
-    // Call Suno direct API, completely bypassing the Vercel suno-api wrapper!
-    const response = await fetch('https://studio-api.suno.ai/api/generate/v2/', {
+    // Call Suno direct API, using the current official domain
+    const response = await fetch('https://studio-api.suno.com/api/generate/v2/', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
       },
       body: JSON.stringify({
         prompt: prompt,
@@ -33,11 +34,10 @@ export async function POST(req) {
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Suno direto retornou erro: ${errorText}`);
+      throw new Error(`Suno direto (suno.com) retornou erro: ${errorText}`);
     }
 
     const data = await response.json();
-    // Suno returns { clips: [ ... ] }
     return NextResponse.json({ tracks: data.clips || [] });
   } catch (error) {
     console.error("Erro na geração direta do Suno:", error);
