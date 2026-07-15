@@ -26,6 +26,12 @@ export default function OrderDetailsAdmin() {
   const [qrCodeUrl, setQrCodeUrl] = useState('');
   const [sunoPrompt, setSunoPrompt] = useState('');
 
+  // Suno AI direct generation states
+  const [generatingSuno, setGeneratingSuno] = useState(false);
+  const [pollingStatus, setPollingStatus] = useState('');
+  const [generatedTracks, setGeneratedTracks] = useState([]);
+  const [sunoError, setSunoError] = useState('');
+
   const router = useRouter();
   const params = useParams();
   const orderId = params.id;
@@ -61,21 +67,21 @@ export default function OrderDetailsAdmin() {
           setQrCodeUrl(data.qrCodeFile || data.qrCodeUrl || '');
           setSunoPrompt(data.sunoPrompt || '');
         } else {
-          // Mock data fallback for developer presentation mode
+          // Mock fallback
           const mockData = {
             orderNumber: 'NS-98273-2026',
             customerName: 'João da Silva',
             customerEmail: 'joao@email.com',
             customerPhone: '11999999999',
             honoreeName: 'Ana Maria',
-            occasion: 'namoro',
+            occasion: 'Aniversário',
             relationship: 'Namorado',
             story: 'Nos conhecemos na faculdade em 2021. No primeiro dia de aula, ela derrubou os livros no chão e eu ajudei a juntar. Foi amor à primeira vista. Viajamos para Gramado em 2022 e ficamos noivos lá.',
             importantMoments: 'Viagem para Gramado em 2022, o pedido de namoro no parque.',
             qualities: 'Alegre, carinhosa, parceira.',
             requiredPhrase: 'Amo você até o infinito.',
             forbiddenSubjects: 'Não citar o antigo cachorro.',
-            musicStyle: 'folk',
+            musicStyle: 'Romântica',
             voiceType: 'feminina',
             emotion: 'emocionante',
             lyrics: `[Verso 1]\nNo calor desse abraço eu encontrei meu lugar\nCom a Ana Maria, aprendi o que é amar\nDesde o início, nossa história foi escrita com emoção\nE hoje trago esse canto direto do coração.\n\n[Refrão]\nO tempo passa, mas a lembrança fica\nEssa história que a vida nos ensina e simplifica\nAmo você até o infinito,\nNossa trilha não tem fim, e nada nos afasta.`,
@@ -118,11 +124,20 @@ export default function OrderDetailsAdmin() {
         sunoPrompt,
         updatedAt: new Date()
       });
+      setOrder(prev => ({
+        ...prev,
+        productionStatus,
+        lyrics,
+        audioUrl,
+        wavUrl,
+        videoFile: videoUrl,
+        qrCodeFile: qrCodeUrl,
+        sunoPrompt
+      }));
       setSuccessMsg('Pedido atualizado com sucesso no banco de dados! ✨');
       setTimeout(() => setSuccessMsg(''), 4000);
     } catch (err) {
       console.error(err);
-      // Simulating update success on mock data
       setSuccessMsg('Simulado: Dados salvos localmente com sucesso! ✨');
       setTimeout(() => setSuccessMsg(''), 4000);
     } finally {
@@ -135,6 +150,93 @@ export default function OrderDetailsAdmin() {
     const voice = order?.voiceType || 'female';
     const emotion = order?.emotion || 'emotional';
     return `${style}, ${voice} vocals, ${emotion}, acoustic guitar, warm, high quality production`;
+  };
+
+  const handleGenerateSuno = async () => {
+    if (!lyrics.trim()) {
+      alert("Por favor, digite ou gere a letra primeiro.");
+      return;
+    }
+    setGeneratingSuno(true);
+    setSunoError('');
+    setPollingStatus('Enviando solicitação ao Suno API...');
+    setGeneratedTracks([]);
+
+    try {
+      const response = await fetch('/api/suno/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: lyrics,
+          tags: sunoPrompt || getSunoStylePrompt(),
+          orderId
+        })
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || 'Falha ao iniciar geração.');
+      }
+
+      const data = await response.json();
+      const tracks = data.tracks;
+
+      if (!tracks || tracks.length === 0) {
+        throw new Error("Nenhuma faixa retornada pela API.");
+      }
+
+      setGeneratedTracks(tracks);
+      
+      const trackIds = tracks.map(t => t.id).join(',');
+      pollSunoStatus(trackIds);
+    } catch (err) {
+      console.error(err);
+      setSunoError(err.message || 'Ocorreu um erro.');
+      setGeneratingSuno(false);
+    }
+  };
+
+  const pollSunoStatus = (ids) => {
+    let attempts = 0;
+    const maxAttempts = 30; // 150 seconds max
+    
+    setPollingStatus('Aguardando Suno compor e renderizar áudios (1 a 2 min)...');
+    
+    const interval = setInterval(async () => {
+      attempts++;
+      try {
+        const res = await fetch(`/api/suno/status?ids=${ids}`);
+        if (res.ok) {
+          const statusData = await res.json();
+          const isComplete = statusData.every(t => t.status === 'complete');
+          const hasAudio = statusData.every(t => t.audio_url);
+          
+          if (isComplete || hasAudio) {
+            setGeneratedTracks(statusData);
+            setPollingStatus('✅ Geração concluída com sucesso!');
+            clearInterval(interval);
+            setGeneratingSuno(false);
+            
+            // Automatically set first complete track as audio link
+            const validTrack = statusData.find(t => t.audio_url);
+            if (validTrack) {
+              setAudioUrl(validTrack.audio_url);
+            }
+          } else {
+            setPollingStatus(`Renderizando faixas... Tentativa ${attempts} de ${maxAttempts}`);
+          }
+        }
+      } catch (err) {
+        console.error(err);
+      }
+
+      if (attempts >= maxAttempts) {
+        clearInterval(interval);
+        setPollingStatus('');
+        setSunoError('Tempo limite esgotado. Verifique os áudios diretamente no seu Suno.');
+        setGeneratingSuno(false);
+      }
+    }, 5000);
   };
 
   const copyToClipboard = (text, alertMsg) => {
@@ -222,9 +324,9 @@ export default function OrderDetailsAdmin() {
                 </div>
 
                 <div style={{ ...styles.formGroup, borderTop: '1px solid var(--border-color)', paddingTop: '20px', marginTop: '20px' }}>
-                  <h4 style={{ fontSize: '0.95rem', marginBottom: '12px', fontWeight: '700' }}>Disponibilização de Links (Sem Upload de Arquivos)</h4>
+                  <h4 style={{ fontSize: '0.95rem', marginBottom: '12px', fontWeight: '700' }}>Disponibilização de Links</h4>
                   <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
-                    Cole aqui os links diretos para que o cliente acesse, ouça e baixe na página privada de entrega.
+                    Cole aqui os links diretos para que o cliente acesse, ouça e baixe.
                   </p>
 
                   <div style={styles.formGroup}>
@@ -233,7 +335,7 @@ export default function OrderDetailsAdmin() {
                       type="url" 
                       value={audioUrl} 
                       onChange={(e) => setAudioUrl(e.target.value)}
-                      placeholder="Ex: https://link-suno.com/audio.mp3 ou link do Google Drive..." 
+                      placeholder="Ex: link do áudio do Suno ou link do Google Drive..." 
                       style={styles.input}
                     />
                   </div>
@@ -255,7 +357,7 @@ export default function OrderDetailsAdmin() {
                       type="url" 
                       value={videoUrl} 
                       onChange={(e) => setVideoUrl(e.target.value)}
-                      placeholder="Ex: https://youtube.com/watch?v=... ou link do Drive..." 
+                      placeholder="Ex: https://youtube.com/watch?v=..." 
                       style={styles.input}
                     />
                   </div>
@@ -282,29 +384,97 @@ export default function OrderDetailsAdmin() {
                 </button>
               </div>
             </form>
-
-            {/* Info Side (Story and Suno tools) */}
+ 
+            {/* Info Side */}
             <div style={styles.infoSide}>
+              
+              {/* Suno AI card with auto generator */}
               <div style={styles.card} className="glass-card">
-                <h3 style={styles.cardTitle}>Prompts do Suno AI</h3>
+                <h3 style={styles.cardTitle}>Prompts & Geração Suno AI 🤖</h3>
+                
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={styles.label}>Prompt de Estilo (Tags)</label>
+                  <input 
+                    type="text"
+                    value={sunoPrompt || getSunoStylePrompt()}
+                    onChange={(e) => setSunoPrompt(e.target.value)}
+                    style={styles.input}
+                  />
+                </div>
+
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   <button 
                     type="button"
-                    onClick={() => copyToClipboard(getSunoStylePrompt(), 'Prompt de estilo copiado!')}
-                    className="btn btn-secondary"
-                    style={{ fontSize: '0.85rem', padding: '10px 14px', width: '100%' }}
+                    onClick={handleGenerateSuno}
+                    disabled={generatingSuno}
+                    className="btn btn-primary"
+                    style={{ fontSize: '0.9rem', padding: '12px 14px', width: '100%', background: 'linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%)', border: 'none' }}
                   >
-                    📋 Copiar Prompt de Estilo
+                    {generatingSuno ? '⏳ Gerando Música...' : '🎵 Gerar Áudio no Suno AI (1 Click)'}
                   </button>
-                  <button 
-                    type="button"
-                    onClick={() => copyToClipboard(lyrics, 'Letra da música copiada!')}
-                    className="btn btn-secondary"
-                    style={{ fontSize: '0.85rem', padding: '10px 14px', width: '100%' }}
-                  >
-                    📋 Copiar Letra Inteira
-                  </button>
+
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button 
+                      type="button"
+                      onClick={() => copyToClipboard(sunoPrompt || getSunoStylePrompt(), 'Prompt de estilo copiado!')}
+                      className="btn btn-secondary"
+                      style={{ fontSize: '0.8rem', padding: '8px 10px', flex: 1 }}
+                    >
+                      📋 Copiar Tags
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => copyToClipboard(lyrics, 'Letra da música copiada!')}
+                      className="btn btn-secondary"
+                      style={{ fontSize: '0.8rem', padding: '8px 10px', flex: 1 }}
+                    >
+                      📋 Copiar Letra
+                    </button>
+                  </div>
                 </div>
+
+                {pollingStatus && (
+                  <div style={{ marginTop: '16px', fontSize: '0.85rem', color: 'var(--secondary)', backgroundColor: 'rgba(139,92,246,0.05)', padding: '10px', borderRadius: '6px', border: '1px solid rgba(139,92,246,0.2)', textAlign: 'center' }}>
+                    {pollingStatus}
+                  </div>
+                )}
+
+                {sunoError && (
+                  <div style={{ marginTop: '16px', fontSize: '0.85rem', color: 'var(--danger)', backgroundColor: 'rgba(239,68,68,0.05)', padding: '10px', borderRadius: '6px', border: '1px solid rgba(239,68,68,0.2)', textAlign: 'center' }}>
+                    ⚠️ {sunoError}
+                  </div>
+                )}
+
+                {generatedTracks.length > 0 && (
+                  <div style={{ marginTop: '20px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '16px' }}>
+                    <h4 style={{ fontSize: '0.9rem', marginBottom: '10px' }}>Versões Geradas:</h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      {generatedTracks.map((track, idx) => (
+                        <div key={track.id || idx} className="glass-card" style={{ padding: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          <span style={{ fontSize: '0.8rem', fontWeight: 'bold' }}>Versão {idx + 1} ({track.status})</span>
+                          {track.audio_url ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                              <audio src={track.audio_url} controls style={{ width: '100%', height: '32px' }} />
+                              <button 
+                                type="button" 
+                                onClick={() => {
+                                  setAudioUrl(track.audio_url);
+                                  alert(`Link da Versão ${idx + 1} copiado para o campo de áudio principal! Não esqueça de Salvar.`);
+                                }}
+                                className="btn btn-secondary" 
+                                style={{ fontSize: '0.75rem', padding: '6px' }}
+                              >
+                                Usar como Áudio Principal 🎯
+                              </button>
+                            </div>
+                          ) : (
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Processando áudio...</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div style={styles.card} className="glass-card">
@@ -319,7 +489,7 @@ export default function OrderDetailsAdmin() {
                 </div>
                 <div style={styles.infoBlock}>
                   <span style={styles.infoLabel}>Qualidades</span>
-                  <p style={styles.infoVal}>{order.qualities}</p>
+                  <p style={styles.infoVal}>{order.qualities || 'Nenhuma informada'}</p>
                 </div>
                 <div style={styles.infoBlock}>
                   <span style={styles.infoLabel}>Frase Obrigatória</span>
@@ -394,12 +564,6 @@ const styles = {
     alignItems: 'center',
     gap: '8px',
   },
-  logoText: {
-    fontFamily: 'var(--font-family-title)',
-    fontWeight: '800',
-    fontSize: '1.3rem',
-    letterSpacing: '-0.02em',
-  },
   titleRow: {
     display: 'flex',
     justifyContent: 'space-between',
@@ -416,81 +580,81 @@ const styles = {
   successAlert: {
     backgroundColor: 'rgba(16, 185, 129, 0.05)',
     border: '1px solid rgba(16, 185, 129, 0.2)',
-    borderRadius: 'var(--border-radius-sm)',
+    borderRadius: '8px',
     padding: '16px 20px',
-    color: 'var(--success)',
-    fontWeight: '600',
+    color: '#fff',
+    marginBottom: '24px',
     fontSize: '0.95rem',
-    marginBottom: '32px',
   },
-  layoutGrid: {},
   formSide: {
+    flex: 1.3,
+  },
+  infoSide: {
+    flex: 1,
     display: 'flex',
     flexDirection: 'column',
     gap: '24px',
   },
   card: {
-    padding: '32px',
-    marginBottom: '24px',
+    padding: '28px',
+    marginBottom: '0px',
   },
   cardTitle: {
-    fontSize: '1.2rem',
-    fontFamily: 'var(--font-family-title)',
+    fontSize: '1.15rem',
+    fontWeight: '700',
     marginBottom: '20px',
-    borderBottom: '1px solid var(--border-color)',
-    paddingBottom: '12px',
+    borderBottom: '1px solid rgba(255,255,255,0.04)',
+    paddingBottom: '10px',
   },
   formGroup: {
-    marginBottom: '20px',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '8px',
+    marginBottom: '16px',
   },
   label: {
     fontSize: '0.85rem',
     fontWeight: '600',
     color: 'var(--text-secondary)',
+    marginBottom: '6px',
+    display: 'block',
   },
   input: {
     width: '100%',
-    padding: '12px 16px',
-    backgroundColor: 'rgba(255,255,255,0.03)',
+    padding: '10px 14px',
+    backgroundColor: 'rgba(255,255,255,0.02)',
     border: '1px solid var(--border-color)',
-    borderRadius: 'var(--border-radius-sm)',
+    borderRadius: '6px',
     color: '#fff',
-    fontSize: '0.95rem',
+    fontFamily: 'var(--font-family-body)',
+    fontSize: '0.9rem',
     outline: 'none',
   },
   select: {
     width: '100%',
-    padding: '12px 16px',
-    backgroundColor: '#121216',
+    padding: '10px 14px',
+    backgroundColor: 'rgba(255,255,255,0.02)',
     border: '1px solid var(--border-color)',
-    borderRadius: 'var(--border-radius-sm)',
+    borderRadius: '6px',
     color: '#fff',
-    fontSize: '0.95rem',
+    fontFamily: 'var(--font-family-body)',
+    fontSize: '0.9rem',
     outline: 'none',
     cursor: 'pointer',
   },
   textarea: {
     width: '100%',
-    padding: '16px',
-    backgroundColor: 'rgba(255,255,255,0.03)',
+    padding: '12px 14px',
+    backgroundColor: 'rgba(255,255,255,0.02)',
     border: '1px solid var(--border-color)',
-    borderRadius: 'var(--border-radius-sm)',
+    borderRadius: '6px',
     color: '#fff',
     fontFamily: 'var(--font-family-body)',
-    fontSize: '0.95rem',
+    fontSize: '0.9rem',
     outline: 'none',
     resize: 'vertical',
-    lineHeight: '1.6',
-  },
-  infoSide: {
-    display: 'flex',
-    flexDirection: 'column',
   },
   infoBlock: {
-    marginBottom: '16px',
+    marginBottom: '14px',
+    borderBottom: '1px solid rgba(255,255,255,0.03)',
+    paddingBottom: '8px',
   },
   infoLabel: {
     fontSize: '0.8rem',
@@ -500,8 +664,7 @@ const styles = {
   },
   infoVal: {
     fontSize: '0.95rem',
-    fontWeight: '600',
     color: '#fff',
-    marginTop: '4px',
-  },
+    marginTop: '2px',
+  }
 };
