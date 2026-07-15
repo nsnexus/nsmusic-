@@ -16,10 +16,16 @@ export async function GET(req) {
       return NextResponse.json({ error: "SUNO_COOKIE não configurado." }, { status: 400 });
     }
 
+    const cleanCookie = cookieStr
+      .split(';')
+      .map(c => c.trim())
+      .filter(c => c.startsWith('__client=') || c.startsWith('__session='))
+      .join('; ');
+
     // Call Suno direct API for status via Render!
     const response = await fetch(`https://suno-api-9jk6.onrender.com/api/get?ids=${ids}`, {
       headers: {
-        'Cookie': cookieStr
+        'Cookie': cleanCookie
       }
     });
 

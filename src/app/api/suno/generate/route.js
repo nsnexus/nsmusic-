@@ -14,12 +14,20 @@ export async function POST(req) {
       }, { status: 400 });
     }
 
+    // O Playwright (no Render) dá crash se enviarmos cookies com caracteres inválidos (como espaços no OptanonConsent).
+    // Então vamos filtrar e enviar apenas as chaves que a API do Suno realmente precisa!
+    const cleanCookie = cookieStr
+      .split(';')
+      .map(c => c.trim())
+      .filter(c => c.startsWith('__client=') || c.startsWith('__session='))
+      .join('; ');
+
     // Call our private Render proxy!
     const response = await fetch('https://suno-api-9jk6.onrender.com/api/generate', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Cookie': cookieStr
+        'Cookie': cleanCookie
       },
       body: JSON.stringify({
         prompt: prompt,
