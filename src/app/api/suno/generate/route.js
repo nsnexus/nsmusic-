@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { getValidToken } from '@/lib/sunoToken';
 
 export const runtime = 'edge';
 
@@ -7,13 +8,9 @@ export async function POST(req) {
     const { prompt, tags, orderId } = await req.json();
 
     const cookieStr = process.env.SUNO_COOKIE || '';
-    const token = cookieStr.match(/__session=([^;]+)/)?.[1];
-
-    if (!token) {
-      return NextResponse.json({ 
-        error: "O Token de sessão (__session) não foi encontrado na variável SUNO_COOKIE." 
-      }, { status: 400 });
-    }
+    
+    // Auto-refresh the token directly from Clerk
+    const token = await getValidToken(cookieStr);
 
     // Call Suno direct API, using the current official domain
     const response = await fetch('https://studio-api.prod.suno.com/api/generate/v2/', {

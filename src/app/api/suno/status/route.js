@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { getValidToken } from '@/lib/sunoToken';
 
 export const runtime = 'edge';
 
@@ -12,11 +13,7 @@ export async function GET(req) {
     }
 
     const cookieStr = process.env.SUNO_COOKIE || '';
-    const token = cookieStr.match(/__session=([^;]+)/)?.[1];
-
-    if (!token) {
-      return NextResponse.json({ error: "Token __session não encontrado no SUNO_COOKIE." }, { status: 400 });
-    }
+    const token = await getValidToken(cookieStr);
 
     // Call Suno direct API for status!
     const response = await fetch(`https://studio-api.prod.suno.com/api/feed/?ids=${ids}`, {
