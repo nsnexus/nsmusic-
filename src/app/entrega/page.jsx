@@ -76,7 +76,7 @@ Nossa trilha não tem fim, e nada nos afasta.`,
         <div className="container" style={{ maxWidth: '1000px' }}>
           
           <div style={styles.deliveryCard} className="glass-card">
-            <div style={styles.deliveryLayout}>
+            <div className="responsive-grid-2">
               {/* Cover and Player */}
               <div style={styles.mediaSide}>
                 <div style={styles.coverWrapper}>
@@ -234,14 +234,7 @@ const styles = {
     padding: '32px',
     marginBottom: '32px',
   },
-  deliveryLayout: {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: '40px',
-    '@media (max-width: 800px)': {
-      gridTemplateColumns: '1fr',
-    },
-  },
+  deliveryLayout: {},
   mediaSide: {
     display: 'flex',
     flexDirection: 'column',

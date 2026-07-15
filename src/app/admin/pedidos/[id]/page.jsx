@@ -158,7 +158,7 @@ export default function OrderDetailsAdmin() {
           <div style={styles.logo}>
             <Link href="/admin" style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#fff' }}>
               <span>🎵</span>
-              <span style={styles.logoText}>NS<span className="gradient-text">Nexus</span> Admin</span>
+              <span style={styles.logoText}>NS<span className="gradient-text">Music</span> Admin</span>
             </Link>
           </div>
           <Link href="/admin" className="btn btn-secondary" style={{ padding: '8px 16px', fontSize: '0.85rem' }}>
@@ -188,7 +188,7 @@ export default function OrderDetailsAdmin() {
             </div>
           )}
 
-          <div style={styles.layoutGrid}>
+          <div className="responsive-grid-split">
             
             {/* Form Side */}
             <form onSubmit={handleUpdate} style={styles.formSide}>
@@ -423,15 +423,7 @@ const styles = {
     fontSize: '0.95rem',
     marginBottom: '32px',
   },
-  layoutGrid: {
-    display: 'grid',
-    gridTemplateColumns: '1.2fr 0.8fr',
-    gap: '32px',
-    alignItems: 'start',
-    '@media (max-width: 800px)': {
-      gridTemplateColumns: '1fr',
-    },
-  },
+  layoutGrid: {},
   formSide: {
     display: 'flex',
     flexDirection: 'column',

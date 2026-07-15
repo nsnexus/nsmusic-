@@ -71,7 +71,7 @@ export default function AcompanharPedido() {
             </p>
           </div>
 
-          <div style={styles.layoutGrid}>
+          <div className="responsive-grid-split">
             {/* Timeline */}
             <div style={styles.timelineCard} className="glass-card">
               <h3 style={{ fontSize: '1.2rem', marginBottom: '24px', fontFamily: 'var(--font-family-title)' }}>Acompanhamento de Status</h3>
@@ -216,15 +216,7 @@ const styles = {
     padding: '32px',
     marginBottom: '32px',
   },
-  layoutGrid: {
-    display: 'grid',
-    gridTemplateColumns: '1.2fr 0.8fr',
-    gap: '32px',
-    alignItems: 'start',
-    '@media (max-width: 768px)': {
-      gridTemplateColumns: '1fr',
-    },
-  },
+  layoutGrid: {},
   timelineCard: {
     padding: '32px',
   },

@@ -139,7 +139,7 @@ export default function AdminDashboard() {
         <div style={styles.headerContainer}>
           <div style={styles.logo}>
             <span style={styles.logoIcon}>🎵</span>
-            <span style={styles.logoText}>NS<span className="gradient-text">Nexus</span> Admin</span>
+            <span style={styles.logoText}>NS<span className="gradient-text">Music</span> Admin</span>
           </div>
           <div style={styles.userInfo}>
             <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{user.email}</span>

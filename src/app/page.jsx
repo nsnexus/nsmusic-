@@ -97,13 +97,13 @@ export default function Home() {
         <div style={styles.headerContainer}>
           <div style={styles.logo}>
             <span style={styles.logoIcon}>🎵</span>
-            <span style={styles.logoText}>NS<span className="gradient-text">Nexus</span></span>
+            <span className="logo-text">NS<span className="gradient-text">Music</span></span>
           </div>
-          <nav style={styles.nav}>
-            <a href="#como-funciona" style={styles.navLink}>Como Funciona</a>
-            <a href="#exemplos" style={styles.navLink}>Exemplos</a>
-            <a href="#pacotes" style={styles.navLink}>Pacotes</a>
-            <a href="#faq" style={styles.navLink}>Dúvidas</a>
+          <nav className="nav-menu">
+            <a href="#como-funciona" className="nav-menu-link">Como Funciona</a>
+            <a href="#exemplos" className="nav-menu-link">Exemplos</a>
+            <a href="#pacotes" className="nav-menu-link">Pacotes</a>
+            <a href="#faq" className="nav-menu-link">Dúvidas</a>
           </nav>
           <Link href="/criar" className="btn btn-primary" style={{ padding: '10px 20px', fontSize: '0.9rem' }}>
             Criar Música
@@ -118,7 +118,7 @@ export default function Home() {
           <div style={styles.heroBadge} className="glass-card">
             <span>✨ Transforme histórias em música com IA</span>
           </div>
-          <h1 style={styles.heroTitle}>
+          <h1 className="hero-title">
             Sua história contada em uma <br />
             <span className="gradient-text">Canção Exclusiva</span>
           </h1>
@@ -306,11 +306,11 @@ export default function Home() {
       <footer style={styles.footer}>
         <div className="container" style={styles.footerContainer}>
           <div style={styles.footerBrand}>
-            <h3 style={styles.footerLogo}>NS<span className="gradient-text">Nexus</span></h3>
+            <h3 style={styles.footerLogo}>NS<span className="gradient-text">Music</span></h3>
             <p style={styles.footerTagline}>Eternizando momentos marcantes através de acordes e versos únicos.</p>
           </div>
-          <div style={styles.footerRights}>
-            <p>© {new Date().getFullYear()} NSNexus. Todos os direitos reservados.</p>
+          <div className="footer-rights">
+            <p>© {new Date().getFullYear()} NSMusic. Todos os direitos reservados.</p>
             <p style={{ marginTop: '8px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>Projetado e desenvolvido com tecnologia de ponta.</p>
           </div>
         </div>
@@ -356,24 +356,8 @@ const styles = {
     fontSize: '1.3rem',
     letterSpacing: '-0.02em',
   },
-  nav: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '32px',
-    '@media (max-width: 768px)': {
-      display: 'none',
-    },
-  },
-  navLink: {
-    fontSize: '0.95rem',
-    fontWeight: '500',
-    color: 'var(--text-secondary)',
-    transition: 'color 0.2s',
-    cursor: 'pointer',
-    ':hover': {
-      color: 'var(--text-primary)',
-    },
-  },
+  nav: {},
+  navLink: {},
   hero: {
     position: 'relative',
     padding: '120px 0 100px 0',
@@ -409,14 +393,7 @@ const styles = {
     color: 'var(--primary)',
     border: '1px solid var(--primary-glow)',
   },
-  heroTitle: {
-    fontSize: '3.8rem',
-    lineHeight: '1.15',
-    marginBottom: '24px',
-    '@media (max-width: 768px)': {
-      fontSize: '2.5rem',
-    },
-  },
+  heroTitle: {},
   heroSubtitle: {
     fontSize: '1.2rem',
     lineHeight: '1.6',
@@ -673,12 +650,5 @@ const styles = {
     fontSize: '0.9rem',
     color: 'var(--text-secondary)',
   },
-  footerRights: {
-    textAlign: 'right',
-    fontSize: '0.9rem',
-    color: 'var(--text-secondary)',
-    '@media (max-width: 768px)': {
-      textAlign: 'left',
-    },
-  },
+  footerRights: {},
 };

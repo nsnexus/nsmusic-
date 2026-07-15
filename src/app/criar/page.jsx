@@ -480,7 +480,7 @@ export default function CriarMusica() {
                 </p>
               </div>
             ) : (
-              <div style={styles.lyricsContainer}>
+              <div className="responsive-grid-split">
                 <div style={styles.lyricsBox}>
                   <h3 style={{ fontSize: '1.2rem', marginBottom: '16px', color: 'var(--primary)' }}>Versão {formData.lyricsVersion}</h3>
                   <pre style={styles.lyricsText}>{formData.lyrics}</pre>
@@ -574,7 +574,7 @@ export default function CriarMusica() {
         return (
           <div style={styles.stepContent}>
             <h2 style={styles.stepHeader}>Passo 8: Resumo & Checkout</h2>
-            <div style={styles.checkoutLayout}>
+            <div className="responsive-grid-2">
               <div style={styles.checkoutSummary} className="glass-card">
                 <h3 style={{ fontSize: '1.2rem', marginBottom: '20px', color: 'var(--primary)' }}>Resumo do Pedido</h3>
                 
@@ -872,14 +872,7 @@ const styles = {
     borderRadius: '50%',
     animation: 'spin 1s linear infinite',
   },
-  lyricsContainer: {
-    display: 'grid',
-    gridTemplateColumns: '1.2fr 0.8fr',
-    gap: '32px',
-    '@media (max-width: 768px)': {
-      gridTemplateColumns: '1fr',
-    },
-  },
+  lyricsContainer: {},
   lyricsBox: {
     backgroundColor: 'rgba(255,255,255,0.02)',
     border: '1px solid var(--border-color)',
@@ -934,14 +927,7 @@ const styles = {
     height: '18px',
     cursor: 'pointer',
   },
-  checkoutLayout: {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: '40px',
-    '@media (max-width: 768px)': {
-      gridTemplateColumns: '1fr',
-    },
-  },
+  checkoutLayout: {},
   checkoutSummary: {
     padding: '32px',
   },

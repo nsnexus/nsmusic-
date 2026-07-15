@@ -100,7 +100,7 @@ export default function AdminLogin() {
       <div style={styles.loginCard} className="glass-card">
         <div style={styles.header}>
           <span style={styles.logoIcon}>🎵</span>
-          <h2 style={styles.title}>NS<span className="gradient-text">Nexus</span> Admin</h2>
+          <h2 style={styles.title}>NS<span className="gradient-text">Music</span> Admin</h2>
           <p style={styles.subtitle}>Faça login para gerenciar pedidos e produções</p>
         </div>
 
@@ -117,7 +117,7 @@ export default function AdminLogin() {
               type="email" 
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="admin@nsnexus.com" 
+              placeholder="admin@nsmusic.com.br" 
               style={styles.input}
             />
           </div>
