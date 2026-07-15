@@ -91,9 +91,19 @@ export default function PrivacyPolicy() {
             </div>
 
             <div style={styles.section}>
-              <h2 style={styles.sectionTitle}>7. Contato</h2>
+              <h2 style={styles.sectionTitle}>7. Uso de Dados do Google OAuth</h2>
               <p style={styles.paragraph}>
-                Se você tiver qualquer dúvida ou questionamento sobre esta política de privacidade, pode entrar em contato conosco pelo e-mail institucional: <strong>contato@nsnexus.com.br</strong>.
+                Nossa plataforma utiliza a autenticação do Google OAuth unicamente para permitir o acesso de administradores autorizados ao painel de controle. Ao utilizar o login com o Google, solicitamos acesso apenas ao seu endereço de e-mail e informações públicas básicas do perfil. 
+              </p>
+              <p style={styles.paragraph}>
+                Esses dados são usados com a única finalidade de verificar a identidade do administrador e conceder acesso seguro. Nós não compartilhamos, vendemos ou utilizamos qualquer informação obtida por meio do Google OAuth para fins publicitários ou com terceiros.
+              </p>
+            </div>
+
+            <div style={styles.section}>
+              <h2 style={styles.sectionTitle}>8. Contato</h2>
+              <p style={styles.paragraph}>
+                Se você tiver qualquer dúvida ou questionamento sobre esta política de privacidade, pode entrar em contato conosco pelo e-mail institucional: <strong>contato@nsnexus.com.br</strong> ou pelo domínio oficial.
               </p>
             </div>
           </div>

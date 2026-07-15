@@ -325,6 +325,9 @@ export default function Home() {
           <div style={styles.footerBrand}>
             <img src="/logo.png" alt="NSMusic" style={{ height: '36px', width: 'auto', marginBottom: '12px' }} />
             <p style={styles.footerTagline}>Eternizando momentos marcantes através de acordes e versos únicos.</p>
+            <div style={{ marginTop: '16px', fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: '1.5', maxWidth: '400px' }}>
+              <strong>Uso do Google OAuth:</strong> A NSMusic utiliza a autenticação do Google apenas para identificar e permitir o login de administradores autorizados do painel de controle. Solicitamos apenas o endereço de e-mail e perfil público básico para fins de controle de acesso.
+            </div>
           </div>
           <div className="footer-rights">
             <div className="footer-links">
