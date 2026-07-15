@@ -16,7 +16,7 @@ export async function POST(req) {
     }
 
     // Call Suno direct API, using the current official domain
-    const response = await fetch('https://studio-api.suno.com/api/generate/v2/', {
+    const response = await fetch('https://studio-api.prod.suno.com/api/generate/v2/', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
