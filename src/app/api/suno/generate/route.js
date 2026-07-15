@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { getValidToken } from '@/lib/sunoToken';
 
 export const runtime = 'edge';
 
@@ -8,36 +7,39 @@ export async function POST(req) {
     const { prompt, tags, orderId } = await req.json();
 
     const cookieStr = process.env.SUNO_COOKIE || '';
-    
-    // Auto-refresh the token directly from Clerk
-    const token = await getValidToken(cookieStr);
 
-    // Call Suno direct API, using the current official domain
-    const response = await fetch('https://studio-api.prod.suno.com/api/generate/v2/', {
+    if (!cookieStr) {
+      return NextResponse.json({ 
+        error: "SUNO_COOKIE não configurado." 
+      }, { status: 400 });
+    }
+
+    // Call our private Render proxy!
+    const response = await fetch('https://suno-api-9jk6.onrender.com/api/generate', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
+        'Cookie': cookieStr
       },
       body: JSON.stringify({
         prompt: prompt,
         tags: tags,
         title: `Pedido ${orderId ? orderId.substring(0, 8) : 'Novo'}`,
-        make_instrumental: false,
-        mv: "chirp-v4-5"
+        make_instrumental: false
       })
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Suno direto (suno.com) retornou erro: ${errorText}`);
+      throw new Error(`Suno Proxy (Render) retornou erro: ${errorText}`);
     }
 
     const data = await response.json();
-    return NextResponse.json({ tracks: data.clips || [] });
+    // suno-api returns { data: [ {id, ...}, {id, ...} ] } or similar.
+    // wait, I need to make sure I return tracks: [] properly.
+    return NextResponse.json({ tracks: data || [] });
   } catch (error) {
-    console.error("Erro na geração direta do Suno:", error);
+    console.error("Erro na geração via Proxy Render:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
