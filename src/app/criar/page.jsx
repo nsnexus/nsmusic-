@@ -364,18 +364,8 @@ export default function CriarMusica() {
       pollSunoStatus(tracks.map(t => t.id).join(','));
     } catch (err) {
       console.error(err);
-      // Fallback with static presentation tracks if API offline
-      setTimeout(() => {
-        const mockTracks = [
-          { id: 'mock_1', audio_url: '/audio/feliz-aniversario.mp3', status: 'complete', title: 'Versão 1 - Romântica' },
-          { id: 'mock_2', audio_url: '/audio/hino.mp3', status: 'complete', title: 'Versão 2 - Acústica' }
-        ];
-        setFormData(prev => ({
-          ...prev,
-          sunoTracks: mockTracks,
-          sunoStatus: 'generated'
-        }));
-      }, 3000);
+      updateField('sunoStatus', 'error');
+      updateField('sunoProgress', 'Não foi possível gerar a música no momento. Verifique as configurações de API do Suno.');
     }
   };
 
