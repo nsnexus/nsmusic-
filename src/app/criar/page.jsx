@@ -272,18 +272,8 @@ export default function CriarMusica() {
         throw new Error('Falha ao gerar letra');
       }
     } catch (err) {
-      console.error(err);
-      const fallbackLyrics = `[Verso 1]\nNo compasso do tempo eu te vi chegar\n${formData.honoreeName || 'Amor'}, seu jeito me ensinou a sonhar\nNossa trilha tem risos, tem carinho e união\nGuardo cada momento no meu coração.\n\n[Refrão]\nCom você, a vida tem outro sabor\nNum abraço apertado esquecemos a dor\n${formData.requiredPhrase || 'Te amo mais que ontem e muito mais que amanhã'},\nNossa melodia é eterna, pura e sã.\n\n[Verso 2]\nLembro de cada detalhe da nossa história singular\nDos planos traçados olhando pro mar\nCom sua voz tão marcante e carinho sem igual\nVocê transformou nossa vida em algo especial.`;
-      
-      setFormData(prev => ({
-        ...prev,
-        lyrics: fallbackLyrics,
-        lyricsStatus: 'generated'
-      }));
-
-      if (orderId) {
-        await updateDoc(doc(db, 'orders', orderId), { lyrics: fallbackLyrics });
-      }
+      console.error("Erro na geração da letra:", err);
+      updateField('lyricsStatus', 'error');
     }
   };
 
@@ -812,10 +802,24 @@ export default function CriarMusica() {
             {formData.lyricsStatus === 'generating' ? (
               <div style={styles.generatingState}>
                 <div style={styles.spinner} />
-                <h3 style={{ marginTop: '24px', fontFamily: 'var(--font-family-title)', fontSize: '1.6rem' }}>Compondo versos personalizados...</h3>
+                <h3 style={{ marginTop: '24px', fontFamily: 'var(--font-family-title)', fontSize: '1.6rem' }}>Compondo versos personalizados com Gemini 3.5...</h3>
                 <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', marginTop: '8px', maxWidth: '500px' }}>
                   Unindo suas memórias e transformando em melodia. Isso pode levar alguns segundos.
                 </p>
+              </div>
+            ) : formData.lyricsStatus === 'error' ? (
+              <div style={styles.generatingState}>
+                <h3 style={{ marginTop: '24px', fontFamily: 'var(--font-family-title)', fontSize: '1.6rem', color: 'var(--danger)' }}>Erro ao comunicar com a Inteligência Artificial</h3>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', marginTop: '8px', maxWidth: '500px' }}>
+                  Não foi possível conectar com o Gemini 3.5 para gerar sua letra personalizada. Verifique se a variável GEMINI_API_KEYS está configurada na Cloudflare.
+                </p>
+                <button 
+                  onClick={handleSaveAndGenerateLyrics}
+                  className="btn btn-primary"
+                  style={{ marginTop: '20px', padding: '12px 28px' }}
+                >
+                  Tentar Gerar Novamente 🔄
+                </button>
               </div>
             ) : (
               <div>
