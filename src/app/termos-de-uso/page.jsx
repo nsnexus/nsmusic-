@@ -11,8 +11,7 @@ export default function TermsOfUse() {
         <div style={styles.headerContainer}>
           <div style={styles.logo}>
             <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#fff' }}>
-              <span>🎵</span>
-              <span className="logo-text">NS<span className="gradient-text">Music</span></span>
+              <img src="/logo.png" alt="NSMusic" style={{ height: '36px', width: 'auto' }} />
             </Link>
           </div>
           <Link href="/" className="btn btn-secondary" style={{ padding: '8px 16px', fontSize: '0.85rem' }}>
@@ -108,8 +107,8 @@ export default function TermsOfUse() {
       <footer style={styles.footer}>
         <div className="container" style={styles.footerContainer}>
           <div>
-            <h3 style={{ fontSize: '1.2rem', fontWeight: '800' }}>NS<span className="gradient-text">Music</span></h3>
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '4px' }}>Músicas personalizadas que emocionam.</p>
+            <img src="/logo.png" alt="NSMusic" style={{ height: '32px', width: 'auto', marginBottom: '8px' }} />
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Músicas personalizadas que emocionam.</p>
           </div>
           <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
             © {new Date().getFullYear()} NSMusic. Todos os direitos reservados.

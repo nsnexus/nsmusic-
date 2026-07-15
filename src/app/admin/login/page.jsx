@@ -99,8 +99,8 @@ export default function AdminLogin() {
 
       <div style={styles.loginCard} className="glass-card">
         <div style={styles.header}>
-          <span style={styles.logoIcon}>🎵</span>
-          <h2 style={styles.title}>NS<span className="gradient-text">Music</span> Admin</h2>
+          <img src="/logo.png" alt="NSMusic" style={{ height: '60px', width: 'auto', marginBottom: '16px' }} />
+          <h2 style={styles.title}>Painel Administrativo</h2>
           <p style={styles.subtitle}>Faça login para gerenciar pedidos e produções</p>
         </div>
 

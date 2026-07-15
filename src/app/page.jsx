@@ -95,10 +95,9 @@ export default function Home() {
       {/* Header / Navbar */}
       <header style={styles.header} className="glass-panel">
         <div style={styles.headerContainer}>
-          <div style={styles.logo}>
-            <span style={styles.logoIcon}>🎵</span>
-            <span className="logo-text">NS<span className="gradient-text">Music</span></span>
-          </div>
+          <Link href="/" style={{ display: 'flex', alignItems: 'center' }}>
+            <img src="/logo.png" alt="NSMusic" style={{ height: '44px', width: 'auto' }} />
+          </Link>
           <nav className="nav-menu">
             <a href="#como-funciona" className="nav-menu-link">Como Funciona</a>
             <a href="#exemplos" className="nav-menu-link">Exemplos</a>
@@ -306,7 +305,7 @@ export default function Home() {
       <footer style={styles.footer}>
         <div className="container" style={styles.footerContainer}>
           <div style={styles.footerBrand}>
-            <h3 style={styles.footerLogo}>NS<span className="gradient-text">Music</span></h3>
+            <img src="/logo.png" alt="NSMusic" style={{ height: '36px', width: 'auto', marginBottom: '12px' }} />
             <p style={styles.footerTagline}>Eternizando momentos marcantes através de acordes e versos únicos.</p>
           </div>
           <div className="footer-rights">

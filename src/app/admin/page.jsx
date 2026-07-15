@@ -137,10 +137,10 @@ export default function AdminDashboard() {
       {/* Sidebar/Header */}
       <header style={styles.header} className="glass-panel">
         <div style={styles.headerContainer}>
-          <div style={styles.logo}>
-            <span style={styles.logoIcon}>🎵</span>
-            <span style={styles.logoText}>NS<span className="gradient-text">Music</span> Admin</span>
-          </div>
+          <Link href="/admin" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <img src="/logo.png" alt="NSMusic" style={{ height: '36px', width: 'auto' }} />
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Admin</span>
+          </Link>
           <div style={styles.userInfo}>
             <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{user.email}</span>
             <button onClick={handleLogout} style={styles.logoutBtn}>Sair ➔</button>

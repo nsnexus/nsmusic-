@@ -52,9 +52,8 @@ export default function AcompanharPedido() {
       {/* Header */}
       <header style={styles.header} className="glass-panel">
         <div style={styles.headerContainer}>
-          <Link href="/" style={styles.logo}>
-            <span style={styles.logoIcon}>🎵</span>
-            <span style={styles.logoText}>NS<span className="gradient-text">Nexus</span></span>
+          <Link href="/" style={{ display: 'flex', alignItems: 'center' }}>
+            <img src="/logo.png" alt="NSMusic" style={{ height: '40px', width: 'auto' }} />
           </Link>
           <span style={styles.orderBadge}>Pedido: {order.orderNumber}</span>
         </div>

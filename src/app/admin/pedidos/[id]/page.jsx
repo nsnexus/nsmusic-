@@ -157,8 +157,8 @@ export default function OrderDetailsAdmin() {
         <div style={styles.headerContainer}>
           <div style={styles.logo}>
             <Link href="/admin" style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#fff' }}>
-              <span>🎵</span>
-              <span style={styles.logoText}>NS<span className="gradient-text">Music</span> Admin</span>
+              <img src="/logo.png" alt="NSMusic" style={{ height: '36px', width: 'auto' }} />
+              <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Admin</span>
             </Link>
           </div>
           <Link href="/admin" className="btn btn-secondary" style={{ padding: '8px 16px', fontSize: '0.85rem' }}>
