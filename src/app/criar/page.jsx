@@ -347,14 +347,15 @@ export default function CriarMusica() {
       });
 
       if (!response.ok) {
-        throw new Error('Falha ao acionar a API do Suno.');
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || 'Falha ao acionar a API do Suno.');
       }
 
       const data = await response.json();
       const tracks = data.tracks;
 
       if (!tracks || tracks.length === 0) {
-        throw new Error('Nenhum áudio retornado.');
+        throw new Error('Nenhum áudio retornado do Suno.');
       }
 
       setFormData(prev => ({
@@ -365,9 +366,9 @@ export default function CriarMusica() {
       // Poll status for completing audio rendering
       pollSunoStatus(tracks.map(t => t.id).join(','));
     } catch (err) {
-      console.error(err);
+      console.error("Erro na chamada do Suno:", err);
       updateField('sunoStatus', 'error');
-      updateField('sunoProgress', 'Não foi possível gerar a música no momento. Verifique as configurações de API do Suno.');
+      updateField('sunoProgress', err.message);
     }
   };
 
