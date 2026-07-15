@@ -367,8 +367,8 @@ export default function CriarMusica() {
       // Fallback with static presentation tracks if API offline
       setTimeout(() => {
         const mockTracks = [
-          { id: 'mock_1', audio_url: '/audio/track1.mp3', status: 'complete', title: 'Versão 1 - Romântica' },
-          { id: 'mock_2', audio_url: '/audio/track2.mp3', status: 'complete', title: 'Versão 2 - Acústica' }
+          { id: 'mock_1', audio_url: '/audio/feliz-aniversario.mp3', status: 'complete', title: 'Versão 1 - Romântica' },
+          { id: 'mock_2', audio_url: '/audio/hino.mp3', status: 'complete', title: 'Versão 2 - Acústica' }
         ];
         setFormData(prev => ({
           ...prev,
@@ -874,13 +874,18 @@ export default function CriarMusica() {
       case 11: // Direct Suno Audio Generation & 60s Preview Playback
         return (
           <div>
-            {formData.sunoStatus === 'generating' ? (
+            {formData.sunoStatus !== 'generated' ? (
               <div style={styles.generatingState}>
                 <div style={styles.spinner} />
                 <h3 style={{ marginTop: '24px', fontFamily: 'var(--font-family-title)', fontSize: '1.6rem' }}>Criando os arranjos e gravando áudios...</h3>
                 <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', marginTop: '8px', maxWidth: '500px' }}>
                   {formData.sunoProgress || 'Aguardando o processamento do Suno AI...'}
                 </p>
+                {formData.sunoStatus === 'error' && (
+                  <p style={{ color: 'var(--danger)', marginTop: '12px' }}>
+                    Ocorreu um erro na geração automática. Os arquivos de áudio serão gerados de forma manual pela nossa equipe e entregues no WhatsApp informado.
+                  </p>
+                )}
               </div>
             ) : (
               <div>
