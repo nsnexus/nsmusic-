@@ -315,6 +315,7 @@ class SunoApi {
 
     logger.info('Waiting for Suno interface to load');
     await page.goto('https://suno.com/create', { waitUntil: 'networkidle' });
+    logger.info('Current URL after load: ' + page.url());
     if (this.ghostCursorEnabled)
       this.cursor = await createCursor(page);
     
@@ -324,11 +325,11 @@ class SunoApi {
       // await this.click(page, { x: 318, y: 13 });
     } catch(e) {}
 
-    const textarea = page.locator('.custom-textarea');
+    const textarea = page.locator('textarea, input[type="text"], [contenteditable="true"]').first();
     await this.click(textarea);
     await textarea.pressSequentially('Lorem ipsum', { delay: 80 });
 
-    const button = page.locator('button[aria-label="Create"]').locator('div.flex');
+    const button = page.getByRole('button', { name: /create/i }).first();
     this.click(button);
 
     const controller = new AbortController();
