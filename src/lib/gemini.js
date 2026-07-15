@@ -36,5 +36,42 @@ export async function runGeminiWithFailover(prompt, modelName = 'gemini-3.5-flas
     }
   }
 
-  throw new Error(`Falha crítica: Todas as chaves API do Gemini configuradas falharam. Último erro: ${lastError ? lastError.message : 'Desconhecido'}`);
+  // Fallback to OpenAI (gpt-4o-mini) if configured and Gemini fails
+  const openAiKey = process.env.OPENAI_API_KEY;
+  if (openAiKey) {
+    try {
+      console.log("Tentando fallback para OpenAI (gpt-4o-mini)...");
+      const openAiRes = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${openAiKey}`
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: [
+            { role: "system", content: "Você é um compositor e letrista profissional premiado de música brasileira." },
+            { role: "user", content: prompt }
+          ],
+          temperature: 0.7
+        })
+      });
+
+      if (openAiRes.ok) {
+        const data = await openAiRes.json();
+        const lyrics = data.choices[0]?.message?.content?.trim();
+        if (lyrics) {
+          console.log("Sucesso na geração utilizando a OpenAI (gpt-4o-mini)!");
+          return lyrics;
+        }
+      } else {
+        const errText = await openAiRes.text();
+        console.warn("Aviso: OpenAI fallback falhou:", errText);
+      }
+    } catch (openAiErr) {
+      console.error("Erro no fallback da OpenAI:", openAiErr);
+    }
+  }
+
+  throw new Error(`Falha crítica: Todas as chaves API do Gemini falharam e o fallback da OpenAI não funcionou. Último erro: ${lastError ? lastError.message : 'Desconhecido'}`);
 }
