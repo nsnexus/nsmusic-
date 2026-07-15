@@ -4,11 +4,11 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
  * Executes a prompt using Gemini with fallback capabilities.
  * It will try each configured key in sequence until one succeeds.
  * 
- * @param {string} prompt The text prompt to generate content for
- * @param {string} modelName The model to use (default: 'gemini-1.5-flash')
- * @returns {Promise<string>} The generated text response
+ * @param {string} prompt The text prompt to send to Gemini
+ * @param {string} modelName The model to use (default: 'gemini-3.5-flash')
+ * @returns {Promise<string>} The generated text
  */
-export async function runGeminiWithFailover(prompt, modelName = 'gemini-1.5-flash') {
+export async function runGeminiWithFailover(prompt, modelName = 'gemini-3.5-flash') {
   const keysString = process.env.GEMINI_API_KEYS || process.env.GEMINI_API_KEY || '';
   const keys = keysString.split(',').map(k => k.trim()).filter(Boolean);
 
