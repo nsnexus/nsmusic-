@@ -23,7 +23,7 @@ export async function GET(req) {
       .join('; ');
 
     // Call Suno direct API for status via Render!
-    const response = await fetch(`https://suno-api-9jk6.onrender.com/api/get?ids=${ids}`, {
+    const response = await fetch(`https://suno-api-khm7.onrender.com/api/get?ids=${ids}`, {
       headers: {
         'Cookie': cleanCookie
       }

@@ -24,7 +24,7 @@ export async function POST(req) {
       .join('; ');
 
     // Call our private Render proxy!
-    const response = await fetch('https://suno-api-9jk6.onrender.com/api/generate', {
+    const response = await fetch('https://suno-api-khm7.onrender.com/api/generate', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
