@@ -8,6 +8,8 @@ import { db } from '@/lib/firebase';
 export default function CriarMusica() {
   const [step, setStep] = useState(1);
   const [orderId, setOrderId] = useState('');
+  const [taskId, setTaskId] = useState('');
+  const [isRestored, setIsRestored] = useState(false);
   
   const [formData, setFormData] = useState({
     // Step 1
@@ -62,6 +64,81 @@ export default function CriarMusica() {
   const totalWizardSteps = 9;
   const audio1Ref = useRef(null);
   const audio2Ref = useRef(null);
+
+  // Restore draft from localStorage on load
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('nsmusic_order_draft');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed.formData) setFormData(parsed.formData);
+          if (parsed.orderId) setOrderId(parsed.orderId);
+          if (parsed.taskId) setTaskId(parsed.taskId);
+          if (parsed.step) setStep(parsed.step);
+
+          const savedTaskId = parsed.taskId;
+          const currentOrderId = parsed.orderId;
+
+          // Se estava aguardando áudio ou tem um taskId pendente
+          if (savedTaskId && parsed.formData?.sunoStatus !== 'generated') {
+            pollSunoStatus(savedTaskId, currentOrderId);
+          } else if (currentOrderId && parsed.formData?.sunoStatus !== 'generated' && parsed.step >= 10) {
+            checkOrderStatusInFirestore(currentOrderId, savedTaskId);
+          }
+        }
+      } catch (e) {
+        console.warn("Erro ao restaurar rascunho:", e);
+      } finally {
+        setIsRestored(true);
+      }
+    }
+  }, []);
+
+  // Persist draft to localStorage on state changes
+  useEffect(() => {
+    if (typeof window !== 'undefined' && isRestored) {
+      try {
+        const draft = { step, orderId, taskId, formData };
+        localStorage.setItem('nsmusic_order_draft', JSON.stringify(draft));
+      } catch (e) {
+        console.warn("Erro ao salvar rascunho:", e);
+      }
+    }
+  }, [step, orderId, taskId, formData, isRestored]);
+
+  const checkOrderStatusInFirestore = async (targetOrderId, activeTaskId) => {
+    try {
+      const docRef = doc(db, 'orders', targetOrderId);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.audioFiles && data.audioFiles.length > 0) {
+          const tracks = data.audioFiles.map(url => ({ audio_url: url }));
+          setFormData(prev => ({
+            ...prev,
+            sunoTracks: tracks,
+            sunoStatus: 'generated'
+          }));
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn("Erro ao verificar Firestore no recarregamento:", err);
+    }
+    if (activeTaskId) {
+      pollSunoStatus(activeTaskId, targetOrderId);
+    }
+  };
+
+  const handleResetForm = () => {
+    if (confirm("Deseja realmente reiniciar o formulário e apagar o rascunho atual?")) {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('nsmusic_order_draft');
+      }
+      window.location.reload();
+    }
+  };
 
   // States for packages and addons loaded dynamically from Firestore
   const [packagesList, setPackagesList] = useState([
@@ -357,8 +434,9 @@ export default function CriarMusica() {
         throw new Error('Nenhum taskId retornado pela API.');
       }
 
+      setTaskId(data.taskId);
       // Poll status for completing audio rendering
-      pollSunoStatus(data.taskId);
+      pollSunoStatus(data.taskId, orderId);
     } catch (err) {
       console.error("Erro na chamada do Suno:", err);
       updateField('sunoStatus', 'error');
@@ -366,15 +444,16 @@ export default function CriarMusica() {
     }
   };
 
-  const pollSunoStatus = (taskId) => {
+  const pollSunoStatus = (activeTaskId, activeOrderId = orderId) => {
     let attempts = 0;
     const maxAttempts = 72; // 360 seconds (6 minutos) max
+    updateField('sunoStatus', 'generating');
     updateField('sunoProgress', 'Aguardando o Suno compor e renderizar os áudios (2 a 4 min)...');
 
     const interval = setInterval(async () => {
       attempts++;
       try {
-        const res = await fetch(`/api/suno/status?taskId=${taskId}`);
+        const res = await fetch(`/api/suno/status?taskId=${activeTaskId}`);
         if (res.ok) {
           const statusData = await res.json();
           
@@ -387,12 +466,14 @@ export default function CriarMusica() {
             clearInterval(interval);
 
             // Save audioUrls to Firestore automatically
-            if (orderId) {
+            const targetOrder = activeOrderId || orderId;
+            if (targetOrder) {
               const primaryAudio = statusData.tracks[0]?.audio_url || '';
-              await updateDoc(doc(db, 'orders', orderId), {
+              await updateDoc(doc(db, 'orders', targetOrder), {
                 audioUrl: primaryAudio,
-                audioFiles: statusData.tracks.map(t => t.audio_url).filter(Boolean)
-              });
+                audioFiles: statusData.tracks.map(t => t.audio_url).filter(Boolean),
+                productionStatus: 'AUDIO_GERADO'
+              }).catch(e => console.warn(e));
             }
           } else {
             updateField('sunoProgress', `Suno compondo arranjos... Tentativa ${attempts} de ${maxAttempts}`);
@@ -1098,12 +1179,31 @@ export default function CriarMusica() {
           <Link href="/">
             <img src="/logo.png" alt="NSMusic" style={{ height: '40px', width: 'auto' }} />
           </Link>
-          <div style={styles.stepIndicator}>
-            {step <= totalWizardSteps ? (
-              `Passo ${step} de ${totalWizardSteps}`
-            ) : (
-              step === 10 ? 'Etapa: Composição' : step === 11 ? 'Etapa: Prévia do Áudio' : step === 12 ? 'Etapa: Pacote' : 'Etapa: Pagamento'
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            {step > 1 && (
+              <button 
+                onClick={handleResetForm}
+                title="Reiniciar e apagar rascunho"
+                style={{
+                  background: 'transparent',
+                  border: '1px solid rgba(255,255,255,0.12)',
+                  borderRadius: '6px',
+                  color: 'var(--text-muted)',
+                  fontSize: '0.8rem',
+                  padding: '6px 12px',
+                  cursor: 'pointer'
+                }}
+              >
+                🔄 Reiniciar
+              </button>
             )}
+            <div style={styles.stepIndicator}>
+              {step <= totalWizardSteps ? (
+                `Passo ${step} de ${totalWizardSteps}`
+              ) : (
+                step === 10 ? 'Etapa: Composição' : step === 11 ? 'Etapa: Prévia do Áudio' : step === 12 ? 'Etapa: Pacote' : 'Etapa: Pagamento'
+              )}
+            </div>
           </div>
         </div>
       </header>

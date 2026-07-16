@@ -12,7 +12,7 @@ export async function GET(req) {
       return NextResponse.json({ error: "taskId é obrigatório" }, { status: 400 });
     }
 
-    const task = getTask(taskId);
+    const task = await getTask(taskId);
 
     if (!task) {
       return NextResponse.json({ status: "NOT_FOUND" });
