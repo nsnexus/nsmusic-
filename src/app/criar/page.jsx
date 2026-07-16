@@ -47,7 +47,7 @@ export default function CriarMusica() {
     sunoTracks: [],
     addVersion2: false,
     // Step 12: Pricing package
-    selectedPackage: '',
+    selectedPackage: 'promo_2_musicas',
     // Step 13: Addons
     addons: {
       extraSongs2: false, // will represent version 2 addon
@@ -140,15 +140,62 @@ export default function CriarMusica() {
     }
   };
 
-  // States for packages and addons loaded dynamically from Firestore
+  // Helper robusto para extrair a URL do áudio de qualquer formato de objeto
+  const getAudioUrl = (track) => {
+    if (!track) return '';
+    if (typeof track === 'string') return track;
+    return track.audio_url || track.audioUrl || track.stream_url || track.url || track.audioFile || track.cdn_url || '';
+  };
+
+  // Passos de carregamento dinâmico no estúdio de composição de letra (Step 10)
+  const [lyricsStepIdx, setLyricsStepIdx] = useState(0);
+  const studioLyricsPhrases = [
+    "✍️ Analisando sua história e conectando memórias emocionais...",
+    "🎵 Escrevendo versos poéticos, estrutura e rimas marcantes...",
+    "🎼 Lapidando o refrão exclusivo e ajustando a harmonia da letra..."
+  ];
+
+  useEffect(() => {
+    let interval;
+    if (formData.lyricsStatus === 'generating') {
+      interval = setInterval(() => {
+        setLyricsStepIdx(prev => (prev + 1) % studioLyricsPhrases.length);
+      }, 3500);
+    }
+    return () => clearInterval(interval);
+  }, [formData.lyricsStatus]);
+
+  // Passos de carregamento dinâmico no estúdio de produção musical (Step 11)
+  const [audioStepIdx, setAudioStepIdx] = useState(0);
+  const studioAudioPhrases = [
+    "🎸 Compondo arranjos de instrumentos e base harmônica em estúdio...",
+    "🎤 Gravando vocais e ajustando afinação e interpretação...",
+    "🎚️ Executando mixagem profissional e masterização em alta definição 4K HD...",
+    "🎧 Finalizando os últimos detalhes dos 2 arranjos exclusivos..."
+  ];
+
+  useEffect(() => {
+    let interval;
+    if (formData.sunoStatus === 'generating') {
+      interval = setInterval(() => {
+        setAudioStepIdx(prev => (prev + 1) % studioAudioPhrases.length);
+      }, 4000);
+    }
+    return () => clearInterval(interval);
+  }, [formData.sunoStatus]);
+
+  // Pacote promocional fixo de R$ 19,90 com 2 músicas inclusas
   const [packagesList, setPackagesList] = useState([
-    { id: 'essencial', name: 'Essencial', price: 49.90, desc: '1 Música + MP3 + Capa Simples' },
-    { id: 'presente', name: 'Presente Completo', price: 79.90, desc: '1 Música + MP3/WAV + Capa Personalizada + QR Code' },
-    { id: 'tres_versoes', name: 'Multi-Estilos (3 Versões)', price: 119.90, desc: '3 Versões com ritmos diferentes + Capa + QR Code' }
+    { 
+      id: 'promo_2_musicas', 
+      name: '🎁 Pacote Promocional Especial (2 Músicas Completas Inclusas)', 
+      price: 19.90, 
+      originalPrice: 69.90,
+      desc: '2 Músicas Personalizadas em Estilos Diferentes + Arquivo MP3 HD + Capa Digital' 
+    }
   ]);
 
   const [addonsConfig, setAddonsConfig] = useState([
-    { id: 'extraSongs2', name: '➕ Adicionar Versão 2 (Estilo alternativo gerado com IA)', price: 39.90 },
     { id: 'photoVideo', name: '🎥 Vídeo com fotos (sincronizado com a música)', price: 49.90 },
     { id: 'spotifyDistribution', name: '🎧 Publicação no Spotify e plataformas de streaming', price: 99.90 },
     { id: 'premiumCover', name: '🖼️ Capa Premium personalizada profissional', price: 19.90 },
@@ -158,27 +205,10 @@ export default function CriarMusica() {
     { id: 'priorityDelivery', name: '🚀 Entrega Prioritária em até 24 horas', price: 29.90 },
   ]);
 
-  // Load prices dynamically from Firestore database config document
-  useEffect(() => {
-    const loadPricing = async () => {
-      try {
-        const docSnap = await getDoc(doc(db, 'config', 'pricing'));
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          if (data.packages) setPackagesList(data.packages);
-          if (data.addons) setAddonsConfig(data.addons);
-        }
-      } catch (err) {
-        console.error("Erro ao carregar preços do banco de dados:", err);
-      }
-    };
-    loadPricing();
-  }, []);
-
-  // Sync Version 2 selection with addons list
-  useEffect(() => {
-    updateAddon('extraSongs2', formData.addVersion2);
-  }, [formData.addVersion2]);
+  // Valor promocional fixado em R$ 19,90
+  const getSelectedPackagePrice = () => 19.90;
+  const getAddonsPrice = () => 0;
+  const getTotalPrice = () => 19.90;
 
   // Configuration options
   const recipients = [
@@ -886,18 +916,30 @@ export default function CriarMusica() {
         return (
           <div>
             {formData.lyricsStatus === 'generating' ? (
-              <div style={styles.generatingState}>
-                <div style={styles.spinner} />
-                <h3 style={{ marginTop: '24px', fontFamily: 'var(--font-family-title)', fontSize: '1.6rem' }}>Compondo versos personalizados...</h3>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', marginTop: '8px', maxWidth: '500px' }}>
-                  Unindo suas memórias e transformando em melodia. Isso pode levar alguns segundos.
+              <div style={{ padding: '50px 20px', textAlign: 'center', maxWidth: '600px', margin: '0 auto' }} className="glass-card">
+                <div className="eq-container" style={{ marginBottom: '24px' }}>
+                  <div className="eq-bar eq-bar-1" />
+                  <div className="eq-bar eq-bar-2" />
+                  <div className="eq-bar eq-bar-3" />
+                  <div className="eq-bar eq-bar-4" />
+                  <div className="eq-bar eq-bar-5" />
+                  <div className="eq-bar eq-bar-6" />
+                </div>
+                <h3 style={{ fontFamily: 'var(--font-family-title)', fontSize: '1.6rem', color: '#fff' }}>
+                  Estúdio de Composição Ativo ✨
+                </h3>
+                <p style={{ color: 'var(--secondary)', fontSize: '1.05rem', fontWeight: '600', marginTop: '14px', minHeight: '32px' }}>
+                  {studioLyricsPhrases[lyricsStepIdx]}
+                </p>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '16px' }}>
+                  Nossa Inteligência de Composição Poética está transformando seus momentos em versos exclusivos.
                 </p>
               </div>
             ) : formData.lyricsStatus === 'error' ? (
               <div style={styles.generatingState}>
-                <h3 style={{ marginTop: '24px', fontFamily: 'var(--font-family-title)', fontSize: '1.6rem', color: 'var(--danger)' }}>Erro ao comunicar com a Inteligência Artificial</h3>
+                <h3 style={{ marginTop: '24px', fontFamily: 'var(--font-family-title)', fontSize: '1.6rem', color: 'var(--danger)' }}>Erro ao comunicar com a Inteligência de Composição</h3>
                 <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', marginTop: '8px', maxWidth: '500px' }}>
-                  {formData.lyricsError || 'Não foi possível conectar com o Gemini para gerar sua letra. Tente novamente.'}
+                  {formData.lyricsError || 'Não foi possível conectar ao servidor para gerar sua letra. Tente novamente.'}
                 </p>
                 <button 
                   onClick={handleSaveAndGenerateLyrics}
@@ -910,7 +952,7 @@ export default function CriarMusica() {
             ) : (
               <div>
                 <h1 style={styles.stepTitle}>Sua Letra Exclusiva ✨</h1>
-                <p style={styles.stepSubtitle}>Revisada e gerada com IA especialmente para você. Se gostar, aprove para compor a música!</p>
+                <p style={styles.stepSubtitle}>Revisada e gerada especialmente para você. Se gostar, aprove para produzir o áudio!</p>
                 
                 <div className="responsive-grid-split">
                   <div style={styles.lyricsBox}>
@@ -951,53 +993,87 @@ export default function CriarMusica() {
             )}
           </div>
         );
-      case 11: // Direct Suno Audio Generation & 60s Preview Playback
+      case 11: // Direct Audio Generation & 60s Preview Playback
         return (
           <div>
             {formData.sunoStatus !== 'generated' ? (
-              <div style={styles.generatingState}>
-                <div style={styles.spinner} />
-                <h3 style={{ marginTop: '24px', fontFamily: 'var(--font-family-title)', fontSize: '1.6rem' }}>Criando os arranjos e gravando áudios...</h3>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', marginTop: '8px', maxWidth: '500px' }}>
-                  {formData.sunoProgress || 'Aguardando o processamento do Suno AI...'}
+              <div style={{ padding: '50px 20px', textAlign: 'center', maxWidth: '600px', margin: '0 auto' }} className="glass-card">
+                <div className="eq-container" style={{ marginBottom: '24px' }}>
+                  <div className="eq-bar eq-bar-1" />
+                  <div className="eq-bar eq-bar-2" />
+                  <div className="eq-bar eq-bar-3" />
+                  <div className="eq-bar eq-bar-4" />
+                  <div className="eq-bar eq-bar-5" />
+                  <div className="eq-bar eq-bar-6" />
+                </div>
+                <h3 style={{ fontFamily: 'var(--font-family-title)', fontSize: '1.6rem', color: '#fff' }}>
+                  Produzindo seus 2 Arranjos Musicais 🎧
+                </h3>
+                <p style={{ color: 'var(--secondary)', fontSize: '1.05rem', fontWeight: '600', marginTop: '14px', minHeight: '32px' }}>
+                  {studioAudioPhrases[audioStepIdx]}
+                </p>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '16px' }}>
+                  Isso leva cerca de 2 minutos. Aguarde enquanto nosso estúdio sintetiza os vocalistas e a base instrumental.
                 </p>
                 {formData.sunoStatus === 'error' && (
-                  <p style={{ color: 'var(--danger)', marginTop: '12px' }}>
-                    Ocorreu um erro na geração automática. Os arquivos de áudio serão gerados de forma manual pela nossa equipe e entregues no WhatsApp informado.
+                  <p style={{ color: 'var(--danger)', marginTop: '16px' }}>
+                    Ocorreu um imprevisto na renderização automática. Nossa equipe já foi notificada e entregará no seu WhatsApp.
                   </p>
                 )}
               </div>
             ) : (
               <div>
                 <h1 style={styles.stepTitle}>Sua Música Está Pronta! 🎧</h1>
-                <p style={styles.stepSubtitle}>Ouça as prévias de 60 segundos geradas exclusivamente para você. Escolha seu pacote para liberar o download!</p>
+                <p style={styles.stepSubtitle}>Ouça as prévias de 60 segundos geradas em estúdio. As 2 versões estão inclusas pelo valor promocional!</p>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', maxWidth: '680px', margin: '30px auto 0' }}>
-                  {/* Version 1 Preview Card */}
-                  <div className="glass-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <h3 style={{ fontSize: '1.15rem', fontWeight: '700' }}>🎵 Versão Principal (Versão 1)</h3>
-                      <span style={{ fontSize: '0.8rem', color: 'var(--success)', fontWeight: 'bold' }}>Disponível na Compra ✓</span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '680px', margin: '24px auto 0' }}>
+                  
+                  {/* Banner Oferta Promocional R$ 19,90 */}
+                  <div className="glass-card" style={{ background: 'linear-gradient(135deg, rgba(124, 58, 237, 0.25) 0%, rgba(236, 72, 153, 0.25) 100%)', border: '1px solid var(--primary)', borderRadius: '16px', padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                    <div>
+                      <span style={{ fontSize: '0.8rem', color: '#fbbf24', fontWeight: '800', letterSpacing: '0.5px' }}>⚡ OFERTA PROMOCIONAL ESPECIAL</span>
+                      <h4 style={{ fontSize: '1.2rem', fontWeight: '800', marginTop: '2px', color: '#fff' }}>Você ganhou 2 Músicas Completas!</h4>
+                      <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                        De <s style={{ opacity: 0.6 }}>R$ 69,90</s> por apenas <strong style={{ color: '#34d399', fontSize: '1.05rem' }}>R$ 19,90</strong>
+                      </p>
                     </div>
-                    {formData.sunoTracks[0]?.audio_url ? (
-                      <audio 
-                        ref={audio1Ref}
-                        src={formData.sunoTracks[0].audio_url} 
-                        controls 
-                        onTimeUpdate={(e) => handleAudioTimeUpdate(e, 1)}
-                        style={{ width: '100%' }} 
-                      />
-                    ) : (
-                      <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', fontStyle: 'italic' }}>
-                        Processamento de áudio alternativo ativo. Download completo habilitado.
-                      </div>
-                    )}
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                      🔒 Prévia limitada a 60 segundos. A versão completa sem cortes será disponibilizada imediatamente após o pagamento.
+                    <span style={{ background: 'linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%)', color: '#fff', padding: '8px 16px', borderRadius: '24px', fontWeight: 'bold', fontSize: '0.9rem', boxShadow: '0 4px 15px rgba(124, 58, 237, 0.4)' }}>
+                      2 Músicas por R$ 19,90
                     </span>
                   </div>
 
-                  {/* Version 2 Preview & Upsell Card */}
+                  {/* Versão 1 Preview Card */}
+                  <div className="glass-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <span style={{ background: 'rgba(124, 58, 237, 0.2)', color: 'var(--secondary)', padding: '4px 10px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 'bold' }}>
+                          VERSÃO 1 - ESTILO {formData.musicStyle?.toUpperCase() || 'PRINCIPAL'}
+                        </span>
+                        <h3 style={{ fontSize: '1.2rem', fontWeight: '700', marginTop: '6px' }}>🎵 Música {formData.honoreeName || 'Personalizada'} (Arranjo 1)</h3>
+                      </div>
+                      <span style={{ fontSize: '0.85rem', color: '#34d399', fontWeight: 'bold' }}>Incluso no Pacote ✓</span>
+                    </div>
+
+                    {getAudioUrl(formData.sunoTracks[0]) ? (
+                      <audio 
+                        ref={audio1Ref}
+                        src={getAudioUrl(formData.sunoTracks[0])} 
+                        controls 
+                        onTimeUpdate={(e) => handleAudioTimeUpdate(e, 1)}
+                        style={{ width: '100%', marginTop: '6px' }} 
+                      />
+                    ) : (
+                      <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', fontStyle: 'italic', padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px' }}>
+                        ⏳ Carregando áudio da Versão 1...
+                      </div>
+                    )}
+                    
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                      🔒 Prévia de 60s. O áudio completo em altíssima definição (MP3 HD) será liberado imediatamente após o pagamento.
+                    </span>
+                  </div>
+
+                  {/* Versão 2 Preview Card */}
                   {formData.sunoTracks[1] && (
                     <div 
                       className="glass-card" 
@@ -1006,42 +1082,37 @@ export default function CriarMusica() {
                         display: 'flex', 
                         flexDirection: 'column', 
                         gap: '16px', 
-                        border: formData.addVersion2 ? '1px solid var(--secondary)' : '1px solid rgba(255,255,255,0.06)',
-                        backgroundColor: formData.addVersion2 ? 'rgba(139, 92, 246, 0.05)' : 'rgba(255,255,255,0.01)'
+                        border: '1px solid rgba(236, 72, 153, 0.3)',
+                        backgroundColor: 'rgba(236, 72, 153, 0.03)'
                       }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <h3 style={{ fontSize: '1.15rem', fontWeight: '700' }}>🎵 Versão Alternativa (Versão 2)</h3>
-                        <span style={{ fontSize: '0.95rem', color: 'var(--secondary)', fontWeight: '800' }}>
-                          + R$ {addonsConfig.find(a => a.id === 'extraSongs2')?.price.toFixed(2)}
-                        </span>
+                        <div>
+                          <span style={{ background: 'rgba(236, 72, 153, 0.2)', color: '#ec4899', padding: '4px 10px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 'bold' }}>
+                            VERSÃO 2 - ARRANJO ALTERNATIVO BÔNUS
+                          </span>
+                          <h3 style={{ fontSize: '1.2rem', fontWeight: '700', marginTop: '6px' }}>🎵 Versão {formData.honoreeName || 'Personalizada'} (Arranjo 2)</h3>
+                        </div>
+                        <span style={{ fontSize: '0.85rem', color: '#ec4899', fontWeight: 'bold' }}>Bônus Grátis Incluso ✓</span>
                       </div>
                       
-                      {formData.sunoTracks[1].audio_url ? (
+                      {getAudioUrl(formData.sunoTracks[1]) ? (
                         <audio 
                           ref={audio2Ref}
-                          src={formData.sunoTracks[1].audio_url} 
+                          src={getAudioUrl(formData.sunoTracks[1])} 
                           controls 
                           onTimeUpdate={(e) => handleAudioTimeUpdate(e, 2)}
-                          style={{ width: '100%' }} 
+                          style={{ width: '100%', marginTop: '6px' }} 
                         />
                       ) : (
-                        <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', fontStyle: 'italic' }}>
-                          Processando...
+                        <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', fontStyle: 'italic', padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px' }}>
+                          ⏳ Carregando áudio da Versão 2...
                         </div>
                       )}
 
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', marginTop: '8px' }}>
-                        <input 
-                          type="checkbox" 
-                          checked={formData.addVersion2}
-                          onChange={(e) => updateField('addVersion2', e.target.checked)}
-                          style={styles.checkbox}
-                        />
-                        <span style={{ fontSize: '0.95rem', fontWeight: 'bold' }}>
-                          🔥 Levar também a Versão 2 completa com desconto adicional!
-                        </span>
-                      </label>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                        🎁 Presente especial: Você levará ambas as versões da sua música gravada por apenas R$ 19,90!
+                      </span>
                     </div>
                   )}
                 </div>
@@ -1049,30 +1120,42 @@ export default function CriarMusica() {
             )}
           </div>
         );
-      case 12: // Choice of Audio Package (Delivery formats)
+      case 12: // Package Confirmation
         return (
           <div>
-            <h1 style={styles.stepTitle}>Escolha o Pacote de Entrega 💎</h1>
-            <p style={styles.stepSubtitle}>Como você prefere receber a sua homenagem?</p>
+            <h1 style={styles.stepTitle}>Pacote Promocional Selecionado 💎</h1>
+            <p style={styles.stepSubtitle}>Aproveite a oferta exclusiva com 2 Músicas inclusas</p>
             
-            <div style={styles.packagesSelectGrid}>
-              {packagesList.map((pkg) => (
-                <div 
-                  key={pkg.id}
-                  onClick={() => updateField('selectedPackage', pkg.id)}
-                  style={{
-                    ...styles.pkgSelectCard,
-                    borderColor: formData.selectedPackage === pkg.id ? 'var(--primary)' : 'rgba(255,255,255,0.08)',
-                    backgroundColor: formData.selectedPackage === pkg.id ? 'rgba(124, 58, 237, 0.08)' : 'rgba(255,255,255,0.02)',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                    <h3 style={{ fontSize: '1.3rem', fontWeight: '700' }}>{pkg.name}</h3>
-                    <span style={{ fontSize: '1.6rem', fontWeight: '800', color: 'var(--secondary)' }}>R$ {pkg.price.toFixed(2)}</span>
+            <div style={{ maxWidth: '650px', margin: '30px auto 0' }}>
+              <div 
+                className="glass-card"
+                style={{
+                  padding: '30px',
+                  borderColor: 'var(--primary)',
+                  backgroundColor: 'rgba(124, 58, 237, 0.08)',
+                  borderRadius: '20px'
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                  <div>
+                    <span style={{ fontSize: '0.8rem', color: '#fbbf24', fontWeight: '800' }}>🔥 71% DE DESCONTO</span>
+                    <h3 style={{ fontSize: '1.4rem', fontWeight: '800', marginTop: '4px' }}>Pacote 2 Músicas Completas</h3>
                   </div>
-                  <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{pkg.desc}</p>
+                  <div style={{ textAlign: 'right' }}>
+                    <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)', textDecoration: 'line-through', display: 'block' }}>R$ 69,90</span>
+                    <span style={{ fontSize: '2rem', fontWeight: '800', color: '#34d399' }}>R$ 19,90</span>
+                  </div>
                 </div>
-              ))}
+                
+                <hr style={{ border: 'none', borderTop: '1px solid rgba(255,255,255,0.08)', margin: '16px 0' }} />
+                
+                <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.95rem', color: 'var(--text-secondary)' }}>
+                  <li style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>✅ <strong>2 Versões Completas da Música</strong> em estilos diferentes</li>
+                  <li style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>✅ Download ilimitado dos áudios em qualidade de estúdio (MP3 HD)</li>
+                  <li style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>✅ Capa Digital Exclusiva da Canção</li>
+                  <li style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>✅ Envio direto no seu WhatsApp e e-mail</li>
+                </ul>
+              </div>
             </div>
           </div>
         );
@@ -1087,22 +1170,20 @@ export default function CriarMusica() {
                 <h3 style={{ fontSize: '1.2rem', marginBottom: '20px', color: 'var(--primary)' }}>Resumo do Pedido</h3>
                 
                 <div style={styles.summaryItem}>
-                  <span>Pacote: {packagesList.find(p => p.id === formData.selectedPackage)?.name}</span>
-                  <span style={{ fontWeight: '700' }}>R$ {getSelectedPackagePrice().toFixed(2)}</span>
+                  <span>Pacote Promocional (2 Músicas Completas)</span>
+                  <span style={{ fontWeight: '700', color: '#34d399' }}>R$ 19,90</span>
                 </div>
 
-                {formData.addVersion2 && (
-                  <div style={{ ...styles.summaryItem, fontSize: '0.9rem', color: 'var(--text-secondary)', marginTop: '8px' }}>
-                    <span>➕ Versão 2 (Estilo Alternativo)</span>
-                    <span>R$ {addonsConfig.find(a => a.id === 'extraSongs2')?.price.toFixed(2)}</span>
-                  </div>
-                )}
+                <div style={{ ...styles.summaryItem, fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '8px' }}>
+                  <span>Desconto Aplicado</span>
+                  <span style={{ color: '#fbbf24', fontWeight: 'bold' }}>- R$ 50,00</span>
+                </div>
 
                 <hr style={{ border: 'none', borderTop: '1px solid var(--border-color)', margin: '20px 0' }} />
                 
                 <div style={{ ...styles.summaryItem, fontSize: '1.4rem', fontWeight: '800' }}>
                   <span>Total Geral:</span>
-                  <span className="gradient-text">R$ {getTotalPrice().toFixed(2)}</span>
+                  <span className="gradient-text">R$ 19,90</span>
                 </div>
               </div>
 
@@ -1111,7 +1192,7 @@ export default function CriarMusica() {
                 <div style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: '1.7', marginBottom: '24px' }}>
                   <p><strong>Cliente:</strong> {formData.customerName}</p>
                   <p><strong>WhatsApp:</strong> {formData.customerPhone}</p>
-                  <p><strong>Download completo:</strong> Liberado instantaneamente após a confirmação!</p>
+                  <p><strong>Conteúdo:</strong> 2 Músicas Completas sem cortes em MP3 HD</p>
                 </div>
 
                 <div style={styles.infoAlert} className="glass-card">
