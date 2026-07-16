@@ -49,7 +49,7 @@ export async function POST(req) {
     }
 
     // Salva o task inicial como PROCESSING no nosso "Banco de Dados" local
-    saveTask(taskId, 'PROCESSING', null, orderId);
+    await saveTask(taskId, 'PROCESSING', null, orderId);
 
     // Retorna o taskId pro frontend saber qual pedido ele deve ficar checando
     return NextResponse.json({ taskId, status: 'PROCESSING' });

@@ -13,7 +13,7 @@ export async function POST(req) {
     if (taskId) {
       // Kie.ai costuma devolver as tracks no array data.data ou simplesmente enviar o status.
       // Vamos salvar tudo no banco e deixar o frontend processar.
-      updateTaskResult(taskId, data);
+      await updateTaskResult(taskId, data);
       return NextResponse.json({ success: true });
     } else {
       console.error("Webhook recebido sem taskId", data);
