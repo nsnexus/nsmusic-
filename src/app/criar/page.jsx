@@ -5,6 +5,138 @@ import Link from 'next/link';
 import { doc, getDoc, collection, addDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
+function CustomAudioPreview({ src, label, badge, isBonus }) {
+  const audioRef = useRef(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+
+  const togglePlay = () => {
+    if (!audioRef.current) return;
+    if (isPlaying) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+    } else {
+      audioRef.current.play().then(() => setIsPlaying(true)).catch(e => console.warn(e));
+    }
+  };
+
+  const handleTimeUpdate = () => {
+    if (!audioRef.current) return;
+    const curr = audioRef.current.currentTime;
+    if (curr >= 60) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 60;
+      setIsPlaying(false);
+      alert("🔒 Prévia de 60 segundos finalizada! Efetue o pagamento para liberar a música completa e fazer o download.");
+    }
+    setCurrentTime(Math.min(curr, 60));
+  };
+
+  const handleLoadedMetadata = () => {
+    if (!audioRef.current) return;
+    setDuration(Math.min(audioRef.current.duration || 60, 60));
+  };
+
+  const handleSeek = (e) => {
+    if (!audioRef.current) return;
+    const newTime = parseFloat(e.target.value);
+    audioRef.current.currentTime = newTime;
+    setCurrentTime(newTime);
+  };
+
+  const formatTime = (secs) => {
+    const m = Math.floor(secs / 60);
+    const s = Math.floor(secs % 60);
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  };
+
+  return (
+    <div className="glass-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', border: isBonus ? '1px solid rgba(236, 72, 153, 0.3)' : '1px solid rgba(255,255,255,0.1)', backgroundColor: isBonus ? 'rgba(236, 72, 153, 0.03)' : 'rgba(255,255,255,0.02)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <span style={{ background: isBonus ? 'rgba(236, 72, 153, 0.2)' : 'rgba(124, 58, 237, 0.2)', color: isBonus ? '#ec4899' : 'var(--secondary)', padding: '4px 10px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 'bold' }}>
+            {badge}
+          </span>
+          <h3 style={{ fontSize: '1.2rem', fontWeight: '700', marginTop: '6px' }}>🎵 {label}</h3>
+        </div>
+        <span style={{ fontSize: '0.85rem', color: isBonus ? '#ec4899' : '#34d399', fontWeight: 'bold' }}>
+          {isBonus ? 'Bônus Grátis Incluso ✓' : 'Incluso no Pacote ✓'}
+        </span>
+      </div>
+
+      {src ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '6px', background: 'rgba(0, 0, 0, 0.3)', padding: '16px', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.06)' }}>
+          <audio 
+            ref={audioRef}
+            src={src}
+            onTimeUpdate={handleTimeUpdate}
+            onLoadedMetadata={handleLoadedMetadata}
+            onEnded={() => setIsPlaying(false)}
+            onPause={() => setIsPlaying(false)}
+            onPlay={() => setIsPlaying(true)}
+            controlsList="nodownload noplaybackrate"
+            onContextMenu={(e) => e.preventDefault()}
+            style={{ display: 'none' }}
+          />
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <button
+              onClick={togglePlay}
+              type="button"
+              style={{
+                width: '48px',
+                height: '48px',
+                borderRadius: '50%',
+                border: 'none',
+                background: isBonus ? 'linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%)' : 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)',
+                color: '#fff',
+                fontSize: '1.2rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 4px 15px rgba(0,0,0,0.3)',
+                flexShrink: 0
+              }}
+            >
+              {isPlaying ? '⏸' : '▶'}
+            </button>
+
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <input 
+                type="range"
+                min="0"
+                max={duration || 60}
+                step="0.1"
+                value={currentTime}
+                onChange={handleSeek}
+                style={{
+                  width: '100%',
+                  accentColor: isBonus ? '#ec4899' : 'var(--primary)',
+                  cursor: 'pointer'
+                }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                <span>{formatTime(currentTime)}</span>
+                <span>0:60 (Prévia Protegida)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', fontStyle: 'italic', padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px' }}>
+          ⏳ Sintetizando áudio do estúdio...
+        </div>
+      )}
+
+      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+        🔒 Prévia de 60s. O áudio completo em MP3 HD sem restrições será liberado imediatamente após o pagamento.
+      </span>
+    </div>
+  );
+}
+
 export default function CriarMusica() {
   const [step, setStep] = useState(1);
   const [orderId, setOrderId] = useState('');
@@ -1026,77 +1158,21 @@ export default function CriarMusica() {
                   </div>
 
                   {/* Versão 1 Preview Card */}
-                  <div className="glass-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', border: '1px solid rgba(255,255,255,0.1)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div>
-                        <span style={{ background: 'rgba(124, 58, 237, 0.2)', color: 'var(--secondary)', padding: '4px 10px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 'bold' }}>
-                          VERSÃO 1 - ESTILO {formData.musicStyle?.toUpperCase() || 'PRINCIPAL'}
-                        </span>
-                        <h3 style={{ fontSize: '1.2rem', fontWeight: '700', marginTop: '6px' }}>🎵 Música {formData.honoreeName || 'Personalizada'} (Arranjo 1)</h3>
-                      </div>
-                      <span style={{ fontSize: '0.85rem', color: '#34d399', fontWeight: 'bold' }}>Incluso no Pacote ✓</span>
-                    </div>
-
-                    {getAudioUrl(formData.sunoTracks[0]) ? (
-                      <audio 
-                        ref={audio1Ref}
-                        src={getAudioUrl(formData.sunoTracks[0])} 
-                        controls 
-                        onTimeUpdate={(e) => handleAudioTimeUpdate(e, 1)}
-                        style={{ width: '100%', marginTop: '6px' }} 
-                      />
-                    ) : (
-                      <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', fontStyle: 'italic', padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px' }}>
-                        ⏳ Carregando áudio da Versão 1...
-                      </div>
-                    )}
-                    
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                      🔒 Prévia de 60s. O áudio completo em altíssima definição (MP3 HD) será liberado imediatamente após o pagamento.
-                    </span>
-                  </div>
+                  <CustomAudioPreview 
+                    src={getAudioUrl(formData.sunoTracks[0])}
+                    label={`Música ${formData.honoreeName || 'Personalizada'} (Arranjo 1)`}
+                    badge={`VERSÃO 1 - ESTILO ${formData.musicStyle?.toUpperCase() || 'PRINCIPAL'}`}
+                    isBonus={false}
+                  />
 
                   {/* Versão 2 Preview Card */}
                   {formData.sunoTracks[1] && (
-                    <div 
-                      className="glass-card" 
-                      style={{ 
-                        padding: '24px', 
-                        display: 'flex', 
-                        flexDirection: 'column', 
-                        gap: '16px', 
-                        border: '1px solid rgba(236, 72, 153, 0.3)',
-                        backgroundColor: 'rgba(236, 72, 153, 0.03)'
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div>
-                          <span style={{ background: 'rgba(236, 72, 153, 0.2)', color: '#ec4899', padding: '4px 10px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 'bold' }}>
-                            VERSÃO 2 - ARRANJO ALTERNATIVO BÔNUS
-                          </span>
-                          <h3 style={{ fontSize: '1.2rem', fontWeight: '700', marginTop: '6px' }}>🎵 Versão {formData.honoreeName || 'Personalizada'} (Arranjo 2)</h3>
-                        </div>
-                        <span style={{ fontSize: '0.85rem', color: '#ec4899', fontWeight: 'bold' }}>Bônus Grátis Incluso ✓</span>
-                      </div>
-                      
-                      {getAudioUrl(formData.sunoTracks[1]) ? (
-                        <audio 
-                          ref={audio2Ref}
-                          src={getAudioUrl(formData.sunoTracks[1])} 
-                          controls 
-                          onTimeUpdate={(e) => handleAudioTimeUpdate(e, 2)}
-                          style={{ width: '100%', marginTop: '6px' }} 
-                        />
-                      ) : (
-                        <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', fontStyle: 'italic', padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px' }}>
-                          ⏳ Carregando áudio da Versão 2...
-                        </div>
-                      )}
-
-                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                        🎁 Presente especial: Você levará ambas as versões da sua música gravada por apenas R$ 19,90!
-                      </span>
-                    </div>
+                    <CustomAudioPreview 
+                      src={getAudioUrl(formData.sunoTracks[1])}
+                      label={`Versão ${formData.honoreeName || 'Personalizada'} (Arranjo 2)`}
+                      badge="VERSÃO 2 - ARRANJO ALTERNATIVO BÔNUS"
+                      isBonus={true}
+                    />
                   )}
                 </div>
               </div>
@@ -1193,7 +1269,7 @@ export default function CriarMusica() {
                           total: getTotalPrice(),
                           package: formData.selectedPackage,
                           addVersion2: formData.addVersion2,
-                          updatedAt: new Date()
+                          updatedAt: new Date().toISOString()
                         });
                       }
 
