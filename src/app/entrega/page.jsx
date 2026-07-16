@@ -3,18 +3,25 @@
 import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { db, auth } from '@/lib/firebase';
 
 function EntregaContent() {
   const searchParams = useSearchParams();
-  const orderId = searchParams.get('id');
+  const orderId = searchParams.get('orderId') || searchParams.get('id');
 
   const [loading, setLoading] = useState(true);
   const [order, setOrder] = useState(null);
   const [rating, setRating] = useState(0);
   const [reviewSubmitted, setReviewSubmitted] = useState(false);
   const [reviewText, setReviewText] = useState('');
+
+  // Estados de Cadastro de Conta
+  const [accountPassword, setAccountPassword] = useState('');
+  const [accountCreated, setAccountCreated] = useState(false);
+  const [accountError, setAccountError] = useState('');
+  const [isCreatingAccount, setIsCreatingAccount] = useState(false);
 
   useEffect(() => {
     const fetchOrder = async () => {
@@ -36,6 +43,39 @@ function EntregaContent() {
     };
     fetchOrder();
   }, [orderId]);
+
+  const handleCreateAccount = async (e) => {
+    e.preventDefault();
+    if (!order || !order.customerEmail) return;
+    if (accountPassword.length < 6) {
+      setAccountError("A senha deve ter pelo menos 6 caracteres.");
+      return;
+    }
+    setIsCreatingAccount(true);
+    setAccountError('');
+    try {
+      const userCred = await createUserWithEmailAndPassword(auth, order.customerEmail, accountPassword);
+      const user = userCred.user;
+      
+      // Vincula a ordem ao ID do novo usuário no Firestore
+      if (orderId) {
+        await updateDoc(doc(db, 'orders', orderId), {
+          userId: user.uid,
+          updatedAt: new Date().toISOString()
+        }).catch(e => console.warn(e));
+      }
+      setAccountCreated(true);
+    } catch (err) {
+      console.error(err);
+      if (err.code === 'auth/email-already-in-use') {
+        setAccountError("Este e-mail já possui uma conta. Faça login para ver suas músicas!");
+      } else {
+        setAccountError(err.message || "Erro ao criar conta. Tente novamente.");
+      }
+    } finally {
+      setIsCreatingAccount(false);
+    }
+  };
 
   const handleReviewSubmit = (e) => {
     e.preventDefault();
@@ -62,8 +102,8 @@ function EntregaContent() {
     );
   }
 
-  // Check if order payment is confirmed.
-  const isPaid = order.paymentStatus === 'PAGAMENTO_APROVADO';
+  // Permite liberação se o pagamento consta como aprovado ou se veio o parâmetro de sucesso do checkout
+  const isPaid = order.paymentStatus === 'PAGAMENTO_APROVADO' || order.paymentStatus === 'PAGO' || searchParams.get('status') === 'success' || searchParams.get('status') === 'approved';
 
   // Get active audio track URL
   const primaryAudioUrl = order.audioUrl || (order.audioFiles && order.audioFiles[0]) || '';
@@ -187,6 +227,55 @@ function EntregaContent() {
 
             </div>
           </div>
+
+          {/* Card de Cadastro de Conta para Acessar Minhas Músicas */}
+          {isPaid && (
+            <div className="glass-card" style={{ padding: '28px', marginBottom: '32px', border: '1px solid rgba(124, 58, 237, 0.3)', background: 'linear-gradient(135deg, rgba(124, 58, 237, 0.08) 0%, rgba(236, 72, 153, 0.08) 100%)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+                <div style={{ flex: 1, minWidth: '280px' }}>
+                  <span style={{ background: 'rgba(124, 58, 237, 0.2)', color: 'var(--secondary)', padding: '4px 12px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 'bold' }}>
+                    🔐 SUA CONTA NSMUSIC
+                  </span>
+                  <h3 style={{ fontSize: '1.3rem', fontWeight: '800', marginTop: '8px' }}>Crie sua senha para salvar suas músicas</h3>
+                  <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                    Crie uma senha para acessar <strong>{order.customerEmail}</strong> e veja todas as suas músicas no painel <strong>Minhas Músicas</strong> sempre que quiser!
+                  </p>
+                </div>
+
+                {accountCreated ? (
+                  <div style={{ background: 'rgba(52, 211, 153, 0.15)', border: '1px solid rgba(52, 211, 153, 0.3)', padding: '16px 20px', borderRadius: '12px', color: '#34d399', textAlign: 'center' }}>
+                    <span style={{ fontSize: '1.2rem', fontWeight: 'bold', display: 'block' }}>✅ Conta Criada e Músicas Salvas!</span>
+                    <Link href="/minhas-musicas" className="btn btn-primary" style={{ marginTop: '10px', display: 'inline-block', padding: '8px 18px', fontSize: '0.88rem' }}>
+                      🎵 Acessar Minhas Músicas
+                    </Link>
+                  </div>
+                ) : (
+                  <form onSubmit={handleCreateAccount} style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+                    <input 
+                      type="password" 
+                      placeholder="Crie uma senha segura (mín 6 dígitos)"
+                      required
+                      minLength={6}
+                      value={accountPassword}
+                      onChange={(e) => setAccountPassword(e.target.value)}
+                      style={{ padding: '12px 16px', borderRadius: '8px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontSize: '0.9rem', width: '240px' }}
+                    />
+                    <button 
+                      type="submit" 
+                      disabled={isCreatingAccount}
+                      className="btn btn-primary"
+                      style={{ padding: '12px 20px', fontSize: '0.9rem' }}
+                    >
+                      {isCreatingAccount ? '⏳ Salvando...' : '💾 Salvar Conta & Músicas'}
+                    </button>
+                    {accountError && (
+                      <span style={{ color: '#fca5a5', fontSize: '0.8rem', width: '100%', display: 'block' }}>{accountError}</span>
+                    )}
+                  </form>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Feedback Form */}
           {isPaid && (
