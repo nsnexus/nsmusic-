@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getTask, updateTaskResult } from '@/lib/db';
+import { getTask, updateTaskResult, extractAudioTracks } from '@/lib/db';
 
 export const runtime = 'edge';
 
@@ -7,8 +7,9 @@ export async function GET(req) {
   try {
     const { searchParams } = new URL(req.url);
     const taskId = searchParams.get('taskId');
+    const orderId = searchParams.get('orderId');
 
-    if (!taskId) {
+    if (!taskId || taskId === 'undefined') {
       return NextResponse.json({ error: "taskId é obrigatório" }, { status: 400 });
     }
 
@@ -16,17 +17,10 @@ export async function GET(req) {
     const task = await getTask(taskId);
 
     if (task && task.status === "COMPLETED") {
-      let tracks = [];
-      if (task.result) {
-        if (Array.isArray(task.result.data)) {
-          tracks = task.result.data;
-        } else if (task.result.data) {
-          tracks = [task.result.data];
-        } else if (task.result.tracks) {
-          tracks = Array.isArray(task.result.tracks) ? task.result.tracks : [task.result.tracks];
-        }
+      const tracks = extractAudioTracks(task.result);
+      if (tracks.length > 0) {
+        return NextResponse.json({ status: "COMPLETED", tracks });
       }
-      return NextResponse.json({ status: "COMPLETED", tracks: tracks });
     }
 
     // 2. Fallback direto na API da Kie.ai caso ainda não conste como concluído no banco local
@@ -42,23 +36,16 @@ export async function GET(req) {
       if (kieRes.ok) {
         const kieData = await kieRes.json();
         
-        // Extrai as faixas dependendo da estrutura retornada pela Kie.ai
-        const rawTracks = kieData?.data?.response?.sunoData || kieData?.data?.sunoData || kieData?.data?.tracks || kieData?.data || kieData?.response?.tracks || [];
-        const tracksArray = Array.isArray(rawTracks) ? rawTracks : (rawTracks ? [rawTracks] : []);
+        // Extração universal das faixas via extractAudioTracks
+        const tracksArray = extractAudioTracks(kieData);
         const kieStatus = kieData?.data?.status || kieData?.status;
 
-        // Se a Kie.ai concluiu a geração ou já temos links de áudio válidos
-        const isSuccess = kieStatus === 'SUCCESS' || kieStatus === 'SUCCESSFULLY' || (tracksArray.length > 0 && tracksArray[0]?.audio_url);
+        // Se a Kie.ai concluiu a geração ou se retornou os links de áudio
+        const isSuccess = kieStatus === 'SUCCESS' || kieStatus === 'SUCCESSFULLY' || tracksArray.length > 0;
 
         if (isSuccess && tracksArray.length > 0) {
-          const payloadToSave = {
-            data: tracksArray,
-            status: 'COMPLETED',
-            rawKieResponse: kieData
-          };
-
-          // Salva no Firestore imediatamente
-          await updateTaskResult(taskId, payloadToSave);
+          // Salva no Firestore imediatamente (atualizando suno_tasks e orders)
+          await updateTaskResult(taskId, kieData, orderId);
 
           return NextResponse.json({ status: "COMPLETED", tracks: tracksArray });
         }

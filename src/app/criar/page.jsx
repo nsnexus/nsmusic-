@@ -464,7 +464,8 @@ export default function CriarMusica() {
     const interval = setInterval(async () => {
       attempts++;
       try {
-        const res = await fetch(`/api/suno/status?taskId=${activeTaskId}`);
+        const targetOrder = activeOrderId || orderId;
+        const res = await fetch(`/api/suno/status?taskId=${activeTaskId}&orderId=${targetOrder || ''}`);
         if (res.ok) {
           const statusData = await res.json();
           
@@ -476,18 +477,19 @@ export default function CriarMusica() {
             }));
             clearInterval(interval);
 
-            // Save audioUrls to Firestore automatically
-            const targetOrder = activeOrderId || orderId;
+            // Garante que o documento do pedido em orders no Firebase receba os links reais dos áudios
             if (targetOrder) {
-              const primaryAudio = statusData.tracks[0]?.audio_url || '';
+              const primaryAudio = getAudioUrl(statusData.tracks[0]);
+              const audioFiles = statusData.tracks.map(getAudioUrl).filter(Boolean);
               await updateDoc(doc(db, 'orders', targetOrder), {
                 audioUrl: primaryAudio,
-                audioFiles: statusData.tracks.map(t => t.audio_url).filter(Boolean),
-                productionStatus: 'AUDIO_GERADO'
-              }).catch(e => console.warn(e));
+                audioFiles: audioFiles,
+                productionStatus: 'AUDIO_GERADO',
+                updatedAt: new Date().toISOString()
+              }).catch(e => console.warn("Aviso ao atualizar ordem no Firebase:", e));
             }
           } else {
-            updateField('sunoProgress', `Suno compondo arranjos... Tentativa ${attempts} de ${maxAttempts}`);
+            updateField('sunoProgress', `Estúdio produzindo arranjos...`);
           }
         }
       } catch (err) {
