@@ -10,6 +10,7 @@ function CustomAudioPreview({ src, label, badge, isBonus }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [showEndedNotice, setShowEndedNotice] = useState(false);
 
   const togglePlay = () => {
     if (!audioRef.current) return;
@@ -28,7 +29,9 @@ function CustomAudioPreview({ src, label, badge, isBonus }) {
       audioRef.current.pause();
       audioRef.current.currentTime = 60;
       setIsPlaying(false);
-      alert("🔒 Prévia de 60 segundos finalizada! Efetue o pagamento para liberar a música completa e fazer o download.");
+      setShowEndedNotice(true);
+    } else {
+      if (showEndedNotice) setShowEndedNotice(false);
     }
     setCurrentTime(Math.min(curr, 60));
   };
@@ -123,6 +126,12 @@ function CustomAudioPreview({ src, label, badge, isBonus }) {
               </div>
             </div>
           </div>
+
+          {showEndedNotice && (
+            <div style={{ padding: '8px 12px', background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '8px', fontSize: '0.8rem', color: '#fca5a5', fontWeight: 'bold' }}>
+              🔒 Prévia de 60s finalizada. Avance para liberar o download da versão completa MP3 HD!
+            </div>
+          )}
         </div>
       ) : (
         <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', fontStyle: 'italic', padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px' }}>
