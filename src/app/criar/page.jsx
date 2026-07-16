@@ -313,25 +313,6 @@ export default function CriarMusica() {
     }));
   };
 
-  const getSelectedPackagePrice = () => {
-    const pkg = packagesList.find(p => p.id === formData.selectedPackage);
-    return pkg ? pkg.price : 0;
-  };
-
-  const getAddonsPrice = () => {
-    let price = 0;
-    addonsConfig.forEach(addon => {
-      if (formData.addons[addon.id]) {
-        price += addon.price;
-      }
-    });
-    return price;
-  };
-
-  const getTotalPrice = () => {
-    return getSelectedPackagePrice() + getAddonsPrice();
-  };
-
   // Step 9: Save Order to Firestore first, then trigger lyrics generation
   const handleSaveAndGenerateLyrics = async () => {
     updateField('lyricsStatus', 'generating');
