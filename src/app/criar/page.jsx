@@ -616,8 +616,13 @@ export default function CriarMusica() {
 
   // Step 9: Save Order to Firestore first, then trigger lyrics generation
   const handleSaveAndGenerateLyrics = async () => {
-    updateField('lyricsStatus', 'generating');
     setStep(10);
+    // Se a letra já foi gerada com sucesso anteriormente, apenas exibe a letra existente sem fazer nova requisição
+    if (formData.lyricsStatus === 'generated' && formData.lyrics) {
+      return;
+    }
+
+    updateField('lyricsStatus', 'generating');
     try {
       // Create initial order in Firestore in 'Aguardando Pagamento' (gracefully handled)
       let docRef = null;
@@ -721,6 +726,11 @@ export default function CriarMusica() {
   // Step 10 Approval -> Move to Audio Generation preview screen (Step 11)
   const handleApproveLyrics = async () => {
     setStep(11);
+    // Se as músicas já foram geradas com sucesso anteriormente, apenas navega para os players sem regenerar
+    if (formData.sunoStatus === 'generated' && formData.sunoTracks && formData.sunoTracks.length > 0) {
+      return;
+    }
+
     updateField('sunoStatus', 'generating');
     updateField('sunoProgress', 'Enviando composição de letra ao Suno AI...');
 
