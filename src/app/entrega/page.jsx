@@ -4,7 +4,7 @@ import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, onAuthStateChanged } from 'firebase/auth';
 import { db, auth } from '@/lib/firebase';
 
 function EntregaContent() {
@@ -13,6 +13,7 @@ function EntregaContent() {
 
   const [loading, setLoading] = useState(true);
   const [order, setOrder] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
   const [rating, setRating] = useState(0);
   const [reviewSubmitted, setReviewSubmitted] = useState(false);
   const [reviewText, setReviewText] = useState('');
@@ -22,6 +23,20 @@ function EntregaContent() {
   const [accountCreated, setAccountCreated] = useState(false);
   const [accountError, setAccountError] = useState('');
   const [isCreatingAccount, setIsCreatingAccount] = useState(false);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (usr) => {
+      setCurrentUser(usr);
+      if (usr && orderId) {
+        // Vincula a ordem ao ID do usuário conectado no Firebase
+        await updateDoc(doc(db, 'orders', orderId), {
+          userId: usr.uid,
+          updatedAt: new Date().toISOString()
+        }).catch(e => console.warn(e));
+      }
+    });
+    return () => unsubscribe();
+  }, [orderId]);
 
   useEffect(() => {
     const fetchOrder = async () => {
@@ -68,7 +83,7 @@ function EntregaContent() {
     } catch (err) {
       console.error(err);
       if (err.code === 'auth/email-already-in-use') {
-        setAccountError("Este e-mail já possui uma conta. Faça login para ver suas músicas!");
+        setAccountError("Este e-mail já possui uma conta. Faça login no topo para acessar!");
       } else {
         setAccountError(err.message || "Erro ao criar conta. Tente novamente.");
       }
@@ -105,7 +120,7 @@ function EntregaContent() {
   // Permite liberação se o pagamento consta como aprovado ou se veio o parâmetro de sucesso do checkout
   const isPaid = order.paymentStatus === 'PAGAMENTO_APROVADO' || order.paymentStatus === 'PAGO' || searchParams.get('status') === 'success' || searchParams.get('status') === 'approved';
 
-  // Get active audio track URL
+  // Get active audio track URLs
   const primaryAudioUrl = order.audioUrl || (order.audioFiles && order.audioFiles[0]) || '';
   const secondAudioUrl = order.audioFiles && order.audioFiles[1] ? order.audioFiles[1] : '';
 
@@ -162,7 +177,7 @@ function EntregaContent() {
                     {primaryAudioUrl && (
                       <div style={styles.audioPlayerContainer} className="glass-card">
                         <h4 style={{ fontSize: '0.95rem', marginBottom: '12px', fontWeight: '700', color: 'var(--primary)' }}>
-                          🎧 Versão Principal
+                          🎧 Versão Principal (Versão 1)
                         </h4>
                         <audio controls style={styles.audioTag} src={primaryAudioUrl}>
                           Seu navegador não suporta.
@@ -175,18 +190,18 @@ function EntregaContent() {
                       </div>
                     )}
 
-                    {/* Audio Player 2 (If bought / exists) */}
-                    {secondAudioUrl && (order.addVersion2 || order.package === 'tres_versoes') && (
+                    {/* Audio Player 2 (Incluso sempre que gerado no pedido) */}
+                    {secondAudioUrl && (
                       <div style={styles.audioPlayerContainer} className="glass-card">
                         <h4 style={{ fontSize: '0.95rem', marginBottom: '12px', fontWeight: '700', color: 'var(--secondary)' }}>
-                          🎧 Versão Alternativa (Versão 2)
+                          🎧 Versão Alternativa (Versão 2 Bônus)
                         </h4>
                         <audio controls style={styles.audioTag} src={secondAudioUrl}>
                           Seu navegador não suporta.
                         </audio>
                         <div style={{ ...styles.downloadGrid, marginTop: '16px' }}>
                           <a href={secondAudioUrl} target="_blank" rel="noopener noreferrer" className="btn btn-secondary" style={styles.downloadBtn}>
-                            ⬇ Baixar MP3 (V2)
+                            ⬇ Baixar MP3 (V2 Bônus)
                           </a>
                         </div>
                       </div>
@@ -228,53 +243,70 @@ function EntregaContent() {
             </div>
           </div>
 
-          {/* Card de Cadastro de Conta para Acessar Minhas Músicas */}
+          {/* Gerenciamento de Conta: Oculta o formulário de senha se o usuário já estiver logado no Firebase */}
           {isPaid && (
-            <div className="glass-card" style={{ padding: '28px', marginBottom: '32px', border: '1px solid rgba(124, 58, 237, 0.3)', background: 'linear-gradient(135deg, rgba(124, 58, 237, 0.08) 0%, rgba(236, 72, 153, 0.08) 100%)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
-                <div style={{ flex: 1, minWidth: '280px' }}>
-                  <span style={{ background: 'rgba(124, 58, 237, 0.2)', color: 'var(--secondary)', padding: '4px 12px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 'bold' }}>
-                    🔐 SUA CONTA NSMUSIC
+            currentUser ? (
+              <div className="glass-card" style={{ padding: '24px 28px', marginBottom: '32px', border: '1px solid rgba(52, 211, 153, 0.3)', background: 'rgba(52, 211, 153, 0.05)', borderRadius: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+                <div>
+                  <span style={{ background: 'rgba(52, 211, 153, 0.2)', color: '#34d399', padding: '4px 12px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 'bold' }}>
+                    ✅ CONTA CONECTADA
                   </span>
-                  <h3 style={{ fontSize: '1.3rem', fontWeight: '800', marginTop: '8px' }}>Crie sua senha para salvar suas músicas</h3>
-                  <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                    Crie uma senha para acessar <strong>{order.customerEmail}</strong> e veja todas as suas músicas no painel <strong>Minhas Músicas</strong> sempre que quiser!
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: '800', marginTop: '6px' }}>Músicas vinculadas à sua conta ({currentUser.email})</h3>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                    Este pedido foi salvo automaticamente no seu perfil e está disponível na sua biblioteca.
                   </p>
                 </div>
-
-                {accountCreated ? (
-                  <div style={{ background: 'rgba(52, 211, 153, 0.15)', border: '1px solid rgba(52, 211, 153, 0.3)', padding: '16px 20px', borderRadius: '12px', color: '#34d399', textAlign: 'center' }}>
-                    <span style={{ fontSize: '1.2rem', fontWeight: 'bold', display: 'block' }}>✅ Conta Criada e Músicas Salvas!</span>
-                    <Link href="/minhas-musicas" className="btn btn-primary" style={{ marginTop: '10px', display: 'inline-block', padding: '8px 18px', fontSize: '0.88rem' }}>
-                      🎵 Acessar Minhas Músicas
-                    </Link>
-                  </div>
-                ) : (
-                  <form onSubmit={handleCreateAccount} style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-                    <input 
-                      type="password" 
-                      placeholder="Crie uma senha segura (mín 6 dígitos)"
-                      required
-                      minLength={6}
-                      value={accountPassword}
-                      onChange={(e) => setAccountPassword(e.target.value)}
-                      style={{ padding: '12px 16px', borderRadius: '8px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontSize: '0.9rem', width: '240px' }}
-                    />
-                    <button 
-                      type="submit" 
-                      disabled={isCreatingAccount}
-                      className="btn btn-primary"
-                      style={{ padding: '12px 20px', fontSize: '0.9rem' }}
-                    >
-                      {isCreatingAccount ? '⏳ Salvando...' : '💾 Salvar Conta & Músicas'}
-                    </button>
-                    {accountError && (
-                      <span style={{ color: '#fca5a5', fontSize: '0.8rem', width: '100%', display: 'block' }}>{accountError}</span>
-                    )}
-                  </form>
-                )}
+                <Link href="/minhas-musicas" className="btn btn-primary" style={{ padding: '10px 20px', fontSize: '0.88rem' }}>
+                  🎵 Ver Minhas Músicas
+                </Link>
               </div>
-            </div>
+            ) : (
+              <div className="glass-card" style={{ padding: '28px', marginBottom: '32px', border: '1px solid rgba(124, 58, 237, 0.3)', background: 'linear-gradient(135deg, rgba(124, 58, 237, 0.08) 0%, rgba(236, 72, 153, 0.08) 100%)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+                  <div style={{ flex: 1, minWidth: '280px' }}>
+                    <span style={{ background: 'rgba(124, 58, 237, 0.2)', color: 'var(--secondary)', padding: '4px 12px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 'bold' }}>
+                      🔐 SUA CONTA NSMUSIC
+                    </span>
+                    <h3 style={{ fontSize: '1.3rem', fontWeight: '800', marginTop: '8px' }}>Crie sua senha para salvar suas músicas</h3>
+                    <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                      Crie uma senha para acessar <strong>{order.customerEmail}</strong> e veja todas as suas músicas no painel <strong>Minhas Músicas</strong> sempre que quiser!
+                    </p>
+                  </div>
+
+                  {accountCreated ? (
+                    <div style={{ background: 'rgba(52, 211, 153, 0.15)', border: '1px solid rgba(52, 211, 153, 0.3)', padding: '16px 20px', borderRadius: '12px', color: '#34d399', textAlign: 'center' }}>
+                      <span style={{ fontSize: '1.2rem', fontWeight: 'bold', display: 'block' }}>✅ Conta Criada e Músicas Salvas!</span>
+                      <Link href="/minhas-musicas" className="btn btn-primary" style={{ marginTop: '10px', display: 'inline-block', padding: '8px 18px', fontSize: '0.88rem' }}>
+                        🎵 Acessar Minhas Músicas
+                      </Link>
+                    </div>
+                  ) : (
+                    <form onSubmit={handleCreateAccount} style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+                      <input 
+                        type="password" 
+                        placeholder="Crie uma senha segura (mín 6 dígitos)"
+                        required
+                        minLength={6}
+                        value={accountPassword}
+                        onChange={(e) => setAccountPassword(e.target.value)}
+                        style={{ padding: '12px 16px', borderRadius: '8px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontSize: '0.9rem', width: '240px' }}
+                      />
+                      <button 
+                        type="submit" 
+                        disabled={isCreatingAccount}
+                        className="btn btn-primary"
+                        style={{ padding: '12px 20px', fontSize: '0.9rem' }}
+                      >
+                        {isCreatingAccount ? '⏳ Salvando...' : '💾 Salvar Conta & Músicas'}
+                      </button>
+                      {accountError && (
+                        <span style={{ color: '#fca5a5', fontSize: '0.8rem', width: '100%', display: 'block' }}>{accountError}</span>
+                      )}
+                    </form>
+                  )}
+                </div>
+              </div>
+            )
           )}
 
           {/* Feedback Form */}
