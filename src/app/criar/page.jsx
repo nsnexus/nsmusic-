@@ -457,9 +457,88 @@ export default function CriarMusica() {
     { id: 'Nostálgica', label: 'Nostálgica', icon: '🍂' },
   ];
 
+  // Gerenciamento de Tema Claro / Escuro
+  const [theme, setTheme] = useState('dark');
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedTheme = localStorage.getItem('nsmusic_theme') || 'dark';
+      setTheme(savedTheme);
+      document.documentElement.setAttribute('data-theme', savedTheme);
+    }
+  }, []);
+
+  const toggleTheme = () => {
+    const nextTheme = theme === 'dark' ? 'light' : 'dark';
+    setTheme(nextTheme);
+    document.documentElement.setAttribute('data-theme', nextTheme);
+    localStorage.setItem('nsmusic_theme', nextTheme);
+  };
+
+  // Ditado por Voz (Web Speech API)
+  const [isListening, setIsListening] = useState(false);
+
+  const toggleVoiceDictation = () => {
+    if (typeof window === 'undefined') return;
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Seu navegador não possui suporte ao recurso de voz. Por favor, digite a história.");
+      return;
+    }
+
+    if (isListening) {
+      setIsListening(false);
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'pt-BR';
+      recognition.continuous = true;
+      recognition.interimResults = true;
+
+      recognition.onstart = () => setIsListening(true);
+      recognition.onend = () => setIsListening(false);
+      recognition.onerror = () => setIsListening(false);
+
+      recognition.onresult = (event) => {
+        let transcript = '';
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          transcript += event.results[i][0].transcript;
+        }
+        if (transcript) {
+          setFormData(prev => ({
+            ...prev,
+            story: (prev.story ? prev.story + ' ' : '') + transcript
+          }));
+        }
+      };
+
+      recognition.start();
+    } catch (err) {
+      console.warn("Erro ao iniciar ditado de voz:", err);
+      setIsListening(false);
+    }
+  };
+
+  // Sugestões de texto rápido para inspirar a história
+  const appendStoryPrompt = (promptText) => {
+    setFormData(prev => ({
+      ...prev,
+      story: (prev.story ? prev.story + '\n\n' : '') + promptText
+    }));
+  };
+
   // Helper functions
   const updateField = (name, value) => {
     setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  // Seleção com Avanço Automático para a próxima etapa
+  const selectFieldAndAdvance = (name, value) => {
+    setFormData(prev => ({ ...prev, [name]: value }));
+    setTimeout(() => {
+      setStep(prevStep => Math.min(prevStep + 1, totalSteps));
+    }, 150);
   };
 
   const handlePhoneChange = (value) => {
@@ -719,12 +798,12 @@ export default function CriarMusica() {
         return (
           <div>
             <h1 style={styles.stepTitle}>Quem vai RECEBER a música?</h1>
-            <p style={styles.stepSubtitle}>Escolha a pessoa que será homenageada — é para ela que a letra será escrita</p>
+            <p style={styles.stepSubtitle}>Escolha a pessoa que será homenageada — ao clicar, a tela avança automaticamente!</p>
             <div style={styles.gridCards}>
               {recipients.map((item) => (
                 <div 
                   key={item.id}
-                  onClick={() => updateField('recipientType', item.id)}
+                  onClick={() => selectFieldAndAdvance('recipientType', item.id)}
                   style={{
                     ...styles.wizardCard,
                     borderColor: formData.recipientType === item.id ? 'var(--primary)' : 'rgba(255,255,255,0.08)',
@@ -766,7 +845,7 @@ export default function CriarMusica() {
                   {relationshipsEuSouO.map((item) => (
                     <button
                       key={item.id}
-                      onClick={() => updateField('relationship', item.id)}
+                      onClick={() => selectFieldAndAdvance('relationship', item.id)}
                       style={{
                         ...styles.wizardListBtn,
                         borderColor: formData.relationship === item.id ? 'var(--primary)' : 'rgba(255,255,255,0.08)',
@@ -785,7 +864,7 @@ export default function CriarMusica() {
                   {relationshipsEuSouA.map((item) => (
                     <button
                       key={item.id}
-                      onClick={() => updateField('relationship', item.id)}
+                      onClick={() => selectFieldAndAdvance('relationship', item.id)}
                       style={{
                         ...styles.wizardListBtn,
                         borderColor: formData.relationship === item.id ? 'var(--primary)' : 'rgba(255,255,255,0.08)',
@@ -801,7 +880,7 @@ export default function CriarMusica() {
 
             <div style={{ display: 'flex', justifyContent: 'center', marginTop: '20px' }}>
               <button
-                onClick={() => updateField('relationship', 'Outro')}
+                onClick={() => selectFieldAndAdvance('relationship', 'Outro')}
                 style={{
                   ...styles.wizardListBtn,
                   width: '180px',
@@ -823,7 +902,7 @@ export default function CriarMusica() {
               {occasions.map((item) => (
                 <div 
                   key={item.id}
-                  onClick={() => updateField('occasion', item.id)}
+                  onClick={() => selectFieldAndAdvance('occasion', item.id)}
                   style={{
                     ...styles.wizardCard,
                     borderColor: formData.occasion === item.id ? 'var(--primary)' : 'rgba(255,255,255,0.08)',
@@ -841,15 +920,64 @@ export default function CriarMusica() {
       case 5:
         return (
           <div style={{ maxWidth: '750px', margin: '0 auto' }}>
-            <h1 style={styles.stepTitle}>Conte sua história</h1>
-            <p style={styles.stepSubtitle}>Quanto mais detalhes, mais especial será a música</p>
+            <h1 style={styles.stepTitle}>Conte sua história 📜</h1>
+            <p style={styles.stepSubtitle}>Digite ou use o microfone para contar os detalhes. Faremos uma composição inesquecível!</p>
             
+            {/* Barra de Ferramentas de Voz e Sugestões Rápida */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center', marginBottom: '12px' }}>
+              <button
+                type="button"
+                onClick={toggleVoiceDictation}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '20px',
+                  border: isListening ? '2px solid #ef4444' : '1px solid var(--primary)',
+                  background: isListening ? 'rgba(239, 68, 68, 0.2)' : 'rgba(124, 58, 237, 0.15)',
+                  color: isListening ? '#fca5a5' : '#c4b5fd',
+                  fontSize: '0.85rem',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                {isListening ? '⏹ Gravando... (Fale Agora)' : '🎙️ Ditar por Voz (Gravar Fala)'}
+              </button>
+
+              <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Sugestões rápidas:</span>
+
+              <button
+                type="button"
+                onClick={() => appendStoryPrompt("Nos conhecemos em um momento marcante de nossas vidas e desde então não nos separamos mais.")}
+                style={{ padding: '4px 10px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: 'var(--text-secondary)', fontSize: '0.78rem', cursor: 'pointer' }}
+              >
+                💡 Como nos conhecemos
+              </button>
+
+              <button
+                type="button"
+                onClick={() => appendStoryPrompt("As maiores virtudes dessa pessoa são a bondade, o sorriso contagiante e a dedicação à família.")}
+                style={{ padding: '4px 10px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: 'var(--text-secondary)', fontSize: '0.78rem', cursor: 'pointer' }}
+              >
+                💡 Qualidades e virtudes
+              </button>
+
+              <button
+                type="button"
+                onClick={() => appendStoryPrompt("Quero expressar minha gratidão por cada segundo ao lado dela e reafirmar meu amor eterno.")}
+                style={{ padding: '4px 10px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: 'var(--text-secondary)', fontSize: '0.78rem', cursor: 'pointer' }}
+              >
+                💡 Declaração de Amor
+              </button>
+            </div>
+
             <div style={{ marginBottom: '24px' }}>
               <label style={styles.wizardLabel}>Sua história *</label>
               <textarea 
                 value={formData.story}
                 onChange={(e) => updateField('story', e.target.value)}
-                placeholder="Como vocês se conheceram? Qual o momento mais especial? O que essa pessoa significa pra você?"
+                placeholder="Como vocês se conheceram? Qual o momento mais especial? O que essa pessoa significa pra você? (Ou clique no microfone acima para falar)"
                 style={{ ...styles.wizardTextarea, height: '140px' }}
               />
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px' }}>
@@ -880,7 +1008,7 @@ export default function CriarMusica() {
               {stylesList.map((item) => (
                 <div 
                   key={item.id}
-                  onClick={() => updateField('musicStyle', item.id)}
+                  onClick={() => selectFieldAndAdvance('musicStyle', item.id)}
                   style={{
                     ...styles.wizardCardLarge,
                     borderColor: formData.musicStyle === item.id ? 'var(--primary)' : 'rgba(255,255,255,0.08)',
@@ -909,7 +1037,7 @@ export default function CriarMusica() {
               {moods.map((item) => (
                 <button
                   key={item.id}
-                  onClick={() => updateField('musicMood', item.id)}
+                  onClick={() => selectFieldAndAdvance('musicMood', item.id)}
                   style={{
                     ...styles.wizardPillBtn,
                     borderColor: formData.musicMood === item.id ? 'var(--primary)' : 'rgba(255,255,255,0.08)',
@@ -1525,9 +1653,29 @@ export default function CriarMusica() {
             </div>
           </Link>
 
-          {/* Indicador de Progresso Estilo Pílula Neon Glassmorphism */}
+          {/* Indicador de Progresso & Alternador de Tema */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <span className="note-float-2" style={{ fontSize: '1.1rem', display: 'none', minWidth: 'auto' }}>🎼</span>
+            <button
+              type="button"
+              onClick={toggleTheme}
+              title={theme === 'dark' ? 'Mudar para Tema Claro' : 'Mudar para Tema Escuro'}
+              style={{
+                background: 'rgba(255,255,255,0.06)',
+                border: '1px solid var(--border-color)',
+                borderRadius: '50%',
+                width: '36px',
+                height: '36px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '1rem',
+                cursor: 'pointer',
+                color: 'var(--text-primary)'
+              }}
+            >
+              {theme === 'dark' ? '☀️' : '🌙'}
+            </button>
+
             <div style={{
               background: 'rgba(124, 58, 237, 0.12)',
               border: '1px solid rgba(124, 58, 237, 0.35)',
