@@ -142,6 +142,41 @@ export default function CriarMusica() {
   const [orderId, setOrderId] = useState('');
   const [taskId, setTaskId] = useState('');
   const [isRestored, setIsRestored] = useState(false);
+
+  // Estados do Checkout Transparente
+  const [paymentMethod, setPaymentMethod] = useState('pix'); // 'pix' | 'card'
+  const [pixInfo, setPixInfo] = useState(null);
+  const [isGeneratingPix, setIsGeneratingPix] = useState(false);
+  const [pixCopied, setPixCopied] = useState(false);
+
+  // Polling automático de aprovação do Pix em tempo real
+  useEffect(() => {
+    let interval;
+    if (step === 13 && pixInfo && pixInfo.paymentId && pixInfo.status !== 'approved') {
+      interval = setInterval(async () => {
+        try {
+          const res = await fetch(`/api/payments/status?paymentId=${pixInfo.paymentId}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.status === 'approved') {
+              clearInterval(interval);
+              setPixInfo(prev => ({ ...prev, status: 'approved' }));
+              if (orderId) {
+                await updateDoc(doc(db, 'orders', orderId), {
+                  paymentStatus: 'PAGO',
+                  updatedAt: new Date().toISOString()
+                }).catch(e => console.warn(e));
+              }
+              window.location.href = `/entrega?orderId=${orderId}&status=success`;
+            }
+          }
+        } catch (err) {
+          console.error("Erro no polling de pagamento:", err);
+        }
+      }, 3000);
+    }
+    return () => clearInterval(interval);
+  }, [step, pixInfo, orderId]);
   
   const [formData, setFormData] = useState({
     // Step 1
@@ -1218,13 +1253,14 @@ export default function CriarMusica() {
             </div>
           </div>
         );
-      case 13: // Checkout and Mercado Pago redirect
+      case 13: // Checkout Transparente e Mercado Pago embutido no site
         return (
           <div>
             <h1 style={styles.stepTitle}>Finalizar Pedido 💳</h1>
-            <p style={styles.stepSubtitle}>Revise os valores e prossiga para o pagamento seguro</p>
+            <p style={styles.stepSubtitle}>Pagamento seguro embutido no próprio site com liberação instantânea</p>
 
             <div className="responsive-grid-2">
+              {/* Resumo do Pedido */}
               <div style={styles.checkoutSummary} className="glass-card">
                 <h3 style={{ fontSize: '1.2rem', marginBottom: '20px', color: 'var(--primary)' }}>Resumo do Pedido</h3>
                 
@@ -1234,7 +1270,7 @@ export default function CriarMusica() {
                 </div>
 
                 <div style={{ ...styles.summaryItem, fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '8px' }}>
-                  <span>Desconto Aplicado</span>
+                  <span>Desconto Aplicado (71% OFF)</span>
                   <span style={{ color: '#fbbf24', fontWeight: 'bold' }}>- R$ 50,00</span>
                 </div>
 
@@ -1244,64 +1280,206 @@ export default function CriarMusica() {
                   <span>Total Geral:</span>
                   <span className="gradient-text">R$ 19,90</span>
                 </div>
+
+                <div style={{ marginTop: '20px', fontSize: '0.9rem', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <p>👤 <strong>Cliente:</strong> {formData.customerName}</p>
+                  <p>📱 <strong>WhatsApp:</strong> {formData.customerPhone}</p>
+                  <p>🎧 <strong>Conteúdo:</strong> 2 Músicas MP3 HD + Capa Exclusiva</p>
+                </div>
               </div>
 
-              <div>
-                <h3 style={{ fontSize: '1.2rem', marginBottom: '16px' }}>Detalhes de Acesso</h3>
-                <div style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: '1.7', marginBottom: '24px' }}>
-                  <p><strong>Cliente:</strong> {formData.customerName}</p>
-                  <p><strong>WhatsApp:</strong> {formData.customerPhone}</p>
-                  <p><strong>Conteúdo:</strong> 2 Músicas Completas sem cortes em MP3 HD</p>
+              {/* Opções de Pagamento Embutidas no Site */}
+              <div className="glass-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <h3 style={{ fontSize: '1.2rem', color: '#fff', fontWeight: '700' }}>Escolha a Forma de Pagamento</h3>
+
+                {/* Seletores de Método */}
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod('pix')}
+                    style={{
+                      flex: 1,
+                      padding: '12px',
+                      borderRadius: '12px',
+                      border: paymentMethod === 'pix' ? '2px solid #34d399' : '1px solid rgba(255,255,255,0.1)',
+                      background: paymentMethod === 'pix' ? 'rgba(52, 211, 153, 0.12)' : 'rgba(255,255,255,0.02)',
+                      color: paymentMethod === 'pix' ? '#34d399' : 'var(--text-secondary)',
+                      fontWeight: 'bold',
+                      cursor: 'pointer',
+                      fontSize: '0.95rem'
+                    }}
+                  >
+                    ⚡ PIX Instantâneo
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod('card')}
+                    style={{
+                      flex: 1,
+                      padding: '12px',
+                      borderRadius: '12px',
+                      border: paymentMethod === 'card' ? '2px solid var(--primary)' : '1px solid rgba(255,255,255,0.1)',
+                      background: paymentMethod === 'card' ? 'rgba(124, 58, 237, 0.12)' : 'rgba(255,255,255,0.02)',
+                      color: paymentMethod === 'card' ? 'var(--secondary)' : 'var(--text-secondary)',
+                      fontWeight: 'bold',
+                      cursor: 'pointer',
+                      fontSize: '0.95rem'
+                    }}
+                  >
+                    💳 Cartão de Crédito
+                  </button>
                 </div>
 
-                <div style={styles.infoAlert} className="glass-card">
-                  <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                    🔒 Pagamento processado com segurança via <strong>Mercado Pago</strong>. Suas músicas completas em qualidade HD serão liberadas imediatamente após a aprovação da transação.
-                  </p>
-                </div>
+                {/* Área de Pagamento PIX Transparente */}
+                {paymentMethod === 'pix' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '8px' }}>
+                    {!pixInfo ? (
+                      <button
+                        type="button"
+                        disabled={isGeneratingPix}
+                        onClick={async () => {
+                          setIsGeneratingPix(true);
+                          try {
+                            if (orderId) {
+                              await updateDoc(doc(db, 'orders', orderId), {
+                                total: getTotalPrice(),
+                                package: formData.selectedPackage,
+                                updatedAt: new Date().toISOString()
+                              }).catch(e => console.warn(e));
+                            }
 
-                <button 
-                  onClick={async () => {
-                    try {
-                      // Update order with total amount and final choices in Firestore
-                      if (orderId) {
-                        await updateDoc(doc(db, 'orders', orderId), {
-                          total: getTotalPrice(),
-                          package: formData.selectedPackage,
-                          addVersion2: formData.addVersion2,
-                          updatedAt: new Date().toISOString()
-                        });
-                      }
+                            const res = await fetch('/api/payments/create', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                formData,
+                                totalAmount: getTotalPrice(),
+                                paymentType: 'pix'
+                              })
+                            });
+                            if (res.ok) {
+                              const data = await res.json();
+                              setPixInfo(data);
+                            } else {
+                              alert('Erro ao gerar código PIX. Tente novamente.');
+                            }
+                          } catch (err) {
+                            console.error(err);
+                            alert('Falha ao conectar com o serviço de pagamento.');
+                          } finally {
+                            setIsGeneratingPix(false);
+                          }
+                        }}
+                        className="btn btn-primary"
+                        style={{ padding: '16px', fontSize: '1.05rem', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' }}
+                      >
+                        {isGeneratingPix ? '⏳ Gerando PIX...' : '⚡ Gerar QR Code do PIX (R$ 19,90)'}
+                      </button>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', background: 'rgba(0,0,0,0.3)', padding: '20px', borderRadius: '16px', border: '1px solid rgba(52, 211, 153, 0.3)' }}>
+                        <span style={{ fontSize: '0.85rem', color: '#34d399', fontWeight: 'bold' }}>
+                          ✅ QR Code PIX Gerado com Sucesso!
+                        </span>
 
-                      const response = await fetch('/api/payments/create', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          formData,
-                          totalAmount: getTotalPrice()
-                        })
-                      });
-                      if (response.ok) {
-                        const data = await response.json();
-                        if (data.init_point) {
-                          window.location.href = data.init_point;
-                        } else {
-                          alert('Erro ao redirecionar para a tela de pagamento do Mercado Pago.');
+                        {pixInfo.qrCodeBase64 && (
+                          <img 
+                            src={`data:image/png;base64,${pixInfo.qrCodeBase64}`} 
+                            alt="QR Code PIX Mercado Pago" 
+                            style={{ width: '200px', height: '200px', borderRadius: '12px', border: '4px solid #fff' }}
+                          />
+                        )}
+
+                        <div style={{ width: '100%' }}>
+                          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
+                            Código PIX Copia e Cola:
+                          </span>
+                          <textarea 
+                            readOnly 
+                            value={pixInfo.qrCode || ''} 
+                            style={{ width: '100%', height: '70px', background: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '10px', fontSize: '0.75rem', fontFamily: 'monospace' }}
+                          />
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (pixInfo.qrCode) {
+                              navigator.clipboard.writeText(pixInfo.qrCode);
+                              setPixCopied(true);
+                              setTimeout(() => setPixCopied(false), 3000);
+                            }
+                          }}
+                          style={{
+                            width: '100%',
+                            padding: '14px',
+                            borderRadius: '10px',
+                            border: 'none',
+                            background: pixCopied ? '#059669' : '#10b981',
+                            color: '#fff',
+                            fontWeight: 'bold',
+                            fontSize: '1rem',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          {pixCopied ? '✅ Código PIX Copiado!' : '📋 Copiar Código PIX'}
+                        </button>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: '#fbbf24', marginTop: '4px' }}>
+                          <span>🔄 Aguardando confirmação do pagamento em tempo real...</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Área de Cartão de Crédito / Mercado Pago Checkout */}
+                {paymentMethod === 'card' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          if (orderId) {
+                            await updateDoc(doc(db, 'orders', orderId), {
+                              total: getTotalPrice(),
+                              package: formData.selectedPackage,
+                              updatedAt: new Date().toISOString()
+                            }).catch(e => console.warn(e));
+                          }
+
+                          const response = await fetch('/api/payments/create', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              formData,
+                              totalAmount: getTotalPrice(),
+                              paymentType: 'preference'
+                            })
+                          });
+                          if (response.ok) {
+                            const data = await response.json();
+                            if (data.init_point) {
+                              window.location.href = data.init_point;
+                            } else {
+                              alert('Erro ao iniciar checkout do Mercado Pago.');
+                            }
+                          } else {
+                            const errData = await response.json();
+                            alert(`Erro do Mercado Pago: ${errData.error || 'Falha no processamento.'}`);
+                          }
+                        } catch (err) {
+                          console.error(err);
+                          alert('Ocorreu um erro ao processar seu pagamento.');
                         }
-                      } else {
-                        const errData = await response.json();
-                        alert(`Erro do Mercado Pago: ${errData.error || 'Falha no processamento.'}`);
-                      }
-                    } catch (err) {
-                      console.error(err);
-                      alert('Ocorreu um erro ao processar seu pagamento. Verifique suas chaves de API.');
-                    }
-                  }}
-                  className="btn btn-primary"
-                  style={{ width: '100%', padding: '18px', fontSize: '1.15rem', marginTop: '24px' }}
-                >
-                  Confirmar & Pagar com Mercado Pago 💳
-                </button>
+                      }}
+                      className="btn btn-primary"
+                      style={{ width: '100%', padding: '16px', fontSize: '1.05rem' }}
+                    >
+                      Confirmar & Pagar no Mercado Pago 💳
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
