@@ -5,6 +5,52 @@ import Link from 'next/link';
 import { doc, getDoc, collection, addDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
+function BrandLogo() {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+      <div style={{
+        width: '42px',
+        height: '42px',
+        borderRadius: '12px',
+        background: 'linear-gradient(135deg, #7c3aed 0%, #ec4899 100%)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        boxShadow: '0 4px 15px rgba(124, 58, 237, 0.4)',
+        flexShrink: 0
+      }}>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M9 18V5L21 3V16" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+          <circle cx="6" cy="18" r="3" fill="white"/>
+          <circle cx="18" cy="16" r="3" fill="white"/>
+        </svg>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{
+            fontSize: '1.35rem',
+            fontWeight: '900',
+            background: 'linear-gradient(135deg, #ffffff 0%, #c4b5fd 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            letterSpacing: '-0.3px'
+          }}>
+            NSMusic
+          </span>
+          <div className="header-mini-eq">
+            <div className="header-mini-bar" style={{ animationDelay: '0.1s' }}></div>
+            <div className="header-mini-bar" style={{ animationDelay: '0.4s' }}></div>
+            <div className="header-mini-bar" style={{ animationDelay: '0.2s' }}></div>
+          </div>
+        </div>
+        <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+          Estúdio de Produção Musical
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function CustomAudioPreview({ src, label, badge, isBonus }) {
   const audioRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -1632,50 +1678,13 @@ export default function CriarMusica() {
       <header style={styles.header} className="glass-panel">
         <div style={{ ...styles.headerContainer, justifyContent: 'space-between', alignItems: 'center' }}>
           
-          {/* Logo & Marca NSMusic com Animação */}
-          <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '14px', textDecoration: 'none' }}>
-            <img src="/logo.png" alt="NSMusic" style={{ height: '42px', width: 'auto', borderRadius: '8px' }} />
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '1.3rem', fontWeight: '900', background: 'linear-gradient(135deg, #ffffff 0%, #a78bfa 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', letterSpacing: '-0.4px' }}>
-                  NSMusic
-                </span>
-                <div className="header-mini-eq">
-                  <div className="header-mini-bar" style={{ animationDelay: '0.1s' }}></div>
-                  <div className="header-mini-bar" style={{ animationDelay: '0.4s' }}></div>
-                  <div className="header-mini-bar" style={{ animationDelay: '0.2s' }}></div>
-                </div>
-                <span className="note-float-1" style={{ fontSize: '0.9rem' }}>🎵</span>
-              </div>
-              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
-                Estúdio de Produção Musical
-              </span>
-            </div>
+          {/* Logo & Marca NSMusic com Animação SVG */}
+          <Link href="/" style={{ textDecoration: 'none' }}>
+            <BrandLogo />
           </Link>
 
-          {/* Indicador de Progresso & Alternador de Tema */}
+          {/* Indicador de Progresso Estilo Pílula Neon Glassmorphism */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <button
-              type="button"
-              onClick={toggleTheme}
-              title={theme === 'dark' ? 'Mudar para Tema Claro' : 'Mudar para Tema Escuro'}
-              style={{
-                background: 'rgba(255,255,255,0.06)',
-                border: '1px solid var(--border-color)',
-                borderRadius: '50%',
-                width: '36px',
-                height: '36px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '1rem',
-                cursor: 'pointer',
-                color: 'var(--text-primary)'
-              }}
-            >
-              {theme === 'dark' ? '☀️' : '🌙'}
-            </button>
-
             <div style={{
               background: 'rgba(124, 58, 237, 0.12)',
               border: '1px solid rgba(124, 58, 237, 0.35)',
