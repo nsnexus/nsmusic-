@@ -329,3 +329,45 @@ a {
   }
 }
 
+/* Header Musical Animations */
+@keyframes floatNote {
+  0% {
+    transform: translateY(0px) rotate(0deg) scale(1);
+    opacity: 0.7;
+  }
+  50% {
+    transform: translateY(-8px) rotate(8deg) scale(1.15);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0px) rotate(0deg) scale(1);
+    opacity: 0.7;
+  }
+}
+
+.note-float-1 {
+  animation: floatNote 3s ease-in-out infinite;
+}
+
+.note-float-2 {
+  animation: floatNote 2.4s ease-in-out infinite 0.5s;
+}
+
+.note-float-3 {
+  animation: floatNote 3.5s ease-in-out infinite 1s;
+}
+
+.header-mini-eq {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 18px;
+}
+
+.header-mini-bar {
+  width: 3px;
+  background: linear-gradient(180deg, #ec4899 0%, #8b5cf6 100%);
+  border-radius: 2px;
+  animation: eqPulse 0.9s ease-in-out infinite alternate;
+}
+

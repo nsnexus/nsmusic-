@@ -1491,38 +1491,52 @@ export default function CriarMusica() {
 
   return (
     <div style={styles.wrapper}>
-      {/* Header */}
+      {/* Header Estúdio Musical Premium */}
       <header style={styles.header} className="glass-panel">
-        <div style={styles.headerContainer}>
-          <Link href="/">
-            <img src="/logo.png" alt="NSMusic" style={{ height: '40px', width: 'auto' }} />
+        <div style={{ ...styles.headerContainer, justifyContent: 'space-between', alignItems: 'center' }}>
+          
+          {/* Logo & Marca NSMusic com Animação */}
+          <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '14px', textDecoration: 'none' }}>
+            <img src="/logo.png" alt="NSMusic" style={{ height: '42px', width: 'auto', borderRadius: '8px' }} />
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '1.3rem', fontWeight: '900', background: 'linear-gradient(135deg, #ffffff 0%, #a78bfa 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', letterSpacing: '-0.4px' }}>
+                  NSMusic
+                </span>
+                <div className="header-mini-eq">
+                  <div className="header-mini-bar" style={{ animationDelay: '0.1s' }}></div>
+                  <div className="header-mini-bar" style={{ animationDelay: '0.4s' }}></div>
+                  <div className="header-mini-bar" style={{ animationDelay: '0.2s' }}></div>
+                </div>
+                <span className="note-float-1" style={{ fontSize: '0.9rem' }}>🎵</span>
+              </div>
+              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+                Estúdio de Produção Musical
+              </span>
+            </div>
           </Link>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            {step > 1 && (
-              <button 
-                onClick={handleResetForm}
-                title="Reiniciar e apagar rascunho"
-                style={{
-                  background: 'transparent',
-                  border: '1px solid rgba(255,255,255,0.12)',
-                  borderRadius: '6px',
-                  color: 'var(--text-muted)',
-                  fontSize: '0.8rem',
-                  padding: '6px 12px',
-                  cursor: 'pointer'
-                }}
-              >
-                🔄 Reiniciar
-              </button>
-            )}
-            <div style={styles.stepIndicator}>
-              {step <= totalWizardSteps ? (
-                `Passo ${step} de ${totalWizardSteps}`
-              ) : (
-                step === 10 ? 'Etapa: Composição' : step === 11 ? 'Etapa: Prévia do Áudio' : step === 12 ? 'Etapa: Pacote' : 'Etapa: Pagamento'
-              )}
+
+          {/* Indicador de Progresso Estilo Pílula Neon Glassmorphism */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span className="note-float-2" style={{ fontSize: '1.1rem', display: 'none', minWidth: 'auto' }}>🎼</span>
+            <div style={{
+              background: 'rgba(124, 58, 237, 0.12)',
+              border: '1px solid rgba(124, 58, 237, 0.35)',
+              borderRadius: '24px',
+              padding: '7px 16px',
+              fontSize: '0.85rem',
+              fontWeight: '700',
+              color: '#c4b5fd',
+              boxShadow: '0 0 20px rgba(124, 58, 237, 0.2)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}>
+              <span style={{ color: '#34d399', fontSize: '0.8rem' }}>●</span>
+              {step <= 9 ? `Etapa ${step} de 13` : step === 10 ? `Etapa 10 de 13 • Composição da Letra` : step === 11 ? `Etapa 11 de 13 • Audição das Prévias` : step === 12 ? `Etapa 12 de 13 • Pacote Promocional` : `Etapa 13 de 13 • Checkout Segurado`}
             </div>
           </div>
+
         </div>
       </header>
 
