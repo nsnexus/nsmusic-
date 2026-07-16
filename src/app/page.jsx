@@ -38,22 +38,22 @@ export default function Home() {
   const testimonials = [
     {
       name: 'Mariana & Lucas',
-      photo: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=200&auto=format&fit=crop',
+      photo: 'https://images.unsplash.com/photo-1522529599102-193c0d76b5b6?q=80&w=300&auto=format&fit=crop',
       relation: 'Presente de Aniversário de Casamento',
       rating: 5,
       comment: 'Minha esposa chorou do início ao fim quando tocou a música no jantar! A letra citava nossa viagem a Gramado e o dia que nos conhecemos. Inesquecível!'
     },
     {
       name: 'Carlos Eduardo',
-      photo: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=200&auto=format&fit=crop',
-      relation: 'Homenagem para o Pai',
+      photo: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=300&auto=format&fit=crop',
+      relation: 'Homenagem para o Pai (60 Anos)',
       rating: 5,
       comment: 'Fiz a música para os 60 anos do meu pai. Quando ele ouviu a voz cantando o nome dele e da nossa família, todo mundo na festa se emocionou. Vale cada centavo!'
     },
     {
-      name: 'Fernanda Souza',
-      photo: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=200&auto=format&fit=crop',
-      relation: 'Declaração para o Namorado',
+      name: 'Fernanda & Gabriel',
+      photo: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?q=80&w=300&auto=format&fit=crop',
+      relation: 'Declaração de Aniversário de Namoro',
       rating: 5,
       comment: 'Surpreendente! Recebi 2 versões incrivelmente bem gravadas em ritmos diferentes. O atendimento e a rapidez na entrega foram nota 10!'
     }
