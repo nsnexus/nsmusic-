@@ -21,6 +21,7 @@ export default function OrderDetailsAdmin() {
   const [productionStatus, setProductionStatus] = useState('');
   const [lyrics, setLyrics] = useState('');
   const [audioUrl, setAudioUrl] = useState('');
+  const [audioUrl2, setAudioUrl2] = useState('');
   const [wavUrl, setWavUrl] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
   const [qrCodeUrl, setQrCodeUrl] = useState('');
@@ -60,8 +61,8 @@ export default function OrderDetailsAdmin() {
           setOrder(data);
           // Set initial fields
           setProductionStatus(data.productionStatus || 'LETRA_APROVADA');
-          setLyrics(data.lyrics || '');
           setAudioUrl(data.audioFiles?.[0] || data.audioUrl || '');
+          setAudioUrl2(data.audioFiles?.[1] || '');
           setWavUrl(data.wavFiles?.[0] || data.wavUrl || '');
           setVideoUrl(data.videoFile || data.videoUrl || '');
           setQrCodeUrl(data.qrCodeFile || data.qrCodeUrl || '');
@@ -116,7 +117,7 @@ export default function OrderDetailsAdmin() {
         productionStatus,
         lyrics,
         audioUrl,
-        audioFiles: audioUrl ? [audioUrl] : [],
+        audioFiles: [audioUrl, audioUrl2].filter(Boolean),
         wavUrl,
         wavFiles: wavUrl ? [wavUrl] : [],
         videoFile: videoUrl,
@@ -129,6 +130,7 @@ export default function OrderDetailsAdmin() {
         productionStatus,
         lyrics,
         audioUrl,
+        audioFiles: [audioUrl, audioUrl2].filter(Boolean),
         wavUrl,
         videoFile: videoUrl,
         qrCodeFile: qrCodeUrl,
@@ -211,10 +213,13 @@ export default function OrderDetailsAdmin() {
             clearInterval(interval);
             setGeneratingSuno(false);
             
-            // Automatically set first complete track as audio link
-            const validTrack = statusData.tracks.find(t => t.audio_url);
-            if (validTrack) {
-              setAudioUrl(validTrack.audio_url);
+            // Automatically set complete tracks as audio links
+            const validTracks = statusData.tracks.filter(t => t.audio_url);
+            if (validTracks[0]) {
+              setAudioUrl(validTracks[0].audio_url);
+            }
+            if (validTracks[1]) {
+              setAudioUrl2(validTracks[1].audio_url);
             }
           } else {
             setPollingStatus(`Renderizando faixas... Tentativa ${attempts} de ${maxAttempts}`);
@@ -324,12 +329,23 @@ export default function OrderDetailsAdmin() {
                   </p>
 
                   <div style={styles.formGroup}>
-                    <label style={styles.label}>Link do Áudio Principal (MP3)</label>
+                    <label style={styles.label}>Link do Áudio Principal (Versão 1 - MP3)</label>
                     <input 
                       type="url" 
                       value={audioUrl} 
                       onChange={(e) => setAudioUrl(e.target.value)}
                       placeholder="Ex: link do áudio do Suno ou link do Google Drive..." 
+                      style={styles.input}
+                    />
+                  </div>
+
+                  <div style={styles.formGroup}>
+                    <label style={styles.label}>Link do Áudio Alternativo (Versão 2 - MP3)</label>
+                    <input 
+                      type="url" 
+                      value={audioUrl2} 
+                      onChange={(e) => setAudioUrl2(e.target.value)}
+                      placeholder="Ex: link da segunda música do Suno..." 
                       style={styles.input}
                     />
                   </div>

@@ -19,10 +19,12 @@ function EntregaContent() {
   const [reviewText, setReviewText] = useState('');
 
   // Estados de Cadastro de Conta
+  const [accountEmail, setAccountEmail] = useState('');
   const [accountPassword, setAccountPassword] = useState('');
   const [accountCreated, setAccountCreated] = useState(false);
   const [accountError, setAccountError] = useState('');
   const [isCreatingAccount, setIsCreatingAccount] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (usr) => {
@@ -48,7 +50,11 @@ function EntregaContent() {
         const docRef = doc(db, 'orders', orderId);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
-          setOrder(docSnap.data());
+          const data = docSnap.data();
+          setOrder(data);
+          if (data && data.customerEmail) {
+            setAccountEmail(data.customerEmail);
+          }
         }
       } catch (err) {
         console.error("Erro ao buscar pedido para entrega:", err);
@@ -69,13 +75,14 @@ function EntregaContent() {
     setIsCreatingAccount(true);
     setAccountError('');
     try {
-      const userCred = await createUserWithEmailAndPassword(auth, order.customerEmail, accountPassword);
+      const userCred = await createUserWithEmailAndPassword(auth, accountEmail, accountPassword);
       const user = userCred.user;
       
-      // Vincula a ordem ao ID do novo usuário no Firestore
+      // Vincula a ordem ao ID do novo usuário no Firestore e atualiza e-mail
       if (orderId) {
         await updateDoc(doc(db, 'orders', orderId), {
           userId: user.uid,
+          customerEmail: accountEmail,
           updatedAt: new Date().toISOString()
         }).catch(e => console.warn(e));
       }
@@ -96,6 +103,33 @@ function EntregaContent() {
     e.preventDefault();
     if (rating === 0) return;
     setReviewSubmitted(true);
+  };
+
+  const handleDownload = async (url, filename) => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.warn("Erro ao fazer download via fetch, abrindo nova aba:", err);
+      window.open(url, '_blank');
+    }
+  };
+
+  const handleCopyLink = () => {
+    const sharePageUrl = typeof window !== 'undefined' 
+      ? `${window.location.origin}/homenagem?orderId=${orderId}` 
+      : '';
+    navigator.clipboard.writeText(sharePageUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 3000);
   };
 
   if (loading) {
@@ -124,9 +158,9 @@ function EntregaContent() {
   const primaryAudioUrl = order.audioUrl || (order.audioFiles && order.audioFiles[0]) || '';
   const secondAudioUrl = order.audioFiles && order.audioFiles[1] ? order.audioFiles[1] : '';
 
-  // Get QR Code
-  const deliveryPageUrl = typeof window !== 'undefined' ? window.location.href : '';
-  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(deliveryPageUrl)}`;
+  // Get QR Code pointing to the public shareable page
+  const sharePageUrl = typeof window !== 'undefined' ? `${window.location.origin}/homenagem?orderId=${orderId}` : '';
+  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(sharePageUrl)}`;
 
   // Default beautiful dynamic cover
   const coverUrl = order.coverUrl || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=600&auto=format&fit=crop';
@@ -183,9 +217,13 @@ function EntregaContent() {
                           Seu navegador não suporta.
                         </audio>
                         <div style={{ ...styles.downloadGrid, marginTop: '16px' }}>
-                          <a href={primaryAudioUrl} target="_blank" rel="noopener noreferrer" className="btn btn-primary" style={styles.downloadBtn}>
+                          <button 
+                            onClick={() => handleDownload(primaryAudioUrl, `Musica_V1_${order.honoreeName || 'Homenagem'}.mp3`)} 
+                            className="btn btn-primary" 
+                            style={{ ...styles.downloadBtn, border: 'none', cursor: 'pointer' }}
+                          >
                             ⬇ Baixar MP3 (V1)
-                          </a>
+                          </button>
                         </div>
                       </div>
                     )}
@@ -200,9 +238,13 @@ function EntregaContent() {
                           Seu navegador não suporta.
                         </audio>
                         <div style={{ ...styles.downloadGrid, marginTop: '16px' }}>
-                          <a href={secondAudioUrl} target="_blank" rel="noopener noreferrer" className="btn btn-secondary" style={styles.downloadBtn}>
+                          <button 
+                            onClick={() => handleDownload(secondAudioUrl, `Musica_V2_${order.honoreeName || 'Homenagem'}.mp3`)} 
+                            className="btn btn-secondary" 
+                            style={{ ...styles.downloadBtn, border: 'none', cursor: 'pointer' }}
+                          >
                             ⬇ Baixar MP3 (V2 Bônus)
-                          </a>
+                          </button>
                         </div>
                       </div>
                     )}
@@ -210,13 +252,21 @@ function EntregaContent() {
                     {/* QR Code section */}
                     <div style={styles.qrCard} className="glass-card">
                       <div style={{ flex: 1 }}>
-                        <h4 style={{ fontSize: '1rem', marginBottom: '8px', fontFamily: 'var(--font-family-title)' }}>Compartilhar Homenagem</h4>
-                        <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
-                          Quem receber escaneia o QR Code com o celular e ouve as músicas diretamente nessa página personalizada!
+                        <h4 style={{ fontSize: '1rem', marginBottom: '8px', fontFamily: 'var(--font-family-title)' }}>Compartilhar Homenagem 🎁</h4>
+                        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
+                          Envie o link exclusivo ou salve o QR Code para compartilhar essa linda homenagem diretamente com quem você ama!
                         </p>
-                        <a href={qrCodeUrl} download={`qrcode-${order.orderNumber}.png`} className="btn btn-secondary" style={{ marginTop: '16px', padding: '8px 16px', fontSize: '0.8rem' }}>
-                          Salvar Imagem QR Code
-                        </a>
+                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '16px' }}>
+                          <button onClick={handleCopyLink} className="btn btn-primary" style={{ padding: '8px 14px', fontSize: '0.8rem', border: 'none', cursor: 'pointer' }}>
+                            {copied ? '✅ Link Copiado!' : '🔗 Copiar Link'}
+                          </button>
+                          <a href={sharePageUrl} target="_blank" rel="noopener noreferrer" className="btn btn-secondary" style={{ padding: '8px 14px', fontSize: '0.8rem', textDecoration: 'none', textAlign: 'center' }}>
+                            👁 Visualizar Página
+                          </a>
+                          <a href={qrCodeUrl} download={`qrcode-${order.orderNumber}.png`} className="btn btn-secondary" style={{ padding: '8px 14px', fontSize: '0.8rem', textDecoration: 'none', textAlign: 'center' }}>
+                            💾 Salvar QR Code
+                          </a>
+                        </div>
                       </div>
                       <img src={qrCodeUrl} alt="QR Code" style={styles.qrImg} />
                     </div>
@@ -283,13 +333,21 @@ function EntregaContent() {
                   ) : (
                     <form onSubmit={handleCreateAccount} style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
                       <input 
+                        type="email" 
+                        placeholder="Seu e-mail de acesso"
+                        required
+                        value={accountEmail}
+                        onChange={(e) => setAccountEmail(e.target.value)}
+                        style={{ padding: '12px 16px', borderRadius: '8px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontSize: '0.9rem', width: '220px' }}
+                      />
+                      <input 
                         type="password" 
-                        placeholder="Crie uma senha segura (mín 6 dígitos)"
+                        placeholder="Senha segura (mín 6 dígitos)"
                         required
                         minLength={6}
                         value={accountPassword}
                         onChange={(e) => setAccountPassword(e.target.value)}
-                        style={{ padding: '12px 16px', borderRadius: '8px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontSize: '0.9rem', width: '240px' }}
+                        style={{ padding: '12px 16px', borderRadius: '8px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontSize: '0.9rem', width: '220px' }}
                       />
                       <button 
                         type="submit" 

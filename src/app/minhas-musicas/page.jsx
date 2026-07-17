@@ -88,6 +88,24 @@ export default function MinhasMusicasPage() {
     return track.audio_url || track.audioUrl || track.stream_url || track.url || track.audioFile || track.cdn_url || '';
   };
 
+  const handleDownload = async (url, filename) => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.warn("Erro ao baixar áudio via blob, abrindo em nova aba:", err);
+      window.open(url, '_blank');
+    }
+  };
+
   if (loadingAuth) {
     return (
       <div style={styles.wrapper} className="flex-center">
@@ -254,9 +272,13 @@ export default function MinhasMusicasPage() {
                                 🎧 Versão 1 - Arranjo Principal
                               </span>
                               <audio controls src={getAudioUrl(primaryAudio)} style={{ width: '100%', height: '36px' }} />
-                              <a href={getAudioUrl(primaryAudio)} target="_blank" rel="noopener noreferrer" className="btn btn-secondary" style={{ display: 'block', textCenter: 'center', marginTop: '8px', padding: '6px 12px', fontSize: '0.78rem', textAlign: 'center', textDecoration: 'none' }}>
+                              <button 
+                                onClick={() => handleDownload(getAudioUrl(primaryAudio), `Musica_V1_${ord.honoreeName || 'Homenagem'}.mp3`)} 
+                                className="btn btn-secondary" 
+                                style={{ display: 'block', width: '100%', marginTop: '8px', padding: '6px 12px', fontSize: '0.78rem', textAlign: 'center', border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: '#fff', cursor: 'pointer', borderRadius: '6px' }}
+                              >
                                 ⬇ Baixar MP3 (Versão 1)
-                              </a>
+                              </button>
                             </div>
 
                             {secondaryAudio && (
@@ -265,9 +287,13 @@ export default function MinhasMusicasPage() {
                                   🎧 Versão 2 - Arranjo Bônus
                                 </span>
                                 <audio controls src={getAudioUrl(secondaryAudio)} style={{ width: '100%', height: '36px' }} />
-                                <a href={getAudioUrl(secondaryAudio)} target="_blank" rel="noopener noreferrer" className="btn btn-secondary" style={{ display: 'block', textCenter: 'center', marginTop: '8px', padding: '6px 12px', fontSize: '0.78rem', textAlign: 'center', textDecoration: 'none' }}>
+                                <button 
+                                  onClick={() => handleDownload(getAudioUrl(secondaryAudio), `Musica_V2_${ord.honoreeName || 'Homenagem'}.mp3`)} 
+                                  className="btn btn-secondary" 
+                                  style={{ display: 'block', width: '100%', marginTop: '8px', padding: '6px 12px', fontSize: '0.78rem', textAlign: 'center', border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: '#fff', cursor: 'pointer', borderRadius: '6px' }}
+                                >
                                   ⬇ Baixar MP3 (Versão 2)
-                                </a>
+                                </button>
                               </div>
                             )}
                           </div>
