@@ -38,9 +38,9 @@ export const extractAudioTracks = (result) => {
   } else if (Array.isArray(result.data)) {
     rawTracks = result.data;
   } else if (result.data && typeof result.data === 'object') {
-    rawTracks = result.data.response?.sunoData || result.data.sunoData || result.data.tracks || [result.data];
-  } else if (result.response && result.response.sunoData) {
-    rawTracks = result.response.sunoData;
+    rawTracks = result.data.response?.sunoData || result.data.response?.tracks || result.data.sunoData || result.data.tracks || [result.data];
+  } else if (result.response && (result.response.sunoData || result.response.tracks)) {
+    rawTracks = result.response.sunoData || result.response.tracks;
   } else if (result.tracks) {
     rawTracks = result.tracks;
   }
@@ -50,7 +50,7 @@ export const extractAudioTracks = (result) => {
   return tracks.map(t => {
     if (!t) return null;
     if (typeof t === 'string') return { audio_url: t, audioUrl: t };
-    const url = t.audio_url || t.audioUrl || t.stream_url || t.url || t.audioFile || t.cdn_url || '';
+    const url = t.audio_url || t.audioUrl || t.stream_url || t.url || t.audioFile || t.cdn_url || t.audio_file || '';
     return {
       ...t,
       audio_url: url,

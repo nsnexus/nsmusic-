@@ -38,10 +38,10 @@ export async function GET(req) {
         
         // Extração universal das faixas via extractAudioTracks
         const tracksArray = extractAudioTracks(kieData);
-        const kieStatus = kieData?.data?.status || kieData?.status;
+        const rawKieStatus = String(kieData?.data?.status || kieData?.status || kieData?.data?.state || '').toUpperCase();
 
         // Se a Kie.ai concluiu a geração ou se retornou os links de áudio
-        const isSuccess = kieStatus === 'SUCCESS' || kieStatus === 'SUCCESSFULLY' || tracksArray.length > 0;
+        const isSuccess = rawKieStatus.includes('SUCCESS') || rawKieStatus.includes('SUCESSO') || tracksArray.length > 0;
 
         if (isSuccess && tracksArray.length > 0) {
           // Salva no Firestore imediatamente (atualizando suno_tasks e orders)

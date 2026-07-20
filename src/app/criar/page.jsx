@@ -275,6 +275,52 @@ export default function CriarMusica() {
   const baseStoryRef = useRef('');
 
   const [paymentErrorMessage, setPaymentErrorMessage] = useState('');
+  const [phoneVerifyStatus, setPhoneVerifyStatus] = useState('idle'); // 'idle' | 'checking' | 'valid' | 'invalid'
+  const [phoneVerifyMessage, setPhoneVerifyMessage] = useState('');
+
+  // Verificação de WhatsApp em tempo real via Whats Evolution API
+  useEffect(() => {
+    const phone = formData.customerPhone || '';
+    const clean = phone.replace(/\D/g, '');
+
+    if (clean.length < 11) {
+      setPhoneVerifyStatus('idle');
+      setPhoneVerifyMessage(clean.length > 0 ? 'Digite o DDD + 9 dígitos do seu celular' : '');
+      return;
+    }
+
+    setPhoneVerifyStatus('checking');
+    setPhoneVerifyMessage('⏳ Verificando conta no WhatsApp...');
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch('/api/whatsapp/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: clean })
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data.exists) {
+            setPhoneVerifyStatus('valid');
+            setPhoneVerifyMessage('✓ WhatsApp ativo e verificado!');
+          } else {
+            setPhoneVerifyStatus('invalid');
+            setPhoneVerifyMessage('❌ Este número não possui WhatsApp ativo');
+          }
+        } else {
+          setPhoneVerifyStatus('valid');
+          setPhoneVerifyMessage('✓ WhatsApp pré-validado');
+        }
+      } catch (err) {
+        setPhoneVerifyStatus('valid');
+        setPhoneVerifyMessage('✓ WhatsApp pré-validado');
+      }
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [formData.customerPhone]);
 
   // Restore draft from localStorage on load & check URL query params for payment failure
   useEffect(() => {
@@ -620,8 +666,9 @@ export default function CriarMusica() {
   };
 
   const isPhoneValid = (phone) => {
-    const clean = phone.replace(/\D/g, '');
-    return clean.length === 11 || clean.length === 10;
+    const clean = (phone || '').replace(/\D/g, '');
+    if (clean.length !== 11) return false;
+    return phoneVerifyStatus !== 'invalid';
   };
 
   const updateAddon = (id, value) => {
