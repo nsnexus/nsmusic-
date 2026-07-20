@@ -7,29 +7,22 @@ import { db } from '@/lib/firebase';
 
 function BrandLogo() {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-      <img src="/logo.png" alt="NSMusic" style={{ height: '42px', width: 'auto' }} />
-      <div style={{ display: 'flex', flexDirection: 'column' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{
-            fontSize: '1.35rem',
-            fontWeight: '900',
-            background: 'linear-gradient(135deg, #ffffff 0%, #c4b5fd 100%)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            letterSpacing: '-0.3px'
-          }}>
-            NSMusic
-          </span>
-          <div className="header-mini-eq">
-            <div className="header-mini-bar" style={{ animationDelay: '0.1s' }}></div>
-            <div className="header-mini-bar" style={{ animationDelay: '0.4s' }}></div>
-            <div className="header-mini-bar" style={{ animationDelay: '0.2s' }}></div>
-          </div>
-        </div>
-        <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
-          Estúdio de Produção Musical
-        </span>
+    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+      <img src="/logo.png" alt="NSMusic" style={{ height: '38px', width: 'auto' }} />
+      <span style={{
+        fontSize: '1.3rem',
+        fontWeight: '900',
+        background: 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)',
+        WebkitBackgroundClip: 'text',
+        WebkitTextFillColor: 'transparent',
+        letterSpacing: '-0.3px'
+      }}>
+        NSMusic
+      </span>
+      <div className="header-mini-eq">
+        <div className="header-mini-bar" style={{ animationDelay: '0.1s' }}></div>
+        <div className="header-mini-bar" style={{ animationDelay: '0.4s' }}></div>
+        <div className="header-mini-bar" style={{ animationDelay: '0.2s' }}></div>
       </div>
     </div>
   );
@@ -566,7 +559,7 @@ export default function CriarMusica() {
     localStorage.setItem('nsmusic_theme', nextTheme);
   };
 
-  // Ditado por Voz (Web Speech API) sem duplicação de texto
+  // Ditado por Voz (Web Speech API) sem duplicação de texto no mobile
   const [isListening, setIsListening] = useState(false);
 
   const toggleVoiceDictation = () => {
@@ -588,24 +581,28 @@ export default function CriarMusica() {
     try {
       const recognition = new SpeechRecognition();
       recognition.lang = 'pt-BR';
-      recognition.continuous = true;
-      recognition.interimResults = true;
+      recognition.continuous = false; // Em celulares, evita duplicação de frases em loop
+      recognition.interimResults = false; // Apenas grava quando o trecho for finalizado
       recognitionRef.current = recognition;
-      baseStoryRef.current = formData.story || '';
 
       recognition.onstart = () => setIsListening(true);
       recognition.onend = () => setIsListening(false);
       recognition.onerror = () => setIsListening(false);
 
       recognition.onresult = (event) => {
-        let fullTranscript = '';
-        for (let i = 0; i < event.results.length; i++) {
-          fullTranscript += event.results[i][0].transcript;
+        let textRecorded = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          if (event.results[i].isFinal) {
+            textRecorded += event.results[i][0].transcript + ' ';
+          }
         }
-        const base = baseStoryRef.current ? baseStoryRef.current.trim() : '';
-        const trimmedTranscript = fullTranscript.trim();
-        const newStory = base ? `${base} ${trimmedTranscript}` : trimmedTranscript;
-        setFormData(prev => ({ ...prev, story: newStory }));
+        textRecorded = textRecorded.trim();
+        if (textRecorded) {
+          setFormData(prev => ({
+            ...prev,
+            story: prev.story ? `${prev.story.trim()} ${textRecorded}` : textRecorded
+          }));
+        }
       };
 
       recognition.start();
@@ -1754,24 +1751,24 @@ export default function CriarMusica() {
               </div>
             )}
 
-            <div className="responsive-grid-2">
+            <div className="responsive-grid-2" style={{ maxWidth: '100%', overflowX: 'hidden' }}>
               {/* Resumo do Pedido */}
               <div style={styles.checkoutSummary} className="glass-card">
                 <h3 style={{ fontSize: '1.2rem', marginBottom: '20px', color: 'var(--primary)' }}>Resumo do Pedido</h3>
                 
-                <div style={styles.summaryItem}>
+                <div style={{ ...styles.summaryItem, flexWrap: 'wrap', gap: '8px' }}>
                   <span>Pacote Promocional (2 Músicas Completas)</span>
-                  <span style={{ fontWeight: '700', color: '#34d399' }}>R$ 19,90</span>
+                  <span style={{ fontWeight: '700', color: 'var(--success)' }}>R$ 19,90</span>
                 </div>
 
-                <div style={{ ...styles.summaryItem, fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '8px' }}>
+                <div style={{ ...styles.summaryItem, flexWrap: 'wrap', gap: '8px', fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '8px' }}>
                   <span>Desconto Aplicado (71% OFF)</span>
-                  <span style={{ color: '#fbbf24', fontWeight: 'bold' }}>- R$ 50,00</span>
+                  <span style={{ color: 'var(--warning)', fontWeight: 'bold' }}>- R$ 50,00</span>
                 </div>
 
                 <hr style={{ border: 'none', borderTop: '1px solid var(--border-color)', margin: '20px 0' }} />
                 
-                <div style={{ ...styles.summaryItem, fontSize: '1.4rem', fontWeight: '800' }}>
+                <div style={{ ...styles.summaryItem, flexWrap: 'wrap', gap: '8px', fontSize: '1.3rem', fontWeight: '800' }}>
                   <span>Total Geral:</span>
                   <span className="gradient-text">R$ 19,90</span>
                 </div>
@@ -1784,24 +1781,25 @@ export default function CriarMusica() {
               </div>
 
               {/* Opções de Pagamento Embutidas no Site */}
-              <div className="glass-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <h3 style={{ fontSize: '1.2rem', color: '#fff', fontWeight: '700' }}>Escolha a Forma de Pagamento</h3>
+              <div className="glass-card" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '100%' }}>
+                <h3 style={{ fontSize: '1.2rem', color: 'var(--text-primary)', fontWeight: '700' }}>Escolha a Forma de Pagamento</h3>
 
                 {/* Seletores de Método */}
-                <div style={{ display: 'flex', gap: '12px' }}>
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                   <button
                     type="button"
                     onClick={() => setPaymentMethod('pix')}
                     style={{
                       flex: 1,
+                      minWidth: '130px',
                       padding: '12px',
                       borderRadius: '12px',
-                      border: paymentMethod === 'pix' ? '2px solid #34d399' : '1px solid rgba(255,255,255,0.1)',
-                      background: paymentMethod === 'pix' ? 'rgba(52, 211, 153, 0.12)' : 'rgba(255,255,255,0.02)',
-                      color: paymentMethod === 'pix' ? '#34d399' : 'var(--text-secondary)',
+                      border: paymentMethod === 'pix' ? '2px solid var(--success)' : '1.5px solid var(--border-color)',
+                      background: paymentMethod === 'pix' ? 'var(--success-bg)' : '#FFFFFF',
+                      color: paymentMethod === 'pix' ? 'var(--success)' : 'var(--text-secondary)',
                       fontWeight: 'bold',
                       cursor: 'pointer',
-                      fontSize: '0.95rem'
+                      fontSize: '0.92rem'
                     }}
                   >
                     ⚡ PIX Instantâneo
@@ -1812,14 +1810,15 @@ export default function CriarMusica() {
                     onClick={() => setPaymentMethod('card')}
                     style={{
                       flex: 1,
+                      minWidth: '130px',
                       padding: '12px',
                       borderRadius: '12px',
-                      border: paymentMethod === 'card' ? '2px solid var(--primary)' : '1px solid rgba(255,255,255,0.1)',
-                      background: paymentMethod === 'card' ? 'rgba(124, 58, 237, 0.12)' : 'rgba(255,255,255,0.02)',
-                      color: paymentMethod === 'card' ? 'var(--secondary)' : 'var(--text-secondary)',
+                      border: paymentMethod === 'card' ? '2px solid var(--primary)' : '1.5px solid var(--border-color)',
+                      background: paymentMethod === 'card' ? 'var(--primary-light)' : '#FFFFFF',
+                      color: paymentMethod === 'card' ? 'var(--primary)' : 'var(--text-secondary)',
                       fontWeight: 'bold',
                       cursor: 'pointer',
-                      fontSize: '0.95rem'
+                      fontSize: '0.92rem'
                     }}
                   >
                     💳 Cartão de Crédito
@@ -1867,13 +1866,13 @@ export default function CriarMusica() {
                           }
                         }}
                         className="btn btn-primary"
-                        style={{ padding: '16px', fontSize: '1.05rem', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' }}
+                        style={{ padding: '16px', fontSize: '1.05rem', background: 'linear-gradient(135deg, #059669 0%, #047857 100%)' }}
                       >
                         {isGeneratingPix ? '⏳ Gerando PIX...' : '⚡ Gerar QR Code do PIX (R$ 19,90)'}
                       </button>
                     ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', background: 'rgba(0,0,0,0.3)', padding: '20px', borderRadius: '16px', border: '1px solid rgba(52, 211, 153, 0.3)' }}>
-                        <span style={{ fontSize: '0.85rem', color: '#34d399', fontWeight: 'bold' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', background: 'var(--bg-secondary)', padding: '20px', borderRadius: '16px', border: '1.5px solid var(--border-color)', maxWidth: '100%' }}>
+                        <span style={{ fontSize: '0.85rem', color: 'var(--success)', fontWeight: 'bold' }}>
                           ✅ QR Code PIX Gerado com Sucesso!
                         </span>
 
@@ -1881,7 +1880,7 @@ export default function CriarMusica() {
                           <img 
                             src={`data:image/png;base64,${pixInfo.qrCodeBase64}`} 
                             alt="QR Code PIX Mercado Pago" 
-                            style={{ width: '200px', height: '200px', borderRadius: '12px', border: '4px solid #fff' }}
+                            style={{ width: '180px', height: '180px', borderRadius: '12px', border: '3px solid #FFFFFF', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                           />
                         )}
 
@@ -1892,7 +1891,7 @@ export default function CriarMusica() {
                           <textarea 
                             readOnly 
                             value={pixInfo.qrCode || ''} 
-                            style={{ width: '100%', height: '70px', background: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '10px', fontSize: '0.75rem', fontFamily: 'monospace' }}
+                            style={{ width: '100%', height: '70px', background: '#FFFFFF', color: 'var(--text-primary)', border: '1.5px solid var(--border-color)', borderRadius: '8px', padding: '10px', fontSize: '0.75rem', fontFamily: 'monospace', resize: 'none' }}
                           />
                         </div>
 
@@ -1910,8 +1909,8 @@ export default function CriarMusica() {
                             padding: '14px',
                             borderRadius: '10px',
                             border: 'none',
-                            background: pixCopied ? '#059669' : '#10b981',
-                            color: '#fff',
+                            background: pixCopied ? 'var(--success)' : 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                            color: '#FFFFFF',
                             fontWeight: 'bold',
                             fontSize: '1rem',
                             cursor: 'pointer'
@@ -1920,7 +1919,7 @@ export default function CriarMusica() {
                           {pixCopied ? '✅ Código PIX Copiado!' : '📋 Copiar Código PIX'}
                         </button>
 
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: '#fbbf24', marginTop: '4px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: 'var(--warning)', marginTop: '4px' }}>
                           <span>🔄 Aguardando confirmação do pagamento em tempo real...</span>
                         </div>
                       </div>
@@ -1995,52 +1994,15 @@ export default function CriarMusica() {
             <BrandLogo />
           </Link>
 
-          {/* Indicador de Progresso Estilo Pílula Neon Glassmorphism */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <button
-              type="button"
-              onClick={handleCreateNewSongFromScratch}
-              style={{
-                background: 'rgba(255, 255, 255, 0.06)',
-                border: '1px solid rgba(255, 255, 255, 0.15)',
-                borderRadius: '24px',
-                padding: '7px 16px',
-                fontSize: '0.82rem',
-                fontWeight: '700',
-                color: '#fff',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                transition: 'all 0.2s ease'
-              }}
-            >
-              🔄 Nova Música do Zero
-            </button>
-
-            <div style={{
-              background: 'rgba(124, 58, 237, 0.12)',
-              border: '1px solid rgba(124, 58, 237, 0.35)',
-              borderRadius: '24px',
-              padding: '7px 16px',
-              fontSize: '0.85rem',
-              fontWeight: '700',
-              color: '#c4b5fd',
-              boxShadow: '0 0 20px rgba(124, 58, 237, 0.2)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px'
-            }}>
-              <span style={{ color: '#34d399', fontSize: '0.8rem' }}>●</span>
-              {step <= 9 ? `Etapa ${step} de 13` : step === 10 ? `Etapa 10 de 13 • Composição da Letra` : step === 11 ? `Etapa 11 de 13 • Audição das Prévias` : step === 12 ? `Etapa 12 de 13 • Pacote Promocional` : `Etapa 13 de 13 • Checkout Segurado`}
-            </div>
-          </div>
+          <Link href="/" className="btn btn-secondary" style={{ padding: '8px 14px', fontSize: '0.82rem', minHeight: '36px' }}>
+            🏠 Voltar ao Início
+          </Link>
 
         </div>
       </header>
 
       {/* Main content container */}
-      <main style={{ flex: 1, padding: '40px 0' }}>
+      <main style={{ flex: 1, padding: '32px 0' }}>
         <div className="container" style={{ maxWidth: '900px' }}>
           
           {/* Wizard step indicators */}
@@ -2051,7 +2013,7 @@ export default function CriarMusica() {
           )}
 
           {/* Form step renderers */}
-          <div style={{ marginTop: '40px' }}>
+          <div style={{ marginTop: '32px' }}>
             {step <= totalWizardSteps ? renderWizardStep() : renderWorkflowStep()}
           </div>
 
@@ -2077,26 +2039,26 @@ export default function CriarMusica() {
                     style={{
                       padding: '14px 32px',
                       fontSize: '1rem',
-                      background: isNextDisabled() ? 'rgba(255,255,255,0.04)' : 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)',
+                      background: isNextDisabled() ? 'var(--bg-tertiary)' : 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)',
                       color: isNextDisabled() ? 'var(--text-muted)' : '#fff'
                     }}
                   >
                     {step === 9 ? '🎵 Criar Minha Música' : 'Próximo →'}
                   </button>
                 ) : (
-                  step < 13 && (
+                  step === 10 && (
                     <button 
-                      onClick={step === 10 ? handleApproveLyrics : nextStep}
+                      onClick={handleApproveLyrics}
                       disabled={isNextDisabled()}
                       className="btn btn-primary"
                       style={{
                         padding: '14px 32px',
                         fontSize: '1rem',
-                        background: isNextDisabled() ? 'rgba(255,255,255,0.04)' : 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)',
+                        background: isNextDisabled() ? 'var(--bg-tertiary)' : 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)',
                         color: isNextDisabled() ? 'var(--text-muted)' : '#fff'
                       }}
                     >
-                      {step === 10 ? 'Aprovar Letra & Criar Áudio →' : 'Avançar para Pacotes →'}
+                      Aprovar Letra & Criar Áudio →
                     </button>
                   )
                 )}
