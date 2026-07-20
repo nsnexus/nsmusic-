@@ -507,7 +507,7 @@ export default function CriarMusica() {
     localStorage.setItem('nsmusic_theme', nextTheme);
   };
 
-  // Ditado por Voz (Web Speech API) com prevenção de repetição de texto
+  // Ditado por Voz (Web Speech API) sem duplicação de texto
   const [isListening, setIsListening] = useState(false);
 
   const toggleVoiceDictation = () => {
@@ -530,7 +530,7 @@ export default function CriarMusica() {
       const recognition = new SpeechRecognition();
       recognition.lang = 'pt-BR';
       recognition.continuous = true;
-      recognition.interimResults = false; // Apenas frases finais confirmadas para evitar texto repetido
+      recognition.interimResults = true;
       recognitionRef.current = recognition;
       baseStoryRef.current = formData.story || '';
 
@@ -538,21 +538,15 @@ export default function CriarMusica() {
       recognition.onend = () => setIsListening(false);
       recognition.onerror = () => setIsListening(false);
 
-      let accumulatedText = '';
-
       recognition.onresult = (event) => {
-        let currentFinal = '';
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            currentFinal += event.results[i][0].transcript;
-          }
+        let fullTranscript = '';
+        for (let i = 0; i < event.results.length; i++) {
+          fullTranscript += event.results[i][0].transcript;
         }
-        if (currentFinal) {
-          accumulatedText += (accumulatedText ? ' ' : '') + currentFinal.trim();
-          const base = baseStoryRef.current.trim();
-          const newStory = base ? `${base} ${accumulatedText}` : accumulatedText;
-          setFormData(prev => ({ ...prev, story: newStory }));
-        }
+        const base = baseStoryRef.current ? baseStoryRef.current.trim() : '';
+        const trimmedTranscript = fullTranscript.trim();
+        const newStory = base ? `${base} ${trimmedTranscript}` : trimmedTranscript;
+        setFormData(prev => ({ ...prev, story: newStory }));
       };
 
       recognition.start();
