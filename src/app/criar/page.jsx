@@ -274,17 +274,30 @@ export default function CriarMusica() {
   const recognitionRef = useRef(null);
   const baseStoryRef = useRef('');
 
-  // Restore draft from localStorage on load
+  const [paymentErrorMessage, setPaymentErrorMessage] = useState('');
+
+  // Restore draft from localStorage on load & check URL query params for payment failure
   useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
+        // Checar retorno de pagamento cancelado/falho do Mercado Pago
+        const urlParams = new URLSearchParams(window.location.search);
+        const statusParam = urlParams.get('status');
+        const collectionStatus = urlParams.get('collection_status');
+
+        if (statusParam === 'failure' || statusParam === 'null' || collectionStatus === 'null') {
+          setPaymentErrorMessage('⚠️ O pagamento no Mercado Pago não foi concluído ou foi cancelado. Você pode tentar novamente abaixo ou via PIX.');
+          setStep(12);
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+
         const saved = localStorage.getItem('nsmusic_order_draft');
         if (saved) {
           const parsed = JSON.parse(saved);
           if (parsed.formData) setFormData(parsed.formData);
           if (parsed.orderId) setOrderId(parsed.orderId);
           if (parsed.taskId) setTaskId(parsed.taskId);
-          if (parsed.step) setStep(parsed.step);
+          if (parsed.step) setStep(parsed.step >= 12 ? 12 : parsed.step);
 
           const savedTaskId = parsed.taskId;
           const currentOrderId = parsed.orderId;
@@ -1614,6 +1627,13 @@ export default function CriarMusica() {
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '16px' }}>
                   Isso leva cerca de 2 minutos. Aguarde enquanto nosso estúdio sintetiza os vocalistas e a base instrumental.
                 </p>
+
+                {/* Notificação sobre aviso no WhatsApp caso não queira esperar na tela */}
+                <div style={{ marginTop: '20px', padding: '16px 20px', background: 'rgba(52, 211, 153, 0.1)', border: '1px solid rgba(52, 211, 153, 0.3)', borderRadius: '14px', textAlign: 'left' }}>
+                  <p style={{ fontSize: '0.88rem', color: '#34d399', margin: 0, lineHeight: '1.5', fontWeight: '600' }}>
+                    💡 <strong>Não precisa ficar esperando nesta tela!</strong> Assim que suas 2 versões da música forem totalmente sintetizadas em nosso estúdio, enviaremos automaticamente uma mensagem no seu WhatsApp com o link direto para você ouvir e baixar quando quiser.
+                  </p>
+                </div>
                 {formData.sunoStatus === 'error' && (
                   <p style={{ color: 'var(--danger)', marginTop: '16px' }}>
                     Ocorreu um imprevisto na renderização automática. Nossa equipe já foi notificada e entregará no seu WhatsApp.
@@ -1675,50 +1695,17 @@ export default function CriarMusica() {
             )}
           </div>
         );
-      case 12: // Package Confirmation
-        return (
-          <div>
-            <h1 style={styles.stepTitle}>Pacote Promocional Selecionado 💎</h1>
-            <p style={styles.stepSubtitle}>Aproveite a oferta exclusiva com 2 Músicas inclusas</p>
-            
-            <div style={{ maxWidth: '650px', margin: '30px auto 0' }}>
-              <div 
-                className="glass-card"
-                style={{
-                  padding: '30px',
-                  borderColor: 'var(--primary)',
-                  backgroundColor: 'rgba(124, 58, 237, 0.08)',
-                  borderRadius: '20px'
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                  <div>
-                    <span style={{ fontSize: '0.8rem', color: '#fbbf24', fontWeight: '800' }}>🔥 71% DE DESCONTO</span>
-                    <h3 style={{ fontSize: '1.4rem', fontWeight: '800', marginTop: '4px' }}>Pacote 2 Músicas Completas</h3>
-                  </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)', textDecoration: 'line-through', display: 'block' }}>R$ 69,90</span>
-                    <span style={{ fontSize: '2rem', fontWeight: '800', color: '#34d399' }}>R$ 19,90</span>
-                  </div>
-                </div>
-                
-                <hr style={{ border: 'none', borderTop: '1px solid rgba(255,255,255,0.08)', margin: '16px 0' }} />
-                
-                <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.95rem', color: 'var(--text-secondary)' }}>
-                  <li style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>✅ <strong>2 Versões Completas da Música</strong> em estilos diferentes</li>
-                  <li style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>✅ Download ilimitado dos áudios em qualidade de estúdio (MP3 HD)</li>
-                  <li style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>✅ Capa Digital Exclusiva da Canção</li>
-                  <li style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>✅ Envio direto no seu WhatsApp e e-mail</li>
-                </ul>
-              </div>
-            </div>
-          </div>
-        );
-      case 13: // Checkout Transparente e Mercado Pago embutido no site
+      case 12: // Checkout Transparente e Mercado Pago embutido no site
         return (
           <div>
             <h1 style={styles.stepTitle}>Finalizar Pedido 💳</h1>
             <p style={styles.stepSubtitle}>Pagamento seguro embutido no próprio site com liberação instantânea</p>
+
+            {paymentErrorMessage && (
+              <div style={{ padding: '16px 20px', background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.4)', borderRadius: '14px', marginBottom: '24px', color: '#fca5a5', fontWeight: 'bold', fontSize: '0.95rem', textAlign: 'center' }}>
+                {paymentErrorMessage}
+              </div>
+            )}
 
             <div className="responsive-grid-2">
               {/* Resumo do Pedido */}

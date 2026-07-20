@@ -1,12 +1,14 @@
-'use client';
-
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 
 export default function Home() {
   const [playingId, setPlayingId] = useState(null);
+  const [audioProgress, setAudioProgress] = useState(0);
+  const [audioTime, setAudioTime] = useState('0:00');
   const [faqOpen, setFaqOpen] = useState({});
+  
   const audioRef = useRef(null);
+  const examplesSectionRef = useRef(null);
 
   const examples = [
     {
@@ -59,27 +61,74 @@ export default function Home() {
     }
   ];
 
-  const togglePlay = (id) => {
-    if (playingId === id) {
-      if (audioRef.current) {
+  const stopAudio = () => {
+    if (audioRef.current) {
+      try {
         audioRef.current.pause();
         audioRef.current.currentTime = 0;
-      }
-      setPlayingId(null);
+      } catch (e) {}
+    }
+    setPlayingId(null);
+    setAudioProgress(0);
+    setAudioTime('0:00');
+  };
+
+  const togglePlay = (id) => {
+    if (playingId === id) {
+      stopAudio();
     } else {
-      if (audioRef.current) {
-        audioRef.current.pause();
-      }
+      stopAudio();
       const track = examples.find(e => e.id === id);
       if (track) {
         const audio = new Audio(track.src);
+        audio.ontimeupdate = () => {
+          if (audio.duration) {
+            const current = audio.currentTime;
+            const progress = (current / audio.duration) * 100;
+            const mins = Math.floor(current / 60);
+            const secs = Math.floor(current % 60).toString().padStart(2, '0');
+            setAudioProgress(progress);
+            setAudioTime(`${mins}:${secs}`);
+          }
+        };
+        audio.onended = () => {
+          stopAudio();
+        };
         audio.play().catch(() => {});
-        audio.onended = () => setPlayingId(null);
         audioRef.current = audio;
         setPlayingId(id);
       }
     }
   };
+
+  // Parar áudio automaticamente quando o usuário rolar para fora da seção de exemplos ou mudar de página
+  useEffect(() => {
+    const sectionEl = examplesSectionRef.current;
+    if (!sectionEl || typeof window === 'undefined') return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          // Se a seção de exemplos não estiver mais visível na tela, para o áudio imediatamente
+          if (!entry.isIntersecting) {
+            stopAudio();
+          }
+        });
+      },
+      { threshold: 0.1 }
+    );
+
+    observer.observe(sectionEl);
+
+    const handlePageHide = () => stopAudio();
+    window.addEventListener('pagehide', handlePageHide);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('pagehide', handlePageHide);
+      stopAudio();
+    };
+  }, []);
 
   const toggleFaq = (index) => {
     setFaqOpen((prev) => ({ ...prev, [index]: !prev[index] }));
@@ -166,7 +215,7 @@ export default function Home() {
       </section>
 
       {/* Visual Demo Songs Section */}
-      <section id="exemplos" style={styles.sectionAlt}>
+      <section id="exemplos" ref={examplesSectionRef} style={styles.sectionAlt}>
         <div className="container">
           <div style={styles.sectionHeader}>
             <h2 style={styles.sectionTitle}>Músicas Demonstrativas 🎧</h2>
@@ -175,54 +224,105 @@ export default function Home() {
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '32px', maxWidth: '1000px', margin: '0 auto' }}>
             {examples.map((item) => (
-              <div key={item.id} className="glass-card" style={{ padding: '20px', borderRadius: '20px', display: 'flex', flexDirection: 'column', gap: '16px', border: '1px solid rgba(255,255,255,0.08)', position: 'relative' }}>
+              <div 
+                key={item.id} 
+                className="glass-card" 
+                style={{ 
+                  padding: '22px', 
+                  borderRadius: '24px', 
+                  display: 'flex', 
+                  flexDirection: 'column', 
+                  gap: '16px', 
+                  background: playingId === item.id 
+                    ? 'linear-gradient(145deg, rgba(124, 58, 237, 0.22) 0%, rgba(236, 72, 153, 0.15) 100%)' 
+                    : 'rgba(255, 255, 255, 0.03)',
+                  border: playingId === item.id 
+                    ? '1px solid rgba(168, 85, 247, 0.5)' 
+                    : '1px solid rgba(255, 255, 255, 0.08)',
+                  boxShadow: playingId === item.id 
+                    ? '0 12px 35px rgba(124, 58, 237, 0.3)' 
+                    : '0 8px 25px rgba(0, 0, 0, 0.3)',
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                  position: 'relative' 
+                }}
+              >
                 
-                {/* Capa de Álbum com Overlay de Play */}
-                <div style={{ position: 'relative', width: '100%', aspectRatio: '1', borderRadius: '14px', overflow: 'hidden', boxShadow: '0 12px 24px rgba(0,0,0,0.5)' }}>
-                  <img src={item.cover} alt={item.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                {/* Capa de Álbum em HD com Selo de Estilo e Overlay Neon */}
+                <div style={{ position: 'relative', width: '100%', aspectRatio: '1', borderRadius: '18px', overflow: 'hidden', boxShadow: '0 10px 25px rgba(0,0,0,0.6)' }}>
+                  <img 
+                    src={item.cover} 
+                    alt={item.title} 
+                    style={{ 
+                      width: '100%', 
+                      height: '100%', 
+                      objectFit: 'cover', 
+                      transform: playingId === item.id ? 'scale(1.05)' : 'scale(1)', 
+                      transition: 'transform 0.4s ease' 
+                    }} 
+                  />
                   
-                  <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.2) 60%, transparent 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div style={{ 
+                    position: 'absolute', 
+                    inset: 0, 
+                    background: playingId === item.id 
+                      ? 'linear-gradient(to top, rgba(10, 10, 15, 0.85) 0%, rgba(124, 58, 237, 0.25) 50%, transparent 100%)' 
+                      : 'linear-gradient(to top, rgba(0, 0, 0, 0.75) 0%, transparent 60%)', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center' 
+                  }}>
+                    {/* Botão de Play / Pause Neon Flutuante */}
                     <button 
+                      type="button"
                       onClick={() => togglePlay(item.id)}
                       style={{
                         width: '64px',
                         height: '64px',
                         borderRadius: '50%',
                         border: 'none',
-                        background: playingId === item.id ? 'linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%)' : 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)',
-                        color: '#fff',
-                        fontSize: '1.6rem',
+                        background: playingId === item.id ? 'linear-gradient(135deg, #ec4899 0%, #a855f7 100%)' : 'rgba(255, 255, 255, 0.95)',
+                        color: playingId === item.id ? '#fff' : '#000',
+                        fontSize: '1.5rem',
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        boxShadow: '0 6px 20px rgba(124, 58, 237, 0.5)',
-                        transition: 'transform 0.2s'
+                        boxShadow: playingId === item.id ? '0 0 25px rgba(236, 72, 153, 0.8)' : '0 8px 20px rgba(0, 0, 0, 0.4)',
+                        transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                        backdropFilter: 'blur(8px)'
                       }}
                     >
-                      {playingId === item.id ? '⏸' : '▶'}
+                      {playingId === item.id ? (
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                      ) : (
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" style={{ marginLeft: '4px' }}><path d="M8 5v14l11-7z"/></svg>
+                      )}
                     </button>
                   </div>
                 </div>
 
                 {/* Informações da Faixa */}
                 <div>
-                  <span style={{ fontSize: '0.75rem', background: 'rgba(124, 58, 237, 0.2)', color: '#a78bfa', padding: '4px 10px', borderRadius: '12px', fontWeight: 'bold' }}>
+                  <span style={{ fontSize: '0.75rem', background: 'rgba(168, 85, 247, 0.15)', color: '#c4b5fd', border: '1px solid rgba(168, 85, 247, 0.3)', padding: '4px 12px', borderRadius: '20px', fontWeight: '700' }}>
                     {item.style}
                   </span>
-                  <h3 style={{ fontSize: '1.2rem', fontWeight: '800', marginTop: '8px' }}>{item.title}</h3>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: '800', marginTop: '10px', color: '#fff' }}>{item.title}</h3>
                   <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '2px' }}>{item.occasion}</p>
                 </div>
 
-                {/* Indicador de reprodução animado */}
+                {/* Barra de Progresso e Player Ativo */}
                 {playingId === item.id && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: '#34d399', fontWeight: 'bold' }}>
-                    <span className="header-mini-eq" style={{ height: '14px' }}>
-                      <span className="header-mini-bar" style={{ background: '#34d399' }}></span>
-                      <span className="header-mini-bar" style={{ background: '#34d399', animationDelay: '0.3s' }}></span>
-                      <span className="header-mini-bar" style={{ background: '#34d399', animationDelay: '0.1s' }}></span>
-                    </span>
-                    <span>Tocando Amostra...</span>
+                  <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={{ width: '100%', height: '5px', background: 'rgba(255, 255, 255, 0.1)', borderRadius: '10px', overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${audioProgress}%`, background: 'linear-gradient(90deg, #a855f7 0%, #ec4899 100%)', transition: 'width 0.1s linear' }} />
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem' }}>
+                      <span style={{ color: '#34d399', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#34d399', boxShadow: '0 0 8px #34d399' }} />
+                        Tocando amostra...
+                      </span>
+                      <span style={{ color: 'var(--text-muted)', fontFamily: 'monospace' }}>{audioTime}</span>
+                    </div>
                   </div>
                 )}
 
