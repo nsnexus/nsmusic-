@@ -54,7 +54,7 @@ Dados da Solicitação:
 - Momentos especiais: ${importantMoments}
 - Estilo: ${musicStyle}
 - Clima/Humor: ${musicMood}
-- Tipo de Voz: ${voiceType}`;
+- Tipo de Voz: ${voiceType === 'dueto' ? 'Dueto (Voz Masculina + Voz Feminina alternadas nos versos e juntas no refrão)' : voiceType}`;
 
     const lyrics = await runGeminiWithFailover(prompt);
 

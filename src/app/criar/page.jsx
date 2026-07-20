@@ -556,6 +556,20 @@ export default function CriarMusica() {
     }
   };
 
+  // Parar gravação de voz automaticamente se o usuário mudar de etapa ou se o step não for 5
+  useEffect(() => {
+    if (step !== 5 && isListening) {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch (e) {
+          console.warn("Erro ao parar ditado de voz ao sair da etapa 5:", e);
+        }
+      }
+      setIsListening(false);
+    }
+  }, [step, isListening]);
+
   // Sugestões de texto rápido para inspirar a história
   const appendStoryPrompt = (promptText) => {
     setFormData(prev => ({
@@ -906,7 +920,7 @@ export default function CriarMusica() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           prompt: formData.lyrics,
-          tags: `${formData.musicStyle} ${formData.musicMood} voice ${formData.voiceType}`,
+          tags: `${formData.musicStyle} ${formData.musicMood} ${formData.voiceType === 'dueto' ? 'duet male and female vocalists' : `voice ${formData.voiceType}`}`,
           orderId
         })
       });
@@ -1303,8 +1317,9 @@ export default function CriarMusica() {
 
             <div>
               <label style={styles.wizardLabel}>Tipo de voz da música (quem vai cantar)</label>
-              <div style={{ display: 'flex', gap: '16px', marginTop: '8px' }}>
+              <div style={{ display: 'flex', gap: '12px', marginTop: '8px', flexWrap: 'wrap' }}>
                 <button
+                  type="button"
                   onClick={() => updateField('voiceType', 'masculina')}
                   style={{
                     ...styles.voiceBtn,
@@ -1315,6 +1330,7 @@ export default function CriarMusica() {
                   🎤 Masculina
                 </button>
                 <button
+                  type="button"
                   onClick={() => updateField('voiceType', 'feminina')}
                   style={{
                     ...styles.voiceBtn,
@@ -1323,6 +1339,17 @@ export default function CriarMusica() {
                   }}
                 >
                   🎤 Feminina
+                </button>
+                <button
+                  type="button"
+                  onClick={() => updateField('voiceType', 'dueto')}
+                  style={{
+                    ...styles.voiceBtn,
+                    background: formData.voiceType === 'dueto' ? 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)' : 'rgba(255,255,255,0.02)',
+                    border: formData.voiceType === 'dueto' ? 'none' : '1px solid rgba(255,255,255,0.08)'
+                  }}
+                >
+                  👩‍🎤 Dueto (Masc. + Fem.)
                 </button>
               </div>
             </div>
@@ -1411,7 +1438,9 @@ export default function CriarMusica() {
               </div>
               <div style={styles.summaryItemRow}>
                 <span style={{ color: 'var(--text-secondary)' }}>Voz:</span>
-                <span style={{ fontWeight: '600' }}>{formData.voiceType === 'masculina' ? 'Masculina' : 'Feminina'}</span>
+                <span style={{ fontWeight: '600' }}>
+                  {formData.voiceType === 'masculina' ? 'Masculina' : formData.voiceType === 'feminina' ? 'Feminina' : '👩‍🎤 Dueto (Masc. + Fem.)'}
+                </span>
               </div>
               <div style={styles.summaryItemRow}>
                 <span style={{ color: 'var(--text-secondary)' }}>Capa:</span>
