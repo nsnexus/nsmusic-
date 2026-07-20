@@ -269,6 +269,19 @@ a {
   gap: 28px;
 }
 
+@media (max-width: 767px) {
+  .nav-menu,
+  .desktop-only {
+    display: none !important;
+  }
+}
+
+@media (min-width: 768px) {
+  .mobile-only {
+    display: none !important;
+  }
+}
+
 .nav-menu-link {
   font-size: 0.95rem;
   font-weight: 600;

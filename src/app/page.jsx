@@ -141,18 +141,13 @@ export default function Home() {
         <div style={styles.headerContainer}>
           <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none' }}>
             <img src="/logo.png" alt="NSMusic" style={{ height: '38px', width: 'auto' }} />
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span className="gradient-text" style={{ fontSize: '1.3rem', fontWeight: '900', letterSpacing: '-0.5px' }}>
-                NSMusic
-              </span>
-              <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: '-3px' }}>
-                Estúdio Musical
-              </span>
-            </div>
+            <span className="gradient-text" style={{ fontSize: '1.3rem', fontWeight: '900', letterSpacing: '-0.5px' }}>
+              NSMusic
+            </span>
           </Link>
 
           {/* Desktop Nav */}
-          <nav className="nav-menu" style={{ display: typeof window !== 'undefined' && window.innerWidth < 768 ? 'none' : 'flex' }}>
+          <nav className="nav-menu">
             <a href="#como-funciona" className="nav-menu-link">Como Funciona</a>
             <a href="#exemplos" className="nav-menu-link">Exemplos</a>
             <a href="#depoimentos" className="nav-menu-link">Depoimentos</a>
@@ -161,10 +156,10 @@ export default function Home() {
           </nav>
 
           <div style={styles.headerActions}>
-            <Link href="/minhas-musicas" className="btn btn-secondary" style={{ padding: '8px 14px', fontSize: '0.85rem', minHeight: '38px' }}>
+            <Link href="/minhas-musicas" className="btn btn-secondary desktop-only" style={{ padding: '8px 14px', fontSize: '0.85rem', minHeight: '38px' }}>
               🎵 Minhas Músicas
             </Link>
-            <Link href="/criar" className="btn btn-primary" style={{ padding: '8px 18px', fontSize: '0.88rem', minHeight: '38px' }}>
+            <Link href="/criar" className="btn btn-primary" style={{ padding: '8px 16px', fontSize: '0.85rem', minHeight: '38px', whiteSpace: 'nowrap' }}>
               Criar R$ 19,90
             </Link>
 

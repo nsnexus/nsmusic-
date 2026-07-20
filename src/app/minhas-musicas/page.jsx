@@ -125,13 +125,18 @@ export default function MinhasMusicasPage() {
             <span style={{ fontSize: '1.25rem', fontWeight: '800', color: 'var(--text-primary)' }}>NSMusic</span>
           </Link>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             {user ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: '600' }}>👤 {user.email}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', maxWidth: '100%' }}>
+                <span 
+                  style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', fontWeight: '600', maxWidth: '130px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-block' }} 
+                  title={user.email}
+                >
+                  👤 {user.email}
+                </span>
                 <button 
                   onClick={() => signOut(auth)}
-                  style={{ background: 'transparent', border: '1px solid var(--border-color)', borderRadius: '8px', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '6px 12px', cursor: 'pointer', fontWeight: '600' }}
+                  style={{ background: 'transparent', border: '1px solid var(--border-color)', borderRadius: '8px', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '6px 10px', cursor: 'pointer', fontWeight: '600', whiteSpace: 'nowrap' }}
                 >
                   Sair
                 </button>

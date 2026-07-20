@@ -2002,7 +2002,7 @@ export default function CriarMusica() {
       </header>
 
       {/* Main content container */}
-      <main style={{ flex: 1, padding: '32px 0' }}>
+      <main style={{ flex: 1, padding: '32px 0 100px 0' }}>
         <div className="container" style={{ maxWidth: '900px' }}>
           
           {/* Wizard step indicators */}
@@ -2017,51 +2017,57 @@ export default function CriarMusica() {
             {step <= totalWizardSteps ? renderWizardStep() : renderWorkflowStep()}
           </div>
 
-          {/* Navigation Controls */}
-          {formData.lyricsStatus !== 'generating' && formData.sunoStatus !== 'generating' && (
+          {/* Fixed Bottom Navigation Dock */}
+          {formData.lyricsStatus !== 'generating' && formData.sunoStatus !== 'generating' && (step <= totalWizardSteps || step === 10) && (
             <div style={styles.navigationControls}>
-              {step > 1 && (
-                <button 
-                  onClick={prevStep} 
-                  className="btn btn-secondary"
-                  style={{ padding: '12px 24px' }}
-                >
-                  ← Voltar
-                </button>
-              )}
-              
-              <div style={{ marginLeft: 'auto' }}>
-                {step <= totalWizardSteps ? (
+              <div className="container" style={{ width: '100%', maxWidth: '900px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+                {step > 1 ? (
                   <button 
-                    onClick={step === 9 ? handleSaveAndGenerateLyrics : nextStep}
-                    disabled={isNextDisabled()}
-                    className="btn btn-primary"
-                    style={{
-                      padding: '14px 32px',
-                      fontSize: '1rem',
-                      background: isNextDisabled() ? 'var(--bg-tertiary)' : 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)',
-                      color: isNextDisabled() ? 'var(--text-muted)' : '#fff'
-                    }}
+                    onClick={prevStep} 
+                    className="btn btn-secondary"
+                    style={{ padding: '12px 20px', fontSize: '0.95rem', minHeight: '46px' }}
                   >
-                    {step === 9 ? '🎵 Criar Minha Música' : 'Próximo →'}
+                    ← Voltar
                   </button>
                 ) : (
-                  step === 10 && (
+                  <div />
+                )}
+                
+                <div>
+                  {step <= totalWizardSteps ? (
                     <button 
-                      onClick={handleApproveLyrics}
+                      onClick={step === 9 ? handleSaveAndGenerateLyrics : nextStep}
                       disabled={isNextDisabled()}
                       className="btn btn-primary"
                       style={{
-                        padding: '14px 32px',
-                        fontSize: '1rem',
+                        padding: '12px 28px',
+                        fontSize: '0.95rem',
+                        minHeight: '46px',
                         background: isNextDisabled() ? 'var(--bg-tertiary)' : 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)',
-                        color: isNextDisabled() ? 'var(--text-muted)' : '#fff'
+                        color: isNextDisabled() ? 'var(--text-muted)' : '#FFFFFF'
                       }}
                     >
-                      Aprovar Letra & Criar Áudio →
+                      {step === 9 ? 'Criar Música →' : 'Continuar →'}
                     </button>
-                  )
-                )}
+                  ) : (
+                    step === 10 && (
+                      <button 
+                        onClick={handleApproveLyrics}
+                        disabled={isNextDisabled()}
+                        className="btn btn-primary"
+                        style={{
+                          padding: '12px 28px',
+                          fontSize: '0.95rem',
+                          minHeight: '46px',
+                          background: isNextDisabled() ? 'var(--bg-tertiary)' : 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)',
+                          color: isNextDisabled() ? 'var(--text-muted)' : '#FFFFFF'
+                        }}
+                      >
+                        Aprovar Letra →
+                      </button>
+                    )
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -2328,11 +2334,17 @@ const styles = {
     transition: 'all 0.25s',
   },
   navigationControls: {
-    display: 'flex',
-    alignItems: 'center',
-    marginTop: '32px',
-    borderTop: '1px solid var(--border-color)',
-    paddingTop: '20px',
+    position: 'fixed',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    zIndex: 200,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    backdropFilter: 'blur(12px)',
+    WebkitBackdropFilter: 'blur(12px)',
+    borderTop: '1.5px solid var(--border-color)',
+    boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.06)',
+    padding: '12px 16px',
   },
   checkoutSummary: {
     padding: '24px',
