@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { doc, getDoc, collection, addDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, addDoc, updateDoc, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
 function BrandLogo() {
@@ -642,8 +642,130 @@ export default function CriarMusica() {
     reader.readAsDataURL(file);
   };
 
+  const [showLimitModal, setShowLimitModal] = useState(false);
+
+  // Checa se o usuário que nunca comprou já atingiu o limite de 5 músicas geradas
+  const checkUserLimit = async (phone, email) => {
+    try {
+      let localGenerated = [];
+      if (typeof window !== 'undefined') {
+        const saved = localStorage.getItem('nsmusic_generated_orders');
+        if (saved) {
+          try { localGenerated = JSON.parse(saved); } catch (e) {}
+        }
+      }
+
+      let totalCount = Array.isArray(localGenerated) ? localGenerated.length : 0;
+      let hasPaid = false;
+
+      if (db) {
+        const ordersRef = collection(db, 'orders');
+        let fetchedOrders = [];
+
+        if (phone && phone.replace(/\D/g, '').length >= 10) {
+          const qPhone = query(ordersRef, where('customerPhone', '==', phone));
+          const snap = await getDocs(qPhone).catch(() => null);
+          if (snap && !snap.empty) {
+            snap.forEach(d => fetchedOrders.push(d.data()));
+          }
+        }
+
+        if (email && email.includes('@')) {
+          const qEmail = query(ordersRef, where('customerEmail', '==', email));
+          const snapEmail = await getDocs(qEmail).catch(() => null);
+          if (snapEmail && !snapEmail.empty) {
+            snapEmail.forEach(d => {
+              const data = d.data();
+              if (!fetchedOrders.some(o => o.orderNumber === data.orderNumber)) {
+                fetchedOrders.push(data);
+              }
+            });
+          }
+        }
+
+        if (fetchedOrders.length > 0) {
+          totalCount = Math.max(totalCount, fetchedOrders.length);
+          hasPaid = fetchedOrders.some(o => 
+            o.paymentStatus === 'PAGO' || 
+            o.paymentStatus === 'PAGAMENTO_APROVADO' || 
+            o.paymentStatus === 'approved'
+          );
+        }
+      }
+
+      return { totalCount, hasPaid, isBlocked: !hasPaid && totalCount >= 5 };
+    } catch (e) {
+      console.warn("Erro ao verificar limite de gerações:", e);
+      return { totalCount: 0, hasPaid: false, isBlocked: false };
+    }
+  };
+
+  // Função para reiniciar o formulário e criar uma nova música do zero (com trava de 5 músicas para não pagantes)
+  const handleCreateNewSongFromScratch = async () => {
+    const { isBlocked } = await checkUserLimit(formData.customerPhone, formData.customerEmail);
+
+    if (isBlocked) {
+      setShowLimitModal(true);
+      return;
+    }
+
+    if (confirm("Deseja criar uma nova música do zero? O progresso da composição atual será limpo.")) {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('nsmusic_order_draft');
+      }
+      setOrderId('');
+      setTaskId('');
+      setFormData({
+        recipientType: '',
+        honoreeName: '',
+        relationship: '',
+        occasion: '',
+        story: '',
+        importantMoments: '',
+        musicStyle: '',
+        musicMood: '',
+        requiredNames: '',
+        requiredPhrase: '',
+        voiceType: 'masculina',
+        coverUrl: '',
+        customerName: formData.customerName || '',
+        customerPhone: formData.customerPhone || '',
+        customerEmail: formData.customerEmail || '',
+        termsAccepted: true,
+        lyrics: '',
+        lyricsVersion: 1,
+        lyricsStatus: 'idle',
+        lyricsComment: '',
+        sunoStatus: 'idle',
+        sunoProgress: '',
+        sunoTracks: [],
+        addVersion2: false,
+        selectedPackage: 'promo_2_musicas',
+        addons: {
+          extraSongs2: false,
+          photoVideo: false,
+          spotifyDistribution: false,
+          premiumCover: false,
+          qrCode: false,
+          instrumentalVersion: false,
+          wavFormat: false,
+          priorityDelivery: false,
+        }
+      });
+      setStep(1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
   // Step 9: Save Order to Firestore first, then trigger lyrics generation
   const handleSaveAndGenerateLyrics = async () => {
+    // Verifica trava de 5 prévias para usuários que nunca compraram
+    const { isBlocked } = await checkUserLimit(formData.customerPhone, formData.customerEmail);
+    if (isBlocked) {
+      setShowLimitModal(true);
+      return;
+    }
+
     setStep(10);
     // Se a letra já foi gerada com sucesso anteriormente, apenas exibe a letra existente sem fazer nova requisição
     if (formData.lyricsStatus === 'generated' && formData.lyrics) {
@@ -675,6 +797,16 @@ export default function CriarMusica() {
           createdAt: new Date()
         });
         setOrderId(docRef.id);
+        if (docRef.id && typeof window !== 'undefined') {
+          try {
+            const saved = localStorage.getItem('nsmusic_generated_orders');
+            const arr = saved ? JSON.parse(saved) : [];
+            if (!arr.includes(docRef.id)) {
+              arr.push(docRef.id);
+              localStorage.setItem('nsmusic_generated_orders', JSON.stringify(arr));
+            }
+          } catch (e) {}
+        }
       } catch (firestoreErr) {
         console.warn("Aviso: Falha de permissão no Firestore ao criar pedido inicial:", firestoreErr);
       }
@@ -1492,6 +1624,18 @@ export default function CriarMusica() {
                       isBonus={true}
                     />
                   )}
+
+                  {/* Botão para Criar Nova Música do Zero */}
+                  <div style={{ marginTop: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={handleCreateNewSongFromScratch}
+                      className="btn btn-secondary"
+                      style={{ width: '100%', padding: '14px', fontSize: '0.95rem' }}
+                    >
+                      🔄 Criar Outra Música do Zero
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
@@ -1785,6 +1929,27 @@ export default function CriarMusica() {
 
           {/* Indicador de Progresso Estilo Pílula Neon Glassmorphism */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <button
+              type="button"
+              onClick={handleCreateNewSongFromScratch}
+              style={{
+                background: 'rgba(255, 255, 255, 0.06)',
+                border: '1px solid rgba(255, 255, 255, 0.15)',
+                borderRadius: '24px',
+                padding: '7px 16px',
+                fontSize: '0.82rem',
+                fontWeight: '700',
+                color: '#fff',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              🔄 Nova Música do Zero
+            </button>
+
             <div style={{
               background: 'rgba(124, 58, 237, 0.12)',
               border: '1px solid rgba(124, 58, 237, 0.35)',
@@ -1872,6 +2037,75 @@ export default function CriarMusica() {
           )}
         </div>
       </main>
+
+      {/* Modal de Limite de Prévias Gratuitas Atingido */}
+      {showLimitModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.85)',
+          backdropFilter: 'blur(10px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          padding: '20px'
+        }}>
+          <div className="glass-card" style={{
+            maxWidth: '520px',
+            width: '100%',
+            padding: '32px',
+            borderRadius: '24px',
+            border: '1px solid rgba(239, 68, 68, 0.4)',
+            textAlign: 'center',
+            background: 'linear-gradient(135deg, rgba(20, 20, 35, 0.95) 0%, rgba(35, 20, 45, 0.95) 100%)',
+            boxShadow: '0 20px 50px rgba(0,0,0,0.6)'
+          }}>
+            <div style={{ fontSize: '3rem', marginBottom: '12px' }}>🚫</div>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: '800', color: '#fff', marginBottom: '12px' }}>
+              Limite de 5 Prévias Gratuitas Atingido
+            </h2>
+            <p style={{ fontSize: '0.95rem', color: 'var(--text-secondary)', lineHeight: '1.6', marginBottom: '24px' }}>
+              Você já gerou 5 composições de teste. Para continuar criando novas músicas do zero sem restrições, escolha uma das suas composições para adquirir por apenas <strong style={{ color: '#34d399' }}>R$ 19,90</strong>! Como você ainda não realizou nenhuma compra, a geração de novas prévias do zero foi desabilitada temporariamente.
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {orderId && (
+                <button
+                  onClick={() => {
+                    setShowLimitModal(false);
+                    if (step < 11) setStep(11);
+                  }}
+                  className="btn btn-primary"
+                  style={{ width: '100%', padding: '14px', fontSize: '1rem', fontWeight: 'bold' }}
+                >
+                  🎵 Ver Minha Última Música Gerada (R$ 19,90)
+                </button>
+              )}
+
+              <a
+                href="https://wa.me/5531999999999?text=Ol%C3%A1%2C%20gostaria%20de%20liberar%20mais%20cria%C3%A7%C3%B5es%20de%20m%C3%BAsicas%20no%20NSMusic!"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-secondary"
+                style={{ width: '100%', padding: '12px', fontSize: '0.95rem', display: 'inline-block', textAlign: 'center' }}
+              >
+                💬 Falar com o Suporte no WhatsApp
+              </a>
+
+              <button
+                onClick={() => setShowLimitModal(false)}
+                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.85rem', cursor: 'pointer', marginTop: '6px' }}
+              >
+                Fechar aviso
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
