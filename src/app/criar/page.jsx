@@ -568,7 +568,7 @@ export default function CriarMusica() {
   const selectFieldAndAdvance = (name, value) => {
     setFormData(prev => ({ ...prev, [name]: value }));
     setTimeout(() => {
-      setStep(prevStep => Math.min(prevStep + 1, totalSteps));
+      setStep(prevStep => Math.min(prevStep + 1, totalWizardSteps));
     }, 150);
   };
 
