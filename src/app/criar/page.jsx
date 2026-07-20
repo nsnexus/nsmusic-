@@ -271,6 +271,8 @@ export default function CriarMusica() {
   const totalWizardSteps = 9;
   const audio1Ref = useRef(null);
   const audio2Ref = useRef(null);
+  const recognitionRef = useRef(null);
+  const baseStoryRef = useRef('');
 
   // Restore draft from localStorage on load
   useEffect(() => {
@@ -505,7 +507,7 @@ export default function CriarMusica() {
     localStorage.setItem('nsmusic_theme', nextTheme);
   };
 
-  // Ditado por Voz (Web Speech API)
+  // Ditado por Voz (Web Speech API) com prevenção de repetição de texto
   const [isListening, setIsListening] = useState(false);
 
   const toggleVoiceDictation = () => {
@@ -517,6 +519,9 @@ export default function CriarMusica() {
     }
 
     if (isListening) {
+      if (recognitionRef.current) {
+        try { recognitionRef.current.stop(); } catch (e) {}
+      }
       setIsListening(false);
       return;
     }
@@ -525,22 +530,28 @@ export default function CriarMusica() {
       const recognition = new SpeechRecognition();
       recognition.lang = 'pt-BR';
       recognition.continuous = true;
-      recognition.interimResults = true;
+      recognition.interimResults = false; // Apenas frases finais confirmadas para evitar texto repetido
+      recognitionRef.current = recognition;
+      baseStoryRef.current = formData.story || '';
 
       recognition.onstart = () => setIsListening(true);
       recognition.onend = () => setIsListening(false);
       recognition.onerror = () => setIsListening(false);
 
+      let accumulatedText = '';
+
       recognition.onresult = (event) => {
-        let transcript = '';
+        let currentFinal = '';
         for (let i = event.resultIndex; i < event.results.length; ++i) {
-          transcript += event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            currentFinal += event.results[i][0].transcript;
+          }
         }
-        if (transcript) {
-          setFormData(prev => ({
-            ...prev,
-            story: (prev.story ? prev.story + ' ' : '') + transcript
-          }));
+        if (currentFinal) {
+          accumulatedText += (accumulatedText ? ' ' : '') + currentFinal.trim();
+          const base = baseStoryRef.current.trim();
+          const newStory = base ? `${base} ${accumulatedText}` : accumulatedText;
+          setFormData(prev => ({ ...prev, story: newStory }));
         }
       };
 
