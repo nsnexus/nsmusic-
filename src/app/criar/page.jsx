@@ -8,23 +8,7 @@ import { db } from '@/lib/firebase';
 function BrandLogo() {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-      <div style={{
-        width: '42px',
-        height: '42px',
-        borderRadius: '12px',
-        background: 'linear-gradient(135deg, #7c3aed 0%, #ec4899 100%)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        boxShadow: '0 4px 15px rgba(124, 58, 237, 0.4)',
-        flexShrink: 0
-      }}>
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M9 18V5L21 3V16" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
-          <circle cx="6" cy="18" r="3" fill="white"/>
-          <circle cx="18" cy="16" r="3" fill="white"/>
-        </svg>
-      </div>
+      <img src="/logo.png" alt="NSMusic" style={{ height: '42px', width: 'auto' }} />
       <div style={{ display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{
@@ -253,6 +237,7 @@ export default function CriarMusica() {
     requiredNames: '',
     requiredPhrase: '',
     voiceType: 'masculina',
+    coverUrl: '', // Custom uploaded cover image URL or base64
     // Step 9
     customerName: '',
     customerPhone: '',
@@ -614,6 +599,49 @@ export default function CriarMusica() {
     }));
   };
 
+  const handleImageUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      alert("A imagem selecionada é muito grande. Escolha uma imagem de até 10MB.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 800;
+        const MAX_HEIGHT = 800;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+        updateField('coverUrl', dataUrl);
+      };
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
+
   // Step 9: Save Order to Firestore first, then trigger lyrics generation
   const handleSaveAndGenerateLyrics = async () => {
     setStep(10);
@@ -641,6 +669,7 @@ export default function CriarMusica() {
           musicStyle: formData.musicStyle,
           musicMood: formData.musicMood,
           voiceType: formData.voiceType,
+          coverUrl: formData.coverUrl || '',
           paymentStatus: 'AGUARDANDO_PAGAMENTO',
           productionStatus: 'LETRA_GERADA',
           createdAt: new Date()
@@ -1160,6 +1189,61 @@ export default function CriarMusica() {
                 </button>
               </div>
             </div>
+
+            {/* Foto de Capa da Música */}
+            <div style={{ marginTop: '28px', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '20px' }}>
+              <label style={styles.wizardLabel}>🖼️ Foto de Capa da Música (Opcional)</label>
+              <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '12px' }}>
+                Envie uma foto especial (casal, família, aniversariante). Se não enviar, utilizaremos a capa padrão do estúdio.
+              </p>
+
+              <div>
+                {formData.coverUrl ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px', background: 'rgba(255,255,255,0.03)', padding: '12px 16px', borderRadius: '12px', border: '1px solid var(--primary)' }}>
+                    <img 
+                      src={formData.coverUrl} 
+                      alt="Capa personalizada" 
+                      style={{ width: '70px', height: '70px', borderRadius: '10px', objectFit: 'cover' }} 
+                    />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <span style={{ fontSize: '0.88rem', color: '#34d399', fontWeight: 'bold' }}>✓ Foto enviada com sucesso!</span>
+                      <button
+                        type="button"
+                        onClick={() => updateField('coverUrl', '')}
+                        style={{ background: 'none', border: 'none', color: '#fca5a5', fontSize: '0.8rem', cursor: 'pointer', textAlign: 'left', textDecoration: 'underline', padding: 0 }}
+                      >
+                        🗑️ Remover foto (usar capa padrão)
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <label style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    width: '100%',
+                    padding: '22px',
+                    borderRadius: '14px',
+                    border: '2px dashed rgba(124, 58, 237, 0.4)',
+                    background: 'rgba(124, 58, 237, 0.04)',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}>
+                    <span style={{ fontSize: '1.8rem' }}>📸</span>
+                    <span style={{ fontSize: '0.95rem', fontWeight: 'bold', color: '#fff' }}>Clique para enviar uma foto de capa</span>
+                    <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Suporta fotos em JPG, PNG ou WEBP</span>
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={handleImageUpload}
+                      style={{ display: 'none' }}
+                    />
+                  </label>
+                )}
+              </div>
+            </div>
           </div>
         );
       case 9:
@@ -1191,6 +1275,12 @@ export default function CriarMusica() {
               <div style={styles.summaryItemRow}>
                 <span style={{ color: 'var(--text-secondary)' }}>Voz:</span>
                 <span style={{ fontWeight: '600' }}>{formData.voiceType === 'masculina' ? 'Masculina' : 'Feminina'}</span>
+              </div>
+              <div style={styles.summaryItemRow}>
+                <span style={{ color: 'var(--text-secondary)' }}>Capa:</span>
+                <span style={{ fontWeight: '600', color: formData.coverUrl ? '#34d399' : 'var(--text-muted)' }}>
+                  {formData.coverUrl ? '📸 Foto enviada' : '🖼️ Capa padrão'}
+                </span>
               </div>
               
               <div style={{ marginTop: '16px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '16px' }}>
