@@ -91,7 +91,7 @@ export default function AcompanharPedido() {
                       {idx < order.timeline.length - 1 && <div style={styles.timelineLine} />}
                     </div>
                     <div style={styles.timelineInfo}>
-                      <h4 style={{ fontSize: '1rem', color: step.done || step.active ? '#fff' : 'var(--text-muted)' }}>{step.label}</h4>
+                      <h4 style={{ fontSize: '1rem', color: step.done || step.active ? 'var(--text-primary)' : 'var(--text-muted)', fontWeight: step.active ? '800' : '600' }}>{step.label}</h4>
                       <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{step.date}</p>
                     </div>
                   </div>
@@ -154,7 +154,7 @@ const styles = {
     minHeight: '100vh',
     display: 'flex',
     flexDirection: 'column',
-    backgroundColor: '#0a0a0c',
+    backgroundColor: 'var(--bg-primary)',
   },
   loadingWrapper: {
     minHeight: '100vh',
@@ -162,27 +162,29 @@ const styles = {
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#0a0a0c',
-    color: '#fff',
+    backgroundColor: 'var(--bg-primary)',
+    color: 'var(--text-primary)',
   },
   spinner: {
-    width: '50px',
-    height: '50px',
-    border: '4px solid rgba(255,255,255,0.06)',
-    borderTopColor: 'var(--secondary)',
+    width: '44px',
+    height: '44px',
+    border: '3px solid var(--border-color)',
+    borderTopColor: 'var(--primary)',
     borderRadius: '50%',
     animation: 'spin 1s linear infinite',
   },
   header: {
+    position: 'sticky',
+    top: 0,
+    zIndex: 100,
     borderRadius: 0,
-    borderTop: 'none',
-    borderLeft: 'none',
-    borderRight: 'none',
+    borderWidth: '0 0 1px 0',
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
   },
   headerContainer: {
     maxWidth: '1200px',
     margin: '0 auto',
-    padding: '16px 24px',
+    padding: '12px 20px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -200,24 +202,28 @@ const styles = {
     fontWeight: '800',
     fontSize: '1.3rem',
     letterSpacing: '-0.02em',
-    color: '#fff',
+    color: 'var(--text-primary)',
   },
   orderBadge: {
-    fontSize: '0.9rem',
-    fontWeight: '600',
-    color: 'var(--secondary)',
-    backgroundColor: 'rgba(6, 182, 212, 0.05)',
+    fontSize: '0.85rem',
+    fontWeight: '700',
+    color: 'var(--primary)',
+    backgroundColor: 'var(--primary-light)',
     padding: '6px 14px',
     borderRadius: '100px',
-    border: '1px solid var(--secondary-glow)',
+    border: '1px solid rgba(124, 58, 237, 0.2)',
   },
   introCard: {
-    padding: '32px',
-    marginBottom: '32px',
+    padding: '28px',
+    marginBottom: '28px',
+    backgroundColor: '#FFFFFF',
+    boxShadow: 'var(--card-shadow)',
   },
   layoutGrid: {},
   timelineCard: {
-    padding: '32px',
+    padding: '28px',
+    backgroundColor: '#FFFFFF',
+    boxShadow: 'var(--card-shadow)',
   },
   timeline: {
     display: 'flex',
@@ -226,7 +232,7 @@ const styles = {
   },
   timelineItem: {
     display: 'flex',
-    gap: '20px',
+    gap: '16px',
   },
   timelineLineContainer: {
     display: 'flex',
@@ -242,20 +248,22 @@ const styles = {
     justifyContent: 'center',
     fontSize: '0.75rem',
     fontWeight: 'bold',
-    color: '#fff',
+    color: '#FFFFFF',
     zIndex: 2,
   },
   timelineLine: {
     width: '2px',
     flex: 1,
-    minHeight: '40px',
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    minHeight: '36px',
+    backgroundColor: 'var(--border-color)',
   },
   timelineInfo: {
-    paddingBottom: '24px',
+    paddingBottom: '20px',
   },
   detailsCard: {
-    padding: '32px',
+    padding: '28px',
+    backgroundColor: '#FFFFFF',
+    boxShadow: 'var(--card-shadow)',
   },
   detailRow: {
     display: 'flex',
@@ -265,9 +273,11 @@ const styles = {
     fontSize: '0.95rem',
   },
   detailLabel: {
-    color: 'var(--text-secondary)',
+    color: 'var(--text-muted)',
   },
   detailVal: {
-    fontWeight: '600',
+    fontWeight: '700',
+    color: 'var(--text-primary)',
   },
 };
+

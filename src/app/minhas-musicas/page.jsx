@@ -120,18 +120,18 @@ export default function MinhasMusicasPage() {
       {/* Header */}
       <header style={styles.header} className="glass-panel">
         <div style={styles.headerContainer}>
-          <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '12px', textDecoration: 'none' }}>
-            <img src="/logo.png" alt="NSMusic" style={{ height: '40px', width: 'auto' }} />
-            <span style={{ fontSize: '1.2rem', fontWeight: '800', color: '#fff' }}>NSMusic</span>
+          <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none' }}>
+            <img src="/logo.png" alt="NSMusic" style={{ height: '38px', width: 'auto' }} />
+            <span style={{ fontSize: '1.25rem', fontWeight: '800', color: 'var(--text-primary)' }}>NSMusic</span>
           </Link>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
             {user ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>👤 {user.email}</span>
+                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: '600' }}>👤 {user.email}</span>
                 <button 
                   onClick={() => signOut(auth)}
-                  style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '6px', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '6px 12px', cursor: 'pointer' }}
+                  style={{ background: 'transparent', border: '1px solid var(--border-color)', borderRadius: '8px', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '6px 12px', cursor: 'pointer', fontWeight: '600' }}
                 >
                   Sair
                 </button>
@@ -146,17 +146,17 @@ export default function MinhasMusicasPage() {
       </header>
 
       {/* Main Content */}
-      <main style={{ flex: 1, padding: '40px 0' }}>
+      <main style={{ flex: 1, padding: '36px 0' }}>
         <div className="container" style={{ maxWidth: '1050px' }}>
 
           {!user ? (
             /* Login / Criar Conta se não estiver autenticado */
-            <div className="glass-card" style={{ maxWidth: '460px', margin: '40px auto', padding: '36px', textAlign: 'center' }}>
+            <div className="glass-card" style={{ maxWidth: '440px', margin: '40px auto', padding: '32px 24px', textAlign: 'center' }}>
               <span style={{ fontSize: '2.5rem' }}>🎵</span>
-              <h2 style={{ fontSize: '1.6rem', fontWeight: '800', marginTop: '12px' }}>
+              <h2 style={{ fontSize: '1.5rem', fontWeight: '800', marginTop: '12px', color: 'var(--text-primary)' }}>
                 {isSignUp ? 'Criar sua Conta NSMusic' : 'Acessar Suas Músicas'}
               </h2>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '6px', marginBottom: '24px' }}>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '6px', marginBottom: '24px' }}>
                 {isSignUp 
                   ? 'Digite seu e-mail e crie uma senha para ver todas as suas composições.' 
                   : 'Entre com seu e-mail para ouvir e baixar suas músicas enviadas pelo estúdio.'}
@@ -181,7 +181,7 @@ export default function MinhasMusicasPage() {
                 />
 
                 {authError && (
-                  <span style={{ color: '#fca5a5', fontSize: '0.82rem' }}>{authError}</span>
+                  <span style={{ color: 'var(--danger)', fontSize: '0.82rem', fontWeight: '600' }}>{authError}</span>
                 )}
 
                 <button 
@@ -194,11 +194,11 @@ export default function MinhasMusicasPage() {
                 </button>
               </form>
 
-              <div style={{ marginTop: '20px', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '16px' }}>
+              <div style={{ marginTop: '20px', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
                 <button
                   type="button"
                   onClick={() => setIsSignUp(!isSignUp)}
-                  style={{ background: 'none', border: 'none', color: 'var(--secondary)', fontSize: '0.88rem', cursor: 'pointer' }}
+                  style={{ background: 'none', border: 'none', color: 'var(--primary)', fontSize: '0.88rem', cursor: 'pointer', fontWeight: '700' }}
                 >
                   {isSignUp ? 'Já tem conta? Faça Login aqui' : 'Primeira vez? Crie sua senha aqui'}
                 </button>
@@ -209,8 +209,8 @@ export default function MinhasMusicasPage() {
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
                 <div>
-                  <h1 style={{ fontSize: '1.8rem', fontWeight: '800' }}>Biblioteca • Minhas Músicas 🎧</h1>
-                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.92rem', marginTop: '4px' }}>
+                  <h1 style={{ fontSize: '1.75rem', fontWeight: '800' }}>Biblioteca • Minhas Músicas 🎧</h1>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.92rem', marginTop: '4px' }}>
                     Todas as suas músicas personalizadas produzidas pelo estúdio NSMusic.
                   </p>
                 </div>
@@ -223,13 +223,13 @@ export default function MinhasMusicasPage() {
               {loadingOrders ? (
                 <div style={{ textAlign: 'center', padding: '60px 0' }}>
                   <div style={styles.spinner} />
-                  <p style={{ marginTop: '16px', color: 'var(--text-secondary)' }}>Buscando suas faixas no acervo...</p>
+                  <p style={{ marginTop: '16px', color: 'var(--text-muted)' }}>Buscando suas faixas no acervo...</p>
                 </div>
               ) : orders.length === 0 ? (
-                <div className="glass-card" style={{ padding: '50px 20px', textAlign: 'center', maxWidth: '600px', margin: '40px auto' }}>
+                <div className="glass-card" style={{ padding: '48px 20px', textAlign: 'center', maxWidth: '580px', margin: '40px auto' }}>
                   <span style={{ fontSize: '3rem' }}>🎼</span>
-                  <h3 style={{ fontSize: '1.4rem', marginTop: '14px' }}>Nenhuma música encontrada neste e-mail</h3>
-                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '6px', marginBottom: '24px' }}>
+                  <h3 style={{ fontSize: '1.3rem', marginTop: '14px', fontWeight: '800' }}>Nenhuma música encontrada neste e-mail</h3>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '6px', marginBottom: '24px' }}>
                     Caso você tenha acabado de comprar, certifique-se de que usou o e-mail <strong>{user.email}</strong>.
                   </p>
                   <Link href="/criar" className="btn btn-primary" style={{ padding: '12px 24px' }}>
@@ -238,7 +238,7 @@ export default function MinhasMusicasPage() {
                 </div>
               ) : (
                 /* Grid de Músicas do Cliente */
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '24px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
                   {orders.map((ord) => {
                     const primaryAudio = ord.audioUrl || (ord.audioFiles && ord.audioFiles[0]) || '';
                     const secondaryAudio = ord.audioFiles && ord.audioFiles[1] ? ord.audioFiles[1] : '';
@@ -246,16 +246,16 @@ export default function MinhasMusicasPage() {
                     const isOrderPaid = ord.paymentStatus === 'PAGO' || ord.paymentStatus === 'PAGAMENTO_APROVADO';
 
                     return (
-                      <div key={ord.id} className="glass-card" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                      <div key={ord.id} className="glass-card" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                         
                         {/* Capa e Dados da Homenagem */}
-                        <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-                          <img src={coverImg} alt="Capa" style={{ width: '80px', height: '80px', borderRadius: '12px', objectFit: 'cover' }} />
+                        <div style={{ display: 'flex', gap: '14px', alignItems: 'center' }}>
+                          <img src={coverImg} alt="Capa" style={{ width: '72px', height: '72px', borderRadius: '12px', objectFit: 'cover', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
                           <div style={{ flex: 1, overflow: 'hidden' }}>
-                            <span style={{ fontSize: '0.72rem', background: isOrderPaid ? 'rgba(52, 211, 153, 0.2)' : 'rgba(251, 191, 36, 0.2)', color: isOrderPaid ? '#34d399' : '#fbbf24', padding: '3px 8px', borderRadius: '10px', fontWeight: 'bold' }}>
+                            <span style={{ fontSize: '0.72rem', background: isOrderPaid ? 'var(--success-bg)' : 'var(--warning-bg)', color: isOrderPaid ? 'var(--success)' : 'var(--warning)', padding: '3px 8px', borderRadius: '10px', fontWeight: 'bold' }}>
                               {isOrderPaid ? 'PRODUÇÃO CONCLUÍDA ✓' : 'AGUARDANDO PAGAMENTO'}
                             </span>
-                            <h3 style={{ fontSize: '1.1rem', fontWeight: '700', marginTop: '6px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            <h3 style={{ fontSize: '1.05rem', fontWeight: '800', marginTop: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--text-primary)' }}>
                               Para {ord.honoreeName || 'Alguém Especial'}
                             </h3>
                             <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>
@@ -266,7 +266,7 @@ export default function MinhasMusicasPage() {
 
                         {/* Players e Downloads */}
                         {isOrderPaid && primaryAudio ? (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', background: 'rgba(0,0,0,0.25)', padding: '14px', borderRadius: '12px' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', background: 'var(--bg-secondary)', padding: '14px', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
                             <div>
                               <span style={{ fontSize: '0.78rem', color: 'var(--primary)', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>
                                 🎧 Versão 1 - Arranjo Principal
@@ -275,22 +275,22 @@ export default function MinhasMusicasPage() {
                               <button 
                                 onClick={() => handleDownload(getAudioUrl(primaryAudio), `Musica_V1_${ord.honoreeName || 'Homenagem'}.mp3`)} 
                                 className="btn btn-secondary" 
-                                style={{ display: 'block', width: '100%', marginTop: '8px', padding: '6px 12px', fontSize: '0.78rem', textAlign: 'center', border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: '#fff', cursor: 'pointer', borderRadius: '6px' }}
+                                style={{ display: 'block', width: '100%', marginTop: '8px', padding: '6px 12px', fontSize: '0.78rem', textAlign: 'center', cursor: 'pointer', borderRadius: '6px' }}
                               >
                                 ⬇ Baixar MP3 (Versão 1)
                               </button>
                             </div>
 
                             {secondaryAudio && (
-                              <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '10px' }}>
-                                <span style={{ fontSize: '0.78rem', color: '#ec4899', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>
+                              <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '10px' }}>
+                                <span style={{ fontSize: '0.78rem', color: 'var(--secondary)', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>
                                   🎧 Versão 2 - Arranjo Bônus
                                 </span>
                                 <audio controls src={getAudioUrl(secondaryAudio)} style={{ width: '100%', height: '36px' }} />
                                 <button 
                                   onClick={() => handleDownload(getAudioUrl(secondaryAudio), `Musica_V2_${ord.honoreeName || 'Homenagem'}.mp3`)} 
                                   className="btn btn-secondary" 
-                                  style={{ display: 'block', width: '100%', marginTop: '8px', padding: '6px 12px', fontSize: '0.78rem', textAlign: 'center', border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: '#fff', cursor: 'pointer', borderRadius: '6px' }}
+                                  style={{ display: 'block', width: '100%', marginTop: '8px', padding: '6px 12px', fontSize: '0.78rem', textAlign: 'center', cursor: 'pointer', borderRadius: '6px' }}
                                 >
                                   ⬇ Baixar MP3 (Versão 2)
                                 </button>
@@ -298,7 +298,7 @@ export default function MinhasMusicasPage() {
                             )}
                           </div>
                         ) : (
-                          <div style={{ padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                          <div style={{ padding: '12px', background: 'var(--bg-secondary)', borderRadius: '8px', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
                             🔒 Finalize o pagamento do pedido para destravar os downloads em alta definição.
                           </div>
                         )}
@@ -307,13 +307,15 @@ export default function MinhasMusicasPage() {
                         <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
                           <button 
                             onClick={() => setSelectedLyrics({ title: ord.honoreeName, text: ord.lyrics })}
-                            style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: '#fff', fontSize: '0.8rem', cursor: 'pointer' }}
+                            className="btn btn-secondary"
+                            style={{ flex: 1, padding: '8px', fontSize: '0.8rem', minHeight: '36px' }}
                           >
                             📜 Ver Letra
                           </button>
                           <Link 
                             href={`/entrega?orderId=${ord.id}`} 
-                            style={{ flex: 1, padding: '8px', borderRadius: '8px', background: 'var(--primary)', color: '#fff', fontSize: '0.8rem', textAlign: 'center', textDecoration: 'none', fontWeight: 'bold' }}
+                            className="btn btn-primary"
+                            style={{ flex: 1, padding: '8px', fontSize: '0.8rem', textAlign: 'center', textDecoration: 'none', minHeight: '36px' }}
                           >
                             🎁 Página do Presente
                           </Link>
@@ -329,11 +331,11 @@ export default function MinhasMusicasPage() {
 
           {/* Modal Visualizador de Letra */}
           {selectedLyrics && (
-            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999, padding: '20px' }}>
-              <div className="glass-card" style={{ maxWidth: '600px', width: '100%', maxHeight: '80vh', overflowY: 'auto', padding: '28px' }}>
+            <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999, padding: '20px' }}>
+              <div className="glass-card" style={{ maxWidth: '580px', width: '100%', maxHeight: '80vh', overflowY: 'auto', padding: '28px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                  <h3 style={{ fontSize: '1.3rem', fontWeight: '800' }}>Letra da Música de {selectedLyrics.title}</h3>
-                  <button onClick={() => setSelectedLyrics(null)} style={{ background: 'none', border: 'none', color: '#fff', fontSize: '1.4rem', cursor: 'pointer' }}>✕</button>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: '800', color: 'var(--text-primary)' }}>Letra da Música de {selectedLyrics.title}</h3>
+                  <button onClick={() => setSelectedLyrics(null)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '1.4rem', cursor: 'pointer' }}>✕</button>
                 </div>
                 <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'var(--font-family-body)', color: 'var(--text-secondary)', lineHeight: '1.8', fontSize: '0.95rem' }}>
                   {selectedLyrics.text || 'Letra oficial não disponível.'}
@@ -353,18 +355,20 @@ const styles = {
     minHeight: '100vh',
     display: 'flex',
     flexDirection: 'column',
-    backgroundColor: '#0a0a0c',
+    backgroundColor: 'var(--bg-primary)',
   },
   header: {
+    position: 'sticky',
+    top: 0,
+    zIndex: 100,
     borderRadius: 0,
-    borderTop: 'none',
-    borderLeft: 'none',
-    borderRight: 'none',
+    borderWidth: '0 0 1px 0',
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
   },
   headerContainer: {
     maxWidth: '1200px',
     margin: '0 auto',
-    padding: '16px 24px',
+    padding: '12px 20px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -372,20 +376,21 @@ const styles = {
   input: {
     width: '100%',
     padding: '14px 18px',
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    border: '1px solid var(--border-color)',
+    backgroundColor: '#FFFFFF',
+    border: '1.5px solid var(--border-color)',
     borderRadius: 'var(--border-radius-sm)',
-    color: '#fff',
+    color: 'var(--text-primary)',
     fontSize: '0.95rem',
     outline: 'none',
   },
   spinner: {
-    width: '50px',
-    height: '50px',
-    border: '3px solid rgba(255,255,255,0.06)',
+    width: '44px',
+    height: '44px',
+    border: '3px solid var(--border-color)',
     borderTopColor: 'var(--primary)',
     borderRadius: '50%',
     animation: 'spin 1s linear infinite',
     margin: '0 auto'
   }
 };
+

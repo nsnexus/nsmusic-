@@ -1,5 +1,6 @@
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from './firebase';
+import { sendWhatsAppMessage } from './whatsapp';
 
 export const getTask = async (taskId) => {
   try {
@@ -83,6 +84,9 @@ export const updateTaskResult = async (taskId, result, overrideOrderId = null) =
       const audioFiles = tracks.map(t => t.audio_url).filter(Boolean);
       
       const orderRef = doc(db, 'orders', orderId);
+      const orderSnap = await getDoc(orderRef);
+      const orderData = orderSnap.exists() ? orderSnap.data() : {};
+
       await updateDoc(orderRef, {
         audioUrl: primaryAudio,
         audioFiles: audioFiles,
@@ -90,8 +94,26 @@ export const updateTaskResult = async (taskId, result, overrideOrderId = null) =
         updatedAt: new Date().toISOString()
       });
       console.log(`Ordem ${orderId} no Firebase atualizada com sucesso com ${audioFiles.length} áudios!`);
+
+      // Envio automático do WhatsApp se ainda não tiver sido notificado
+      if (orderData.customerPhone && !orderData.whatsappSent) {
+        const name = orderData.customerName || 'Cliente';
+        const honoree = orderData.honoreeName || 'alguém especial';
+        const deliveryUrl = `https://nsmusic.vercel.app/entrega?orderId=${orderId}`; // ou link direto da entrega
+        
+        const messageText = `Olá, ${name}! 🎵\n\nSua música personalizada para *${honoree}* ficou pronta com sucesso no estúdio NSMusic!\n\nForam produzidas 2 versões completas em altíssima qualidade.\n\nAcesse o link abaixo para ouvir e fazer o download dos seus áudios em MP3 HD:\n👉 ${deliveryUrl}\n\nQualquer dúvida, estamos à disposição! ❤️`;
+
+        const sent = await sendWhatsAppMessage(orderData.customerPhone, messageText);
+        if (sent) {
+          await updateDoc(orderRef, { whatsappSent: true, whatsappSentAt: new Date().toISOString() });
+          console.log(`Mensagem do WhatsApp enviada com sucesso para ${orderData.customerPhone}`);
+        } else {
+          console.warn(`Falha ao enviar WhatsApp para ${orderData.customerPhone}`);
+        }
+      }
     }
   } catch (err) {
     console.error("Error updating task result:", err);
   }
 };
+

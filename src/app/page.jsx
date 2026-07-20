@@ -7,6 +7,7 @@ export default function Home() {
   const [audioProgress, setAudioProgress] = useState(0);
   const [audioTime, setAudioTime] = useState('0:00');
   const [faqOpen, setFaqOpen] = useState({});
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
   const audioRef = useRef(null);
   const examplesSectionRef = useRef(null);
@@ -102,7 +103,6 @@ export default function Home() {
     }
   };
 
-  // Parar áudio automaticamente quando o usuário rolar para fora da seção de exemplos ou mudar de página
   useEffect(() => {
     const sectionEl = examplesSectionRef.current;
     if (!sectionEl || typeof window === 'undefined') return;
@@ -110,7 +110,6 @@ export default function Home() {
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
-          // Se a seção de exemplos não estiver mais visível na tela, para o áudio imediatamente
           if (!entry.isIntersecting) {
             stopAudio();
           }
@@ -141,28 +140,68 @@ export default function Home() {
       <header style={styles.header} className="glass-panel">
         <div style={styles.headerContainer}>
           <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none' }}>
-            <img src="/logo.png" alt="NSMusic" style={{ height: '42px', width: 'auto' }} />
-            <span style={{ fontSize: '1.25rem', fontWeight: '900', background: 'linear-gradient(135deg, #fff 0%, #a78bfa 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-              NSMusic
-            </span>
+            <img src="/logo.png" alt="NSMusic" style={{ height: '38px', width: 'auto' }} />
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span className="gradient-text" style={{ fontSize: '1.3rem', fontWeight: '900', letterSpacing: '-0.5px' }}>
+                NSMusic
+              </span>
+              <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: '-3px' }}>
+                Estúdio Musical
+              </span>
+            </div>
           </Link>
-          <nav className="nav-menu">
+
+          {/* Desktop Nav */}
+          <nav className="nav-menu" style={{ display: typeof window !== 'undefined' && window.innerWidth < 768 ? 'none' : 'flex' }}>
             <a href="#como-funciona" className="nav-menu-link">Como Funciona</a>
             <a href="#exemplos" className="nav-menu-link">Exemplos</a>
             <a href="#depoimentos" className="nav-menu-link">Depoimentos</a>
             <a href="#oferta" className="nav-menu-link">Oferta</a>
             <a href="#faq" className="nav-menu-link">Dúvidas</a>
           </nav>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <Link href="/minhas-musicas" className="btn btn-secondary" style={{ padding: '8px 16px', fontSize: '0.85rem' }}>
+
+          <div style={styles.headerActions}>
+            <Link href="/minhas-musicas" className="btn btn-secondary" style={{ padding: '8px 14px', fontSize: '0.85rem', minHeight: '38px' }}>
               🎵 Minhas Músicas
             </Link>
-            <Link href="/criar" className="btn btn-primary" style={{ padding: '10px 20px', fontSize: '0.9rem' }}>
-              Criar Música R$ 19,90
+            <Link href="/criar" className="btn btn-primary" style={{ padding: '8px 18px', fontSize: '0.88rem', minHeight: '38px' }}>
+              Criar R$ 19,90
             </Link>
+
+            {/* Mobile Hamburger Button */}
+            <button 
+              type="button" 
+              className="mobile-nav-toggle" 
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              aria-label="Toggle Menu"
+            >
+              <div className="mobile-nav-bar" style={{ transform: mobileMenuOpen ? 'rotate(45deg) translate(5px, 5px)' : 'none' }} />
+              <div className="mobile-nav-bar" style={{ opacity: mobileMenuOpen ? 0 : 1 }} />
+              <div className="mobile-nav-bar" style={{ transform: mobileMenuOpen ? 'rotate(-45deg) translate(5px, -5px)' : 'none' }} />
+            </button>
           </div>
         </div>
       </header>
+
+      {/* Mobile Navigation Drawer */}
+      {mobileMenuOpen && (
+        <div className="mobile-menu-drawer">
+          <a href="#como-funciona" className="nav-menu-link" style={{ fontSize: '1.25rem' }} onClick={() => setMobileMenuOpen(false)}>Como Funciona</a>
+          <a href="#exemplos" className="nav-menu-link" style={{ fontSize: '1.25rem' }} onClick={() => setMobileMenuOpen(false)}>Exemplos</a>
+          <a href="#depoimentos" className="nav-menu-link" style={{ fontSize: '1.25rem' }} onClick={() => setMobileMenuOpen(false)}>Depoimentos</a>
+          <a href="#oferta" className="nav-menu-link" style={{ fontSize: '1.25rem' }} onClick={() => setMobileMenuOpen(false)}>Oferta</a>
+          <a href="#faq" className="nav-menu-link" style={{ fontSize: '1.25rem' }} onClick={() => setMobileMenuOpen(false)}>Dúvidas</a>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%', maxWidth: '280px', marginTop: '12px' }}>
+            <Link href="/criar" className="btn btn-primary" style={{ width: '100%' }} onClick={() => setMobileMenuOpen(false)}>
+              Criar 2 Músicas por R$ 19,90 🚀
+            </Link>
+            <Link href="/minhas-musicas" className="btn btn-secondary" style={{ width: '100%' }} onClick={() => setMobileMenuOpen(false)}>
+              🎵 Acessar Minhas Músicas
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* Hero Section */}
       <section style={styles.hero}>
@@ -171,19 +210,28 @@ export default function Home() {
           <div style={styles.heroBadge} className="glass-card">
             <span>✨ Estúdio de Produção Musical com IA de Alta Definição</span>
           </div>
-          <h1 className="hero-title">
-            <span className="gradient-text">NSMusic</span> — Sua História contada em uma Canção Inesquecível
+          
+          <h1 style={styles.heroTitle}>
+            Sua História contada em uma <span className="gradient-text">Canção Inesquecível</span>
           </h1>
+
           <p style={styles.heroSubtitle}>
-            Transforme suas memórias e sentimentos em uma música gravada em estúdio profissional. Escolha o estilo musical, conte os momentos mais marcantes e receba <strong>2 Arranjos Exclusivos em MP3 HD</strong> para emocionar quem você ama.
+            Transforme momentos, nomes e sentimentos em uma música gravada em estúdio profissional. Escolha o estilo musical e receba <strong>2 Arranjos Exclusivos em MP3 HD</strong> com capa digital para emocionar quem você ama.
           </p>
+
           <div style={styles.heroActions}>
-            <Link href="/criar" className="btn btn-primary" style={{ fontSize: '1.1rem', padding: '16px 36px' }}>
-              Criar 2 Músicas por R$ 19,90 🚀
+            <Link href="/criar" className="btn btn-primary" style={styles.heroPrimaryCta}>
+              Criar 2 Músicas por R$ 19,90 🎁
             </Link>
-            <a href="#exemplos" className="btn btn-secondary" style={{ fontSize: '1.1rem', padding: '16px 36px' }}>
+            <a href="#exemplos" className="btn btn-secondary" style={styles.heroSecondaryCta}>
               🎧 Ouvir Amostras
             </a>
+          </div>
+
+          <div style={styles.heroTrust}>
+            <span>⭐ +2.400 Músicas Produzidas</span>
+            <span>⚡ Entrega Rápida</span>
+            <span>🔒 Garantia de Aprovação</span>
           </div>
         </div>
       </section>
@@ -193,23 +241,26 @@ export default function Home() {
         <div className="container">
           <div style={styles.sectionHeader}>
             <h2 style={styles.sectionTitle}>Como Funciona?</h2>
-            <p style={styles.sectionSubtitle}>Em apenas 3 passos simples você presenteia quem ama com uma música própria.</p>
+            <p style={styles.sectionSubtitle}>Em apenas 3 passos simples você presenteia quem ama com uma canção própria.</p>
           </div>
+
           <div style={styles.stepsGrid}>
             <div style={styles.stepCard} className="glass-card">
               <div style={styles.stepNumber}>1</div>
-              <h3 style={styles.stepTitle}>Conte os detalhes</h3>
-              <p style={styles.stepText}>Preencha o nome do presenteado, a ocasião e os fatos marcantes da sua história.</p>
+              <h3 style={styles.stepTitle}>Conte os Detalhes</h3>
+              <p style={styles.stepText}>Preencha o nome do presenteado, a ocasião especial e os fatos mais marcantes da sua história.</p>
             </div>
+            
             <div style={styles.stepCard} className="glass-card">
               <div style={styles.stepNumber}>2</div>
-              <h3 style={styles.stepTitle}>Revise a letra</h3>
-              <p style={styles.stepText}>Nosso estúdio escreve versos poéticos e emocionantes. Você aprova e ajusta tudo antes da gravação.</p>
+              <h3 style={styles.stepTitle}>Revise a Letra</h3>
+              <p style={styles.stepText}>Nosso estúdio escreve versos poéticos e emocionantes. Você aprova e ajusta tudo com alterações ilimitadas.</p>
             </div>
+
             <div style={styles.stepCard} className="glass-card">
               <div style={styles.stepNumber}>3</div>
-              <h3 style={styles.stepTitle}>Receba os áudios HD</h3>
-              <p style={styles.stepText}>Sintetizamos os instrumentos e vocais. Você recebe 2 Versões completas em MP3 HD com capa digital.</p>
+              <h3 style={styles.stepTitle}>Receba os Áudios HD</h3>
+              <p style={styles.stepText}>Sintetizamos a melodia e vozes de estúdio. Receba 2 Versões completas em MP3 HD com capa digital.</p>
             </div>
           </div>
         </div>
@@ -223,33 +274,31 @@ export default function Home() {
             <p style={styles.sectionSubtitle}>Ouça a qualidade dos arranjos e a emoção das vozes produzidas pelo nosso estúdio.</p>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '32px', maxWidth: '1000px', margin: '0 auto' }}>
+          <div className="horizontal-scroll-mobile">
             {examples.map((item) => (
               <div 
                 key={item.id} 
                 className="glass-card" 
                 style={{ 
-                  padding: '22px', 
-                  borderRadius: '24px', 
+                  padding: '20px', 
+                  borderRadius: '20px', 
                   display: 'flex', 
                   flexDirection: 'column', 
-                  gap: '16px', 
+                  gap: '14px', 
                   background: playingId === item.id 
-                    ? 'linear-gradient(145deg, rgba(124, 58, 237, 0.22) 0%, rgba(236, 72, 153, 0.15) 100%)' 
-                    : 'rgba(255, 255, 255, 0.03)',
-                  border: playingId === item.id 
-                    ? '1px solid rgba(168, 85, 247, 0.5)' 
-                    : '1px solid rgba(255, 255, 255, 0.08)',
+                    ? 'linear-gradient(145deg, #F5F3FF 0%, #FDF2F8 100%)' 
+                    : '#FFFFFF',
+                  borderColor: playingId === item.id 
+                    ? 'var(--primary)' 
+                    : 'var(--border-color)',
                   boxShadow: playingId === item.id 
-                    ? '0 12px 35px rgba(124, 58, 237, 0.3)' 
-                    : '0 8px 25px rgba(0, 0, 0, 0.3)',
-                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                    ? '0 12px 35px rgba(124, 58, 237, 0.2)' 
+                    : 'var(--card-shadow)',
                   position: 'relative' 
                 }}
               >
-                
-                {/* Capa de Álbum em HD com Selo de Estilo e Overlay Neon */}
-                <div style={{ position: 'relative', width: '100%', aspectRatio: '1', borderRadius: '18px', overflow: 'hidden', boxShadow: '0 10px 25px rgba(0,0,0,0.6)' }}>
+                {/* Album Cover */}
+                <div style={{ position: 'relative', width: '100%', aspectRatio: '1', borderRadius: '14px', overflow: 'hidden', boxShadow: '0 8px 20px rgba(0,0,0,0.12)' }}>
                   <img 
                     src={item.cover} 
                     alt={item.title} 
@@ -266,119 +315,117 @@ export default function Home() {
                     position: 'absolute', 
                     inset: 0, 
                     background: playingId === item.id 
-                      ? 'linear-gradient(to top, rgba(10, 10, 15, 0.85) 0%, rgba(124, 58, 237, 0.25) 50%, transparent 100%)' 
-                      : 'linear-gradient(to top, rgba(0, 0, 0, 0.75) 0%, transparent 60%)', 
+                      ? 'rgba(124, 58, 237, 0.25)' 
+                      : 'rgba(0, 0, 0, 0.2)', 
                     display: 'flex', 
                     alignItems: 'center', 
                     justifyContent: 'center' 
                   }}>
-                    {/* Botão de Play / Pause Neon Flutuante */}
                     <button 
                       type="button"
                       onClick={() => togglePlay(item.id)}
                       style={{
-                        width: '64px',
-                        height: '64px',
+                        width: '60px',
+                        height: '60px',
                         borderRadius: '50%',
                         border: 'none',
-                        background: playingId === item.id ? 'linear-gradient(135deg, #ec4899 0%, #a855f7 100%)' : 'rgba(255, 255, 255, 0.95)',
-                        color: playingId === item.id ? '#fff' : '#000',
-                        fontSize: '1.5rem',
+                        background: playingId === item.id ? 'linear-gradient(135deg, #7C3AED 0%, #EC4899 100%)' : '#FFFFFF',
+                        color: playingId === item.id ? '#FFFFFF' : '#7C3AED',
+                        fontSize: '1.4rem',
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        boxShadow: playingId === item.id ? '0 0 25px rgba(236, 72, 153, 0.8)' : '0 8px 20px rgba(0, 0, 0, 0.4)',
-                        transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-                        backdropFilter: 'blur(8px)'
+                        boxShadow: '0 8px 25px rgba(0, 0, 0, 0.2)',
+                        transition: 'all 0.25s ease'
                       }}
                     >
                       {playingId === item.id ? (
                         <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
                       ) : (
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" style={{ marginLeft: '4px' }}><path d="M8 5v14l11-7z"/></svg>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" style={{ marginLeft: '3px' }}><path d="M8 5v14l11-7z"/></svg>
                       )}
                     </button>
                   </div>
                 </div>
 
-                {/* Informações da Faixa */}
+                {/* Track Details */}
                 <div>
-                  <span style={{ fontSize: '0.75rem', background: 'rgba(168, 85, 247, 0.15)', color: '#c4b5fd', border: '1px solid rgba(168, 85, 247, 0.3)', padding: '4px 12px', borderRadius: '20px', fontWeight: '700' }}>
+                  <span style={{ fontSize: '0.75rem', background: 'var(--primary-light)', color: 'var(--primary)', padding: '4px 10px', borderRadius: '20px', fontWeight: '700' }}>
                     {item.style}
                   </span>
-                  <h3 style={{ fontSize: '1.25rem', fontWeight: '800', marginTop: '10px', color: '#fff' }}>{item.title}</h3>
-                  <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '2px' }}>{item.occasion}</p>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: '800', marginTop: '8px', color: 'var(--text-primary)' }}>{item.title}</h3>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '2px' }}>{item.occasion}</p>
                 </div>
 
-                {/* Barra de Progresso e Player Ativo */}
+                {/* Audio Progress Bar */}
                 {playingId === item.id && (
-                  <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <div style={{ width: '100%', height: '5px', background: 'rgba(255, 255, 255, 0.1)', borderRadius: '10px', overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${audioProgress}%`, background: 'linear-gradient(90deg, #a855f7 0%, #ec4899 100%)', transition: 'width 0.1s linear' }} />
+                  <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <div style={{ width: '100%', height: '6px', background: '#E2E8F0', borderRadius: '10px', overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${audioProgress}%`, background: 'linear-gradient(90deg, #7C3AED 0%, #EC4899 100%)', transition: 'width 0.1s linear' }} />
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem' }}>
-                      <span style={{ color: '#34d399', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#34d399', boxShadow: '0 0 8px #34d399' }} />
+                      <span style={{ color: 'var(--success)', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--success)' }} />
                         Tocando amostra...
                       </span>
                       <span style={{ color: 'var(--text-muted)', fontFamily: 'monospace' }}>{audioTime}</span>
                     </div>
                   </div>
                 )}
-
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Offer Banner Section (Substitui tabela antiga) */}
+      {/* Offer Banner Section */}
       <section id="oferta" style={styles.section}>
         <div className="container" style={{ maxWidth: '850px' }}>
           <div 
             className="glass-card" 
             style={{ 
-              padding: '40px 32px', 
+              padding: '40px 24px', 
               borderRadius: '24px', 
               border: '2px solid var(--primary)', 
-              background: 'linear-gradient(135deg, rgba(124, 58, 237, 0.15) 0%, rgba(236, 72, 153, 0.15) 100%)',
+              background: 'linear-gradient(135deg, #F5F3FF 0%, #FDF2F8 100%)',
               textAlign: 'center',
-              boxShadow: '0 20px 40px rgba(124, 58, 237, 0.2)'
+              boxShadow: '0 20px 40px rgba(124, 58, 237, 0.12)'
             }}
           >
-            <span style={{ background: '#fbbf24', color: '#000', padding: '6px 16px', borderRadius: '20px', fontWeight: '900', fontSize: '0.85rem', letterSpacing: '0.5px' }}>
+            <span style={{ background: '#F59E0B', color: '#FFFFFF', padding: '6px 16px', borderRadius: '20px', fontWeight: '800', fontSize: '0.82rem', letterSpacing: '0.5px' }}>
               🔥 OFERTA PROMOCIONAL POR TEMPO LIMITADO
             </span>
             
-            <h2 style={{ fontSize: '2.4rem', fontWeight: '900', marginTop: '16px', color: '#fff' }}>
+            <h2 style={{ fontSize: '2.2rem', fontWeight: '900', marginTop: '16px', color: 'var(--text-primary)' }}>
               Pacote 2 Músicas Completas em Estúdio
             </h2>
             
-            <div style={{ margin: '20px 0' }}>
+            <div style={{ margin: '18px 0' }}>
               <span style={{ fontSize: '1.2rem', color: 'var(--text-muted)', textDecoration: 'line-through', marginRight: '12px' }}>
                 De R$ 69,90
               </span>
-              <span style={{ fontSize: '3.2rem', fontWeight: '900', color: '#34d399' }}>
+              <span style={{ fontSize: '3rem', fontWeight: '900', color: 'var(--success)' }}>
                 Por R$ 19,90
               </span>
             </div>
 
-            <ul style={{ listStyle: 'none', padding: 0, margin: '24px auto', maxWidth: '500px', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '1.05rem', color: 'var(--text-secondary)' }}>
+            <ul style={styles.offerList}>
               <li>✅ <strong>2 Músicas Completas em Estilos Diferentes</strong> (Versão 1 + Versão 2 Bônus)</li>
               <li>✅ Download ilimitado dos áudios em altíssima qualidade (MP3 HD)</li>
               <li>✅ Capa Digital Personalizada do Álbum</li>
+              <li>✅ Alterações gratuitas ilimitadas na composição</li>
               <li>✅ Liberação imediata após confirmação do PIX/Cartão</li>
             </ul>
 
-            <Link href="/criar" className="btn btn-primary" style={{ fontSize: '1.2rem', padding: '18px 48px', marginTop: '10px' }}>
+            <Link href="/criar" className="btn btn-primary" style={{ fontSize: '1.15rem', padding: '16px 40px', width: '100%', maxWidth: '420px', marginTop: '10px' }}>
               Garantir Minhas 2 Músicas por R$ 19,90 🎁
             </Link>
           </div>
         </div>
       </section>
 
-      {/* Testimonials Section (Nova Seção de Depoimentos) */}
+      {/* Testimonials Section */}
       <section id="depoimentos" style={styles.sectionAlt}>
         <div className="container">
           <div style={styles.sectionHeader}>
@@ -386,18 +433,18 @@ export default function Home() {
             <p style={styles.sectionSubtitle}>Veja as reações de quem transformou momentos em canções inesquecíveis.</p>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '28px', maxWidth: '1100px', margin: '0 auto' }}>
+          <div className="horizontal-scroll-mobile">
             {testimonials.map((item, idx) => (
-              <div key={idx} className="glass-card" style={{ padding: '28px', borderRadius: '20px', display: 'flex', flexDirection: 'column', gap: '16px', border: '1px solid rgba(255,255,255,0.08)' }}>
-                <div style={{ display: 'flex', gap: '14px', alignItems: 'center' }}>
-                  <img src={item.photo} alt={item.name} style={{ width: '56px', height: '56px', borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--primary)' }} />
+              <div key={idx} className="glass-card" style={{ padding: '24px', borderRadius: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                  <img src={item.photo} alt={item.name} style={{ width: '52px', height: '52px', borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--primary)' }} />
                   <div>
-                    <h4 style={{ fontSize: '1.1rem', fontWeight: '800' }}>{item.name}</h4>
+                    <h4 style={{ fontSize: '1.05rem', fontWeight: '800' }}>{item.name}</h4>
                     <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{item.relation}</span>
                   </div>
                 </div>
 
-                <div style={{ color: '#fbbf24', fontSize: '1.2rem' }}>
+                <div style={{ color: '#F59E0B', fontSize: '1.1rem' }}>
                   {'★'.repeat(item.rating)}
                 </div>
 
@@ -417,11 +464,12 @@ export default function Home() {
             <h2 style={styles.sectionTitle}>Perguntas Frequentes</h2>
             <p style={styles.sectionSubtitle}>Tudo o que você precisa saber sobre a criação das músicas.</p>
           </div>
+          
           <div style={styles.faqList}>
             {[
               {
                 q: 'Como é feita a criação da música?',
-                a: 'Você insere os detalhes da história e escolhe o estilo. Nossa inteligência artificial cria a letra e compõe os arranjos vocais e instrumentais de estúdio com alta definição.',
+                a: 'Você insere os detalhes da história e escolhe o estilo. Nossa inteligência artificial cria a letra poética e compõe os arranjos vocais e instrumentais de estúdio com alta definição.',
               },
               {
                 q: 'Recebo 2 versões da minha música?',
@@ -429,17 +477,17 @@ export default function Home() {
               },
               {
                 q: 'Como recebo a música pronta?',
-                a: 'Assim que o pagamento for concluído, você pode salvar a conta e acessar o painel "Minhas Músicas" para ouvir e fazer o download ilimitado dos arquivos em MP3 HD.',
+                a: 'Assim que o pagamento for concluído, você pode salvar sua conta e acessar o painel "Minhas Músicas" para ouvir e fazer o download ilimitado dos arquivos em MP3 HD. Além disso, enviamos o link no seu WhatsApp.',
               },
               {
                 q: 'Qual o tempo de geração?',
-                a: 'A letra e os áudios são gerados e liberados em poucos minutos diretamente no aplicativo.',
+                a: 'A letra e os áudios são gerados e liberados em cerca de 2 a 3 minutos diretamente no aplicativo.',
               },
             ].map((item, idx) => (
               <div key={idx} style={styles.faqItem} className="glass-card">
                 <button onClick={() => toggleFaq(idx)} style={styles.faqQuestion}>
                   <span>{item.q}</span>
-                  <span style={{ transform: faqOpen[idx] ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>▼</span>
+                  <span style={{ transform: faqOpen[idx] ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', color: 'var(--primary)' }}>▼</span>
                 </button>
                 {faqOpen[idx] && (
                   <div style={styles.faqAnswer}>
@@ -456,15 +504,16 @@ export default function Home() {
       <footer style={styles.footer}>
         <div className="container" style={styles.footerContainer}>
           <div style={styles.footerBrand}>
-            <img src="/logo.png" alt="NSMusic" style={{ height: '36px', width: 'auto', marginBottom: '12px' }} />
+            <img src="/logo.png" alt="NSMusic" style={{ height: '36px', width: 'auto', marginBottom: '8px' }} />
             <p style={styles.footerTagline}>Eternizando momentos marcantes através de acordes e versos únicos.</p>
           </div>
-          <div className="footer-rights">
-            <div className="footer-links">
-              <Link href="/politica-de-privacidade" style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Política de Privacidade</Link>
-              <Link href="/termos-de-uso" style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Termos de Uso</Link>
+          
+          <div className="footer-rights" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div className="footer-links" style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+              <Link href="/politica-de-privacidade" style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Política de Privacidade</Link>
+              <Link href="/termos-de-uso" style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Termos de Uso</Link>
             </div>
-            <p>© {new Date().getFullYear()} NSMusic. Todos os direitos reservados.</p>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>© {new Date().getFullYear()} NSMusic. Todos os direitos reservados.</p>
           </div>
         </div>
       </footer>
@@ -477,27 +526,33 @@ const styles = {
     minHeight: '100vh',
     display: 'flex',
     flexDirection: 'column',
+    backgroundColor: 'var(--bg-primary)',
   },
   header: {
     position: 'sticky',
     top: 0,
     zIndex: 100,
-    borderRadius: 0,
     borderTop: 'none',
     borderLeft: 'none',
     borderRight: 'none',
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
   },
   headerContainer: {
     maxWidth: '1200px',
     margin: '0 auto',
-    padding: '16px 24px',
+    padding: '12px 20px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  headerActions: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+  },
   hero: {
     position: 'relative',
-    padding: '100px 0 80px 0',
+    padding: '60px 0 50px 0',
     textAlign: 'center',
     display: 'flex',
     flexDirection: 'column',
@@ -507,89 +562,117 @@ const styles = {
   },
   heroBgGlow: {
     position: 'absolute',
-    width: '600px',
-    height: '600px',
-    background: 'radial-gradient(circle, var(--primary-glow) 0%, transparent 70%)',
-    top: '-200px',
-    left: 'calc(50% - 300px)',
+    width: '500px',
+    height: '500px',
+    background: 'radial-gradient(circle, rgba(124, 58, 237, 0.12) 0%, transparent 70%)',
+    top: '-150px',
+    left: 'calc(50% - 250px)',
     pointerEvents: 'none',
-    zIndex: -1,
+    zIndex: 0,
   },
   heroContainer: {
-    maxWidth: '900px',
+    position: 'relative',
+    zIndex: 1,
+    maxWidth: '850px',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
   },
   heroBadge: {
-    padding: '8px 16px',
+    padding: '6px 16px',
     borderRadius: '100px',
-    fontSize: '0.85rem',
-    fontWeight: '600',
-    marginBottom: '24px',
+    fontSize: '0.82rem',
+    fontWeight: '700',
+    marginBottom: '20px',
     color: 'var(--primary)',
-    border: '1px solid var(--primary-glow)',
+    backgroundColor: 'var(--primary-light)',
+    border: '1px solid rgba(124, 58, 237, 0.2)',
+  },
+  heroTitle: {
+    fontSize: '2.5rem',
+    lineHeight: '1.2',
+    marginBottom: '16px',
   },
   heroSubtitle: {
-    fontSize: '1.2rem',
+    fontSize: '1.1rem',
     lineHeight: '1.6',
     color: 'var(--text-secondary)',
-    maxWidth: '720px',
-    marginBottom: '36px',
+    maxWidth: '680px',
+    marginBottom: '32px',
   },
   heroActions: {
+    display: 'flex',
+    gap: '12px',
+    flexDirection: 'column',
+    width: '100%',
+    maxWidth: '450px',
+    marginBottom: '28px',
+  },
+  heroPrimaryCta: {
+    fontSize: '1.1rem',
+    padding: '16px 28px',
+    width: '100%',
+  },
+  heroSecondaryCta: {
+    fontSize: '1.05rem',
+    padding: '14px 28px',
+    width: '100%',
+  },
+  heroTrust: {
     display: 'flex',
     gap: '16px',
     flexWrap: 'wrap',
     justifyContent: 'center',
+    fontSize: '0.82rem',
+    fontWeight: '700',
+    color: 'var(--text-muted)',
   },
   section: {
-    padding: '70px 0',
+    padding: '60px 0',
   },
   sectionAlt: {
-    padding: '70px 0',
+    padding: '60px 0',
     backgroundColor: 'var(--bg-secondary)',
   },
   sectionHeader: {
     textAlign: 'center',
-    marginBottom: '48px',
+    marginBottom: '36px',
   },
   sectionTitle: {
-    fontSize: '2.2rem',
-    marginBottom: '14px',
+    fontSize: '2rem',
+    marginBottom: '10px',
     fontWeight: '800',
   },
   sectionSubtitle: {
-    fontSize: '1.05rem',
-    color: 'var(--text-secondary)',
+    fontSize: '1rem',
+    color: 'var(--text-muted)',
   },
   stepsGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-    gap: '28px',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+    gap: '20px',
   },
   stepCard: {
-    padding: '36px 28px',
-    position: 'relative',
+    padding: '30px 24px',
     display: 'flex',
     flexDirection: 'column',
   },
   stepNumber: {
-    width: '44px',
-    height: '44px',
+    width: '40px',
+    height: '40px',
     borderRadius: '50%',
-    background: 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)',
+    background: 'linear-gradient(135deg, #7C3AED 0%, #EC4899 100%)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     fontWeight: '800',
-    fontSize: '1.2rem',
-    marginBottom: '20px',
-    color: '#fff',
+    fontSize: '1.1rem',
+    marginBottom: '16px',
+    color: '#FFFFFF',
   },
   stepTitle: {
-    fontSize: '1.3rem',
-    marginBottom: '12px',
+    fontSize: '1.2rem',
+    marginBottom: '10px',
     fontWeight: '700',
   },
   stepText: {
@@ -597,26 +680,38 @@ const styles = {
     lineHeight: '1.6',
     fontSize: '0.92rem',
   },
+  offerList: {
+    listStyle: 'none',
+    padding: 0,
+    margin: '20px auto',
+    maxWidth: '520px',
+    textAlign: 'left',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '10px',
+    fontSize: '1rem',
+    color: 'var(--text-secondary)',
+  },
   faqList: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '14px',
+    gap: '12px',
   },
   faqItem: {
-    padding: '8px 24px',
+    padding: '6px 20px',
     overflow: 'hidden',
   },
   faqQuestion: {
     width: '100%',
     background: 'none',
     border: 'none',
-    color: '#fff',
-    padding: '16px 0',
+    color: 'var(--text-primary)',
+    padding: '14px 0',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    fontSize: '1.05rem',
-    fontWeight: '600',
+    fontSize: '1rem',
+    fontWeight: '700',
     textAlign: 'left',
     cursor: 'pointer',
     outline: 'none',
@@ -625,29 +720,29 @@ const styles = {
     padding: '0 0 16px 0',
     color: 'var(--text-secondary)',
     lineHeight: '1.6',
-    fontSize: '0.95rem',
+    fontSize: '0.92rem',
     borderTop: '1px solid var(--border-color)',
-    paddingTop: '14px',
+    paddingTop: '12px',
   },
   footer: {
     marginTop: 'auto',
     borderTop: '1px solid var(--border-color)',
-    backgroundColor: 'var(--bg-primary)',
-    padding: '40px 0',
+    backgroundColor: '#FFFFFF',
+    padding: '36px 0',
   },
   footerContainer: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
     flexWrap: 'wrap',
-    gap: '24px',
+    gap: '20px',
   },
   footerBrand: {
     flex: 1,
-    minWidth: '280px',
+    minWidth: '240px',
   },
   footerTagline: {
-    fontSize: '0.88rem',
-    color: 'var(--text-secondary)',
+    fontSize: '0.85rem',
+    color: 'var(--text-muted)',
   },
 };
