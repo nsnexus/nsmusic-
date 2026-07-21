@@ -1603,16 +1603,12 @@ export default function CriarMusica() {
         return (
           <div>
             {formData.lyricsStatus === 'generating' ? (
-              <div style={{ padding: '50px 20px', textAlign: 'center', maxWidth: '600px', margin: '0 auto' }} className="glass-card">
-                <div className="eq-container" style={{ marginBottom: '24px' }}>
-                  <div className="eq-bar eq-bar-1" />
-                  <div className="eq-bar eq-bar-2" />
-                  <div className="eq-bar eq-bar-3" />
-                  <div className="eq-bar eq-bar-4" />
-                  <div className="eq-bar eq-bar-5" />
-                  <div className="eq-bar eq-bar-6" />
-                </div>
-                <h3 style={{ fontFamily: 'var(--font-family-title)', fontSize: '1.6rem', color: '#fff' }}>
+              <div style={{ padding: '40px 20px', textAlign: 'center', maxWidth: '600px', margin: '0 auto' }} className="glass-card">
+                <iframe 
+                  src="https://lottie.host/embed/8ef96961-7dbf-44bf-96b4-c8cddc2f7890/HPh8HceFC2.lottie" 
+                  style={{ width: '240px', height: '200px', border: 'none', background: 'transparent', margin: '0 auto 12px auto', display: 'block', pointerEvents: 'none' }}
+                />
+                <h3 style={{ fontFamily: 'var(--font-family-title)', fontSize: '1.6rem', color: 'var(--text-primary)' }}>
                   Estúdio de Composição Ativo ✨
                 </h3>
                 <p style={{ color: 'var(--secondary)', fontSize: '1.05rem', fontWeight: '600', marginTop: '14px', minHeight: '32px' }}>
@@ -1684,16 +1680,12 @@ export default function CriarMusica() {
         return (
           <div>
             {formData.sunoStatus !== 'generated' ? (
-              <div style={{ padding: '50px 20px', textAlign: 'center', maxWidth: '600px', margin: '0 auto' }} className="glass-card">
-                <div className="eq-container" style={{ marginBottom: '24px' }}>
-                  <div className="eq-bar eq-bar-1" />
-                  <div className="eq-bar eq-bar-2" />
-                  <div className="eq-bar eq-bar-3" />
-                  <div className="eq-bar eq-bar-4" />
-                  <div className="eq-bar eq-bar-5" />
-                  <div className="eq-bar eq-bar-6" />
-                </div>
-                <h3 style={{ fontFamily: 'var(--font-family-title)', fontSize: '1.6rem', color: '#fff' }}>
+              <div style={{ padding: '40px 20px', textAlign: 'center', maxWidth: '600px', margin: '0 auto' }} className="glass-card">
+                <iframe 
+                  src="https://lottie.host/embed/b55df25e-6dc6-4fc5-b1b0-4d4cd20490b1/VHGaPTVcOG.lottie" 
+                  style={{ width: '260px', height: '220px', border: 'none', background: 'transparent', margin: '0 auto 12px auto', display: 'block', pointerEvents: 'none' }}
+                />
+                <h3 style={{ fontFamily: 'var(--font-family-title)', fontSize: '1.6rem', color: 'var(--text-primary)' }}>
                   Produzindo seus 2 Arranjos Musicais 🎧
                 </h3>
                 <p style={{ color: 'var(--secondary)', fontSize: '1.05rem', fontWeight: '600', marginTop: '14px', minHeight: '32px' }}>

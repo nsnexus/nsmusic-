@@ -26,6 +26,15 @@ function EntregaContent() {
   const [isCreatingAccount, setIsCreatingAccount] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  // Estados do Checkout PIX para pedidos pendentes
+  const [pixInfo, setPixInfo] = useState({ qrCode: '', qrCodeBase64: '', paymentId: '' });
+  const [pixLoading, setPixLoading] = useState(false);
+  const [pixCopied, setPixCopied] = useState(false);
+  const [isPaidState, setIsPaidState] = useState(false);
+
+  // Permite liberação se o pagamento consta como aprovado ou se veio o parâmetro de sucesso do checkout
+  const isPaid = isPaidState || order?.paymentStatus === 'PAGAMENTO_APROVADO' || order?.paymentStatus === 'PAGO' || searchParams.get('status') === 'success' || searchParams.get('status') === 'approved';
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (usr) => {
       setCurrentUser(usr);
@@ -65,131 +74,6 @@ function EntregaContent() {
     fetchOrder();
   }, [orderId]);
 
-  const handleCreateAccount = async (e) => {
-    e.preventDefault();
-    if (!order || !order.customerEmail) return;
-    if (accountPassword.length < 6) {
-      setAccountError("A senha deve ter pelo menos 6 caracteres.");
-      return;
-    }
-    setIsCreatingAccount(true);
-    setAccountError('');
-    try {
-      const userCred = await createUserWithEmailAndPassword(auth, accountEmail, accountPassword);
-      const user = userCred.user;
-      
-      // Vincula a ordem ao ID do novo usuário no Firestore e atualiza e-mail
-      if (orderId) {
-        await updateDoc(doc(db, 'orders', orderId), {
-          userId: user.uid,
-          customerEmail: accountEmail,
-          updatedAt: new Date().toISOString()
-        }).catch(e => console.warn(e));
-      }
-      setAccountCreated(true);
-    } catch (err) {
-      console.error(err);
-      if (err.code === 'auth/email-already-in-use') {
-        setAccountError("Este e-mail já possui uma conta. Faça login no topo para acessar!");
-      } else {
-        setAccountError(err.message || "Erro ao criar conta. Tente novamente.");
-      }
-    } finally {
-      setIsCreatingAccount(false);
-    }
-  };
-
-  const handleReviewSubmit = (e) => {
-    e.preventDefault();
-    if (rating === 0) return;
-    setReviewSubmitted(true);
-  };
-
-  const handleDownload = async (url, filename) => {
-    try {
-      const response = await fetch(url);
-      const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      link.setAttribute('download', filename);
-      document.body.appendChild(link);
-      link.click();
-      link.parentNode.removeChild(link);
-      window.URL.revokeObjectURL(blobUrl);
-    } catch (err) {
-      console.warn("Erro ao fazer download via fetch, abrindo nova aba:", err);
-      window.open(url, '_blank');
-    }
-  };
-
-  const handleCopyLink = () => {
-    const sharePageUrl = typeof window !== 'undefined' 
-      ? `${window.location.origin}/homenagem?orderId=${orderId}` 
-      : '';
-    navigator.clipboard.writeText(sharePageUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 3000);
-  };
-
-  if (loading) {
-    return (
-      <div style={styles.wrapper} className="flex-center">
-        <div style={styles.spinner} />
-        <p style={{ marginTop: '20px', color: 'var(--text-secondary)' }}>Carregando sua página de entrega...</p>
-      </div>
-    );
-  }
-
-  if (!order) {
-    return (
-      <div style={styles.wrapper} className="flex-center">
-        <h2 style={{ fontSize: '1.8rem', marginBottom: '16px' }}>Pedido não encontrado 🔍</h2>
-        <p style={{ color: 'var(--text-secondary)', marginBottom: '24px' }}>Verifique o link ou entre em contato com o suporte.</p>
-        <Link href="/" className="btn btn-primary">Voltar ao início</Link>
-      </div>
-    );
-  }
-
-  // Estados do Checkout PIX para pedidos pendentes
-  const [pixInfo, setPixInfo] = useState({ qrCode: '', qrCodeBase64: '', paymentId: '' });
-  const [pixLoading, setPixLoading] = useState(false);
-  const [pixCopied, setPixCopied] = useState(false);
-  const [isPaidState, setIsPaidState] = useState(false);
-
-  // Permite liberação se o pagamento consta como aprovado ou se veio o parâmetro de sucesso do checkout
-  const isPaid = isPaidState || order?.paymentStatus === 'PAGAMENTO_APROVADO' || order?.paymentStatus === 'PAGO' || searchParams.get('status') === 'success' || searchParams.get('status') === 'approved';
-
-  // Gera o PIX automaticamente se o pedido não estiver pago
-  useEffect(() => {
-    if (order && !isPaid && !pixInfo.qrCode && !pixLoading) {
-      handleGeneratePix();
-    }
-  }, [order, isPaid]);
-
-  // Polling em tempo real para confirmação de pagamento PIX
-  useEffect(() => {
-    if (!orderId || isPaid) return;
-
-    const interval = setInterval(async () => {
-      try {
-        const paymentIdQuery = pixInfo.paymentId ? `&paymentId=${pixInfo.paymentId}` : '';
-        const res = await fetch(`/api/payments/status?orderId=${orderId}${paymentIdQuery}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data.status === 'approved' || data.status === 'PAGO' || data.status === 'PAGAMENTO_APROVADO') {
-            setIsPaidState(true);
-            clearInterval(interval);
-          }
-        }
-      } catch (e) {
-        console.warn("Erro ao checar status do PIX na entrega:", e);
-      }
-    }, 4000);
-
-    return () => clearInterval(interval);
-  }, [orderId, isPaid, pixInfo.paymentId]);
-
   const handleGeneratePix = async () => {
     if (!order) return;
     setPixLoading(true);
@@ -224,6 +108,36 @@ function EntregaContent() {
       setPixLoading(false);
     }
   };
+
+  // Gera o PIX automaticamente se o pedido não estiver pago
+  useEffect(() => {
+    if (order && !isPaid && !pixInfo.qrCode && !pixLoading) {
+      handleGeneratePix();
+    }
+  }, [order, isPaid, pixInfo.qrCode, pixLoading]);
+
+  // Polling em tempo real para confirmação de pagamento PIX
+  useEffect(() => {
+    if (!orderId || isPaid) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const paymentIdQuery = pixInfo.paymentId ? `&paymentId=${pixInfo.paymentId}` : '';
+        const res = await fetch(`/api/payments/status?orderId=${orderId}${paymentIdQuery}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.status === 'approved' || data.status === 'PAGO' || data.status === 'PAGAMENTO_APROVADO') {
+            setIsPaidState(true);
+            clearInterval(interval);
+          }
+        }
+      } catch (e) {
+        console.warn("Erro ao checar status do PIX na entrega:", e);
+      }
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [orderId, isPaid, pixInfo.paymentId]);
 
   const handleAudioTimeUpdate = (e) => {
     const audio = e.target;
