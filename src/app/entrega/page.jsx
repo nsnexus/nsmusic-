@@ -55,15 +55,24 @@ function EntregaContent() {
   }, [orderId]);
 
   useEffect(() => {
-    const fetchOrder = async () => {
+    let cancelled = false;
+
+    const fetchWithTimeout = (promise, ms = 8000) => {
+      return Promise.race([
+        promise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), ms))
+      ]);
+    };
+
+    const fetchOrder = async (attempt = 1) => {
       if (!orderId) {
         setLoading(false);
         return;
       }
       try {
         const docRef = doc(db, 'orders', orderId);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
+        const docSnap = await fetchWithTimeout(getDoc(docRef));
+        if (!cancelled && docSnap.exists()) {
           const data = docSnap.data();
           setOrder(data);
           if (data && data.customerEmail) {
@@ -71,12 +80,24 @@ function EntregaContent() {
           }
         }
       } catch (err) {
-        console.error("Erro ao buscar pedido para entrega:", err);
+        console.error(`Erro ao buscar pedido (tentativa ${attempt}):`, err?.message || err);
+        // Retry automático uma vez em caso de timeout ou falha de rede (comum no iOS Safari)
+        if (!cancelled && attempt < 2) {
+          console.log("Retentando busca do pedido...");
+          return fetchOrder(attempt + 1);
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
+
     fetchOrder();
+    // Failsafe: garante que loading nunca fique true por mais de 12 segundos
+    const failsafe = setTimeout(() => {
+      if (!cancelled) setLoading(false);
+    }, 12000);
+
+    return () => { cancelled = true; clearTimeout(failsafe); };
   }, [orderId]);
 
   const handleCreateAccount = async (e) => {

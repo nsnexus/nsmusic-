@@ -22,24 +22,42 @@ function HomenagemContent() {
   }, [order]);
 
   useEffect(() => {
-    const fetchOrder = async () => {
+    let cancelled = false;
+
+    const fetchWithTimeout = (promise, ms = 8000) => {
+      return Promise.race([
+        promise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), ms))
+      ]);
+    };
+
+    const fetchOrder = async (attempt = 1) => {
       if (!orderId) {
         setLoading(false);
         return;
       }
       try {
         const docRef = doc(db, 'orders', orderId);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
+        const docSnap = await fetchWithTimeout(getDoc(docRef));
+        if (!cancelled && docSnap.exists()) {
           setOrder(docSnap.data());
         }
       } catch (err) {
-        console.error("Erro ao buscar homenagem:", err);
+        console.error(`Erro ao buscar homenagem (tentativa ${attempt}):`, err?.message || err);
+        if (!cancelled && attempt < 2) {
+          return fetchOrder(attempt + 1);
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
+
     fetchOrder();
+    const failsafe = setTimeout(() => {
+      if (!cancelled) setLoading(false);
+    }, 12000);
+
+    return () => { cancelled = true; clearTimeout(failsafe); };
   }, [orderId]);
 
   const handleDownload = async (url, filename) => {
