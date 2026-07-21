@@ -183,9 +183,14 @@ function EntregaContent() {
       {/* Header */}
       <header style={styles.header} className="glass-panel">
         <div style={styles.headerContainer}>
-          <Link href="/" style={{ display: 'flex', alignItems: 'center' }}>
-            <img src="/logo.png" alt="NSMusic" style={{ height: '40px', width: 'auto' }} />
-          </Link>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <Link href="/" style={{ display: 'flex', alignItems: 'center' }}>
+              <img src="/logo.png" alt="NSMusic" style={{ height: '40px', width: 'auto' }} />
+            </Link>
+            <Link href="/minhas-musicas" className="btn btn-secondary" style={{ padding: '6px 14px', fontSize: '0.82rem', display: 'inline-flex', alignItems: 'center', gap: '6px', textDecoration: 'none' }}>
+              🎵 Minhas Músicas
+            </Link>
+          </div>
           <span 
             style={{
               ...styles.statusBadge,
@@ -229,7 +234,14 @@ function EntregaContent() {
                         🔒 Modo Degustação: Áudio limitado aos primeiros 60 segundos.
                       </p>
                     )}
-                    <audio controls onTimeUpdate={handleAudioTimeUpdate} style={styles.audioTag} src={primaryAudioUrl}>
+                    <audio 
+                      controls 
+                      controlsList={!isPaid ? "nodownload noplaybackrate" : undefined}
+                      onContextMenu={(e) => !isPaid && e.preventDefault()}
+                      onTimeUpdate={handleAudioTimeUpdate} 
+                      style={styles.audioTag} 
+                      src={primaryAudioUrl}
+                    >
                       Seu navegador não suporta.
                     </audio>
 
@@ -258,7 +270,14 @@ function EntregaContent() {
                         🔒 Modo Degustação: Áudio limitado aos primeiros 60 segundos.
                       </p>
                     )}
-                    <audio controls onTimeUpdate={handleAudioTimeUpdate} style={styles.audioTag} src={secondAudioUrl}>
+                    <audio 
+                      controls 
+                      controlsList={!isPaid ? "nodownload noplaybackrate" : undefined}
+                      onContextMenu={(e) => !isPaid && e.preventDefault()}
+                      onTimeUpdate={handleAudioTimeUpdate} 
+                      style={styles.audioTag} 
+                      src={secondAudioUrl}
+                    >
                       Seu navegador não suporta.
                     </audio>
 

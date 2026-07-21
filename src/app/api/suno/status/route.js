@@ -13,17 +13,20 @@ export async function GET(req) {
       return NextResponse.json({ error: "taskId é obrigatório" }, { status: 400 });
     }
 
-    // 1. Checa primeiro no banco local (Firestore)
-    const task = await getTask(taskId);
-
-    if (task && task.status === "COMPLETED") {
-      const tracks = extractAudioTracks(task.result);
-      if (tracks.length > 0) {
-        if (orderId) {
-          await updateTaskResult(taskId, task.result, orderId).catch(e => console.warn(e));
+    // 1. Checa primeiro no banco local (Firestore) com try/catch seguro
+    try {
+      const task = await getTask(taskId);
+      if (task && task.status === "COMPLETED") {
+        const tracks = extractAudioTracks(task.result);
+        if (tracks.length > 0) {
+          if (orderId) {
+            updateTaskResult(taskId, task.result, orderId).catch(e => console.warn(e));
+          }
+          return NextResponse.json({ status: "COMPLETED", tracks });
         }
-        return NextResponse.json({ status: "COMPLETED", tracks });
       }
+    } catch (dbErr) {
+      console.warn("Aviso na busca Firestore em Edge Runtime:", dbErr?.message);
     }
 
     // 2. Fallback direto na API da Kie.ai caso ainda não conste como concluído no banco local
@@ -48,18 +51,18 @@ export async function GET(req) {
 
         if (isSuccess && tracksArray.length > 0) {
           // Salva no Firestore imediatamente (atualizando suno_tasks e orders)
-          await updateTaskResult(taskId, kieData, orderId);
+          updateTaskResult(taskId, kieData, orderId).catch(e => console.warn(e));
 
           return NextResponse.json({ status: "COMPLETED", tracks: tracksArray });
         }
       }
     } catch (kieErr) {
-      console.warn("Aviso na consulta direta de fallback Kie.ai:", kieErr.message);
+      console.warn("Aviso na consulta direta de fallback Kie.ai:", kieErr?.message);
     }
 
-    return NextResponse.json({ status: task ? task.status : "PROCESSING" });
+    return NextResponse.json({ status: "PROCESSING" });
   } catch (error) {
     console.error("Erro consultando status:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ status: "PROCESSING", error: error.message }, { status: 200 });
   }
 }
