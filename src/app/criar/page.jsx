@@ -1035,6 +1035,13 @@ export default function CriarMusica() {
                 productionStatus: 'AUDIO_GERADO',
                 updatedAt: new Date().toISOString()
               }).catch(e => console.warn("Aviso ao atualizar ordem no Firebase:", e));
+
+              // Dispara a notificação de WhatsApp via backend
+              fetch('/api/whatsapp/notify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ orderId: targetOrder })
+              }).catch(e => console.warn("Erro ao notificar WhatsApp:", e));
             }
           } else {
             updateField('sunoProgress', `Estúdio produzindo arranjos...`);

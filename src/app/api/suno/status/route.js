@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getTask, updateTaskResult, extractAudioTracks } from '@/lib/db';
-
-export const runtime = 'edge';
+export const dynamic = 'force-dynamic';
 
 export async function GET(req) {
   try {
@@ -19,6 +18,9 @@ export async function GET(req) {
     if (task && task.status === "COMPLETED") {
       const tracks = extractAudioTracks(task.result);
       if (tracks.length > 0) {
+        if (orderId) {
+          await updateTaskResult(taskId, task.result, orderId).catch(e => console.warn(e));
+        }
         return NextResponse.json({ status: "COMPLETED", tracks });
       }
     }
