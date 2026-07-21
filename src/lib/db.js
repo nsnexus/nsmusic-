@@ -51,7 +51,7 @@ export const extractAudioTracks = (result) => {
   return tracks.map(t => {
     if (!t) return null;
     if (typeof t === 'string') return { audio_url: t, audioUrl: t };
-    const url = t.streamAudioUrl || t.sourceStreamAudioUrl || t.audio_url || t.audioUrl || t.stream_url || t.url || t.audioFile || t.cdn_url || t.audio_file || '';
+    const url = t.sourceAudioUrl || t.audioUrl || t.audio_url || t.streamAudioUrl || t.sourceStreamAudioUrl || t.stream_url || t.url || t.audioFile || t.cdn_url || t.audio_file || '';
     return {
       ...t,
       audio_url: url,

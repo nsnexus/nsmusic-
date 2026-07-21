@@ -405,7 +405,7 @@ export default function CriarMusica() {
   const getAudioUrl = (track) => {
     if (!track) return '';
     if (typeof track === 'string') return track;
-    return track.streamAudioUrl || track.sourceStreamAudioUrl || track.audio_url || track.audioUrl || track.stream_url || track.url || track.audioFile || track.cdn_url || '';
+    return track.sourceAudioUrl || track.audioUrl || track.audio_url || track.streamAudioUrl || track.sourceStreamAudioUrl || track.stream_url || track.url || track.audioFile || track.cdn_url || '';
   };
 
   // Passos de carregamento dinâmico no estúdio de composição de letra (Step 10)
