@@ -2,9 +2,26 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { onAuthStateChanged, signOut, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
+import { onAuthStateChanged, signOut, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
+
+const getFriendlyAuthErrorMessage = (err) => {
+  const code = err?.code || '';
+  if (code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found' || code === 'auth/invalid-email') {
+    return "E-mail ou senha incorretos. Por favor, verifique se digitou corretamente.";
+  }
+  if (code === 'auth/email-already-in-use') {
+    return "Este e-mail já possui uma conta cadastrada. Alterne para Entrar abaixo ou redefina sua senha.";
+  }
+  if (code === 'auth/weak-password') {
+    return "A senha é muito fraca. Digite uma senha com no mínimo 6 caracteres.";
+  }
+  if (code === 'auth/too-many-requests') {
+    return "Muitas tentativas incorretas. Por favor, aguarde alguns instantes ou clique em esqueci minha senha.";
+  }
+  return err?.message || "Não foi possível concluir o acesso. Verifique seus dados e tente novamente.";
+};
 
 export default function MinhasMusicasPage() {
   const [user, setUser] = useState(null);
@@ -15,8 +32,12 @@ export default function MinhasMusicasPage() {
   // Login / Register Form State
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
   const [authError, setAuthError] = useState('');
+  const [resetSuccess, setResetSuccess] = useState('');
   const [authSubmitting, setAuthSubmitting] = useState(false);
 
   // Modal para visualização da letra
@@ -61,6 +82,18 @@ export default function MinhasMusicasPage() {
   const handleAuthSubmit = async (e) => {
     e.preventDefault();
     setAuthError('');
+    setResetSuccess('');
+
+    if (isSignUp && password !== confirmPassword) {
+      setAuthError("As senhas não coincidem. Digite a mesma senha nos dois campos.");
+      return;
+    }
+
+    if (password.length < 6) {
+      setAuthError("A senha deve ter pelo menos 6 caracteres.");
+      return;
+    }
+
     setAuthSubmitting(true);
     try {
       if (isSignUp) {
@@ -70,15 +103,29 @@ export default function MinhasMusicasPage() {
       }
     } catch (err) {
       console.error(err);
-      if (err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
-        setAuthError("E-mail ou senha incorretos.");
-      } else if (err.code === 'auth/email-already-in-use') {
-        setAuthError("Este e-mail já está cadastrado. Alterne para Entrar.");
-      } else {
-        setAuthError(err.message || "Erro de autenticação.");
-      }
+      setAuthError(getFriendlyAuthErrorMessage(err));
     } finally {
       setAuthSubmitting(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!email || !email.includes('@')) {
+      setAuthError("Digite o seu e-mail no campo acima para receber o link de redefinição de senha.");
+      return;
+    }
+    setAuthError('');
+    setResetSuccess('');
+    try {
+      await sendPasswordResetEmail(auth, email);
+      setResetSuccess(`✅ Enviamos um e-mail de redefinição para ${email}. Verifique sua caixa de entrada e de spam!`);
+    } catch (err) {
+      console.error(err);
+      if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-email') {
+        setAuthError("Nenhuma conta encontrada com este e-mail.");
+      } else {
+        setAuthError(getFriendlyAuthErrorMessage(err));
+      }
     }
   };
 
@@ -176,17 +223,89 @@ export default function MinhasMusicasPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   style={styles.input}
                 />
-                <input 
-                  type="password" 
-                  placeholder="Sua senha de acesso" 
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  style={styles.input}
-                />
+
+                <div style={{ position: 'relative', width: '100%' }}>
+                  <input 
+                    type={showPassword ? "text" : "password"} 
+                    placeholder="Sua senha de acesso" 
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    style={{ ...styles.input, paddingRight: '45px' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    style={{
+                      position: 'absolute',
+                      right: '12px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'none',
+                      border: 'none',
+                      fontSize: '1.1rem',
+                      cursor: 'pointer',
+                      color: 'var(--text-muted)'
+                    }}
+                    title={showPassword ? "Ocultar senha" : "Ver senha"}
+                  >
+                    {showPassword ? '🙈' : '👁️'}
+                  </button>
+                </div>
+
+                {isSignUp && (
+                  <div style={{ position: 'relative', width: '100%' }}>
+                    <input 
+                      type={showConfirmPassword ? "text" : "password"} 
+                      placeholder="Confirme sua senha" 
+                      required
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      style={{ ...styles.input, paddingRight: '45px' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      style={{
+                        position: 'absolute',
+                        right: '12px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        fontSize: '1.1rem',
+                        cursor: 'pointer',
+                        color: 'var(--text-muted)'
+                      }}
+                      title={showConfirmPassword ? "Ocultar senha" : "Ver senha"}
+                    >
+                      {showConfirmPassword ? '🙈' : '👁️'}
+                    </button>
+                  </div>
+                )}
 
                 {authError && (
-                  <span style={{ color: 'var(--danger)', fontSize: '0.82rem', fontWeight: '600' }}>{authError}</span>
+                  <span style={{ color: 'var(--danger)', fontSize: '0.84rem', fontWeight: '600', lineHeight: '1.4' }}>
+                    {authError}
+                  </span>
+                )}
+
+                {resetSuccess && (
+                  <span style={{ color: '#34d399', fontSize: '0.84rem', fontWeight: '600', lineHeight: '1.4' }}>
+                    {resetSuccess}
+                  </span>
+                )}
+
+                {!isSignUp && (
+                  <div style={{ textAlign: 'right', marginTop: '-4px' }}>
+                    <button
+                      type="button"
+                      onClick={handleResetPassword}
+                      style={{ background: 'none', border: 'none', color: 'var(--secondary)', fontSize: '0.82rem', cursor: 'pointer', textDecoration: 'underline' }}
+                    >
+                      Esqueceu sua senha?
+                    </button>
+                  </div>
                 )}
 
                 <button 
@@ -195,14 +314,18 @@ export default function MinhasMusicasPage() {
                   className="btn btn-primary"
                   style={{ width: '100%', padding: '14px', fontSize: '1rem', marginTop: '6px' }}
                 >
-                  {authSubmitting ? '⏳ Entrando...' : isSignUp ? 'Criar Conta' : 'Entrar na Minha Conta'}
+                  {authSubmitting ? '⏳ Processando...' : isSignUp ? 'Criar Conta' : 'Entrar na Minha Conta'}
                 </button>
               </form>
 
               <div style={{ marginTop: '20px', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
                 <button
                   type="button"
-                  onClick={() => setIsSignUp(!isSignUp)}
+                  onClick={() => {
+                    setIsSignUp(!isSignUp);
+                    setAuthError('');
+                    setResetSuccess('');
+                  }}
                   style={{ background: 'none', border: 'none', color: 'var(--primary)', fontSize: '0.88rem', cursor: 'pointer', fontWeight: '700' }}
                 >
                   {isSignUp ? 'Já tem conta? Faça Login aqui' : 'Primeira vez? Crie sua senha aqui'}

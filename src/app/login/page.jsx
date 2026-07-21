@@ -3,20 +3,53 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
+
+const getFriendlyAuthErrorMessage = (err) => {
+  const code = err?.code || '';
+  if (code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found' || code === 'auth/invalid-email') {
+    return "E-mail ou senha incorretos. Por favor, verifique se digitou corretamente.";
+  }
+  if (code === 'auth/email-already-in-use') {
+    return "Este e-mail já possui uma conta cadastrada. Alterne para Entrar abaixo ou redefina sua senha.";
+  }
+  if (code === 'auth/weak-password') {
+    return "A senha é muito fraca. Digite uma senha com no mínimo 6 caracteres.";
+  }
+  if (code === 'auth/too-many-requests') {
+    return "Muitas tentativas incorretas. Por favor, aguarde alguns instantes ou clique em esqueci minha senha.";
+  }
+  return err?.message || "Não foi possível concluir o acesso. Verifique seus dados e tente novamente.";
+};
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
   const [error, setError] = useState('');
+  const [resetSuccess, setResetSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setResetSuccess('');
+
+    if (isSignUp && password !== confirmPassword) {
+      setError("As senhas não coincidem. Digite a mesma senha nos dois campos.");
+      return;
+    }
+
+    if (password.length < 6) {
+      setError("A senha deve conter pelo menos 6 caracteres.");
+      return;
+    }
+
     setSubmitting(true);
     try {
       if (isSignUp) {
@@ -27,15 +60,29 @@ export default function LoginPage() {
       router.push('/minhas-musicas');
     } catch (err) {
       console.error(err);
-      if (err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
-        setError("E-mail ou senha incorretos.");
-      } else if (err.code === 'auth/email-already-in-use') {
-        setError("Este e-mail já está cadastrado. Alterne para Entrar.");
-      } else {
-        setError(err.message || "Erro de autenticação.");
-      }
+      setError(getFriendlyAuthErrorMessage(err));
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!email || !email.includes('@')) {
+      setError("Digite o seu e-mail no campo acima para receber o link de redefinição de senha.");
+      return;
+    }
+    setError('');
+    setResetSuccess('');
+    try {
+      await sendPasswordResetEmail(auth, email);
+      setResetSuccess(`✅ Enviamos um e-mail de redefinição para ${email}. Verifique sua caixa de entrada e de spam!`);
+    } catch (err) {
+      console.error(err);
+      if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-email') {
+        setError("Nenhuma conta encontrada com este e-mail.");
+      } else {
+        setError(getFriendlyAuthErrorMessage(err));
+      }
     }
   };
 
@@ -82,19 +129,88 @@ export default function LoginPage() {
 
             <div>
               <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>Sua Senha:</label>
-              <input 
-                type="password"
-                placeholder="••••••••"
-                required
-                minLength={6}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                style={styleInput}
-              />
+              <div style={{ position: 'relative', width: '100%' }}>
+                <input 
+                  type={showPassword ? "text" : "password"}
+                  placeholder="••••••••"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  style={{ ...styleInput, paddingRight: '45px' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  style={{
+                    position: 'absolute',
+                    right: '12px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    fontSize: '1.1rem',
+                    cursor: 'pointer',
+                    color: 'var(--text-muted)'
+                  }}
+                  title={showPassword ? "Ocultar senha" : "Ver senha"}
+                >
+                  {showPassword ? '🙈' : '👁️'}
+                </button>
+              </div>
             </div>
 
+            {isSignUp && (
+              <div>
+                <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>Confirme sua Senha:</label>
+                <div style={{ position: 'relative', width: '100%' }}>
+                  <input 
+                    type={showConfirmPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    required
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    style={{ ...styleInput, paddingRight: '45px' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    style={{
+                      position: 'absolute',
+                      right: '12px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'none',
+                      border: 'none',
+                      fontSize: '1.1rem',
+                      cursor: 'pointer',
+                      color: 'var(--text-muted)'
+                    }}
+                    title={showConfirmPassword ? "Ocultar senha" : "Ver senha"}
+                  >
+                    {showConfirmPassword ? '🙈' : '👁️'}
+                  </button>
+                </div>
+              </div>
+            )}
+
             {error && (
-              <span style={{ color: '#fca5a5', fontSize: '0.82rem', textAlign: 'center' }}>{error}</span>
+              <span style={{ color: '#fca5a5', fontSize: '0.84rem', textAlign: 'center', lineHeight: '1.4', fontWeight: '600' }}>{error}</span>
+            )}
+
+            {resetSuccess && (
+              <span style={{ color: '#34d399', fontSize: '0.84rem', textAlign: 'center', lineHeight: '1.4', fontWeight: '600' }}>{resetSuccess}</span>
+            )}
+
+            {!isSignUp && (
+              <div style={{ textAlign: 'right', marginTop: '-4px' }}>
+                <button
+                  type="button"
+                  onClick={handleResetPassword}
+                  style={{ background: 'none', border: 'none', color: 'var(--secondary)', fontSize: '0.82rem', cursor: 'pointer', textDecoration: 'underline' }}
+                >
+                  Esqueceu sua senha?
+                </button>
+              </div>
             )}
 
             <button 
@@ -110,8 +226,12 @@ export default function LoginPage() {
           <div style={{ marginTop: '20px', textAlign: 'center', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '16px' }}>
             <button
               type="button"
-              onClick={() => setIsSignUp(!isSignUp)}
-              style={{ background: 'none', border: 'none', color: 'var(--secondary)', fontSize: '0.88rem', cursor: 'pointer' }}
+              onClick={() => {
+                setIsSignUp(!isSignUp);
+                setError('');
+                setResetSuccess('');
+              }}
+              style={{ background: 'none', border: 'none', color: 'var(--secondary)', fontSize: '0.88rem', cursor: 'pointer', fontWeight: '700' }}
             >
               {isSignUp ? 'Já possui conta? Faça Login' : 'Primeiro acesso? Crie sua conta'}
             </button>
