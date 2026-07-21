@@ -9,13 +9,10 @@ export async function POST(req) {
 
     const apiKey = '76daad0e2a577569aaaa67715aec3c87'; // Kie.ai API Key
 
-    // Determinar a URL do webhook dinamicamente
-    const host = req.headers.get('x-forwarded-host') || req.headers.get('host');
-    const protocol = req.headers.get('x-forwarded-proto') || 'https';
-    
-    // ATENÇÃO: Se estiver testando localmente (localhost), a Kie.ai não conseguirá acessar este webhook!
-    // Nesse caso, o status vai ficar travado em 'PROCESSING'. 
-    const callbackUrl = `${protocol}://${host}/api/suno/webhook`;
+    // Garante a URL do webhook no domínio oficial de produção
+    const rawUrl = (process.env.NEXT_PUBLIC_SITE_URL || '').trim().replace(/\/+$/, '');
+    const baseUrl = (!rawUrl || rawUrl.includes('pages.dev') || rawUrl.includes('localhost')) ? 'https://nsmusic.nsnexus.com.br' : rawUrl;
+    const callbackUrl = `${baseUrl}/api/suno/webhook`;
 
     const response = await fetch('https://api.kie.ai/api/v1/generate', {
       method: 'POST',
@@ -27,7 +24,7 @@ export async function POST(req) {
         prompt: prompt,
         customMode: true,
         instrumental: false,
-        model: "V3_5",
+        model: "V4_5ALL",
         style: tags,
         title: `Pedido ${orderId ? orderId.substring(0, 8) : 'Novo'}`,
         callBackUrl: callbackUrl

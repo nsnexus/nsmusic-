@@ -11,16 +11,15 @@ export async function POST(req) {
     const taskId = data.task_id || data.id || (data.data && (data.data.taskId || data.data.task_id));
     
     if (taskId) {
-      // Kie.ai costuma devolver as tracks no array data.data ou simplesmente enviar o status.
-      // Vamos salvar tudo no banco e deixar o frontend processar.
-      await updateTaskResult(taskId, data);
-      return NextResponse.json({ success: true });
+      // Salva no banco em segundo plano para responder 200 instantaneamente à Kie.ai
+      updateTaskResult(taskId, data).catch(e => console.warn("Aviso ao atualizar task no webhook:", e));
+      return NextResponse.json({ success: true }, { status: 200 });
     } else {
       console.error("Webhook recebido sem taskId", data);
-      return NextResponse.json({ error: "Missing task_id" }, { status: 400 });
+      return NextResponse.json({ error: "Missing task_id" }, { status: 200 });
     }
   } catch (error) {
     console.error("Erro processando webhook:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: 200 });
   }
 }
