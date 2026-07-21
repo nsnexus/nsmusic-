@@ -85,7 +85,7 @@ export default function MinhasMusicasPage() {
   const getAudioUrl = (track) => {
     if (!track) return '';
     if (typeof track === 'string') return track;
-    return track.audio_url || track.audioUrl || track.stream_url || track.url || track.audioFile || track.cdn_url || '';
+    return track.streamAudioUrl || track.sourceStreamAudioUrl || track.audio_url || track.audioUrl || track.stream_url || track.url || track.audioFile || track.cdn_url || '';
   };
 
   const handleDownload = async (url, filename) => {
