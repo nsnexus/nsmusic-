@@ -151,19 +151,99 @@ function EntregaContent() {
     );
   }
 
+  // Estados do Checkout PIX para pedidos pendentes
+  const [pixInfo, setPixInfo] = useState({ qrCode: '', qrCodeBase64: '', paymentId: '' });
+  const [pixLoading, setPixLoading] = useState(false);
+  const [pixCopied, setPixCopied] = useState(false);
+  const [isPaidState, setIsPaidState] = useState(false);
+
   // Permite liberação se o pagamento consta como aprovado ou se veio o parâmetro de sucesso do checkout
-  const isPaid = order.paymentStatus === 'PAGAMENTO_APROVADO' || order.paymentStatus === 'PAGO' || searchParams.get('status') === 'success' || searchParams.get('status') === 'approved';
+  const isPaid = isPaidState || order?.paymentStatus === 'PAGAMENTO_APROVADO' || order?.paymentStatus === 'PAGO' || searchParams.get('status') === 'success' || searchParams.get('status') === 'approved';
+
+  // Gera o PIX automaticamente se o pedido não estiver pago
+  useEffect(() => {
+    if (order && !isPaid && !pixInfo.qrCode && !pixLoading) {
+      handleGeneratePix();
+    }
+  }, [order, isPaid]);
+
+  // Polling em tempo real para confirmação de pagamento PIX
+  useEffect(() => {
+    if (!orderId || isPaid) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const paymentIdQuery = pixInfo.paymentId ? `&paymentId=${pixInfo.paymentId}` : '';
+        const res = await fetch(`/api/payments/status?orderId=${orderId}${paymentIdQuery}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.status === 'approved' || data.status === 'PAGO' || data.status === 'PAGAMENTO_APROVADO') {
+            setIsPaidState(true);
+            clearInterval(interval);
+          }
+        }
+      } catch (e) {
+        console.warn("Erro ao checar status do PIX na entrega:", e);
+      }
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [orderId, isPaid, pixInfo.paymentId]);
+
+  const handleGeneratePix = async () => {
+    if (!order) return;
+    setPixLoading(true);
+    try {
+      const res = await fetch('/api/payments/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          formData: {
+            customerName: order.customerName || 'Cliente',
+            customerPhone: order.customerPhone || '',
+            customerEmail: order.customerEmail || '',
+            honoreeName: order.honoreeName || ''
+          },
+          totalAmount: 19.90,
+          paymentType: 'pix',
+          orderId
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setPixInfo({
+          qrCode: data.qrCode || '',
+          qrCodeBase64: data.qrCodeBase64 || '',
+          paymentId: data.paymentId || ''
+        });
+      }
+    } catch (err) {
+      console.error("Erro gerando PIX na entrega:", err);
+    } finally {
+      setPixLoading(false);
+    }
+  };
+
+  const handleAudioTimeUpdate = (e) => {
+    const audio = e.target;
+    if (!isPaid && audio.currentTime > 60) {
+      audio.pause();
+      audio.currentTime = 60;
+      alert("🔒 Prévia de 60 segundos finalizada! Efetue o pagamento de R$ 19,90 abaixo para liberar as versões completas e os downloads em MP3 HD.");
+    }
+  };
 
   // Get active audio track URLs
-  const primaryAudioUrl = order.audioUrl || (order.audioFiles && order.audioFiles[0]) || '';
-  const secondAudioUrl = order.audioFiles && order.audioFiles[1] ? order.audioFiles[1] : '';
+  const primaryAudioUrl = order?.audioUrl || (order?.audioFiles && order.audioFiles[0]) || '';
+  const secondAudioUrl = order?.audioFiles && order.audioFiles[1] ? order.audioFiles[1] : '';
 
   // Get QR Code pointing to the public shareable page
   const sharePageUrl = typeof window !== 'undefined' ? `${window.location.origin}/homenagem?orderId=${orderId}` : '';
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(sharePageUrl)}`;
 
   // Default beautiful dynamic cover
-  const coverUrl = order.coverUrl || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=600&auto=format&fit=crop';
+  const coverUrl = order?.coverUrl || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=600&auto=format&fit=crop';
 
   return (
     <div style={styles.wrapper}>
@@ -181,7 +261,7 @@ function EntregaContent() {
               backgroundColor: isPaid ? 'rgba(16, 185, 129, 0.05)' : 'rgba(245, 158, 11, 0.05)'
             }}
           >
-            {isPaid ? '✨ Entrega Liberada' : '⏳ Aguardando Pagamento'}
+            {isPaid ? '✨ Entrega Liberada' : '⏳ Aguardando Pagamento (R$ 19,90)'}
           </span>
         </div>
       </header>
@@ -199,85 +279,161 @@ function EntregaContent() {
                   <img src={coverUrl} alt="Capa da música" style={styles.coverImg} />
                   <div style={styles.coverOverlay}>
                     <h2 style={{ fontFamily: 'var(--font-family-title)', fontSize: '1.4rem' }}>
-                      Melodia para {order.honoreeName}
+                      Melodia para {order?.honoreeName}
                     </h2>
-                    <p style={{ fontSize: '0.85rem', opacity: 0.8 }}>Uma homenagem de {order.customerName}</p>
+                    <p style={{ fontSize: '0.85rem', opacity: 0.8 }}>Uma homenagem de {order?.customerName}</p>
                   </div>
                 </div>
 
+                {/* Audio Player 1 (Prévia de 60s se pendente, Completo se pago) */}
+                {primaryAudioUrl && (
+                  <div style={styles.audioPlayerContainer} className="glass-card">
+                    <h4 style={{ fontSize: '0.95rem', marginBottom: '8px', fontWeight: '700', color: 'var(--primary)' }}>
+                      {isPaid ? '🎧 Versão Principal (Versão 1)' : '🎧 Prévia (Versão 1 — 60 segundos)'}
+                    </h4>
+                    {!isPaid && (
+                      <p style={{ fontSize: '0.78rem', color: 'var(--warning)', marginBottom: '8px', fontWeight: '600' }}>
+                        🔒 Modo Degustação: Áudio limitado aos primeiros 60 segundos.
+                      </p>
+                    )}
+                    <audio controls onTimeUpdate={handleAudioTimeUpdate} style={styles.audioTag} src={primaryAudioUrl}>
+                      Seu navegador não suporta.
+                    </audio>
+
+                    {isPaid && (
+                      <div style={{ ...styles.downloadGrid, marginTop: '16px' }}>
+                        <button 
+                          onClick={() => handleDownload(primaryAudioUrl, `Musica_V1_${order?.honoreeName || 'Homenagem'}.mp3`)} 
+                          className="btn btn-primary" 
+                          style={{ ...styles.downloadBtn, border: 'none', cursor: 'pointer' }}
+                        >
+                          ⬇ Baixar MP3 (V1)
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Audio Player 2 */}
+                {secondAudioUrl && (
+                  <div style={styles.audioPlayerContainer} className="glass-card">
+                    <h4 style={{ fontSize: '0.95rem', marginBottom: '8px', fontWeight: '700', color: 'var(--secondary)' }}>
+                      {isPaid ? '🎧 Versão Alternativa (Versão 2 Bônus)' : '🎧 Prévia (Versão 2 — 60 segundos Bônus)'}
+                    </h4>
+                    {!isPaid && (
+                      <p style={{ fontSize: '0.78rem', color: 'var(--warning)', marginBottom: '8px', fontWeight: '600' }}>
+                        🔒 Modo Degustação: Áudio limitado aos primeiros 60 segundos.
+                      </p>
+                    )}
+                    <audio controls onTimeUpdate={handleAudioTimeUpdate} style={styles.audioTag} src={secondAudioUrl}>
+                      Seu navegador não suporta.
+                    </audio>
+
+                    {isPaid && (
+                      <div style={{ ...styles.downloadGrid, marginTop: '16px' }}>
+                        <button 
+                          onClick={() => handleDownload(secondAudioUrl, `Musica_V2_${order?.honoreeName || 'Homenagem'}.mp3`)} 
+                          className="btn btn-secondary" 
+                          style={{ ...styles.downloadBtn, border: 'none', cursor: 'pointer' }}
+                        >
+                          ⬇ Baixar MP3 (V2 Bônus)
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* SE PAGO: QR Code section */}
                 {isPaid ? (
-                  <>
-                    {/* Audio Player 1 */}
-                    {primaryAudioUrl && (
-                      <div style={styles.audioPlayerContainer} className="glass-card">
-                        <h4 style={{ fontSize: '0.95rem', marginBottom: '12px', fontWeight: '700', color: 'var(--primary)' }}>
-                          🎧 Versão Principal (Versão 1)
-                        </h4>
-                        <audio controls style={styles.audioTag} src={primaryAudioUrl}>
-                          Seu navegador não suporta.
-                        </audio>
-                        <div style={{ ...styles.downloadGrid, marginTop: '16px' }}>
-                          <button 
-                            onClick={() => handleDownload(primaryAudioUrl, `Musica_V1_${order.honoreeName || 'Homenagem'}.mp3`)} 
-                            className="btn btn-primary" 
-                            style={{ ...styles.downloadBtn, border: 'none', cursor: 'pointer' }}
-                          >
-                            ⬇ Baixar MP3 (V1)
-                          </button>
-                        </div>
+                  <div style={styles.qrCard} className="glass-card">
+                    <div style={{ flex: 1 }}>
+                      <h4 style={{ fontSize: '1rem', marginBottom: '8px', fontFamily: 'var(--font-family-title)' }}>Compartilhar Homenagem 🎁</h4>
+                      <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
+                        Envie o link exclusivo ou salve o QR Code para compartilhar essa linda homenagem diretamente com quem você ama!
+                      </p>
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '16px' }}>
+                        <button onClick={handleCopyLink} className="btn btn-primary" style={{ padding: '8px 14px', fontSize: '0.8rem', border: 'none', cursor: 'pointer' }}>
+                          {copied ? '✅ Link Copiado!' : '🔗 Copiar Link'}
+                        </button>
+                        <a href={sharePageUrl} target="_blank" rel="noopener noreferrer" className="btn btn-secondary" style={{ padding: '8px 14px', fontSize: '0.8rem', textDecoration: 'none', textAlign: 'center' }}>
+                          👁 Visualizar Página
+                        </a>
+                        <a href={qrCodeUrl} download={`qrcode-${order?.orderNumber}.png`} className="btn btn-secondary" style={{ padding: '8px 14px', fontSize: '0.8rem', textDecoration: 'none', textAlign: 'center' }}>
+                          💾 Salvar QR Code
+                        </a>
                       </div>
-                    )}
-
-                    {/* Audio Player 2 (Incluso sempre que gerado no pedido) */}
-                    {secondAudioUrl && (
-                      <div style={styles.audioPlayerContainer} className="glass-card">
-                        <h4 style={{ fontSize: '0.95rem', marginBottom: '12px', fontWeight: '700', color: 'var(--secondary)' }}>
-                          🎧 Versão Alternativa (Versão 2 Bônus)
-                        </h4>
-                        <audio controls style={styles.audioTag} src={secondAudioUrl}>
-                          Seu navegador não suporta.
-                        </audio>
-                        <div style={{ ...styles.downloadGrid, marginTop: '16px' }}>
-                          <button 
-                            onClick={() => handleDownload(secondAudioUrl, `Musica_V2_${order.honoreeName || 'Homenagem'}.mp3`)} 
-                            className="btn btn-secondary" 
-                            style={{ ...styles.downloadBtn, border: 'none', cursor: 'pointer' }}
-                          >
-                            ⬇ Baixar MP3 (V2 Bônus)
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* QR Code section */}
-                    <div style={styles.qrCard} className="glass-card">
-                      <div style={{ flex: 1 }}>
-                        <h4 style={{ fontSize: '1rem', marginBottom: '8px', fontFamily: 'var(--font-family-title)' }}>Compartilhar Homenagem 🎁</h4>
-                        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
-                          Envie o link exclusivo ou salve o QR Code para compartilhar essa linda homenagem diretamente com quem você ama!
-                        </p>
-                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '16px' }}>
-                          <button onClick={handleCopyLink} className="btn btn-primary" style={{ padding: '8px 14px', fontSize: '0.8rem', border: 'none', cursor: 'pointer' }}>
-                            {copied ? '✅ Link Copiado!' : '🔗 Copiar Link'}
-                          </button>
-                          <a href={sharePageUrl} target="_blank" rel="noopener noreferrer" className="btn btn-secondary" style={{ padding: '8px 14px', fontSize: '0.8rem', textDecoration: 'none', textAlign: 'center' }}>
-                            👁 Visualizar Página
-                          </a>
-                          <a href={qrCodeUrl} download={`qrcode-${order.orderNumber}.png`} className="btn btn-secondary" style={{ padding: '8px 14px', fontSize: '0.8rem', textDecoration: 'none', textAlign: 'center' }}>
-                            💾 Salvar QR Code
-                          </a>
-                        </div>
-                      </div>
-                      <img src={qrCodeUrl} alt="QR Code" style={styles.qrImg} />
                     </div>
-                  </>
+                    <img src={qrCodeUrl} alt="QR Code" style={styles.qrImg} />
+                  </div>
                 ) : (
-                  <div style={styles.blockedCard} className="glass-card">
-                    <span style={{ fontSize: '2.5rem' }}>🔒</span>
-                    <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', marginTop: '12px' }}>Downloads Bloqueados</h3>
-                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', textAlign: 'center', marginTop: '8px', lineHeight: '1.5' }}>
-                      O pagamento para este pedido ainda não foi confirmado pelo Mercado Pago. As músicas completas e downloads serão liberados de forma automática imediatamente após a aprovação!
-                    </p>
+                  /* SE PENDENTE: Bloco de Pagamento PIX Instantâneo */
+                  <div className="glass-card" style={{ padding: '24px', borderRadius: '16px', background: 'linear-gradient(135deg, rgba(5, 150, 105, 0.08) 0%, rgba(16, 185, 129, 0.12) 100%)', border: '1.5px solid rgba(16, 185, 129, 0.3)' }}>
+                    <div style={{ textAlign: 'center', marginBottom: '16px' }}>
+                      <span style={{ fontSize: '2rem' }}>⚡</span>
+                      <h3 style={{ fontSize: '1.25rem', fontWeight: '800', marginTop: '6px', color: 'var(--text-primary)' }}>
+                        Liberar Músicas Completas em MP3 HD
+                      </h3>
+                      <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                        Pague apenas <strong style={{ color: 'var(--success)', fontSize: '1.1rem' }}>R$ 19,90</strong> para liberar o download das 2 versões completas sem corte e a página especial de presente!
+                      </p>
+                    </div>
+
+                    {pixLoading ? (
+                      <div style={{ textAlign: 'center', padding: '20px' }}>
+                        <div style={styles.spinner} />
+                        <p style={{ fontSize: '0.85rem', marginTop: '10px', color: 'var(--text-muted)' }}>Gerando PIX com aprovação instantânea...</p>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', alignItems: 'center' }}>
+                        {pixInfo.qrCodeBase64 && (
+                          <img 
+                            src={`data:image/jpeg;base64,${pixInfo.qrCodeBase64}`} 
+                            alt="QR Code PIX" 
+                            style={{ width: '180px', height: '180px', borderRadius: '12px', border: '2px solid var(--border-color)', backgroundColor: '#FFFFFF', padding: '8px' }}
+                          />
+                        )}
+
+                        {pixInfo.qrCode ? (
+                          <div style={{ width: '100%' }}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(pixInfo.qrCode);
+                                setPixCopied(true);
+                                setTimeout(() => setPixCopied(false), 3000);
+                              }}
+                              style={{
+                                width: '100%',
+                                padding: '14px',
+                                borderRadius: '10px',
+                                border: 'none',
+                                background: pixCopied ? 'var(--success)' : 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                                color: '#FFFFFF',
+                                fontWeight: 'bold',
+                                fontSize: '1rem',
+                                cursor: 'pointer',
+                                boxShadow: '0 4px 14px rgba(5, 150, 105, 0.3)'
+                              }}
+                            >
+                              {pixCopied ? '✅ Código PIX Copiado!' : '📋 Copiar Código PIX'}
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={handleGeneratePix}
+                            className="btn btn-primary"
+                            style={{ width: '100%', padding: '14px', fontSize: '1rem' }}
+                          >
+                            💚 Gerar PIX (R$ 19,90)
+                          </button>
+                        )}
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', color: 'var(--warning)', marginTop: '4px' }}>
+                          <span>🔄 Aguardando confirmação do pagamento em tempo real...</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
