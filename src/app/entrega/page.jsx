@@ -148,6 +148,25 @@ function EntregaContent() {
     }
   };
 
+  if (loading) {
+    return (
+      <div style={styles.wrapper} className="flex-center">
+        <div style={styles.spinner} />
+        <p style={{ marginTop: '20px', color: 'var(--text-secondary)' }}>Carregando sua página de entrega...</p>
+      </div>
+    );
+  }
+
+  if (!order) {
+    return (
+      <div style={{ ...styles.wrapper, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '80vh', gap: '16px', textAlign: 'center' }}>
+        <h2 style={{ fontSize: '1.8rem', color: 'var(--text-primary)' }}>Pedido não encontrado 🔍</h2>
+        <p style={{ color: 'var(--text-secondary)' }}>Verifique o link ou entre em contato com o suporte do estúdio.</p>
+        <Link href="/" className="btn btn-primary">Voltar ao início</Link>
+      </div>
+    );
+  }
+
   // Get active audio track URLs
   const primaryAudioUrl = order?.audioUrl || (order?.audioFiles && order.audioFiles[0]) || '';
   const secondAudioUrl = order?.audioFiles && order.audioFiles[1] ? order.audioFiles[1] : '';
