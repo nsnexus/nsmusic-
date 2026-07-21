@@ -29,7 +29,8 @@ export async function POST(req) {
     if (orderData.customerPhone) {
       const name = orderData.customerName || 'Cliente';
       const honoree = orderData.honoreeName || 'alguém especial';
-      const deliveryUrl = `https://nsmusic.vercel.app/entrega?orderId=${orderId}`;
+      const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://nsmusic.nsnexus.com.br';
+      const deliveryUrl = `${baseUrl}/entrega?orderId=${orderId}`;
       
       const messageText = `Olá, ${name}! 🎵\n\nSua música personalizada para *${honoree}* ficou pronta com sucesso no estúdio NSMusic!\n\nForam produzidas 2 versões completas em altíssima qualidade.\n\nAcesse o link abaixo para ouvir e fazer o download dos seus áudios em MP3 HD:\n👉 ${deliveryUrl}\n\nQualquer dúvida, estamos à disposição! ❤️`;
 
