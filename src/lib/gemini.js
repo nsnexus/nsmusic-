@@ -1,51 +1,25 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 /**
- * Executes a prompt using Gemini with fallback capabilities.
- * It will try each configured key in sequence until one succeeds.
+ * Executes a prompt using OpenAI (ChatGPT gpt-4o-mini) as PRIMARY engine, 
+ * with automatic failover to Gemini and fallback models.
  * 
- * @param {string} prompt The text prompt to send to Gemini
- * @param {string} modelName The model to use (default: 'gemini-3.5-flash')
+ * @param {string} prompt The text prompt to send to AI
  * @returns {Promise<string>} The generated text
  */
-export async function runGeminiWithFailover(prompt, modelName = 'gemini-3.5-flash') {
-  const keysString = process.env.GEMINI_API_KEYS || process.env.GEMINI_API_KEY || '';
-  const keys = keysString.split(',').map(k => k.trim()).filter(Boolean);
-
-  if (keys.length === 0) {
-    throw new Error('Nenhuma chave API do Gemini configurada.');
-  }
-
+export async function runGeminiWithFailover(prompt) {
   let lastError = null;
-  for (let i = 0; i < keys.length; i++) {
-    const key = keys[i];
-    try {
-      const genAI = new GoogleGenerativeAI(key);
-      const model = genAI.getGenerativeModel({ model: modelName });
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const text = response.text();
-      
-      if (text) {
-        console.log(`Sucesso na geração utilizando a chave Gemini index ${i}`);
-        return text;
-      }
-    } catch (err) {
-      console.warn(`Aviso: Falha na chave Gemini index ${i}. Erro:`, err.message || err);
-      lastError = err;
-    }
-  }
 
-  // Fallback to OpenAI (gpt-4o-mini) if configured and Gemini fails
+  // 1. PRIMÁRIO: Tenta a API da OpenAI (ChatGPT gpt-4o-mini) primeiro se configurada
   const openAiKey = process.env.OPENAI_API_KEY;
-  if (openAiKey) {
+  if (openAiKey && openAiKey.trim().length > 0) {
     try {
-      console.log("Tentando fallback para OpenAI (gpt-4o-mini)...");
+      console.log("Iniciando composição via OpenAI ChatGPT (gpt-4o-mini)...");
       const openAiRes = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${openAiKey}`
+          "Authorization": `Bearer ${openAiKey.trim()}`
         },
         body: JSON.stringify({
           model: "gpt-4o-mini",
@@ -61,17 +35,48 @@ export async function runGeminiWithFailover(prompt, modelName = 'gemini-3.5-flas
         const data = await openAiRes.json();
         const lyrics = data.choices[0]?.message?.content?.trim();
         if (lyrics) {
-          console.log("Sucesso na geração utilizando a OpenAI (gpt-4o-mini)!");
+          console.log("Sucesso na geração utilizando OpenAI ChatGPT!");
           return lyrics;
         }
       } else {
         const errText = await openAiRes.text();
-        console.warn("Aviso: OpenAI fallback falhou:", errText);
+        console.warn("Aviso: Chamada OpenAI retornou status de erro:", errText);
+        lastError = new Error(`OpenAI error: ${errText}`);
       }
     } catch (openAiErr) {
-      console.error("Erro no fallback da OpenAI:", openAiErr);
+      console.warn("Aviso: Exceção ao conectar à OpenAI:", openAiErr.message || openAiErr);
+      lastError = openAiErr;
     }
   }
 
-  throw new Error(`Falha crítica: Todas as chaves API do Gemini falharam e o fallback da OpenAI não funcionou. Último erro: ${lastError ? lastError.message : 'Desconhecido'}`);
+  // 2. SECUNDÁRIO (FALLBACK): Tenta o Google Gemini com rotação de chaves e modelos válidos
+  const keysString = process.env.GEMINI_API_KEYS || process.env.GEMINI_API_KEY || '';
+  const keys = keysString.split(',').map(k => k.trim()).filter(Boolean);
+
+  if (keys.length > 0) {
+    const validModels = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-flash-latest'];
+
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i];
+      for (const modelName of validModels) {
+        try {
+          const genAI = new GoogleGenerativeAI(key);
+          const model = genAI.getGenerativeModel({ model: modelName });
+          const result = await model.generateContent(prompt);
+          const response = await result.response;
+          const text = response.text();
+          
+          if (text) {
+            console.log(`Sucesso na geração utilizando a chave Gemini index ${i} e modelo ${modelName}`);
+            return text;
+          }
+        } catch (err) {
+          console.warn(`Aviso: Falha na chave Gemini index ${i} (modelo ${modelName}):`, err.message || err);
+          lastError = err;
+        }
+      }
+    }
+  }
+
+  throw new Error(`Falha nos serviços de composição. Último erro: ${lastError ? lastError.message : 'Verifique suas chaves de API da OpenAI ou Gemini'}`);
 }

@@ -894,11 +894,13 @@ export default function CriarMusica() {
         console.warn("Aviso: Falha de permissão no Firestore ao criar pedido inicial:", firestoreErr);
       }
 
-      // Call lyrics generation via Gemini API
+      // Call lyrics generation with lightweight text payload (stripping Base64 coverUrl to prevent Safari Load failed errors)
+      const { coverUrl, ...lightweightFormData } = formData;
+
       const response = await fetch('/api/lyrics/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(lightweightFormData)
       });
 
       if (response.ok) {
