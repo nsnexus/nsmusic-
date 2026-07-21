@@ -3,6 +3,8 @@ import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { sendWhatsAppMessage } from '@/lib/whatsapp';
 
+export const runtime = 'edge';
+
 export async function POST(req) {
   try {
     const { orderId } = await req.json();
