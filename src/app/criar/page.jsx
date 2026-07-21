@@ -531,15 +531,22 @@ export default function CriarMusica() {
     { id: 'MPB / Bossa Nova', label: 'MPB / Bossa Nova', icon: '☕', desc: 'Estilo clássico e intimista' },
     { id: 'Gospel / Adoração', label: 'Gospel / Adoração', icon: '⛪', desc: 'Mensagem de fé e inspiração' },
     { id: 'Samba / Pagode', label: 'Samba / Pagode', icon: '🥁', desc: 'Descontraído e alegre' },
-    { id: 'Folk Acústico', label: 'Folk Acústico', icon: '🪵', desc: 'Voz e violão aconchegante' }
+    { id: 'Folk Acústico', label: 'Folk Acústico', icon: '🪵', desc: 'Voz e violão aconchegante' },
+    { id: 'Forró / Baião', label: 'Forró / Baião', icon: '🪗', desc: 'Ritmo nordestino alegre e envolvente' },
+    { id: 'Trap / Rap', label: 'Trap / Rap', icon: '🎙️', desc: 'Batidas urbanas modernas' },
+    { id: 'Reggae', label: 'Reggae', icon: '🌴', desc: 'Vibe positiva e relaxada' },
+    { id: 'Lo-Fi Chill', label: 'Lo-Fi Chill', icon: '🎧', desc: 'Melodias suaves e tranquilas' }
   ];
 
   const moods = [
-    { id: 'Alegre', label: 'Alegre', icon: '☀️' },
-    { id: 'Emocionante', label: 'Emocionante', icon: '🥺' },
-    { id: 'Energética', label: 'Energética', icon: '🔥' },
-    { id: 'Calma', label: 'Calma', icon: '🍃' },
-    { id: 'Nostálgica', label: 'Nostálgica', icon: '🍂' },
+    { id: 'Alegre', label: 'Alegre', icon: '☀️', desc: 'Ritmo contagioso e alto astral' },
+    { id: 'Emocionante', label: 'Emocionante', icon: '🥺', desc: 'Para tocar o coração e fazer chorar' },
+    { id: 'Energética', label: 'Energética', icon: '🔥', desc: 'Vibe vibrante e cheia de ritmo' },
+    { id: 'Calma', label: 'Calma', icon: '🍃', desc: 'Suave, relaxante e acolhedora' },
+    { id: 'Nostálgica', label: 'Nostálgica', icon: '🍂', desc: 'Recordações marcantes e saudades' },
+    { id: 'Romântica', label: 'Romântica', icon: '💖', desc: 'Declaração amorosa e carinhosa' },
+    { id: 'Festiva', label: 'Festiva', icon: '🎉', desc: 'Clima de celebração e festa' },
+    { id: 'Inspiradora', label: 'Inspiradora', icon: '✨', desc: 'Mensagem de superação e motivação' }
   ];
 
   // Gerenciamento de Tema Claro / Escuro
@@ -1140,7 +1147,7 @@ export default function CriarMusica() {
             
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '30px', marginTop: '20px' }}>
               <div>
-                <h3 style={{ fontSize: '1.1rem', color: 'var(--secondary)', marginBottom: '16px', textAlign: 'center' }}>🧔 Eu sou o...</h3>
+                <h3 style={{ fontSize: '1.1rem', color: 'var(--primary)', marginBottom: '16px', textAlign: 'center', fontWeight: '800' }}>🧔 Eu sou o...</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   {relationshipsEuSouO.map((item) => (
                     <button
@@ -1148,8 +1155,10 @@ export default function CriarMusica() {
                       onClick={() => selectFieldAndAdvance('relationship', item.id)}
                       style={{
                         ...styles.wizardListBtn,
-                        borderColor: formData.relationship === item.id ? 'var(--primary)' : 'rgba(255,255,255,0.08)',
-                        backgroundColor: formData.relationship === item.id ? 'rgba(124, 58, 237, 0.08)' : 'rgba(255,255,255,0.02)',
+                        borderColor: formData.relationship === item.id ? 'var(--primary)' : 'var(--border-color)',
+                        backgroundColor: formData.relationship === item.id ? 'rgba(124, 58, 237, 0.08)' : '#FFFFFF',
+                        color: formData.relationship === item.id ? 'var(--primary)' : 'var(--text-primary)',
+                        boxShadow: formData.relationship === item.id ? '0 4px 14px rgba(124, 58, 237, 0.15)' : '0 2px 6px rgba(0,0,0,0.02)',
                       }}
                     >
                       {item.label}
@@ -1159,7 +1168,7 @@ export default function CriarMusica() {
               </div>
 
               <div>
-                <h3 style={{ fontSize: '1.1rem', color: 'var(--accent)', marginBottom: '16px', textAlign: 'center' }}>👩 Eu sou a...</h3>
+                <h3 style={{ fontSize: '1.1rem', color: 'var(--secondary)', marginBottom: '16px', textAlign: 'center', fontWeight: '800' }}>👩 Eu sou a...</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   {relationshipsEuSouA.map((item) => (
                     <button
@@ -1167,8 +1176,10 @@ export default function CriarMusica() {
                       onClick={() => selectFieldAndAdvance('relationship', item.id)}
                       style={{
                         ...styles.wizardListBtn,
-                        borderColor: formData.relationship === item.id ? 'var(--primary)' : 'rgba(255,255,255,0.08)',
-                        backgroundColor: formData.relationship === item.id ? 'rgba(124, 58, 237, 0.08)' : 'rgba(255,255,255,0.02)',
+                        borderColor: formData.relationship === item.id ? 'var(--secondary)' : 'var(--border-color)',
+                        backgroundColor: formData.relationship === item.id ? 'rgba(236, 72, 153, 0.08)' : '#FFFFFF',
+                        color: formData.relationship === item.id ? 'var(--secondary)' : 'var(--text-primary)',
+                        boxShadow: formData.relationship === item.id ? '0 4px 14px rgba(236, 72, 153, 0.15)' : '0 2px 6px rgba(0,0,0,0.02)',
                       }}
                     >
                       {item.label}
@@ -1184,8 +1195,9 @@ export default function CriarMusica() {
                 style={{
                   ...styles.wizardListBtn,
                   width: '180px',
-                  borderColor: formData.relationship === 'Outro' ? 'var(--primary)' : 'rgba(255,255,255,0.08)',
-                  backgroundColor: formData.relationship === 'Outro' ? 'rgba(124, 58, 237, 0.08)' : 'rgba(255,255,255,0.02)',
+                  borderColor: formData.relationship === 'Outro' ? 'var(--primary)' : 'var(--border-color)',
+                  backgroundColor: formData.relationship === 'Outro' ? 'rgba(124, 58, 237, 0.08)' : '#FFFFFF',
+                  color: formData.relationship === 'Outro' ? 'var(--primary)' : 'var(--text-primary)',
                 }}
               >
                 Outro
@@ -1333,20 +1345,26 @@ export default function CriarMusica() {
           <div>
             <h1 style={styles.stepTitle}>Clima da música</h1>
             <p style={styles.stepSubtitle}>Qual o clima que a música deve transmitir?</p>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', justifyContent: 'center', marginTop: '30px' }}>
+            <div style={styles.gridCards2}>
               {moods.map((item) => (
-                <button
+                <div 
                   key={item.id}
                   onClick={() => selectFieldAndAdvance('musicMood', item.id)}
                   style={{
-                    ...styles.wizardPillBtn,
+                    ...styles.wizardCardLarge,
                     borderColor: formData.musicMood === item.id ? 'var(--primary)' : 'rgba(255,255,255,0.08)',
-                    backgroundColor: formData.musicMood === item.id ? 'rgba(124, 58, 237, 0.1)' : 'rgba(255,255,255,0.02)',
-                    color: formData.musicMood === item.id ? '#fff' : 'var(--text-secondary)'
+                    backgroundColor: formData.musicMood === item.id ? 'rgba(124, 58, 237, 0.08)' : 'rgba(255,255,255,0.02)',
                   }}
                 >
-                  {item.icon} {item.label}
-                </button>
+                  {formData.musicMood === item.id && <div style={styles.checkCircle}>✓</div>}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                    <span style={{ fontSize: '2.2rem' }}>{item.icon}</span>
+                    <div style={{ textAlign: 'left' }}>
+                      <h4 style={{ fontSize: '1.05rem', fontWeight: '700' }}>{item.label}</h4>
+                      <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{item.desc}</p>
+                    </div>
+                  </div>
+                </div>
               ))}
             </div>
           </div>
@@ -1387,8 +1405,10 @@ export default function CriarMusica() {
                   onClick={() => updateField('voiceType', 'masculina')}
                   style={{
                     ...styles.voiceBtn,
-                    background: formData.voiceType === 'masculina' ? 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)' : 'rgba(255,255,255,0.02)',
-                    border: formData.voiceType === 'masculina' ? 'none' : '1px solid rgba(255,255,255,0.08)'
+                    borderColor: formData.voiceType === 'masculina' ? 'var(--primary)' : 'var(--border-color)',
+                    backgroundColor: formData.voiceType === 'masculina' ? 'rgba(124, 58, 237, 0.08)' : '#FFFFFF',
+                    color: formData.voiceType === 'masculina' ? 'var(--primary)' : 'var(--text-primary)',
+                    boxShadow: formData.voiceType === 'masculina' ? '0 4px 14px rgba(124, 58, 237, 0.15)' : '0 2px 6px rgba(0,0,0,0.02)',
                   }}
                 >
                   🎤 Masculina
@@ -1398,8 +1418,10 @@ export default function CriarMusica() {
                   onClick={() => updateField('voiceType', 'feminina')}
                   style={{
                     ...styles.voiceBtn,
-                    background: formData.voiceType === 'feminina' ? 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)' : 'rgba(255,255,255,0.02)',
-                    border: formData.voiceType === 'feminina' ? 'none' : '1px solid rgba(255,255,255,0.08)'
+                    borderColor: formData.voiceType === 'feminina' ? 'var(--primary)' : 'var(--border-color)',
+                    backgroundColor: formData.voiceType === 'feminina' ? 'rgba(124, 58, 237, 0.08)' : '#FFFFFF',
+                    color: formData.voiceType === 'feminina' ? 'var(--primary)' : 'var(--text-primary)',
+                    boxShadow: formData.voiceType === 'feminina' ? '0 4px 14px rgba(124, 58, 237, 0.15)' : '0 2px 6px rgba(0,0,0,0.02)',
                   }}
                 >
                   🎤 Feminina
@@ -1409,11 +1431,13 @@ export default function CriarMusica() {
                   onClick={() => updateField('voiceType', 'dueto')}
                   style={{
                     ...styles.voiceBtn,
-                    background: formData.voiceType === 'dueto' ? 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)' : 'rgba(255,255,255,0.02)',
-                    border: formData.voiceType === 'dueto' ? 'none' : '1px solid rgba(255,255,255,0.08)'
+                    borderColor: formData.voiceType === 'dueto' ? 'var(--primary)' : 'var(--border-color)',
+                    backgroundColor: formData.voiceType === 'dueto' ? 'rgba(124, 58, 237, 0.08)' : '#FFFFFF',
+                    color: formData.voiceType === 'dueto' ? 'var(--primary)' : 'var(--text-primary)',
+                    boxShadow: formData.voiceType === 'dueto' ? '0 4px 14px rgba(124, 58, 237, 0.15)' : '0 2px 6px rgba(0,0,0,0.02)',
                   }}
                 >
-                  👩‍🎤 Dueto (Masc. + Fem.)
+                  👥 Dueto
                 </button>
               </div>
             </div>
