@@ -25,12 +25,17 @@ function EntregaContent() {
   const [accountError, setAccountError] = useState('');
   const [isCreatingAccount, setIsCreatingAccount] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   // Estados do Checkout PIX para pedidos pendentes
   const [pixInfo, setPixInfo] = useState({ qrCode: '', qrCodeBase64: '', paymentId: '' });
   const [pixLoading, setPixLoading] = useState(false);
   const [pixCopied, setPixCopied] = useState(false);
   const [isPaidState, setIsPaidState] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Permite liberação se o pagamento consta como aprovado ou se veio o parâmetro de sucesso do checkout
   const isPaid = isPaidState || order?.paymentStatus === 'PAGAMENTO_APROVADO' || order?.paymentStatus === 'PAGO' || searchParams.get('status') === 'success' || searchParams.get('status') === 'approved';
@@ -73,6 +78,74 @@ function EntregaContent() {
     };
     fetchOrder();
   }, [orderId]);
+
+  const handleCreateAccount = async (e) => {
+    e.preventDefault();
+    if (!order || !order.customerEmail) return;
+    if (accountPassword.length < 6) {
+      setAccountError("A senha deve ter pelo menos 6 caracteres.");
+      return;
+    }
+    setIsCreatingAccount(true);
+    setAccountError('');
+    try {
+      const userCred = await createUserWithEmailAndPassword(auth, accountEmail, accountPassword);
+      const user = userCred.user;
+      
+      // Vincula a ordem ao ID do novo usuário no Firestore e atualiza e-mail
+      if (orderId) {
+        await updateDoc(doc(db, 'orders', orderId), {
+          userId: user.uid,
+          customerEmail: accountEmail,
+          updatedAt: new Date().toISOString()
+        }).catch(e => console.warn(e));
+      }
+      setAccountCreated(true);
+    } catch (err) {
+      console.error(err);
+      if (err.code === 'auth/email-already-in-use') {
+        setAccountError("Este e-mail já possui uma conta. Faça login no topo para acessar!");
+      } else {
+        setAccountError(err.message || "Erro ao criar conta. Tente novamente.");
+      }
+    } finally {
+      setIsCreatingAccount(false);
+    }
+  };
+
+  const handleReviewSubmit = (e) => {
+    e.preventDefault();
+    if (rating === 0) return;
+    setReviewSubmitted(true);
+  };
+
+  const handleDownload = async (url, filename) => {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error("Network error fetching audio file");
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.warn("Erro ao fazer download via fetch, abrindo nova aba:", err);
+      window.open(url, '_blank');
+    }
+  };
+
+  const handleCopyLink = () => {
+    if (typeof window !== 'undefined' && orderId) {
+      const sharePageUrl = `${window.location.origin}/homenagem?orderId=${orderId}`;
+      navigator.clipboard.writeText(sharePageUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 3000);
+    }
+  };
 
   const handleGeneratePix = async () => {
     if (!order) return;
@@ -171,9 +244,9 @@ function EntregaContent() {
   const primaryAudioUrl = order?.audioUrl || (order?.audioFiles && order.audioFiles[0]) || '';
   const secondAudioUrl = order?.audioFiles && order.audioFiles[1] ? order.audioFiles[1] : '';
 
-  // Get QR Code pointing to the public shareable page
-  const sharePageUrl = typeof window !== 'undefined' ? `${window.location.origin}/homenagem?orderId=${orderId}` : '';
-  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(sharePageUrl)}`;
+  // Safe client-side URLs
+  const sharePageUrl = mounted && typeof window !== 'undefined' ? `${window.location.origin}/homenagem?orderId=${orderId}` : '';
+  const qrCodeUrl = sharePageUrl ? `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(sharePageUrl)}` : '';
 
   // Default beautiful dynamic cover
   const coverUrl = order?.coverUrl || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=600&auto=format&fit=crop';
@@ -427,7 +500,7 @@ function EntregaContent() {
                     </span>
                     <h3 style={{ fontSize: '1.3rem', fontWeight: '800', marginTop: '8px' }}>Crie sua senha para salvar suas músicas</h3>
                     <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                      Crie uma senha para acessar <strong>{order.customerEmail}</strong> e veja todas as suas músicas no painel <strong>Minhas Músicas</strong> sempre que quiser!
+                      Crie uma senha para acessar <strong>{order?.customerEmail || 'sua conta'}</strong> e veja todas as suas músicas no painel <strong>Minhas Músicas</strong> sempre que quiser!
                     </p>
                   </div>
 
