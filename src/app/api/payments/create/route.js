@@ -144,7 +144,8 @@ export async function POST(req) {
 
         if (!pixResponse.ok) {
           const errText = await pixResponse.text();
-          throw new Error(`Erro na geração do Pix Mercado Pago: ${errText}`);
+          console.error("Erro Mercado Pago:", errText);
+          return NextResponse.json({ error: errText, message: "Mercado Pago API Error" }, { status: pixResponse.status });
         }
 
         const pixData = await pixResponse.json();

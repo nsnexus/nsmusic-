@@ -2096,7 +2096,9 @@ export default function CriarMusica() {
                                 window.fbq('track', 'InitiateCheckout', { value: 9.99, currency: 'BRL' });
                               }
                             } else {
-                              alert('Erro ao gerar código PIX. Tente novamente.');
+                              const errData = await res.json().catch(() => ({}));
+                              console.error("Payment API Error:", errData);
+                              alert(`Erro no pagamento: ${errData?.error || errData?.message || 'Tente novamente.'}`);
                             }
                           } catch (err) {
                             console.error(err);
