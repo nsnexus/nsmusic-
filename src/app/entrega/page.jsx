@@ -652,8 +652,29 @@ function EntregaContent() {
                             {pixCopied ? '✅ Código PIX Copiado!' : '📋 Copiar Código PIX (R$ 6,90)'}
                           </button>
                         )}
-                        <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '10px' }}>
-                          ⏳ Aguardando pagamento... A página atualizará automaticamente assim que for confirmado!
+                        <a
+                          href="https://wa.me/5594991081351?text=Olá,%20fiz%20o%20pagamento%20do%20meu%20vídeo!%20Segue%20o%20comprovante:"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            display: 'block',
+                            width: '100%',
+                            padding: '12px',
+                            borderRadius: '8px',
+                            background: '#25D366',
+                            color: '#FFF',
+                            fontWeight: 'bold',
+                            fontSize: '0.95rem',
+                            textAlign: 'center',
+                            textDecoration: 'none',
+                            marginTop: '8px',
+                            boxShadow: '0 4px 12px rgba(37, 211, 102, 0.3)'
+                          }}
+                        >
+                          💬 Enviar Comprovante no WhatsApp
+                        </a>
+                        <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '10px', textAlign: 'center' }}>
+                          Após o pagamento, envie o comprovante no WhatsApp para liberarmos o vídeo imediatamente!
                         </p>
                       </div>
                     ) : !hasVideoAccess && !order?.hasVideoAccess && !order?.videoUrl ? (
@@ -1024,9 +1045,30 @@ function EntregaContent() {
                           </button>
                         )}
 
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', color: 'var(--warning)', marginTop: '4px' }}>
-                          <span>🔄 Aguardando confirmação do pagamento em tempo real...</span>
-                        </div>
+                        <a
+                          href="https://wa.me/5594991081351?text=Olá,%20fiz%20o%20pagamento%20da%20minha%20música!%20Segue%20o%20comprovante:"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            display: 'block',
+                            width: '100%',
+                            padding: '12px',
+                            borderRadius: '8px',
+                            background: '#25D366',
+                            color: '#FFF',
+                            fontWeight: 'bold',
+                            fontSize: '0.95rem',
+                            textAlign: 'center',
+                            textDecoration: 'none',
+                            marginTop: '8px',
+                            boxShadow: '0 4px 12px rgba(37, 211, 102, 0.3)'
+                          }}
+                        >
+                          💬 Enviar Comprovante no WhatsApp
+                        </a>
+                        <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '10px', textAlign: 'center' }}>
+                          Após o pagamento, envie o comprovante no WhatsApp para liberarmos sua música imediatamente!
+                        </p>
                       </div>
                     )}
                   </div>

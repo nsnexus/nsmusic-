@@ -2229,14 +2229,30 @@ export default function CriarMusica() {
                           ⚡ Já Fiz o Pagamento / Validar Agora
                         </button>
 
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', fontSize: '0.85rem', color: 'var(--warning)', marginTop: '4px' }}>
-                          <span>🔄 Aguardando confirmação do pagamento em tempo real...</span>
-                          {pixPollingCount > 0 && (
-                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                              Verificação #{pixPollingCount} — checando a cada 4 segundos
-                            </span>
-                          )}
-                        </div>
+                        <a
+                          href="https://wa.me/5594991081351?text=Olá,%20fiz%20o%20pagamento%20da%20minha%20música!%20Segue%20o%20meu%20comprovante:"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            display: 'block',
+                            width: '100%',
+                            padding: '14px',
+                            borderRadius: '10px',
+                            background: '#25D366',
+                            color: '#FFF',
+                            fontWeight: 'bold',
+                            fontSize: '1rem',
+                            textAlign: 'center',
+                            textDecoration: 'none',
+                            marginTop: '8px',
+                            boxShadow: '0 4px 12px rgba(37, 211, 102, 0.3)'
+                          }}
+                        >
+                          💬 Enviar Comprovante no WhatsApp
+                        </a>
+                        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '10px', textAlign: 'center' }}>
+                          Após o pagamento, envie o comprovante no WhatsApp para liberarmos sua música imediatamente!
+                        </p>
                       </div>
                     )}
                   </div>

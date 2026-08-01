@@ -50,57 +50,16 @@ export async function GET(req) {
 
     const cleanPaymentId = String(paymentId || '').trim();
 
-    let pagbankToken = '';
-    let pagbankEnv = 'production';
     let mpAccessToken = '';
 
     try {
       const ctx = getRequestContext();
-      if (ctx?.env?.PAGBANK_TOKEN) pagbankToken = String(ctx.env.PAGBANK_TOKEN).trim();
-      if (ctx?.env?.PAGBANK_ENV) pagbankEnv = String(ctx.env.PAGBANK_ENV).trim();
       if (ctx?.env?.MERCADO_PAGO_ACCESS_TOKEN) mpAccessToken = String(ctx.env.MERCADO_PAGO_ACCESS_TOKEN).trim();
     } catch (e) {}
 
-    if (!pagbankToken) pagbankToken = String(process.env.PAGBANK_TOKEN || '').trim();
-    if (!pagbankEnv || pagbankEnv !== 'sandbox') pagbankEnv = String(process.env.PAGBANK_ENV || 'production').trim();
     if (!mpAccessToken) mpAccessToken = String(process.env.MERCADO_PAGO_ACCESS_TOKEN || '').trim();
 
-    // ── 2. Consulta PagBank se Token estiver presente ──
-    if (pagbankToken && cleanPaymentId) {
-      const baseUrl = pagbankEnv === 'sandbox' 
-        ? 'https://sandbox.api.pagseguro.com' 
-        : 'https://api.pagseguro.com';
-
-      try {
-        const res = await fetch(`${baseUrl}/orders/${cleanPaymentId}`, {
-          headers: {
-            'Authorization': `Bearer ${pagbankToken}`,
-            'accept': 'application/json'
-          }
-        });
-
-        if (res.ok) {
-          const pbData = await res.json();
-          const pbStatus = String(pbData.status || '').toUpperCase();
-          const charges = pbData.charges || [];
-          const isPaid = pbStatus === 'PAID' || charges.some(c => String(c.status || '').toUpperCase() === 'PAID');
-
-          if (isPaid) {
-            orderId = orderId || pbData.reference_id;
-            if (orderId) {
-              await markOrderApproved(orderId, cleanPaymentId, charges[0]?.amount?.value ? Number(charges[0].amount.value) / 100 : 0);
-            }
-            return jsonNoCache({ status: "approved" });
-          } else {
-            return jsonNoCache({ status: "pending" });
-          }
-        }
-      } catch (pbErr) {
-        console.warn("[PaymentStatus] Erro ao consultar PagBank:", pbErr);
-      }
-    }
-
-    // ── 3. Fallback Mercado Pago ──
+    // ── Mercado Pago ──
     if (mpAccessToken) {
       const numericMatch = String(paymentId || '').match(/\d+/);
       const cleanMpPaymentId = numericMatch ? numericMatch[0] : String(paymentId || '').trim();
