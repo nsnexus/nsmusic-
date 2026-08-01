@@ -23,6 +23,11 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Pedido não encontrado.' }, { status: 404 });
     }
 
+    const orderData = orderSnap.data();
+    if (!orderData.hasVideoAccess && !orderData.videoAddonPaid) {
+      return NextResponse.json({ error: 'O add-on de vídeo ainda não foi pago para este pedido.' }, { status: 403 });
+    }
+
     // Atualiza o registro no Firestore
     await updateDoc(orderRef, {
       slideshowImages: imageUrls,

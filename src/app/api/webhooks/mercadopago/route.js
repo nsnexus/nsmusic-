@@ -1,192 +1,155 @@
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
-import { doc, getDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore/lite';
+import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore/lite';
 import { dbEdge } from '@/lib/firebase-edge';
+import { applyPaymentApproval } from '@/lib/payments';
 // AVISO IMPORTANTE: Não importar @/lib/firebase ou firebase/firestore aqui, pois quebram o Edge Runtime
 
 export const runtime = 'edge';
 
-async function processPayment(rawPaymentId) {
-  if (!rawPaymentId) return false;
-
-  // Extrai puramente os dígitos numéricos (remove sufixos/prefixos estranhos como :1)
-  const numericMatch = String(rawPaymentId).match(/\d+/);
-  const paymentId = numericMatch ? numericMatch[0] : String(rawPaymentId).replace(/\D/g, '');
-
-  if (!paymentId) return false;
-
-  let accessToken = '';
+function getEnvVar(name) {
   try {
     const ctx = getRequestContext();
-    if (ctx?.env?.MERCADO_PAGO_ACCESS_TOKEN) {
-      accessToken = String(ctx.env.MERCADO_PAGO_ACCESS_TOKEN).trim();
-    }
+    if (ctx?.env?.[name]) return String(ctx.env[name]).trim();
   } catch (e) {}
+  return String(process.env[name] || '').trim();
+}
 
-  if (!accessToken) {
-    accessToken = String(process.env.MERCADO_PAGO_ACCESS_TOKEN || '').trim();
+// Valida o header x-signature do Mercado Pago (HMAC-SHA256), conforme
+// https://www.mercadopago.com.br/developers/pt/docs/checkout-api/webhooks — ver A-01 no
+// AUDIT_REPORT.md. Se MERCADO_PAGO_WEBHOOK_SECRET não estiver configurado, a validação é pulada
+// (a reconsulta à API do MP continua sendo a segunda barreira) até o segredo ser configurado em
+// produção — não desative essa checagem manualmente uma vez que o segredo exista.
+async function verifyMercadoPagoSignature(req, dataId) {
+  const secret = getEnvVar('MERCADO_PAGO_WEBHOOK_SECRET');
+  if (!secret) {
+    return { ok: true, skipped: true };
   }
 
-  if (!accessToken) {
-    console.error("[Webhook MP] Token do Mercado Pago não configurado.");
-    return false;
+  const signatureHeader = req.headers.get('x-signature') || '';
+  const requestId = req.headers.get('x-request-id') || '';
+
+  if (!signatureHeader) {
+    return { ok: false, reason: 'missing_signature' };
   }
 
-  // Consultar detalhes do pagamento na API do Mercado Pago
+  const parts = {};
+  signatureHeader.split(',').forEach((chunk) => {
+    const [key, value] = chunk.split('=');
+    if (key && value !== undefined) parts[key.trim()] = value.trim();
+  });
+
+  if (!parts.ts || !parts.v1) {
+    return { ok: false, reason: 'malformed_signature' };
+  }
+
+  const manifest = `id:${dataId};request-id:${requestId};ts:${parts.ts};`;
+
+  try {
+    const enc = new TextEncoder();
+    const key = await crypto.subtle.importKey(
+      'raw',
+      enc.encode(secret),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign']
+    );
+    const sigBuffer = await crypto.subtle.sign('HMAC', key, enc.encode(manifest));
+    const computedHex = Array.from(new Uint8Array(sigBuffer))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+
+    return { ok: computedHex === parts.v1, reason: computedHex === parts.v1 ? null : 'signature_mismatch' };
+  } catch (err) {
+    console.error('[Webhook MP] Erro ao validar assinatura:', err.message);
+    return { ok: false, reason: 'verification_error' };
+  }
+}
+
+async function resolvePaymentAndOrder(rawPaymentId) {
+  const numericMatch = String(rawPaymentId).match(/\d+/);
+  const paymentId = numericMatch ? numericMatch[0] : String(rawPaymentId).replace(/\D/g, '');
+  if (!paymentId) return null;
+
+  const accessToken = getEnvVar('MERCADO_PAGO_ACCESS_TOKEN');
+  if (!accessToken) {
+    console.error('[Webhook MP] Token do Mercado Pago não configurado.');
+    return null;
+  }
+
   const mpRes = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
-    headers: {
-      'Authorization': `Bearer ${accessToken}`,
-      'Content-Type': 'application/json'
-    }
+    headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    signal: AbortSignal.timeout(10000),
   });
 
   if (!mpRes.ok) {
-    console.warn(`[Webhook MP] Erro ao consultar pagamento ${paymentId} no Mercado Pago:`, await mpRes.text());
-    return false;
+    console.warn(`[Webhook MP] Erro ao consultar pagamento ${paymentId} no Mercado Pago:`, mpRes.status);
+    return null;
   }
 
   const paymentData = await mpRes.json();
-  const status = paymentData.status;
-  const orderId = paymentData.external_reference;
-
-  console.log(`[Webhook MP] PaymentID: ${paymentId}, Status: ${status}, OrderID: ${orderId}`);
-
-  let finalStatus = status;
+  let finalStatus = paymentData.status;
   let finalPaymentId = paymentId;
   let finalMpData = paymentData;
+  let orderId = paymentData.external_reference || null;
 
-  // Busca de fallback por external_reference caso o ID específico esteja pendente
-  if (status !== 'approved' && orderId) {
+  console.log(`[Webhook MP] PaymentID: ${paymentId}, Status: ${finalStatus}, OrderID: ${orderId}`);
+
+  // Fallback: busca por external_reference caso o pagamento específico ainda não esteja aprovado.
+  if (finalStatus !== 'approved' && orderId) {
     try {
-      const searchRes = await fetch(`https://api.mercadopago.com/v1/payments/search?external_reference=${orderId}&sort=date_created&criteria=desc&limit=5`, {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json'
+      const searchRes = await fetch(
+        `https://api.mercadopago.com/v1/payments/search?external_reference=${orderId}&sort=date_created&criteria=desc&limit=5`,
+        {
+          headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+          signal: AbortSignal.timeout(10000),
         }
-      });
+      );
       if (searchRes.ok) {
         const searchData = await searchRes.json();
-        const approvedPayment = (searchData.results || []).find(p => p.status === 'approved');
+        const approvedPayment = (searchData.results || []).find((p) => p.status === 'approved');
         if (approvedPayment) {
-          console.log(`[Webhook MP] ✅ Encontrado pagamento aprovado via search para orderId=${orderId}: ${approvedPayment.id}`);
           finalStatus = 'approved';
           finalPaymentId = String(approvedPayment.id);
           finalMpData = approvedPayment;
         }
       }
     } catch (e) {
-      console.warn("[Webhook MP] Erro no fallback de busca:", e);
+      console.warn('[Webhook MP] Erro no fallback de busca:', e.message);
     }
   }
 
-  if (finalStatus === 'approved') {
-    let targetOrderRef = null;
-    let orderData = null;
-
-    if (orderId) {
-      targetOrderRef = doc(dbEdge, 'orders', orderId);
-      const orderSnap = await getDoc(targetOrderRef);
-      if (orderSnap.exists()) {
-        orderData = orderSnap.data();
-      }
-    }
-
-    if (!orderData) {
+  // Sem external_reference no pagamento: tenta achar o pedido que já registrou este paymentId.
+  if (!orderId) {
+    try {
       const ordersRef = collection(dbEdge, 'orders');
       const q = query(ordersRef, where('paymentId', '==', String(finalPaymentId)));
       const querySnap = await getDocs(q);
-      if (!querySnap.empty) {
-        const docSnap = querySnap.docs[0];
-        targetOrderRef = doc(dbEdge, 'orders', docSnap.id);
-        orderData = docSnap.data();
-      }
-    }
-
-    if (targetOrderRef && orderData) {
-      const isVideoPayment = String(finalPaymentId) === String(orderData.videoPaymentId) ||
-                             Math.abs(Number(finalMpData.transaction_amount) - 6.90) < 0.01;
-
-      const updates = {
-        paymentStatus: 'PAGAMENTO_APROVADO',
-        updatedAt: new Date().toISOString()
-      };
-
-      if (isVideoPayment) {
-        updates.hasVideoAccess = true;
-        updates.videoAddonPaid = true;
-        updates.videoPaymentId = String(finalPaymentId);
-        console.log(`[Webhook MP] Pedido ${targetOrderRef.id} - Vídeo Add-on aprovado!`);
-      } else {
-        updates.paymentId = String(finalPaymentId);
-        updates.paidAt = new Date().toISOString();
-        console.log(`[Webhook MP] Pedido ${targetOrderRef.id} marcado como PAGAMENTO_APROVADO!`);
-      }
-
-      await updateDoc(targetOrderRef, updates);
-
-      // Notifica por WhatsApp — isolado
-      try {
-        if (orderData.customerPhone) {
-          const sentFlag = isVideoPayment ? 'videoPaymentWhatsappSent' : 'paymentWhatsappSent';
-          let shouldSend = false;
-          let customerName = '';
-          let honoreeName = '';
-
-          try {
-            const freshSnap = await getDoc(targetOrderRef);
-            if (freshSnap.exists()) {
-              const freshData = freshSnap.data();
-              if (!freshData[sentFlag] && !freshData[`${sentFlag}Sending`]) {
-                await updateDoc(targetOrderRef, {
-                  [`${sentFlag}Sending`]: true
-                });
-                shouldSend = true;
-                customerName = freshData.customerName || 'Cliente';
-                honoreeName = freshData.honoreeName || 'alguém especial';
-              }
-            }
-          } catch (txErr) {
-            console.warn("[Webhook MP] Erro ao verificar flag de WhatsApp:", txErr);
-          }
-
-          if (shouldSend) {
-            const rawUrl = (process.env.NEXT_PUBLIC_SITE_URL || '').trim().replace(/\/+$/, '');
-            const baseUrl = (!rawUrl || rawUrl.includes('pages.dev') || rawUrl.includes('localhost')) ? 'https://nsmusic.nsnexus.com.br' : rawUrl;
-            const deliveryUrl = `${baseUrl}/entrega?orderId=${targetOrderRef.id}`;
-
-            let messageText;
-            if (isVideoPayment) {
-              messageText = `Olá, ${customerName}! 🎬\n\nSeu pagamento do *Vídeo Homenagem* foi confirmado com sucesso!\nAgora você pode enviar suas fotos para criar o vídeo personalizado para *${honoreeName}*.\n\nAcesse o link abaixo para enviar as fotos:\n👉 ${deliveryUrl}\n\nObrigado pela preferência! ❤️`;
-            } else {
-              messageText = `Olá, ${customerName}! 🎵\n\nSeu pagamento foi confirmado com sucesso!\nSua música personalizada para *${honoreeName}* foi totalmente liberada no estúdio NSMusic.\n\nAcesse o link abaixo para ouvir e fazer o download dos seus áudios em MP3 HD:\n👉 ${deliveryUrl}\n\nObrigado pela preferência! ❤️`;
-            }
-
-            const { sendWhatsAppMessage } = await import('@/lib/whatsapp');
-            const sent = await sendWhatsAppMessage(orderData.customerPhone, messageText);
-
-            // Notifica o Admin
-            const adminMessage = `💰 *NOVA VENDA NSMUSIC!*\n\n*Cliente:* ${customerName}\n*Homenageado:* ${honoreeName}\n*Tipo:* ${isVideoPayment ? '🎥 Vídeo Homenagem' : '🎵 Música Personalizada'}\n*Data:* ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`;
-            await sendWhatsAppMessage('94991064043', adminMessage).catch(e => console.warn('Erro notificando admin:', e));
-
-            if (sent) {
-              await updateDoc(targetOrderRef, {
-                [sentFlag]: true,
-                [`${sentFlag}At`]: new Date().toISOString(),
-                [`${sentFlag}Sending`]: false
-              }).catch(e => console.warn(e));
-              console.log(`[Webhook MP] ✅ WhatsApp ${isVideoPayment ? 'vídeo' : 'pagamento'} enviado!`);
-            } else {
-              await updateDoc(targetOrderRef, { [`${sentFlag}Sending`]: false }).catch(e => console.warn(e));
-            }
-          }
-        }
-      } catch (whatsappErr) {
-        console.error("[Webhook MP] Erro geral no envio de WhatsApp:", whatsappErr);
-      }
+      if (!querySnap.empty) orderId = querySnap.docs[0].id;
+    } catch (e) {
+      console.warn('[Webhook MP] Erro ao buscar pedido por paymentId:', e.message);
     }
   }
 
-  return true;
+  if (!orderId) return null;
+
+  return { orderId, paymentId: finalPaymentId, mpPayment: finalMpData };
+}
+
+async function processPayment(rawPaymentId, req) {
+  if (!rawPaymentId) return false;
+
+  const sigResult = await verifyMercadoPagoSignature(req, rawPaymentId);
+  if (!sigResult.ok) {
+    console.warn('[Webhook MP] Assinatura inválida, ignorando notificação:', sigResult.reason);
+    return { rejected: true, reason: sigResult.reason };
+  }
+
+  const resolved = await resolvePaymentAndOrder(rawPaymentId);
+  if (!resolved) return false;
+
+  const result = await applyPaymentApproval(resolved.orderId, resolved.paymentId, resolved.mpPayment);
+  return result.applied;
 }
 
 export async function POST(req) {
@@ -204,8 +167,17 @@ export async function POST(req) {
       paymentId = parts[parts.length - 1];
     }
 
+    let rejected = false;
     if (paymentId) {
-      await processPayment(paymentId);
+      const result = await processPayment(paymentId, req);
+      rejected = result && result.rejected;
+    }
+
+    // Assinatura inválida: única situação em que respondemos diferente de 200, para deixar claro que
+    // a notificação foi recusada (ver A-01/teste no FIX_PLAN.md). Qualquer outro erro de
+    // processamento responde 200 para não gerar retentativa infinita do Mercado Pago.
+    if (rejected) {
+      return NextResponse.json({ error: 'Assinatura inválida.' }, { status: 401 });
     }
 
     return NextResponse.json({ success: true }, { status: 200 });
@@ -221,10 +193,10 @@ export async function GET(req) {
     const topic = searchParams.get('topic') || searchParams.get('type');
     const paymentId = searchParams.get('id') || searchParams.get('data.id');
 
-    console.log("[Webhook MP GET] Notificação recebida:", { topic, paymentId });
+    console.log("[Webhook MP GET] Notificação recebida:", { topic, hasPaymentId: !!paymentId });
 
     if (paymentId) {
-      await processPayment(paymentId);
+      await processPayment(paymentId, req);
     }
 
     return NextResponse.json({ status: 'ok', message: 'Webhook Mercado Pago ativo' });

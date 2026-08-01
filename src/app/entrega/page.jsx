@@ -65,8 +65,10 @@ function EntregaContent() {
 
   const [hasTrackedPurchase, setHasTrackedPurchase] = useState(false);
 
-  // Controle de acesso dinâmico
-  const isPaid = isPaidState || order?.paymentStatus === 'PAGAMENTO_APROVADO' || order?.paymentStatus === 'PAGO' || searchParams.get('status') === 'success' || searchParams.get('status') === 'approved';
+  // Controle de acesso dinâmico. NUNCA derivar de searchParams — isso permitia liberar o produto só
+  // com a URL /entrega?orderId=X&status=success, sem pagar (ver C-01 no AUDIT_REPORT.md). O parâmetro
+  // de URL só pode, no máximo, disparar uma reconsulta ao servidor (ver useEffect de fetchOrder acima).
+  const isPaid = isPaidState || order?.paymentStatus === 'PAGAMENTO_APROVADO' || order?.paymentStatus === 'PAGO';
   const hasVideoAccess = hasVideoAccessState || order?.hasVideoAccess || order?.videoAddonPaid || order?.videoUrl || (isPaid && selectedPackage === 'combo');
 
   // Exibe o pop-up de oferta do vídeo automaticamente ao carregar a tela de entrega
@@ -79,19 +81,6 @@ function EntregaContent() {
       }
     }
   }, [order, orderId]);
-
-  // Grava a aprovação do pagamento no Firebase quando detectada a confirmação
-  useEffect(() => {
-    if (isPaid && orderId && order && order.paymentStatus !== 'PAGAMENTO_APROVADO' && order.paymentStatus !== 'PAGO') {
-      updateDoc(doc(db, 'orders', orderId), {
-        paymentStatus: 'PAGAMENTO_APROVADO',
-        updatedAt: new Date().toISOString()
-      }).then(() => {
-        console.log(`[Entrega] Pedido ${orderId} atualizado no Firebase para PAGAMENTO_APROVADO`);
-        setOrder(prev => prev ? { ...prev, paymentStatus: 'PAGAMENTO_APROVADO' } : prev);
-      }).catch(e => console.warn("Erro ao atualizar pagamento no Firebase:", e));
-    }
-  }, [isPaid, orderId, order]);
 
   // Dispara o evento de Purchase do Facebook Pixel APENAS 1 ÚNICA VEZ por pedido
   useEffect(() => {
@@ -252,31 +241,19 @@ function EntregaContent() {
     if (!order) return;
     if (isSecondary) setPendingVideoPix(true);
     else setPixLoading(true);
-    
-    let targetAmount = customAmount;
-    if (!targetAmount) {
-      if (selectedPackage === 'combo') targetAmount = 16.89;
-      else if (selectedPackage === 'video_addon') targetAmount = 6.90;
-      else targetAmount = 9.99;
-    }
+
+    // O valor a cobrar é decidido pelo servidor a partir do SKU (ver src/lib/pricing.js e C-05 no
+    // AUDIT_REPORT.md) — o cliente só informa QUAL produto está comprando, nunca o preço.
+    let sku;
+    if (isSecondary) sku = 'video_addon';
+    else if (typeof customAmount === 'number' && customAmount === 16.89) sku = 'combo';
+    else sku = 'audio_only';
 
     try {
       const res = await fetch('/api/payments/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          formData: {
-            customerName: order.customerName || 'Cliente',
-            customerPhone: order.customerPhone || '',
-            customerEmail: order.customerEmail || '',
-            honoreeName: order.honoreeName || '',
-            selectedPackage
-          },
-          totalAmount: targetAmount,
-          paymentType: 'pix',
-          orderId,
-          isSecondaryPayment: isSecondary
-        })
+        body: JSON.stringify({ orderId, sku, isSecondaryPayment: isSecondary })
       });
 
       if (res.ok) {
@@ -328,12 +305,11 @@ function EntregaContent() {
         if (res.ok) {
           const data = await res.json();
           if (data.status === 'approved' || data.status === 'PAGO' || data.status === 'PAGAMENTO_APROVADO') {
+            // A gravação em Firestore já aconteceu no servidor, dentro de /api/payments/status
+            // (ver src/lib/payments.js:applyPaymentApproval) — o cliente só espelha o estado local
+            // (ver C-01/payments.md: paymentStatus nunca pode ser escrito a partir de 'use client').
             setIsPaidState(true);
-            updateDoc(doc(db, 'orders', orderId), {
-              paymentStatus: 'PAGAMENTO_APROVADO',
-              paymentId: pixInfo.paymentId || '',
-              updatedAt: new Date().toISOString()
-            }).catch(e => console.warn("Erro ao atualizar status do pedido no Firebase:", e));
+            setOrder(prev => prev ? { ...prev, paymentStatus: 'PAGAMENTO_APROVADO' } : prev);
             clearInterval(interval);
             return;
           }
@@ -374,15 +350,12 @@ function EntregaContent() {
         if (res.ok) {
           const data = await res.json();
           if (data.status === 'approved' || data.status === 'PAGO' || data.status === 'PAGAMENTO_APROVADO') {
+            // Idem ao polling da música: a gravação de hasVideoAccess/videoAddonPaid já aconteceu no
+            // servidor — o cliente nunca concede acesso a produto pago diretamente (ver C-09/A-07).
             setHasVideoAccessState(true);
             setPendingVideoPix(false);
             setVideoPixInfo({ qrCode: '', qrCodeBase64: '', paymentId: '' });
-            updateDoc(doc(db, 'orders', orderId), {
-              hasVideoAccess: true,
-              videoAddonPaid: true,
-              videoPaymentId: videoPixInfo.paymentId || '',
-              updatedAt: new Date().toISOString()
-            }).catch(e => console.warn(e));
+            setOrder(prev => prev ? { ...prev, hasVideoAccess: true, videoAddonPaid: true } : prev);
             clearInterval(interval);
             return;
           }

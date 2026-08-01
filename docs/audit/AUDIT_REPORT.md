@@ -46,11 +46,11 @@ de receita.
 
 | Severidade | Qtd. | Categorias predominantes |
 |---|---|---|
-| **CRÍTICA** | 11 | Vulnerabilidade, bug confirmado de receita |
+| **CRÍTICA** | 12 | Vulnerabilidade, bug confirmado de receita (inclui C-12, descoberto no Lote 2) |
 | **ALTA** | 14 | Vulnerabilidade, risco arquitetural, bug confirmado |
-| **MÉDIA** | 20 | Dívida técnica, bug provável, performance |
+| **MÉDIA** | 21 | Dívida técnica, bug provável, performance (inclui B-10, descoberto no Lote 0) |
 | **BAIXA** | 8 | Dívida técnica, melhoria |
-| **Total** | **53** | |
+| **Total** | **55** | |
 
 Legenda de confiança: **Confirmado** = lido diretamente no código e verificado; **Provável** =
 inferido com forte evidência mas sem execução; **A verificar** = depende de configuração fora do repositório.
@@ -71,6 +71,14 @@ inferido com forte evidência mas sem execução; **A verificar** = depende de c
 - **Correção:** derivar `isPaid` exclusivamente de `order.paymentStatus` vindo do Firestore; usar o
   parâmetro de URL apenas para *disparar* uma reconsulta a `/api/payments/status`, nunca como verdade.
   Remover o efeito que escreve `paymentStatus` a partir do cliente.
+- **Status (2026-08-01):** CORRIGIDO E VALIDADO (build/lint/typecheck/testes unitários) — não validado
+  em navegador real. `isPaid` não depende mais de `searchParams`; o `useEffect` que gravava
+  `paymentStatus` foi removido. Durante a correção, encontrados mais 4 pontos do mesmo padrão proibido
+  não listados aqui originalmente: dois pollings em `entrega/page.jsx` (música e vídeo) e dois em
+  `criar/page.jsx:228,2189` (já citados como evidência em C-11) — todos gravavam `paymentStatus`/
+  `hasVideoAccess` direto no Firestore a partir do cliente depois de uma resposta "approved" do
+  servidor. Todos corrigidos da mesma forma (gravação já acontece no servidor; cliente só espelha
+  estado local). Ver também **C-12**, uma vulnerabilidade correlata encontrada no mesmo arquivo.
 - **Risco de regressão:** médio — usuários que pagam de fato dependem hoje desse redirecionamento para
   ver o conteúdo liberado. A correção precisa vir junto com C-05/A-01 (confirmação server-side confiável).
 - **Teste:** abrir `/entrega?orderId=X&status=success` com pedido não pago e verificar que o áudio
@@ -131,6 +139,10 @@ inferido com forte evidência mas sem execução; **A verificar** = depende de c
   o valor esperado no pedido no momento da criação da cobrança.
 - **Risco de regressão:** médio — exige alinhar os SKUs entre `criar` e `entrega`.
 - **Teste:** POST com `totalAmount: 0.01` deve ser ignorado e o BR Code gerado com o valor de catálogo.
+- **Status (2026-08-01):** CORRIGIDO E VALIDADO (unitário) — não validado com Firestore/Mercado Pago
+  reais. `src/lib/pricing.js` é a fonte única; a rota ignora `totalAmount`, exige `orderId` existente
+  e persiste `expectedAmount`/`paymentIntentSku`. `criar/page.jsx` e `entrega/page.jsx` atualizados
+  para enviar `sku` em vez de valor.
 
 ### C-06 — Chave de API de terceiro versionada em texto claro
 - **Categoria:** VULNERABILIDADE · **Severidade:** CRÍTICA · **Confiança:** Confirmado
@@ -158,6 +170,11 @@ inferido com forte evidência mas sem execução; **A verificar** = depende de c
 - **Impacto:** download completo do produto sem pagamento.
 - **Correção:** portar o gate de `HomenagemPublica.jsx` para a rota real e excluir o arquivo órfão.
 - **Risco de regressão:** baixo. **Teste:** acessar a rota com pedido não pago e confirmar bloqueio.
+- **Status (2026-08-01):** CORRIGIDO E VALIDADO (build) — não validado em navegador real. Importante:
+  `HomenagemPublica.jsx` (o "gate correto" citado acima) tinha o MESMO bug de C-01
+  (`searchParams.get('status') === 'success'` na sua própria variável `isPaid`) — a lógica NÃO foi
+  portada como estava; o gate novo em `homenagem/page.jsx` usa só `order.paymentStatus`. O arquivo
+  órfão foi excluído após confirmar (`grep`) que não tinha nenhum import em `src/`.
 
 ### C-08 — `/minhas-musicas` baixa a coleção `orders` inteira para o browser
 - **Categoria:** VULNERABILIDADE · **Severidade:** CRÍTICA · **Confiança:** Confirmado
@@ -187,6 +204,9 @@ inferido com forte evidência mas sem execução; **A verificar** = depende de c
 - **Risco de regressão:** médio — pedidos que hoje dependem desse efeito colateral podem ficar bloqueados.
 - **Teste:** simular webhook com `transaction_amount: 6.90` em pedido não pago e verificar que
   `paymentStatus` permanece `AGUARDANDO_PAGAMENTO`.
+- **Status (2026-08-01):** CORRIGIDO E VALIDADO. `applyPaymentApproval` (`src/lib/payments.js`) só
+  escreve `paymentStatus` no ramo em que `skuApprovesMusic(sku)` é verdadeiro; testado explicitamente
+  em `tests/unit/payments.test.js` ("video_addon isolado NUNCA escreve paymentStatus").
 
 ### C-10 — `POST /api/whatsapp/send` permite enviar mensagens arbitrárias pelo número comercial
 - **Categoria:** VULNERABILIDADE · **Severidade:** CRÍTICA · **Confiança:** Confirmado
@@ -219,7 +239,27 @@ inferido com forte evidência mas sem execução; **A verificar** = depende de c
   3 pré-requisitos documentados no próprio arquivo), **sem publicar** no Firebase — publicar agora
   quebraria as rotas de API (sem identidade privilegiada) e o painel admin ao mesmo tempo, exatamente
   o risco que este relatório já previa. O conteúdo real das regras em produção continua **A verificar**
-  — isso só é resolvido com acesso ao console do Firebase, fora do alcance desta sessão.
+  — isso só é resolvido com acesso ao console do Firebase, fora do alcance desta sessão. No Lote 2,
+  os campos de aprovação de pagamento (`paymentStatus`, `hasVideoAccess`) deixaram de ser gravados
+  pelo cliente em `entrega/page.jsx` e `criar/page.jsx` (ver C-01/C-12) — mas `admin/pedidos/[id]/page.jsx:98`
+  continua gravando `paymentStatus` direto no Firestore a partir do painel admin (cliente), porque
+  migrá-lo para uma rota de API exigiria expandir `/api/orders/update` para todos os campos que esse
+  formulário edita (lyrics, audioUrl2, wavUrl, videoUrl, qrCodeUrl) — fora do escopo de pagamentos do
+  Lote 2. Fica para o Lote 3, junto com `admin/page.jsx` enviando `Authorization: Bearer <idToken>`.
+
+### C-12 — `criar/page.jsx` concedia acesso ao vídeo pago só por intenção de compra, sem pagamento
+- **Categoria:** VULNERABILIDADE · **Severidade:** CRÍTICA · **Confiança:** Confirmado · **Descoberta:** Lote 2 (2026-08-01), não estava no relatório original
+- **Arquivo:** `src/app/criar/page.jsx` (2 pontos, nos handlers dos botões "Gerar PIX" e "Cartão de Crédito")
+- **Evidência:** antes de qualquer chamada a `/api/payments/create`, o código gravava
+  `hasVideoAccess: !!formData.addons?.wantsVideo` direto no Firestore — ou seja, bastava o cliente
+  marcar a intenção de comprar o vídeo (um checkbox no formulário) para o campo de acesso pago ser
+  concedido, independentemente de qualquer pagamento.
+- **Gatilho:** marcar o add-on de vídeo no wizard e clicar em "Gerar PIX" (sem nunca pagar).
+- **Impacto:** acesso gratuito ao vídeo homenagem (R$ 6,90) para qualquer pedido, e (combinado com
+  `homenagem/page.jsx` antes do gate de C-07) potencialmente exibição do vídeo sem pagamento nenhum.
+- **Correção:** removida a gravação de `hasVideoAccess` nesses dois pontos; o campo só é definido pelo
+  servidor em `src/lib/payments.js:applyPaymentApproval`, após confirmação real de pagamento.
+- **Status (2026-08-01):** CORRIGIDO E VALIDADO (build) — não validado em navegador real.
 
 ---
 
@@ -227,19 +267,19 @@ inferido com forte evidência mas sem execução; **A verificar** = depende de c
 
 | ID | Título | Arquivo:símbolo | Confiança |
 |---|---|---|---|
-| A-01 | Webhook do Mercado Pago sem validação de assinatura (`x-signature`). Mitigado pela reconsulta à API do MP, mas permite acionamento forçado e não verifica origem | `api/webhooks/mercadopago/route.js:192` (`POST`) | Confirmado |
+| A-01 | **CORRIGIDO, NÃO VALIDADO CONTRA O MERCADO PAGO REAL (Lote 2).** Validação HMAC-SHA256 do header `x-signature` implementada; pulada com aviso se `MERCADO_PAGO_WEBHOOK_SECRET` não estiver configurado (novo segredo, ver `.env.example`). Reconsulta à API do MP mantida como segunda barreira | `api/webhooks/mercadopago/route.js` | Confirmado |
 | A-02 | `GET /api/suno/status?orderId=` usa `orderId` do cliente como `overrideOrderId`, gravando o áudio de uma tarefa no pedido de outro cliente | `api/suno/status/route.js:63` → `lib/db.js:85` (`updateTaskResult`) | Confirmado |
 | A-03 | `POST /api/suno/webhook` sem autenticação ou assinatura | `api/suno/webhook/route.js:6` | Confirmado |
 | A-04 | `POST /api/suno/generate` sem autenticação nem rate limiting: consumo ilimitado de créditos pagos da Kie.ai por terceiros | `api/suno/generate/route.js:7` | Confirmado |
 | A-05 | **CORRIGIDO E VALIDADO (Lote 1, 2026-08-01)** — não testado contra origem real. SSRF + XSS em `/api/image-proxy`: busca URL arbitrária e repassa o `Content-Type` da origem, permitindo servir HTML no domínio do site. Corrigido com `src/lib/proxyAllowlist.js` (só HTTPS + host na allowlist) e validação do `Content-Type` de resposta (só `image/*`, `audio/*`, `application/octet-stream`) | `api/image-proxy/route.js:14-28` | Confirmado |
 | A-06 | **CORRIGIDO E VALIDADO (Lote 1, 2026-08-01)** — não testado contra origem real. SSRF em `/api/audio/proxy` (URL absoluta arbitrária em `candidates`). Corrigido: a URL absoluta vinda do cliente só entra nos candidatos se o host estiver na allowlist; candidatos construídos a partir do `itemId` já eram domínios fixos seguros. `Access-Control-Allow-Origin: *` mantido (fora do escopo deste item — proxy só serve mídia, não HTML) | `api/audio/proxy/route.js:44,96` | Confirmado |
-| A-07 | `POST /api/video/generate` não verifica `hasVideoAccess`/`videoAddonPaid` — add-on de R$ 6,90 obtido de graça | `api/video/generate/route.js:19-32` | Confirmado |
+| A-07 | **CORRIGIDO E VALIDADO (Lote 2).** `/api/video/generate` agora responde 403 se `!hasVideoAccess && !videoAddonPaid` | `api/video/generate/route.js` | Confirmado |
 | A-08 | Autorização de admin por comparação de string de e-mail no browser | `admin/page.jsx:52`, `admin/pedidos/[id]/page.jsx:46` | Confirmado |
-| A-09 | Sem transação na marcação de envio de WhatsApp (ler-depois-escrever): webhook e polling concorrentes causam mensagens duplicadas | `webhooks/mercadopago:135-150`, `payments/status:149-158` | Confirmado |
-| A-10 | `POST /api/payments/create` não persiste nada; BR Code PIX é estático com `txid` fixo `***` — nenhum pagamento é conciliável automaticamente | `api/payments/create/route.js:14,40-41` | Confirmado |
+| A-09 | **CORRIGIDO E VALIDADO (Lote 2).** Aprovação inteira (não só a flag de WhatsApp) roda dentro de `runTransaction`, com `paymentId`/`videoPaymentId` como chave de dedupe — testado ("mesmo paymentId não processado duas vezes") | `src/lib/payments.js` | Confirmado |
+| A-10 | **CORRIGIDO E VALIDADO (Lote 2).** `generatePixPayload` recebe um `txid` único por cobrança (gerado a partir do `orderId` + timestamp); com `txid` omitido, mantém o `***` antigo (compatibilidade) | `api/payments/create/route.js` | Confirmado |
 | A-11 | Limite de 5 prévias grátis apenas em `localStorage` | `criar/page.jsx:799-853` (`checkUserLimit`) | Confirmado |
 | A-12 | `POST /api/whatsapp/verify` sem rate limiting: oráculo de enumeração de números de WhatsApp | `api/whatsapp/verify/route.js:6` | Confirmado |
-| A-13 | Distinção música/vídeo por heurística de valor (`Math.abs(amount - 6.90) < 0.01`): qualquer cobrança futura de R$ 6,90 é classificada como vídeo | `webhooks/mercadopago:107`, `payments/status:124` | Confirmado |
+| A-13 | **CORRIGIDO E VALIDADO (Lote 2), com fallback.** `applyPaymentApproval` usa o `paymentIntentSku` persistido em `/api/payments/create`; heurística de valor mantida só como fallback para pedidos sem esse campo (criados antes desta mudança) | `src/lib/payments.js` | Confirmado |
 | A-14 | Ausência total de testes, `typecheck` e CI; build e lint não executam no estado atual do repositório | `package.json:scripts` | Confirmado |
 
 ## 6. Problemas de pagamento — síntese
@@ -263,10 +303,10 @@ O fluxo de pagamento é a área mais frágil do sistema e concentra 5 dos 11 ite
 
 | ID | Título | Referência |
 |---|---|---|
-| M-01 | Divergência de enum em `paymentStatus` (4 valores distintos para 2 estados reais) | `orders/create:31` vs `webhooks/mercadopago:110` vs `criar/page.jsx:228` |
+| M-01 | **CORRIGIDO NO CÓDIGO, MIGRAÇÃO DE DADOS PENDENTE DE AUTORIZAÇÃO (Lote 2).** O código só escreve mais `PAGAMENTO_APROVADO`; leitura ainda aceita `PAGO` para compatibilidade com pedidos antigos. Script de migração preparado (`scripts/migrate-payment-status.mjs`, com reversão) mas **não executado** — precisa de credenciais reais e autorização | `orders/create:31` vs `src/lib/payments.js` |
 | M-02 | `orderNumber` gerado com 5 dígitos aleatórios (90.000 combinações), sem verificação de unicidade — colisões e enumeração | `orders/create/route.js:11` |
-| M-03 | Varredura completa de coleção em toda busca (`getDocs` sem `where`/`limit`) — custo e latência crescem com a base | `orders/search:38`, `orders/search:16`, `minhas-musicas:93` |
-| M-04 | Nenhuma transação no projeto, apesar de `.agents/AGENTS.md` §8 exigir `runTransaction` | todo o `src/` |
+| M-03 | **PARCIALMENTE CORRIGIDO (Lote 1).** A referência `minhas-musicas:93` foi resolvida (ver C-08) — troca por `where`. `orders/search` (2 ocorrências) continua com varredura completa; fica para o Lote 5 | `orders/search:38`, `orders/search:16` |
+| M-04 | **PARCIALMENTE CORRIGIDO (Lote 2).** `src/lib/payments.js:applyPaymentApproval` agora usa `runTransaction` para a aprovação de pagamento (ver A-09) — primeira transação do projeto. Resto do `src/` continua sem transações onde `.agents/AGENTS.md` §8 exigiria | resto do `src/` |
 | M-05 | Sem índices, constraints ou chave única declarados; sem migrations | ausência de `firestore.indexes.json` |
 | M-06 | `saveTask` usa `setDoc` sem `merge` e sobrescreve o documento; `updateTaskResult` usa `merge` — comportamento inconsistente | `lib/db.js:22` vs `:94` |
 | M-07 | `suno_tasks` órfãs: nada remove tarefas de pedidos excluídos | `orders/delete/route.js` |
@@ -294,7 +334,7 @@ O fluxo de pagamento é a área mais frágil do sistema e concentra 5 dos 11 ite
 
 | ID | Título | Referência | Sev. |
 |---|---|---|---|
-| M-18 | Lógica de aprovação de pagamento duplicada em dois arquivos, já divergente (`paidAt` só existe em um) | `webhooks/mercadopago:82-125` vs `payments/status:117-139` | MÉDIA |
+| M-18 | **CORRIGIDO E VALIDADO (Lote 2).** Unificado em `src/lib/payments.js:applyPaymentApproval`, consumido pelos dois arquivos — não há mais lógica duplicada nem divergência de `paidAt` | `src/lib/payments.js` | MÉDIA |
 | M-19 | Mensagem de WhatsApp montada em 3 lugares diferentes com texto quase idêntico | `lib/db.js:129`, `webhooks/mercadopago:159`, `payments/status:169` | MÉDIA |
 | M-20 | Componentes de 2.789 e 1.443 linhas, violando o limite de 400 de `.agents/AGENTS.md` §4 | `criar/page.jsx`, `entrega/page.jsx` | MÉDIA |
 | B-05 | `'use client'` + `export const runtime = 'edge'` no mesmo arquivo, proibido por `.agents/AGENTS.md` §3 | `admin/pedidos/[id]/page.jsx:1-2` | BAIXA |

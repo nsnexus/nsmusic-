@@ -72,12 +72,17 @@ function HomenagemContent() {
   const customerName = order.customerName || 'Alguém que te ama muito';
   const songStyle = order.style || order.genre || 'Personalizada';
   const lyrics = order.lyrics || order.generatedLyrics || 'Esta música foi criada com todo o carinho e emoção para eternizar momentos inesquecíveis.';
-  
-  const audioList = order.audioFiles && order.audioFiles.length > 0
-    ? order.audioFiles
-    : (order.audioUrl ? [order.audioUrl] : []);
 
-  const videoUrl = order.videoUrl;
+  // Liberação SOMENTE por paymentStatus vindo do Firestore — nunca por parâmetro de URL
+  // (ver C-07/C-01 no AUDIT_REPORT.md: esta rota já foi exploitável via /homenagem?orderId=X).
+  const isPaid = order.paymentStatus === 'PAGAMENTO_APROVADO' || order.paymentStatus === 'PAGO';
+  const hasVideo = isPaid && !!order.videoUrl;
+
+  const audioList = isPaid
+    ? (order.audioFiles && order.audioFiles.length > 0 ? order.audioFiles : (order.audioUrl ? [order.audioUrl] : []))
+    : [];
+
+  const videoUrl = hasVideo ? order.videoUrl : null;
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#090d16', color: '#ffffff', position: 'relative', overflowX: 'hidden', fontFamily: 'system-ui, -apple-system, sans-serif', paddingBottom: '60px' }}>
@@ -137,6 +142,15 @@ function HomenagemContent() {
                 <h3 style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#ffffff', margin: '0 0 4px 0' }}>Música Personalizada Exclusiva</h3>
                 <p style={{ fontSize: '0.85rem', color: '#94a3b8', margin: 0 }}>Estilo: {songStyle}</p>
               </div>
+
+              {!isPaid && (
+                <div style={{ textAlign: 'center', padding: '20px', borderRadius: '16px', backgroundColor: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                  <span style={{ fontSize: '1.8rem' }}>🔒</span>
+                  <p style={{ fontSize: '0.9rem', color: '#94a3b8', marginTop: '8px' }}>
+                    A homenagem ainda está sendo finalizada. As músicas ficarão disponíveis assim que o pagamento for confirmado.
+                  </p>
+                </div>
+              )}
 
               {audioList.length > 0 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>

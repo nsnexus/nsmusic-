@@ -1,0 +1,31 @@
+// Catálogo de preços — fonte única de verdade sobre valores cobrados (ver C-05 no AUDIT_REPORT.md).
+// Nenhuma rota de pagamento deve aceitar um valor monetário vindo do corpo da requisição; o valor é
+// sempre derivado daqui a partir do SKU.
+//
+// SKUs usados hoje pelo frontend (criar/page.jsx e entrega/page.jsx, estado `selectedPackage`):
+//   - audio_only: só a música (pacote promocional com 2 versões)
+//   - combo: música + vídeo, comprados juntos
+//   - video_addon: só o add-on de vídeo, para quem já pagou a música separadamente
+
+export const SKU_PRICES = {
+  audio_only: 9.99,
+  combo: 16.89,
+  video_addon: 6.90,
+};
+
+export function getPriceForSku(sku) {
+  const price = SKU_PRICES[sku];
+  return typeof price === 'number' ? price : null;
+}
+
+// Um SKU "inclui vídeo" quando concede acesso ao add-on de vídeo (ver A-13 no AUDIT_REPORT.md —
+// antes disso era decidido por uma heurística de valor, frágil a qualquer cobrança futura de 6.90).
+export function skuGrantsVideoAccess(sku) {
+  return sku === 'combo' || sku === 'video_addon';
+}
+
+// Um SKU "aprova a música" quando confirma o pagamento principal (paymentStatus). O video_addon
+// isolado NUNCA deve alterar paymentStatus (ver C-09 no AUDIT_REPORT.md).
+export function skuApprovesMusic(sku) {
+  return sku === 'audio_only' || sku === 'combo';
+}

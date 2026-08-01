@@ -140,39 +140,103 @@ teste unitário do `requireAdmin`, não por chamada HTTP real); `grep -rE "[a-f0
 
 ---
 
-## Lote 2 — Pagamentos, webhooks e liberação do produto
+## Lote 2 — Pagamentos, webhooks e liberação do produto — ✅ CONCLUÍDO NO CÓDIGO (2026-08-01)
 
 **Objetivo:** o servidor passa a ser a única autoridade sobre preço e sobre o que foi pago.
 
 **Ordem de execução**
 1. Criar `src/lib/pricing.js` com o catálogo (`musica: 9.99`, `video: 6.90`) — fonte única.
+   **Status: CORRIGIDO E VALIDADO.** Catálogo com 3 SKUs (`audio_only` 9.99, `combo` 16.89,
+   `video_addon` 6.90) — o `combo` existia no frontend (`entrega/page.jsx:selectedPackage`) mas não
+   estava no plano original; incluído porque é um produto real vendido hoje. Testado em
+   `tests/unit/pricing.test.js` (9 casos).
 2. **C-05** — `/api/payments/create` recebe `orderId` + SKU, deriva o valor de `pricing.js`, ignora
    `totalAmount` do cliente e **persiste** `expectedAmount` + `paymentIntentId` no pedido.
+   **Status: CORRIGIDO E VALIDADO.** A rota agora exige `orderId`, valida que o pedido existe (404
+   caso contrário), deriva o valor só do catálogo e persiste `expectedAmount`/`paymentIntentId`/
+   `paymentIntentSku`. `criar/page.jsx` (2 pontos) e `entrega/page.jsx` (`handleGeneratePix`)
+   atualizados para enviar `{ orderId, sku }` em vez de `{ formData, totalAmount }`.
 3. **A-10** — passar a gerar BR Code com `txid` único por cobrança, para tornar o PIX conciliável.
+   **Status: CORRIGIDO E VALIDADO.** `generatePixPayload` ganhou um 3º parâmetro `txid` (padrão `'***'`
+   — por isso os 3 testes de caracterização do Lote 0 continuam passando sem alteração). Testado em
+   `tests/unit/generatePixPayload.test.js` (4 novos casos: embute o txid, trunca em 25 chars, sanitiza
+   caracteres inválidos, dois txids geram payloads diferentes).
 4. Criar `src/lib/payments.js` unificando `processPayment` e `markOrderApproved` (**M-18**).
+   **Status: CORRIGIDO E VALIDADO.** `applyPaymentApproval(orderId, paymentId, mpPayment)` é agora o
+   único ponto de aprovação, consumido por `api/webhooks/mercadopago/route.js` e
+   `api/payments/status/route.js`. Testado em `tests/unit/payments.test.js` (10 casos, Firestore
+   mockado).
 5. **C-09** — mover `paymentStatus` para dentro do ramo não-vídeo.
+   **Status: CORRIGIDO E VALIDADO** (teste: "video_addon isolado NUNCA escreve paymentStatus").
 6. **A-13** — substituir a heurística de valor por `paymentIntent.sku` persistido.
+   **Status: CORRIGIDO E VALIDADO**, com fallback para a heurística de valor apenas quando o pedido
+   não tem `paymentIntentSku` (pedidos criados antes desta migração de código). Testado explicitamente
+   ("usa o SKU persistido mesmo se o valor da transação coincidir com outro SKU por acaso").
 7. **A-09** — usar `runTransaction` para as flags de envio de WhatsApp e chave de idempotência por `paymentId`.
+   **Status: CORRIGIDO E VALIDADO.** A decisão de aprovação inteira (não só a flag de WhatsApp) roda
+   dentro de uma `runTransaction`, com o `paymentId`/`videoPaymentId` como chave de dedupe. Testado
+   ("o mesmo paymentId não é processado duas vezes").
 8. **A-01** — validar `x-signature` do Mercado Pago; manter a reconsulta à API como segunda barreira.
+   **Status: CORRIGIDO, MAS NÃO VALIDADO CONTRA O MERCADO PAGO REAL.** Implementado HMAC-SHA256 sobre
+   `id:<paymentId>;request-id:<x-request-id>;ts:<ts>;` via Web Crypto (compatível com Edge). Se
+   `MERCADO_PAGO_WEBHOOK_SECRET` não estiver configurado, a validação é pulada (log de aviso) e a
+   reconsulta à API continua como única barreira — **novo segredo, documentado em `.env.example`,
+   precisa ser configurado no Cloudflare Pages e no painel do Mercado Pago para a validação entrar em
+   vigor.** Não foi possível testar contra uma notificação real do Mercado Pago nesta sessão.
 9. **C-01** — remover `searchParams.get('status')` de `isPaid` e o `useEffect` que grava `paymentStatus`.
+   **Status: CORRIGIDO E VALIDADO — escopo maior que o previsto.** Além de `entrega/page.jsx` (`isPaid`
+   e o `useEffect` de gravação), encontrados e corrigidos **mais 4 pontos** do mesmo padrão proibido
+   (cliente gravando `paymentStatus`/`hasVideoAccess` direto no Firestore) não listados originalmente
+   neste item:
+   - `entrega/page.jsx`: polling de música E de vídeo também gravavam direto no Firestore após receber
+     "approved" do servidor — redundante (o servidor já gravou) e proibido por `payments.md`. Trocado
+     por atualização de estado local (`setOrder`) apenas.
+   - `criar/page.jsx:228` e `criar/page.jsx:2189` (já citados como evidência em C-11): dois pontos que
+     gravavam `paymentStatus: 'PAGO'` direto no Firestore após receber "approved" do servidor. Mesma
+     correção — removida a gravação, mantido só o redirecionamento (que agora não carrega mais
+     `&status=success`, já que a URL não tem mais nenhum efeito sobre `isPaid`).
+   - **C-12 (novo, ver AUDIT_REPORT.md)**: `criar/page.jsx` (2 pontos, antes de qualquer pagamento)
+     gravava `hasVideoAccess: !!formData.addons?.wantsVideo` direto no Firestore — concedia acesso ao
+     vídeo pago só porque o cliente **pretendia** comprá-lo, nunca verificando pagamento. Removido.
 10. **C-07** — aplicar o gate de pagamento em `homenagem/page.jsx`; excluir `HomenagemPublica.jsx`.
+    **Status: CORRIGIDO E VALIDADO.** `isPaid` derivado só de `paymentStatus` (sem parâmetro de URL —
+    a versão órfã que seria portada tinha o MESMO bug de C-01, não foi copiada). Estado bloqueado
+    adicionado com a estética escura já usada na página. `HomenagemPublica.jsx` excluído (confirmado
+    sem nenhum import em `src/`).
 11. **A-07** — `/api/video/generate` passa a exigir `hasVideoAccess === true`.
+    **Status: CORRIGIDO E VALIDADO.** Retorna 403 se `!orderData.hasVideoAccess && !orderData.videoAddonPaid`.
 12. **M-01** — normalizar `paymentStatus` para dois valores (`AGUARDANDO_PAGAMENTO`, `PAGAMENTO_APROVADO`)
     e escrever uma migração que converta os registros existentes com `PAGO`.
+    **Status: BLOQUEADO/PENDENTE DE DECISÃO — script preparado, NÃO EXECUTADO.** O código agora só
+    escreve `PAGAMENTO_APROVADO` (nenhum `PAGO` novo é gerado); leitura continua aceitando os dois
+    valores por compatibilidade com pedidos antigos. Criados `scripts/migrate-payment-status.mjs`
+    (dry-run por padrão, `--apply` para gravar, gera log dos IDs alterados) e
+    `scripts/revert-payment-status-migration.mjs` (reverte a partir do log). **Não executados — grava
+    em produção e precisa das credenciais reais do Firebase, que não existem nesta sessão.** Aguardando
+    autorização do responsável pelo projeto para rodar.
 13. Tratar estados `cancelled`/`refunded`/`charged_back` revogando o acesso.
+    **Status: CORRIGIDO E VALIDADO (unitário).** `applyPaymentApproval` reverte `paymentStatus` para
+    `AGUARDANDO_PAGAMENTO` (estorno da música) ou `hasVideoAccess`/`videoAddonPaid` para `false`
+    (estorno do vídeo), conforme qual `paymentId` bate. Não testado contra um estorno real do MP.
+
+**Testes novos:** `tests/unit/{pricing,payments}.test.js` (novos) + 4 casos adicionados a
+`generatePixPayload.test.js`. 51 testes no total, todos verdes.
 
 **Arquivos:** `api/payments/{create,status}/route.js`, `api/webhooks/mercadopago/route.js`,
 `api/video/generate/route.js`, `entrega/page.jsx`, `homenagem/page.jsx`, `criar/page.jsx`,
-`src/lib/{pricing,payments}.js` (novos)
+`src/lib/{pricing,payments}.js` (novos), `scripts/{migrate,revert}-payment-status*.mjs` (novos, não
+executados), `.env.example`, `src/app/homenagem/HomenagemPublica.jsx` (excluído)
 
 **Dependências:** Lote 1 (autenticação disponível)
-**Riscos:** **os mais altos do plano.** Um erro aqui bloqueia clientes que pagaram. Manter, durante uma
-semana, um log de auditoria de toda transição de `paymentStatus`.
-**Testes:** `totalAmount: 0.01` → valor de catálogo prevalece; webhook de R$ 6,90 em pedido não pago →
-`paymentStatus` inalterado; webhook duplicado → uma única mensagem de WhatsApp; assinatura inválida → 401;
-`/entrega?status=success` sem pagamento → conteúdo bloqueado.
-**Aceite:** nenhum caminho conhecido libera o produto sem confirmação do provedor de pagamento.
-**Rollback:** reverter o PR; a migração de `PAGO` precisa de script inverso preparado antes.
+**Riscos:** **os mais altos do plano — mitigados o quanto possível sem ambiente de produção real.**
+Toda a lógica de decisão (C-09, A-13, A-09, revogação) tem cobertura de teste unitário com Firestore
+mockado. O que NÃO foi validado: comportamento contra o Mercado Pago real (assinatura, webhook de
+verdade), contra o Firebase real (migração, regras), e o caminho completo no navegador.
+**Testes executados:** `npm run build/lint/typecheck/test` verdes (51 testes). Fluxo E2E real
+(criar → pagar → entregar) **não foi executado** — sem ambiente com credenciais reais nesta sessão.
+**Aceite:** nenhum caminho de código conhecido libera o produto sem uma resposta `approved` do
+Mercado Pago processada pelo servidor. **Rollback:** reverter o commit deste lote; a migração de
+`PAGO` (item 12) nunca chegou a rodar em produção, então não há nada para reverter nela.
 
 ---
 

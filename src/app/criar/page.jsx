@@ -221,15 +221,11 @@ export default function CriarMusica() {
           if (res.ok) {
             const data = await res.json();
             if (data.status === 'approved') {
+              // A gravação em Firestore já aconteceu no servidor, dentro de /api/payments/status
+              // (ver src/lib/payments.js) — o cliente nunca escreve paymentStatus (ver C-01/C-09).
               clearInterval(interval);
               setPixInfo(prev => ({ ...prev, status: 'approved' }));
-              if (orderId) {
-                await updateDoc(doc(db, 'orders', orderId), {
-                  paymentStatus: 'PAGO',
-                  updatedAt: new Date().toISOString()
-                }).catch(e => console.warn(e));
-              }
-              window.location.href = `/entrega?orderId=${orderId}&status=success`;
+              window.location.href = `/entrega?orderId=${orderId}`;
               return;
             }
           }
@@ -247,7 +243,7 @@ export default function CriarMusica() {
               if (orderData.paymentStatus === 'PAGAMENTO_APROVADO' || orderData.paymentStatus === 'PAGO') {
                 clearInterval(interval);
                 setPixInfo(prev => ({ ...prev, status: 'approved' }));
-                window.location.href = `/entrega?orderId=${orderId}&status=success`;
+                window.location.href = `/entrega?orderId=${orderId}`;
                 return;
               }
             }
@@ -2078,23 +2074,21 @@ export default function CriarMusica() {
                           setIsGeneratingPix(true);
                           try {
                             if (orderId) {
+                              // hasVideoAccess NUNCA é definido aqui: é um flag de acesso a produto pago
+                              // e só pode ser concedido pelo servidor após confirmação de pagamento
+                              // (ver C-09/A-07 em docs/audit/AUDIT_REPORT.md).
                               await updateDoc(doc(db, 'orders', orderId), {
                                 total: getTotalPrice(),
                                 package: formData.selectedPackage,
-                                hasVideoAccess: !!formData.addons?.wantsVideo,
                                 updatedAt: new Date().toISOString()
                               }).catch(e => console.warn(e));
                             }
 
+                            const sku = formData.addons?.wantsVideo ? 'combo' : 'audio_only';
                             const res = await fetch('/api/payments/create', {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({
-                                formData,
-                                totalAmount: getTotalPrice(),
-                                paymentType: 'pix',
-                                orderId
-                              })
+                              body: JSON.stringify({ orderId, sku })
                             });
                             if (res.ok) {
                               const data = await res.json();
@@ -2185,14 +2179,9 @@ export default function CriarMusica() {
                               if (res.ok) {
                                 const data = await res.json();
                                 if (data.status === 'approved') {
+                                  // Gravação já feita no servidor (/api/payments/status) — ver C-01/C-09.
                                   setPixInfo(prev => ({ ...prev, status: 'approved' }));
-                                  if (orderId) {
-                                    await updateDoc(doc(db, 'orders', orderId), {
-                                      paymentStatus: 'PAGO',
-                                      updatedAt: new Date().toISOString()
-                                    }).catch(e => console.warn(e));
-                                  }
-                                  window.location.href = `/entrega?orderId=${orderId}&status=success`;
+                                  window.location.href = `/entrega?orderId=${orderId}`;
                                   return;
                                 }
                               }
@@ -2269,22 +2258,19 @@ export default function CriarMusica() {
                       onClick={async () => {
                         try {
                           if (orderId) {
+                            // hasVideoAccess NUNCA é definido aqui — ver comentário equivalente acima.
                             await updateDoc(doc(db, 'orders', orderId), {
                               total: getTotalPrice(),
                               package: formData.selectedPackage,
-                              hasVideoAccess: !!formData.addons?.wantsVideo,
                               updatedAt: new Date().toISOString()
                             }).catch(e => console.warn(e));
                           }
 
+                          const sku = formData.addons?.wantsVideo ? 'combo' : 'audio_only';
                           const response = await fetch('/api/payments/create', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                              formData,
-                              totalAmount: getTotalPrice(),
-                              paymentType: 'preference'
-                            })
+                            body: JSON.stringify({ orderId, sku })
                           });
                           if (response.ok) {
                             const data = await response.json();

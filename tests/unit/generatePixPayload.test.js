@@ -46,3 +46,33 @@ describe('generatePixPayload', () => {
     expect(payload.slice(-4)).toBe(crc16ccitt(body));
   });
 });
+
+// A-10 no AUDIT_REPORT.md: o BR Code passou a ter um txid real por cobrança em vez do literal
+// fixo '***', para tornar o PIX conciliável.
+describe('generatePixPayload com txid real (A-10)', () => {
+  it('embute o txid no campo 05 (Additional Data Field) e recalcula o CRC corretamente', () => {
+    const payload = generatePixPayload(9.99, false, 'ABCD1234');
+    expect(payload).toContain('0508ABCD1234'); // tag05 + len(08) + valor
+    const body = payload.slice(0, -4);
+    expect(payload.slice(-4)).toBe(crc16ccitt(body));
+  });
+
+  it('trunca o txid em 25 caracteres (limite do BR Code) e remove caracteres não alfanuméricos', () => {
+    const longTxid = 'a'.repeat(30) + '!!!';
+    const payload = generatePixPayload(9.99, false, longTxid);
+    // buildAdditionalDataField não força maiúsculas — só sanitiza e limita o comprimento.
+    expect(payload).toMatch(/0525a{25}/);
+  });
+
+  it('sem txid explícito, usa "***" — idêntico ao comportamento antigo (compatibilidade)', () => {
+    const withDefault = generatePixPayload(9.99, false);
+    const withExplicitStar = generatePixPayload(9.99, false, '***');
+    expect(withDefault).toBe(withExplicitStar);
+  });
+
+  it('dois txids diferentes produzem payloads e CRCs diferentes', () => {
+    const a = generatePixPayload(9.99, false, 'ORDER1AAA');
+    const b = generatePixPayload(9.99, false, 'ORDER2BBB');
+    expect(a).not.toBe(b);
+  });
+});
