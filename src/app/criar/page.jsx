@@ -461,6 +461,7 @@ export default function CriarMusica() {
     const raw = getRawAudioUrl(track);
     if (!raw) return '';
     if (raw.startsWith('blob:') || raw.startsWith('/api/')) return raw;
+    if (raw.includes('musicfile.kie.ai')) return raw;
     return `/api/audio/proxy?url=${encodeURIComponent(raw)}`;
   };
 
@@ -2077,7 +2078,9 @@ export default function CriarMusica() {
                                 window.fbq('track', 'InitiateCheckout', { value: 9.99, currency: 'BRL' });
                               }
                             } else {
-                              alert('Erro ao gerar código PIX. Tente novamente.');
+                              const errData = await res.json().catch(() => ({}));
+                              console.error("PagBank PIX Error:", errData);
+                              alert(`Erro do PagBank: ${errData?.error || 'Tente novamente.'}`);
                             }
                           } catch (err) {
                             console.error(err);
