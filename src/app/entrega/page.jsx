@@ -543,7 +543,9 @@ function EntregaContent() {
                       </p>
                     )}
                     <audio 
+                      key={primaryAudioUrl}
                       controls 
+                      autoPlay={!isPaid}
                       controlsList={!isPaid ? "nodownload noplaybackrate" : undefined}
                       onContextMenu={(e) => !isPaid && e.preventDefault()}
                       onTimeUpdate={handleAudioTimeUpdate} 
@@ -579,6 +581,7 @@ function EntregaContent() {
                       </p>
                     )}
                     <audio 
+                      key={secondAudioUrl}
                       controls 
                       controlsList={!isPaid ? "nodownload noplaybackrate" : undefined}
                       onContextMenu={(e) => !isPaid && e.preventDefault()}
