@@ -43,7 +43,8 @@ export async function POST(req) {
         reference_id: orderId || `NS-${Date.now()}`,
         customer: {
           name: customerName,
-          email: customerEmail
+          email: customerEmail,
+          tax_id: "00000000000" // Fallback CPF exigido pelo PagBank para geração de PIX
         },
         items: [
           {
