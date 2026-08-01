@@ -8,7 +8,9 @@ export async function GET(req) {
   try {
     const { searchParams } = new URL(req.url);
     const taskId = searchParams.get('taskId');
-    const orderId = searchParams.get('orderId');
+    // orderId NUNCA vem da query string: um cliente poderia gravar o áudio de uma tarefa no pedido de
+    // outro cliente (ver A-02 no AUDIT_REPORT.md). O orderId correto é sempre o que foi associado à
+    // tarefa em /api/suno/generate, lido de dentro de updateTaskResult/lib/db.js a partir do suno_tasks.
 
     if (!taskId) {
       return NextResponse.json({ error: "taskId é obrigatório" }, { status: 400 });
@@ -61,7 +63,7 @@ export async function GET(req) {
             const tracksArray = extractAudioTracks(kieData);
             if (tracksArray.length > 0) {
               // Garante a atualização do pedido no Firestore e envio do WhatsApp antes de responder
-              await updateTaskResult(taskId, kieData, orderId);
+              await updateTaskResult(taskId, kieData);
               return NextResponse.json({ status: "COMPLETED", tracks: tracksArray });
             }
           }

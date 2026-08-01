@@ -240,25 +240,75 @@ Mercado Pago processada pelo servidor. **Rollback:** reverter o commit deste lot
 
 ---
 
-## Lote 3 — Autenticação e autorização
+## Lote 3 — Autenticação e autorização — ⚠️ PARCIALMENTE CONCLUÍDO (2026-08-01)
 
 **Objetivo:** identidade de admin verificada no servidor; usuários só enxergam os próprios pedidos.
 
 **Ações**
 - **A-08** — custom claim `admin: true` no Firebase Auth; verificar a claim no servidor, não o e-mail.
+  **Status: CORRIGIDO NO CÓDIGO, PENDENTE DE CONFIGURAÇÃO EXTERNA.** `src/lib/auth.js:requireAdmin()`
+  agora aceita custom claim `admin: true` (via `customAttributes` do `accounts:lookup`) OU a allowlist
+  `ADMIN_EMAILS` (OR — qualquer um concede acesso). Criado `scripts/set-admin-claim.mjs`
+  (`firebase-admin`, novo devDependency) para definir a claim — **não executado nesta sessão**, requer
+  uma service account do Firebase (Admin SDK) que não existe neste ambiente. `admin/page.jsx` e
+  `admin/pedidos/[id]/page.jsx` continuam com a checagem de e-mail no browser só para roteamento de
+  UI (redirecionar para `/admin/login`) — a decisão de autorização real já está 100% no servidor
+  desde o Lote 1, essa checagem client-side é só UX.
 - Painel admin passa a enviar `Authorization: Bearer <idToken>` em todas as chamadas.
+  **Status: JÁ CONCLUÍDO NO LOTE 1.** Conferido: as únicas rotas administrativas chamadas pelo painel
+  (`orders/delete`, `whatsapp/send`) já enviam o token desde o Lote 1. `suno/generate` e
+  `suno/status`, também chamadas pelo painel para regenerar músicas, são rotas públicas (usadas por
+  qualquer cliente durante a criação) — não fazem sentido atrás de `requireAdmin`.
 - Endurecer `firestore.rules`: leitura de um pedido só pelo dono (`userId`) ou por admin.
+  **Status: JÁ ESTAVA NO RASCUNHO DO LOTE 1**, atualizado com os 3 pré-requisitos revisados. Não
+  publicado — pré-requisito 1 (identidade de servidor para as rotas de API) continua pendente.
 - **A-02** — remover `orderId` como parâmetro de query em `/api/suno/status`; derivar do `suno_tasks`.
+  **Status: CORRIGIDO E VALIDADO (build).** O parâmetro `orderId` não é mais lido da query string;
+  `updateTaskResult` sempre usa o `orderId` já associado à tarefa em `suno_tasks` (gravado por
+  `/api/suno/generate` no momento da criação).
 - **A-03** — autenticar `/api/suno/webhook` (segredo compartilhado na URL de callback).
+  **Status: CORRIGIDO, NÃO VALIDADO CONTRA A KIE.AI REAL.** Novo `KIE_WEBHOOK_SECRET` (documentado em
+  `.env.example`); `/api/suno/generate` inclui `?secret=...` na URL de callback quando configurado;
+  `/api/suno/webhook` rejeita com 401 se o segredo não bater. Sem a variável configurada, pula a
+  checagem com aviso (não quebra produção até o segredo ser configurado e uma nova geração acontecer
+  com a URL de callback atualizada).
 - **A-04, A-12** — rate limiting (Cloudflare Rate Limiting ou KV) em `suno/generate`, `lyrics/*`, `whatsapp/verify`.
+  **Status: NÃO IMPLEMENTADO — decisão do usuário.** Perguntado; decisão foi só documentar a
+  recomendação, sem código. Não há `wrangler.toml` nem KV namespace configurado neste projeto.
+  **Recomendação:** configurar Cloudflare Rate Limiting Rules (WAF) diretamente no painel da
+  Cloudflare para `/api/suno/generate`, `/api/lyrics/*` e `/api/whatsapp/verify` — não exige mudança
+  de código nem KV, e é mais confiável que um limitador em memória (que não é compartilhado entre
+  instâncias/regiões do Cloudflare Workers). Ação externa pendente, fora do alcance desta sessão.
 - **A-11** — mover o limite de prévias grátis para o servidor.
+  **Status: CORRIGIDO E VALIDADO (unitário).** `/api/orders/create` agora chama
+  `isBlockedByFreeLimit(phone, email)` (consulta `orders` por `where`, mesmo critério do antigo
+  `checkUserLimit` client-side) e responde 403 antes de criar o pedido. `criar/page.jsx` atualizado
+  para tratar o 403 (mostra o modal de limite em vez de prosseguir silenciosamente). Testado em
+  `tests/unit/ordersFreeLimit.test.js` (5 casos, incluindo deduplicação entre telefone e e-mail).
 
-**Arquivos:** `src/lib/auth.js`, todas as rotas de `api/`, páginas de `admin/`, `firestore.rules`
+**Testes novos:** `tests/unit/ordersFreeLimit.test.js` (novo) + 2 casos adicionados a
+`auth.test.js` (custom claim). 58 testes no total, todos verdes.
+
+**Arquivos:** `src/lib/auth.js`, `api/suno/{generate,status,webhook}/route.js`,
+`api/orders/create/route.js`, `criar/page.jsx`, `firestore.rules`, `.env.example`,
+`scripts/set-admin-claim.mjs` (novo, não executado)
+
 **Dependências:** Lotes 1 e 2
-**Riscos:** médios — perder o acesso admin durante a transição. Definir a claim antes de exigir a claim.
-**Testes:** conta não-admin não acessa `/admin` nem as rotas; usuário A não lê pedido de B.
-**Aceite:** nenhuma decisão de autorização depende de código do browser.
-**Rollback:** reverter o PR; a custom claim pode permanecer sem efeito colateral.
+**Riscos:** médios — mitigados: a allowlist `ADMIN_EMAILS` continua funcionando como fallback, então
+nada quebra o acesso admin atual enquanto a custom claim não for configurada.
+**Testes executados:** `npm run build/lint/typecheck/test` verdes (58 testes). Rate limiting real,
+webhook do Kie.ai autenticado e custom claim **não foram validados** contra os serviços reais —
+dependem de configuração externa (Cloudflare, Firebase Admin SDK, nova URL de callback na Kie.ai).
+**Aceite:** parcialmente atingido — a autorização de admin não depende mais só de código do browser
+(tem verificação de servidor desde o Lote 1), mas ainda não depende exclusivamente de custom claim
+(a allowlist de e-mail continua sendo um caminho válido até a claim ser configurada).
+**Pendências explícitas para o responsável do projeto:**
+1. Rodar `scripts/set-admin-claim.mjs` com uma service account do Firebase.
+2. Configurar `KIE_WEBHOOK_SECRET` no Cloudflare Pages e registrar a nova URL de callback na Kie.ai.
+3. Configurar Cloudflare Rate Limiting Rules para as rotas listadas em A-04/A-12.
+4. Publicar `firestore.rules` só depois de resolver o pré-requisito 1 (identidade de servidor).
+**Rollback:** reverter o commit; a custom claim (se chegar a ser definida) não tem efeito colateral
+por si só, já que a allowlist de e-mail continua funcionando em paralelo.
 
 ---
 

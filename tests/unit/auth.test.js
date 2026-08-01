@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { requireAdmin } from '@/lib/auth';
 
-// requireAdmin substitui, no Lote 1, a checagem de admin por comparação de e-mail no browser
-// (A-08 no AUDIT_REPORT.md) por um token de Firebase validado no servidor + allowlist server-side.
-// O custom claim definitivo só chega no Lote 3.
+// requireAdmin substitui a checagem de admin por comparação de e-mail no browser (A-08 no
+// AUDIT_REPORT.md) por um token de Firebase validado no servidor. Aceita dois mecanismos (OR):
+// custom claim `admin: true` (definitivo, ver scripts/set-admin-claim.mjs) ou allowlist de e-mail
+// `ADMIN_EMAILS` (transição, enquanto a claim não estiver configurada em produção).
 
 function makeRequest(bearer) {
   const headers = new Headers();
@@ -66,5 +67,39 @@ describe('requireAdmin', () => {
     });
     const result = await requireAdmin(makeRequest('token-valido'), ENV);
     expect(result.ok).toBe(true);
+  });
+
+  it('aceita via custom claim admin:true mesmo com e-mail fora da allowlist', async () => {
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        users: [{
+          localId: 'uid-claim',
+          email: 'outra-conta@example.com',
+          emailVerified: true,
+          customAttributes: JSON.stringify({ admin: true }),
+        }],
+      }),
+    });
+    const result = await requireAdmin(makeRequest('token-valido'), ENV);
+    expect(result.ok).toBe(true);
+    expect(result.uid).toBe('uid-claim');
+  });
+
+  it('customAttributes com admin:false não concede acesso (precisa da allowlist)', async () => {
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        users: [{
+          localId: 'uid2',
+          email: 'nao-admin@example.com',
+          emailVerified: true,
+          customAttributes: JSON.stringify({ admin: false }),
+        }],
+      }),
+    });
+    const result = await requireAdmin(makeRequest('token-valido'), ENV);
+    expect(result.ok).toBe(false);
+    expect(result.status).toBe(403);
   });
 });

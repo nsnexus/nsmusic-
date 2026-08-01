@@ -946,6 +946,12 @@ export default function CriarMusica() {
               } catch (e) {}
             }
           }
+        } else if (orderRes.status === 403) {
+          // Trava de músicas grátis reforçada no servidor (ver A-11) — o cliente já verifica isso
+          // antes de chegar aqui, mas se ainda assim for bloqueado, não prossegue para gerar a letra.
+          updateField('lyricsStatus', 'idle');
+          setShowLimitModal(true);
+          return;
         }
       } catch (orderErr) {
         console.error("Erro ao criar pedido via API Backend:", orderErr);
@@ -1060,6 +1066,10 @@ export default function CriarMusica() {
               activeOrderId = createData.orderId;
               setOrderId(createData.orderId);
             }
+          } else if (createRes.status === 403) {
+            updateField('sunoStatus', 'idle');
+            setShowLimitModal(true);
+            return;
           }
         } catch (e) {
           console.error("Erro ao criar pedido emergencial antes do Suno:", e);

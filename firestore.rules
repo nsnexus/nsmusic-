@@ -18,14 +18,19 @@
 //   - a busca rápida (sem login) de /minhas-musicas.
 //
 // PRÉ-REQUISITOS antes de publicar (rastreados no Lote 3 do FIX_PLAN):
-//   1. Definir uma identidade de servidor: ou (a) uma conta de serviço do Firebase Auth
+//   1. PENDENTE — Definir uma identidade de servidor: ou (a) uma conta de serviço do Firebase Auth
 //      (e-mail/senha dedicado, nunca exposta ao cliente) com custom claim `service: true`, usada
 //      pelas rotas de API para autenticar antes de cada escrita; ou (b) migrar as rotas de API
 //      para a REST API do Firestore com uma service account do Google Cloud (fora do SDK cliente).
-//   2. Custom claim `admin: true` nas contas administrativas (Lote 3), substituindo a comparação
-//      de e-mail hoje feita no browser (A-08).
-//   3. Confirmar que toda escrita hoje feita direto do browser (entrega/page.jsx, criar/page.jsx)
-//      foi migrada para rotas de API autenticadas, ou tem uma regra explícita e auditada aqui.
+//      Sem isso, publicar estas regras quebra TODAS as rotas de API que escrevem em orders/suno_tasks.
+//   2. PARCIAL — `src/lib/auth.js:requireAdmin()` já aceita custom claim `admin: true` (além da
+//      allowlist `ADMIN_EMAILS`, que só funciona nas rotas de API — regras do Firestore não têm
+//      acesso a variáveis de ambiente do servidor, só ao token). Falta rodar
+//      `scripts/set-admin-claim.mjs` contra a conta admin real (precisa de credenciais do Admin SDK,
+//      fora do alcance desta sessão) e então remover a allowlist como fallback.
+//   3. PENDENTE — `admin/pedidos/[id]/page.jsx:98` ainda grava `paymentStatus` direto do browser.
+//      `entrega/page.jsx` e `criar/page.jsx` já não gravam mais nada de aprovação de pagamento
+//      (corrigido no Lote 2 — ver C-01/C-12).
 //
 // Até esses pré-requisitos estarem prontos, a publicação deste arquivo é uma ação de "modificar
 // configuração de produção" e deve ser feita numa janela de manutenção coordenada, com o painel

@@ -33,7 +33,19 @@ export async function POST(req) {
     // Garante a URL do webhook no domínio oficial de produção
     const rawUrl = (process.env.NEXT_PUBLIC_SITE_URL || '').trim().replace(/\/+$/, '');
     const baseUrl = (!rawUrl || rawUrl.includes('pages.dev') || rawUrl.includes('localhost')) ? 'https://nsmusic.nsnexus.com.br' : rawUrl;
-    const callbackUrl = `${baseUrl}/api/suno/webhook`;
+
+    // Segredo compartilhado no callback: /api/suno/webhook confere este valor antes de processar
+    // (ver A-03 no AUDIT_REPORT.md — o webhook não tinha nenhuma autenticação).
+    let webhookSecret = '';
+    try {
+      const ctx = getRequestContext();
+      if (ctx?.env?.KIE_WEBHOOK_SECRET) webhookSecret = String(ctx.env.KIE_WEBHOOK_SECRET).trim();
+    } catch (e) {}
+    if (!webhookSecret) webhookSecret = String(process.env.KIE_WEBHOOK_SECRET || '').trim();
+
+    const callbackUrl = webhookSecret
+      ? `${baseUrl}/api/suno/webhook?secret=${encodeURIComponent(webhookSecret)}`
+      : `${baseUrl}/api/suno/webhook`;
 
     const response = await fetch('https://api.kie.ai/api/v1/generate', {
       method: 'POST',
