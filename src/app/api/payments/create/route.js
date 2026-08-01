@@ -48,7 +48,10 @@ export async function POST(req) {
         customer: {
           name: customerName,
           email: customerEmail,
-          tax_id: "00851895298" // Fallback CPF exigido pelo PagBank para geração de PIX
+          tax_id: "00851895298", // Fallback CPF exigido pelo PagBank para geração de PIX
+          phones: [
+            { country: "55", area: "11", number: "999999999", type: "MOBILE" }
+          ]
         },
         items: [
           {
