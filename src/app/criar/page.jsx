@@ -195,7 +195,7 @@ export default function CriarMusica() {
     if (needsReload && typeof window !== 'undefined') {
       const timer = setTimeout(() => {
         window.location.reload();
-      }, 1500); // 1.5s garante que o localStorage foi salvo e exibe a transição pro usuário
+      }, 6000); // 6s de delay para dar tempo das CDNs da Suno/Kie.ai propagarem o arquivo MP3
       return () => clearTimeout(timer);
     }
   }, [needsReload]);
@@ -472,7 +472,6 @@ export default function CriarMusica() {
     const raw = getRawAudioUrl(track);
     if (!raw) return '';
     if (raw.startsWith('blob:') || raw.startsWith('/api/')) return raw;
-    if (raw.includes('musicfile.kie.ai')) return raw;
     return `/api/audio/proxy?url=${encodeURIComponent(raw)}`;
   };
 
