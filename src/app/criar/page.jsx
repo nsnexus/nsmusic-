@@ -1034,11 +1034,12 @@ export default function CriarMusica() {
     }
   };
 
-  // Step 10 Approval -> Move straight to Checkout (Step 12) bypassing buggy audio preview
+  // Step 10 Approval -> Move to Audio Generation preview screen (Step 11)
   const handleApproveLyrics = async () => {
-    setStep(12);
-    // Se as músicas já foram geradas com sucesso anteriormente, apenas navega para o checkout sem regenerar
+    setStep(11);
+    // Se as músicas já foram geradas com sucesso anteriormente, apenas navega sem regenerar
     if (formData.sunoStatus === 'generated' && formData.sunoTracks && formData.sunoTracks.length > 0) {
+      if (orderId) window.location.href = `/entrega?orderId=${orderId}`;
       return;
     }
 
@@ -1126,7 +1127,6 @@ export default function CriarMusica() {
               sunoStatus: 'generated'
             }));
             clearInterval(interval);
-            setNeedsReload(true);
 
             // Garante que o documento do pedido em orders no Firebase receba os links reais dos áudios
             if (targetOrder) {
@@ -1145,6 +1145,9 @@ export default function CriarMusica() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ orderId: targetOrder })
               }).catch(e => console.warn("Erro ao notificar WhatsApp:", e));
+              
+              // Redireciona imediatamente para a página de entrega quando finalizado
+              window.location.href = `/entrega?orderId=${targetOrder}`;
             }
           } else {
             updateField('sunoProgress', `Estúdio produzindo arranjos...`);
