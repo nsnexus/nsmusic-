@@ -2,28 +2,18 @@ import { NextResponse } from 'next/server';
 
 export const runtime = 'edge';
 
-function generatePixPayload(pixKey, merchantName, merchantCity, txid, amount) {
-  const payloadFormat = "000201";
-  const gui = "0014BR.GOV.BCB.PIX";
-  const key = `01${pixKey.length.toString().padStart(2, '0')}${pixKey}`;
-  const merchantAccount = `26${(gui.length + key.length).toString().padStart(2, '0')}${gui}${key}`;
-  const merchantCategCode = "52040000";
-  const transactionCurrency = "5303986";
+function generatePixPayload(amount, isVideo) {
   const amountStr = Number(amount).toFixed(2);
-  const transactionAmount = `54${amountStr.length.toString().padStart(2, '0')}${amountStr}`;
-  const countryCode = "5802BR";
+  const amountLen = amountStr.length.toString().padStart(2, '0');
   
-  const mName = merchantName.substring(0, 25).normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  const merchantNameField = `59${mName.length.toString().padStart(2, '0')}${mName}`;
+  // Base exata gerada pelo aplicativo do banco do usuário para garantir compatibilidade 100%
+  const part1Music = "00020101021126470014br.gov.bcb.pix0114+55949910640430207NSMusic52040000530398654";
+  const part1Video = "00020101021126530014br.gov.bcb.pix0114+55949910640430213NSMusic Video52040000530398654";
+  const part1 = isVideo ? part1Video : part1Music;
+  const part2 = `${amountLen}${amountStr}`;
+  const part3 = "5802BR5922NARCISO H F DOS SANTOS6011PARAUAPEBAS62070503***6304";
   
-  const mCity = merchantCity.substring(0, 15).normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  const merchantCityField = `60${mCity.length.toString().padStart(2, '0')}${mCity}`;
-  
-  const txidStr = (txid || "NSMUSIC").substring(0, 25);
-  const txidField = `05${txidStr.length.toString().padStart(2, '0')}${txidStr}`;
-  const additionalDataField = `62${txidField.length.toString().padStart(2, '0')}${txidField}`;
-  
-  const payloadStart = payloadFormat + merchantAccount + merchantCategCode + transactionCurrency + transactionAmount + countryCode + merchantNameField + merchantCityField + additionalDataField + "6304";
+  const payloadStart = part1 + part2 + part3;
   
   let crc = 0xFFFF;
   for (let i = 0; i < payloadStart.length; i++) {
@@ -44,12 +34,8 @@ export async function POST(req) {
     const body = await req.json();
     const { formData, totalAmount, paymentType = 'pix', orderId } = body;
 
-    // Gera chave PIX Copia e Cola completo com valor e nome
-    const pixKey = "94991064043"; // CPF
     const manualPaymentId = `manual_${Date.now()}`;
-    const txid = orderId ? orderId.replace(/[^a-zA-Z0-9]/g, '').substring(0, 25) : "NSMUSIC";
-    
-    const pixCopiaECola = generatePixPayload(pixKey, "Narciso Henrique Felizardo dos Santos", "Sao Paulo", txid, Number(totalAmount));
+    const pixCopiaECola = generatePixPayload(Number(totalAmount), !!body.isSecondaryPayment);
 
     // For manual payments, we don't strictly need to store the manual paymentId in Firestore immediately
     // because there is no automatic webhook for it. The user sends the receipt manually.

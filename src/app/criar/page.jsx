@@ -1034,10 +1034,10 @@ export default function CriarMusica() {
     }
   };
 
-  // Step 10 Approval -> Move to Audio Generation preview screen (Step 11)
+  // Step 10 Approval -> Move straight to Checkout (Step 12) bypassing buggy audio preview
   const handleApproveLyrics = async () => {
-    setStep(11);
-    // Se as músicas já foram geradas com sucesso anteriormente, apenas navega para os players sem regenerar
+    setStep(12);
+    // Se as músicas já foram geradas com sucesso anteriormente, apenas navega para o checkout sem regenerar
     if (formData.sunoStatus === 'generated' && formData.sunoTracks && formData.sunoTracks.length > 0) {
       return;
     }
@@ -2448,7 +2448,7 @@ export default function CriarMusica() {
                 <button
                   onClick={() => {
                     setShowLimitModal(false);
-                    if (step < 11) setStep(11);
+                    if (step < 12) setStep(12);
                   }}
                   className="btn btn-primary"
                   style={{ width: '100%', padding: '14px', fontSize: '1rem', fontWeight: 'bold' }}
