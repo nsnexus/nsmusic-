@@ -164,6 +164,10 @@ async function processPayment(rawPaymentId) {
             const { sendWhatsAppMessage } = await import('@/lib/whatsapp');
             const sent = await sendWhatsAppMessage(orderData.customerPhone, messageText);
 
+            // Notifica o Admin
+            const adminMessage = `💰 *NOVA VENDA NSMUSIC!*\n\n*Cliente:* ${customerName}\n*Homenageado:* ${honoreeName}\n*Tipo:* ${isVideoPayment ? '🎥 Vídeo Homenagem' : '🎵 Música Personalizada'}\n*Data:* ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`;
+            await sendWhatsAppMessage('94991064043', adminMessage).catch(e => console.warn('Erro notificando admin:', e));
+
             if (sent) {
               await updateDoc(targetOrderRef, {
                 [sentFlag]: true,

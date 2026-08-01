@@ -142,10 +142,20 @@ export default function AdminDashboard() {
     }
   };
 
-  const getFaturamentoTotal = () => {
+  const getFaturamentoMusicas = () => {
     return orders
-      .filter(o => o.paymentStatus === 'PAGAMENTO_APROVADO')
+      .filter(o => o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'FINALIZADO' || o.paymentStatus === 'ENTREGUE' || o.paymentStatus === 'PAGO')
       .reduce((sum, o) => sum + (Number(o.total) || 0), 0);
+  };
+
+  const getFaturamentoVideos = () => {
+    return orders
+      .filter(o => o.videoAddonPaid)
+      .reduce((sum, o) => sum + 6.90, 0); // O preço do add-on de vídeo é fixo 6.90
+  };
+
+  const getFaturamentoTotal = () => {
+    return getFaturamentoMusicas() + getFaturamentoVideos();
   };
 
   const getOccasionEmoji = (occ) => {
@@ -370,20 +380,20 @@ export default function AdminDashboard() {
               {/* Cards de Métricas em Tema Claro */}
               <div style={styles.metricsGrid}>
                 <div style={styles.metricCard}>
-                  <span style={styles.metricLabel}>Faturamento Total</span>
+                  <span style={styles.metricLabel}>Total (Músicas + Vídeos)</span>
                   <h2 style={{ ...styles.metricValue, color: '#059669' }}>R$ {getFaturamentoTotal().toFixed(2)}</h2>
                 </div>
                 <div style={styles.metricCard}>
-                  <span style={styles.metricLabel}>Total de Pedidos</span>
-                  <h2 style={{ ...styles.metricValue, color: '#0f172a' }}>{orders.length}</h2>
+                  <span style={styles.metricLabel}>Músicas (R$ 9,99)</span>
+                  <h2 style={{ ...styles.metricValue, color: '#0f172a' }}>R$ {getFaturamentoMusicas().toFixed(2)}</h2>
                 </div>
                 <div style={styles.metricCard}>
-                  <span style={styles.metricLabel}>Novos (Aguardando Produção)</span>
-                  <h2 style={{ ...styles.metricValue, color: '#7c3aed' }}>{orders.filter(o => o.productionStatus === 'LETRA_APROVADA').length}</h2>
+                  <span style={styles.metricLabel}>Vídeos (R$ 6,90)</span>
+                  <h2 style={{ ...styles.metricValue, color: '#7c3aed' }}>R$ {getFaturamentoVideos().toFixed(2)}</h2>
                 </div>
                 <div style={styles.metricCard}>
-                  <span style={styles.metricLabel}>Em Produção</span>
-                  <h2 style={{ ...styles.metricValue, color: '#d97706' }}>{orders.filter(o => o.productionStatus === 'EM_PRODUCAO').length}</h2>
+                  <span style={styles.metricLabel}>Pedidos (Total)</span>
+                  <h2 style={{ ...styles.metricValue, color: '#d97706' }}>{orders.length}</h2>
                 </div>
               </div>
 
