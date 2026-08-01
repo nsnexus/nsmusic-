@@ -1,11 +1,24 @@
 import { NextResponse } from 'next/server';
 import { sendWhatsAppMessageDetailed } from '@/lib/whatsapp';
+import { requireAdmin } from '@/lib/auth';
 import { getRequestContext } from '@cloudflare/next-on-pages';
 
 export const runtime = 'edge';
 
 export async function POST(req) {
   try {
+    let envVars = process.env;
+    try {
+      if (getRequestContext().env) {
+        envVars = getRequestContext().env;
+      }
+    } catch (e) {}
+
+    const auth = await requireAdmin(req, envVars);
+    if (!auth.ok) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+
     const { phone, message } = await req.json();
 
     if (!phone || !message) {
@@ -14,13 +27,6 @@ export async function POST(req) {
         { status: 400 }
       );
     }
-
-    let envVars = process.env;
-    try {
-      if (getRequestContext().env) {
-        envVars = getRequestContext().env;
-      }
-    } catch (e) {}
 
     const result = await sendWhatsAppMessageDetailed(phone, message, envVars);
 

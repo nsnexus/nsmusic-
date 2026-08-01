@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { isAllowedMediaUrl } from '@/lib/proxyAllowlist';
 
 export const runtime = 'edge';
 
@@ -37,7 +38,10 @@ export async function GET(req) {
         }
         candidates.push(`https://cdn1.suno.ai/${cleanPath}`);
         candidates.push(`https://cdn2.suno.ai/${cleanPath}`);
-      } else {
+      } else if (isAllowedMediaUrl(formattedRaw)) {
+        // SSRF: só repassamos a URL absoluta ao fetch se o domínio estiver na allowlist
+        // (ver A-06 no AUDIT_REPORT.md) — caso contrário, ignoramos e seguimos só com os
+        // candidatos construídos a partir do itemId extraído abaixo.
         if (formattedRaw.includes('musicfile.kie.ai') && !formattedRaw.endsWith('.mp3')) {
           candidates.push(`${formattedRaw}.mp3`);
         }
@@ -63,7 +67,8 @@ export async function GET(req) {
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Accept': 'audio/mpeg, audio/*, */*'
-          }
+          },
+          signal: AbortSignal.timeout(15000)
         });
 
         if (res.ok && res.body) {

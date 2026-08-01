@@ -83,7 +83,19 @@ export default function MinhasMusicasPage() {
     return () => unsubscribe();
   }, []);
 
-  // Busca rápida por WhatsApp ou E-mail sem exigir senha
+  // Reconstrói o telefone no mesmo formato mascarado usado ao salvar o pedido
+  // (ver criar/page.jsx:handlePhoneChange), para permitir consulta exata no Firestore.
+  const formatPhoneForQuery = (raw) => {
+    const clean = (raw || '').replace(/\D/g, '');
+    if (clean.length < 10 || clean.length > 11) return null;
+    let formatted = `(${clean.slice(0, 2)})`;
+    formatted += clean.length === 11 ? ` ${clean.slice(2, 7)}` : ` ${clean.slice(2, 6)}`;
+    formatted += clean.length === 11 ? `-${clean.slice(7, 11)}` : `-${clean.slice(6, 10)}`;
+    return formatted;
+  };
+
+  // Busca rápida por WhatsApp ou E-mail sem exigir senha.
+  // Usa `where` no Firestore em vez de baixar a coleção inteira (ver C-08 do audit).
   const handleQuickSearch = async (e) => {
     e.preventDefault();
     setLoadingOrders(true);
@@ -91,42 +103,38 @@ export default function MinhasMusicasPage() {
 
     try {
       const ordersRef = collection(db, 'orders');
-      const snap = await getDocs(ordersRef);
-      const allDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
       if (searchTab === 'phone') {
-        const cleanSearch = searchPhone.replace(/\D/g, '');
-        if (!cleanSearch || cleanSearch.length < 8) {
+        const formattedPhone = formatPhoneForQuery(searchPhone);
+        if (!formattedPhone) {
           setOrders([]);
           setLoadingOrders(false);
           return;
         }
 
-        const filtered = allDocs.filter(ord => {
-          const ordPhone = (ord.customerPhone || '').replace(/\D/g, '');
-          if (!ordPhone) return false;
-          // Compara se o número buscado está contido ou se os últimos 8/9 dígitos coincidem
-          return ordPhone.includes(cleanSearch) || 
-                 cleanSearch.includes(ordPhone) || 
-                 (cleanSearch.length >= 8 && ordPhone.endsWith(cleanSearch.slice(-8))) ||
-                 (ordPhone.length >= 8 && cleanSearch.endsWith(ordPhone.slice(-8)));
-        });
-
-        setOrders(filtered);
+        const q = query(ordersRef, where('customerPhone', '==', formattedPhone));
+        const snap = await getDocs(q).catch(() => ({ docs: [] }));
+        setOrders(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       } else {
-        const cleanEmail = searchEmail.trim().toLowerCase();
-        if (!cleanEmail) {
+        const typedEmail = searchEmail.trim();
+        const lowerEmail = typedEmail.toLowerCase();
+        if (!typedEmail) {
           setOrders([]);
           setLoadingOrders(false);
           return;
         }
 
-        const filtered = allDocs.filter(ord => {
-          const ordEmail = (ord.customerEmail || '').trim().toLowerCase();
-          return ordEmail === cleanEmail;
-        });
+        const qExact = query(ordersRef, where('customerEmail', '==', typedEmail));
+        const qLower = query(ordersRef, where('customerEmail', '==', lowerEmail));
+        const [snapExact, snapLower] = await Promise.all([
+          getDocs(qExact).catch(() => ({ docs: [] })),
+          getDocs(qLower).catch(() => ({ docs: [] })),
+        ]);
 
-        setOrders(filtered);
+        const map = new Map();
+        snapExact.docs.forEach(d => map.set(d.id, { id: d.id, ...d.data() }));
+        snapLower.docs.forEach(d => map.set(d.id, { id: d.id, ...d.data() }));
+        setOrders(Array.from(map.values()));
       }
     } catch (err) {
       console.error("Erro na busca de pedidos:", err);

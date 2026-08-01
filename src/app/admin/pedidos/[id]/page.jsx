@@ -303,10 +303,12 @@ export default function OrderDetailsAdmin() {
         messageText = `Olá, ${customerName}! 💳\n\nSeu pagamento foi confirmado com sucesso!\nSua música personalizada para *${honoreeName}* foi totalmente liberada no estúdio NSMusic.\n\nAcesse o link abaixo para ouvir e fazer o download dos seus áudios em MP3 HD:\n👉 ${deliveryUrl}\n\nObrigado pela preferência! ❤️`;
       }
 
+      const idToken = await auth.currentUser?.getIdToken();
       const res = await fetch('/api/whatsapp/send', {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json'
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
         },
         body: JSON.stringify({
           phone: order.customerPhone,

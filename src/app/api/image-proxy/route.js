@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
+import { isAllowedMediaUrl } from '@/lib/proxyAllowlist';
 
 export const runtime = 'edge';
+
+// Content-Types aceitos na resposta da origem. Qualquer outro (ex: text/html) é rejeitado para
+// evitar que o proxy sirva HTML/JS arbitrário sob o próprio domínio (ver A-05 no AUDIT_REPORT.md).
+const ALLOWED_CONTENT_TYPE_PREFIXES = ['image/', 'audio/', 'application/octet-stream'];
 
 export async function GET(req) {
   try {
@@ -11,12 +16,21 @@ export async function GET(req) {
       return NextResponse.json({ error: 'URL da imagem é obrigatória' }, { status: 400 });
     }
 
-    const res = await fetch(imageUrl);
+    if (!isAllowedMediaUrl(imageUrl)) {
+      return NextResponse.json({ error: 'Domínio de origem não permitido para este proxy.' }, { status: 400 });
+    }
+
+    const res = await fetch(imageUrl, { signal: AbortSignal.timeout(15000) });
     if (!res.ok) {
       return NextResponse.json({ error: `Falha ao buscar imagem: HTTP ${res.status}` }, { status: res.status });
     }
 
-    const contentType = res.headers.get('content-type') || 'image/jpeg';
+    const contentType = res.headers.get('content-type') || 'application/octet-stream';
+    const isAllowedType = ALLOWED_CONTENT_TYPE_PREFIXES.some((prefix) => contentType.startsWith(prefix));
+    if (!isAllowedType) {
+      return NextResponse.json({ error: 'Tipo de conteúdo da origem não permitido.' }, { status: 502 });
+    }
+
     const blob = await res.arrayBuffer();
 
     return new NextResponse(blob, {

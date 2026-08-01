@@ -12,7 +12,7 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Estilo musical e detalhes do homenageado são obrigatórios.' }, { status: 400 });
     }
 
-    // Tenta obter a chave do Cloudflare Edge context primeiro, depois do process.env e por fim o fallback da aplicação
+    // Tenta obter a chave do Cloudflare Edge context primeiro, depois do process.env
     let apiKey = '';
     try {
       const ctx = getRequestContext();
@@ -26,7 +26,8 @@ export async function POST(req) {
     }
 
     if (!apiKey) {
-      apiKey = '76daad0e2a577569aaaa67715aec3c87';
+      console.error('[api/suno/generate] Variável de ambiente KIE_API_KEY não configurada.');
+      return NextResponse.json({ error: 'Configuração ausente: KIE_API_KEY não definida no servidor.' }, { status: 500 });
     }
 
     // Garante a URL do webhook no domínio oficial de produção

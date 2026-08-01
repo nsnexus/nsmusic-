@@ -27,7 +27,8 @@ export async function GET(req) {
     }
 
     if (!apiKey) {
-      apiKey = '76daad0e2a577569aaaa67715aec3c87';
+      console.error('[api/suno/status] Variável de ambiente KIE_API_KEY não configurada.');
+      return NextResponse.json({ error: 'Configuração ausente: KIE_API_KEY não definida no servidor.' }, { status: 500 });
     }
 
     // ============================================================

@@ -1,11 +1,24 @@
 import { NextResponse } from 'next/server';
 import { collection, getDocs, query, where } from 'firebase/firestore/lite';
 import { dbEdge as db } from '@/lib/firebase-edge';
+import { requireAdmin } from '@/lib/auth';
+import { getRequestContext } from '@cloudflare/next-on-pages';
 
 export const runtime = 'edge';
 
 export async function GET(req) {
   try {
+    let env = {};
+    try {
+      const ctx = getRequestContext();
+      if (ctx?.env) env = ctx.env;
+    } catch (e) {}
+
+    const auth = await requireAdmin(req, env);
+    if (!auth.ok) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+
     const { searchParams } = new URL(req.url);
     const search = (searchParams.get('search') || '').toLowerCase().trim();
     const orderId = searchParams.get('orderId') || '';

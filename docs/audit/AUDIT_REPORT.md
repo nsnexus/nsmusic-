@@ -89,6 +89,9 @@ inferido com forte evidência mas sem execução; **A verificar** = depende de c
   `paymentStatus` não deve ser aceito de nenhum cliente — apenas do fluxo de confirmação de pagamento.
 - **Risco de regressão:** baixo — a rota é usada apenas pelo painel admin.
 - **Teste:** requisição sem `Authorization` deve retornar 401; com token de não-admin, 403.
+- **Status (2026-08-01):** CORRIGIDO E VALIDADO (build/lint/typecheck/testes unitários) — não validado
+  por chamada HTTP real. `requireAdmin()` em `src/lib/auth.js` aplicado. `paymentStatus` continua
+  aceito pelo payload (agora atrás do gate de admin); remoção completa desse campo fica para o Lote 2.
 
 ### C-03 — `POST /api/orders/delete` exclui pedidos sem autenticação
 - **Categoria:** VULNERABILIDADE · **Severidade:** CRÍTICA · **Confiança:** Confirmado
@@ -98,6 +101,9 @@ inferido com forte evidência mas sem execução; **A verificar** = depende de c
 - **Impacto:** destruição em massa e irreversível de pedidos, incluindo pedidos pagos e não entregues.
 - **Correção:** mesma de C-02, mais *soft delete* (`deletedAt`) em vez de exclusão física.
 - **Risco de regressão:** baixo. **Teste:** idem C-02.
+- **Status (2026-08-01):** CORRIGIDO E VALIDADO (mesmo mecanismo de C-02) — não validado por chamada
+  HTTP real. *Soft delete* (`deletedAt`) continua pendente — não fazia parte do escopo do Lote 1
+  (que era só autenticação); fica para o Lote 5 (banco de dados) junto com M-07.
 
 ### C-04 — `GET /api/orders/search` expõe toda a base de clientes
 - **Categoria:** VULNERABILIDADE · **Severidade:** CRÍTICA · **Confiança:** Confirmado
@@ -109,6 +115,10 @@ inferido com forte evidência mas sem execução; **A verificar** = depende de c
   pagamento) e fornecimento dos IDs necessários para explorar C-01, C-02 e C-03.
 - **Correção:** exigir autenticação de admin, usar `where` + `limit` no Firestore e devolver o mínimo de campos.
 - **Risco de regressão:** baixo. **Teste:** chamada anônima deve retornar 401.
+- **Status (2026-08-01):** CORRIGIDO PARCIALMENTE E NÃO VALIDADO POR HTTP REAL. `requireAdmin()`
+  aplicado (fecha a exposição anônima, que era o item crítico). A troca do `getDocs` full-scan por
+  `where` + `limit` e a redução dos campos retornados **não foram feitas** — ficam para o Lote 5
+  (M-03), já que o Lote 1 tratou só da autenticação.
 
 ### C-05 — O valor a pagar é definido pelo cliente
 - **Categoria:** VULNERABILIDADE · **Severidade:** CRÍTICA · **Confiança:** Confirmado
@@ -133,6 +143,10 @@ inferido com forte evidência mas sem execução; **A verificar** = depende de c
   remover os dois fallbacks, falhar com 500 se a variável não existir, e purgar o valor do histórico.
 - **Risco de regressão:** baixo, desde que `KIE_API_KEY` esteja configurada no Cloudflare Pages.
 - **Teste:** `grep -rE "[a-f0-9]{32}" src/` não deve retornar nada; a rota deve responder 500 sem a variável.
+- **Status (2026-08-01):** CORRIGIDO E VALIDADO. Usuário confirmou rotação da chave na Kie.ai e
+  atualização de `KIE_API_KEY` no Cloudflare Pages antes da remoção do fallback. `grep -rE
+  "[a-f0-9]{32}" src/` → vazio. Comportamento sem a variável validado por leitura de código (responde
+  500 citando o nome da variável); não testado contra o Cloudflare Pages real.
 
 ### C-07 — `/homenagem` entrega áudio e vídeo sem qualquer verificação de pagamento
 - **Categoria:** VULNERABILIDADE · **Severidade:** CRÍTICA · **Confiança:** Confirmado
@@ -154,6 +168,11 @@ inferido com forte evidência mas sem execução; **A verificar** = depende de c
   clientes — nome, telefone, e-mail, história pessoal e letra.
 - **Correção:** mover a busca para uma rota autenticada com `where` no servidor.
 - **Risco de regressão:** baixo. **Teste:** inspecionar a aba Rede e confirmar que só o próprio pedido trafega.
+- **Status (2026-08-01):** CORRIGIDO, MAS NÃO VALIDADO EM NAVEGADOR REAL. `handleQuickSearch` agora usa
+  `where('customerPhone', ...)` / `where('customerEmail', ...)` em vez de `getDocs` da coleção inteira
+  — verificado por leitura de código e pelo build, não com Firestore real (sem credenciais nesta
+  sessão). Efeito colateral: a busca de telefone passou a ser por igualdade exata (formato mascarado),
+  não mais substring bidirecional — isso também fecha M-16 como consequência.
 
 ### C-09 — Pagar o add-on de vídeo (R$ 6,90) libera a música (R$ 9,99)
 - **Categoria:** BUG CONFIRMADO (receita) · **Severidade:** CRÍTICA · **Confiança:** Confirmado
@@ -178,6 +197,10 @@ inferido com forte evidência mas sem execução; **A verificar** = depende de c
 - **Correção:** remover a rota ou exigir autenticação de admin + rate limiting.
 - **Risco de regressão:** baixo — verificar antes se o painel admin a utiliza.
 - **Teste:** chamada anônima deve retornar 401.
+- **Status (2026-08-01):** CORRIGIDO E VALIDADO (unitário) — não validado por HTTP real. Rota mantida
+  (confirmado uso legítimo em `admin/pedidos/[id]/page.jsx`, reenvio manual de WhatsApp) e protegida
+  com `requireAdmin()`. Rate limiting explícito não foi adicionado — não fazia parte do escopo deste
+  item no Lote 1 (rate limiting é A-04/A-12, Lote 3).
 
 ### C-11 — Regras do Firestore ausentes do repositório com escrita direta pelo browser
 - **Categoria:** RISCO ARQUITETURAL · **Severidade:** CRÍTICA · **Confiança:** Confirmado (arquitetura) / **A verificar** (conteúdo das regras)
@@ -191,9 +214,12 @@ inferido com forte evidência mas sem execução; **A verificar** = depende de c
   item de maior alavancagem da auditoria e **não pôde ser confirmado a partir do repositório**.
 - **Correção:** versionar `firestore.rules`, negar escrita direta do cliente em `orders` e mover as
   escritas para rotas autenticadas.
-- **Status (2026-08-01):** PENDENTE DE CONFIGURAÇÃO EXTERNA. Perguntado ao usuário durante o Lote 0;
-  decisão foi adiar a captura da baseline para imediatamente antes do Lote 1 (é lá que as regras
-  precisam ser publicadas de fato). Continua sem confirmação de conteúdo real.
+- **Status (2026-08-01):** BLOQUEADO/PENDENTE DE DECISÃO. No Lote 1, perguntado novamente ao usuário;
+  decisão foi criar `firestore.rules` na raiz do repositório como **proposta** da regra final (com os
+  3 pré-requisitos documentados no próprio arquivo), **sem publicar** no Firebase — publicar agora
+  quebraria as rotas de API (sem identidade privilegiada) e o painel admin ao mesmo tempo, exatamente
+  o risco que este relatório já previa. O conteúdo real das regras em produção continua **A verificar**
+  — isso só é resolvido com acesso ao console do Firebase, fora do alcance desta sessão.
 
 ---
 
@@ -205,8 +231,8 @@ inferido com forte evidência mas sem execução; **A verificar** = depende de c
 | A-02 | `GET /api/suno/status?orderId=` usa `orderId` do cliente como `overrideOrderId`, gravando o áudio de uma tarefa no pedido de outro cliente | `api/suno/status/route.js:63` → `lib/db.js:85` (`updateTaskResult`) | Confirmado |
 | A-03 | `POST /api/suno/webhook` sem autenticação ou assinatura | `api/suno/webhook/route.js:6` | Confirmado |
 | A-04 | `POST /api/suno/generate` sem autenticação nem rate limiting: consumo ilimitado de créditos pagos da Kie.ai por terceiros | `api/suno/generate/route.js:7` | Confirmado |
-| A-05 | SSRF + XSS em `/api/image-proxy`: busca URL arbitrária e repassa o `Content-Type` da origem, permitindo servir HTML no domínio do site | `api/image-proxy/route.js:14-28` | Confirmado |
-| A-06 | SSRF em `/api/audio/proxy` (URL absoluta arbitrária em `candidates`); `Access-Control-Allow-Origin: *` | `api/audio/proxy/route.js:44,96` | Confirmado |
+| A-05 | **CORRIGIDO E VALIDADO (Lote 1, 2026-08-01)** — não testado contra origem real. SSRF + XSS em `/api/image-proxy`: busca URL arbitrária e repassa o `Content-Type` da origem, permitindo servir HTML no domínio do site. Corrigido com `src/lib/proxyAllowlist.js` (só HTTPS + host na allowlist) e validação do `Content-Type` de resposta (só `image/*`, `audio/*`, `application/octet-stream`) | `api/image-proxy/route.js:14-28` | Confirmado |
+| A-06 | **CORRIGIDO E VALIDADO (Lote 1, 2026-08-01)** — não testado contra origem real. SSRF em `/api/audio/proxy` (URL absoluta arbitrária em `candidates`). Corrigido: a URL absoluta vinda do cliente só entra nos candidatos se o host estiver na allowlist; candidatos construídos a partir do `itemId` já eram domínios fixos seguros. `Access-Control-Allow-Origin: *` mantido (fora do escopo deste item — proxy só serve mídia, não HTML) | `api/audio/proxy/route.js:44,96` | Confirmado |
 | A-07 | `POST /api/video/generate` não verifica `hasVideoAccess`/`videoAddonPaid` — add-on de R$ 6,90 obtido de graça | `api/video/generate/route.js:19-32` | Confirmado |
 | A-08 | Autorização de admin por comparação de string de e-mail no browser | `admin/page.jsx:52`, `admin/pedidos/[id]/page.jsx:46` | Confirmado |
 | A-09 | Sem transação na marcação de envio de WhatsApp (ler-depois-escrever): webhook e polling concorrentes causam mensagens duplicadas | `webhooks/mercadopago:135-150`, `payments/status:149-158` | Confirmado |

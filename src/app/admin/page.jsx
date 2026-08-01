@@ -212,9 +212,10 @@ export default function AdminDashboard() {
   const handleDeleteSingleOrder = async (id, orderNumber) => {
     if (!confirm(`Deseja realmente excluir permanentemente a solicitação ${orderNumber || id}?`)) return;
     try {
+      const idToken = await auth.currentUser?.getIdToken();
       const res = await fetch('/api/orders/delete', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
         body: JSON.stringify({ orderId: id })
       });
       if (res.ok) {
@@ -235,9 +236,10 @@ export default function AdminDashboard() {
 
     setDeletingOrders(true);
     try {
+      const idToken = await auth.currentUser?.getIdToken();
       const res = await fetch('/api/orders/delete', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
         body: JSON.stringify({ orderIds: selectedOrderIds })
       });
 

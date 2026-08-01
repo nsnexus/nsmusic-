@@ -1,0 +1,68 @@
+// ============================================================================
+// RASCUNHO — AINDA NÃO PUBLICADO NO FIREBASE (2026-08-01)
+// ============================================================================
+// Ver C-11 em docs/audit/AUDIT_REPORT.md e Lote 1/Lote 3 em docs/audit/FIX_PLAN.md.
+//
+// Este projeto não tem — e talvez nunca tenha tido — regras versionadas. A auditoria não
+// conseguiu confirmar o conteúdo real das regras em produção (sem acesso ao console do Firebase).
+// Este arquivo é uma PROPOSTA da regra final, não uma cópia da regra atual.
+//
+// POR QUE NÃO PUBLICAR AINDA:
+// O projeto não usa Firebase Admin SDK em lugar nenhum (arquitetura Edge-only, ver
+// docs/ARCHITECTURE.md). Isso significa que as rotas de API em src/app/api/ acessam o Firestore
+// com o MESMO SDK cliente e a MESMA ausência de identidade privilegiada que o browser. Se estas
+// regras forem publicadas como estão, elas bloqueiam não só o cliente malicioso, mas também:
+//   - as próprias rotas de API que hoje escrevem em `orders`/`suno_tasks` sem estar autenticadas
+//     (webhooks/mercadopago, suno/webhook, orders/create, payments/status, etc.);
+//   - o painel /admin, que hoje lê a coleção via onSnapshot direto do Firestore;
+//   - a busca rápida (sem login) de /minhas-musicas.
+//
+// PRÉ-REQUISITOS antes de publicar (rastreados no Lote 3 do FIX_PLAN):
+//   1. Definir uma identidade de servidor: ou (a) uma conta de serviço do Firebase Auth
+//      (e-mail/senha dedicado, nunca exposta ao cliente) com custom claim `service: true`, usada
+//      pelas rotas de API para autenticar antes de cada escrita; ou (b) migrar as rotas de API
+//      para a REST API do Firestore com uma service account do Google Cloud (fora do SDK cliente).
+//   2. Custom claim `admin: true` nas contas administrativas (Lote 3), substituindo a comparação
+//      de e-mail hoje feita no browser (A-08).
+//   3. Confirmar que toda escrita hoje feita direto do browser (entrega/page.jsx, criar/page.jsx)
+//      foi migrada para rotas de API autenticadas, ou tem uma regra explícita e auditada aqui.
+//
+// Até esses pré-requisitos estarem prontos, a publicação deste arquivo é uma ação de "modificar
+// configuração de produção" e deve ser feita numa janela de manutenção coordenada, com o painel
+// admin e a geração de música validados em ambiente de teste primeiro.
+// ============================================================================
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Nenhuma leitura/escrita anônima. Nega tudo por padrão; cada coleção abre exceções explícitas.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    match /orders/{orderId} {
+      // Leitura: dono do pedido (por uid) ou admin (custom claim, ver Lote 3).
+      allow read: if request.auth != null && (
+        resource.data.userId == request.auth.uid ||
+        request.auth.token.admin == true
+      );
+
+      // Escrita: só admin ou a identidade de serviço usada pelas rotas de API (ver pré-requisito 1).
+      // Nenhuma escrita de cliente anônimo, inclusive de campos como paymentStatus (ver C-01/C-02/C-09).
+      allow write: if request.auth != null && (
+        request.auth.token.admin == true ||
+        request.auth.token.service == true
+      );
+    }
+
+    match /suno_tasks/{taskId} {
+      // suno_tasks é estado interno de produção; nenhum cliente precisa ler ou escrever diretamente.
+      allow read, write: if request.auth != null && (
+        request.auth.token.admin == true ||
+        request.auth.token.service == true
+      );
+    }
+  }
+}

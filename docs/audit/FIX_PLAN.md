@@ -65,33 +65,78 @@ Backup do Firestore e baseline de `firestore.rules` — pendentes, ficam para an
 
 ---
 
-## Lote 1 — Vulnerabilidades críticas de exposição
+## Lote 1 — Vulnerabilidades críticas de exposição — ✅ CONCLUÍDO NO CÓDIGO (2026-08-01)
 
 **Objetivo:** fechar os caminhos abertos a qualquer visitante da internet.
 
 **Ordem de execução (importa)**
 1. **C-06** — rotacionar a chave na Kie.ai **antes** de tocar no código; depois remover os fallbacks
    em `api/suno/generate/route.js:29` e `api/suno/status/route.js:30`.
+   **Status: CORRIGIDO E VALIDADO.** Usuário confirmou rotação da chave na Kie.ai e atualização de
+   `KIE_API_KEY` no Cloudflare Pages antes da alteração de código. Fallback hardcoded removido dos
+   dois arquivos; ausência da variável agora falha com `500` citando o nome da variável (nunca o
+   valor), conforme `.claude/rules/security.md`. `grep -rE "[a-f0-9]{32}" src/` → vazio.
 2. **C-11** — publicar `firestore.rules` negando leitura/escrita anônima em `orders` e `suno_tasks`.
-   ⚠️ Isto quebra C-01/C-08 e o painel admin ao mesmo tempo — precisa ir junto com o Lote 3 ou atrás
-   de uma janela de manutenção. Se não for possível coordenar, adiar apenas este item para o Lote 3.
+   **Status: BLOQUEADO/PENDENTE DE DECISÃO — parcialmente feito.** Perguntado ao usuário; decisão foi
+   criar o arquivo `firestore.rules` (proposta da regra final, com pré-requisitos documentados) **sem
+   publicar**, pelo mesmo motivo já previsto aqui: publicar agora quebraria as próprias rotas de API
+   (que não têm identidade privilegiada, só o SDK cliente) e o painel admin. O arquivo documenta os
+   3 pré-requisitos (identidade de servidor, custom claim admin, migração das escritas diretas do
+   browser) e fica marcado como rascunho até o Lote 3 resolver esses pré-requisitos e coordenar a
+   publicação numa janela de manutenção. C-11 continua **A verificar** quanto ao conteúdo real hoje
+   em produção — isso não muda até o backup/captura da baseline acontecer (ver Lote 0, item 5).
 3. **C-04, C-03, C-02** — exigir ID token de admin em `/api/orders/{search,update,delete}`.
+   **Status: CORRIGIDO E VALIDADO.** Criado `src/lib/auth.js` com `requireAdmin()`: valida o ID token
+   do Firebase via `accounts:lookup` do Identity Toolkit (sem Admin SDK, funciona no Edge) e confere
+   o e-mail da conta contra a allowlist `ADMIN_EMAILS` (variável de ambiente nova, documentada em
+   `.env.example`). As 3 rotas agora respondem 401 sem token, 401 com token inválido, 403 com token
+   válido mas e-mail fora da allowlist. `admin/page.jsx` (exclusão) e `admin/pedidos/[id]/page.jsx`
+   (WhatsApp manual) atualizados para enviar `Authorization: Bearer <idToken>`. Custom claim
+   `admin: true` (substituindo a allowlist por e-mail) fica para o Lote 3, como o próprio plano previa.
+   Nota: `paymentStatus` continua um campo aceito por `/api/orders/update` (agora atrás do gate de
+   admin) — a remoção completa desse campo do payload (parte mais estrita de C-02) fica para o Lote 2,
+   junto da unificação de `src/lib/payments.js`, para não misturar lotes.
 4. **C-08** — substituir `getDocs(ordersRef)` por consulta com `where` atrás de rota autenticada.
+   **Status: CORRIGIDO E VALIDADO.** `minhas-musicas/page.jsx:handleQuickSearch` não baixa mais a
+   coleção inteira: usa `where('customerPhone','==', ...)` (telefone reconstruído no mesmo formato
+   mascarado gravado em `criar/page.jsx:handlePhoneChange`) e `where('customerEmail','==', ...)`
+   (duas variantes de case, mesmo padrão de merge por `Map` já usado no efeito de login acima no
+   mesmo arquivo). Efeito colateral aceito: a busca deixou de ser por substring bidirecional e passou
+   a ser por igualdade exata — isso também resolve o bug de correspondência cruzada de clientes
+   catalogado em M-16 (Lote 4), como consequência inevitável de eliminar o full-scan.
 5. **C-10** — remover ou autenticar `/api/whatsapp/send`.
+   **Status: CORRIGIDO E VALIDADO.** Rota mantida (tem uso legítimo: reenvio manual de WhatsApp pelo
+   admin) e protegida com o mesmo `requireAdmin()`. Chamador em `admin/pedidos/[id]/page.jsx`
+   atualizado para enviar o token.
 6. **A-05, A-06** — allowlist de domínios nos proxies (`musicfile.kie.ai`, `cdn*.suno.ai`,
    `firebasestorage.googleapis.com`) e forçar `Content-Type` de saída.
+   **Status: CORRIGIDO E VALIDADO.** Criado `src/lib/proxyAllowlist.js` (`isAllowedMediaHost`,
+   `isAllowedMediaUrl` — só HTTPS + host na lista). `image-proxy` agora rejeita (400) URL fora da
+   allowlist e rejeita (502) qualquer `Content-Type` de origem que não seja `image/*`, `audio/*` ou
+   `application/octet-stream` — fecha o vetor de servir HTML/JS arbitrário sob o próprio domínio.
+   `audio/proxy` só repassa a URL absoluta vinda do cliente ao `fetch` se o host estiver na allowlist;
+   os candidatos construídos a partir do `itemId` (que já eram domínios fixos e seguros) não mudaram.
+   Adicionado `AbortSignal.timeout(15000)` nos fetches tocados (consistente com `.claude/rules/backend.md`,
+   sem expandir para todo o projeto — isso é o B-08 do Lote 6).
+
+**Testes novos:** `tests/unit/auth.test.js` (5 casos: sem token, token inválido, e-mail fora da
+allowlist, e-mail na allowlist, comparação case-insensitive) e `tests/unit/proxyAllowlist.test.js`
+(9 casos: hosts aceitos/rejeitados, protocolo, URL malformada). 31 testes no total, todos verdes.
 
 **Arquivos:** `api/orders/{search,update,delete}/route.js`, `api/suno/{generate,status}/route.js`,
 `api/whatsapp/send/route.js`, `api/{image-proxy,audio/proxy}/route.js`, `minhas-musicas/page.jsx`,
-`firestore.rules`, `src/lib/auth.js` (novo — verificação de ID token)
+`admin/page.jsx`, `admin/pedidos/[id]/page.jsx`, `firestore.rules` (novo, não publicado),
+`src/lib/auth.js` (novo), `src/lib/proxyAllowlist.js` (novo), `.env.example`, `.env.local`
 
 **Dependências:** Lote 0 (backup + build)
-**Riscos:** **altos.** Fechar as regras do Firestore quebra as escritas feitas pelo cliente
-(`entrega/page.jsx:84`, `criar/page.jsx:228`). Fazer em branch e testar o fluxo completo.
-**Testes:** cada rota sem `Authorization` → 401; com token de não-admin → 403; com token de admin → 200.
-Proxy com URL fora da allowlist → 400.
-**Aceite:** nenhuma rota de `orders` responde a chamada anônima; `grep -rE "[a-f0-9]{32}" src/` vazio.
-**Rollback:** reverter o PR **e** republicar as regras anteriores (baseline do Lote 0).
+**Riscos:** **altos, mitigados.** Regras do Firestore não foram publicadas (evita quebrar o painel
+admin e as rotas de API antes do Lote 3). O restante do lote não depende de coordenação externa.
+**Testes executados:** `npm run build/lint/typecheck/test` verdes. Fluxo E2E completo em navegador
+real (admin logando e chamando as rotas com token) **não foi executado** — não há ambiente Firebase
+real disponível nesta sessão; ver instruções de validação manual no resumo final.
+**Aceite:** nenhuma rota de `orders`/`whatsapp/send` responde a chamada anônima (verificado por
+teste unitário do `requireAdmin`, não por chamada HTTP real); `grep -rE "[a-f0-9]{32}" src/` vazio.
+**Rollback:** reverter o commit deste lote. `firestore.rules` não foi publicado, nada a reverter em produção.
 
 ---
 
