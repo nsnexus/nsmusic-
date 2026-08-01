@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 
 export const runtime = 'edge';
 
-function generatePixPayload(amount, isVideo) {
+export function generatePixPayload(amount, isVideo) {
   const amountStr = Number(amount).toFixed(2);
   const amountLen = amountStr.length.toString().padStart(2, '0');
   

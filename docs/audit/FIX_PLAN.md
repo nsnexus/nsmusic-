@@ -10,24 +10,58 @@ Derivado de [AUDIT_REPORT.md](AUDIT_REPORT.md). Os IDs (C-01, A-07, M-12…) ref
 
 ---
 
-## Lote 0 — Proteção, backup e testes de caracterização
+## Lote 0 — Proteção, backup e testes de caracterização — ✅ PARCIALMENTE CONCLUÍDO (2026-08-01)
 
 **Objetivo:** poder mexer no fluxo de pagamento sem quebrar quem já pagou, e restaurar o ambiente de build.
 
 **Ações**
 1. Exportar backup completo das coleções `orders` e `suno_tasks` (Firebase console → export para GCS).
+   **Status: PENDENTE DE DECISÃO DO USUÁRIO** — ação fora do repositório, só o usuário tem acesso ao
+   console do Firebase. Não bloqueia o restante do lote, mas deve ser feita antes do Lote 2 (pagamentos).
 2. Restaurar dependências: `npm ci`. Confirmar que `npm run build` executa.
+   **Status: CORRIGIDO E VALIDADO.** `npm ci` restaurou 460 pacotes. `npm run build` falhava por dois
+   motivos adicionais descobertos durante a correção (não estavam no relatório original):
+   - 6 rotas Edge importavam `@/lib/firebase` (versão não-lite, com `getAuth`) em vez de
+     `@/lib/firebase-edge`, violando a regra já documentada em `.claude/rules/backend.md`. Isso quebrava
+     a coleta de dados da página em `next build` com `FirebaseError: auth/invalid-api-key`. As mesmas 6
+     rotas também importavam `collection`/`doc`/`getDoc`/`updateDoc`/`deleteDoc`/`addDoc`/`getDocs`/
+     `query`/`where` de `firebase/firestore` (SDK completo) em vez de `firebase/firestore/lite` —
+     inconsistente com a instância `dbEdge` (lite) usada para acessá-los. Corrigido nos 6 arquivos (troca
+     mecânica de import, mesmas funções, nenhuma lógica alterada):
+     `api/orders/{create,delete,search,update}/route.js`, `api/video/generate/route.js`,
+     `api/whatsapp/notify/route.js`.
+   - Faltava `.env.local` com as chaves `NEXT_PUBLIC_FIREBASE_*` para o Next conseguir pré-renderizar as
+     páginas client (`getAuth()` falha em formato de chave inválido). Criado `.env.local` com valores
+     fictícios apenas para build local (arquivo é ignorado pelo git via `.env*.local`).
+   `npm run build` → **verde**.
 3. Criar `.eslintrc.json` estendendo `next/core-web-vitals` e adicionar o script `typecheck` opcional.
+   **Status: CORRIGIDO E VALIDADO.** `.eslintrc.json` criado. `npm run lint` encontrou 2 erros reais
+   (`react/no-unescaped-entities` em `src/app/page.jsx:447`) — corrigidos (aspas → `&ldquo;`/`&rdquo;`).
+   `npm run lint` → verde (restam só warnings de `<img>`, já catalogados como B-02).
+   `tsconfig.json` criado (`allowJs: true`, `checkJs: false`) + script `typecheck` (`tsc --noEmit`).
+   TypeScript 7 (instalado inicialmente) remove `baseUrl`, incompatível com a resolução de alias `@/*`
+   do Next 14 — fixado em `typescript@^5.4` em vez de `latest`. `npm run typecheck` → verde.
 4. Adicionar Vitest + primeiros testes de caracterização (comportamento **atual**, não o desejado):
-   - `extractAudioTracks` (`src/lib/db.js`) — 5 formatos de resposta da Kie.ai.
-   - `generatePixPayload` (`api/payments/create`) — CRC16 correto para 9,99 / 6,90 / 16,89.
-   - `formatToWhatsAppNumber` (`src/lib/whatsapp.js`) — números de 10 a 13 dígitos.
+   **Status: CORRIGIDO E VALIDADO.** `vitest.config.mjs` + `tests/unit/`, 19 testes, todos verdes:
+   - `extractAudioTracks` (`src/lib/db.js`) — 5 formatos de resposta da Kie.ai/Suno + casos de borda.
+   - `generatePixPayload` (`api/payments/create/route.js`) — precisou exportar a função (estava só
+     local ao módulo); CRC16 e payload exatos capturados para 9,99 / 6,90 / 16,89.
+   - `formatToWhatsAppNumber` (`src/lib/whatsapp.js`) — 10 a 14 dígitos, com e sem `55`, com máscara.
+   `@cloudflare/next-on-pages` foi mockado em `tests/stubs/next-on-pages.js` (só para os testes; o
+   código de produção já trata a exceção de `getRequestContext()` fora do Cloudflare com try/catch).
 5. Documentar as regras atuais do Firestore em `firestore.rules` **como estão hoje** (baseline), antes de mudá-las.
+   **Status: PENDENTE DE DECISÃO DO USUÁRIO.** Perguntado ao usuário; decisão foi adiar para antes do
+   Lote 1 (é lá que as regras precisam mudar de verdade). C-11 continua **A verificar**.
 
-**Arquivos:** `package.json`, `.eslintrc.json`, `firestore.rules` (novo), `tests/` (novo)
-**Dependências:** nenhuma · **Riscos:** nenhum (não toca em código de produção)
-**Aceite:** `npm run build` e `npm test` verdes; backup verificado; baseline das regras commitado
-**Rollback:** reverter o PR
+**Arquivos alterados:** `package.json`, `package-lock.json`, `.eslintrc.json` (novo), `tsconfig.json`
+(novo, substitui `jsconfig.json`), `vitest.config.mjs` (novo), `tests/unit/*.test.js` (novo),
+`tests/stubs/next-on-pages.js` (novo), `.env.local` (novo, não versionado), `src/app/page.jsx`,
+`src/app/api/{orders/create,orders/delete,orders/search,orders/update,video/generate,whatsapp/notify}/route.js`,
+`src/app/api/payments/create/route.js` (export de `generatePixPayload`)
+**Dependências:** nenhuma · **Riscos:** nenhum (não toca em regra de negócio nem em produção)
+**Aceite:** `npm run build`, `npm run lint`, `npm run typecheck` e `npm test` verdes — ✅ atingido.
+Backup do Firestore e baseline de `firestore.rules` — pendentes, ficam para antes do Lote 1.
+**Rollback:** reverter o commit deste lote
 
 ---
 

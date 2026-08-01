@@ -444,7 +444,7 @@ export default function Home() {
                 </div>
 
                 <p style={{ fontSize: '0.92rem', color: 'var(--text-secondary)', lineHeight: '1.6', fontStyle: 'italic' }}>
-                  "{item.comment}"
+                  &ldquo;{item.comment}&rdquo;
                 </p>
               </div>
             ))}

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { doc, deleteDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { doc, deleteDoc } from 'firebase/firestore/lite';
+import { dbEdge as db } from '@/lib/firebase-edge';
 
 export const runtime = 'edge';
 

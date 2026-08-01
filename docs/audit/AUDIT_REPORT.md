@@ -37,7 +37,7 @@ de receita.
 | Segurança | **Crítica** — sem autenticação de servidor em nenhuma rota |
 | Integridade de pagamentos | **Crítica** — valor definido pelo cliente; PIX não conciliável |
 | Modelagem de dados | Fraca — schema implícito, sem índices, constraints ou transações |
-| Qualidade / testes | **Ausente** — 0 testes, sem typecheck, build quebrado localmente |
+| Qualidade / testes | Build restaurado no Lote 0 (`npm run build/lint/typecheck/test` verdes, 19 testes de caracterização). Ver nota em C-11 e no Lote 0 do `FIX_PLAN.md`. |
 | Performance | Média — varreduras completas de coleção; componentes muito grandes |
 | Manutenibilidade | Baixa — lógica de pagamento duplicada, arquivos de 2.789 linhas |
 | Documentação | Boa intenção (`.agents/AGENTS.md`), mas o código viola as próprias regras |
@@ -191,6 +191,9 @@ inferido com forte evidência mas sem execução; **A verificar** = depende de c
   item de maior alavancagem da auditoria e **não pôde ser confirmado a partir do repositório**.
 - **Correção:** versionar `firestore.rules`, negar escrita direta do cliente em `orders` e mover as
   escritas para rotas autenticadas.
+- **Status (2026-08-01):** PENDENTE DE CONFIGURAÇÃO EXTERNA. Perguntado ao usuário durante o Lote 0;
+  decisão foi adiar a captura da baseline para imediatamente antes do Lote 1 (é lá que as regras
+  precisam ser publicadas de fato). Continua sem confirmação de conteúdo real.
 
 ---
 
@@ -272,6 +275,7 @@ O fluxo de pagamento é a área mais frágil do sistema e concentra 5 dos 11 ite
 | B-06 | Número de WhatsApp do administrador embutido no código | `webhooks/mercadopago/route.js:169` | BAIXA |
 | B-07 | Código morto: `HomenagemPublica.jsx` (434 linhas, órfão), `lib/sunoToken.js` (sem chamadores), `gerar-logs-pagbank.js` (raiz), `addonsConfig`/`packagesList` (`criar/page.jsx:516-534`) | vários | BAIXA |
 | B-08 | Sem timeout nem retry controlado em nenhuma chamada `fetch` a serviço externo | todas as rotas de API | MÉDIA |
+| B-10 | **CORRIGIDO E VALIDADO (Lote 0, 2026-08-01).** 6 rotas Edge importavam `@/lib/firebase` (SDK completo, com `getAuth`) em vez de `@/lib/firebase-edge` (`firestore/lite`), violando `.claude/rules/backend.md` — e, consequentemente, importavam as funções do Firestore (`collection`, `doc`, `getDoc(s)`, `updateDoc`, `deleteDoc`, `addDoc`, `query`, `where`) do pacote completo `firebase/firestore` em vez de `firebase/firestore/lite`, incompatível com a instância lite usada para acessá-las. Não detectado no relatório original porque `node_modules` estava quebrado e o build nunca chegou a essa fase. Quebrava `next build` com `FirebaseError: auth/invalid-api-key` ao coletar dados da página de `/api/orders/delete`. Corrigido trocando os imports nas 6 rotas (mesmas variáveis/funções, sem mudança de lógica) | `api/orders/{create,delete,search,update}/route.js`, `api/video/generate/route.js`, `api/whatsapp/notify/route.js` | MÉDIA |
 
 ## 10. Problemas de qualidade, dependências e configuração
 
