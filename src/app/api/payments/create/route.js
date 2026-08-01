@@ -51,17 +51,8 @@ export async function POST(req) {
     
     const pixCopiaECola = generatePixPayload(pixKey, "Narciso Henrique Felizardo dos Santos", "Sao Paulo", txid, Number(totalAmount));
 
-    if (orderId) {
-      try {
-        const { doc, updateDoc } = await import('firebase/firestore');
-        const { db } = await import('@/lib/firebase');
-        const updatePayload = body.isSecondaryPayment 
-          ? { videoPaymentId: manualPaymentId, updatedAt: new Date().toISOString(), manualPayment: true }
-          : { paymentId: manualPaymentId, updatedAt: new Date().toISOString(), manualPayment: true };
-          
-        await updateDoc(doc(db, 'orders', orderId), updatePayload).catch(e => console.warn(e));
-      } catch (e) {}
-    }
+    // For manual payments, we don't strictly need to store the manual paymentId in Firestore immediately
+    // because there is no automatic webhook for it. The user sends the receipt manually.
 
     return NextResponse.json({
       paymentId: manualPaymentId,
