@@ -173,12 +173,35 @@ async function processPagBankOrder(orderOrPaymentId) {
   return true;
 }
 
+async function isValidSignature(rawBody, receivedSignature, token) {
+  if (!receivedSignature || !token) return false;
+  try {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(`${token}-${rawBody}`);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    return hashHex === receivedSignature;
+  } catch (err) {
+    return false;
+  }
+}
+
 export async function POST(req) {
   try {
     const { searchParams } = new URL(req.url);
+    const rawBody = await req.text();
+    const signature = req.headers.get('x-authenticity-token');
+    const { token } = getPagBankConfig();
+    
+    if (signature && !(await isValidSignature(rawBody, signature, token))) {
+      console.warn("[Webhook PagBank] Assinatura inválida bloqueada.");
+      return NextResponse.json({ error: 'Assinatura inválida' }, { status: 401 });
+    }
+
     let body = {};
     try {
-      body = await req.json();
+      body = JSON.parse(rawBody);
     } catch (e) {}
 
     const orderId = body?.id || body?.order_id || body?.reference_id || searchParams.get('id') || searchParams.get('order_id');
