@@ -1,0 +1,1195 @@
+PLANO COMPLETO — PLATAFORMA DE MÚSICAS PERSONALIZADAS COM INTELIGÊNCIA ARTIFICIAL
+Projeto NSNexus
+
+======================================================================
+1. VISÃO GERAL DO NEGÓCIO
+======================================================================
+
+A proposta é criar uma plataforma de venda de músicas personalizadas, em que o cliente conta uma história, escolhe o estilo musical, aprova a letra, realiza o pagamento e recebe uma música produzida com auxílio de inteligência artificial.
+
+O sistema será parcialmente automatizado no início:
+
+- O cliente preenche as informações.
+- A inteligência artificial gera a letra.
+- O cliente revisa e aprova.
+- O cliente escolhe o pacote e os produtos adicionais.
+- O pagamento é realizado.
+- O pedido entra no painel administrativo.
+- A música é produzida manualmente no Suno.
+- Os arquivos são revisados.
+- A entrega é feita por uma página privada, WhatsApp e e-mail.
+
+A geração manual no Suno é recomendada no começo porque permite escolher a melhor versão, corrigir problemas de pronúncia e garantir maior qualidade antes da entrega.
+
+======================================================================
+2. PRODUTO PRINCIPAL
+======================================================================
+
+Produto base:
+
+Música personalizada produzida a partir da história fornecida pelo cliente.
+
+Informações coletadas:
+
+- Nome do cliente.
+- Nome da pessoa homenageada.
+- Apelido, se houver.
+- Relação entre cliente e homenageado.
+- Ocasião.
+- História principal.
+- Momentos marcantes.
+- Qualidades da pessoa.
+- Frase obrigatória.
+- Informações que não devem aparecer.
+- Gênero musical.
+- Tipo de voz.
+- Emoção desejada.
+- Ritmo.
+- Prazo desejado.
+- WhatsApp.
+- E-mail.
+
+Entrega básica:
+
+- Uma música personalizada.
+- Arquivo MP3.
+- Letra digital.
+- Capa simples.
+- Link privado para ouvir e baixar.
+- Uma pequena correção.
+- Entrega por WhatsApp e e-mail.
+
+======================================================================
+3. PRODUTOS E SERVIÇOS ADICIONAIS
+======================================================================
+
+3.1. DUAS MÚSICAS A MAIS
+
+O cliente recebe três músicas no total:
+
+- Uma versão principal.
+- Duas versões adicionais.
+
+As versões podem ter:
+
+- A mesma letra em estilos diferentes.
+- Voz masculina e voz feminina.
+- Versão romântica e versão animada.
+- Versão original e versão acústica.
+- Versões com arranjos diferentes.
+
+Sugestão de preço adicional:
+R$ 39,90 a R$ 59,90.
+
+Regra recomendada:
+
+As versões adicionais utilizam a mesma história e a mesma letra aprovada. Caso o cliente deseje letras totalmente diferentes, o serviço deve ser cobrado como novas músicas completas.
+
+3.2. TRÊS MÚSICAS A MAIS
+
+O cliente recebe quatro músicas no total:
+
+- Uma versão principal.
+- Três versões adicionais.
+
+Possibilidades:
+
+- Quatro estilos diferentes.
+- Duas vozes masculinas e duas femininas.
+- Versão romântica, acústica, dançante e emocionante.
+- Versão principal, instrumental, acústica e remixada.
+
+Sugestão de preço adicional:
+R$ 59,90 a R$ 89,90.
+
+3.3. SEGUNDA MÚSICA COMPLETA
+
+Nova música com:
+
+- Nova letra.
+- Novo tema.
+- Novo estilo.
+- Nova produção.
+
+Sugestão de preço:
+R$ 39,90 a R$ 59,90.
+
+Essa opção deve ser diferente de “versões adicionais”, pois exige nova composição e mais trabalho.
+
+3.4. PUBLICAÇÃO NO SPOTIFY E OUTRAS PLATAFORMAS
+
+Serviço de distribuição da música para plataformas digitais, como:
+
+- Spotify.
+- Apple Music.
+- Deezer.
+- Amazon Music.
+- YouTube Music.
+- TikTok Music, quando disponível.
+- Demais plataformas oferecidas pela distribuidora utilizada.
+
+O serviço pode incluir:
+
+- Preparação do arquivo.
+- Capa no tamanho correto.
+- Cadastro do nome artístico.
+- Cadastro do título.
+- Configuração de compositores e participantes.
+- Envio para a distribuidora.
+- Acompanhamento da aprovação.
+- Envio do link ao cliente.
+
+Sugestão de preço:
+R$ 99,90 a R$ 199,90.
+
+Atenção:
+
+- O prazo depende da distribuidora e das plataformas.
+- Não prometa publicação imediata.
+- O cliente precisa fornecer ou aprovar o nome artístico.
+- Deve existir um termo específico sobre uso comercial, autoria, inteligência artificial e distribuição.
+- A aprovação final depende das regras da distribuidora e das plataformas.
+- É recomendado criar uma conta de distribuição separada ou definir claramente quem ficará responsável pela conta, pelos recebimentos e pela administração futura da música.
+- Não publique música que imite artista famoso, utilize letra copiada ou voz clonada sem autorização.
+- O cliente deve aprovar a capa, o título e os créditos antes do envio.
+
+3.5. VÍDEO COM FOTOS
+
+Criação de vídeo utilizando a música personalizada e fotos enviadas pelo cliente.
+
+O vídeo pode conter:
+
+- Capa de abertura.
+- Nome da música.
+- Nome da pessoa homenageada.
+- Fotos em sequência.
+- Transições.
+- Trechos da letra.
+- Mensagem final.
+- Logo discreta da empresa.
+- Formato vertical ou horizontal.
+
+Sugestões de pacotes:
+
+Vídeo básico:
+- Até 10 fotos.
+- Duração igual à música.
+- Transições simples.
+- Formato vertical ou horizontal.
+Preço sugerido: R$ 39,90 a R$ 49,90.
+
+Vídeo premium:
+- Até 25 fotos.
+- Texto personalizado.
+- Trechos da letra.
+- Animações e transições premium.
+- Formato vertical e horizontal.
+Preço sugerido: R$ 69,90 a R$ 99,90.
+
+Vídeo completo:
+- Até 50 fotos.
+- Organização cronológica.
+- Mensagens personalizadas.
+- Edição mais avançada.
+- Versões para Instagram, WhatsApp e YouTube.
+Preço sugerido: R$ 119,90 a R$ 199,90.
+
+3.6. CAPA PERSONALIZADA
+
+Capa com:
+
+- Nome da música.
+- Nome do homenageado.
+- Imagem fornecida pelo cliente.
+- Estilo visual relacionado à ocasião.
+- Versão para redes sociais.
+- Versão para plataformas de streaming.
+
+Sugestão de preço:
+R$ 14,90 a R$ 29,90.
+
+3.7. QR CODE DA MÚSICA
+
+Entrega de uma arte com QR Code que direciona para a música.
+
+Pode ser utilizado em:
+
+- Cartão.
+- Presente.
+- Quadro.
+- Convite.
+- Camiseta.
+- Caneca.
+- Lembrança de casamento.
+- Homenagem em evento.
+
+Sugestão de preço:
+R$ 9,90 a R$ 19,90.
+
+3.8. VERSÃO INSTRUMENTAL
+
+Entrega da música sem a voz principal.
+
+Possíveis usos:
+
+- Karaokê.
+- Apresentações.
+- Casamentos.
+- Homenagens ao vivo.
+- Igrejas.
+- Vídeos.
+
+Sugestão de preço:
+R$ 19,90 a R$ 29,90.
+
+3.9. ARQUIVO WAV EM ALTA QUALIDADE
+
+Entrega em formato WAV, além do MP3.
+
+Sugestão de preço:
+R$ 9,90 a R$ 19,90.
+
+3.10. ENTREGA PRIORITÁRIA
+
+Opções:
+
+- Entrega em até 24 horas.
+- Entrega em até 12 horas.
+- Entrega no mesmo dia, conforme disponibilidade.
+
+Sugestão de preço:
+R$ 19,90 a R$ 49,90.
+
+A entrega prioritária deve depender da disponibilidade da equipe. O sistema precisa mostrar quando essa opção estiver indisponível.
+
+3.11. ALTERAÇÃO EXTRA
+
+Inclui nova alteração após o limite do pacote.
+
+Sugestão:
+- Pequena alteração: R$ 9,90.
+- Alteração de estrutura: R$ 19,90.
+- Mudança completa da letra: R$ 29,90 a R$ 49,90.
+- Mudança completa de estilo após produção: R$ 29,90.
+
+3.12. CARTÃO DIGITAL MUSICAL
+
+Página ou imagem digital contendo:
+
+- Nome do homenageado.
+- Mensagem personalizada.
+- Capa.
+- QR Code.
+- Botão para ouvir.
+- Botão para baixar.
+- Compartilhamento por WhatsApp.
+
+Sugestão de preço:
+R$ 19,90 a R$ 39,90.
+
+======================================================================
+4. PACOTES SUGERIDOS
+======================================================================
+
+PACOTE ESSENCIAL — R$ 49,90
+
+Inclui:
+
+- Uma música personalizada.
+- Uma letra criada com IA.
+- Arquivo MP3.
+- Capa simples.
+- Link privado.
+- Uma pequena correção.
+- Entrega padrão.
+
+PACOTE PRESENTE — R$ 79,90
+
+Inclui:
+
+- Uma música personalizada.
+- Duas opções geradas internamente para escolha da melhor.
+- Arquivo MP3.
+- Arquivo WAV.
+- Capa personalizada.
+- QR Code.
+- Letra digital.
+- Uma alteração.
+- Entrega padrão.
+
+PACOTE TRÊS VERSÕES — R$ 119,90
+
+Inclui:
+
+- Três músicas no total.
+- Uma letra aprovada.
+- Três versões com estilos ou vozes diferentes.
+- Arquivos MP3.
+- Uma capa personalizada.
+- QR Code.
+- Uma alteração.
+- Link privado.
+
+PACOTE QUATRO VERSÕES — R$ 149,90
+
+Inclui:
+
+- Quatro músicas no total.
+- Uma letra aprovada.
+- Quatro versões diferentes.
+- Arquivos MP3.
+- Arquivos WAV.
+- Capa personalizada.
+- QR Code.
+- Uma alteração.
+- Entrega prioritária.
+
+PACOTE VÍDEO PRESENTE — R$ 149,90
+
+Inclui:
+
+- Uma música personalizada.
+- Arquivo MP3.
+- Capa personalizada.
+- Vídeo com até 15 fotos.
+- QR Code.
+- Letra digital.
+- Uma alteração.
+
+PACOTE PREMIUM — R$ 249,90
+
+Inclui:
+
+- Três músicas no total.
+- Uma versão principal.
+- Duas versões adicionais.
+- Arquivos MP3 e WAV.
+- Vídeo com até 25 fotos.
+- Capa premium.
+- QR Code.
+- Letra digital.
+- Entrega prioritária.
+- Duas pequenas alterações.
+
+PACOTE ARTISTA — R$ 349,90 A R$ 499,90
+
+Inclui:
+
+- Uma música personalizada.
+- Até três versões.
+- Seleção da melhor versão.
+- Arquivo MP3 e WAV.
+- Capa para streaming.
+- Publicação no Spotify e demais plataformas disponíveis.
+- Cadastro de título e nome artístico.
+- Acompanhamento da publicação.
+- Vídeo simples de divulgação.
+- Link final das plataformas.
+
+O valor pode variar conforme a distribuidora, o prazo e os serviços de acompanhamento.
+
+======================================================================
+5. JORNADA COMPLETA DO CLIENTE
+======================================================================
+
+1. O cliente acessa a página.
+2. Escolhe a ocasião.
+3. Preenche as informações da história.
+4. Escolhe estilo e voz.
+5. A IA gera a letra.
+6. O cliente revisa.
+7. O cliente solicita alterações, dentro do limite.
+8. O cliente aprova a letra.
+9. O cliente escolhe o pacote.
+10. O cliente adiciona produtos extras.
+11. O sistema calcula o valor total.
+12. O cliente realiza o pagamento.
+13. O webhook confirma o pagamento.
+14. O pedido entra no painel administrativo.
+15. O administrador copia a letra e o prompt.
+16. A música é produzida no Suno.
+17. As versões são revisadas.
+18. O arquivo final é enviado ao sistema.
+19. A capa e os extras são produzidos.
+20. O cliente recebe uma notificação.
+21. O cliente acessa a página privada.
+22. O cliente ouve e baixa os arquivos.
+23. O cliente solicita ajuste, se necessário.
+24. O pedido é finalizado.
+25. O cliente recebe convite para avaliar e indicar outras pessoas.
+
+======================================================================
+6. TELAS DO SISTEMA
+======================================================================
+
+6.1. PÁGINA INICIAL
+
+Elementos:
+
+- Título emocional.
+- Botão “Criar minha música”.
+- Exemplos de músicas.
+- Como funciona.
+- Ocasiões atendidas.
+- Pacotes.
+- Produtos adicionais.
+- Avaliações.
+- Perguntas frequentes.
+- Garantias.
+- Prazos.
+- Termos.
+- Política de privacidade.
+
+6.2. FORMULÁRIO EM ETAPAS
+
+Etapa 1:
+- Ocasião.
+- Pessoa homenageada.
+- Relação.
+
+Etapa 2:
+- História.
+- Momentos.
+- Qualidades.
+- Frase obrigatória.
+- O que evitar.
+
+Etapa 3:
+- Estilo musical.
+- Voz.
+- Emoção.
+- Ritmo.
+
+Etapa 4:
+- Nome.
+- E-mail.
+- WhatsApp.
+- Consentimentos.
+
+6.3. TELA DE LETRA
+
+- Título provisório.
+- Letra completa.
+- Botão para gerar nova versão.
+- Botão para melhorar o refrão.
+- Botão para deixar mais emocionante.
+- Botão para deixar mais alegre.
+- Campo para solicitar alteração.
+- Botão “Aprovar letra”.
+
+6.4. TELA DE PACOTES
+
+- Comparação dos pacotes.
+- Quantidade de músicas.
+- Formatos.
+- Alterações.
+- Capa.
+- Vídeo.
+- Spotify.
+- Prazo.
+- Botão de seleção.
+
+6.5. TELA DE PRODUTOS ADICIONAIS
+
+O cliente pode marcar:
+
+- Duas músicas adicionais.
+- Três músicas adicionais.
+- Vídeo com fotos.
+- Publicação no Spotify.
+- Capa premium.
+- QR Code.
+- Versão instrumental.
+- Arquivo WAV.
+- Entrega prioritária.
+- Cartão digital.
+- Alterações extras.
+
+O valor total deve ser atualizado automaticamente.
+
+6.6. CHECKOUT
+
+Mostrar:
+
+- Pacote escolhido.
+- Produtos adicionais.
+- Valor unitário.
+- Valor total.
+- Prazo.
+- Dados do cliente.
+- Forma de pagamento.
+- Termos e condições.
+
+6.7. PÁGINA DE ACOMPANHAMENTO
+
+Status:
+
+- Letra criada.
+- Letra aprovada.
+- Pagamento confirmado.
+- Em produção.
+- Em revisão.
+- Extras em produção.
+- Finalizado.
+- Entregue.
+- Publicação em processamento.
+- Publicado nas plataformas.
+
+6.8. PÁGINA DE ENTREGA
+
+- Capa.
+- Player.
+- Letra.
+- Botões de download.
+- Vídeo.
+- QR Code.
+- Link do Spotify, quando publicado.
+- Botão de suporte.
+- Botão para solicitar ajuste.
+- Botão para avaliar.
+
+======================================================================
+7. STATUS DO PEDIDO
+======================================================================
+
+RASCUNHO
+LETRA_GERADA
+AGUARDANDO_APROVACAO
+LETRA_APROVADA
+AGUARDANDO_PAGAMENTO
+PAGAMENTO_APROVADO
+EM_PRODUCAO
+VERSOES_EM_PRODUCAO
+AGUARDANDO_REVISAO_INTERNA
+VIDEO_EM_PRODUCAO
+CAPA_EM_PRODUCAO
+AGUARDANDO_CLIENTE
+AJUSTE_SOLICITADO
+FINALIZADO
+ENTREGUE
+PUBLICACAO_EM_PREPARACAO
+ENVIADO_PARA_DISTRIBUIDORA
+PUBLICADO_NO_SPOTIFY
+CANCELADO
+REEMBOLSADO
+
+======================================================================
+8. TECNOLOGIAS RECOMENDADAS
+======================================================================
+
+- Front-end e sistema: Next.js.
+- Hospedagem: Vercel.
+- Banco de dados: Firebase Firestore ou Supabase.
+- Armazenamento: Firebase Storage ou Supabase Storage.
+- Login: Firebase Authentication ou Supabase Auth.
+- Geração da letra: Gemini API.
+- Pagamento: Mercado Pago ou Asaas.
+- Música: Suno em plano comercial compatível.
+- E-mail: Resend, Brevo ou outro serviço.
+- WhatsApp inicial: envio manual.
+- WhatsApp futuro: WhatsApp Cloud API.
+- Analytics: Google Analytics.
+- Anúncios: Meta Pixel e API de Conversões.
+- Vídeo: edição manual, FFmpeg ou ferramenta de vídeo.
+- Distribuição musical: distribuidora digital escolhida pela empresa.
+
+Arquitetura:
+
+CLIENTE
+   ↓
+NEXT.JS
+   ↓
+ROTAS SEGURAS DO SERVIDOR
+   ├── GEMINI
+   ├── MERCADO PAGO
+   ├── FIREBASE OU SUPABASE
+   ├── E-MAIL
+   └── WHATSAPP
+   ↓
+PAINEL ADMINISTRATIVO
+   ↓
+PRODUÇÃO MANUAL NO SUNO
+   ↓
+REVISÃO E ENTREGA
+
+======================================================================
+9. GERAÇÃO DA LETRA
+======================================================================
+
+Prompt base:
+
+Você é um compositor profissional especializado em músicas personalizadas e emocionais.
+
+Crie uma letra original em português brasileiro utilizando somente as informações fornecidas pelo cliente.
+
+Regras:
+
+- Não invente fatos importantes.
+- Não copie músicas existentes.
+- Não cite artistas.
+- Não imite letras famosas.
+- Utilize linguagem natural.
+- Evite rimas forçadas.
+- Inclua o nome naturalmente.
+- Inclua a frase obrigatória.
+- Evite os assuntos proibidos.
+- Crie um refrão marcante.
+- Estruture a letra.
+- Mantenha duração aproximada de 2 minutos e 30 segundos a 3 minutos e 30 segundos.
+
+Estrutura:
+
+[Verso 1]
+[Pré-Refrão]
+[Refrão]
+[Verso 2]
+[Ponte]
+[Refrão Final]
+
+Dados:
+
+Estilo:
+Emoção:
+Ocasião:
+Pessoa homenageada:
+História:
+Momentos importantes:
+Qualidades:
+Frase obrigatória:
+Assuntos proibidos:
+
+Limite recomendado antes do pagamento:
+
+- Uma letra inicial.
+- Até duas pequenas alterações.
+- Nova composição completa somente mediante pagamento ou pacote.
+
+======================================================================
+10. PAGAMENTO
+======================================================================
+
+Fluxo:
+
+1. O sistema cria o pedido.
+2. O pedido recebe um código.
+3. O sistema cria o pagamento.
+4. O cliente paga.
+5. O Mercado Pago envia um webhook.
+6. O servidor valida o webhook.
+7. O servidor consulta o pagamento.
+8. O valor é comparado com o pedido.
+9. O status é atualizado.
+10. A produção é liberada.
+
+Nunca libere a produção apenas porque o cliente acessou a página de sucesso.
+
+Dados registrados:
+
+- ID do pagamento.
+- Código do pedido.
+- Valor.
+- Pacote.
+- Adicionais.
+- Forma de pagamento.
+- Status.
+- Data de aprovação.
+- Dados do webhook.
+- Histórico de alterações.
+
+======================================================================
+11. PAINEL ADMINISTRATIVO
+======================================================================
+
+Dashboard:
+
+- Pedidos novos.
+- Pagamentos aprovados.
+- Pedidos em produção.
+- Pedidos atrasados.
+- Pedidos com vídeo.
+- Pedidos com versões extras.
+- Pedidos com publicação.
+- Faturamento.
+- Ticket médio.
+- Produtos mais vendidos.
+- Tempo médio de produção.
+- Taxa de ajustes.
+- Conversão.
+- Origem das vendas.
+
+Tela do pedido:
+
+- Cliente.
+- WhatsApp.
+- E-mail.
+- Homenageado.
+- História.
+- Ocasião.
+- Estilo.
+- Voz.
+- Letra.
+- Pacote.
+- Adicionais.
+- Pagamento.
+- Prazo.
+- Status.
+- Link do Suno.
+- Arquivos.
+- Vídeo.
+- Capa.
+- QR Code.
+- Dados de publicação.
+- Observações internas.
+- Histórico.
+
+Ações:
+
+- Copiar letra.
+- Copiar prompt.
+- Iniciar produção.
+- Gerar nova versão.
+- Subir áudio.
+- Subir capa.
+- Subir vídeo.
+- Enviar prévia.
+- Solicitar informação.
+- Marcar como finalizado.
+- Entregar.
+- Registrar alteração.
+- Enviar para distribuição.
+- Adicionar link do Spotify.
+
+======================================================================
+12. PRODUÇÃO NO SUNO
+======================================================================
+
+Procedimento:
+
+1. Confirmar o pagamento.
+2. Confirmar a letra aprovada.
+3. Confirmar o pacote.
+4. Verificar quantas versões foram compradas.
+5. Copiar a letra.
+6. Criar o prompt de estilo.
+7. Gerar versões.
+8. Escutar todas.
+9. Conferir nomes.
+10. Conferir pronúncia.
+11. Conferir se a letra foi respeitada.
+12. Escolher as melhores.
+13. Baixar os arquivos.
+14. Registrar data e versões.
+15. Produzir extras.
+
+Registro interno:
+
+- Data da geração.
+- Responsável.
+- Plano utilizado.
+- Quantidade de versões.
+- Links internos.
+- Versão escolhida.
+- Problemas encontrados.
+- Arquivos entregues.
+
+======================================================================
+13. CONTROLE DE QUALIDADE
+======================================================================
+
+Letra:
+
+- Nome correto.
+- História correta.
+- Sem fatos inventados.
+- Sem informações proibidas.
+- Refrão claro.
+- Boa estrutura.
+
+Áudio:
+
+- Sem cortes.
+- Sem ruídos.
+- Voz clara.
+- Pronúncia correta.
+- Duração adequada.
+- Volume adequado.
+- Início e fim completos.
+
+Vídeo:
+
+- Fotos corretas.
+- Ordem correta.
+- Sem fotos duplicadas.
+- Nome correto.
+- Texto correto.
+- Qualidade adequada.
+- Formato correto.
+- Sincronização com a música.
+
+Spotify:
+
+- Título correto.
+- Nome artístico correto.
+- Capa correta.
+- Créditos corretos.
+- Arquivo correto.
+- Data de lançamento.
+- Termos aprovados.
+- Link registrado após publicação.
+
+======================================================================
+14. BANCO DE DADOS
+======================================================================
+
+Coleção orders:
+
+- orderNumber
+- customerName
+- customerEmail
+- customerPhone
+- honoreeName
+- occasion
+- relationship
+- story
+- importantMoments
+- qualities
+- requiredPhrase
+- forbiddenSubjects
+- musicStyle
+- voiceType
+- emotion
+- lyrics
+- lyricsVersion
+- lyricsApproved
+- package
+- addons
+- musicQuantity
+- total
+- paymentStatus
+- paymentId
+- paidAt
+- productionStatus
+- sunoLinks
+- selectedVersions
+- audioFiles
+- wavFiles
+- coverFile
+- qrCodeFile
+- videoFile
+- publicationRequested
+- distributor
+- artistName
+- releaseTitle
+- releaseDate
+- spotifyUrl
+- deliveryToken
+- deliveredAt
+- createdAt
+- updatedAt
+
+Outras coleções:
+
+- users
+- orders
+- orderHistory
+- payments
+- lyricsVersions
+- files
+- packages
+- products
+- coupons
+- reviews
+- publications
+- auditLogs
+- settings
+
+======================================================================
+15. SEGURANÇA
+======================================================================
+
+- Chaves privadas somente no servidor.
+- Login obrigatório no painel.
+- Funções de administrador.
+- Limite de requisições.
+- CAPTCHA.
+- Validação de campos.
+- Validação de uploads.
+- Regras de banco.
+- Links privados.
+- Tokens aleatórios.
+- Logs.
+- Backup.
+- Validação do webhook.
+- Verificação de valor.
+- Separação de ambientes.
+- Proteção contra pedidos duplicados.
+- Proteção contra acesso a arquivos de outros clientes.
+
+======================================================================
+16. TERMOS E POLÍTICAS
+======================================================================
+
+Documentos necessários:
+
+- Termos de Uso.
+- Política de Privacidade.
+- Política de Alterações.
+- Política de Cancelamento.
+- Política de Reembolso.
+- Autorização para uso de fotos.
+- Autorização para uso de nomes.
+- Termo de publicação.
+- Termo sobre inteligência artificial.
+- Termo de distribuição.
+- Política de prazos.
+
+O cliente deve declarar que:
+
+- As informações são verdadeiras.
+- Possui direito de usar as fotos.
+- Pode compartilhar os dados.
+- Não enviou letra copiada.
+- Não solicitou imitação de artista.
+- Revisou a letra.
+- Aprovou a letra.
+- Entende que existe uso de IA.
+- Entende o limite de alterações.
+- Entende o prazo.
+- Entende as condições de publicação.
+
+Para publicação:
+
+- Definir quem administra a conta da distribuidora.
+- Definir quem recebe valores de streaming.
+- Definir quem paga taxas futuras.
+- Definir quem será o titular do lançamento.
+- Definir quem poderá solicitar remoção.
+- Definir como serão tratados os créditos.
+- Definir se o serviço inclui manutenção futura.
+
+======================================================================
+17. PRAZOS RECOMENDADOS
+======================================================================
+
+Música simples:
+Até 2 dias úteis.
+
+Pacote com três ou quatro versões:
+Até 3 dias úteis.
+
+Vídeo com fotos:
+Adicionar 1 ou 2 dias úteis.
+
+Publicação nas plataformas:
+Prazo variável conforme distribuidora e análise das plataformas.
+
+Entrega prioritária:
+Até 12 ou 24 horas, conforme disponibilidade.
+
+Não prometer publicação imediata no Spotify.
+
+======================================================================
+18. TESTES OBRIGATÓRIOS
+======================================================================
+
+- Formulário incompleto.
+- Cliente abandona o pedido.
+- Erro na IA.
+- Geração repetida.
+- Pagamento pendente.
+- Pagamento aprovado.
+- Pagamento duplicado.
+- Webhook duplicado.
+- Webhook falso.
+- Valor incorreto.
+- Atualização da página.
+- Upload grande.
+- Link inválido.
+- Cliente acessa outro pedido.
+- Arquivo errado.
+- Pronúncia errada.
+- Vídeo com foto errada.
+- Spotify com título errado.
+- Solicitação de alteração.
+- Cancelamento.
+- Reembolso.
+- Falha no e-mail.
+- WhatsApp incorreto.
+
+======================================================================
+19. CRONOGRAMA DO MVP
+======================================================================
+
+FASE 1 — PLANEJAMENTO
+
+- Nome.
+- Marca.
+- Pacotes.
+- Produtos adicionais.
+- Regras.
+- Prazos.
+- Fluxo.
+- Banco.
+
+FASE 2 — FRONT-END
+
+- Página inicial.
+- Formulário.
+- Letra.
+- Pacotes.
+- Adicionais.
+- Checkout.
+- Acompanhamento.
+- Entrega.
+
+FASE 3 — BACKEND
+
+- Pedidos.
+- Gemini.
+- Pagamentos.
+- Webhook.
+- Banco.
+- E-mail.
+- Arquivos.
+
+FASE 4 — ADMINISTRAÇÃO
+
+- Login.
+- Dashboard.
+- Pedidos.
+- Produção.
+- Upload.
+- Vídeo.
+- Publicação.
+- Entrega.
+- Histórico.
+
+FASE 5 — TESTES
+
+- Segurança.
+- Pagamentos.
+- Responsividade.
+- Arquivos.
+- Produção.
+- Entrega.
+- Publicação.
+
+Estimativa:
+
+- Planejamento: 1 a 2 dias.
+- Design e telas: 2 a 4 dias.
+- Formulário e IA: 2 a 3 dias.
+- Banco e painel: 3 a 5 dias.
+- Pagamentos: 2 dias.
+- Entrega: 1 a 2 dias.
+- Segurança e testes: 2 a 3 dias.
+
+Total:
+Aproximadamente 13 a 21 dias, dependendo do nível visual e das automações.
+
+======================================================================
+20. ESTRATÉGIA DE LANÇAMENTO
+======================================================================
+
+Criar músicas demonstrativas para:
+
+- Aniversário.
+- Casamento.
+- Namoro.
+- Mãe.
+- Pai.
+- Filho.
+- Igreja.
+- Empresa.
+- Homenagem póstuma.
+- Chá revelação.
+
+Oferta inicial:
+
+Música personalizada por R$ 49,90 para os primeiros clientes.
+
+Campanhas:
+
+- Música para presentear.
+- Música para casamento.
+- Música para Dia das Mães.
+- Música para aniversário.
+- Música para empresa.
+- Música gospel.
+- Música para homenagens.
+
+Conteúdos:
+
+- Reação do cliente.
+- História antes da música.
+- Refrão produzido.
+- Bastidores.
+- Antes e depois.
+- Demonstração do vídeo.
+- Demonstração do QR Code.
+- Música publicada no Spotify.
+- Comparação entre versões.
+
+======================================================================
+21. MÉTRICAS
+======================================================================
+
+- Visitas.
+- Formulários iniciados.
+- Letras geradas.
+- Letras aprovadas.
+- Checkouts.
+- Pagamentos.
+- Taxa de conversão.
+- Ticket médio.
+- Produtos adicionais.
+- Pacote mais vendido.
+- Custo por venda.
+- Tempo de produção.
+- Número de alterações.
+- Estilo mais vendido.
+- Vendas com vídeo.
+- Vendas com Spotify.
+- Vendas com versões adicionais.
+- Indicações.
+- Recompra.
+
+======================================================================
+22. RECOMENDAÇÃO FINAL
+======================================================================
+
+Versão inicial recomendada:
+
+- Next.js.
+- Firebase ou Supabase.
+- Gemini.
+- Mercado Pago.
+- Suno manual.
+- Entrega privada.
+- Vídeo produzido manualmente.
+- Publicação gerenciada manualmente.
+
+Automatizar:
+
+- Formulário.
+- Geração da letra.
+- Revisão.
+- Pacotes.
+- Adicionais.
+- Cálculo.
+- Pagamento.
+- Status.
+- Notificações.
+- Entrega.
+
+Manter manual no início:
+
+- Produção no Suno.
+- Escolha das versões.
+- Controle de qualidade.
+- Edição de vídeo.
+- Criação de capa premium.
+- Publicação no Spotify.
+- Atendimento de alterações.
+
+Essa estrutura permite lançar com baixo investimento, testar a procura e aumentar a automação conforme o volume de vendas.
