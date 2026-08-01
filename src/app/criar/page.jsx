@@ -188,6 +188,17 @@ export default function CriarMusica() {
   const [orderId, setOrderId] = useState('');
   const [taskId, setTaskId] = useState('');
   const [isRestored, setIsRestored] = useState(false);
+  const [needsReload, setNeedsReload] = useState(false);
+
+  // Força reload da página após gerar a música para resetar o DOM e o AudioPlayer
+  useEffect(() => {
+    if (needsReload && typeof window !== 'undefined') {
+      const timer = setTimeout(() => {
+        window.location.reload();
+      }, 1500); // 1.5s garante que o localStorage foi salvo e exibe a transição pro usuário
+      return () => clearTimeout(timer);
+    }
+  }, [needsReload]);
 
   // Estados do Checkout Transparente
   const [paymentMethod, setPaymentMethod] = useState('pix'); // 'pix' | 'card'
@@ -1116,6 +1127,7 @@ export default function CriarMusica() {
               sunoStatus: 'generated'
             }));
             clearInterval(interval);
+            setNeedsReload(true);
 
             // Garante que o documento do pedido em orders no Firebase receba os links reais dos áudios
             if (targetOrder) {
