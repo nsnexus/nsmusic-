@@ -32,11 +32,7 @@ export async function POST(req) {
         ? 'https://sandbox.api.pagseguro.com' 
         : 'https://api.pagseguro.com';
 
-      let customerName = (formData?.customerName || 'Cliente').trim();
-      if (!customerName.includes(' ')) {
-        customerName += ' NSMusic';
-      }
-      
+      const customerName = (formData?.customerName || 'Cliente').trim();
       const customerEmail = (formData?.customerEmail && String(formData.customerEmail).includes('@'))
         ? String(formData.customerEmail).trim()
         : 'contato@nsmusic.com.br';
@@ -47,11 +43,7 @@ export async function POST(req) {
         reference_id: orderId || `NS-${Date.now()}`,
         customer: {
           name: customerName,
-          email: customerEmail,
-          tax_id: "00851895298", // Fallback CPF exigido pelo PagBank para geração de PIX
-          phones: [
-            { country: "55", area: "11", number: "999999999", type: "MOBILE" }
-          ]
+          email: customerEmail
         },
         items: [
           {

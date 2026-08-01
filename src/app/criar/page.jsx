@@ -2033,6 +2033,24 @@ export default function CriarMusica() {
                     ⚡ PIX Instantâneo
                   </button>
 
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod('card')}
+                    style={{
+                      flex: 1,
+                      minWidth: '130px',
+                      padding: '12px',
+                      borderRadius: '12px',
+                      border: paymentMethod === 'card' ? '2px solid var(--primary)' : '1.5px solid var(--border-color)',
+                      background: paymentMethod === 'card' ? 'var(--primary-light)' : '#FFFFFF',
+                      color: paymentMethod === 'card' ? 'var(--primary)' : 'var(--text-secondary)',
+                      fontWeight: 'bold',
+                      cursor: 'pointer',
+                      fontSize: '0.92rem'
+                    }}
+                  >
+                    💳 Cartão de Crédito
+                  </button>
                 </div>
 
                 {/* Área de Pagamento PIX Transparente */}
@@ -2078,9 +2096,7 @@ export default function CriarMusica() {
                                 window.fbq('track', 'InitiateCheckout', { value: 9.99, currency: 'BRL' });
                               }
                             } else {
-                              const errData = await res.json().catch(() => ({}));
-                              console.error("PagBank PIX Error:", errData);
-                              alert(`Erro do PagBank: ${errData?.error || 'Tente novamente.'}`);
+                              alert('Erro ao gerar código PIX. Tente novamente.');
                             }
                           } catch (err) {
                             console.error(err);
@@ -2213,7 +2229,57 @@ export default function CriarMusica() {
                   </div>
                 )}
 
+                {/* Área de Cartão de Crédito / Mercado Pago Checkout */}
+                {paymentMethod === 'card' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          if (orderId) {
+                            await updateDoc(doc(db, 'orders', orderId), {
+                              total: getTotalPrice(),
+                              package: formData.selectedPackage,
+                              hasVideoAccess: !!formData.addons?.wantsVideo,
+                              updatedAt: new Date().toISOString()
+                            }).catch(e => console.warn(e));
+                          }
 
+                          const response = await fetch('/api/payments/create', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              formData,
+                              totalAmount: getTotalPrice(),
+                              paymentType: 'preference'
+                            })
+                          });
+                          if (response.ok) {
+                            const data = await response.json();
+                            if (data.init_point) {
+                              if (typeof window !== 'undefined' && window.fbq) {
+                                window.fbq('track', 'InitiateCheckout', { value: 9.99, currency: 'BRL' });
+                              }
+                              window.location.href = data.init_point;
+                            } else {
+                              alert('Erro ao iniciar checkout do Mercado Pago.');
+                            }
+                          } else {
+                            const errData = await response.json();
+                            alert(`Erro do Mercado Pago: ${errData.error || 'Falha no processamento.'}`);
+                          }
+                        } catch (err) {
+                          console.error(err);
+                          alert('Ocorreu um erro ao processar seu pagamento.');
+                        }
+                      }}
+                      className="btn btn-primary"
+                      style={{ width: '100%', padding: '16px', fontSize: '1.05rem' }}
+                    >
+                      Confirmar & Pagar no Mercado Pago 💳
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
