@@ -22,6 +22,8 @@ export const styles = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    rowGap: '8px',
   },
   statusBadge: {
     fontSize: '0.85rem',

@@ -359,7 +359,7 @@ export default function CriarMusica() {
     return false;
   };
 
-  // Passos de carregamento dinâmico no estúdio de composição de letra (Step 10)
+  // Passos de carregamento dinâmico no estúdio de composição de letra (Step 9)
   const [lyricsStepIdx, setLyricsStepIdx] = useState(0);
   const studioLyricsPhrases = [
     "✍️ Analisando sua história e conectando memórias emocionais...",
@@ -377,7 +377,7 @@ export default function CriarMusica() {
     return () => clearInterval(interval);
   }, [formData.lyricsStatus]);
 
-  // Passos de carregamento dinâmico no estúdio de produção musical (Step 11)
+  // Passos de carregamento dinâmico no estúdio de produção musical (Step 10)
   const [audioStepIdx, setAudioStepIdx] = useState(0);
   const studioAudioPhrases = [
     "🎸 Compondo arranjos de instrumentos e base harmônica em estúdio...",
@@ -765,7 +765,7 @@ export default function CriarMusica() {
       return;
     }
 
-    setStep(10);
+    setStep(9);
     // Se a letra já foi gerada com sucesso anteriormente, apenas exibe a letra existente sem fazer nova requisição
     if (formData.lyricsStatus === 'generated' && formData.lyrics) {
       return;
@@ -887,9 +887,9 @@ export default function CriarMusica() {
     }
   };
 
-  // Step 10 Approval -> Move to Audio Generation preview screen (Step 11)
+  // Step 9 Approval -> Move to Audio Generation preview screen (Step 10)
   const handleApproveLyrics = async () => {
-    setStep(11);
+    setStep(10);
     // Se as músicas já foram geradas com sucesso anteriormente, apenas navega sem regenerar
     if (formData.sunoStatus === 'generated' && formData.sunoTracks && formData.sunoTracks.length > 0) {
       if (orderId) window.location.href = `/entrega?orderId=${orderId}`;
@@ -1324,7 +1324,7 @@ export default function CriarMusica() {
                   <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     <button
                       type="button"
-                      onClick={() => setStep(12)}
+                      onClick={() => setStep(11)}
                       className="btn btn-primary"
                       style={{ width: '100%', padding: '16px', fontSize: '1.1rem', fontWeight: 'bold', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', boxShadow: '0 4px 15px rgba(16, 185, 129, 0.4)', border: 'none', color: '#fff', cursor: 'pointer', borderRadius: '12px' }}
                     >
@@ -1710,7 +1710,7 @@ export default function CriarMusica() {
                 <button
                   onClick={() => {
                     setShowLimitModal(false);
-                    if (step < 12) setStep(12);
+                    if (step < 11) setStep(11);
                   }}
                   className="btn btn-primary"
                   style={{ width: '100%', padding: '14px', fontSize: '1rem', fontWeight: 'bold' }}

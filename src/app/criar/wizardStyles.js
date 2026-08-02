@@ -22,6 +22,8 @@ export const styles = {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
+    flexWrap: 'wrap',
+    rowGap: '8px',
   },
   stepIndicator: {
     fontSize: '0.85rem',

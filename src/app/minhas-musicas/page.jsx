@@ -224,13 +224,13 @@ export default function MinhasMusicasPage() {
             <span style={{ fontSize: '1.25rem', fontWeight: '800', color: 'var(--text-primary)' }}>NSMusic</span>
           </Link>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <Link href="/criar" className="btn btn-primary" style={{ padding: '8px 16px', fontSize: '0.85rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            <Link href="/criar" className="btn btn-primary" style={{ padding: '8px 16px', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
               ✨ Criar Nova Música
             </Link>
 
             {user && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                 <span 
                   style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', fontWeight: '600', maxWidth: '130px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-block' }} 
                   title={user.email}
@@ -571,6 +571,8 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    rowGap: '10px',
   },
   input: {
     width: '100%',
