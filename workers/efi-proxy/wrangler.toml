@@ -9,12 +9,22 @@ routes = [
   { pattern = "efi-proxy.nsnexus.com.br", custom_domain = true }
 ]
 
-# Certificado mTLS exigido pela API Pix da Efí em toda chamada. Subir com:
+# Certificado mTLS exigido pela API Pix da Efí em toda chamada. Sandbox e produção são
+# certificados/aplicações diferentes na Efí, então cada ambiente tem seu próprio binding — o
+# worker escolhe qual usar com base no campo `env` ("sandbox"/"production") de cada requisição
+# (ver src/worker.js). Subir com:
 #   npx wrangler mtls-certificate upload --cert cert.pem --key key.pem --name efi-pix-sandbox
-# e colar o `certificate_id` retornado abaixo (ver docs/EFI_SETUP.md).
+# (ou --name efi-pix-production para o de produção) e colar o `certificate_id` retornado abaixo
+# (ver docs/EFI_SETUP.md). CUIDADO: confira antes que o certificado não tenha serial number
+# negativo (`openssl x509 -in cert.pem -noout -text | grep -A1 "Serial Number"`) — a Cloudflare
+# rejeita esse tipo de certificado no upload.
 [[mtls_certificates]]
-binding = "EFI_MTLS_CERT"
+binding = "EFI_MTLS_CERT_SANDBOX"
 certificate_id = "c8facf26-086e-455e-8faa-52c9a456be18"
+
+[[mtls_certificates]]
+binding = "EFI_MTLS_CERT_PRODUCTION"
+certificate_id = "cb017d25-e439-418b-9b34-6ecbd4e75c89"
 
 # EFI_PROXY_SECRET é um secret, não uma var: configurar com
 #   npx wrangler secret put EFI_PROXY_SECRET --config workers/efi-proxy/wrangler.toml

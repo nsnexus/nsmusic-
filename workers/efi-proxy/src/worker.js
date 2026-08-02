@@ -1,7 +1,7 @@
 // Worker dedicado só para o hop mTLS até a API Pix da Efí — existe porque Cloudflare Pages não
 // suporta binding de certificado mTLS (só Workers suportam; ver docs/EFI_SETUP.md para o porquê
 // dessa arquitetura). O app Next.js (Pages) fala com este Worker por HTTPS simples; este Worker é
-// quem detém o binding `EFI_MTLS_CERT` e repassa a chamada para a Efí.
+// quem detém os bindings de certificado e repassa a chamada para a Efí.
 //
 // Design deliberado para eliminar SSRF por construção: o chamador nunca envia host/URL, só um enum
 // `env` (sandbox/production) mapeado aqui para o host fixo, e path+método validados contra uma
@@ -10,6 +10,13 @@
 const HOSTS = {
   sandbox: 'https://pix-h.api.efipay.com.br',
   production: 'https://pix.api.efipay.com.br',
+};
+
+// Sandbox e produção são aplicações/certificados diferentes na Efí — cada um tem seu próprio
+// binding mTLS (ver workers/efi-proxy/wrangler.toml), selecionado pelo mesmo `env` que escolhe o host.
+const MTLS_BINDING_NAMES = {
+  sandbox: 'EFI_MTLS_CERT_SANDBOX',
+  production: 'EFI_MTLS_CERT_PRODUCTION',
 };
 
 const TXID_PATTERN = '[A-Za-z0-9]{26,35}';
@@ -75,10 +82,11 @@ async function handleRelay(request, env) {
     return jsonError(400, 'path/method não permitido');
   }
 
-  const mtlsBinding = env?.EFI_MTLS_CERT;
+  const mtlsBindingName = MTLS_BINDING_NAMES[efiEnv];
+  const mtlsBinding = env?.[mtlsBindingName];
   if (!mtlsBinding?.fetch) {
-    console.warn('[efi-proxy] EFI_MTLS_CERT não configurado neste Worker.');
-    return jsonError(500, 'EFI_MTLS_CERT não configurado');
+    console.warn(`[efi-proxy] ${mtlsBindingName} não configurado neste Worker.`);
+    return jsonError(500, `${mtlsBindingName} não configurado`);
   }
 
   let upstreamRes;

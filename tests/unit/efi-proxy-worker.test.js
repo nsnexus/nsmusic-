@@ -10,7 +10,8 @@ const VALID_TXID = 'A'.repeat(30);
 function makeEnv(overrides = {}) {
   return {
     EFI_PROXY_SECRET: 'proxy-secret-teste',
-    EFI_MTLS_CERT: { fetch: vi.fn() },
+    EFI_MTLS_CERT_SANDBOX: { fetch: vi.fn() },
+    EFI_MTLS_CERT_PRODUCTION: { fetch: vi.fn() },
     ...overrides,
   };
 }
@@ -69,7 +70,7 @@ describe('efi-proxy worker', () => {
         headers: { 'content-type': 'application/json' },
       })
     );
-    const env = makeEnv({ EFI_MTLS_CERT: { fetch: mtlsFetch } });
+    const env = makeEnv({ EFI_MTLS_CERT_SANDBOX: { fetch: mtlsFetch } });
 
     const req = relayRequest({
       env: 'sandbox',
@@ -93,19 +94,25 @@ describe('efi-proxy worker', () => {
     expect(upstreamOptions.headers['x-ignored-header']).toBeUndefined();
   });
 
-  it('usa o host de produção quando env=production', async () => {
-    const mtlsFetch = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }));
-    const env = makeEnv({ EFI_MTLS_CERT: { fetch: mtlsFetch } });
+  it('usa o host e o binding de produção quando env=production', async () => {
+    const sandboxFetch = vi.fn();
+    const productionFetch = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }));
+    const env = makeEnv({
+      EFI_MTLS_CERT_SANDBOX: { fetch: sandboxFetch },
+      EFI_MTLS_CERT_PRODUCTION: { fetch: productionFetch },
+    });
 
     const req = relayRequest({ env: 'production', path: `/v2/cob/${VALID_TXID}`, method: 'GET', headers: {} });
     await worker.fetch(req, env);
 
-    expect(mtlsFetch.mock.calls[0][0]).toBe(`https://pix.api.efipay.com.br/v2/cob/${VALID_TXID}`);
+    expect(productionFetch).toHaveBeenCalledTimes(1);
+    expect(productionFetch.mock.calls[0][0]).toBe(`https://pix.api.efipay.com.br/v2/cob/${VALID_TXID}`);
+    expect(sandboxFetch).not.toHaveBeenCalled();
   });
 
   it('devolve 502 quando a chamada mTLS falha', async () => {
     const mtlsFetch = vi.fn().mockRejectedValue(new Error('handshake TLS recusado'));
-    const env = makeEnv({ EFI_MTLS_CERT: { fetch: mtlsFetch } });
+    const env = makeEnv({ EFI_MTLS_CERT_SANDBOX: { fetch: mtlsFetch } });
 
     const req = relayRequest({ env: 'sandbox', path: '/oauth/token', method: 'POST', headers: {}, body: '{}' });
     const res = await worker.fetch(req, env);
@@ -113,9 +120,15 @@ describe('efi-proxy worker', () => {
     expect(res.status).toBe(502);
   });
 
-  it('devolve 500 quando o Worker não tem EFI_MTLS_CERT configurado', async () => {
+  it('devolve 500 quando o Worker não tem o binding mTLS de sandbox configurado', async () => {
     const req = relayRequest({ env: 'sandbox', path: '/oauth/token', method: 'POST', headers: {}, body: '{}' });
-    const res = await worker.fetch(req, makeEnv({ EFI_MTLS_CERT: undefined }));
+    const res = await worker.fetch(req, makeEnv({ EFI_MTLS_CERT_SANDBOX: undefined }));
+    expect(res.status).toBe(500);
+  });
+
+  it('devolve 500 quando o Worker não tem o binding mTLS de produção configurado', async () => {
+    const req = relayRequest({ env: 'production', path: `/v2/cob/${VALID_TXID}`, method: 'GET', headers: {} });
+    const res = await worker.fetch(req, makeEnv({ EFI_MTLS_CERT_PRODUCTION: undefined }));
     expect(res.status).toBe(500);
   });
 });

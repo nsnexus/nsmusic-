@@ -49,12 +49,18 @@ openssl pkcs12 -in certificado.p12 -nocerts -nodes -out key.pem
 Tudo isso é feito com o Wrangler CLI (já é devDependency do projeto — `npx wrangler`), a partir da
 raiz do repositório:
 
+Sandbox e produção são certificados diferentes na Efí, e o Worker mantém os dois bindings
+simultaneamente (`EFI_MTLS_CERT_SANDBOX` e `EFI_MTLS_CERT_PRODUCTION` em
+`workers/efi-proxy/wrangler.toml`) — o código escolhe qual usar por requisição, com base no `env`
+mandado pelo app. Repita os passos abaixo uma vez para cada ambiente.
+
 ```bash
 # 1. Sobe o certificado na conta Cloudflare e devolve um certificate_id
 npx wrangler mtls-certificate upload --cert cert.pem --key key.pem --name efi-pix-sandbox
+#   (para produção: --name efi-pix-production)
 
-# 2. Cole o certificate_id retornado acima em workers/efi-proxy/wrangler.toml
-#    (campo certificate_id, dentro de [[mtls_certificates]])
+# 2. Cole o certificate_id retornado acima em workers/efi-proxy/wrangler.toml, no binding certo
+#    (EFI_MTLS_CERT_SANDBOX ou EFI_MTLS_CERT_PRODUCTION, dentro de [[mtls_certificates]])
 
 # 3. Gere um segredo aleatório e configure no Worker (nunca no wrangler.toml)
 openssl rand -hex 32
@@ -131,8 +137,8 @@ esteja deployado (passo 3) e `EFI_PROXY_URL`/`EFI_PROXY_SECRET` (e os demais `EF
 `.env.local`. Aponte para o Worker do ambiente sandbox durante o desenvolvimento.
 
 Os testes automatizados (`npm test`) continuam funcionando normalmente sem nenhuma credencial real,
-mockando o `fetch` global (`tests/unit/efi.test.js`) e o binding `EFI_MTLS_CERT` do Worker
-(`tests/unit/efi-proxy-worker.test.js`).
+mockando o `fetch` global (`tests/unit/efi.test.js`) e os bindings `EFI_MTLS_CERT_SANDBOX`/
+`EFI_MTLS_CERT_PRODUCTION` do Worker (`tests/unit/efi-proxy-worker.test.js`).
 
 ## Ordem recomendada de validação
 
@@ -142,9 +148,18 @@ mockando o `fetch` global (`tests/unit/efi.test.js`) e o binding `EFI_MTLS_CERT`
 3. Pagar a cobrança de sandbox (a Efí costuma oferecer um simulador de pagamento no ambiente de
    homologação — conferir na documentação da conta) e confirmar que o webhook chega e o pedido é
    aprovado em `/entrega`.
-4. Só depois disso, repetir os passos 1, 3, 4, 5 do checklist acima com credenciais e certificado de
-   **produção** (`EFI_ENV=production`) — inclusive um segundo Worker/deploy ou uma segunda entrada de
-   `mtls_certificates` para o certificado de produção, e trocar as env vars no projeto de produção.
+4. Repetir os passos 1, 3, 4, 5 do checklist acima com credenciais e certificado de **produção**
+   (`EFI_ENV=production`) — o mesmo Worker recebe um segundo binding (`EFI_MTLS_CERT_PRODUCTION`),
+   sem precisar de um Worker separado. Antes de trocar as env vars do projeto Pages para as
+   credenciais de produção, validar a autenticação isoladamente (só `/oauth/token`, sem criar
+   cobrança) — criar uma cobrança de verdade em produção gera um PIX real que pode ser pago com
+   dinheiro de verdade, então evite gerar cobranças de teste nesse ambiente.
+
+**Concluído em 2026-08-02**: Worker com os dois bindings (`c8facf26-...` sandbox,
+`cb017d25-...` produção) deployado e testado — autenticação `/oauth/token` confirmada nos dois
+ambientes. Variáveis de produção (`EFI_CLIENT_ID`, `EFI_CLIENT_SECRET`, `EFI_ENV=production`) já
+configuradas no projeto Pages; `EFI_PIX_KEY` é a mesma chave (EVP) usada em sandbox e produção,
+cadastrada uma vez na conta.
 
 ## Fora de escopo desta migração
 
