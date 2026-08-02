@@ -1,11 +1,11 @@
 'use client';
-export const runtime = 'edge';
 
 import React, { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
+import { resolveDeliveryUrl, buildMusicReadyMessage, buildPaymentApprovedMessage } from '@/lib/whatsappTemplates';
 import Link from 'next/link';
 import Image from 'next/image';
 
@@ -290,19 +290,13 @@ export default function OrderDetailsAdmin() {
     setSendingWhatsApp(true);
     setWhatsAppMsg('');
     try {
-      const rawUrl = (typeof window !== 'undefined' ? window.location.origin : '').replace(/\/+$/, '');
-      const baseUrl = (!rawUrl || rawUrl.includes('localhost')) ? 'https://nsmusic.nsnexus.com.br' : rawUrl;
-      const deliveryUrl = `${baseUrl}/entrega?orderId=${orderId}`;
+      const deliveryUrl = resolveDeliveryUrl(orderId);
       const customerName = order.customerName || 'Cliente';
       const honoreeName = order.honoreeName || 'alguém especial';
 
-      let messageText = '';
-
-      if (tipo === 'musica') {
-        messageText = `Olá, ${customerName}! 🎵\n\nSua música personalizada para *${honoreeName}* ficou pronta com sucesso no estúdio NSMusic!\n\nForam produzidas 2 versões completas em altíssima qualidade.\n\nAcesse o link abaixo para ouvir e fazer o download dos seus áudios em MP3 HD:\n👉 ${deliveryUrl}\n\nQualquer dúvida, estamos à disposição! ❤️`;
-      } else {
-        messageText = `Olá, ${customerName}! 💳\n\nSeu pagamento foi confirmado com sucesso!\nSua música personalizada para *${honoreeName}* foi totalmente liberada no estúdio NSMusic.\n\nAcesse o link abaixo para ouvir e fazer o download dos seus áudios em MP3 HD:\n👉 ${deliveryUrl}\n\nObrigado pela preferência! ❤️`;
-      }
+      const messageText = tipo === 'musica'
+        ? buildMusicReadyMessage({ customerName, honoreeName, deliveryUrl })
+        : buildPaymentApprovedMessage({ customerName, honoreeName, deliveryUrl });
 
       const idToken = await auth.currentUser?.getIdToken();
       const res = await fetch('/api/whatsapp/send', {

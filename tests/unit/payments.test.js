@@ -11,8 +11,9 @@ let store;
 
 vi.mock('@/lib/firebase-edge', () => ({ dbEdge: {} }));
 
+const sendWhatsAppMessageMock = vi.fn().mockResolvedValue(true);
 vi.mock('@/lib/whatsapp', () => ({
-  sendWhatsAppMessage: vi.fn().mockResolvedValue(true),
+  sendWhatsAppMessage: (...args) => sendWhatsAppMessageMock(...args),
 }));
 
 vi.mock('firebase/firestore/lite', () => {
@@ -44,6 +45,8 @@ const { applyPaymentApproval } = await import('@/lib/payments');
 
 beforeEach(() => {
   store = {};
+  sendWhatsAppMessageMock.mockClear();
+  delete process.env.ADMIN_WHATSAPP;
 });
 
 describe('applyPaymentApproval', () => {
@@ -130,5 +133,27 @@ describe('applyPaymentApproval', () => {
     expect(result.applied).toBe(true);
     expect(store['order8'].hasVideoAccess).toBe(false);
     expect(store['order8'].videoAddonPaid).toBe(false);
+  });
+
+  // B-06 no AUDIT_REPORT.md — regressão encontrada nesta sessão: a notificação de "nova venda" ao
+  // admin tinha sido perdida ao unificar processPayment/markOrderApproved neste módulo (Lote 2).
+  it('notifica o admin (ADMIN_WHATSAPP) além do cliente quando configurado', async () => {
+    process.env.ADMIN_WHATSAPP = '5594900000000';
+    store['order9'] = { paymentIntentSku: 'audio_only', customerPhone: '5511999999999', paymentId: null };
+
+    await applyPaymentApproval('order9', '999', { status: 'approved', transaction_amount: 9.99 });
+
+    const calledNumbers = sendWhatsAppMessageMock.mock.calls.map((args) => args[0]);
+    expect(calledNumbers).toContain('5511999999999');
+    expect(calledNumbers).toContain('5594900000000');
+  });
+
+  it('não notifica o admin quando ADMIN_WHATSAPP não está configurado', async () => {
+    store['order10'] = { paymentIntentSku: 'audio_only', customerPhone: '5511999999999', paymentId: null };
+
+    await applyPaymentApproval('order10', '1000', { status: 'approved', transaction_amount: 9.99 });
+
+    expect(sendWhatsAppMessageMock).toHaveBeenCalledTimes(1);
+    expect(sendWhatsAppMessageMock).toHaveBeenCalledWith('5511999999999', expect.any(String));
   });
 });

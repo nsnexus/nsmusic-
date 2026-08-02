@@ -1,6 +1,7 @@
 import { doc, getDoc, setDoc, updateDoc, runTransaction } from 'firebase/firestore/lite';
 import { dbEdge as db } from './firebase-edge';
 import { sendWhatsAppMessage } from './whatsapp';
+import { resolveDeliveryUrl, buildMusicReadyMessage } from './whatsappTemplates';
 
 export const getTask = async (taskId) => {
   try {
@@ -140,14 +141,12 @@ export const updateTaskResult = async (taskId, result, overrideOrderId = null) =
         }
 
         if (shouldSend) {
-          let customerName = orderData.customerName || 'Cliente';
-          let honoreeName = orderData.honoreeName || 'alguém especial';
-
-          const rawUrl = (process.env.NEXT_PUBLIC_SITE_URL || '').trim().replace(/\/+$/, '');
-          const baseUrl = (!rawUrl || rawUrl.includes('pages.dev') || rawUrl.includes('localhost')) ? 'https://nsmusic.nsnexus.com.br' : rawUrl;
-          const deliveryUrl = `${baseUrl}/entrega?orderId=${orderId}`;
-
-          const messageText = `Olá, ${customerName}! 🎵\n\nSua música personalizada para *${honoreeName}* ficou pronta com sucesso no estúdio NSMusic!\n\nForam produzidas 2 versões completas em altíssima qualidade.\n\nAcesse o link abaixo para ouvir e fazer o download dos seus áudios em MP3 HD:\n👉 ${deliveryUrl}\n\nQualquer dúvida, estamos à disposição! ❤️`;
+          const deliveryUrl = resolveDeliveryUrl(orderId);
+          const messageText = buildMusicReadyMessage({
+            customerName: orderData.customerName,
+            honoreeName: orderData.honoreeName,
+            deliveryUrl,
+          });
 
           const sent = await sendWhatsAppMessage(orderData.customerPhone, messageText);
           if (sent) {

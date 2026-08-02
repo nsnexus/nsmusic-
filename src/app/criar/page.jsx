@@ -530,27 +530,6 @@ export default function CriarMusica() {
     return () => clearInterval(interval);
   }, [formData.sunoStatus]);
 
-  // Pacote promocional fixo de R$ 9,99 com 2 músicas inclusas
-  const [packagesList, setPackagesList] = useState([
-    { 
-      id: 'promo_2_musicas', 
-      name: '🎁 Pacote Promocional Especial (2 Músicas Completas Inclusas)', 
-      price: 9.99, 
-      originalPrice: 69.90,
-      desc: '2 Músicas Personalizadas em Estilos Diferentes + Arquivo MP3 HD + Capa Digital' 
-    }
-  ]);
-
-  const [addonsConfig, setAddonsConfig] = useState([
-    { id: 'photoVideo', name: '🎥 Vídeo com fotos (sincronizado com a música)', price: 9.99 },
-    { id: 'spotifyDistribution', name: '🎧 Publicação no Spotify e plataformas de streaming', price: 9.99 },
-    { id: 'premiumCover', name: '🖼️ Capa Premium personalizada profissional', price: 9.99 },
-    { id: 'qrCode', name: '📱 QR Code da música para cartões e presentes', price: 9.99 },
-    { id: 'instrumentalVersion', name: '🎤 Versão Instrumental (Sem voz - para karaokê)', price: 9.99 },
-    { id: 'wavFormat', name: '💿 Áudio em formato WAV (Qualidade de estúdio)', price: 9.99 },
-    { id: 'priorityDelivery', name: '🚀 Entrega Prioritária em até 24 horas', price: 9.99 },
-  ]);
-
   // Valor promocional dinâmico: R$ 9,99 (só música) ou R$ 16,89 (música + vídeo)
   const getSelectedPackagePrice = () => 9.99;
   const getVideoAddonPrice = () => formData.addons?.wantsVideo ? 6.90 : 0;

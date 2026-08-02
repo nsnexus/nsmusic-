@@ -2,10 +2,16 @@ import { getRequestContext } from '@cloudflare/next-on-pages';
 
 /**
  * Módulo de Integração com a W-API (https://w-api.app)
- * 
+ *
  * Credenciais devem estar configuradas via variáveis de ambiente
  * no Cloudflare Pages (WAPI_INSTANCE_ID e WAPI_TOKEN).
  */
+
+// Templates de mensagem (ver M-19 no AUDIT_REPORT.md) vivem em src/lib/whatsappTemplates.js — um
+// arquivo sem dependência de @cloudflare/next-on-pages, para poder ser importado também por
+// componentes client-side (ex: admin/pedidos/[id]/page.jsx) sem levar código Edge-only pro bundle
+// do browser. Re-exportados aqui só para quem já importa @/lib/whatsapp por convenção.
+export { resolveDeliveryUrl, buildMusicReadyMessage, buildPaymentApprovedMessage, buildVideoApprovedMessage, buildApprovalMessage, buildAdminSaleNotification } from './whatsappTemplates';
 
 const WAPI_BASE_URL = 'https://api.w-api.app/v1';
 

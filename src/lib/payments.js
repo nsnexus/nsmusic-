@@ -9,25 +9,21 @@
 //   - estados de estorno/cancelamento revogam acesso já concedido, o que nunca era tratado antes.
 
 import { doc, getDoc, updateDoc, runTransaction } from 'firebase/firestore/lite';
+import { getRequestContext } from '@cloudflare/next-on-pages';
 import { dbEdge as db } from './firebase-edge';
 import { skuApprovesMusic, skuGrantsVideoAccess } from './pricing';
+import { resolveDeliveryUrl, buildApprovalMessage, buildAdminSaleNotification } from './whatsappTemplates';
+
+// B-06 no AUDIT_REPORT.md: o telefone do admin estava hardcoded no código-fonte.
+function getAdminWhatsAppNumber() {
+  try {
+    const ctx = getRequestContext();
+    if (ctx?.env?.ADMIN_WHATSAPP) return String(ctx.env.ADMIN_WHATSAPP).trim();
+  } catch (e) {}
+  return String(process.env.ADMIN_WHATSAPP || '').trim();
+}
 
 const REVOKING_STATUSES = new Set(['cancelled', 'refunded', 'charged_back']);
-
-function resolveDeliveryUrl(orderId) {
-  const rawUrl = (process.env.NEXT_PUBLIC_SITE_URL || '').trim().replace(/\/+$/, '');
-  const baseUrl = (!rawUrl || rawUrl.includes('pages.dev') || rawUrl.includes('localhost'))
-    ? 'https://nsmusic.nsnexus.com.br'
-    : rawUrl;
-  return `${baseUrl}/entrega?orderId=${orderId}`;
-}
-
-function buildApprovalMessage({ isVideo, customerName, honoreeName, deliveryUrl }) {
-  if (isVideo) {
-    return `Olá, ${customerName}! 🎬\n\nSeu pagamento do *Vídeo Homenagem* foi confirmado com sucesso!\nAgora você pode enviar suas fotos para criar o vídeo personalizado para *${honoreeName}*.\n\nAcesse o link abaixo para enviar as fotos:\n👉 ${deliveryUrl}\n\nObrigado pela preferência! ❤️`;
-  }
-  return `Olá, ${customerName}! 🎵\n\nSeu pagamento foi confirmado com sucesso!\nSua música personalizada para *${honoreeName}* foi totalmente liberada no estúdio NSMusic.\n\nAcesse o link abaixo para ouvir e fazer o download dos seus áudios em MP3 HD:\n👉 ${deliveryUrl}\n\nObrigado pela preferência! ❤️`;
-}
 
 /**
  * Aplica uma transição de estado vinda do Mercado Pago a um pedido.
@@ -171,6 +167,20 @@ async function notifyApprovalByWhatsApp(orderRef, approval) {
     });
 
     const sent = await sendWhatsAppMessage(approval.customerPhone, messageText);
+
+    // Notifica o admin de toda venda aprovada — efeito colateral isolado, nunca bloqueia a aprovação
+    // em si nem o envio ao cliente (payments.md: side effects sempre em try/catch próprio).
+    const adminPhone = getAdminWhatsAppNumber();
+    if (adminPhone) {
+      const adminMessage = buildAdminSaleNotification({
+        customerName: approval.customerName,
+        honoreeName: approval.honoreeName,
+        isVideo: approval.isVideoOnly,
+      });
+      await sendWhatsAppMessage(adminPhone, adminMessage).catch((e) =>
+        console.warn('[payments] Erro ao notificar admin:', e.message)
+      );
+    }
 
     if (sent) {
       await updateDoc(orderRef, {
