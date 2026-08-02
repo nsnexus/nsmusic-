@@ -3,7 +3,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { doc, getDoc, collection, addDoc, updateDoc, query, where, getDocs } from 'firebase/firestore';
-import { db, auth } from '@/lib/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, auth, storage } from '@/lib/firebase';
 import { buildSunoPayload } from '@/lib/sunoPayload';
 
 function BrandLogo() {
@@ -285,7 +286,7 @@ export default function CriarMusica() {
     requiredNames: '',
     requiredPhrase: '',
     voiceType: 'masculina',
-    coverUrl: '', // Custom uploaded cover image URL or base64
+    coverUrl: '', // URL do Firebase Storage (ver M-08 no AUDIT_REPORT.md — nunca base64)
     // Step 9
     customerName: '',
     customerPhone: '',
@@ -767,6 +768,8 @@ export default function CriarMusica() {
     }));
   };
 
+  const [isUploadingCover, setIsUploadingCover] = useState(false);
+
   const handleImageUpload = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -802,8 +805,29 @@ export default function CriarMusica() {
         canvas.height = height;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, width, height);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
-        updateField('coverUrl', dataUrl);
+
+        // Faz upload para o Firebase Storage em vez de gravar base64 no Firestore — um documento tem
+        // limite de 1 MiB, e o base64 também estourava o payload de /api/lyrics/generate no Safari
+        // (ver M-08 no AUDIT_REPORT.md).
+        canvas.toBlob(async (blob) => {
+          if (!blob) {
+            alert("Não foi possível processar a imagem. Tente novamente.");
+            return;
+          }
+          setIsUploadingCover(true);
+          try {
+            const fileName = `draft_${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
+            const fileRef = ref(storage, `covers/${fileName}`);
+            await uploadBytes(fileRef, blob);
+            const url = await getDownloadURL(fileRef);
+            updateField('coverUrl', url);
+          } catch (err) {
+            console.error("Erro ao enviar capa para o Storage:", err);
+            alert("Falha ao enviar a foto de capa. Tente novamente.");
+          } finally {
+            setIsUploadingCover(false);
+          }
+        }, 'image/jpeg', 0.82);
       };
       img.src = event.target.result;
     };
@@ -834,7 +858,7 @@ export default function CriarMusica() {
           const qPhone = query(ordersRef, where('customerPhone', '==', phone));
           const snap = await getDocs(qPhone).catch(() => null);
           if (snap && !snap.empty) {
-            snap.forEach(d => fetchedOrders.push(d.data()));
+            snap.forEach(d => { if (!d.data().deletedAt) fetchedOrders.push(d.data()); });
           }
         }
 
@@ -844,6 +868,7 @@ export default function CriarMusica() {
           if (snapEmail && !snapEmail.empty) {
             snapEmail.forEach(d => {
               const data = d.data();
+              if (data.deletedAt) return;
               if (!fetchedOrders.some(o => o.orderNumber === data.orderNumber)) {
                 fetchedOrders.push(data);
               }
@@ -1595,6 +1620,22 @@ export default function CriarMusica() {
                       </button>
                     </div>
                   </div>
+                ) : isUploadingCover ? (
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    width: '100%',
+                    padding: '22px',
+                    borderRadius: '14px',
+                    border: '2px dashed rgba(124, 58, 237, 0.4)',
+                    background: 'rgba(124, 58, 237, 0.04)',
+                  }}>
+                    <span style={{ fontSize: '1.8rem' }}>⏳</span>
+                    <span style={{ fontSize: '0.95rem', fontWeight: 'bold', color: '#fff' }}>Enviando foto...</span>
+                  </div>
                 ) : (
                   <label style={{
                     display: 'flex',
@@ -1613,9 +1654,9 @@ export default function CriarMusica() {
                     <span style={{ fontSize: '1.8rem' }}>📸</span>
                     <span style={{ fontSize: '0.95rem', fontWeight: 'bold', color: '#fff' }}>Clique para enviar uma foto de capa</span>
                     <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Suporta fotos em JPG, PNG ou WEBP</span>
-                    <input 
-                      type="file" 
-                      accept="image/*" 
+                    <input
+                      type="file"
+                      accept="image/*"
                       onChange={handleImageUpload}
                       style={{ display: 'none' }}
                     />

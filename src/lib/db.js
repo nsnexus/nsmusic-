@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore/lite';
+import { doc, getDoc, setDoc, updateDoc, runTransaction } from 'firebase/firestore/lite';
 import { dbEdge as db } from './firebase-edge';
 import { sendWhatsAppMessage } from './whatsapp';
 
@@ -19,12 +19,14 @@ export const getTask = async (taskId) => {
 export const saveTask = async (taskId, status, result = null, orderId = null) => {
   try {
     const docRef = doc(db, 'suno_tasks', taskId);
+    // merge:true padronizado com updateTaskResult (ver M-06 no AUDIT_REPORT.md) — sem isso, uma
+    // chamada aqui depois de updateTaskResult já ter gravado o resultado apagaria os campos extras.
     await setDoc(docRef, {
       status,
       result,
       orderId,
       updatedAt: new Date().toISOString()
-    });
+    }, { merge: true });
   } catch (err) {
     console.error("Error saving task:", err);
   }
@@ -117,26 +119,48 @@ export const updateTaskResult = async (taskId, result, overrideOrderId = null) =
       });
       console.log(`Ordem ${orderId} no Firebase atualizada com sucesso com ${audioFiles.length} áudios!`);
 
-      // Envio automático do WhatsApp se ainda não tiver sido notificado
+      // Envio automático do WhatsApp se ainda não tiver sido notificado. updateTaskResult é chamado
+      // por duas vias concorrentes (webhook da Kie.ai e polling de /api/suno/status) — sem uma
+      // transação para reservar o envio, as duas podiam disparar a mesma mensagem em paralelo
+      // (mesma classe de corrida já corrigida em src/lib/payments.js:notifyApprovalByWhatsApp).
       if (orderData.customerPhone && !orderData.whatsappSent) {
-        let customerName = orderData.customerName || 'Cliente';
-        let honoreeName = orderData.honoreeName || 'alguém especial';
+        let shouldSend = false;
+        try {
+          await runTransaction(db, async (tx) => {
+            const freshSnap = await tx.get(orderRef);
+            if (!freshSnap.exists()) return;
+            const freshData = freshSnap.data();
+            if (!freshData.whatsappSent && !freshData.whatsappSending) {
+              tx.update(orderRef, { whatsappSending: true });
+              shouldSend = true;
+            }
+          });
+        } catch (txErr) {
+          console.warn("Erro na transação de reserva do envio de WhatsApp:", txErr);
+        }
 
-        const rawUrl = (process.env.NEXT_PUBLIC_SITE_URL || '').trim().replace(/\/+$/, '');
-        const baseUrl = (!rawUrl || rawUrl.includes('pages.dev') || rawUrl.includes('localhost')) ? 'https://nsmusic.nsnexus.com.br' : rawUrl;
-        const deliveryUrl = `${baseUrl}/entrega?orderId=${orderId}`;
-        
-        const messageText = `Olá, ${customerName}! 🎵\n\nSua música personalizada para *${honoreeName}* ficou pronta com sucesso no estúdio NSMusic!\n\nForam produzidas 2 versões completas em altíssima qualidade.\n\nAcesse o link abaixo para ouvir e fazer o download dos seus áudios em MP3 HD:\n👉 ${deliveryUrl}\n\nQualquer dúvida, estamos à disposição! ❤️`;
+        if (shouldSend) {
+          let customerName = orderData.customerName || 'Cliente';
+          let honoreeName = orderData.honoreeName || 'alguém especial';
 
-        const sent = await sendWhatsAppMessage(orderData.customerPhone, messageText);
-        if (sent) {
-          await updateDoc(orderRef, {
-            whatsappSent: true,
-            whatsappSentAt: new Date().toISOString()
-          }).catch(e => console.warn("Erro ao atualizar whatsappSent:", e));
-          console.log(`Mensagem do WhatsApp enviada com sucesso para ${orderData.customerPhone}`);
-        } else {
-          console.warn(`Falha ao enviar WhatsApp para ${orderData.customerPhone}`);
+          const rawUrl = (process.env.NEXT_PUBLIC_SITE_URL || '').trim().replace(/\/+$/, '');
+          const baseUrl = (!rawUrl || rawUrl.includes('pages.dev') || rawUrl.includes('localhost')) ? 'https://nsmusic.nsnexus.com.br' : rawUrl;
+          const deliveryUrl = `${baseUrl}/entrega?orderId=${orderId}`;
+
+          const messageText = `Olá, ${customerName}! 🎵\n\nSua música personalizada para *${honoreeName}* ficou pronta com sucesso no estúdio NSMusic!\n\nForam produzidas 2 versões completas em altíssima qualidade.\n\nAcesse o link abaixo para ouvir e fazer o download dos seus áudios em MP3 HD:\n👉 ${deliveryUrl}\n\nQualquer dúvida, estamos à disposição! ❤️`;
+
+          const sent = await sendWhatsAppMessage(orderData.customerPhone, messageText);
+          if (sent) {
+            await updateDoc(orderRef, {
+              whatsappSent: true,
+              whatsappSentAt: new Date().toISOString(),
+              whatsappSending: false
+            }).catch(e => console.warn("Erro ao atualizar whatsappSent:", e));
+            console.log(`Mensagem do WhatsApp enviada com sucesso para ${orderData.customerPhone}`);
+          } else {
+            await updateDoc(orderRef, { whatsappSending: false }).catch(e => console.warn(e));
+            console.warn(`Falha ao enviar WhatsApp para ${orderData.customerPhone}`);
+          }
         }
       }
     }

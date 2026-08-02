@@ -66,9 +66,10 @@ export default function MinhasMusicasPage() {
             getDocs(qEmail).catch(() => ({ docs: [] }))
           ]);
 
+          // Exclusão lógica (M-07 no AUDIT_REPORT.md) — pedidos excluídos não aparecem para o cliente.
           const map = new Map();
-          snapUser.docs.forEach(doc => map.set(doc.id, { id: doc.id, ...doc.data() }));
-          snapEmail.docs.forEach(doc => map.set(doc.id, { id: doc.id, ...doc.data() }));
+          snapUser.docs.forEach(doc => { if (!doc.data().deletedAt) map.set(doc.id, { id: doc.id, ...doc.data() }); });
+          snapEmail.docs.forEach(doc => { if (!doc.data().deletedAt) map.set(doc.id, { id: doc.id, ...doc.data() }); });
 
           setOrders(Array.from(map.values()));
           setHasSearched(true);
@@ -114,7 +115,7 @@ export default function MinhasMusicasPage() {
 
         const q = query(ordersRef, where('customerPhone', '==', formattedPhone));
         const snap = await getDocs(q).catch(() => ({ docs: [] }));
-        setOrders(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        setOrders(snap.docs.filter(d => !d.data().deletedAt).map(d => ({ id: d.id, ...d.data() })));
       } else {
         const typedEmail = searchEmail.trim();
         const lowerEmail = typedEmail.toLowerCase();
@@ -132,8 +133,8 @@ export default function MinhasMusicasPage() {
         ]);
 
         const map = new Map();
-        snapExact.docs.forEach(d => map.set(d.id, { id: d.id, ...d.data() }));
-        snapLower.docs.forEach(d => map.set(d.id, { id: d.id, ...d.data() }));
+        snapExact.docs.forEach(d => { if (!d.data().deletedAt) map.set(d.id, { id: d.id, ...d.data() }); });
+        snapLower.docs.forEach(d => { if (!d.data().deletedAt) map.set(d.id, { id: d.id, ...d.data() }); });
         setOrders(Array.from(map.values()));
       }
     } catch (err) {

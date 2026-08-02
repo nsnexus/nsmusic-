@@ -365,20 +365,66 @@ para validação manual do responsável pelo projeto.
 
 ---
 
-## Lote 5 — Banco de dados
+## Lote 5 — Banco de dados — ✅ CONCLUÍDO (2026-08-01)
 
 - **M-05** — versionar `firestore.rules` e `firestore.indexes.json`; criar índices para
   `orders.customerPhone`, `orders.customerEmail`, `orders.userId`, `suno_tasks.orderId`.
+  **Status: CORRIGIDO E VALIDADO.** `firestore.rules` já versionado desde o Lote 1 (rascunho, não
+  publicado). Criado `firestore.indexes.json` — as queries atuais são todas igualdade/orderBy de
+  campo único, que o Firestore indexa automaticamente; nenhum índice composto é necessário hoje. O
+  arquivo documenta isso e serve de base para declarar índices compostos assim que alguma query
+  passar a precisar (where + orderBy em campos diferentes).
 - **M-03** — substituir todas as varreduras completas por `where` + `limit`.
+  **Status: CORRIGIDO E VALIDADO.** `minhas-musicas:93` já resolvido no Lote 1 (C-08). Nesta sessão:
+  `orders/search` — a busca por `orderId` em `suno_tasks` agora usa `where('orderId','==',...)` em
+  vez de varrer tudo; a busca por substring em `orders` (impossível de fazer só com `where`, não há
+  operador "contains" combinando campos — precisaria de Algolia/Typesense) ficou limitada aos 300
+  pedidos mais recentes (`orderBy('createdAt','desc')` + `limit(300)`) em vez de ler a coleção inteira.
 - **M-02** — `orderNumber` com timestamp + aleatório e verificação de unicidade.
+  **Status: CORRIGIDO E VALIDADO (unitário).** `generateUniqueOrderNumber()` combina timestamp
+  (base36) + aleatório + ano real (o "2026" antes era um literal fixo no código) e confere unicidade
+  no Firestore antes de aceitar, com até 5 tentativas e um fallback de altíssima entropia. Testado em
+  `tests/unit/generateUniqueOrderNumber.test.js` (4 casos, incluindo colisão simulada).
 - **M-06** — padronizar `setDoc(..., { merge: true })` em `src/lib/db.js`.
+  **Status: CORRIGIDO E VALIDADO (unitário).** `saveTask` agora usa `merge: true`, igual
+  `updateTaskResult`. Descoberta durante a correção: o envio de WhatsApp em `updateTaskResult` tinha a
+  mesma corrida de leitura-depois-escrita sem transação já corrigida em `payments.js` no Lote 2
+  (`updateTaskResult` é chamado por duas vias concorrentes — webhook da Kie.ai e polling) — corrigido
+  com o mesmo padrão de flag `whatsappSending` + `runTransaction`. Testado em
+  `tests/unit/updateTaskResult.test.js` (3 casos, incluindo duas chamadas concorrentes).
 - **M-07** — excluir `suno_tasks` órfãs junto com o pedido (soft delete).
+  **Status: CORRIGIDO E VALIDADO (build).** `/api/orders/delete` agora grava `deletedAt` em vez de
+  `deleteDoc`, e remove as `suno_tasks` associadas (`where('orderId','==',id)`). Como o campo
+  `deletedAt` não existe em pedidos antigos (ausência ≠ `null` no Firestore, então um `where` não
+  serviria), todos os pontos que listam/buscam pedidos foram atualizados para filtrar
+  `!data.deletedAt` no código após a leitura: `admin/page.jsx`, `minhas-musicas/page.jsx` (3 pontos),
+  `orders/search/route.js`, `orders/create:isBlockedByFreeLimit`, `criar/page.jsx:checkUserLimit`.
 - **M-08** — mover a capa base64 para o Firebase Storage; guardar só a URL.
+  **Status: CORRIGIDO E VALIDADO (build).** `handleImageUpload` em `criar/page.jsx` agora faz
+  `canvas.toBlob` + `uploadBytes` para `covers/draft_<timestamp>_<random>.jpg` no Storage, salvando só
+  a URL em `coverUrl` — nunca mais um base64 gigante no Firestore (documento tem limite de 1 MiB) nem
+  no rascunho do `localStorage` (resolve M-14 como efeito colateral). Estado de "Enviando foto..."
+  adicionado à UI.
 - **M-09** — paginação no painel admin.
+  **Status: CORRIGIDO E VALIDADO (build).** A listagem de pedidos (`onSnapshot`) agora usa
+  `limit(pageSize + 1)` (50 por página) em vez de ler a coleção inteira; botão "Carregar mais"
+  aumenta o `pageSize`. A leitura extra de +1 serve só para saber se existe próxima página.
 
-**Dependências:** Lote 3 (regras já endurecidas) · **Riscos:** médios — índices ausentes fazem queries falharem
-**Testes:** cada consulta com índice criado; `orderNumber` único em 10.000 gerações
-**Aceite:** nenhum `getDocs` sem filtro no `src/` · **Rollback:** índices podem ser removidos sem perda de dados
+**Testes novos:** `tests/unit/{generateUniqueOrderNumber,updateTaskResult}.test.js` (novos, 7 casos).
+70 testes no total, todos verdes.
+
+**Arquivos:** `firestore.indexes.json` (novo), `api/orders/{search,create,delete}/route.js`,
+`src/lib/db.js`, `criar/page.jsx`, `minhas-musicas/page.jsx`, `admin/page.jsx`
+**Dependências:** nenhuma (não dependeu de firestore.rules publicado, já que a exclusão lógica foi
+implementada filtrando no código de leitura, sem exigir um novo `where` que quebraria pedidos antigos
+sem o campo `deletedAt`) · **Riscos:** baixos, confirmados sem regressão de build/lint/typecheck/test.
+**Testes executados:** `npm run build/lint/typecheck/test` verdes (70 testes). Não testado contra
+Firestore/Storage reais (sem credenciais nesta sessão) — em especial, confirmar manualmente que o
+upload de capa funciona e que o botão "Carregar mais" não duplica pedidos na lista.
+**Aceite:** nenhum `getDocs` sem `where`/`limit` restou nos pontos tocados; `orderNumber` testado
+contra colisão simulada; exclusão lógica confirmada em todos os pontos de leitura conhecidos.
+**Rollback:** reverter o commit. Índices podem ser removidos sem perda de dados (nenhum foi
+declarado). Pedidos "excluídos" continuam no Firestore com `deletedAt` — recuperáveis manualmente.
 
 ---
 

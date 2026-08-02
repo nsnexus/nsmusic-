@@ -304,14 +304,14 @@ O fluxo de pagamento é a área mais frágil do sistema e concentra 5 dos 11 ite
 | ID | Título | Referência |
 |---|---|---|
 | M-01 | **CORRIGIDO NO CÓDIGO, MIGRAÇÃO DE DADOS PENDENTE DE AUTORIZAÇÃO (Lote 2).** O código só escreve mais `PAGAMENTO_APROVADO`; leitura ainda aceita `PAGO` para compatibilidade com pedidos antigos. Script de migração preparado (`scripts/migrate-payment-status.mjs`, com reversão) mas **não executado** — precisa de credenciais reais e autorização | `orders/create:31` vs `src/lib/payments.js` |
-| M-02 | `orderNumber` gerado com 5 dígitos aleatórios (90.000 combinações), sem verificação de unicidade — colisões e enumeração | `orders/create/route.js:11` |
-| M-03 | **PARCIALMENTE CORRIGIDO (Lote 1).** A referência `minhas-musicas:93` foi resolvida (ver C-08) — troca por `where`. `orders/search` (2 ocorrências) continua com varredura completa; fica para o Lote 5 | `orders/search:38`, `orders/search:16` |
-| M-04 | **PARCIALMENTE CORRIGIDO (Lote 2).** `src/lib/payments.js:applyPaymentApproval` agora usa `runTransaction` para a aprovação de pagamento (ver A-09) — primeira transação do projeto. Resto do `src/` continua sem transações onde `.agents/AGENTS.md` §8 exigiria | resto do `src/` |
-| M-05 | Sem índices, constraints ou chave única declarados; sem migrations | ausência de `firestore.indexes.json` |
-| M-06 | `saveTask` usa `setDoc` sem `merge` e sobrescreve o documento; `updateTaskResult` usa `merge` — comportamento inconsistente | `lib/db.js:22` vs `:94` |
-| M-07 | `suno_tasks` órfãs: nada remove tarefas de pedidos excluídos | `orders/delete/route.js` |
-| M-08 | Capa em base64 armazenada dentro do documento Firestore (limite de 1 MiB por documento) | `criar/page.jsx:754-795` |
-| M-09 | Sem paginação em nenhuma listagem, incluindo o painel admin (`onSnapshot` de toda a coleção) | `admin/page.jsx:80` |
+| M-02 | **CORRIGIDO E VALIDADO (Lote 5).** `generateUniqueOrderNumber()` combina timestamp+aleatório+ano real e confere unicidade no Firestore antes de aceitar (até 5 tentativas + fallback de alta entropia) | `api/orders/create/route.js` | Confirmado |
+| M-03 | **CORRIGIDO E VALIDADO (Lote 1 + Lote 5).** `minhas-musicas:93` resolvido no Lote 1 (C-08). `orders/search`: busca por `orderId` em `suno_tasks` agora usa `where`; busca por substring em `orders` (não dá para fazer só com `where`) limitada a `orderBy('createdAt','desc')` + `limit(300)` em vez de ler tudo | `api/orders/search/route.js` | Confirmado |
+| M-04 | **PARCIALMENTE CORRIGIDO (Lotes 2 e 5).** `src/lib/payments.js:applyPaymentApproval` (Lote 2) e `src/lib/db.js:updateTaskResult` (Lote 5, envio de WhatsApp) agora usam `runTransaction`. Resto do `src/` continua sem transações onde `.agents/AGENTS.md` §8 exigiria | resto do `src/` |
+| M-05 | **CORRIGIDO E VALIDADO (Lote 5).** `firestore.indexes.json` criado — as queries atuais só precisam de índices de campo único (automáticos no Firestore); o arquivo documenta isso e serve de base para índices compostos futuros | `firestore.indexes.json` | Confirmado |
+| M-06 | **CORRIGIDO E VALIDADO (Lote 5).** `saveTask` agora usa `merge: true`, igual `updateTaskResult`. Corrigida também uma corrida de leitura-depois-escrita no envio de WhatsApp de `updateTaskResult` (mesma classe do A-09), descoberta ao revisar esta função | `lib/db.js` | Confirmado |
+| M-07 | **CORRIGIDO E VALIDADO (Lote 5).** `/api/orders/delete` grava `deletedAt` (exclusão lógica) e remove as `suno_tasks` associadas. Todos os pontos de leitura de `orders` conhecidos passaram a filtrar `deletedAt` | `orders/delete/route.js` + 5 arquivos de leitura | Confirmado |
+| M-08 | **CORRIGIDO E VALIDADO (Lote 5).** `handleImageUpload` faz upload para o Firebase Storage (`canvas.toBlob` + `uploadBytes`) e salva só a URL — nunca mais base64 no Firestore nem no rascunho do `localStorage` (resolve M-14 como efeito colateral) | `criar/page.jsx` | Confirmado |
+| M-09 | **CORRIGIDO E VALIDADO (Lote 5).** Listagem do admin usa `limit(pageSize + 1)` (50/página) com botão "Carregar mais" em vez de ler a coleção inteira | `admin/page.jsx` | Confirmado |
 
 ## 8. Problemas de frontend (MÉDIA / BAIXA)
 

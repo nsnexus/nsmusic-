@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { collection, addDoc, query, where, getDocs } from 'firebase/firestore/lite';
+import { collection, addDoc, query, where, getDocs, limit } from 'firebase/firestore/lite';
 import { dbEdge as db } from '@/lib/firebase-edge';
 
 export const runtime = 'edge';
@@ -13,7 +13,7 @@ export async function isBlockedByFreeLimit(phone, email) {
 
   if (phone && phone.replace(/\D/g, '').length >= 10) {
     const snap = await getDocs(query(ordersRef, where('customerPhone', '==', phone))).catch(() => null);
-    if (snap) snap.forEach((d) => matches.push(d.data()));
+    if (snap) snap.forEach((d) => { if (!d.data().deletedAt) matches.push(d.data()); });
   }
 
   if (email && email.includes('@')) {
@@ -21,13 +21,34 @@ export async function isBlockedByFreeLimit(phone, email) {
     if (snap) {
       snap.forEach((d) => {
         const data = d.data();
-        if (!matches.some((o) => o.orderNumber === data.orderNumber)) matches.push(data);
+        if (!data.deletedAt && !matches.some((o) => o.orderNumber === data.orderNumber)) matches.push(data);
       });
     }
   }
 
   const hasPaid = matches.some((o) => o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'PAGO');
   return !hasPaid && matches.length >= 5;
+}
+
+// M-02 no AUDIT_REPORT.md: o orderNumber antigo tinha só 5 dígitos aleatórios (90.000 combinações,
+// sem checar unicidade) e o ano "2026" era um literal fixo no código. Agora combina o ano real com
+// um componente de tempo (alta resolução) e um sufixo aleatório, e confirma unicidade no Firestore
+// antes de aceitar — com um pequeno número de tentativas para o caso raro de colisão.
+export async function generateUniqueOrderNumber() {
+  const ordersRef = collection(db, 'orders');
+  const year = new Date().getFullYear();
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const timePart = Date.now().toString(36).toUpperCase();
+    const randomPart = Math.floor(1000 + Math.random() * 9000);
+    const candidate = `NS-${timePart}-${randomPart}-${year}`;
+
+    const snap = await getDocs(query(ordersRef, where('orderNumber', '==', candidate), limit(1))).catch(() => null);
+    if (!snap || snap.empty) return candidate;
+  }
+
+  // Praticamente impossível de colidir: timestamp em milissegundos + aleatório de alta entropia.
+  return `NS-${Date.now()}-${Math.floor(Math.random() * 1_000_000)}-${year}`;
 }
 
 export async function POST(req) {
@@ -47,7 +68,7 @@ export async function POST(req) {
       );
     }
 
-    const orderNumber = `NS-${Math.floor(10000 + Math.random() * 90000)}-2026`;
+    const orderNumber = await generateUniqueOrderNumber();
     const createdAtIso = new Date().toISOString();
 
     const orderPayload = {

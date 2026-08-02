@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { collection, query, orderBy, onSnapshot, doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, doc, getDoc, setDoc, deleteDoc, limit as fbLimit } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import Link from 'next/link';
 
@@ -13,6 +13,13 @@ export default function AdminDashboard() {
   const [orders, setOrders] = useState([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [filter, setFilter] = useState('ALL'); // 'ALL', 'NEW', 'PRODUCTION', 'FINISHED'
+
+  // Paginação (M-09 no AUDIT_REPORT.md) — antes o painel baixava a coleção inteira via onSnapshot,
+  // sem limite. pageSize cresce a cada "Carregar mais" em vez de ler tudo de uma vez.
+  const PAGE_SIZE = 50;
+  const [pageSize, setPageSize] = useState(PAGE_SIZE);
+  const [hasMoreOrders, setHasMoreOrders] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   
   // Exclusão em massa
   const [selectedOrderIds, setSelectedOrderIds] = useState([]);
@@ -73,25 +80,37 @@ export default function AdminDashboard() {
     };
   }, [router]);
 
-  // Load orders
+  // Load orders (paginado — ver PAGE_SIZE acima)
   useEffect(() => {
     if (!user) return;
 
-    const q = query(collection(db, 'orders'), orderBy('createdAt', 'desc'));
+    // Busca um a mais que o pageSize só para saber se existe uma próxima página, sem exibi-lo.
+    const q = query(collection(db, 'orders'), orderBy('createdAt', 'desc'), fbLimit(pageSize + 1));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const ordersData = [];
       snapshot.forEach((doc) => {
-        ordersData.push({ id: doc.id, ...doc.data() });
+        const data = doc.data();
+        // Exclusão lógica (M-07 no AUDIT_REPORT.md) — pedidos excluídos não aparecem na listagem.
+        if (data.deletedAt) return;
+        ordersData.push({ id: doc.id, ...data });
       });
-      setOrders(ordersData);
+      setHasMoreOrders(ordersData.length > pageSize);
+      setOrders(ordersData.slice(0, pageSize));
       setLoadingOrders(false);
+      setLoadingMore(false);
     }, (error) => {
       console.error("Erro ao escutar pedidos:", error);
       setLoadingOrders(false);
+      setLoadingMore(false);
     });
 
     return () => unsubscribe();
-  }, [user]);
+  }, [user, pageSize]);
+
+  const handleLoadMoreOrders = () => {
+    setLoadingMore(true);
+    setPageSize(prev => prev + PAGE_SIZE);
+  };
 
   // Load pricing
   useEffect(() => {
@@ -563,6 +582,20 @@ export default function AdminDashboard() {
                         })}
                       </tbody>
                     </table>
+                  </div>
+                )}
+
+                {hasMoreOrders && (
+                  <div style={{ display: 'flex', justifyContent: 'center', padding: '20px 0' }}>
+                    <button
+                      type="button"
+                      onClick={handleLoadMoreOrders}
+                      disabled={loadingMore}
+                      className="btn btn-secondary"
+                      style={{ padding: '10px 24px', fontSize: '0.9rem' }}
+                    >
+                      {loadingMore ? 'Carregando...' : 'Carregar mais pedidos'}
+                    </button>
                   </div>
                 )}
               </div>
