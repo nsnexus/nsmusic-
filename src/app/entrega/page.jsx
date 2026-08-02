@@ -631,10 +631,13 @@ function EntregaContent() {
                 <div style={styles.coverWrapper}>
                   <img src={coverUrl} alt="Capa da música" style={styles.coverImg} />
                   <div style={styles.coverOverlay}>
-                    <h2 style={{ fontFamily: 'var(--font-family-title)', fontSize: '1.4rem' }}>
+                    {/* color precisa ser explícito aqui: a regra global h1-h6 (globals.css) sempre
+                        vence sobre a cor herdada do coverOverlay, deixando o título ilegível em cima
+                        da foto escura (relato do usuário, 2026-08-02). */}
+                    <h2 style={{ fontFamily: 'var(--font-family-title)', fontSize: '1.4rem', color: '#FFFFFF' }}>
                       Melodia para {order?.honoreeName}
                     </h2>
-                    <p style={{ fontSize: '0.85rem', opacity: 0.8 }}>Uma homenagem de {order?.customerName}</p>
+                    <p style={{ fontSize: '0.85rem', opacity: 0.8, color: '#FFFFFF' }}>Uma homenagem de {order?.customerName}</p>
                   </div>
                 </div>
 

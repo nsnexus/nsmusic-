@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { Mic, Users, Check } from 'lucide-react';
 import { styles } from './wizardStyles';
 import { recipients, occasions, stylesList, moods } from './wizardOptions';
 
@@ -255,45 +256,42 @@ export default function WizardSteps({
           <div>
             <label style={styles.wizardLabel}>Tipo de voz da música (quem vai cantar)</label>
             <div style={{ display: 'flex', gap: '12px', marginTop: '8px', flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                onClick={() => updateField('voiceType', 'masculina')}
-                style={{
-                  ...styles.voiceBtn,
-                  borderColor: formData.voiceType === 'masculina' ? 'var(--primary)' : 'var(--border-color)',
-                  backgroundColor: formData.voiceType === 'masculina' ? 'rgba(79, 70, 229, 0.08)' : '#FFFFFF',
-                  color: formData.voiceType === 'masculina' ? 'var(--primary)' : 'var(--text-primary)',
-                  boxShadow: formData.voiceType === 'masculina' ? '0 4px 14px rgba(79, 70, 229, 0.15)' : '0 2px 6px rgba(0,0,0,0.02)',
-                }}
-              >
-                🎤 Masculina
-              </button>
-              <button
-                type="button"
-                onClick={() => updateField('voiceType', 'feminina')}
-                style={{
-                  ...styles.voiceBtn,
-                  borderColor: formData.voiceType === 'feminina' ? 'var(--primary)' : 'var(--border-color)',
-                  backgroundColor: formData.voiceType === 'feminina' ? 'rgba(79, 70, 229, 0.08)' : '#FFFFFF',
-                  color: formData.voiceType === 'feminina' ? 'var(--primary)' : 'var(--text-primary)',
-                  boxShadow: formData.voiceType === 'feminina' ? '0 4px 14px rgba(79, 70, 229, 0.15)' : '0 2px 6px rgba(0,0,0,0.02)',
-                }}
-              >
-                🎤 Feminina
-              </button>
-              <button
-                type="button"
-                onClick={() => updateField('voiceType', 'dueto')}
-                style={{
-                  ...styles.voiceBtn,
-                  borderColor: formData.voiceType === 'dueto' ? 'var(--primary)' : 'var(--border-color)',
-                  backgroundColor: formData.voiceType === 'dueto' ? 'rgba(79, 70, 229, 0.08)' : '#FFFFFF',
-                  color: formData.voiceType === 'dueto' ? 'var(--primary)' : 'var(--text-primary)',
-                  boxShadow: formData.voiceType === 'dueto' ? '0 4px 14px rgba(79, 70, 229, 0.15)' : '0 2px 6px rgba(0,0,0,0.02)',
-                }}
-              >
-                👥 Dueto
-              </button>
+              {[
+                { id: 'masculina', label: 'Masculina', desc: 'Voz grave', Icon: Mic },
+                { id: 'feminina', label: 'Feminina', desc: 'Voz aguda', Icon: Mic },
+                { id: 'dueto', label: 'Dueto', desc: 'Masc. + fem.', Icon: Users },
+              ].map(({ id, label, desc, Icon }) => {
+                const selected = formData.voiceType === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => updateField('voiceType', id)}
+                    style={{
+                      ...styles.voiceBtn,
+                      position: 'relative',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '6px',
+                      fontWeight: '600',
+                      borderColor: selected ? 'var(--primary)' : 'var(--border-color)',
+                      backgroundColor: selected ? 'var(--primary-light)' : '#FFFFFF',
+                      color: selected ? 'var(--primary)' : 'var(--text-primary)',
+                      boxShadow: selected ? '0 4px 14px var(--primary-glow)' : '0 2px 6px rgba(0,0,0,0.02)',
+                    }}
+                  >
+                    {selected && (
+                      <span style={{ ...styles.checkCircle, width: '20px', height: '20px', top: '8px', right: '8px' }}>
+                        <Check size={12} strokeWidth={3} aria-hidden="true" />
+                      </span>
+                    )}
+                    <Icon size={22} aria-hidden="true" />
+                    <span style={{ fontSize: '1rem' }}>{label}</span>
+                    <span style={{ fontSize: '0.78rem', fontWeight: '500', color: selected ? 'var(--primary)' : 'var(--text-muted)', opacity: 0.85 }}>{desc}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -398,7 +396,7 @@ export default function WizardSteps({
             <div style={styles.summaryItemRow}>
               <span style={{ color: 'var(--text-secondary)' }}>Voz:</span>
               <span style={{ fontWeight: '600' }}>
-                {formData.voiceType === 'masculina' ? 'Masculina' : formData.voiceType === 'feminina' ? 'Feminina' : '👩‍🎤 Dueto (Masc. + Fem.)'}
+                {formData.voiceType === 'masculina' ? 'Masculina' : formData.voiceType === 'feminina' ? 'Feminina' : 'Dueto (masc. + fem.)'}
               </span>
             </div>
             <div style={styles.summaryItemRow}>
