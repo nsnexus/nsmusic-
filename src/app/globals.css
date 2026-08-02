@@ -407,6 +407,63 @@ a {
   animation: eqPulse 0.9s ease-in-out infinite alternate;
 }
 
+/* Hero escuro (pedido do usuário, 2026-08-02: "algo mais próximo da logo") — fundo navy com esferas
+   de brilho azul/violeta/magenta em deriva lenta, ecoando o fundo da logo. Só o hero usa isso; o
+   resto do site continua no tema claro por legibilidade. */
+.hero-dark {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(180deg, var(--brand-navy) 0%, var(--brand-navy-2) 55%, #2E1C63 100%);
+}
+
+.hero-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(10px);
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.hero-orb-1 { background: radial-gradient(circle, rgba(139,92,246,0.55) 0%, transparent 70%); animation: heroDrift1 22s ease-in-out infinite; }
+.hero-orb-2 { background: radial-gradient(circle, rgba(236,72,153,0.45) 0%, transparent 70%); animation: heroDrift2 26s ease-in-out infinite; }
+.hero-orb-3 { background: radial-gradient(circle, rgba(63,197,240,0.4) 0%, transparent 70%); animation: heroDrift3 19s ease-in-out infinite; }
+
+@keyframes heroDrift1 { 0%, 100% { transform: translate(0,0) scale(1); } 50% { transform: translate(30px,40px) scale(1.08); } }
+@keyframes heroDrift2 { 0%, 100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-35px,-25px) scale(1.1); } }
+@keyframes heroDrift3 { 0%, 100% { transform: translate(0,0) scale(1); } 50% { transform: translate(25px,-30px) scale(1.06); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-orb { animation: none; }
+}
+
+.hero-rise {
+  opacity: 0;
+  transform: translateY(16px);
+  animation: heroRise 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+}
+
+@keyframes heroRise { to { opacity: 1; transform: translateY(0); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-rise { animation: none; opacity: 1; transform: none; }
+}
+
+.hero-gradient-text {
+  background: linear-gradient(100deg, #3FC5F0 0%, var(--secondary) 45%, var(--primary) 70%, #3FC5F0 100%);
+  background-size: 250% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  display: inline-block;
+  animation: heroShimmer 6s ease-in-out infinite;
+}
+
+@keyframes heroShimmer { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-gradient-text { animation: none; background-position: 30% 50%; }
+}
+
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }

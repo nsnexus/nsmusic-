@@ -201,33 +201,40 @@ export default function Home() {
         </div>
       )}
 
-      {/* Hero Section */}
-      <section style={styles.hero}>
-        <div style={styles.heroBgGlow} />
+      {/* Hero Section — fundo escuro ecoando a logo (azul/violeta/magenta), pedido do usuário em 2026-08-02 */}
+      <section style={styles.hero} className="hero-dark">
+        <div className="hero-orb hero-orb-1" style={{ width: '560px', height: '560px', top: '-220px', left: '50%', marginLeft: '-280px' }} />
+        <div className="hero-orb hero-orb-2" style={{ width: '440px', height: '440px', bottom: '-180px', right: '-80px' }} />
+        <div className="hero-orb hero-orb-3" style={{ width: '420px', height: '420px', bottom: '-160px', left: '-100px' }} />
         <div className="container" style={styles.heroContainer}>
-          <div style={{ ...styles.heroBadge, display: 'inline-flex', alignItems: 'center', gap: '8px' }} className="glass-card">
+          <div style={{ ...styles.heroBadge, display: 'inline-flex', alignItems: 'center', gap: '8px', animationDelay: '0s' }} className="hero-rise">
             <Sparkles size={15} aria-hidden="true" />
-            <span>Estúdio de produção musical com IA, feito com carinho</span>
+            <span>Composta por IA, do zero, pra vocês</span>
           </div>
 
-          <h1 style={styles.heroTitle}>
-            A história de vocês, em uma <span className="gradient-text">canção só sua</span>
+          <h1 style={{ ...styles.heroTitle, animationDelay: '0.1s' }} className="hero-rise">
+            Uma canção que <span className="hero-gradient-text">só existe porque vocês existem</span>
           </h1>
 
-          <p style={styles.heroSubtitle}>
-            Transforme momentos, nomes e sentimentos em uma música gravada em estúdio profissional. Escolha o estilo musical e receba <strong>2 arranjos exclusivos em MP3 HD</strong> com capa digital para emocionar quem você ama.
+          <p style={{ ...styles.heroSubtitle, animationDelay: '0.2s' }} className="hero-rise">
+            Nossa IA escreve a letra, compõe a melodia e canta a história de vocês do zero, com qualidade de estúdio, pronta em minutos. Uma canção assim nunca existiu, porque a sua história é só sua.
           </p>
 
-          <div style={styles.heroActions}>
+          <div style={{ ...styles.heroActions, animationDelay: '0.3s' }} className="hero-rise">
             <Link href="/criar" className="btn btn-primary" style={{ ...styles.heroPrimaryCta, display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-              <Gift size={18} aria-hidden="true" /> Criar 2 músicas por R$ 9,99
+              <Gift size={18} aria-hidden="true" /> Criar nossa música agora
             </Link>
-            <a href="#exemplos" className="btn btn-secondary" style={{ ...styles.heroSecondaryCta, display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+            <a href="#exemplos" className="btn" style={{ ...styles.heroSecondaryCta, display: 'inline-flex', alignItems: 'center', gap: '8px', color: '#F4F1FF', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.14)' }}>
               <Headphones size={18} aria-hidden="true" /> Ouvir amostras
             </a>
           </div>
 
-          <div style={styles.heroTrust}>
+          <div className="eq-container hero-rise" style={{ marginBottom: '10px', animationDelay: '0.4s' }} aria-hidden="true">
+            <div className="eq-bar eq-bar-1" /><div className="eq-bar eq-bar-2" /><div className="eq-bar eq-bar-3" />
+            <div className="eq-bar eq-bar-4" /><div className="eq-bar eq-bar-5" /><div className="eq-bar eq-bar-6" />
+          </div>
+
+          <div style={{ ...styles.heroTrust, color: '#ADA3D9', animationDelay: '0.5s' }} className="hero-rise">
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><Heart size={15} aria-hidden="true" /> +2.400 músicas produzidas</span>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><Clock size={15} aria-hidden="true" /> Entrega rápida</span>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><ShieldCheck size={15} aria-hidden="true" /> Garantia de aprovação</span>
@@ -562,23 +569,13 @@ const styles = {
   },
   hero: {
     position: 'relative',
-    padding: '60px 0 50px 0',
+    padding: '96px 0 76px 0',
     textAlign: 'center',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
-  },
-  heroBgGlow: {
-    position: 'absolute',
-    width: '500px',
-    height: '500px',
-    background: 'radial-gradient(circle, rgba(79, 70, 229, 0.12) 0%, transparent 70%)',
-    top: '-150px',
-    left: 'calc(50% - 250px)',
-    pointerEvents: 'none',
-    zIndex: 0,
   },
   heroContainer: {
     position: 'relative',
@@ -589,25 +586,26 @@ const styles = {
     alignItems: 'center',
   },
   heroBadge: {
-    padding: '6px 16px',
+    padding: '7px 16px',
     borderRadius: '100px',
     fontSize: '0.82rem',
-    fontWeight: '700',
-    marginBottom: '20px',
-    color: 'var(--primary)',
-    backgroundColor: 'var(--primary-light)',
-    border: '1px solid rgba(79, 70, 229, 0.2)',
+    fontWeight: '600',
+    marginBottom: '24px',
+    color: '#F4F1FF',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    border: '1px solid rgba(255,255,255,0.14)',
   },
   heroTitle: {
-    fontSize: '2.5rem',
-    lineHeight: '1.2',
-    marginBottom: '16px',
+    fontSize: '2.6rem',
+    lineHeight: '1.15',
+    marginBottom: '18px',
+    color: '#F4F1FF',
   },
   heroSubtitle: {
     fontSize: '1.1rem',
-    lineHeight: '1.6',
-    color: 'var(--text-secondary)',
-    maxWidth: '680px',
+    lineHeight: '1.65',
+    color: '#ADA3D9',
+    maxWidth: '620px',
     marginBottom: '32px',
   },
   heroActions: {
