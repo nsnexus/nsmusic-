@@ -31,8 +31,10 @@ export const getWApiConfig = (env = {}) => {
     console.error('[W-API Config] ❌ WAPI_INSTANCE_ID ou WAPI_TOKEN não configurados nas variáveis de ambiente!');
   }
 
+  // Nunca logar instanceId, prefixo ou tamanho do token (ver M-26 no AUDIT_REPORT.md) — só a origem
+  // de onde a credencial veio, útil para depurar configuração sem expor material sensível.
   const source = env.WAPI_TOKEN ? 'env-param' : ctxEnv.WAPI_TOKEN ? 'cloudflare-ctx' : process.env.WAPI_TOKEN ? 'process.env' : 'MISSING';
-  console.log(`[W-API Config] instanceId=${instanceId || 'VAZIO'}, tokenLength=${token?.length || 0}, source=${source}`);
+  console.log(`[W-API Config] credenciais carregadas de: ${source}`);
 
   return { instanceId, token, baseUrl: WAPI_BASE_URL };
 };
@@ -124,9 +126,12 @@ export const sendWhatsAppMessageDetailed = async (phone, message, env = {}) => {
   let lastError = '';
 
   for (const currentToken of tokensToTry) {
-    for (const num of numbersToSend) {
+    for (let i = 0; i < numbersToSend.length; i++) {
+      const num = numbersToSend[i];
       try {
-        console.log(`[W-API Send] Tentando enviar para ${num} com token (${currentToken.substring(0, 6)}...) via instanceId=${instanceId}`);
+        // Nunca logar o telefone do cliente nem prefixo/tamanho do token (ver M-25/M-26 no
+        // AUDIT_REPORT.md) — o índice da variante (com/sem o dígito 9) já basta para depurar.
+        console.log(`[W-API Send] Tentando enviar (variante ${i + 1}/${numbersToSend.length})...`);
 
         const res = await fetch(`${baseUrl}/message/send-text?instanceId=${instanceId}`, {
           method: 'POST',
@@ -142,12 +147,12 @@ export const sendWhatsAppMessageDetailed = async (phone, message, env = {}) => {
         });
 
         if (res.ok) {
-          console.log(`[W-API Send] ✅ Mensagem enviada com sucesso para ${num}`);
+          console.log(`[W-API Send] ✅ Mensagem enviada com sucesso.`);
           return { success: true, phoneUsed: num };
         } else {
           const errText = await res.text().catch(() => '');
           lastError = `W-API HTTP ${res.status}: ${errText || res.statusText}`;
-          console.error(`[W-API Send] Erro ao enviar para ${num}:`, lastError);
+          console.error(`[W-API Send] Erro ao enviar (variante ${i + 1}):`, lastError);
 
           // Se for 403 (token inválido), pula direto para o próximo token
           if (res.status === 403) {
@@ -157,7 +162,7 @@ export const sendWhatsAppMessageDetailed = async (phone, message, env = {}) => {
         }
       } catch (error) {
         lastError = error.message;
-        console.error(`[W-API Send] Erro de rede ao disparar para ${num}:`, error);
+        console.error(`[W-API Send] Erro de rede ao disparar (variante ${i + 1}):`, error.message);
       }
     }
   }

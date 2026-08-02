@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { doc, getDoc, updateDoc } from 'firebase/firestore/lite';
 import { dbEdge as db } from '@/lib/firebase-edge';
 import { sendWhatsAppMessage } from '@/lib/whatsapp';
+import { resolveDeliveryUrl, buildMusicReadyMessage } from '@/lib/whatsappTemplates';
 
 export const runtime = 'edge';
 
@@ -27,14 +28,12 @@ export async function POST(req) {
     }
 
     if (orderData.customerPhone) {
-      let customerName = orderData.customerName || 'Cliente';
-      let honoreeName = orderData.honoreeName || 'alguém especial';
-
-      const rawUrl = (process.env.NEXT_PUBLIC_SITE_URL || '').trim().replace(/\/+$/, '');
-      const baseUrl = (!rawUrl || rawUrl.includes('pages.dev') || rawUrl.includes('localhost')) ? 'https://nsmusic.nsnexus.com.br' : rawUrl;
-      const deliveryUrl = `${baseUrl}/entrega?orderId=${orderId}`;
-      
-      const messageText = `Olá, ${customerName}! 🎵\n\nSua música personalizada para *${honoreeName}* ficou pronta com sucesso no estúdio NSMusic!\n\nForam produzidas 2 versões completas em altíssima qualidade.\n\nAcesse o link abaixo para ouvir e fazer o download dos seus áudios em MP3 HD:\n👉 ${deliveryUrl}\n\nQualquer dúvida, estamos à disposição! ❤️`;
+      const deliveryUrl = resolveDeliveryUrl(orderId);
+      const messageText = buildMusicReadyMessage({
+        customerName: orderData.customerName,
+        honoreeName: orderData.honoreeName,
+        deliveryUrl,
+      });
 
       const sent = await sendWhatsAppMessage(orderData.customerPhone, messageText);
       if (sent) {
@@ -43,10 +42,11 @@ export async function POST(req) {
           whatsappSentAt: new Date().toISOString()
         }).catch(e => console.warn("Erro ao atualizar whatsappSent no Firestore:", e));
 
-        console.log(`WhatsApp enviado com sucesso para ${orderData.customerPhone} (Order ${orderId})`);
+        // Nunca logar telefone/e-mail do cliente (ver M-25 no AUDIT_REPORT.md).
+        console.log(`WhatsApp (música pronta) enviado com sucesso — pedido ${orderId}`);
         return NextResponse.json({ success: true });
       } else {
-        console.warn(`Falha ao enviar WhatsApp via W-API para ${orderData.customerPhone}`);
+        console.warn(`Falha ao enviar WhatsApp via W-API — pedido ${orderId}`);
         return NextResponse.json({ error: 'Falha no envio da mensagem via W-API' }, { status: 502 });
       }
     }

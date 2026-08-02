@@ -18,7 +18,8 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# local env files
+# local env files (M-24 no AUDIT_REPORT.md: .env sozinho não estava coberto, só .env*.local)
+.env
 .env*.local
 
 # vercel

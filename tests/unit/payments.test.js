@@ -135,6 +135,17 @@ describe('applyPaymentApproval', () => {
     expect(store['order8'].videoAddonPaid).toBe(false);
   });
 
+  // Lote 8 no FIX_PLAN.md: webhook "fora de ordem" — uma notificação antiga de status pendente
+  // chegando DEPOIS que o pagamento já foi aprovado não pode reverter a aprovação.
+  it('webhook fora de ordem: uma notificação "pending" atrasada não desfaz aprovação já aplicada', async () => {
+    store['order11'] = { paymentIntentSku: 'audio_only', paymentStatus: 'PAGAMENTO_APROVADO', paymentId: '1111' };
+
+    const result = await applyPaymentApproval('order11', '1111', { status: 'pending', transaction_amount: 9.99 });
+
+    expect(result.applied).toBe(false);
+    expect(store['order11'].paymentStatus).toBe('PAGAMENTO_APROVADO'); // inalterado
+  });
+
   // B-06 no AUDIT_REPORT.md — regressão encontrada nesta sessão: a notificação de "nova venda" ao
   // admin tinha sido perdida ao unificar processPayment/markOrderApproved neste módulo (Lote 2).
   it('notifica o admin (ADMIN_WHATSAPP) além do cliente quando configurado', async () => {

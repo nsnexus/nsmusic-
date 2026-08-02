@@ -1,0 +1,50 @@
+name: CI
+
+# Roda lint, typecheck, testes e build antes de qualquer merge (Lote 8 no docs/audit/FIX_PLAN.md).
+# O deploy em si continua automático via integração nativa do Cloudflare Pages com o GitHub — este
+# workflow não substitui isso, só bloqueia merge de código que não compila/não passa nos testes.
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'npm'
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Testes unitários
+        run: npm test
+
+      - name: Build
+        # NEXT_PUBLIC_FIREBASE_* precisam de um valor com o FORMATO aceito pelo SDK do Firebase
+        # (getAuth() falha com "auth/invalid-api-key" em pré-renderização se o formato for inválido)
+        # — não são as credenciais reais do projeto. Para o build do CI refletir fielmente o build de
+        # produção, configure os valores REAIS como Secrets do repositório (Settings > Secrets and
+        # variables > Actions) com os mesmos nomes usados abaixo.
+        env:
+          NEXT_PUBLIC_FIREBASE_API_KEY: ${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY || 'AIzaSyDummyCIBuildKey000000000000' }}
+          NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ secrets.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || 'nsmusic-ci.firebaseapp.com' }}
+          NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'nsmusic-ci' }}
+          NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ${{ secrets.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || 'nsmusic-ci.appspot.com' }}
+          NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || '000000000000' }}
+          NEXT_PUBLIC_FIREBASE_APP_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_APP_ID || '1:000000000000:web:0000000000000000000000' }}
+          NEXT_PUBLIC_SITE_URL: 'https://nsmusic.nsnexus.com.br'
+        run: npm run build

@@ -155,10 +155,12 @@ export const updateTaskResult = async (taskId, result, overrideOrderId = null) =
               whatsappSentAt: new Date().toISOString(),
               whatsappSending: false
             }).catch(e => console.warn("Erro ao atualizar whatsappSent:", e));
-            console.log(`Mensagem do WhatsApp enviada com sucesso para ${orderData.customerPhone}`);
+            // Nunca logar telefone/e-mail do cliente (ver M-25 no AUDIT_REPORT.md) — orderId já
+            // identifica o pedido o suficiente para depuração.
+            console.log(`Mensagem do WhatsApp (música pronta) enviada com sucesso — pedido ${orderId}`);
           } else {
             await updateDoc(orderRef, { whatsappSending: false }).catch(e => console.warn(e));
-            console.warn(`Falha ao enviar WhatsApp para ${orderData.customerPhone}`);
+            console.warn(`Falha ao enviar WhatsApp (música pronta) — pedido ${orderId}`);
           }
         }
       }

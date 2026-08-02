@@ -1,6 +1,7 @@
 # NS Music — Arquitetura
 
 > Complementa [CODEBASE_MAP.md](CODEBASE_MAP.md) (onde estão as coisas). Aqui: como as peças conversam e por quê.
+> Atualizado em 2026-08 após os Lotes 0-8 do [audit/FIX_PLAN.md](audit/FIX_PLAN.md).
 
 ## 1. Arquitetura atual
 
@@ -9,26 +10,29 @@ Node.js, sem banco relacional e sem camada de serviço. O Firestore é acessado 
 Firebase** tanto no browser quanto dentro das rotas Edge — o projeto não usa Firebase Admin SDK em
 lugar nenhum.
 
-Essa é a decisão estrutural mais consequente do sistema: **não existe uma identidade privilegiada de
-servidor**. As rotas de API são, do ponto de vista do Firestore, apenas mais um cliente anônimo. Elas
-não conseguem autorizar nada que o browser já não pudesse fazer sozinho, e o único controle de acesso
-possível são as regras do Firestore — que não estão versionadas no repositório.
+Essa continua sendo a decisão estrutural mais consequente do sistema: **não existe uma identidade
+privilegiada de servidor** ao nível do Firestore. As rotas de API já verificam identidade de admin via
+ID token (`src/lib/auth.js:requireAdmin`) e já são a única autoridade sobre preço e status de
+pagamento — mas isso é aplicado **na camada de aplicação** (dentro das rotas), não na camada do banco.
+As regras do Firestore (`firestore.rules`) existem como rascunho versionado, mas **não foram
+publicadas**: publicá-las hoje quebraria as próprias rotas de API, que ainda acessam o Firestore com a
+mesma identidade anônima do browser.
 
 ```mermaid
 graph TD
     B["Browser<br/>/criar · /entrega · /admin"]
-    E["Rotas Edge<br/>src/app/api/*"]
-    FS[("Firestore<br/>orders · suno_tasks")]
+    E["Rotas Edge<br/>src/app/api/*<br/>(requireAdmin nas rotas sensíveis)"]
+    FS[("Firestore<br/>orders · suno_tasks<br/>regras ainda não publicadas")]
     ST[("Firebase Storage")]
 
-    B -->|"fetch"| E
-    B -->|"SDK cliente: getDocs, updateDoc, onSnapshot"| FS
-    B -->|"upload de fotos"| ST
+    B -->|"fetch + Authorization: Bearer idToken (admin)"| E
+    B -->|"SDK cliente: getDoc/getDocs com where, sem varredura completa"| FS
+    B -->|"upload de fotos/capa"| ST
     E -->|"SDK cliente (lite)"| FS
 
-    E --> KIE["Kie.ai / Suno"]
+    E --> KIE["Kie.ai / Suno<br/>(webhook autenticado por segredo)"]
     E --> AI["OpenAI → Gemini"]
-    E --> MP["Mercado Pago"]
+    E --> MP["Mercado Pago<br/>(webhook valida x-signature se configurado)"]
     E --> WA["W-API WhatsApp"]
 
     KIE -.->|"callback"| E
@@ -38,76 +42,92 @@ graph TD
     style B fill:#2a3a52,stroke:#5588cc
 ```
 
-A seta `Browser → Firestore` é o problema central: o browser escreve diretamente em `orders`,
-inclusive o campo `paymentStatus` (`entrega/page.jsx:84-94`, `criar/page.jsx:228`).
+O browser ainda escreve alguns campos diretamente em `orders` (ex: `total`, `package`,
+`admin/pedidos/[id]/page.jsx:paymentStatus` pelo admin) — mas nenhum campo de **aprovação de
+pagamento ou acesso pago** é mais gravado pelo cliente fora do painel admin (ver C-01/C-12 no
+AUDIT_REPORT.md, corrigidos no Lote 2).
 
 ## 2. Comunicação entre camadas
 
 | De → Para | Mecanismo | Observação |
 |---|---|---|
-| Browser → API | `fetch` JSON, sem credenciais | Nenhum endpoint exige autenticação |
-| Browser → Firestore | SDK cliente, config `NEXT_PUBLIC_*` | Leitura e **escrita** diretas |
-| Edge → Firestore | `firebase/firestore/lite` | Mesma identidade anônima do browser |
-| Edge → externos | `fetch` com `Bearer`, sem timeout nem retry | Segredos via `getRequestContext().env` com fallback `process.env` |
-| Mercado Pago → Edge | Webhook POST e GET (IPN) | Sem validação de assinatura; mitigado por re-consulta à API do MP |
-| Kie.ai → Edge | Webhook POST | Sem validação nenhuma |
+| Browser → API (rotas admin) | `fetch` JSON + `Authorization: Bearer <idToken>` | Verificado no servidor via `requireAdmin()` |
+| Browser → API (rotas públicas) | `fetch` JSON, sem credenciais | Por design — usadas durante a criação/pagamento por qualquer visitante |
+| Browser → Firestore | SDK cliente, config `NEXT_PUBLIC_*` | Leitura com `where`; escrita restante é metadado não-sensível (ver acima) |
+| Edge → Firestore | `firebase/firestore/lite` | Mesma identidade anônima do browser — sem identidade de serviço |
+| Edge → externos | `fetch` com `Bearer` + `AbortSignal.timeout()` (B-08); retry com backoff no webhook do MP | Segredos via `getRequestContext().env` com fallback `process.env`, nunca hardcoded |
+| Mercado Pago → Edge | Webhook POST e GET (IPN) | Valida `x-signature` se `MERCADO_PAGO_WEBHOOK_SECRET` estiver configurado (A-01); reconsulta à API do MP como segunda barreira |
+| Kie.ai → Edge | Webhook POST | Exige `?secret=` na URL de callback se `KIE_WEBHOOK_SECRET` estiver configurado (A-03) |
 
-## 3. Decisões arquiteturais descobertas
-
-Nenhuma está documentada como ADR; foram inferidas do código e de `.agents/AGENTS.md`.
+## 3. Decisões arquiteturais
 
 1. **Edge-only, sem Node.js.** Motivou o uso de `firebase/firestore/lite` e a ausência do Admin SDK.
-   Comentário explícito em `webhooks/mercadopago/route.js:5`.
-2. **Firestore como única fonte de verdade**, sem camada de repositório. Cada rota monta suas próprias
-   queries; não há modelo compartilhado do pedido.
+2. **Firestore como única fonte de verdade**, sem camada de repositório — mas com módulos
+   compartilhados para as regras que mais importavam: `src/lib/pricing.js` (preço),
+   `src/lib/payments.js` (aprovação), `src/lib/auth.js` (identidade de admin),
+   `src/lib/whatsappTemplates.js` (mensagens).
 3. **Geração antes do pagamento.** A música é produzida assim que a letra é aprovada; o pagamento
-   apenas libera o download. Torna o custo de API um risco direto de abuso.
-4. **PIX manual.** Commits recentes (`3e58be5`, `612e100`) trocaram o PIX automático do Mercado Pago
-   por um BR Code **estático** montado à mão em `payments/create/route.js:generatePixPayload`, com
-   `txid` fixo `***`. Consequência: nenhum pagamento PIX pode ser conciliado automaticamente com um
-   pedido — o webhook do Mercado Pago só funciona para o fluxo antigo.
-5. **Dupla via de confirmação.** Webhook + polling implementam a mesma lógica de aprovação em dois
-   arquivos, sem código compartilhado — já divergiram (o webhook grava `paidAt`, o polling não).
+   apenas libera o download. Continua sendo um risco de abuso de custo de API — mitigado
+   parcialmente por A-11 (limite de prévias grátis agora reforçado no servidor).
+4. **PIX manual.** BR Code montado à mão em `src/lib/pricing.js` + `api/payments/create/route.js`,
+   agora com `txid` único por cobrança (A-10) — antes era fixo (`***`), tornando os pagamentos
+   conciliáveis manualmente (ainda não há conciliação automática por API do PIX, só Mercado Pago
+   para o fluxo de cartão/legado).
+5. **Confirmação de pagamento unificada.** `src/lib/payments.js:applyPaymentApproval` é o único
+   ponto de aprovação (M-18), consumido pelo webhook e pelo polling, com `runTransaction` para
+   idempotência (A-09) e tratamento de estornos/cancelamentos.
 6. **Renderização de vídeo no cliente.** Evita infraestrutura de encoding, mas amarra o resultado ao
-   desempenho e à aba aberta do dispositivo do usuário.
-7. **Idempotência por flag booleana** (`whatsappSent`, `*Sending`) em vez de transação.
+   desempenho e à aba aberta do dispositivo do usuário. Código agora carregado via `import()`
+   dinâmico (code splitting, Lote 6) em vez de estático.
+7. **Identidade de admin em duas camadas.** ID token do Firebase verificado no servidor via Identity
+   Toolkit + (custom claim `admin:true` OU allowlist `ADMIN_EMAILS`) — a checagem de e-mail no
+   browser (`admin/page.jsx`, etc.) hoje é só roteamento de UI, não controle de acesso.
 
-## 4. Pontos críticos
+## 4. Pontos críticos remanescentes
 
-- **Fronteira de confiança inexistente.** O servidor não distingue um cliente legítimo de um `curl`.
-  Preço, status de pagamento e identidade de admin são todos definidos no browser.
-- **Sem `firestore.rules` no repositório.** É o único controle de acesso possível nesta arquitetura e
-  está fora do controle de versão — não pode ser revisado, testado nem restaurado.
-- **Concorrência.** Webhook e polling podem processar o mesmo pagamento simultaneamente; ambos fazem
-  ler-e-depois-escrever sem transação.
-- **Duas fontes para o resultado da música** (webhook Kie.ai + polling) convergindo na mesma função
-  sem lock, com o `orderId` de destino aceito por query string no polling.
-- **Segredo de terceiro versionado.** Fallback de chave de API embutido em `suno/generate/route.js:29`
-  e `suno/status/route.js:30`.
+- **Sem identidade de servidor ao nível do Firestore.** As rotas de API continuam sendo, do ponto de
+  vista do Firestore, apenas mais um cliente anônimo — a autorização que existe hoje é toda
+  implementada nas rotas (verificação de token), não nas regras do banco. Publicar
+  `firestore.rules` (já rascunhado) exige primeiro resolver isso — ver o próprio arquivo
+  `firestore.rules` para os 3 pré-requisitos documentados.
+- **Rate limiting inexistente em qualquer camada** (A-04/A-12) — decisão do usuário foi documentar a
+  recomendação (Cloudflare Rate Limiting Rules) em vez de implementar em código nesta rodada.
+- **`admin/pedidos/[id]/page.jsx` ainda grava `paymentStatus` direto do Firestore** a partir do
+  browser (painel admin, não qualquer visitante) — migrar para uma rota de API autenticada exigiria
+  expandir `/api/orders/update` para todos os campos que esse formulário edita; fica para quando
+  `firestore.rules` for publicado.
+- **12 vulnerabilidades de dependência remanescentes** (M-21), todas via `undici` transitiva de
+  `@firebase/*` — só resolvidas com `firebase` v11 (major bump, não executado sem autorização).
+- **`criar/page.jsx` (1.788 linhas) e `entrega/page.jsx` (1.263 linhas)** ainda excedem o limite de
+  400 linhas — parcialmente decompostos (Lote 7); os trechos de checkout/pagamento/polling foram
+  deixados nos arquivos principais por risco de regressão sem teste visual disponível.
 
-## 5. Limitações
+## 5. O que já não é mais verdade (histórico da auditoria original)
 
-- JavaScript puro: nenhuma verificação estática de tipos entre frontend e backend.
-- Sem testes, sem `typecheck`, sem CI. `next lint` nunca foi configurado (não há `.eslintrc*`).
-- Sem observabilidade além de `console.log` (que hoje inclui telefones de clientes).
-- Sem rate limiting em nenhuma camada.
-- Componentes de 2789 e 1443 linhas violam o limite de 400 do próprio `.agents/AGENTS.md`.
-- Consultas fazem varredura completa das coleções; o custo cresce linearmente com o número de pedidos.
+Para quem leu a auditoria original (`AUDIT_REPORT.md`) antes dos Lotes 0-8: os itens abaixo eram
+verdade em 2026-08-01 e **foram corrigidos** — mantidos aqui só para não reintroduzir os mesmos bugs.
 
-## 6. Sugestões de evolução
+- Preço, status de pagamento e limite de prévias eram decididos só no browser → agora vêm do
+  servidor (`pricing.js`, `payments.js`, `orders/create:isBlockedByFreeLimit`).
+- `/entrega?status=success` liberava o produto sem pagar → `isPaid` não depende mais de `searchParams`.
+- Chave da Kie.ai hardcoded no código → removida (chave rotacionada antes da remoção).
+- `/api/orders/{search,update,delete}` e `/api/whatsapp/send` sem autenticação → exigem `requireAdmin()`.
+- `/minhas-musicas` baixava a coleção inteira de pedidos → usa `where` com igualdade exata.
+- Proxies de mídia aceitavam qualquer URL (SSRF) → allowlist de domínio (`proxyAllowlist.js`).
+- Pagar o vídeo (R$ 6,90) liberava a música (R$ 9,99) → `paymentStatus` só é escrito quando o SKU
+  realmente aprova a música.
+- `node_modules` quebrado, sem `.eslintrc*`, sem testes, sem CI → tudo restaurado/criado.
+
+## 6. Sugestões de evolução restantes
 
 Em ordem de retorno sobre esforço:
 
-1. **Criar uma identidade de servidor.** Verificar ID token do Firebase nas rotas sensíveis e mover
-   as escritas privilegiadas para trás dessa checagem. Onde o Edge for limitante, usar a REST API do
-   Firestore com um service account em vez do SDK cliente.
-2. **Versionar `firestore.rules`** negando escrita direta do browser em `orders`, e tornar as regras
-   parte do processo de deploy.
-3. **Tabela de preços no servidor.** O cliente envia `orderId` + SKU; o valor é derivado no backend.
-4. **Unificar a confirmação de pagamento** em um único módulo `src/lib/payments.js` consumido pelo
-   webhook e pelo polling, com transação Firestore e chave de idempotência por `paymentId`.
-5. **Separar o estado do add-on de vídeo do estado do pedido**, eliminando a heurística de valor.
-6. **Extrair `criar/page.jsx` e `entrega/page.jsx`** em componentes por etapa e hooks de dados.
-7. **Adotar TypeScript incrementalmente** (`allowJs`), começando pelo modelo `Order` e pelas rotas de API.
-8. **Testes de caracterização** do fluxo de pagamento antes de qualquer refatoração — ver
-   [audit/FIX_PLAN.md](audit/FIX_PLAN.md), Lote 0.
+1. **Resolver a identidade de servidor** (custom claim `admin:true` já suportado no código — falta
+   rodar `scripts/set-admin-claim.mjs` com credenciais reais — e uma identidade de "serviço" para as
+   rotas de API, para então poder publicar `firestore.rules`).
+2. **Rate limiting real** via Cloudflare Rate Limiting Rules (painel, sem mudança de código).
+3. **Migrar `admin/pedidos/[id]/page.jsx`** para escrever via API autenticada em vez de Firestore direto.
+4. **Atualizar `firebase` para v11** (major bump) numa janela dedicada, com testes de regressão.
+5. **Terminar a decomposição de `criar/page.jsx`/`entrega/page.jsx`** (checkout, polling, upload de
+   vídeo) com ambiente de teste visual disponível.
+6. **Adotar TypeScript incrementalmente** (`allowJs`), começando pelo modelo `Order` e pelas rotas de API.

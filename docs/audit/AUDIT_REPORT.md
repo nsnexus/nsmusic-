@@ -349,11 +349,11 @@ O fluxo de pagamento é a área mais frágil do sistema e concentra 5 dos 11 ite
 |---|---|---|---|
 | M-21 | **PARCIALMENTE CORRIGIDO (Lote 7) — PENDENTE DE DECISÃO.** `firebase` atualizado para 10.14.1 (patch, sem breaking change). As 12 vulnerabilidades restantes (todas via `undici`) só são resolvidas com `firebase` v11 — major bump com risco de incompatibilidade, não executado sem autorização explícita | cadeia `undici` (via `@firebase/*`) | Confirmado |
 | M-22 | **CORRIGIDO E VALIDADO (Lote 7).** Dependência `mercadopago` removida — reduziu `npm audit` de 23 para 12 vulnerabilidades | `package.json` | Confirmado |
-| M-23 | `.env.example` desatualizado: faltam `KIE_API_KEY`, `WAPI_TOKEN`, `WAPI_INSTANCE_ID`, `OPENAI_API_KEY`; sobram `PAGBANK_TOKEN`/`PAGBANK_ENV` (não usados no `src/`) | `.env.example` | MÉDIA |
-| M-24 | `.gitignore` cobre `.env*.local` mas **não** `.env` — um `.env` na raiz seria commitado | `.gitignore:20-21` | MÉDIA |
-| M-25 | PII (telefone do cliente) escrita em log de servidor | `lib/db.js:137,139`, `whatsapp/notify/route.js:46,49` | MÉDIA |
-| M-26 | Prefixo do token e `instanceId` da W-API escritos em log | `lib/whatsapp.js:29,122` | MÉDIA |
-| B-09 | `next lint` nunca foi configurado — não há `.eslintrc*` no repositório | raiz | BAIXA |
+| M-23 | **CORRIGIDO E VALIDADO (Lote 8).** `.env.example` reescrito: adicionados `KIE_API_KEY`, `WAPI_TOKEN`, `WAPI_INSTANCE_ID`, `OPENAI_API_KEY`; removidos `PAGBANK_TOKEN`/`PAGBANK_ENV` (confirmado sem uso) | `.env.example` | Confirmado |
+| M-24 | **CORRIGIDO E VALIDADO (Lote 8).** `.gitignore` agora cobre `.env` além de `.env*.local` | `.gitignore` | Confirmado |
+| M-25 | **CORRIGIDO E VALIDADO (Lote 8).** `lib/db.js` e `whatsapp/notify/route.js` não logam mais `customerPhone` — usam `orderId` como identificador | `lib/db.js`, `api/whatsapp/notify/route.js` | Confirmado |
+| M-26 | **CORRIGIDO E VALIDADO (Lote 8).** `lib/whatsapp.js` não loga mais `instanceId`, tamanho/prefixo de token, nem o número de telefone (usa índice da tentativa) | `lib/whatsapp.js` | Confirmado |
+| B-09 | **JÁ RESOLVIDO NO LOTE 0.** `.eslintrc.json` único, sem `eslint.config.js` nem `eslintConfig` duplicado | raiz | Confirmado |
 
 ---
 
