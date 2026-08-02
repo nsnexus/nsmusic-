@@ -52,7 +52,6 @@ export default function CriarMusica() {
   }, [needsReload]);
 
   // Estados do Checkout Transparente
-  const [paymentMethod, setPaymentMethod] = useState('pix'); // 'pix' | 'card'
   const [pixInfo, setPixInfo] = useState(null);
   const [isGeneratingPix, setIsGeneratingPix] = useState(false);
   const [pixCopied, setPixCopied] = useState(false);
@@ -66,7 +65,7 @@ export default function CriarMusica() {
       interval = setInterval(async () => {
         setPixPollingCount(prev => prev + 1);
 
-        // 1. Consulta a API do Mercado Pago via backend
+        // 1. Consulta a API da Efí via backend
         try {
           const res = await fetch(`/api/payments/status?paymentId=${pixInfo.paymentId}${orderId ? `&orderId=${orderId}` : ''}`);
           if (res.ok) {
@@ -224,14 +223,11 @@ export default function CriarMusica() {
     return () => clearTimeout(timer);
   }, [formData.customerPhone]);
 
-  // Restore draft from localStorage on load & check URL query params for payment failure
+  // Restore draft from localStorage on load & check URL query params
   useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
-        // Checar retorno de pagamento cancelado/falho do Mercado Pago
         const urlParams = new URLSearchParams(window.location.search);
-        const statusParam = urlParams.get('status');
-        const collectionStatus = urlParams.get('collection_status');
         const resetParam = urlParams.get('reset') || urlParams.get('new');
 
         if (resetParam === 'true' || resetParam === '1') {
@@ -239,12 +235,6 @@ export default function CriarMusica() {
           window.history.replaceState({}, document.title, window.location.pathname);
           setIsRestored(true);
           return;
-        }
-
-        if (statusParam === 'failure' || statusParam === 'null' || collectionStatus === 'null') {
-          setPaymentErrorMessage('⚠️ O pagamento no Mercado Pago não foi concluído ou foi cancelado. Você pode tentar novamente abaixo ou via PIX.');
-          setStep(12);
-          window.history.replaceState({}, document.title, window.location.pathname);
         }
 
         const saved = localStorage.getItem('nsmusic_order_draft');
@@ -1276,7 +1266,7 @@ export default function CriarMusica() {
             )}
           </div>
         );
-      case 12: // Checkout Transparente e Mercado Pago embutido no site
+      case 12: // Checkout Transparente Pix (Efí) embutido no site
         return (
           <div>
             <h1 style={styles.stepTitle}>Finalizar Pedido 💳</h1>
@@ -1337,52 +1327,10 @@ export default function CriarMusica() {
 
               {/* Opções de Pagamento Embutidas no Site */}
               <div className="glass-card" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '100%' }}>
-                <h3 style={{ fontSize: '1.2rem', color: 'var(--text-primary)', fontWeight: '700' }}>Escolha a Forma de Pagamento</h3>
-
-                {/* Seletores de Método */}
-                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMethod('pix')}
-                    style={{
-                      flex: 1,
-                      minWidth: '130px',
-                      padding: '12px',
-                      borderRadius: '12px',
-                      border: paymentMethod === 'pix' ? '2px solid var(--success)' : '1.5px solid var(--border-color)',
-                      background: paymentMethod === 'pix' ? 'var(--success-bg)' : '#FFFFFF',
-                      color: paymentMethod === 'pix' ? 'var(--success)' : 'var(--text-secondary)',
-                      fontWeight: 'bold',
-                      cursor: 'pointer',
-                      fontSize: '0.92rem'
-                    }}
-                  >
-                    ⚡ PIX Instantâneo
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMethod('card')}
-                    style={{
-                      flex: 1,
-                      minWidth: '130px',
-                      padding: '12px',
-                      borderRadius: '12px',
-                      border: paymentMethod === 'card' ? '2px solid var(--primary)' : '1.5px solid var(--border-color)',
-                      background: paymentMethod === 'card' ? 'var(--primary-light)' : '#FFFFFF',
-                      color: paymentMethod === 'card' ? 'var(--primary)' : 'var(--text-secondary)',
-                      fontWeight: 'bold',
-                      cursor: 'pointer',
-                      fontSize: '0.92rem'
-                    }}
-                  >
-                    💳 Cartão de Crédito
-                  </button>
-                </div>
+                <h3 style={{ fontSize: '1.2rem', color: 'var(--text-primary)', fontWeight: '700' }}>⚡ Pagamento via PIX Instantâneo</h3>
 
                 {/* Área de Pagamento PIX Transparente */}
-                {paymentMethod === 'pix' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '8px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '8px' }}>
                     {!pixInfo ? (
                       <button
                         type="button"
@@ -1491,7 +1439,7 @@ export default function CriarMusica() {
                           onClick={async () => {
                             if (!pixInfo?.paymentId) return;
                             try {
-                              // 1. Verifica via API do Mercado Pago
+                              // 1. Verifica via API da Efí
                               const res = await fetch(`/api/payments/status?paymentId=${pixInfo.paymentId}${orderId ? `&orderId=${orderId}` : ''}`);
                               if (res.ok) {
                                 const data = await res.json();
@@ -1565,56 +1513,6 @@ export default function CriarMusica() {
                       </div>
                     )}
                   </div>
-                )}
-
-                {/* Área de Cartão de Crédito / Mercado Pago Checkout */}
-                {paymentMethod === 'card' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '8px' }}>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        try {
-                          if (orderId) {
-                            // hasVideoAccess NUNCA é definido aqui — ver comentário equivalente acima.
-                            await updateDoc(doc(db, 'orders', orderId), {
-                              total: getTotalPrice(),
-                              package: formData.selectedPackage,
-                              updatedAt: new Date().toISOString()
-                            }).catch(e => console.warn(e));
-                          }
-
-                          const sku = formData.addons?.wantsVideo ? 'combo' : 'audio_only';
-                          const response = await fetch('/api/payments/create', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ orderId, sku })
-                          });
-                          if (response.ok) {
-                            const data = await response.json();
-                            if (data.init_point) {
-                              if (typeof window !== 'undefined' && window.fbq) {
-                                window.fbq('track', 'InitiateCheckout', { value: 9.99, currency: 'BRL' });
-                              }
-                              window.location.href = data.init_point;
-                            } else {
-                              alert('Erro ao iniciar checkout do Mercado Pago.');
-                            }
-                          } else {
-                            const errData = await response.json();
-                            alert(`Erro do Mercado Pago: ${errData.error || 'Falha no processamento.'}`);
-                          }
-                        } catch (err) {
-                          console.error(err);
-                          alert('Ocorreu um erro ao processar seu pagamento.');
-                        }
-                      }}
-                      className="btn btn-primary"
-                      style={{ width: '100%', padding: '16px', fontSize: '1.05rem' }}
-                    >
-                      Confirmar & Pagar no Mercado Pago 💳
-                    </button>
-                  </div>
-                )}
               </div>
             </div>
           </div>

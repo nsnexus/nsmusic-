@@ -29,6 +29,7 @@ PIX (R$ 9,99) para liberar os MP3 completos. Add-on de vídeo slideshow por + R$
 | `public/` | Áudios de demo, capas, logo |
 | `tests/unit/` | Testes Vitest — utilitários puros e módulos com Firestore/fetch mockados |
 | `scripts/` | Scripts operacionais manuais (migração de dados, custom claim de admin) — nunca rodam automaticamente |
+| `workers/efi-proxy/` | Worker Cloudflare separado (deploy próprio via `npm run deploy:efi-proxy`), só para o hop mTLS até a Efí — Cloudflare Pages não suporta binding de certificado mTLS (ver `docs/EFI_SETUP.md`) |
 | `.agents/` | Rulebook legado do projeto (`AGENTS.md`) — ainda é fonte de intenção original |
 | `.claude/rules/` | Regras por área (tem precedência sobre `.agents/` em caso de conflito) |
 
@@ -77,9 +78,9 @@ para o que ainda depende de rate limiting externo (A-04/A-12, não implementado 
 | `POST /api/orders/update` | `orders/update/route.js:POST` | Atualiza `paymentStatus`/`audioUrl`/`productionStatus` | Admin |
 | `POST /api/orders/delete` | `orders/delete/route.js:POST` | Exclusão lógica (`deletedAt`) + remove `suno_tasks` associadas (M-07) | Admin |
 | `GET /api/orders/search` | `orders/search/route.js:GET` | Busca por `orderId` (exata) ou substring em nome/homenageado (limitada aos 300 mais recentes) | Admin |
-| `POST /api/payments/create` | `payments/create/route.js:generatePixPayload` | Deriva o valor do catálogo (`src/lib/pricing.js`) por `sku`; gera BR Code com `txid` único; persiste `expectedAmount`/`paymentIntentSku` | Pública |
-| `GET /api/payments/status` | `payments/status/route.js` | Consulta MP e chama `src/lib/payments.js:applyPaymentApproval` | Pública |
-| `POST/GET /api/webhooks/mercadopago` | `webhooks/mercadopago/route.js` | Valida `x-signature` (se configurado) + retry com backoff; chama `applyPaymentApproval` | Assinatura MP |
+| `POST /api/payments/create` | `payments/create/route.js` | Deriva o valor do catálogo (`src/lib/pricing.js`) por `sku`; cria cobrança real na Efí (`src/lib/efi.js:createPixCharge`); persiste `paymentIntentId` (txid)/`expectedAmount`/`paymentIntentSku` | Pública |
+| `GET /api/payments/status` | `payments/status/route.js` | Consulta a Efí (`getChargeStatus`) e chama `src/lib/payments.js:applyPaymentApproval` | Pública |
+| `POST /api/webhooks/efi` | `webhooks/efi/route.js` | Segredo `?secret=` (se configurado) + reconsulta `getChargeStatus` antes de aprovar; chama `applyPaymentApproval` | Segredo na URL |
 | `POST /api/suno/generate` | `suno/generate/route.js:POST` | Dispara geração na Kie.ai; inclui segredo no callback (A-03) | Pública |
 | `GET /api/suno/status` | `suno/status/route.js:GET` | Polling do status; `orderId` sempre vem do `suno_tasks`, nunca da query (A-02) | Pública |
 | `POST /api/suno/webhook` | `suno/webhook/route.js:POST` | Callback da Kie.ai; exige `?secret=` se `KIE_WEBHOOK_SECRET` configurado | Segredo compartilhado |
@@ -96,6 +97,8 @@ para o que ainda depende de rate limiting externo (A-04/A-12, não implementado 
 |---|---|
 | `db.js` | `saveTask`/`updateTaskResult`/`extractAudioTracks`/`getTask` — resultado da Suno, com `runTransaction` para o envio de WhatsApp (M-06) |
 | `payments.js` | `applyPaymentApproval` — único ponto de aprovação de pagamento (M-18), com idempotência via `runTransaction` (A-09) |
+| `efi.js` | Cliente da API Pix da Efí (`createPixCharge`, `getChargeStatus`) — toda chamada exige mTLS (ver `docs/EFI_SETUP.md`) |
+| `httpRetry.js` | `fetchWithRetry` — retry com backoff, compartilhado entre webhook e polling de pagamento (B-08) |
 | `pricing.js` | Catálogo de preços por SKU (`audio_only`, `combo`, `video_addon`) — fonte única de valor (C-05) |
 | `auth.js` | `requireAdmin()` — verificação de ID token + custom claim/allowlist |
 | `proxyAllowlist.js` | Domínios permitidos nos proxies de mídia |
@@ -151,7 +154,7 @@ Ponto de entrada: cliente escolhe o `sku` (`audio_only`/`combo`/`video_addon`) �
 `GET /api/payments/status`.
 
 Confirmação real converge num único módulo: `src/lib/payments.js:applyPaymentApproval`, consumido por
-`api/webhooks/mercadopago/route.js` e `api/payments/status/route.js` (M-18). Trata também estornos/
+`api/webhooks/efi/route.js` e `api/payments/status/route.js` (M-18). Trata também estornos/
 cancelamentos, revogando acesso já concedido.
 
 ## Geração das músicas
@@ -186,7 +189,7 @@ Normalização das faixas: `src/lib/db.js:extractAudioTracks`.
 | Kie.ai (Suno) | `api/suno/*` | `KIE_API_KEY`, `KIE_WEBHOOK_SECRET` |
 | OpenAI | `src/lib/gemini.js` | `OPENAI_API_KEY` |
 | Google Gemini | `src/lib/gemini.js` | `GEMINI_API_KEYS` (lista separada por vírgula) |
-| Mercado Pago | `api/payments/status`, `api/webhooks/mercadopago` | `MERCADO_PAGO_ACCESS_TOKEN`, `MERCADO_PAGO_WEBHOOK_SECRET` |
+| Efí (API Pix) | `src/lib/efi.js`, `api/payments/*`, `api/webhooks/efi`, `workers/efi-proxy/` | `EFI_CLIENT_ID`, `EFI_CLIENT_SECRET`, `EFI_PIX_KEY`, `EFI_ENV`, `EFI_WEBHOOK_SECRET`, `EFI_PROXY_URL`, `EFI_PROXY_SECRET` (mTLS fica no Worker `efi-proxy`, não num binding do Pages — ver `docs/EFI_SETUP.md`) |
 | W-API (WhatsApp) | `src/lib/whatsapp.js` | `WAPI_INSTANCE_ID`, `WAPI_TOKEN`, `ADMIN_WHATSAPP` |
 | Firebase | `src/lib/firebase.js`, `firebase-edge.js` | `NEXT_PUBLIC_FIREBASE_*` |
 | Admin (allowlist interina) | `src/lib/auth.js` | `ADMIN_EMAILS` |
@@ -227,7 +230,7 @@ Ver `.env.example` para a lista completa e atualizada.
 |---|---|
 | Preço / pacotes | `src/lib/pricing.js`, `api/payments/create/route.js` |
 | Liberação / gating | `entrega/page.jsx`, `homenagem/page.jsx`, `api/orders/update/route.js` |
-| Confirmação de pagamento | `src/lib/payments.js`, `api/webhooks/mercadopago/route.js`, `api/payments/status/route.js` |
+| Confirmação de pagamento | `src/lib/payments.js`, `src/lib/efi.js`, `api/webhooks/efi/route.js`, `api/payments/status/route.js` |
 | Geração da música | `api/suno/generate`, `api/suno/status`, `api/suno/webhook`, `src/lib/db.js`, `src/lib/sunoPayload.js` |
 | Letra / prompts | `api/lyrics/{generate,improve}/route.js`, `src/lib/gemini.js` |
 | WhatsApp | `src/lib/whatsapp.js`, `src/lib/whatsappTemplates.js` |

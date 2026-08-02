@@ -176,10 +176,13 @@ export async function createSlideshowVideo(orderId, imageUrls, audioUrl, orderDa
     const imageCount = validImages.length;
     const timePerImage = duration / imageCount;
 
-    // 3. Configura o Canvas HD (1080x1920 para formato Stories/Reels vertical)
+    // 3. Configura o Canvas para formato Stories/Reels vertical — 720x1280 em vez de 1080x1920:
+    // metade dos pixels por frame, o que já reduz bastante o tamanho final sem perda perceptível
+    // num slideshow de fotos com pan/zoom lento (ver reclamação de vídeo de +50MB e "formato
+    // inválido" no WhatsApp).
     const canvas = document.createElement('canvas');
-    const width = 1080;
-    const height = 1920;
+    const width = 720;
+    const height = 1280;
     canvas.width = width;
     canvas.height = height;
     const ctx = canvas.getContext('2d');
@@ -195,7 +198,7 @@ export async function createSlideshowVideo(orderId, imageUrls, audioUrl, orderDa
       await audioCtx.resume().catch(e => console.warn("Aviso ao dar resume no audioCtx:", e));
     }
 
-    const canvasStream = canvas.captureStream(30); // 30 FPS
+    const canvasStream = canvas.captureStream(24); // 24 FPS — suficiente para pan/zoom lento, mais leve que 30
     const combinedStream = new MediaStream([
       ...canvasStream.getVideoTracks(),
       ...dest.stream.getAudioTracks()
@@ -207,9 +210,16 @@ export async function createSlideshowVideo(orderId, imageUrls, audioUrl, orderDa
         ? 'video/mp4'
         : 'video/webm');
 
+    // A extensão do arquivo salvo no Storage precisa bater com o container real gravado pelo
+    // MediaRecorder — muitos navegadores (a maioria do Chrome/Edge no desktop e quase todo Android)
+    // não suportam gravar em .mp4 de verdade e caem no fallback video/webm. Salvar esse conteúdo
+    // como "video_homenagem.mp4" produzia um arquivo com extensão .mp4 mas conteúdo WebM por
+    // dentro — o WhatsApp valida o container e recusava como "formato inválido".
+    const fileExtension = mimeType.startsWith('video/mp4') ? 'mp4' : 'webm';
+
     const mediaRecorder = new MediaRecorder(combinedStream, {
       mimeType,
-      videoBitsPerSecond: 1500000 // Reduzido de 5 Mbps para 1.5 Mbps (cai de ~100MB para ~30MB)
+      videoBitsPerSecond: 900000 // ~900 kbps — reduzido de 1.5 Mbps; slideshow de fotos não precisa de bitrate alto
     });
 
     const chunks = [];
@@ -267,15 +277,23 @@ export async function createSlideshowVideo(orderId, imageUrls, audioUrl, orderDa
         // Efeito Ken Burns (Zoom suave de 1.0 a 1.1)
         const scale = 1.0 + (imgProgress * 0.1);
         const imgAspect = img.naturalWidth / img.naturalHeight;
-        const targetAspect = width / height;
+
+        // O canvas é bem mais alto que largo (formato Stories). Comparar contra esse
+        // targetAspect faz QUALQUER foto (até vertical) cair no modo "cover" (preenche cortando
+        // as laterais) — para foto vertical o corte é pequeno e passa despercebido, mas para foto
+        // horizontal cortava boa parte dos lados. Por isso a decisão usa 1 (paisagem vs retrato)
+        // em vez do aspect do canvas: fotos horizontais usam "contain" (mostra a foto inteira,
+        // com barra escura acima/abaixo — o fundo escuro já pintado acima) e fotos
+        // verticais/quadradas continuam em "cover" como antes.
+        const isLandscape = imgAspect > 1;
 
         let drawWidth, drawHeight, offsetX, offsetY;
-        if (imgAspect > targetAspect) {
-          drawHeight = height * scale;
-          drawWidth = drawHeight * imgAspect;
-        } else {
+        if (isLandscape) {
           drawWidth = width * scale;
           drawHeight = drawWidth / imgAspect;
+        } else {
+          drawHeight = height * scale;
+          drawWidth = drawHeight * imgAspect;
         }
 
         offsetX = (width - drawWidth) / 2;
@@ -321,9 +339,11 @@ export async function createSlideshowVideo(orderId, imageUrls, audioUrl, orderDa
 
     const videoBlob = await recordingPromise;
 
-    // 5. Upload do vídeo para o Firebase Storage
-    const storageRef = ref(storage, `orders/${orderId}/video_homenagem.mp4`);
-    await uploadBytes(storageRef, videoBlob);
+    // 5. Upload do vídeo para o Firebase Storage — extensão e Content-Type batendo com o container
+    // real gravado (ver comentário acima sobre fileExtension), para o arquivo baixado/compartilhado
+    // ser reconhecido corretamente pelo WhatsApp e outros apps.
+    const storageRef = ref(storage, `orders/${orderId}/video_homenagem.${fileExtension}`);
+    await uploadBytes(storageRef, videoBlob, { contentType: mimeType });
     const videoUrl = await getDownloadURL(storageRef);
 
     // 6. Atualiza o pedido com a URL do vídeo concluído

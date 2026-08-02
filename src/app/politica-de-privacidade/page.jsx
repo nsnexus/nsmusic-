@@ -48,7 +48,7 @@ export default function PrivacyPolicy() {
               <ul style={styles.list}>
                 <li><strong>Dados Pessoais do Cliente:</strong> Nome completo, endereço de e-mail, número de telefone/WhatsApp.</li>
                 <li><strong>Dados de Personalização:</strong> O nome do homenageado, relação com ele, a história de vocês, momentos importantes e características de personalidade que serão utilizadas para compor a letra.</li>
-                <li><strong>Dados de Pagamento:</strong> Processados de forma segura e direta pelo Mercado Pago. Nós não armazenamos os dados do seu cartão de crédito ou informações confidenciais de faturamento.</li>
+                <li><strong>Dados de Pagamento:</strong> O Pix é processado de forma segura e direta pela Efí. Nós não armazenamos dados de conta bancária ou informações confidenciais de faturamento.</li>
               </ul>
             </div>
 
@@ -60,7 +60,7 @@ export default function PrivacyPolicy() {
               <ul style={styles.list}>
                 <li>Gerar a composição da letra usando Inteligência Artificial (API Gemini).</li>
                 <li>Produzir e refinar a música personalizada baseada nas escolhas de estilo e voz (usando Suno AI e processamento manual).</li>
-                <li>Processar o seu pagamento via Mercado Pago.</li>
+                <li>Processar o seu pagamento via Pix, através da Efí.</li>
                 <li>Enviar o link da sua música pronta e manter contato sobre o status do pedido via WhatsApp ou E-mail.</li>
                 <li>Prestar suporte ao cliente em caso de dúvidas ou alterações na letra.</li>
               </ul>
@@ -72,7 +72,7 @@ export default function PrivacyPolicy() {
                 A NSMusic não vende, aluga ou compartilha suas informações pessoais com terceiros para fins de marketing. Para o funcionamento correto da plataforma, compartilhamos dados apenas com fornecedores integrados essenciais:
               </p>
               <ul style={styles.list}>
-                <li><strong>Mercado Pago:</strong> Dados necessários para processar o pagamento do pedido.</li>
+                <li><strong>Efí:</strong> Dados necessários para processar o pagamento Pix do pedido.</li>
                 <li><strong>Provedores de Infraestrutura:</strong> Firebase (hospedagem de banco de dados do pedido) e Google Cloud (processamento de APIs com segurança).</li>
               </ul>
             </div>

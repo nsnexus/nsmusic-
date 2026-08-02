@@ -4,6 +4,10 @@
 
 const ALLOWED_HOSTS = [
   'musicfile.kie.ai',
+  // A Kie.ai também serve o campo `audioUrl`/`sourceAudioUrl` da resposta de geração a partir deste
+  // domínio (confirmado em 2026-08-02: sem ele na allowlist, o proxy rejeitava a única URL de áudio
+  // realmente presente na resposta, quebrando a prévia/entrega para todo pedido).
+  'tempfile.aiquickdraw.com',
   'cdn1.suno.ai',
   'cdn2.suno.ai',
   'audiopipe.suno.ai',

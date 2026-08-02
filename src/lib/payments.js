@@ -1,6 +1,7 @@
-// Ponto único de aprovação de pagamento, consumido por api/webhooks/mercadopago e por
-// api/payments/status (M-18 no AUDIT_REPORT.md — antes essa lógica estava duplicada e já tinha
-// divergido entre os dois arquivos).
+// Ponto único de aprovação de pagamento, consumido por api/webhooks/efi e por api/payments/status
+// (M-18 no AUDIT_REPORT.md — antes essa lógica estava duplicada e já tinha divergido entre os dois
+// arquivos). Agnóstico de provedor: recebe um objeto normalizado { status, transaction_amount },
+// hoje montado a partir da consulta à API Pix da Efí (antes, do Mercado Pago).
 //
 // Garante, nesta ordem:
 //   - idempotência por paymentId via runTransaction (A-09) — webhook e polling podem chegar juntos;
@@ -26,19 +27,19 @@ function getAdminWhatsAppNumber() {
 const REVOKING_STATUSES = new Set(['cancelled', 'refunded', 'charged_back']);
 
 /**
- * Aplica uma transição de estado vinda do Mercado Pago a um pedido.
+ * Aplica uma transição de estado de pagamento a um pedido.
  * @param {string} orderId
- * @param {string|number} paymentId
- * @param {{status: string, transaction_amount?: number}} mpPayment
+ * @param {string|number} paymentId txid (Efí) que identifica a cobrança
+ * @param {{status: string, transaction_amount?: number}} payment
  * @returns {Promise<{applied: boolean, reason?: string, revoked?: boolean, sku?: string}>}
  */
-export async function applyPaymentApproval(orderId, paymentId, mpPayment) {
-  if (!orderId || !paymentId || !mpPayment) {
+export async function applyPaymentApproval(orderId, paymentId, payment) {
+  if (!orderId || !paymentId || !payment) {
     return { applied: false, reason: 'missing_arguments' };
   }
 
   const orderRef = doc(db, 'orders', orderId);
-  const status = mpPayment.status;
+  const status = payment.status;
 
   if (REVOKING_STATUSES.has(status)) {
     return revokeApproval(orderRef, paymentId, status);
@@ -59,7 +60,7 @@ export async function applyPaymentApproval(orderId, paymentId, mpPayment) {
       // A-13: usa o SKU persistido pela criação da cobrança; heurística de valor só como fallback
       // para pedidos antigos que nunca passaram pelo novo /api/payments/create.
       const sku = orderData.paymentIntentSku
-        || (Math.abs(Number(mpPayment.transaction_amount) - 6.90) < 0.01 ? 'video_addon' : 'audio_only');
+        || (Math.abs(Number(payment.transaction_amount) - 6.90) < 0.01 ? 'video_addon' : 'audio_only');
 
       const isVideoOnly = !skuApprovesMusic(sku);
       const dedupKey = isVideoOnly ? 'videoPaymentId' : 'paymentId';

@@ -6,7 +6,7 @@ import Image from 'next/image';
 import { useSearchParams } from 'next/navigation';
 import { doc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { createUserWithEmailAndPassword, onAuthStateChanged } from 'firebase/auth';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, auth, storage } from '@/lib/firebase';
 import VideoOfferModal from '@/components/VideoOfferModal';
 import { styles } from './entregaStyles';
@@ -137,7 +137,7 @@ function EntregaContent() {
             setAccountEmail(data.customerEmail);
           }
 
-          // Se o pedido ainda consta como pendente no Firebase, consulta imediatamente o Mercado Pago
+          // Se o pedido ainda consta como pendente no Firebase, consulta imediatamente a Efí
           if (data && data.paymentStatus !== 'PAGAMENTO_APROVADO' && data.paymentStatus !== 'PAGO') {
             const paymentIdQuery = data.paymentId ? `&paymentId=${data.paymentId}` : '';
             fetch(`/api/payments/status?orderId=${orderId}${paymentIdQuery}`)
@@ -318,7 +318,7 @@ function EntregaContent() {
     if (!orderId || isPaid) return;
 
     const interval = setInterval(async () => {
-      // 1. Tenta via API backend (consulta Mercado Pago)
+      // 1. Tenta via API backend (consulta a Efí)
       try {
         const paymentIdQuery = pixInfo.paymentId ? `&paymentId=${pixInfo.paymentId}` : '';
         const res = await fetch(`/api/payments/status?orderId=${orderId}${paymentIdQuery}`);
@@ -695,13 +695,25 @@ function EntregaContent() {
                           <video src={order.videoUrl} controls style={{ width: '100%', maxHeight: '350px', objectFit: 'contain' }} />
                         </div>
                         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                          <button 
+                          <button
                             type="button"
-                            onClick={() => handleDownload(order.videoUrl, `Homenagem_${order?.honoreeName || 'Video'}.mp4`)}
-                            className="btn btn-primary" 
+                            onClick={() => {
+                              // A extensão precisa bater com o container real do arquivo (mp4 ou
+                              // webm, conforme o que o navegador conseguiu gravar — ver
+                              // src/lib/videoGenerator.js) para o WhatsApp reconhecer o arquivo
+                              // baixado. O fetch passa pelo /api/image-proxy (mesma origem) porque
+                              // buscar a URL do Firebase Storage direto costuma esbarrar em CORS,
+                              // o que fazia handleDownload cair no fallback de abrir em nova aba
+                              // em vez de baixar.
+                              const videoExt = order.videoUrl.split('?')[0].split('.').pop().toLowerCase();
+                              const ext = videoExt === 'webm' ? 'webm' : 'mp4';
+                              const proxiedUrl = `/api/image-proxy?url=${encodeURIComponent(order.videoUrl)}`;
+                              handleDownload(proxiedUrl, `Homenagem_${order?.honoreeName || 'Video'}.${ext}`);
+                            }}
+                            className="btn btn-primary"
                             style={{ flex: 1, padding: '10px', fontSize: '0.88rem', textAlign: 'center', border: 'none', cursor: 'pointer', minWidth: '160px' }}
                           >
-                            ⬇ Baixar Vídeo MP4 HD
+                            ⬇ Baixar Vídeo HD
                           </button>
                           <a 
                             href={`/homenagem?orderId=${orderId}`} 
@@ -933,7 +945,27 @@ function EntregaContent() {
                                       (percent) => setUploadProgressMsg(`Renderizando vídeo MP4 HD... ${percent}%`)
                                     );
 
-                                    setOrder(prev => prev ? { ...prev, videoUrl: generatedVideoUrl, videoStatus: 'CONCLUIDO' } : prev);
+                                    setOrder(prev => prev ? { ...prev, videoUrl: generatedVideoUrl, videoStatus: 'CONCLUIDO', slideshowImages: [] } : prev);
+                                    setExistingPhotos([]);
+
+                                    // Com o vídeo já gerado e salvo, as fotos originais não servem mais
+                                    // pra nada — apaga da Storage pra não acumular espaço. Falha aqui não
+                                    // pode derrubar o sucesso da geração do vídeo (por isso o catch próprio
+                                    // e sem re-throw).
+                                    try {
+                                      await Promise.all(
+                                        finalUrls.map((url) => deleteObject(ref(storage, url)).catch((e) => {
+                                          console.warn('Falha ao apagar foto do slideshow:', e?.message);
+                                        }))
+                                      );
+                                      await updateDoc(doc(db, 'orders', orderId), {
+                                        slideshowImages: [],
+                                        updatedAt: new Date().toISOString()
+                                      });
+                                    } catch (cleanupErr) {
+                                      console.warn('Falha ao limpar fotos do slideshow:', cleanupErr?.message);
+                                    }
+
                                     alert("🎉 Seu Vídeo Homenagem foi gerado com sucesso!");
                                   } catch (err) {
                                     console.error("Erro no envio/geração do vídeo:", err);

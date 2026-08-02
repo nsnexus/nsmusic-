@@ -1,0 +1,21 @@
+name = "nsmusic-efi-proxy"
+main = "src/worker.js"
+compatibility_date = "2024-11-01"
+
+# Domínio próprio em vez do workers.dev compartilhado — o workers.dev demonstrou instabilidade
+# intermitente (respostas 500 sem exceção/log nenhum do lado do Worker) durante os testes de
+# 2026-08-02, provavelmente alguma política de rate-limit/anti-abuso do subdomínio compartilhado.
+routes = [
+  { pattern = "efi-proxy.nsnexus.com.br", custom_domain = true }
+]
+
+# Certificado mTLS exigido pela API Pix da Efí em toda chamada. Subir com:
+#   npx wrangler mtls-certificate upload --cert cert.pem --key key.pem --name efi-pix-sandbox
+# e colar o `certificate_id` retornado abaixo (ver docs/EFI_SETUP.md).
+[[mtls_certificates]]
+binding = "EFI_MTLS_CERT"
+certificate_id = "c8facf26-086e-455e-8faa-52c9a456be18"
+
+# EFI_PROXY_SECRET é um secret, não uma var: configurar com
+#   npx wrangler secret put EFI_PROXY_SECRET --config workers/efi-proxy/wrangler.toml
+# Nunca colocar o valor aqui.

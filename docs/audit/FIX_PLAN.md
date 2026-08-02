@@ -586,6 +586,72 @@ autorização mantida via módulos compartilhados.
 
 ---
 
+## Lote 9 — Migração de gateway de pagamento: Mercado Pago → Efí — ⚠️ CORRIGIDO NO CÓDIGO, PENDENTE DE CONFIGURAÇÃO EXTERNA (2026-08-02)
+
+**Fora do ciclo original de 9 lotes acima** — motivado por um evento externo ao FIX_PLAN: a conta do
+Mercado Pago foi bloqueada duas vezes seguidas (a segunda, muito provavelmente, por abertura de
+conta nova ser tratada como evasão pelo PSP). Isso levou a um bypass manual de PIX (BR Code estático
+com chave PIX hardcoded no código, aprovação validada visualmente pelo admin) que já estava em
+produção antes desta sessão. Decisão do usuário: migrar para a **Efí** (API Pix real), testar
+primeiro em sandbox, e remover o código do Mercado Pago por completo (sem manter como fallback).
+
+**Ações**
+- Criar `src/lib/efi.js` (cliente da API Pix: `createPixCharge`, `getChargeStatus`, `generateTxid`) e
+  `src/lib/httpRetry.js` (retry genérico, extraído do antigo webhook do MP).
+  **Status: CORRIGIDO E VALIDADO (unitário)** — `tests/unit/efi.test.js`, mockando o binding mTLS.
+- Reescrever `api/payments/create/route.js` (cria cobrança real via Efí em vez de montar um BR Code
+  estático com chave PIX hardcoded) e `api/payments/status/route.js` (consulta a Efí em vez do MP),
+  mantendo o mesmo contrato de resposta (`paymentId`/`qrCode`/`qrCodeBase64`) para não exigir mudança
+  no frontend.
+  **Status: CORRIGIDO NO CÓDIGO, NÃO VALIDADO CONTRA A EFÍ REAL** — sem credenciais/certificado
+  mTLS nesta sessão.
+- Criar `api/webhooks/efi/route.js`: segredo `?secret=` como primeira barreira, reconsulta
+  `getChargeStatus` antes de aprovar (nunca confia no corpo do webhook), sempre responde 200.
+  **Status: CORRIGIDO E VALIDADO (unitário)** — `tests/unit/webhooks-efi.test.js` (segredo
+  ausente/errado, aprovação, status não confirmado, pedido não encontrado, erro do provedor).
+- Remover `api/webhooks/mercadopago/route.js`, o BR Code manual (`generatePixPayload` com chave PIX e
+  nome do titular hardcoded) e a chamada ao checkout "Cartão de Crédito / Mercado Pago" em
+  `criar/page.jsx` (botão que já estava quebrado antes desta migração — a rota nunca retornou
+  `init_point` mesmo na versão anterior — removido em vez de deixado como dead code confuso).
+  **Status: CORRIGIDO.**
+- Atualizar `.env.example`, `.claude/rules/payments.md`, `docs/ARCHITECTURE.md`,
+  `docs/CODEBASE_MAP.md`, `firestore.rules` (comentário), textos legais
+  (`termos-de-uso`/`politica-de-privacidade`) e criar `docs/EFI_SETUP.md` com o checklist de
+  configuração externa (certificado mTLS, binding Cloudflare, secrets, registro do webhook).
+  **Status: CORRIGIDO.**
+- Criar `scripts/register-efi-webhook.mjs` (script manual, mesmo padrão de `set-admin-claim.mjs`).
+  **Status: CORRIGIDO, NÃO EXECUTADO** (requer certificado e credenciais reais).
+
+**Explicitamente fora de escopo desta migração** (documentado para não ser confundido com bug):
+- Devolução/estorno de Pix (a Efí trata como fluxo separado, `GET /v2/pix/{e2eid}/devolucao`).
+- Coleta de CPF do pagador (`devedor`) — não confirmado se é obrigatório em `PUT /v2/cob/{txid}`; o
+  código só envia esse campo se existir no pedido. Só decidir adicionar ao formulário se o sandbox
+  confirmar a exigência.
+
+**Testes novos:** `tests/unit/efi.test.js` (8 casos), `tests/unit/webhooks-efi.test.js` (6 casos);
+`tests/unit/fetchWithRetry.test.js` adaptado para `src/lib/httpRetry.js`; removido
+`tests/unit/generatePixPayload.test.js` (caracterizava a função manual que deixou de existir). 99
+testes no total.
+
+**Arquivos:** `src/lib/efi.js` (novo), `src/lib/httpRetry.js` (novo),
+`src/app/api/payments/{create,status}/route.js`, `src/app/api/webhooks/efi/route.js` (novo,
+substitui `webhooks/mercadopago/route.js`, removido), `src/lib/payments.js` (comentários),
+`src/app/criar/page.jsx`, `src/app/entrega/page.jsx` (comentários), `.env.example`,
+`.claude/rules/payments.md`, `docs/ARCHITECTURE.md`, `docs/CODEBASE_MAP.md`, `docs/EFI_SETUP.md`
+(novo), `firestore.rules`, `termos-de-uso/page.jsx`, `politica-de-privacidade/page.jsx`,
+`scripts/register-efi-webhook.mjs` (novo).
+
+**Dependências:** nenhuma do FIX_PLAN original — trabalho independente dos Lotes 0-8.
+**Riscos:** build/lint/typecheck/test verdes, mas **nenhuma chamada real à Efí foi feita** (sem
+certificado mTLS nesta sessão) — o caminho crítico de pagamento não pode ser considerado validado
+até um teste em sandbox com o binding Cloudflare configurado (ver `docs/EFI_SETUP.md`).
+**Aceite:** pendente do usuário completar o setup externo e validar uma cobrança de sandbox de
+ponta a ponta antes de trocar `EFI_ENV` para `production`.
+**Rollback:** reverter o commit deste lote (o Mercado Pago precisaria ser reintroduzido do zero — o
+código foi removido, não desativado).
+
+---
+
 ## Ordem recomendada
 
 ```

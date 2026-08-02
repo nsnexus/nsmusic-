@@ -25,6 +25,15 @@ yarn-error.log*
 # vercel
 .vercel
 
+# wrangler (workers/efi-proxy/) — estado local e secrets de dev, nunca versionar
+.wrangler/
+.dev.vars
+.dev.vars.*
+
+# certificado mTLS da Efí (docs/EFI_SETUP.md) — nunca versionar
+*.p12
+*.pem
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

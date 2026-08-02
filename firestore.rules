@@ -13,7 +13,7 @@
 // com o MESMO SDK cliente e a MESMA ausência de identidade privilegiada que o browser. Se estas
 // regras forem publicadas como estão, elas bloqueiam não só o cliente malicioso, mas também:
 //   - as próprias rotas de API que hoje escrevem em `orders`/`suno_tasks` sem estar autenticadas
-//     (webhooks/mercadopago, suno/webhook, orders/create, payments/status, etc.);
+//     (webhooks/efi, suno/webhook, orders/create, payments/status, etc.);
 //   - o painel /admin, que hoje lê a coleção via onSnapshot direto do Firestore;
 //   - a busca rápida (sem login) de /minhas-musicas.
 //

@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "deploy:efi-proxy": "wrangler deploy --config workers/efi-proxy/wrangler.toml"
   },
   "dependencies": {
     "@google/generative-ai": "^0.21.0",
@@ -24,6 +25,7 @@
     "eslint-config-next": "^14.2.3",
     "firebase-admin": "^14.2.0",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.10",
+    "wrangler": "^4.118.0"
   }
 }

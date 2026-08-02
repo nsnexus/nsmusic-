@@ -8,7 +8,7 @@ Add-on de vídeo slideshow: + R$ 6,90.
 
 Next.js 14 App Router · JavaScript puro (sem TypeScript) · React 18 · npm
 Cloudflare Pages **Edge Runtime** (`@cloudflare/next-on-pages`) · Firebase Firestore + Storage
-Integrações: Kie.ai/Suno (música) · OpenAI→Gemini (letra) · Efí (PIX, API real com mTLS) · W-API (WhatsApp)
+Integrações: Kie.ai/Suno (música) · OpenAI→Gemini (letra) · Mercado Pago (PIX) · W-API (WhatsApp)
 
 ## Arquitetura em uma frase
 
@@ -34,9 +34,8 @@ todo merge vai direto a produção.
 src/app/            páginas (/criar, /entrega, /admin, /homenagem, /acompanhar, /minhas-musicas)
 src/app/api/        15 route handlers, todos `runtime = 'edge'`
 src/lib/            db.js · firebase.js · firebase-edge.js · gemini.js · whatsapp.js · videoGenerator.js
-workers/efi-proxy/  Worker Cloudflare separado, só para o hop mTLS até a Efí (ver docs/EFI_SETUP.md)
 docs/               CODEBASE_MAP.md (índice) · ARCHITECTURE.md · audit/
-.claude/rules/      regras por área, com escopo de caminho
+.Codex/rules/      regras por área, com escopo de caminho
 ```
 
 ## Convenções
@@ -64,20 +63,16 @@ O sistema tem **11 vulnerabilidades críticas abertas**, concentradas em pagamen
 Não existe autenticação de servidor em nenhuma rota de API. Ao mexer nessas áreas, verifique se está
 corrigindo ou agravando um item já catalogado.
 
-- Pagamento: `api/payments/*`, `api/webhooks/efi`, `entrega/page.jsx:69` (ver `docs/EFI_SETUP.md`)
+- Pagamento: `api/payments/*`, `api/webhooks/mercadopago`, `entrega/page.jsx:69`
 - Autorização: todas as rotas de `api/orders/*`, páginas de `admin/`
 - Geração: `api/suno/*`, `src/lib/db.js`
 
 ## Fluxo de pagamento (resumido)
 
-Preço calculado no **cliente** (`criar/page.jsx:getTotalPrice`, também revalidado no servidor a
-partir do `sku` em `src/lib/pricing.js`) → `POST /api/payments/create` cria uma cobrança **real** na
-Efí (`src/lib/efi.js:createPixCharge`, com `txid` próprio) → o cliente faz polling em
-`GET /api/payments/status` → a aprovação real converge sempre em
-`src/lib/payments.js:applyPaymentApproval`, chamada tanto por `webhooks/efi` quanto por
-`payments/status` (nunca duplicar a lógica — alterar só esse módulo). A API Pix da Efí exige mTLS em
-toda chamada; como Cloudflare Pages não suporta binding de certificado mTLS (só Workers), esse hop
-passa por um Worker dedicado (`workers/efi-proxy/`) — ver `docs/EFI_SETUP.md` antes de mexer aqui.
+Preço calculado no **cliente** (`criar/page.jsx:getTotalPrice`) → `POST /api/payments/create` gera um
+BR Code PIX **estático** (sem `txid`) → o cliente faz polling em `GET /api/payments/status` → a
+aprovação real é gravada por `webhooks/mercadopago:processPayment` **ou** por
+`payments/status:markOrderApproved` (lógica duplicada nos dois arquivos — alterar sempre os dois).
 
 `paymentStatus` hoje tem 4 valores em uso: `AGUARDANDO_PAGAMENTO`, `PAGAMENTO_APROVADO`, `PAGO`,
 e `PENDENTE` (documentado mas nunca escrito). Trate `PAGAMENTO_APROVADO` e `PAGO` como equivalentes.
@@ -105,11 +100,10 @@ Não há suíte automatizada. O mínimo aceitável hoje:
 | Entender como as peças conversam | `docs/ARCHITECTURE.md` |
 | Saber se um problema já é conhecido | `docs/audit/AUDIT_REPORT.md` |
 | Ordem segura para corrigir | `docs/audit/FIX_PLAN.md` |
-| Regras da área que estou tocando | `.claude/rules/*.md` |
-| Configurar o gateway de pagamento (Efí) | `docs/EFI_SETUP.md` |
+| Regras da área que estou tocando | `.Codex/rules/*.md` |
 
 `.agents/AGENTS.md` é o rulebook legado — ainda útil como registro da intenção original do projeto,
-mas `.claude/rules/` tem precedência quando houver conflito.
+mas `.Codex/rules/` tem precedência quando houver conflito.
 
 ## Ao compactar o contexto, preserve
 

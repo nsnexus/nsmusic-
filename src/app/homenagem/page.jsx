@@ -185,13 +185,16 @@ function HomenagemContent() {
             </div>
           )}
 
-          {/* Botão de Download do Vídeo */}
+          {/* Botão de Download do Vídeo — o atributo `download` do <a> é ignorado pelo navegador
+              para URLs de outra origem (caso do Firebase Storage), então ele só abria o vídeo numa
+              nova aba em vez de baixar. Passando pelo /api/image-proxy (mesma origem), o download
+              funciona de verdade; a extensão também precisa bater com o container real do arquivo
+              (mp4 ou webm — ver src/lib/videoGenerator.js). */}
           {videoUrl && (
             <div style={{ marginTop: '24px', paddingTop: '20px', borderTop: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'center' }}>
               <a
-                href={videoUrl}
-                download={`Homenagem_${honoreeName}.mp4`}
-                target="_blank"
+                href={`/api/image-proxy?url=${encodeURIComponent(videoUrl)}`}
+                download={`Homenagem_${honoreeName}.${videoUrl.split('?')[0].split('.').pop().toLowerCase() === 'webm' ? 'webm' : 'mp4'}`}
                 rel="noopener noreferrer"
                 style={{
                   width: '100%',

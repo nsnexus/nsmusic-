@@ -5,7 +5,7 @@ export const runtime = 'edge';
 
 // Content-Types aceitos na resposta da origem. Qualquer outro (ex: text/html) é rejeitado para
 // evitar que o proxy sirva HTML/JS arbitrário sob o próprio domínio (ver A-05 no AUDIT_REPORT.md).
-const ALLOWED_CONTENT_TYPE_PREFIXES = ['image/', 'audio/', 'application/octet-stream'];
+const ALLOWED_CONTENT_TYPE_PREFIXES = ['image/', 'audio/', 'video/', 'application/octet-stream'];
 
 export async function GET(req) {
   try {

@@ -1,20 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { fetchWithRetry } from '@/lib/httpRetry';
 
-// B-08 no AUDIT_REPORT.md: retry com backoff na consulta ao Mercado Pago dentro do webhook —
-// erro de rede/5xx tenta de novo, erro 4xx (ex: pagamento não encontrado) não adianta repetir.
-
-vi.mock('@/lib/firebase-edge', () => ({ dbEdge: {} }));
-vi.mock('@/lib/payments', () => ({ applyPaymentApproval: vi.fn() }));
-vi.mock('firebase/firestore/lite', () => ({
-  doc: () => ({}),
-  getDoc: async () => ({ exists: () => false }),
-  collection: () => ({}),
-  query: () => ({}),
-  where: () => ({}),
-  getDocs: async () => ({ empty: true, docs: [] }),
-}));
-
-const { fetchWithRetry } = await import('@/app/api/webhooks/mercadopago/route');
+// B-08 no AUDIT_REPORT.md: retry com backoff nas chamadas a provedores externos (webhook/polling de
+// pagamento) — erro de rede/5xx tenta de novo, erro 4xx (ex: recurso não encontrado) não repete.
 
 describe('fetchWithRetry', () => {
   const originalFetch = global.fetch;
@@ -54,5 +42,13 @@ describe('fetchWithRetry', () => {
     global.fetch.mockRejectedValue(new Error('network down'));
     await expect(fetchWithRetry('https://example.com', {}, 1)).rejects.toThrow('network down');
     expect(global.fetch).toHaveBeenCalledTimes(2); // tentativa inicial + 1 retry
+  });
+
+  it('usa o fetchImpl injetado em vez do fetch global quando informado', async () => {
+    const customFetch = vi.fn().mockResolvedValue({ ok: true, status: 200 });
+    const res = await fetchWithRetry('https://example.com', {}, 2, customFetch);
+    expect(res.ok).toBe(true);
+    expect(customFetch).toHaveBeenCalledTimes(1);
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 });

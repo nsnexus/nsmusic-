@@ -5,6 +5,18 @@
 nenhum dado de produção acessado.
 **Escopo:** 43 arquivos de código em `src/` (14.474 linhas), configuração, `.agents/`, dependências.
 
+> **Atualização 2026-08-02 — gateway de pagamento trocado.** O Mercado Pago foi **removido** do
+> projeto depois de dois bloqueios seguidos da conta (o segundo, muito provavelmente, por abertura
+> de conta nova ser tratada como evasão pelo PSP). O gateway atual é a **Efí** (API Pix real, ver
+> `docs/EFI_SETUP.md` e `src/lib/efi.js`). Os itens abaixo que citam "Mercado Pago",
+> `api/webhooks/mercadopago` ou `MERCADO_PAGO_*` descrevem o estado do código em 2026-08-01 e foram
+> **superados pela migração de gateway**, não pelas correções do FIX_PLAN — mantidos como registro
+> histórico: A-01 (assinatura de webhook do MP), B-08 (retry na consulta ao MP, generalizado em
+> `src/lib/httpRetry.js`), M-19 (duplicação de mensagem, já unificada em `whatsappTemplates.js`),
+> B-06 (telefone do admin hardcoded, já corrigido antes da migração), M-22 (dependência `mercadopago`
+> removida do `package.json`). Nenhum item de pagamento novo foi criado para a Efí neste relatório —
+> ver `docs/audit/FIX_PLAN.md` para o registro da migração.
+
 ---
 
 ## 1. Resumo executivo

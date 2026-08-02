@@ -22,9 +22,11 @@ globs:
 
 ## Obrigatório
 
-- Toda alteração na aprovação de pagamento deve ser aplicada **nos dois** arquivos que a implementam:
-  `api/webhooks/mercadopago/route.js:processPayment` e `api/payments/status/route.js:markOrderApproved`.
-  Se estiver criando código novo, prefira extrair para `src/lib/payments.js` e chamar dos dois.
+- A aprovação de pagamento é centralizada em `src/lib/payments.js:applyPaymentApproval`, consumida
+  por `api/webhooks/efi/route.js` e por `api/payments/status/route.js` — qualquer alteração na regra
+  de aprovação vai nesse módulo, nunca duplicada nos dois pontos de chamada.
+- Gateway atual: **Efí** (API Pix real, ver `docs/EFI_SETUP.md` e `src/lib/efi.js`). O Mercado Pago
+  foi removido após dois bloqueios de conta — não reintroduzir sem decisão explícita do usuário.
 - Webhook sempre responde `200`, mesmo em erro, para não gerar retentativa infinita.
 - Efeito colateral (WhatsApp, e-mail) sempre isolado em `try/catch` próprio — falha de notificação
   nunca pode impedir a gravação da aprovação.

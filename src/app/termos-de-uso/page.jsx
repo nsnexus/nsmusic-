@@ -58,7 +58,7 @@ export default function TermsOfUse() {
                 Os preços para cada pacote (Essencial, Presente Completo e Multi-Estilos) e seus adicionais (addons) estão claramente discriminados no formulário de contratação e no checkout antes de efetuar a compra.
               </p>
               <p style={styles.paragraph}>
-                Os pagamentos são processados pela plataforma integrada do <strong>Mercado Pago</strong>, aceitando cartões de crédito, Pix e outros métodos suportados. A produção da música só será iniciada após a confirmação integral de recebimento do pagamento pelo Mercado Pago.
+                Os pagamentos são processados via Pix pela plataforma integrada da <strong>Efí</strong>. A produção da música só será iniciada após a confirmação integral de recebimento do pagamento.
               </p>
             </div>
 
@@ -96,7 +96,7 @@ export default function TermsOfUse() {
             <div style={styles.section}>
               <h2 style={styles.sectionTitle}>7. Limitação de Responsabilidade</h2>
               <p style={styles.paragraph}>
-                A NSMusic não se responsabiliza por eventuais falhas decorrentes da instabilidade de serviços de terceiros (como a API do Suno, Mercado Pago ou instabilidades de rede do próprio cliente). Faremos o melhor esforço para contornar qualquer falha técnica e entregar o seu produto no menor prazo possível.
+                A NSMusic não se responsabiliza por eventuais falhas decorrentes da instabilidade de serviços de terceiros (como a API do Suno, a Efí ou instabilidades de rede do próprio cliente). Faremos o melhor esforço para contornar qualquer falha técnica e entregar o seu produto no menor prazo possível.
               </p>
             </div>
           </div>

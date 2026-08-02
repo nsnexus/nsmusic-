@@ -32,11 +32,11 @@ graph TD
 
     E --> KIE["Kie.ai / Suno<br/>(webhook autenticado por segredo)"]
     E --> AI["OpenAI → Gemini"]
-    E --> MP["Mercado Pago<br/>(webhook valida x-signature se configurado)"]
+    E --> EFI["Efí — API Pix<br/>(mTLS obrigatório em toda chamada)"]
     E --> WA["W-API WhatsApp"]
 
     KIE -.->|"callback"| E
-    MP -.->|"webhook"| E
+    EFI -.->|"webhook"| E
 
     style FS fill:#4a2020,stroke:#c04040
     style B fill:#2a3a52,stroke:#5588cc
@@ -55,8 +55,9 @@ AUDIT_REPORT.md, corrigidos no Lote 2).
 | Browser → API (rotas públicas) | `fetch` JSON, sem credenciais | Por design — usadas durante a criação/pagamento por qualquer visitante |
 | Browser → Firestore | SDK cliente, config `NEXT_PUBLIC_*` | Leitura com `where`; escrita restante é metadado não-sensível (ver acima) |
 | Edge → Firestore | `firebase/firestore/lite` | Mesma identidade anônima do browser — sem identidade de serviço |
-| Edge → externos | `fetch` com `Bearer` + `AbortSignal.timeout()` (B-08); retry com backoff no webhook do MP | Segredos via `getRequestContext().env` com fallback `process.env`, nunca hardcoded |
-| Mercado Pago → Edge | Webhook POST e GET (IPN) | Valida `x-signature` se `MERCADO_PAGO_WEBHOOK_SECRET` estiver configurado (A-01); reconsulta à API do MP como segunda barreira |
+| Edge → externos | `fetch` com `Bearer` + `AbortSignal.timeout()` (B-08); retry com backoff (`src/lib/httpRetry.js`) | Segredos via `getRequestContext().env` com fallback `process.env`, nunca hardcoded |
+| Edge → Worker `efi-proxy` → Efí | `fetch` HTTPS simples até um Worker dedicado (`workers/efi-proxy/`, segredo `EFI_PROXY_SECRET`), que detém o binding `EFI_MTLS_CERT` e repassa com **mTLS** | Cloudflare Pages não suporta binding mTLS (só Workers); toda chamada (OAuth2, criar cobrança, consultar status) exige o certificado — ver `docs/EFI_SETUP.md` |
+| Efí → Edge | Webhook POST (`api/webhooks/efi`) | Segredo `?secret=` na URL como primeira barreira; nunca aprova sem reconsultar `GET /v2/cob/{txid}` na mesma requisição |
 | Kie.ai → Edge | Webhook POST | Exige `?secret=` na URL de callback se `KIE_WEBHOOK_SECRET` estiver configurado (A-03) |
 
 ## 3. Decisões arquiteturais
@@ -69,13 +70,16 @@ AUDIT_REPORT.md, corrigidos no Lote 2).
 3. **Geração antes do pagamento.** A música é produzida assim que a letra é aprovada; o pagamento
    apenas libera o download. Continua sendo um risco de abuso de custo de API — mitigado
    parcialmente por A-11 (limite de prévias grátis agora reforçado no servidor).
-4. **PIX manual.** BR Code montado à mão em `src/lib/pricing.js` + `api/payments/create/route.js`,
-   agora com `txid` único por cobrança (A-10) — antes era fixo (`***`), tornando os pagamentos
-   conciliáveis manualmente (ainda não há conciliação automática por API do PIX, só Mercado Pago
-   para o fluxo de cartão/legado).
+4. **PIX via API real (Efí), não mais estático.** Até 2026-08, o PIX era um BR Code montado à mão
+   (chave PIX hardcoded no código-fonte) sem nenhum gateway de fato, com aprovação manual pelo
+   painel admin — bypass adotado depois de dois bloqueios seguidos da conta do Mercado Pago (o
+   segundo, muito provavelmente, por abertura de conta nova ser tratada como evasão pelo PSP).
+   Migrado para a API Pix da Efí (`src/lib/efi.js`): cobrança real via `PUT /v2/cob/{txid}`,
+   confirmação via webhook (`api/webhooks/efi`) + polling, ambos reconsultando `GET /v2/cob/{txid}`
+   antes de aprovar. Exige mTLS em toda chamada — ver `docs/EFI_SETUP.md`.
 5. **Confirmação de pagamento unificada.** `src/lib/payments.js:applyPaymentApproval` é o único
-   ponto de aprovação (M-18), consumido pelo webhook e pelo polling, com `runTransaction` para
-   idempotência (A-09) e tratamento de estornos/cancelamentos.
+   ponto de aprovação (M-18), consumido pelo webhook da Efí e pelo polling, com `runTransaction`
+   para idempotência (A-09) e tratamento de estornos/cancelamentos.
 6. **Renderização de vídeo no cliente.** Evita infraestrutura de encoding, mas amarra o resultado ao
    desempenho e à aba aberta do dispositivo do usuário. Código agora carregado via `import()`
    dinâmico (code splitting, Lote 6) em vez de estático.
@@ -85,6 +89,13 @@ AUDIT_REPORT.md, corrigidos no Lote 2).
 
 ## 4. Pontos críticos remanescentes
 
+- **Migração para a Efí pendente de configuração externa.** O código está pronto, mas só funciona
+  depois do Worker `workers/efi-proxy/` ser deployado com o certificado mTLS vinculado
+  (`EFI_MTLS_CERT`, via `wrangler mtls-certificate upload` — binding exclusivo de Workers, não existe
+  para Pages) e dos secrets/env vars (`EFI_CLIENT_ID`, `EFI_CLIENT_SECRET`, `EFI_PIX_KEY`,
+  `EFI_PROXY_URL`, `EFI_PROXY_SECRET`, `EFI_WEBHOOK_SECRET`) serem cadastrados — ver
+  `docs/EFI_SETUP.md`. Não foi testado contra a API real nesta sessão (sem credenciais). Devolução/
+  estorno de Pix também não foi implementado (fora de escopo desta rodada).
 - **Sem identidade de servidor ao nível do Firestore.** As rotas de API continuam sendo, do ponto de
   vista do Firestore, apenas mais um cliente anônimo — a autorização que existe hoje é toda
   implementada nas rotas (verificação de token), não nas regras do banco. Publicar
@@ -122,6 +133,9 @@ verdade em 2026-08-01 e **foram corrigidos** — mantidos aqui só para não rei
 
 Em ordem de retorno sobre esforço:
 
+0. **Concluir o setup da Efí** (`docs/EFI_SETUP.md`) e validar o fluxo completo em sandbox antes de
+   trocar `EFI_ENV` para `production` — hoje é o item bloqueador para qualquer venda real voltar a
+   funcionar de forma automática.
 1. **Resolver a identidade de servidor** (custom claim `admin:true` já suportado no código — falta
    rodar `scripts/set-admin-claim.mjs` com credenciais reais — e uma identidade de "serviço" para as
    rotas de API, para então poder publicar `firestore.rules`).
