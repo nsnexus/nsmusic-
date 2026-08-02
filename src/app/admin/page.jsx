@@ -525,15 +525,15 @@ export default function AdminDashboard() {
               <div style={styles.metricsGrid}>
                 <div style={styles.metricCard}>
                   <span style={styles.metricLabel}>Total (Músicas + Vídeos)</span>
-                  <h2 style={{ ...styles.metricValue, color: '#059669' }}>R$ {getFaturamentoTotal().toFixed(2)}</h2>
+                  <h2 style={{ ...styles.metricValue, color: '#059669' }}>R$ {getFaturamentoTotal().toFixed(2).replace('.', ',')}</h2>
                 </div>
                 <div style={styles.metricCard}>
                   <span style={styles.metricLabel}>Músicas (R$ 9,99)</span>
-                  <h2 style={{ ...styles.metricValue, color: '#0f172a' }}>R$ {getFaturamentoMusicas().toFixed(2)}</h2>
+                  <h2 style={{ ...styles.metricValue, color: '#0f172a' }}>R$ {getFaturamentoMusicas().toFixed(2).replace('.', ',')}</h2>
                 </div>
                 <div style={styles.metricCard}>
                   <span style={styles.metricLabel}>Vídeos (R$ 6,90)</span>
-                  <h2 style={{ ...styles.metricValue, color: '#7c3aed' }}>R$ {getFaturamentoVideos().toFixed(2)}</h2>
+                  <h2 style={{ ...styles.metricValue, color: '#7c3aed' }}>R$ {getFaturamentoVideos().toFixed(2).replace('.', ',')}</h2>
                 </div>
                 <div style={styles.metricCard}>
                   <span style={styles.metricLabel}>Pedidos (Total)</span>
@@ -729,8 +729,18 @@ export default function AdminDashboard() {
                               <td style={{ ...styles.td, textTransform: 'capitalize', color: '#334155' }}>
                                 {o.package || 'Promo 2 Músicas'}
                               </td>
-                              <td style={{ ...styles.td, fontWeight: '700', color: '#059669' }}>
-                                R$ {(Number(o.total) || 9.99).toFixed(2)}
+                              <td style={{ ...styles.td, fontWeight: '700' }}>
+                                {(() => {
+                                  const isPaidOrder = o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'PAGO';
+                                  // Mesma resolução da soma do topo (expectedAmount do servidor, com
+                                  // fallback pro total antigo) — nunca um valor fixo de 9,99 quando o
+                                  // real é desconhecido, isso mascarava pedidos sem valor gravado e
+                                  // fazia a lista "parecer" ter mais faturamento do que a soma real.
+                                  const amount = Number(o.expectedAmount) || Number(o.total) || null;
+                                  if (!isPaidOrder) return <span style={{ color: '#94a3b8' }}>Não pago</span>;
+                                  if (amount === null) return <span style={{ color: '#d97706' }}>Valor desconhecido</span>;
+                                  return <span style={{ color: '#059669' }}>R$ {amount.toFixed(2).replace('.', ',')}</span>;
+                                })()}
                               </td>
                               <td style={styles.td}>
                                 <span style={{ ...styles.statusBadge, border: `1px solid ${getStatusBadgeColor(o.paymentStatus)}44`, color: getStatusBadgeColor(o.paymentStatus), backgroundColor: `${getStatusBadgeColor(o.paymentStatus)}10` }}>

@@ -285,13 +285,13 @@ export default function Home() {
                   flexDirection: 'column', 
                   gap: '14px', 
                   background: playingId === item.id
-                    ? 'linear-gradient(145deg, #F7E9DD 0%, #FBEFDF 100%)'
+                    ? 'linear-gradient(145deg, #EEF0FE 0%, #FDF0F7 100%)'
                     : '#FFFDF9',
                   borderColor: playingId === item.id
                     ? 'var(--primary)'
                     : 'var(--border-color)',
                   boxShadow: playingId === item.id
-                    ? '0 12px 35px rgba(181, 80, 46, 0.2)'
+                    ? '0 12px 35px rgba(79, 70, 229, 0.2)'
                     : 'var(--card-shadow)',
                   position: 'relative' 
                 }}
@@ -314,7 +314,7 @@ export default function Home() {
                     position: 'absolute', 
                     inset: 0, 
                     background: playingId === item.id 
-                      ? 'rgba(181, 80, 46, 0.25)'
+                      ? 'rgba(79, 70, 229, 0.25)'
                       : 'rgba(0, 0, 0, 0.2)', 
                     display: 'flex', 
                     alignItems: 'center', 
@@ -387,9 +387,9 @@ export default function Home() {
               padding: '40px 24px', 
               borderRadius: '24px', 
               border: '2px solid var(--primary)', 
-              background: 'linear-gradient(135deg, #F7E9DD 0%, #FBEFDF 100%)',
+              background: 'linear-gradient(135deg, #EEF0FE 0%, #FDF0F7 100%)',
               textAlign: 'center',
-              boxShadow: '0 20px 40px rgba(181, 80, 46, 0.12)'
+              boxShadow: '0 20px 40px rgba(79, 70, 229, 0.12)'
             }}
           >
             <span style={{ background: 'var(--primary)', color: '#FFFDF9', padding: '6px 16px', borderRadius: '20px', fontWeight: '800', fontSize: '0.82rem', letterSpacing: '0.5px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
@@ -424,8 +424,8 @@ export default function Home() {
               ))}
             </ul>
 
-            <Link href="/criar" className="btn btn-primary" style={{ fontSize: '1.15rem', padding: '16px 40px', width: '100%', maxWidth: '420px', marginTop: '10px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-              <Gift size={20} aria-hidden="true" /> Garantir minhas 2 músicas por R$ 9,99
+            <Link href="/criar" className="btn btn-primary" style={{ fontSize: '1.05rem', padding: '16px 32px', width: '100%', maxWidth: '560px', marginTop: '10px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px', textAlign: 'center', whiteSpace: 'normal' }}>
+              <Gift size={20} style={{ flexShrink: 0 }} aria-hidden="true" /> Garantir minhas 2 músicas por R$ 9,99
             </Link>
           </div>
         </div>
@@ -452,7 +452,7 @@ export default function Home() {
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: '2px', color: '#B5502E' }} aria-label={`${item.rating} de 5 estrelas`}>
+                <div style={{ display: 'flex', gap: '2px', color: '#EC4899' }} aria-label={`${item.rating} de 5 estrelas`}>
                   {Array.from({ length: item.rating }).map((_, i) => (
                     <Star key={i} size={16} fill="currentColor" strokeWidth={0} aria-hidden="true" />
                   ))}
@@ -545,7 +545,7 @@ const styles = {
     borderTop: 'none',
     borderLeft: 'none',
     borderRight: 'none',
-    backgroundColor: 'rgba(251, 246, 239, 0.9)',
+    backgroundColor: 'rgba(247, 248, 252, 0.9)',
   },
   headerContainer: {
     maxWidth: '1200px',
@@ -574,7 +574,7 @@ const styles = {
     position: 'absolute',
     width: '500px',
     height: '500px',
-    background: 'radial-gradient(circle, rgba(181, 80, 46, 0.12) 0%, transparent 70%)',
+    background: 'radial-gradient(circle, rgba(79, 70, 229, 0.12) 0%, transparent 70%)',
     top: '-150px',
     left: 'calc(50% - 250px)',
     pointerEvents: 'none',
@@ -596,7 +596,7 @@ const styles = {
     marginBottom: '20px',
     color: 'var(--primary)',
     backgroundColor: 'var(--primary-light)',
-    border: '1px solid rgba(181, 80, 46, 0.2)',
+    border: '1px solid rgba(79, 70, 229, 0.2)',
   },
   heroTitle: {
     fontSize: '2.5rem',

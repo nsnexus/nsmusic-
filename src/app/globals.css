@@ -1,40 +1,44 @@
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Work+Sans:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800;900&family=Work+Sans:wght@400;500;600;700;800&display=swap');
 
 :root {
-  /* Paleta quente — papel/creme em vez de cinza-azulado, terracota em vez de roxo-rosa técnico
-     (auditoria de identidade visual, 2026-08-02: a paleta anterior lia como "template de IA
-     genérico"). Ver docs/CODEBASE_MAP.md para onde essas variáveis são consumidas. */
-  --bg-primary: #FBF6EF;
-  --bg-secondary: #F5EBDC;
-  --bg-tertiary: #EDDFC7;
-  --card-bg: #FFFDF9;
+  /* Paleta alinhada à logo (pedido do usuário, 2026-08-02): azul → roxo → rosa, ecoando o
+     degradê do "NS" e o fundo navy do ícone. Fundo da página continua claro/neutro por legibilidade
+     — o navy da logo aparece como destaque pontual (hero, glows), não como tema do site inteiro. */
+  --bg-primary: #F7F8FC;
+  --bg-secondary: #EEF0FA;
+  --bg-tertiary: #E2E5F5;
+  --card-bg: #FFFFFF;
 
-  /* Brand colors */
-  --primary: #B5502E;
-  --primary-glow: rgba(181, 80, 46, 0.18);
-  --primary-hover: #9A3F22;
-  --primary-light: #F7E9DD;
+  /* Brand colors — tons extraídos da logo (azul vívido → magenta) */
+  --primary: #4F46E5;
+  --primary-glow: rgba(79, 70, 229, 0.18);
+  --primary-hover: #4136C4;
+  --primary-light: #EEF0FE;
 
-  --secondary: #C9793F;
-  --secondary-glow: rgba(201, 121, 63, 0.18);
-  --secondary-light: #FBEFDF;
+  --secondary: #EC4899;
+  --secondary-glow: rgba(236, 72, 153, 0.18);
+  --secondary-light: #FDF0F7;
 
-  --accent: #8A5A2E;
-  --accent-light: #F1E4D3;
+  --accent: #0EA5C4;
+  --accent-light: #E6F8FB;
+
+  /* Cor "navy" da logo, usada em fundos escuros pontuais (ex: hero) — não é o fundo padrão do site */
+  --brand-navy: #170F3D;
+  --brand-navy-2: #241653;
 
   /* Statuses */
-  --success: #4B7A3F;
-  --success-bg: #EEF5E9;
-  --warning: #B5502E;
-  --warning-bg: #FBEFDF;
-  --danger: #B03A2E;
-  --danger-bg: #FBEAE7;
+  --success: #059669;
+  --success-bg: #ECFDF5;
+  --warning: #D97706;
+  --warning-bg: #FFFBEB;
+  --danger: #DC2626;
+  --danger-bg: #FEF2F2;
 
   /* Text colors */
-  --text-primary: #3A2E22;
-  --text-secondary: #6B5D4D;
-  --text-muted: #8A7A65;
-  --text-inverse: #FBF6EF;
+  --text-primary: #14132B;
+  --text-secondary: #454467;
+  --text-muted: #78778E;
+  --text-inverse: #FFFFFF;
 
   /* Borders & Shadows */
   --border-radius-sm: 10px;
@@ -42,18 +46,18 @@
   --border-radius-lg: 24px;
   --border-radius-full: 9999px;
 
-  --border-color: #E3D5BE;
-  --border-color-hover: #D8C6AC;
+  --border-color: #E2E5F5;
+  --border-color-hover: #CBCFEB;
 
-  --card-shadow: 0 10px 26px -6px rgba(58, 46, 34, 0.08), 0 4px 10px -2px rgba(58, 46, 34, 0.05);
-  --card-shadow-hover: 0 18px 36px -8px rgba(58, 46, 34, 0.14), 0 8px 20px -4px rgba(58, 46, 34, 0.08);
+  --card-shadow: 0 10px 28px -6px rgba(79, 70, 229, 0.08), 0 4px 10px -2px rgba(20, 19, 43, 0.05);
+  --card-shadow-hover: 0 18px 38px -8px rgba(79, 70, 229, 0.16), 0 8px 20px -4px rgba(20, 19, 43, 0.08);
 
-  --glass-bg: rgba(255, 253, 249, 0.9);
-  --glass-border: rgba(227, 213, 190, 0.7);
-  --glass-shadow: 0 8px 28px 0 rgba(58, 46, 34, 0.06);
+  --glass-bg: rgba(255, 255, 255, 0.9);
+  --glass-border: rgba(226, 229, 245, 0.7);
+  --glass-shadow: 0 8px 28px 0 rgba(79, 70, 229, 0.08);
 
-  /* Fonts — Fraunces (serifada, tom de carta pessoal) nos títulos, Work Sans no corpo */
-  --font-family-title: 'Fraunces', Georgia, 'Times New Roman', serif;
+  /* Fonts — Outfit (geométrica, robusta) nos títulos ecoa o peso do wordmark da logo; Work Sans no corpo */
+  --font-family-title: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-family-body: 'Work Sans', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
@@ -110,15 +114,15 @@ a {
 }
 
 .glass-card:hover {
-  border-color: rgba(181, 80, 46, 0.35);
+  border-color: rgba(79, 70, 229, 0.3);
   transform: translateY(-3px);
   box-shadow: var(--card-shadow-hover);
 }
 
-/* Acento tipográfico sutil — dois tons próximos (terracota → âmbar), não o gradiente roxo-rosa de
-   3 paradas que lia como template de IA genérico (ver auditoria de identidade visual, 2026-08-02). */
+/* Degradê azul → magenta, o mesmo do "NS" na logo (pedido do usuário, 2026-08-02: "algo mais
+   próximo da logo, que combine com ela"). */
 .gradient-text {
-  background: linear-gradient(120deg, #B5502E 0%, #C9793F 100%);
+  background: linear-gradient(120deg, #4F46E5 0%, #8B5CF6 55%, #EC4899 100%);
   background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -126,7 +130,7 @@ a {
 }
 
 .gradient-bg {
-  background: var(--primary);
+  background: linear-gradient(135deg, #4F46E5 0%, #EC4899 100%);
 }
 
 /* Standard Buttons & Hover interactions */
@@ -150,17 +154,18 @@ a {
   touch-action: manipulation;
 }
 
-/* Cor sólida em vez de gradiente de 3 paradas — mais editorial, menos "botão de SaaS gerado por IA". */
+/* Degradê azul → magenta igual ao da logo — aqui faz sentido ser gradiente (não é genérico, é a
+   marca de verdade), diferente da paleta anterior onde o gradiente não tinha motivo nenhum. */
 .btn-primary {
-  background: var(--primary);
-  color: #FFFDF9;
-  box-shadow: 0 6px 18px rgba(181, 80, 46, 0.3);
+  background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 55%, #EC4899 100%);
+  color: #FFFFFF;
+  box-shadow: 0 6px 18px rgba(79, 70, 229, 0.35);
 }
 
 .btn-primary:hover {
   transform: translateY(-2px) scale(1.01);
-  box-shadow: 0 10px 24px rgba(181, 80, 46, 0.38);
-  background: var(--primary-hover);
+  box-shadow: 0 10px 26px rgba(79, 70, 229, 0.45);
+  background: linear-gradient(135deg, #4136C4 0%, #6D28D9 55%, #DB2777 100%);
 }
 
 .btn-primary:active {
