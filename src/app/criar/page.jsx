@@ -546,7 +546,12 @@ export default function CriarMusica() {
 
     const reader = new FileReader();
     reader.onload = (event) => {
-      const img = new Image();
+      // window.Image (não `new Image()`) — o identificador `Image` neste arquivo é o componente do
+      // next/image importado no topo, que sombreia o construtor nativo do navegador. Chamar
+      // `new Image()" aqui invocava o componente React em vez do <img> nativo, e o TypeError
+      // resultante ("is not a constructor") só aparecia no overlay de dev do Next, nunca em
+      // console.error — por isso o upload de capa parecia simplesmente não fazer nada.
+      const img = new window.Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');
         const MAX_WIDTH = 800;

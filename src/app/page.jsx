@@ -2,6 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { Sparkles, Gift, Headphones, Star, Clock, ShieldCheck, Music, Flame, Check, ChevronDown, Heart } from 'lucide-react';
 
 export default function Home() {
   const [playingId, setPlayingId] = useState(null);
@@ -43,26 +44,27 @@ export default function Home() {
   const testimonials = [
     {
       name: 'Mariana & Lucas',
-      photo: 'https://images.unsplash.com/photo-1522529599102-193c0d76b5b6?q=80&w=300&auto=format&fit=crop',
       relation: 'Presente de Aniversário de Casamento',
       rating: 5,
       comment: 'Minha esposa chorou do início ao fim quando tocou a música no jantar! A letra citava nossa viagem a Gramado e o dia que nos conhecemos. Inesquecível!'
     },
     {
       name: 'Carlos Eduardo',
-      photo: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=300&auto=format&fit=crop',
       relation: 'Homenagem para o Pai (60 Anos)',
       rating: 5,
       comment: 'Fiz a música para os 60 anos do meu pai. Quando ele ouviu a voz cantando o nome dele e da nossa família, todo mundo na festa se emocionou. Vale cada centavo!'
     },
     {
       name: 'Fernanda & Gabriel',
-      photo: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?q=80&w=300&auto=format&fit=crop',
       relation: 'Declaração de Aniversário de Namoro',
       rating: 5,
       comment: 'Surpreendente! Recebi 2 versões incrivelmente bem gravadas em ritmos diferentes. O atendimento e a rapidez na entrega foram nota 10!'
     }
   ];
+
+  // Iniciais em vez de foto de banco de imagens — os depoimentos citam nomes reais de clientes,
+  // usar rosto de banco de imagens junto seria enganoso (auditoria de identidade visual, 2026-08-02).
+  const getInitials = (name) => name.split(/[\s&]+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
 
   const stopAudio = () => {
     if (audioRef.current) {
@@ -157,8 +159,8 @@ export default function Home() {
           </nav>
 
           <div style={styles.headerActions}>
-            <Link href="/minhas-musicas" className="btn btn-secondary desktop-only" style={{ padding: '8px 14px', fontSize: '0.85rem', minHeight: '38px' }}>
-              🎵 Minhas Músicas
+            <Link href="/minhas-musicas" className="btn btn-secondary desktop-only" style={{ padding: '8px 14px', fontSize: '0.85rem', minHeight: '38px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+              <Music size={15} aria-hidden="true" /> Minhas Músicas
             </Link>
             <Link href="/criar" className="btn btn-primary" style={{ padding: '8px 16px', fontSize: '0.85rem', minHeight: '38px', whiteSpace: 'nowrap' }}>
               Criar R$ 9,99
@@ -190,10 +192,10 @@ export default function Home() {
           
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%', maxWidth: '280px', marginTop: '12px' }}>
             <Link href="/criar" className="btn btn-primary" style={{ width: '100%' }} onClick={() => setMobileMenuOpen(false)}>
-              Criar 2 Músicas por R$ 9,99 🚀
+              Criar 2 Músicas por R$ 9,99
             </Link>
-            <Link href="/minhas-musicas" className="btn btn-secondary" style={{ width: '100%' }} onClick={() => setMobileMenuOpen(false)}>
-              🎵 Acessar Minhas Músicas
+            <Link href="/minhas-musicas" className="btn btn-secondary" style={{ width: '100%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }} onClick={() => setMobileMenuOpen(false)}>
+              <Music size={16} aria-hidden="true" /> Acessar Minhas Músicas
             </Link>
           </div>
         </div>
@@ -203,31 +205,32 @@ export default function Home() {
       <section style={styles.hero}>
         <div style={styles.heroBgGlow} />
         <div className="container" style={styles.heroContainer}>
-          <div style={styles.heroBadge} className="glass-card">
-            <span>✨ Estúdio de Produção Musical com IA de Alta Definição</span>
+          <div style={{ ...styles.heroBadge, display: 'inline-flex', alignItems: 'center', gap: '8px' }} className="glass-card">
+            <Sparkles size={15} aria-hidden="true" />
+            <span>Estúdio de produção musical com IA, feito com carinho</span>
           </div>
-          
+
           <h1 style={styles.heroTitle}>
-            Sua História contada em uma <span className="gradient-text">Canção Inesquecível</span>
+            A história de vocês, em uma <span className="gradient-text">canção só sua</span>
           </h1>
 
           <p style={styles.heroSubtitle}>
-            Transforme momentos, nomes e sentimentos em uma música gravada em estúdio profissional. Escolha o estilo musical e receba <strong>2 Arranjos Exclusivos em MP3 HD</strong> com capa digital para emocionar quem você ama.
+            Transforme momentos, nomes e sentimentos em uma música gravada em estúdio profissional. Escolha o estilo musical e receba <strong>2 arranjos exclusivos em MP3 HD</strong> com capa digital para emocionar quem você ama.
           </p>
 
           <div style={styles.heroActions}>
-            <Link href="/criar" className="btn btn-primary" style={styles.heroPrimaryCta}>
-              Criar 2 Músicas por R$ 9,99 🎁
+            <Link href="/criar" className="btn btn-primary" style={{ ...styles.heroPrimaryCta, display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+              <Gift size={18} aria-hidden="true" /> Criar 2 músicas por R$ 9,99
             </Link>
-            <a href="#exemplos" className="btn btn-secondary" style={styles.heroSecondaryCta}>
-              🎧 Ouvir Amostras
+            <a href="#exemplos" className="btn btn-secondary" style={{ ...styles.heroSecondaryCta, display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+              <Headphones size={18} aria-hidden="true" /> Ouvir amostras
             </a>
           </div>
 
           <div style={styles.heroTrust}>
-            <span>⭐ +2.400 Músicas Produzidas</span>
-            <span>⚡ Entrega Rápida</span>
-            <span>🔒 Garantia de Aprovação</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><Heart size={15} aria-hidden="true" /> +2.400 músicas produzidas</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><Clock size={15} aria-hidden="true" /> Entrega rápida</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><ShieldCheck size={15} aria-hidden="true" /> Garantia de aprovação</span>
           </div>
         </div>
       </section>
@@ -266,7 +269,7 @@ export default function Home() {
       <section id="exemplos" ref={examplesSectionRef} style={styles.sectionAlt}>
         <div className="container">
           <div style={styles.sectionHeader}>
-            <h2 style={styles.sectionTitle}>Músicas Demonstrativas 🎧</h2>
+            <h2 style={styles.sectionTitle}>Músicas demonstrativas</h2>
             <p style={styles.sectionSubtitle}>Ouça a qualidade dos arranjos e a emoção das vozes produzidas pelo nosso estúdio.</p>
           </div>
 
@@ -281,14 +284,14 @@ export default function Home() {
                   display: 'flex', 
                   flexDirection: 'column', 
                   gap: '14px', 
-                  background: playingId === item.id 
-                    ? 'linear-gradient(145deg, #F5F3FF 0%, #FDF2F8 100%)' 
-                    : '#FFFFFF',
-                  borderColor: playingId === item.id 
-                    ? 'var(--primary)' 
+                  background: playingId === item.id
+                    ? 'linear-gradient(145deg, #F7E9DD 0%, #FBEFDF 100%)'
+                    : '#FFFDF9',
+                  borderColor: playingId === item.id
+                    ? 'var(--primary)'
                     : 'var(--border-color)',
-                  boxShadow: playingId === item.id 
-                    ? '0 12px 35px rgba(124, 58, 237, 0.2)' 
+                  boxShadow: playingId === item.id
+                    ? '0 12px 35px rgba(181, 80, 46, 0.2)'
                     : 'var(--card-shadow)',
                   position: 'relative' 
                 }}
@@ -311,7 +314,7 @@ export default function Home() {
                     position: 'absolute', 
                     inset: 0, 
                     background: playingId === item.id 
-                      ? 'rgba(124, 58, 237, 0.25)' 
+                      ? 'rgba(181, 80, 46, 0.25)'
                       : 'rgba(0, 0, 0, 0.2)', 
                     display: 'flex', 
                     alignItems: 'center', 
@@ -325,8 +328,8 @@ export default function Home() {
                         height: '60px',
                         borderRadius: '50%',
                         border: 'none',
-                        background: playingId === item.id ? 'linear-gradient(135deg, #7C3AED 0%, #EC4899 100%)' : '#FFFFFF',
-                        color: playingId === item.id ? '#FFFFFF' : '#7C3AED',
+                        background: playingId === item.id ? 'var(--primary)' : '#FFFFFF',
+                        color: playingId === item.id ? '#FFFFFF' : 'var(--primary)',
                         fontSize: '1.4rem',
                         cursor: 'pointer',
                         display: 'flex',
@@ -358,7 +361,7 @@ export default function Home() {
                 {playingId === item.id && (
                   <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     <div style={{ width: '100%', height: '6px', background: '#E2E8F0', borderRadius: '10px', overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${audioProgress}%`, background: 'linear-gradient(90deg, #7C3AED 0%, #EC4899 100%)', transition: 'width 0.1s linear' }} />
+                      <div style={{ height: '100%', width: `${audioProgress}%`, background: 'var(--primary)', transition: 'width 0.1s linear' }} />
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem' }}>
                       <span style={{ color: 'var(--success)', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -384,13 +387,13 @@ export default function Home() {
               padding: '40px 24px', 
               borderRadius: '24px', 
               border: '2px solid var(--primary)', 
-              background: 'linear-gradient(135deg, #F5F3FF 0%, #FDF2F8 100%)',
+              background: 'linear-gradient(135deg, #F7E9DD 0%, #FBEFDF 100%)',
               textAlign: 'center',
-              boxShadow: '0 20px 40px rgba(124, 58, 237, 0.12)'
+              boxShadow: '0 20px 40px rgba(181, 80, 46, 0.12)'
             }}
           >
-            <span style={{ background: '#F59E0B', color: '#FFFFFF', padding: '6px 16px', borderRadius: '20px', fontWeight: '800', fontSize: '0.82rem', letterSpacing: '0.5px' }}>
-              🔥 OFERTA PROMOCIONAL POR TEMPO LIMITADO
+            <span style={{ background: 'var(--primary)', color: '#FFFDF9', padding: '6px 16px', borderRadius: '20px', fontWeight: '800', fontSize: '0.82rem', letterSpacing: '0.5px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+              <Flame size={14} aria-hidden="true" /> OFERTA POR TEMPO LIMITADO
             </span>
             
             <h2 style={{ fontSize: '2.2rem', fontWeight: '900', marginTop: '16px', color: 'var(--text-primary)' }}>
@@ -406,16 +409,23 @@ export default function Home() {
               </span>
             </div>
 
-            <ul style={styles.offerList}>
-              <li>✅ <strong>2 Músicas Completas em Estilos Diferentes</strong> (Versão 1 + Versão 2 Bônus)</li>
-              <li>✅ Download ilimitado dos áudios em altíssima qualidade (MP3 HD)</li>
-              <li>✅ Capa Digital Personalizada do Álbum</li>
-              <li>✅ Alterações gratuitas ilimitadas na composição</li>
-              <li>✅ Liberação imediata após confirmação do PIX/Cartão</li>
+            <ul style={{ ...styles.offerList, listStyle: 'none', padding: 0 }}>
+              {[
+                <><strong>2 músicas completas em estilos diferentes</strong> (versão 1 + versão 2 bônus)</>,
+                'Download ilimitado dos áudios em altíssima qualidade (MP3 HD)',
+                'Capa digital personalizada do álbum',
+                'Alterações gratuitas ilimitadas na composição',
+                'Liberação imediata após confirmação do PIX',
+              ].map((text, idx) => (
+                <li key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '8px' }}>
+                  <Check size={18} color="var(--success)" style={{ flexShrink: 0, marginTop: '2px' }} aria-hidden="true" />
+                  <span>{text}</span>
+                </li>
+              ))}
             </ul>
 
-            <Link href="/criar" className="btn btn-primary" style={{ fontSize: '1.15rem', padding: '16px 40px', width: '100%', maxWidth: '420px', marginTop: '10px' }}>
-              Garantir Minhas 2 Músicas por R$ 9,99 🎁
+            <Link href="/criar" className="btn btn-primary" style={{ fontSize: '1.15rem', padding: '16px 40px', width: '100%', maxWidth: '420px', marginTop: '10px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+              <Gift size={20} aria-hidden="true" /> Garantir minhas 2 músicas por R$ 9,99
             </Link>
           </div>
         </div>
@@ -425,7 +435,7 @@ export default function Home() {
       <section id="depoimentos" style={styles.sectionAlt}>
         <div className="container">
           <div style={styles.sectionHeader}>
-            <h2 style={styles.sectionTitle}>Depoimentos de Quem Já Presenteou 💖</h2>
+            <h2 style={styles.sectionTitle}>Depoimentos de quem já presenteou</h2>
             <p style={styles.sectionSubtitle}>Veja as reações de quem transformou momentos em canções inesquecíveis.</p>
           </div>
 
@@ -433,15 +443,19 @@ export default function Home() {
             {testimonials.map((item, idx) => (
               <div key={idx} className="glass-card" style={{ padding: '24px', borderRadius: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
                 <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                  <img src={item.photo} alt={item.name} style={{ width: '52px', height: '52px', borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--primary)' }} />
+                  <div style={{ width: '52px', height: '52px', borderRadius: '50%', background: 'var(--accent-light)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', fontSize: '1.05rem', flexShrink: 0 }}>
+                    {getInitials(item.name)}
+                  </div>
                   <div>
                     <h4 style={{ fontSize: '1.05rem', fontWeight: '800' }}>{item.name}</h4>
                     <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{item.relation}</span>
                   </div>
                 </div>
 
-                <div style={{ color: '#F59E0B', fontSize: '1.1rem' }}>
-                  {'★'.repeat(item.rating)}
+                <div style={{ display: 'flex', gap: '2px', color: '#B5502E' }} aria-label={`${item.rating} de 5 estrelas`}>
+                  {Array.from({ length: item.rating }).map((_, i) => (
+                    <Star key={i} size={16} fill="currentColor" strokeWidth={0} aria-hidden="true" />
+                  ))}
                 </div>
 
                 <p style={{ fontSize: '0.92rem', color: 'var(--text-secondary)', lineHeight: '1.6', fontStyle: 'italic' }}>
@@ -481,9 +495,9 @@ export default function Home() {
               },
             ].map((item, idx) => (
               <div key={idx} style={styles.faqItem} className="glass-card">
-                <button onClick={() => toggleFaq(idx)} style={styles.faqQuestion}>
+                <button onClick={() => toggleFaq(idx)} style={styles.faqQuestion} aria-expanded={!!faqOpen[idx]}>
                   <span>{item.q}</span>
-                  <span style={{ transform: faqOpen[idx] ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', color: 'var(--primary)' }}>▼</span>
+                  <ChevronDown size={18} aria-hidden="true" style={{ transform: faqOpen[idx] ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', color: 'var(--primary)', flexShrink: 0 }} />
                 </button>
                 {faqOpen[idx] && (
                   <div style={styles.faqAnswer}>
@@ -531,7 +545,7 @@ const styles = {
     borderTop: 'none',
     borderLeft: 'none',
     borderRight: 'none',
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    backgroundColor: 'rgba(251, 246, 239, 0.9)',
   },
   headerContainer: {
     maxWidth: '1200px',
@@ -560,7 +574,7 @@ const styles = {
     position: 'absolute',
     width: '500px',
     height: '500px',
-    background: 'radial-gradient(circle, rgba(124, 58, 237, 0.12) 0%, transparent 70%)',
+    background: 'radial-gradient(circle, rgba(181, 80, 46, 0.12) 0%, transparent 70%)',
     top: '-150px',
     left: 'calc(50% - 250px)',
     pointerEvents: 'none',
@@ -582,7 +596,7 @@ const styles = {
     marginBottom: '20px',
     color: 'var(--primary)',
     backgroundColor: 'var(--primary-light)',
-    border: '1px solid rgba(124, 58, 237, 0.2)',
+    border: '1px solid rgba(181, 80, 46, 0.2)',
   },
   heroTitle: {
     fontSize: '2.5rem',
@@ -657,7 +671,7 @@ const styles = {
     width: '40px',
     height: '40px',
     borderRadius: '50%',
-    background: 'linear-gradient(135deg, #7C3AED 0%, #EC4899 100%)',
+    background: 'var(--primary)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',

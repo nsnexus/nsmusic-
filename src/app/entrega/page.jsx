@@ -466,21 +466,103 @@ function EntregaContent() {
     }
   };
 
-  // A URL do áudio às vezes fica pronta no pedido antes do arquivo terminar de propagar na CDN da
-  // Kie.ai, fazendo o <audio> falhar ao carregar logo na primeira tentativa (só resolvia atualizando
-  // a página manualmente). Tenta recarregar sozinho, com espera crescente, antes de desistir.
-  const audioRetryCountRef = useRef({});
-  const handleAudioError = (e) => {
-    const audio = e.target;
-    const src = audio.currentSrc || audio.src;
-    if (!src) return;
-    const attempt = audioRetryCountRef.current[src] || 0;
-    if (attempt >= 4) return;
-    audioRetryCountRef.current[src] = attempt + 1;
-    setTimeout(() => {
-      audio.load();
-    }, 2000 * (attempt + 1));
+  // Precisa ser calculado aqui (antes dos hooks abaixo, que dependem dele) em vez de depois dos
+  // early returns de `loading`/`order` — hooks têm que rodar sempre na mesma ordem em todo render.
+  const formatAudioUrl = (url, trackId = '') => {
+    if (!url) return '';
+    if (typeof url === 'string' && (url.startsWith('blob:') || url.startsWith('/api/'))) return url;
+    const idParam = trackId ? `&id=${encodeURIComponent(trackId)}` : '';
+    return `/api/audio/proxy?url=${encodeURIComponent(url)}${idParam}`;
   };
+  // Extrai trackId das faixas do Suno quando disponível (para fallback de CDN no proxy)
+  const primaryTrackId = order?.sunoTracks?.[0]?.trackId || '';
+  const secondTrackId = order?.sunoTracks?.[1]?.trackId || '';
+  const primaryAudioUrl = formatAudioUrl(order?.audioUrl || (order?.audioFiles && order.audioFiles[0]) || '', primaryTrackId);
+  const secondAudioUrl = formatAudioUrl(order?.audioFiles && order.audioFiles[1] ? order.audioFiles[1] : '', secondTrackId);
+
+  // A URL do áudio às vezes fica pronta no pedido antes do arquivo terminar de propagar na CDN da
+  // Kie.ai — e nem sempre isso dispara `onError` no <audio> (às vezes ele só fica "pendurado", sem
+  // tocar e sem erro nenhum). Por isso a prévia fica escondida atrás de um estado de carregamento
+  // até o navegador confirmar de verdade que consegue tocar (`onCanPlay`), com um "cão de guarda"
+  // que recarrega proativamente se isso não acontecer a tempo — não só reagindo a erro explícito.
+  const AUDIO_READY_TIMEOUT_MS = 6000;
+  const AUDIO_MAX_LOAD_ATTEMPTS = 6;
+  const [audioReadyState, setAudioReadyState] = useState({ primary: 'loading', second: 'loading' });
+  const audioLoadAttemptsRef = useRef({ primary: 0, second: 0 });
+  const audioWatchdogRef = useRef({ primary: null, second: null });
+  const primaryAudioElRef = useRef(null);
+  const secondAudioElRef = useRef(null);
+
+  const audioElRefFor = (slot) => (slot === 'primary' ? primaryAudioElRef : secondAudioElRef);
+
+  const clearAudioWatchdog = (slot) => {
+    if (audioWatchdogRef.current[slot]) {
+      clearTimeout(audioWatchdogRef.current[slot]);
+      audioWatchdogRef.current[slot] = null;
+    }
+  };
+
+  const armAudioWatchdog = (slot) => {
+    clearAudioWatchdog(slot);
+    audioWatchdogRef.current[slot] = setTimeout(() => {
+      const attempts = audioLoadAttemptsRef.current[slot];
+      if (attempts >= AUDIO_MAX_LOAD_ATTEMPTS) {
+        setAudioReadyState((prev) => ({ ...prev, [slot]: 'failed' }));
+        return;
+      }
+      audioLoadAttemptsRef.current[slot] = attempts + 1;
+      setAudioReadyState((prev) => ({ ...prev, [slot]: 'retrying' }));
+      const el = audioElRefFor(slot).current;
+      if (el) el.load();
+      armAudioWatchdog(slot);
+    }, AUDIO_READY_TIMEOUT_MS);
+  };
+
+  const handleAudioReady = (slot) => {
+    clearAudioWatchdog(slot);
+    setAudioReadyState((prev) => ({ ...prev, [slot]: 'ready' }));
+  };
+
+  const handleAudioError = (slot) => {
+    clearAudioWatchdog(slot);
+    const attempts = audioLoadAttemptsRef.current[slot];
+    if (attempts >= AUDIO_MAX_LOAD_ATTEMPTS) {
+      setAudioReadyState((prev) => ({ ...prev, [slot]: 'failed' }));
+      return;
+    }
+    audioLoadAttemptsRef.current[slot] = attempts + 1;
+    setAudioReadyState((prev) => ({ ...prev, [slot]: 'retrying' }));
+    setTimeout(() => {
+      const el = audioElRefFor(slot).current;
+      if (el) el.load();
+      armAudioWatchdog(slot);
+    }, 2000 * attempts);
+  };
+
+  const handleAudioRetryClick = (slot) => {
+    audioLoadAttemptsRef.current[slot] = 0;
+    setAudioReadyState((prev) => ({ ...prev, [slot]: 'loading' }));
+    const el = audioElRefFor(slot).current;
+    if (el) el.load();
+    armAudioWatchdog(slot);
+  };
+
+  // Reinicia o "cão de guarda" sempre que a URL da faixa mudar (nova música carregada no pedido).
+  useEffect(() => {
+    if (!primaryAudioUrl) return;
+    audioLoadAttemptsRef.current.primary = 0;
+    setAudioReadyState((prev) => ({ ...prev, primary: 'loading' }));
+    armAudioWatchdog('primary');
+    return () => clearAudioWatchdog('primary');
+  }, [primaryAudioUrl]);
+
+  useEffect(() => {
+    if (!secondAudioUrl) return;
+    audioLoadAttemptsRef.current.second = 0;
+    setAudioReadyState((prev) => ({ ...prev, second: 'loading' }));
+    armAudioWatchdog('second');
+    return () => clearAudioWatchdog('second');
+  }, [secondAudioUrl]);
 
   if (loading) {
     return (
@@ -500,20 +582,6 @@ function EntregaContent() {
       </div>
     );
   }
-
-  const formatAudioUrl = (url, trackId = '') => {
-    if (!url) return '';
-    if (typeof url === 'string' && (url.startsWith('blob:') || url.startsWith('/api/'))) return url;
-    const idParam = trackId ? `&id=${encodeURIComponent(trackId)}` : '';
-    return `/api/audio/proxy?url=${encodeURIComponent(url)}${idParam}`;
-  };
-
-  // Get active audio track URLs
-  // Extrai trackId das faixas do Suno quando disponível (para fallback de CDN no proxy)
-  const primaryTrackId = order?.sunoTracks?.[0]?.trackId || '';
-  const secondTrackId = order?.sunoTracks?.[1]?.trackId || '';
-  const primaryAudioUrl = formatAudioUrl(order?.audioUrl || (order?.audioFiles && order.audioFiles[0]) || '', primaryTrackId);
-  const secondAudioUrl = formatAudioUrl(order?.audioFiles && order.audioFiles[1] ? order.audioFiles[1] : '', secondTrackId);
 
   // Safe client-side URLs
   const sharePageUrl = mounted && typeof window !== 'undefined' ? `${window.location.origin}/homenagem?orderId=${orderId}` : '';
@@ -581,21 +649,42 @@ function EntregaContent() {
                         🔒 Modo Degustação: Áudio limitado aos primeiros 60 segundos.
                       </p>
                     )}
-                    <audio 
+                    {audioReadyState.primary !== 'ready' && (
+                      <div style={{ padding: '20px 0', textAlign: 'center' }}>
+                        {audioReadyState.primary === 'failed' ? (
+                          <>
+                            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '10px' }}>
+                              Não conseguimos carregar o áudio agora. Isso costuma resolver em instantes.
+                            </p>
+                            <button type="button" onClick={() => handleAudioRetryClick('primary')} className="btn btn-secondary" style={{ padding: '10px 20px', fontSize: '0.85rem' }}>
+                              Tentar novamente
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <div style={styles.spinner} />
+                            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '10px' }}>Preparando sua prévia...</p>
+                          </>
+                        )}
+                      </div>
+                    )}
+                    <audio
                       key={primaryAudioUrl}
-                      controls 
+                      ref={primaryAudioElRef}
+                      controls
                       autoPlay={!isPaid}
                       controlsList={!isPaid ? "nodownload noplaybackrate" : undefined}
                       onContextMenu={(e) => !isPaid && e.preventDefault()}
                       onTimeUpdate={handleAudioTimeUpdate}
-                      onError={handleAudioError}
-                      style={styles.audioTag}
+                      onCanPlay={() => handleAudioReady('primary')}
+                      onError={() => handleAudioError('primary')}
+                      style={{ ...styles.audioTag, display: audioReadyState.primary === 'ready' ? 'block' : 'none' }}
                       src={primaryAudioUrl}
                     >
                       Seu navegador não suporta.
                     </audio>
 
-                    {isPaid && (
+                    {isPaid && audioReadyState.primary === 'ready' && (
                       <div style={{ ...styles.downloadGrid, marginTop: '16px' }}>
                         <button 
                           onClick={() => handleDownload(primaryAudioUrl, `Musica_V1_${order?.honoreeName || 'Homenagem'}.mp3`)} 
@@ -620,23 +709,44 @@ function EntregaContent() {
                         🔒 Modo Degustação: Áudio limitado aos primeiros 60 segundos.
                       </p>
                     )}
-                    <audio 
+                    {audioReadyState.second !== 'ready' && (
+                      <div style={{ padding: '20px 0', textAlign: 'center' }}>
+                        {audioReadyState.second === 'failed' ? (
+                          <>
+                            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '10px' }}>
+                              Não conseguimos carregar o áudio agora. Isso costuma resolver em instantes.
+                            </p>
+                            <button type="button" onClick={() => handleAudioRetryClick('second')} className="btn btn-secondary" style={{ padding: '10px 20px', fontSize: '0.85rem' }}>
+                              Tentar novamente
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <div style={styles.spinner} />
+                            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '10px' }}>Preparando sua prévia...</p>
+                          </>
+                        )}
+                      </div>
+                    )}
+                    <audio
                       key={secondAudioUrl}
-                      controls 
+                      ref={secondAudioElRef}
+                      controls
                       controlsList={!isPaid ? "nodownload noplaybackrate" : undefined}
                       onContextMenu={(e) => !isPaid && e.preventDefault()}
                       onTimeUpdate={handleAudioTimeUpdate}
-                      onError={handleAudioError}
-                      style={styles.audioTag}
+                      onCanPlay={() => handleAudioReady('second')}
+                      onError={() => handleAudioError('second')}
+                      style={{ ...styles.audioTag, display: audioReadyState.second === 'ready' ? 'block' : 'none' }}
                       src={secondAudioUrl}
                     >
                       Seu navegador não suporta.
                     </audio>
 
-                    {isPaid && (
+                    {isPaid && audioReadyState.second === 'ready' && (
                       <div style={{ ...styles.downloadGrid, marginTop: '16px' }}>
-                        <button 
-                          onClick={() => handleDownload(secondAudioUrl, `Musica_V2_${order?.honoreeName || 'Homenagem'}.mp3`)} 
+                        <button
+                          onClick={() => handleDownload(secondAudioUrl, `Musica_V2_${order?.honoreeName || 'Homenagem'}.mp3`)}
                           className="btn btn-secondary" 
                           style={{ ...styles.downloadBtn, border: 'none', cursor: 'pointer' }}
                         >
