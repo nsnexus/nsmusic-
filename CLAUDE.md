@@ -45,7 +45,9 @@ docs/               CODEBASE_MAP.md (índice) · ARCHITECTURE.md · audit/
 - Datas: sempre `new Date().toISOString()` (string), nunca `Timestamp` nativo.
 - Imports do Firebase sempre modulares. Em rotas Edge, usar `firebase/firestore/lite` via `@/lib/firebase-edge`.
 - Toda rota em `src/app/api/` precisa de `export const runtime = 'edge'`.
-- Nunca `export const runtime` em arquivo com `'use client'`.
+- Página `'use client'` com segmento dinâmico (ex: `[id]`) também precisa de
+  `export const runtime = 'edge'` — ver `.claude/rules/frontend.md` para o porquê (isso já quebrou
+  um deploy real). Páginas sem segmento dinâmico normalmente não precisam.
 - Português nas mensagens de UI e de erro.
 
 ## Regras obrigatórias

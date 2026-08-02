@@ -17,7 +17,12 @@ globs:
 ## React
 
 - `'use client'` só quando houver hook, event handler ou API de browser.
-- Nunca `export const runtime` em arquivo com `'use client'`.
+- `export const runtime = 'edge'` **é permitido e necessário** em `page.jsx` com `'use client'` quando
+  a rota tem segmento dinâmico (ex: `[id]`) — o Next.js lê essa config separado do componente, e o
+  build da Cloudflare (`@cloudflare/next-on-pages`) falha sem ela para toda rota não-estática. Uma
+  correção anterior removeu isso de `admin/pedidos/[id]/page.jsx` achando que "não tinha efeito"
+  (validado só com `next build` local, que não faz essa checagem) — quebrou o deploy real. Rotas sem
+  segmento dinâmico, mesmo sendo `'use client'`, normalmente já saem estáticas e não precisam disso.
 - Todo `setInterval`/`setTimeout` precisa de cleanup. Polling vive dentro de `useEffect` com `return
   () => clearInterval(...)`, nunca solto dentro de um event handler — hoje há um poller de até 6
   minutos que sobrevive à desmontagem (`criar/page.jsx:1109`).
