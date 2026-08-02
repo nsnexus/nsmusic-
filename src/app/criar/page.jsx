@@ -323,6 +323,24 @@ export default function CriarMusica() {
     return `/api/audio/proxy?url=${encodeURIComponent(raw)}`;
   };
 
+  // Confirma que o áudio já responde de verdade (via o mesmo proxy que o player usa) antes de
+  // redirecionar pra /entrega — evita mandar o cliente pra uma prévia que ainda não carrega porque
+  // a Kie.ai reportou "pronto" antes do arquivo propagar de fato na CDN deles.
+  const waitForAudioReady = async (rawUrl, maxAttempts = 6, delayMs = 2000) => {
+    if (!rawUrl) return false;
+    const proxiedUrl = `/api/audio/proxy?url=${encodeURIComponent(rawUrl)}`;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        const res = await fetch(proxiedUrl, { signal: AbortSignal.timeout(10000) });
+        if (res.ok) return true;
+      } catch (e) {
+        // Aviso silencioso — só uma verificação de prontidão, não bloqueia o fluxo em caso de erro.
+      }
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+    return false;
+  };
+
   // Passos de carregamento dinâmico no estúdio de composição de letra (Step 10)
   const [lyricsStepIdx, setLyricsStepIdx] = useState(0);
   const studioLyricsPhrases = [
@@ -930,8 +948,14 @@ export default function CriarMusica() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ orderId: targetOrder })
               }).catch(e => console.warn("Erro ao notificar WhatsApp:", e));
-              
-              // Redireciona imediatamente para a página de entrega quando finalizado
+
+              // A Kie.ai às vezes reporta "pronto" antes do arquivo terminar de propagar na CDN
+              // deles — redirecionar na hora podia levar a uma prévia que não tocava (só resolvia
+              // atualizando a página). Confirma que o áudio já responde de verdade antes de mandar
+              // o cliente pra lá; se não conseguir confirmar a tempo, redireciona mesmo assim (o
+              // player em /entrega também tenta recarregar sozinho).
+              updateField('sunoProgress', 'Finalizando e conferindo o áudio...');
+              await waitForAudioReady(primaryAudio);
               window.location.href = `/entrega?orderId=${targetOrder}`;
             }
           } else {
@@ -1391,14 +1415,6 @@ export default function CriarMusica() {
                           ✅ QR Code PIX Gerado com Sucesso!
                         </span>
 
-                        {pixInfo.qrCodeBase64 && (
-                          <img 
-                            src={pixInfo.qrCodeBase64.startsWith('http') || pixInfo.qrCodeBase64.startsWith('data:') ? pixInfo.qrCodeBase64 : `data:image/png;base64,${pixInfo.qrCodeBase64}`} 
-                            alt="QR Code PIX" 
-                            style={{ width: '180px', height: '180px', borderRadius: '12px', border: '3px solid #FFFFFF', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                          />
-                        )}
-
                         <div style={{ width: '100%' }}>
                           <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
                             Código PIX Copia e Cola:
@@ -1486,29 +1502,8 @@ export default function CriarMusica() {
                           ⚡ Já Fiz o Pagamento / Validar Agora
                         </button>
 
-                        <a
-                          href="https://wa.me/5594991081351?text=Olá,%20fiz%20o%20pagamento%20da%20minha%20música!%20Segue%20o%20meu%20comprovante:"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{
-                            display: 'block',
-                            width: '100%',
-                            padding: '14px',
-                            borderRadius: '10px',
-                            background: '#25D366',
-                            color: '#FFF',
-                            fontWeight: 'bold',
-                            fontSize: '1rem',
-                            textAlign: 'center',
-                            textDecoration: 'none',
-                            marginTop: '8px',
-                            boxShadow: '0 4px 12px rgba(37, 211, 102, 0.3)'
-                          }}
-                        >
-                          💬 Enviar Comprovante no WhatsApp
-                        </a>
                         <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '10px', textAlign: 'center' }}>
-                          Após o pagamento, envie o comprovante no WhatsApp para liberarmos sua música imediatamente!
+                          A liberação é automática assim que o pagamento for confirmado — não precisa enviar comprovante.
                         </p>
                       </div>
                     )}

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useSearchParams } from 'next/navigation';
@@ -436,6 +436,22 @@ function EntregaContent() {
     }
   };
 
+  // A URL do áudio às vezes fica pronta no pedido antes do arquivo terminar de propagar na CDN da
+  // Kie.ai, fazendo o <audio> falhar ao carregar logo na primeira tentativa (só resolvia atualizando
+  // a página manualmente). Tenta recarregar sozinho, com espera crescente, antes de desistir.
+  const audioRetryCountRef = useRef({});
+  const handleAudioError = (e) => {
+    const audio = e.target;
+    const src = audio.currentSrc || audio.src;
+    if (!src) return;
+    const attempt = audioRetryCountRef.current[src] || 0;
+    if (attempt >= 4) return;
+    audioRetryCountRef.current[src] = attempt + 1;
+    setTimeout(() => {
+      audio.load();
+    }, 2000 * (attempt + 1));
+  };
+
   if (loading) {
     return (
       <div style={styles.wrapper} className="flex-center">
@@ -541,8 +557,9 @@ function EntregaContent() {
                       autoPlay={!isPaid}
                       controlsList={!isPaid ? "nodownload noplaybackrate" : undefined}
                       onContextMenu={(e) => !isPaid && e.preventDefault()}
-                      onTimeUpdate={handleAudioTimeUpdate} 
-                      style={styles.audioTag} 
+                      onTimeUpdate={handleAudioTimeUpdate}
+                      onError={handleAudioError}
+                      style={styles.audioTag}
                       src={primaryAudioUrl}
                     >
                       Seu navegador não suporta.
@@ -578,8 +595,9 @@ function EntregaContent() {
                       controls 
                       controlsList={!isPaid ? "nodownload noplaybackrate" : undefined}
                       onContextMenu={(e) => !isPaid && e.preventDefault()}
-                      onTimeUpdate={handleAudioTimeUpdate} 
-                      style={styles.audioTag} 
+                      onTimeUpdate={handleAudioTimeUpdate}
+                      onError={handleAudioError}
+                      style={styles.audioTag}
                       src={secondAudioUrl}
                     >
                       Seu navegador não suporta.
@@ -619,19 +637,12 @@ function EntregaContent() {
                         <p style={{ fontSize: '0.95rem', fontWeight: 'bold', color: '#10b981', marginBottom: '12px' }}>
                           ⚡ Pague R$ 6,90 via PIX para liberar o Vídeo Homenagem
                         </p>
-                        {videoPixInfo.qrCodeBase64 ? (
-                          <img 
-                            src={`data:image/jpeg;base64,${videoPixInfo.qrCodeBase64}`} 
-                            alt="QR Code PIX Vídeo" 
-                            style={{ width: '180px', height: '180px', borderRadius: '12px', margin: '0 auto 12px auto', display: 'block', backgroundColor: '#FFFFFF', padding: '8px' }}
-                          />
-                        ) : (
+                        {!videoPixInfo.qrCode ? (
                           <div style={{ padding: '20px 0' }}>
                             <div style={styles.spinner} />
-                            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '8px' }}>Gerando código PIX...</p>
+                            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '8px' }}>Gerando PIX com aprovação instantânea...</p>
                           </div>
-                        )}
-                        {videoPixInfo.qrCode && (
+                        ) : (
                           <button
                             type="button"
                             onClick={() => {
@@ -645,30 +656,6 @@ function EntregaContent() {
                             {pixCopied ? '✅ Código PIX Copiado!' : '📋 Copiar Código PIX (R$ 6,90)'}
                           </button>
                         )}
-                        <a
-                          href="https://wa.me/5594991081351?text=Olá,%20fiz%20o%20pagamento%20do%20meu%20vídeo!%20Segue%20o%20comprovante:"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{
-                            display: 'block',
-                            width: '100%',
-                            padding: '12px',
-                            borderRadius: '8px',
-                            background: '#25D366',
-                            color: '#FFF',
-                            fontWeight: 'bold',
-                            fontSize: '0.95rem',
-                            textAlign: 'center',
-                            textDecoration: 'none',
-                            marginTop: '8px',
-                            boxShadow: '0 4px 12px rgba(37, 211, 102, 0.3)'
-                          }}
-                        >
-                          💬 Enviar Comprovante no WhatsApp
-                        </a>
-                        <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '10px', textAlign: 'center' }}>
-                          Após o pagamento, envie o comprovante no WhatsApp para liberarmos o vídeo imediatamente!
-                        </p>
                       </div>
                     ) : !hasVideoAccess && !order?.hasVideoAccess && !order?.videoUrl ? (
                       <div style={{ marginTop: '14px', backgroundColor: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '12px', textAlign: 'center' }}>
@@ -1029,14 +1016,6 @@ function EntregaContent() {
                       </div>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', alignItems: 'center' }}>
-                        {pixInfo.qrCodeBase64 && (
-                          <img 
-                            src={pixInfo.qrCodeBase64.startsWith('http') || pixInfo.qrCodeBase64.startsWith('data:') ? pixInfo.qrCodeBase64 : `data:image/jpeg;base64,${pixInfo.qrCodeBase64}`} 
-                            alt="QR Code PIX" 
-                            style={{ width: '180px', height: '180px', borderRadius: '12px', border: '2px solid var(--border-color)', backgroundColor: '#FFFFFF', padding: '8px' }}
-                          />
-                        )}
-
                         {pixInfo.qrCode ? (
                           <div style={{ width: '100%' }}>
                             <button
@@ -1073,29 +1052,8 @@ function EntregaContent() {
                           </button>
                         )}
 
-                        <a
-                          href="https://wa.me/5594991081351?text=Olá,%20fiz%20o%20pagamento%20da%20minha%20música!%20Segue%20o%20comprovante:"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{
-                            display: 'block',
-                            width: '100%',
-                            padding: '12px',
-                            borderRadius: '8px',
-                            background: '#25D366',
-                            color: '#FFF',
-                            fontWeight: 'bold',
-                            fontSize: '0.95rem',
-                            textAlign: 'center',
-                            textDecoration: 'none',
-                            marginTop: '8px',
-                            boxShadow: '0 4px 12px rgba(37, 211, 102, 0.3)'
-                          }}
-                        >
-                          💬 Enviar Comprovante no WhatsApp
-                        </a>
                         <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '10px', textAlign: 'center' }}>
-                          Após o pagamento, envie o comprovante no WhatsApp para liberarmos sua música imediatamente!
+                          A liberação é automática assim que o pagamento for confirmado — não precisa enviar comprovante.
                         </p>
                       </div>
                     )}

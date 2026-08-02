@@ -1,0 +1,22 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Libera a pasta de fotos e vídeos gerados nos pedidos
+    match /orders/{orderId}/{allPaths=**} {
+      allow read, write: if true;
+    }
+
+    // Libera a pasta de capas enviadas durante o wizard de criação — nesse ponto o pedido ainda
+    // não existe e não há login algum (o formulário é anônimo até o checkout), então a regra
+    // catch-all abaixo (exige auth) sempre rejeitava esse upload (storage/unauthorized). Ver
+    // src/app/criar/page.jsx:552 (`covers/${fileName}`).
+    match /covers/{fileName} {
+      allow read, write: if true;
+    }
+
+    // Mantém o resto seguro
+    match /{allPaths=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

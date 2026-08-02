@@ -38,14 +38,19 @@ export async function GET(req) {
         if (orderSnap.exists()) {
           orderData = orderSnap.data();
 
-          if (orderData.paymentStatus === 'PAGAMENTO_APROVADO' || orderData.paymentStatus === 'PAGO') {
-            if (paymentId && String(paymentId) === String(orderData.videoPaymentId)) {
-              if (orderData.hasVideoAccess || orderData.videoAddonPaid) {
-                return jsonNoCache({ status: "approved" });
-              }
-            } else {
-              return jsonNoCache({ status: "approved" });
-            }
+          // Atalho só é seguro quando o paymentId consultado é EXATAMENTE o que já foi
+          // verificado e aprovado antes (guardado em paymentId/videoPaymentId por
+          // applyPaymentApproval). Um pedido já aprovado (paymentStatus) não significa que
+          // QUALQUER OUTRO paymentId consultado nele também esteja pago — isso permitia liberar
+          // o add-on de vídeo (cobrança nova, nunca verificada) de graça em qualquer pedido cuja
+          // música já tivesse sido paga antes. Qualquer paymentId que não bater aqui cai no fluxo
+          // normal abaixo, que sempre reconsulta a Efí antes de aprovar.
+          if (paymentId && String(paymentId) === String(orderData.paymentId)) {
+            return jsonNoCache({ status: "approved" });
+          }
+          if (paymentId && String(paymentId) === String(orderData.videoPaymentId) &&
+              (orderData.hasVideoAccess || orderData.videoAddonPaid)) {
+            return jsonNoCache({ status: "approved" });
           }
         }
       } catch (quickCheckErr) {
