@@ -165,16 +165,6 @@ function AcompanharContent() {
                   ))}
                 </div>
               )}
-
-              {/* Secret admin preview link for demonstration */}
-              <div style={{ marginTop: '24px', borderTop: '1px solid var(--border-color)', paddingTop: '16px', textAlign: 'center' }}>
-                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '8px' }}>
-                  ⚙️ <em>Demonstração: Clique abaixo para ver o resultado final da entrega privada.</em>
-                </p>
-                <Link href={`/entrega?id=${order.id}`} className="btn btn-secondary" style={{ width: '100%', padding: '10px 14px', fontSize: '0.85rem' }}>
-                  Acessar Entrega Privada 🔑
-                </Link>
-              </div>
             </div>
           </div>
 

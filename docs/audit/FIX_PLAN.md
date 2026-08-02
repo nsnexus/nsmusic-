@@ -312,24 +312,56 @@ por si só, já que a allowlist de e-mail continua funcionando em paralelo.
 
 ---
 
-## Lote 4 — Bugs funcionais
+## Lote 4 — Bugs funcionais — ✅ CONCLUÍDO (2026-08-01)
 
 **Objetivo:** corrigir o que já prejudica clientes reais hoje.
 
 - **M-10** — limpar o `setInterval` de `pollSunoStatus` (ref + cleanup no `useEffect`).
+  **Status: CORRIGIDO E VALIDADO (build).** `pollIntervalRef` guarda o intervalo; `useEffect` de
+  desmontagem do componente principal limpa; qualquer nova chamada de `pollSunoStatus` cancela o
+  intervalo anterior antes de criar outro (evita dois pollings concorrentes).
 - **M-11** — persistir a avaliação do cliente.
+  **Status: CORRIGIDO E VALIDADO (build).** `handleReviewSubmit` agora grava `reviewRating`/
+  `reviewText`/`reviewSubmittedAt` no pedido via `updateDoc`; só mostra a tela de sucesso depois da
+  escrita confirmar, com estado de erro visível se falhar (antes só fazia `setReviewSubmitted(true)`,
+  sem gravar nada).
 - **M-12** — extrair `buildSunoPayload(formData)` e usar nos dois pontos de chamada.
+  **Status: CORRIGIDO E VALIDADO.** Extraído para `src/lib/sunoPayload.js` (não ficou dentro de
+  `criar/page.jsx` para poder ser testado sem precisar transformar JSX no Vitest). Os dois pontos de
+  chamada (geração inicial e "Tentar Novamente") usam a mesma função — o retry não perde mais
+  `musicMood`/`voiceType`. Testado em `tests/unit/buildSunoPayload.test.js` (5 casos).
 - **M-15** — verificação de WhatsApp deve falhar fechada, ou informar que não foi possível verificar.
+  **Status: CORRIGIDO E VALIDADO (build).** Novo status `'unknown'` para erro de rede/resposta não-ok
+  da verificação — mensagem honesta ("Não foi possível verificar agora") em vez de tratar como válido.
+  `isPhoneValid()` só aceita `'valid'`, então `'unknown'` bloqueia o avanço (falha fechada), como o
+  próprio item pedia.
 - **M-16** — comparar telefone por igualdade normalizada, não por substring.
+  **Status: JÁ CORRIGIDO NO LOTE 1**, como efeito colateral da correção de C-08 em
+  `minhas-musicas/page.jsx` (a busca deixou de baixar a coleção inteira e passou a usar `where` com
+  igualdade exata). Confirmado nesta sessão que não resta nenhuma correspondência por substring.
 - **M-13** — checkbox real de aceite dos termos.
+  **Status: CORRIGIDO E VALIDADO (build).** Adicionado checkbox real em `criar/page.jsx` (step 9),
+  com link para `/termos-de-uso` e `/politica-de-privacidade`, obrigatório para avançar
+  (`isNextDisabled`). `termsAccepted: true` hardcoded removido dos dois pontos onde existia.
+  `/api/orders/create` agora valida `termsAccepted === true` no servidor (400 caso contrário) e
+  persiste `termsAccepted`/`termsAcceptedAt` no pedido — antes nada disso era gravado.
 - **M-17** — remover o link "Entrega Privada" de `acompanhar/page.jsx`.
+  **Status: CORRIGIDO E VALIDADO (build).** Bloco inteiro removido (link de demonstração interna
+  exposto a qualquer cliente).
 - **B-01** — limpar timers de retry do player.
+  **Status: CORRIGIDO E VALIDADO (build).** `CustomAudioPreview` guarda o `setTimeout` de retry em
+  `retryTimerRef` e limpa na desmontagem.
 
-**Arquivos:** `criar/page.jsx`, `entrega/page.jsx`, `minhas-musicas/page.jsx`, `acompanhar/page.jsx`
-**Dependências:** nenhuma (pode correr em paralelo aos Lotes 2-3, arquivos parcialmente sobrepostos —
-sequenciar com o Lote 2 em `criar`/`entrega`)
-**Riscos:** baixos · **Testes:** ver AUDIT_REPORT §8 · **Aceite:** cada bug reproduzido antes e não reproduzível depois
-**Rollback:** por commit individual
+**Testes novos:** `tests/unit/buildSunoPayload.test.js` (novo, 5 casos). 63 testes no total, todos verdes.
+
+**Arquivos:** `criar/page.jsx`, `entrega/page.jsx`, `acompanhar/page.jsx`,
+`api/orders/create/route.js`, `src/lib/sunoPayload.js` (novo)
+**Dependências:** nenhuma · **Riscos:** baixos, confirmados sem regressão de build/lint/typecheck/test.
+**Testes executados:** `npm run build/lint/typecheck/test` verdes (63 testes). Não testado em
+navegador real (sem ambiente com credenciais Firebase reais nesta sessão).
+**Aceite:** todos os bugs listados corrigidos no código; reprodução visual em navegador real fica
+para validação manual do responsável pelo projeto.
+**Rollback:** reverter o commit deste lote.
 
 ---
 

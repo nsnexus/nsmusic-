@@ -317,15 +317,15 @@ O fluxo de pagamento é a área mais frágil do sistema e concentra 5 dos 11 ite
 
 | ID | Título | Referência | Sev. |
 |---|---|---|---|
-| M-10 | `setInterval` de polling nunca limpo: continua rodando após desmontagem (até 6 min de fetches e escritas) | `criar/page.jsx:1109-1166` (`pollSunoStatus`) | MÉDIA |
-| M-11 | Formulário de avaliação nunca persiste os dados, mas exibe estado de sucesso | `entrega/page.jsx:217-221` (`handleReviewSubmit`) | MÉDIA |
-| M-12 | Botão "Tentar Novamente" envia payload diferente do original (perde `musicMood` e `voiceType`) | `criar/page.jsx:1814-1822` vs `:1073-1081` | MÉDIA |
-| M-13 | `termsAccepted: true` fixo no código, sem checkbox — consentimento registrado sem ter sido pedido | `criar/page.jsx:288,886` | MÉDIA |
+| M-10 | **CORRIGIDO E VALIDADO (Lote 4).** `pollIntervalRef` guarda o intervalo; limpo na desmontagem do componente e antes de cada nova chamada de `pollSunoStatus` | `criar/page.jsx` (`pollSunoStatus`) | MÉDIA |
+| M-11 | **CORRIGIDO E VALIDADO (Lote 4).** `handleReviewSubmit` grava a avaliação via `updateDoc` e só mostra sucesso após confirmar a escrita; erro visível se falhar | `entrega/page.jsx` (`handleReviewSubmit`) | MÉDIA |
+| M-12 | **CORRIGIDO E VALIDADO (Lote 4).** `buildSunoPayload` extraído para `src/lib/sunoPayload.js`, usado nos dois pontos de chamada — não diverge mais | `src/lib/sunoPayload.js` | MÉDIA |
+| M-13 | **CORRIGIDO E VALIDADO (Lote 4).** Checkbox real adicionado (step 9 de `criar/page.jsx`), obrigatório para avançar; `/api/orders/create` valida `termsAccepted === true` no servidor e persiste o campo + timestamp | `criar/page.jsx`, `api/orders/create/route.js` | MÉDIA |
 | M-14 | Rascunho com imagem base64 salvo em `localStorage` a cada tecla; `QuotaExceededError` silencioso | `criar/page.jsx:419-428` | MÉDIA |
-| M-15 | Verificação de WhatsApp falha "aberta": erro de rede resulta em `valid` | `criar/page.jsx:356-363` | MÉDIA |
-| M-16 | Busca por telefone com correspondência por substring bidirecional cruza clientes distintos | `minhas-musicas/page.jsx:105-113` | MÉDIA |
-| M-17 | Link "Acessar Entrega Privada 🔑" com comentário `Secret admin preview link for demonstration` exibido a todos os clientes | `acompanhar/page.jsx:169-177` | MÉDIA |
-| B-01 | Timers de retry do player não limpos na desmontagem | `criar/page.jsx:75-85` | BAIXA |
+| M-15 | **CORRIGIDO E VALIDADO (Lote 4).** Novo status `'unknown'` para falha de rede/resposta não-ok; `isPhoneValid()` só aceita `'valid'`, então a falha bloqueia o avanço em vez de liberar | `criar/page.jsx` | MÉDIA |
+| M-16 | **CORRIGIDO E VALIDADO (Lote 1, como efeito colateral de C-08).** Confirmado no Lote 4 que não resta correspondência por substring — a busca usa `where` com igualdade exata | `minhas-musicas/page.jsx` | MÉDIA |
+| M-17 | **CORRIGIDO E VALIDADO (Lote 4).** Bloco do link removido inteiramente de `acompanhar/page.jsx` | `acompanhar/page.jsx` | MÉDIA |
+| B-01 | **CORRIGIDO E VALIDADO (Lote 4).** `CustomAudioPreview` guarda o `setTimeout` de retry em `retryTimerRef`, limpo na desmontagem | `criar/page.jsx` | BAIXA |
 | B-02 | Uso generalizado de `<img>` em vez de `next/image` | `criar`, `entrega`, `page.jsx` | BAIXA |
 | B-03 | `catch(e => console.warn(e))` engolindo falhas de escrita sem feedback ao usuário | `entrega/page.jsx:92,202,336,385` | BAIXA |
 | B-04 | `getFriendlyAuthErrorMessage` duplicado literalmente em dois arquivos | `login/page.jsx`, `minhas-musicas/page.jsx` | BAIXA |

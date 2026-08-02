@@ -19,6 +19,8 @@ function EntregaContent() {
   const [currentUser, setCurrentUser] = useState(null);
   const [rating, setRating] = useState(0);
   const [reviewSubmitted, setReviewSubmitted] = useState(false);
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviewError, setReviewError] = useState('');
   const [reviewText, setReviewText] = useState('');
 
   // Estados de Cadastro de Conta
@@ -203,10 +205,27 @@ function EntregaContent() {
     }
   };
 
-  const handleReviewSubmit = (e) => {
+  const handleReviewSubmit = async (e) => {
     e.preventDefault();
-    if (rating === 0) return;
-    setReviewSubmitted(true);
+    if (rating === 0 || !orderId) return;
+
+    setReviewSubmitting(true);
+    setReviewError('');
+    try {
+      // A UI só mostra sucesso depois que a escrita realmente aconteceu (ver M-11/frontend.md:
+      // "se a escrita no banco falhou, a UI não pode exibir sucesso").
+      await updateDoc(doc(db, 'orders', orderId), {
+        reviewRating: rating,
+        reviewText: reviewText.trim(),
+        reviewSubmittedAt: new Date().toISOString(),
+      });
+      setReviewSubmitted(true);
+    } catch (err) {
+      console.error('Erro ao salvar avaliação:', err);
+      setReviewError('Não foi possível enviar sua avaliação agora. Tente novamente em instantes.');
+    } finally {
+      setReviewSubmitting(false);
+    }
   };
 
   const handleDownload = async (url, filename) => {
@@ -1203,13 +1222,17 @@ function EntregaContent() {
                     style={styles.reviewTextarea}
                   />
 
-                  <button 
+                  {reviewError && (
+                    <p style={{ color: 'var(--danger, #dc2626)', fontSize: '0.85rem', marginBottom: '8px' }}>{reviewError}</p>
+                  )}
+
+                  <button
                     type="submit"
-                    disabled={rating === 0}
+                    disabled={rating === 0 || reviewSubmitting}
                     className="btn btn-primary"
-                    style={{ alignSelf: 'flex-start', padding: '12px 24px', fontSize: '0.9rem' }}
+                    style={{ alignSelf: 'flex-start', padding: '12px 24px', fontSize: '0.9rem', opacity: reviewSubmitting ? 0.7 : 1 }}
                   >
-                    Enviar Avaliação
+                    {reviewSubmitting ? 'Enviando...' : 'Enviar Avaliação'}
                   </button>
                 </form>
               )}

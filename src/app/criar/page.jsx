@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { doc, getDoc, collection, addDoc, updateDoc, query, where, getDocs } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
+import { buildSunoPayload } from '@/lib/sunoPayload';
 
 function BrandLogo() {
   return (
@@ -30,11 +31,19 @@ function BrandLogo() {
 
 function CustomAudioPreview({ src, label, badge, isBonus }) {
   const audioRef = useRef(null);
+  const retryTimerRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [showEndedNotice, setShowEndedNotice] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+
+  // Limpa o timer de retry na desmontagem (ver B-01 no AUDIT_REPORT.md).
+  useEffect(() => {
+    return () => {
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+    };
+  }, []);
 
   const togglePlay = () => {
     if (!audioRef.current) return;
@@ -75,7 +84,7 @@ function CustomAudioPreview({ src, label, badge, isBonus }) {
   const handleError = () => {
     // CDN ainda propagando o arquivo (ex: erro 502/404 da proxy). Tentar de novo.
     if (retryCount < 10) {
-      setTimeout(() => {
+      retryTimerRef.current = setTimeout(() => {
         setRetryCount(prev => prev + 1);
         if (audioRef.current) {
           audioRef.current.load();
@@ -281,7 +290,7 @@ export default function CriarMusica() {
     customerName: '',
     customerPhone: '',
     customerEmail: '',
-    termsAccepted: true,
+    termsAccepted: false,
     // Step 10: Lyrics state
     lyrics: '',
     lyricsVersion: 1,
@@ -313,6 +322,15 @@ export default function CriarMusica() {
   const audio2Ref = useRef(null);
   const recognitionRef = useRef(null);
   const baseStoryRef = useRef('');
+  const pollIntervalRef = useRef(null);
+
+  // Garante que o polling do Suno pare ao desmontar o componente — antes sobrevivia à navegação por
+  // até 6 minutos, continuando a fazer fetch/gravações em segundo plano (ver M-10 no AUDIT_REPORT.md).
+  useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+    };
+  }, []);
 
   const [paymentErrorMessage, setPaymentErrorMessage] = useState('');
   const [phoneVerifyStatus, setPhoneVerifyStatus] = useState('idle'); // 'idle' | 'checking' | 'valid' | 'invalid'
@@ -350,12 +368,14 @@ export default function CriarMusica() {
             setPhoneVerifyMessage('❌ Este número não possui WhatsApp ativo');
           }
         } else {
-          setPhoneVerifyStatus('valid');
-          setPhoneVerifyMessage('✓ WhatsApp pré-validado');
+          // Falha fechada: se o serviço de verificação não respondeu, não tratamos como validado
+          // (ver M-15 no AUDIT_REPORT.md — antes qualquer erro de rede liberava o número como válido).
+          setPhoneVerifyStatus('unknown');
+          setPhoneVerifyMessage('⚠️ Não foi possível verificar agora. Confira o número e tente novamente.');
         }
       } catch (err) {
-        setPhoneVerifyStatus('valid');
-        setPhoneVerifyMessage('✓ WhatsApp pré-validado');
+        setPhoneVerifyStatus('unknown');
+        setPhoneVerifyMessage('⚠️ Não foi possível verificar agora. Confira o número e tente novamente.');
       }
     }, 600);
 
@@ -879,7 +899,7 @@ export default function CriarMusica() {
         customerName: formData.customerName || '',
         customerPhone: formData.customerPhone || '',
         customerEmail: formData.customerEmail || '',
-        termsAccepted: true,
+        termsAccepted: false,
         lyrics: '',
         lyricsVersion: 1,
         lyricsStatus: 'idle',
@@ -1080,8 +1100,7 @@ export default function CriarMusica() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          prompt: formData.lyrics,
-          tags: `${formData.musicStyle} ${formData.musicMood} ${formData.voiceType === 'dueto' ? 'duet male and female vocalists' : `voice ${formData.voiceType}`}`,
+          ...buildSunoPayload(formData),
           orderId: activeOrderId
         })
       });
@@ -1118,21 +1137,24 @@ export default function CriarMusica() {
     updateField('sunoStatus', 'generating');
     updateField('sunoProgress', 'Aguardando o Suno compor e renderizar os áudios (2 a 4 min)...');
 
-    const interval = setInterval(async () => {
+    // Só um polling ativo por vez — cancela qualquer intervalo anterior antes de iniciar outro.
+    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+
+    pollIntervalRef.current = setInterval(async () => {
       attempts++;
       try {
         const targetOrder = activeOrderId || orderId;
         const res = await fetch(`/api/suno/status?taskId=${activeTaskId}&orderId=${targetOrder || ''}`);
         if (res.ok) {
           const statusData = await res.json();
-          
+
           if (statusData.status === 'COMPLETED' && statusData.tracks && statusData.tracks.length > 0) {
             setFormData(prev => ({
               ...prev,
               sunoTracks: statusData.tracks,
               sunoStatus: 'generated'
             }));
-            clearInterval(interval);
+            clearInterval(pollIntervalRef.current);
 
             // Garante que o documento do pedido em orders no Firebase receba os links reais dos áudios
             if (targetOrder) {
@@ -1164,7 +1186,7 @@ export default function CriarMusica() {
       }
 
       if (attempts >= maxAttempts) {
-        clearInterval(interval);
+        clearInterval(pollIntervalRef.current);
         updateField('sunoStatus', 'error');
         updateField('sunoProgress', 'Não foi possível concluir em tempo real. Os áudios serão enviados manualmente.');
       }
@@ -1197,7 +1219,7 @@ export default function CriarMusica() {
     if (step === 5 && formData.story.length < 50) return true;
     if (step === 6 && !formData.musicStyle) return true;
     if (step === 7 && !formData.musicMood) return true;
-    if (step === 9 && (!formData.customerName || !isPhoneValid(formData.customerPhone))) return true;
+    if (step === 9 && (!formData.customerName || !isPhoneValid(formData.customerPhone) || !formData.termsAccepted)) return true;
     if (step === 10 && formData.lyricsStatus !== 'generated') return true;
     if (step === 11 && formData.sunoStatus !== 'generated') return true;
     if (step === 12 && !formData.selectedPackage) return true;
@@ -1673,7 +1695,7 @@ export default function CriarMusica() {
                   placeholder="(99) 99999-9999" 
                   style={styles.wizardInput}
                 />
-                <span style={{ fontSize: '0.75rem', color: phoneVerifyStatus === 'valid' ? 'var(--success)' : phoneVerifyStatus === 'invalid' ? '#ef4444' : phoneVerifyStatus === 'checking' ? '#f59e0b' : 'var(--text-muted)', marginTop: '4px', display: 'block', fontWeight: phoneVerifyStatus === 'invalid' ? 'bold' : 'normal' }}>
+                <span style={{ fontSize: '0.75rem', color: phoneVerifyStatus === 'valid' ? 'var(--success)' : (phoneVerifyStatus === 'invalid' || phoneVerifyStatus === 'unknown') ? '#ef4444' : phoneVerifyStatus === 'checking' ? '#f59e0b' : 'var(--text-muted)', marginTop: '4px', display: 'block', fontWeight: (phoneVerifyStatus === 'invalid' || phoneVerifyStatus === 'unknown') ? 'bold' : 'normal' }}>
                   {phoneVerifyMessage || 'Digite o DDD + 9 dígitos'}
                 </span>
               </div>
@@ -1693,6 +1715,27 @@ export default function CriarMusica() {
                 <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
                   🔒 Respeitamos sua privacidade. Seus contatos serão utilizados exclusivamente para entregar e acompanhar a criação da sua composição.
                 </p>
+              </div>
+
+              <div style={{ marginTop: '16px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                <input
+                  type="checkbox"
+                  id="termsAccepted"
+                  checked={formData.termsAccepted}
+                  onChange={(e) => updateField('termsAccepted', e.target.checked)}
+                  style={{ marginTop: '3px', width: '18px', height: '18px', flexShrink: 0 }}
+                />
+                <label htmlFor="termsAccepted" style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
+                  Li e aceito os{' '}
+                  <Link href="/termos-de-uso" target="_blank" style={{ color: 'var(--primary)', fontWeight: '600' }}>
+                    Termos de Uso
+                  </Link>
+                  {' '}e a{' '}
+                  <Link href="/politica-de-privacidade" target="_blank" style={{ color: 'var(--primary)', fontWeight: '600' }}>
+                    Política de Privacidade
+                  </Link>
+                  . *
+                </label>
               </div>
             </div>
           </div>
@@ -1821,8 +1864,7 @@ export default function CriarMusica() {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json' },
                               body: JSON.stringify({
-                                prompt: formData.lyrics || formData.story,
-                                tags: formData.musicStyle || 'Pop',
+                                ...buildSunoPayload(formData),
                                 orderId: orderId
                               })
                             });

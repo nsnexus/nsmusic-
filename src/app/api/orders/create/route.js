@@ -34,6 +34,12 @@ export async function POST(req) {
   try {
     const formData = await req.json();
 
+    // M-13 no AUDIT_REPORT.md: o consentimento aos termos precisa ser real (checkbox marcado pelo
+    // cliente), verificado no servidor — nunca aceito por padrão.
+    if (formData.termsAccepted !== true) {
+      return NextResponse.json({ error: 'É necessário aceitar os Termos de Uso para continuar.' }, { status: 400 });
+    }
+
     if (await isBlockedByFreeLimit(formData.customerPhone, formData.customerEmail)) {
       return NextResponse.json(
         { error: 'Limite de músicas gratuitas atingido. Finalize o pagamento de um pedido anterior para continuar.' },
@@ -61,6 +67,8 @@ export async function POST(req) {
       voiceType: formData.voiceType || '',
       coverUrl: formData.coverUrl || '',
       lyrics: formData.lyrics || '',
+      termsAccepted: true,
+      termsAcceptedAt: createdAtIso,
       paymentStatus: 'AGUARDANDO_PAGAMENTO',
       productionStatus: formData.lyrics ? 'LETRA_GERADA' : 'EM_PRODUCAO',
       createdAt: createdAtIso,
