@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { styles } from './wizardStyles';
-import { recipients, relationshipsEuSouO, relationshipsEuSouA, occasions, stylesList, moods } from './wizardOptions';
+import { recipients, occasions, stylesList, moods } from './wizardOptions';
 
 // Passos 1-9 do wizard de /criar — extraído de page.jsx (M-20 no AUDIT_REPORT.md). Mantém toda a
 // lógica/estado no componente pai (criar/page.jsx); este componente só recebe formData e os
@@ -35,7 +35,7 @@ export default function WizardSteps({
                 style={{
                   ...styles.wizardCard,
                   borderColor: formData.recipientType === item.id ? 'var(--primary)' : 'rgba(255,255,255,0.08)',
-                  backgroundColor: formData.recipientType === item.id ? 'rgba(124, 58, 237, 0.08)' : 'rgba(255,255,255,0.02)',
+                  backgroundColor: formData.recipientType === item.id ? 'rgba(79, 70, 229, 0.08)' : 'rgba(255,255,255,0.02)',
                 }}
               >
                 {formData.recipientType === item.id && <div style={styles.checkCircle}>✓</div>}
@@ -63,72 +63,6 @@ export default function WizardSteps({
     case 3:
       return (
         <div>
-          <h1 style={styles.stepTitle}>Qual seu parentesco com essa pessoa?</h1>
-          <p style={styles.stepSubtitle}>Selecione quem é VOCÊ em relação a quem vai receber a música</p>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '30px', marginTop: '20px' }}>
-            <div>
-              <h3 style={{ fontSize: '1.1rem', color: 'var(--primary)', marginBottom: '16px', textAlign: 'center', fontWeight: '800' }}>🧔 Eu sou o...</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {relationshipsEuSouO.map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => selectFieldAndAdvance('relationship', item.id)}
-                    style={{
-                      ...styles.wizardListBtn,
-                      borderColor: formData.relationship === item.id ? 'var(--primary)' : 'var(--border-color)',
-                      backgroundColor: formData.relationship === item.id ? 'rgba(124, 58, 237, 0.08)' : '#FFFFFF',
-                      color: formData.relationship === item.id ? 'var(--primary)' : 'var(--text-primary)',
-                      boxShadow: formData.relationship === item.id ? '0 4px 14px rgba(124, 58, 237, 0.15)' : '0 2px 6px rgba(0,0,0,0.02)',
-                    }}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <h3 style={{ fontSize: '1.1rem', color: 'var(--secondary)', marginBottom: '16px', textAlign: 'center', fontWeight: '800' }}>👩 Eu sou a...</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {relationshipsEuSouA.map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => selectFieldAndAdvance('relationship', item.id)}
-                    style={{
-                      ...styles.wizardListBtn,
-                      borderColor: formData.relationship === item.id ? 'var(--secondary)' : 'var(--border-color)',
-                      backgroundColor: formData.relationship === item.id ? 'rgba(236, 72, 153, 0.08)' : '#FFFFFF',
-                      color: formData.relationship === item.id ? 'var(--secondary)' : 'var(--text-primary)',
-                      boxShadow: formData.relationship === item.id ? '0 4px 14px rgba(236, 72, 153, 0.15)' : '0 2px 6px rgba(0,0,0,0.02)',
-                    }}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'center', marginTop: '20px' }}>
-            <button
-              onClick={() => selectFieldAndAdvance('relationship', 'Outro')}
-              style={{
-                ...styles.wizardListBtn,
-                width: '180px',
-                borderColor: formData.relationship === 'Outro' ? 'var(--primary)' : 'var(--border-color)',
-                backgroundColor: formData.relationship === 'Outro' ? 'rgba(124, 58, 237, 0.08)' : '#FFFFFF',
-                color: formData.relationship === 'Outro' ? 'var(--primary)' : 'var(--text-primary)',
-              }}
-            >
-              Outro
-            </button>
-          </div>
-        </div>
-      );
-    case 4:
-      return (
-        <div>
           <h1 style={styles.stepTitle}>Qual a ocasião?</h1>
           <p style={styles.stepSubtitle}>Escolha o momento que você quer eternizar</p>
           <div style={styles.gridCards}>
@@ -139,7 +73,7 @@ export default function WizardSteps({
                 style={{
                   ...styles.wizardCard,
                   borderColor: formData.occasion === item.id ? 'var(--primary)' : 'rgba(255,255,255,0.08)',
-                  backgroundColor: formData.occasion === item.id ? 'rgba(124, 58, 237, 0.08)' : 'rgba(255,255,255,0.02)',
+                  backgroundColor: formData.occasion === item.id ? 'rgba(79, 70, 229, 0.08)' : 'rgba(255,255,255,0.02)',
                 }}
               >
                 {formData.occasion === item.id && <div style={styles.checkCircle}>✓</div>}
@@ -150,7 +84,7 @@ export default function WizardSteps({
           </div>
         </div>
       );
-    case 5:
+    case 4:
       return (
         <div style={{ maxWidth: '750px', margin: '0 auto' }}>
           <h1 style={styles.stepTitle}>Conte sua história 📜</h1>
@@ -165,8 +99,8 @@ export default function WizardSteps({
                 padding: '8px 16px',
                 borderRadius: '20px',
                 border: isListening ? '2px solid #ef4444' : '1px solid var(--primary)',
-                background: isListening ? 'rgba(239, 68, 68, 0.2)' : 'rgba(124, 58, 237, 0.15)',
-                color: isListening ? '#fca5a5' : '#c4b5fd',
+                background: isListening ? 'rgba(239, 68, 68, 0.12)' : 'var(--primary-light)',
+                color: isListening ? '#dc2626' : 'var(--primary)',
                 fontSize: '0.85rem',
                 fontWeight: '700',
                 cursor: 'pointer',
@@ -232,7 +166,7 @@ export default function WizardSteps({
           </div>
         </div>
       );
-    case 6:
+    case 5:
       return (
         <div>
           <h1 style={styles.stepTitle}>Gênero musical</h1>
@@ -245,7 +179,7 @@ export default function WizardSteps({
                 style={{
                   ...styles.wizardCardLarge,
                   borderColor: formData.musicStyle === item.id ? 'var(--primary)' : 'rgba(255,255,255,0.08)',
-                  backgroundColor: formData.musicStyle === item.id ? 'rgba(124, 58, 237, 0.08)' : 'rgba(255,255,255,0.02)',
+                  backgroundColor: formData.musicStyle === item.id ? 'rgba(79, 70, 229, 0.08)' : 'rgba(255,255,255,0.02)',
                 }}
               >
                 {formData.musicStyle === item.id && <div style={styles.checkCircle}>✓</div>}
@@ -261,7 +195,7 @@ export default function WizardSteps({
           </div>
         </div>
       );
-    case 7:
+    case 6:
       return (
         <div>
           <h1 style={styles.stepTitle}>Clima da música</h1>
@@ -274,7 +208,7 @@ export default function WizardSteps({
                 style={{
                   ...styles.wizardCardLarge,
                   borderColor: formData.musicMood === item.id ? 'var(--primary)' : 'rgba(255,255,255,0.08)',
-                  backgroundColor: formData.musicMood === item.id ? 'rgba(124, 58, 237, 0.08)' : 'rgba(255,255,255,0.02)',
+                  backgroundColor: formData.musicMood === item.id ? 'rgba(79, 70, 229, 0.08)' : 'rgba(255,255,255,0.02)',
                 }}
               >
                 {formData.musicMood === item.id && <div style={styles.checkCircle}>✓</div>}
@@ -290,7 +224,7 @@ export default function WizardSteps({
           </div>
         </div>
       );
-    case 8:
+    case 7:
       return (
         <div style={{ maxWidth: '650px', margin: '0 auto' }}>
           <h1 style={styles.stepTitle}>Detalhes finais</h1>
@@ -327,9 +261,9 @@ export default function WizardSteps({
                 style={{
                   ...styles.voiceBtn,
                   borderColor: formData.voiceType === 'masculina' ? 'var(--primary)' : 'var(--border-color)',
-                  backgroundColor: formData.voiceType === 'masculina' ? 'rgba(124, 58, 237, 0.08)' : '#FFFFFF',
+                  backgroundColor: formData.voiceType === 'masculina' ? 'rgba(79, 70, 229, 0.08)' : '#FFFFFF',
                   color: formData.voiceType === 'masculina' ? 'var(--primary)' : 'var(--text-primary)',
-                  boxShadow: formData.voiceType === 'masculina' ? '0 4px 14px rgba(124, 58, 237, 0.15)' : '0 2px 6px rgba(0,0,0,0.02)',
+                  boxShadow: formData.voiceType === 'masculina' ? '0 4px 14px rgba(79, 70, 229, 0.15)' : '0 2px 6px rgba(0,0,0,0.02)',
                 }}
               >
                 🎤 Masculina
@@ -340,9 +274,9 @@ export default function WizardSteps({
                 style={{
                   ...styles.voiceBtn,
                   borderColor: formData.voiceType === 'feminina' ? 'var(--primary)' : 'var(--border-color)',
-                  backgroundColor: formData.voiceType === 'feminina' ? 'rgba(124, 58, 237, 0.08)' : '#FFFFFF',
+                  backgroundColor: formData.voiceType === 'feminina' ? 'rgba(79, 70, 229, 0.08)' : '#FFFFFF',
                   color: formData.voiceType === 'feminina' ? 'var(--primary)' : 'var(--text-primary)',
-                  boxShadow: formData.voiceType === 'feminina' ? '0 4px 14px rgba(124, 58, 237, 0.15)' : '0 2px 6px rgba(0,0,0,0.02)',
+                  boxShadow: formData.voiceType === 'feminina' ? '0 4px 14px rgba(79, 70, 229, 0.15)' : '0 2px 6px rgba(0,0,0,0.02)',
                 }}
               >
                 🎤 Feminina
@@ -353,9 +287,9 @@ export default function WizardSteps({
                 style={{
                   ...styles.voiceBtn,
                   borderColor: formData.voiceType === 'dueto' ? 'var(--primary)' : 'var(--border-color)',
-                  backgroundColor: formData.voiceType === 'dueto' ? 'rgba(124, 58, 237, 0.08)' : '#FFFFFF',
+                  backgroundColor: formData.voiceType === 'dueto' ? 'rgba(79, 70, 229, 0.08)' : '#FFFFFF',
                   color: formData.voiceType === 'dueto' ? 'var(--primary)' : 'var(--text-primary)',
-                  boxShadow: formData.voiceType === 'dueto' ? '0 4px 14px rgba(124, 58, 237, 0.15)' : '0 2px 6px rgba(0,0,0,0.02)',
+                  boxShadow: formData.voiceType === 'dueto' ? '0 4px 14px rgba(79, 70, 229, 0.15)' : '0 2px 6px rgba(0,0,0,0.02)',
                 }}
               >
                 👥 Dueto
@@ -399,8 +333,8 @@ export default function WizardSteps({
                   width: '100%',
                   padding: '22px',
                   borderRadius: '14px',
-                  border: '2px dashed rgba(124, 58, 237, 0.4)',
-                  background: 'rgba(124, 58, 237, 0.04)',
+                  border: '2px dashed rgba(79, 70, 229, 0.4)',
+                  background: 'rgba(79, 70, 229, 0.04)',
                 }}>
                   <span style={{ fontSize: '1.8rem' }}>⏳</span>
                   <span style={{ fontSize: '0.95rem', fontWeight: 'bold', color: '#fff' }}>Enviando foto...</span>
@@ -415,8 +349,8 @@ export default function WizardSteps({
                   width: '100%',
                   padding: '22px',
                   borderRadius: '14px',
-                  border: '2px dashed rgba(124, 58, 237, 0.4)',
-                  background: 'rgba(124, 58, 237, 0.04)',
+                  border: '2px dashed rgba(79, 70, 229, 0.4)',
+                  background: 'rgba(79, 70, 229, 0.04)',
                   cursor: 'pointer',
                   transition: 'all 0.2s ease'
                 }}>
@@ -435,7 +369,7 @@ export default function WizardSteps({
           </div>
         </div>
       );
-    case 9:
+    case 8:
       return (
         <div className="responsive-grid-2">
           <div style={styles.checkoutSummary} className="glass-card">

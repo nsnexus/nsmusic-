@@ -126,38 +126,39 @@ export default function CriarMusica() {
     recipientType: '',
     // Step 2
     honoreeName: '',
-    // Step 3
+    // Preenchido automaticamente a partir de recipientType (ver selectFieldAndAdvance) — não é
+    // mais uma etapa própria do wizard, era redundante com "quem vai receber a música".
     relationship: '',
-    // Step 4
+    // Step 3
     occasion: '',
-    // Step 5
+    // Step 4
     story: '',
     importantMoments: '',
-    // Step 6
+    // Step 5
     musicStyle: '',
-    // Step 7
+    // Step 6
     musicMood: '',
-    // Step 8
+    // Step 7
     requiredNames: '',
     requiredPhrase: '',
     voiceType: 'masculina',
     coverUrl: '', // URL do Firebase Storage (ver M-08 no AUDIT_REPORT.md — nunca base64)
-    // Step 9
+    // Step 8
     customerName: '',
     customerPhone: '',
     customerEmail: '',
     termsAccepted: false,
-    // Step 10: Lyrics state
+    // Step 9: Lyrics state
     lyrics: '',
     lyricsVersion: 1,
     lyricsStatus: 'idle', // 'idle', 'generating', 'generated', 'error'
     lyricsComment: '',
-    // Step 11: Suno AI Audio state
+    // Step 10: Suno AI Audio state
     sunoStatus: 'idle', // 'idle', 'generating', 'generated', 'error'
     sunoProgress: '',
     sunoTracks: [],
     addVersion2: false,
-    // Step 12: Pricing package
+    // Step 11: Pricing package
     selectedPackage: 'promo_2_musicas',
     // Step 13: Addons
     addons: {
@@ -173,10 +174,12 @@ export default function CriarMusica() {
     }
   });
 
-  const totalWizardSteps = 9;
+  const totalWizardSteps = 8; // era 9 — etapa de "parentesco" removida (redundante com recipientType)
   const audio1Ref = useRef(null);
   const audio2Ref = useRef(null);
   const recognitionRef = useRef(null);
+  const voiceDictationGotResultRef = useRef(false);
+  const voiceDictationErrorHandledRef = useRef(false);
   const baseStoryRef = useRef('');
   const pollIntervalRef = useRef(null);
 
@@ -258,7 +261,7 @@ export default function CriarMusica() {
           if (parsed.formData) setFormData(parsed.formData);
           if (parsed.orderId) setOrderId(parsed.orderId);
           if (parsed.taskId) setTaskId(parsed.taskId);
-          if (parsed.step) setStep(parsed.step >= 12 ? 12 : parsed.step);
+          if (parsed.step) setStep(parsed.step >= 11 ? 11 : parsed.step);
 
           const savedTaskId = parsed.taskId;
           const currentOrderId = parsed.orderId;
@@ -266,7 +269,7 @@ export default function CriarMusica() {
           // Se estava aguardando áudio ou tem um taskId pendente
           if (savedTaskId && parsed.formData?.sunoStatus !== 'generated') {
             pollSunoStatus(savedTaskId, currentOrderId);
-          } else if (currentOrderId && parsed.formData?.sunoStatus !== 'generated' && parsed.step >= 10) {
+          } else if (currentOrderId && parsed.formData?.sunoStatus !== 'generated' && parsed.step >= 9) {
             checkOrderStatusInFirestore(currentOrderId, savedTaskId);
           }
         }
@@ -441,10 +444,34 @@ export default function CriarMusica() {
       recognition.continuous = false; // Em celulares, evita duplicação de frases em loop
       recognition.interimResults = false; // Apenas grava quando o trecho for finalizado
       recognitionRef.current = recognition;
+      voiceDictationGotResultRef.current = false;
+      voiceDictationErrorHandledRef.current = false;
 
       recognition.onstart = () => setIsListening(true);
-      recognition.onend = () => setIsListening(false);
-      recognition.onerror = () => setIsListening(false);
+
+      // Sem isso, uma permissão de microfone negada (ou nenhuma fala captada) fazia o botão
+      // simplesmente voltar ao normal sem explicação nenhuma — parecia que "nada acontecia"
+      // (relato do usuário, 2026-08-02). onerror sempre é seguido de onend pela spec da Web Speech
+      // API — o ref evita mostrar dois alertas empilhados para o mesmo problema.
+      recognition.onend = () => {
+        setIsListening(false);
+        if (!voiceDictationGotResultRef.current && !voiceDictationErrorHandledRef.current) {
+          alert('Não conseguimos captar sua fala. Verifique se o microfone está liberado para este site e tente falar logo após clicar em "Ditar por Voz".');
+        }
+      };
+
+      recognition.onerror = (event) => {
+        setIsListening(false);
+        voiceDictationErrorHandledRef.current = true;
+        if (event.error === 'aborted') return; // parada manual (usuário clicou em parar) — sem aviso
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+          alert('O microfone está bloqueado para este site. Permita o acesso ao microfone nas configurações do navegador e tente de novo.');
+        } else if (event.error === 'no-speech') {
+          alert('Não conseguimos ouvir nada. Tente falar logo após clicar em "Ditar por Voz", bem próximo do microfone.');
+        } else {
+          alert('Não foi possível usar o ditado por voz agora. Tente novamente ou digite a história.');
+        }
+      };
 
       recognition.onresult = (event) => {
         let textRecorded = '';
@@ -455,6 +482,7 @@ export default function CriarMusica() {
         }
         textRecorded = textRecorded.trim();
         if (textRecorded) {
+          voiceDictationGotResultRef.current = true;
           setFormData(prev => ({
             ...prev,
             story: prev.story ? `${prev.story.trim()} ${textRecorded}` : textRecorded
@@ -469,14 +497,15 @@ export default function CriarMusica() {
     }
   };
 
-  // Parar gravação de voz automaticamente se o usuário mudar de etapa ou se o step não for 5
+  // Parar gravação de voz automaticamente se o usuário mudar de etapa ou se o step não for 4
+  // (etapa "Conte sua história" — era 5 antes da remoção da etapa de parentesco)
   useEffect(() => {
-    if (step !== 5 && isListening) {
+    if (step !== 4 && isListening) {
       if (recognitionRef.current) {
         try {
           recognitionRef.current.stop();
         } catch (e) {
-          console.warn("Erro ao parar ditado de voz ao sair da etapa 5:", e);
+          console.warn("Erro ao parar ditado de voz ao sair da etapa 4:", e);
         }
       }
       setIsListening(false);
@@ -498,7 +527,14 @@ export default function CriarMusica() {
 
   // Seleção com Avanço Automático para a próxima etapa
   const selectFieldAndAdvance = (name, value) => {
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData(prev => ({
+      ...prev,
+      [name]: value,
+      // A pergunta separada de "parentesco" foi removida do wizard por ser redundante com "quem vai
+      // receber a música" (feedback do usuário, 2026-08-02) — mas src/lib e a letra gerada ainda
+      // esperam um `relationship`, então ele é preenchido automaticamente aqui, sem perguntar de novo.
+      ...(name === 'recipientType' ? { relationship: value } : {}),
+    }));
     setTimeout(() => {
       setStep(prevStep => Math.min(prevStep + 1, totalWizardSteps));
     }, 150);
@@ -1015,15 +1051,14 @@ export default function CriarMusica() {
   const isNextDisabled = () => {
     if (step === 1 && !formData.recipientType) return true;
     if (step === 2 && !formData.honoreeName) return true;
-    if (step === 3 && !formData.relationship) return true;
-    if (step === 4 && !formData.occasion) return true;
-    if (step === 5 && formData.story.length < 50) return true;
-    if (step === 6 && !formData.musicStyle) return true;
-    if (step === 7 && !formData.musicMood) return true;
-    if (step === 9 && (!formData.customerName || !isPhoneValid(formData.customerPhone) || !formData.termsAccepted)) return true;
-    if (step === 10 && formData.lyricsStatus !== 'generated') return true;
-    if (step === 11 && formData.sunoStatus !== 'generated') return true;
-    if (step === 12 && !formData.selectedPackage) return true;
+    if (step === 3 && !formData.occasion) return true;
+    if (step === 4 && formData.story.length < 50) return true;
+    if (step === 5 && !formData.musicStyle) return true;
+    if (step === 6 && !formData.musicMood) return true;
+    if (step === 8 && (!formData.customerName || !isPhoneValid(formData.customerPhone) || !formData.termsAccepted)) return true;
+    if (step === 9 && formData.lyricsStatus !== 'generated') return true;
+    if (step === 10 && formData.sunoStatus !== 'generated') return true;
+    if (step === 11 && !formData.selectedPackage) return true;
     return false;
   };
 
@@ -1046,7 +1081,7 @@ export default function CriarMusica() {
 
   const renderWorkflowStep = () => {
     switch (step) {
-      case 10: // Lyrics Generation & Editing
+      case 9: // Lyrics Generation & Editing
         return (
           <div>
             {formData.lyricsStatus === 'generating' ? (
@@ -1123,7 +1158,7 @@ export default function CriarMusica() {
             )}
           </div>
         );
-      case 11: // Direct Audio Generation & 60s Preview Playback
+      case 10: // Direct Audio Generation & 60s Preview Playback
         return (
           <div>
             {formData.sunoStatus !== 'generated' ? (
@@ -1310,7 +1345,7 @@ export default function CriarMusica() {
             )}
           </div>
         );
-      case 12: // Checkout Transparente Pix (Efí) embutido no site
+      case 11: // Checkout Transparente Pix (Efí) embutido no site
         return (
           <div>
             <h1 style={styles.stepTitle}>Finalizar Pedido 💳</h1>
@@ -1580,7 +1615,7 @@ export default function CriarMusica() {
           </div>
 
           {/* Fixed Bottom Navigation Dock */}
-          {formData.lyricsStatus !== 'generating' && formData.sunoStatus !== 'generating' && (step <= totalWizardSteps || step === 10) && (
+          {formData.lyricsStatus !== 'generating' && formData.sunoStatus !== 'generating' && (step <= totalWizardSteps || step === 9) && (
             <div style={styles.navigationControls}>
               <div className="container" style={{ width: '100%', maxWidth: '900px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
                 {step > 1 ? (
@@ -1598,7 +1633,7 @@ export default function CriarMusica() {
                 <div>
                   {step <= totalWizardSteps ? (
                     <button 
-                      onClick={step === 9 ? handleSaveAndGenerateLyrics : nextStep}
+                      onClick={step === 8 ? handleSaveAndGenerateLyrics : nextStep}
                       disabled={isNextDisabled()}
                       className="btn btn-primary"
                       style={{
@@ -1609,11 +1644,11 @@ export default function CriarMusica() {
                         color: isNextDisabled() ? 'var(--text-muted)' : '#FFFFFF'
                       }}
                     >
-                      {step === 9 ? 'Criar Música →' : 'Continuar →'}
+                      {step === 8 ? 'Criar Música →' : 'Continuar →'}
                     </button>
                   ) : (
-                    step === 10 && (
-                      <button 
+                    step === 9 && (
+                      <button
                         onClick={handleApproveLyrics}
                         disabled={isNextDisabled()}
                         className="btn btn-primary"

@@ -18,24 +18,6 @@ export const recipients = [
   { id: 'Outro', label: 'Outro', icon: '🎵' },
 ];
 
-export const relationshipsEuSouO = [
-  { id: 'Esposo', label: 'Esposo' },
-  { id: 'Filho', label: 'Filho' },
-  { id: 'Namorado', label: 'Namorado' },
-  { id: 'Amigo', label: 'Amigo' },
-  { id: 'Pai', label: 'Pai' },
-  { id: 'Neto', label: 'Neto' },
-];
-
-export const relationshipsEuSouA = [
-  { id: 'Esposa', label: 'Esposa' },
-  { id: 'Filha', label: 'Filha' },
-  { id: 'Namorada', label: 'Namorada' },
-  { id: 'Amiga', label: 'Amiga' },
-  { id: 'Mãe', label: 'Mãe' },
-  { id: 'Neta', label: 'Neta' },
-];
-
 export const occasions = [
   { id: 'Aniversário', label: 'Aniversário', icon: '🎂' },
   { id: 'Aniv. de Casamento', label: 'Aniv. de Casamento', icon: '💎' },
@@ -63,7 +45,13 @@ export const stylesList = [
   { id: 'Forró / Baião', label: 'Forró / Baião', icon: '🪗', desc: 'Ritmo nordestino alegre e envolvente' },
   { id: 'Trap / Rap', label: 'Trap / Rap', icon: '🎙️', desc: 'Batidas urbanas modernas' },
   { id: 'Reggae', label: 'Reggae', icon: '🌴', desc: 'Vibe positiva e relaxada' },
-  { id: 'Lo-Fi Chill', label: 'Lo-Fi Chill', icon: '🎧', desc: 'Melodias suaves e tranquilas' }
+  { id: 'Lo-Fi Chill', label: 'Lo-Fi Chill', icon: '🎧', desc: 'Melodias suaves e tranquilas' },
+  { id: 'Funk', label: 'Funk', icon: '🔊', desc: 'Batida forte e envolvente' },
+  { id: 'Eletrônica', label: 'Eletrônica', icon: '🎛️', desc: 'Synths modernos e batida eletrônica' },
+  { id: 'Piseiro', label: 'Piseiro', icon: '🪘', desc: 'Ritmo nordestino dançante em alta' },
+  { id: 'Axé', label: 'Axé', icon: '🌊', desc: 'Animado, ideal pra festa e verão' },
+  { id: 'Jazz / Blues', label: 'Jazz / Blues', icon: '🎷', desc: 'Sofisticado, com swing e improviso' },
+  { id: 'Infantil', label: 'Infantil', icon: '🧸', desc: 'Leve e divertida, pra crianças' },
 ];
 
 export const moods = [
@@ -74,5 +62,7 @@ export const moods = [
   { id: 'Nostálgica', label: 'Nostálgica', icon: '🍂', desc: 'Recordações marcantes e saudades' },
   { id: 'Romântica', label: 'Romântica', icon: '💖', desc: 'Declaração amorosa e carinhosa' },
   { id: 'Festiva', label: 'Festiva', icon: '🎉', desc: 'Clima de celebração e festa' },
-  { id: 'Inspiradora', label: 'Inspiradora', icon: '✨', desc: 'Mensagem de superação e motivação' }
+  { id: 'Inspiradora', label: 'Inspiradora', icon: '✨', desc: 'Mensagem de superação e motivação' },
+  { id: 'Divertida', label: 'Divertida', icon: '😄', desc: 'Bem-humorada, leve e engraçada' },
+  { id: 'Melancólica', label: 'Melancólica', icon: '🕊️', desc: 'Saudade e homenagem, pra quem já partiu' },
 ];
