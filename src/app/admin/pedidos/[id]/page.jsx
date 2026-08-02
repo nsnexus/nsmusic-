@@ -7,6 +7,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import Link from 'next/link';
+import Image from 'next/image';
 
 export default function OrderDetailsAdmin() {
   const [user, setUser] = useState(null);
@@ -359,7 +360,7 @@ export default function OrderDetailsAdmin() {
       <header style={styles.header}>
         <div style={styles.headerContainer}>
           <div style={styles.logo}>
-            <img src="/logo.png" alt="NSMusic" style={{ height: '36px', width: 'auto' }} />
+            <Image src="/logo.png" alt="NSMusic" width={36} height={36} style={{ height: '36px', width: 'auto' }} priority />
             <span style={{ fontSize: '0.9rem', color: '#0f172a', fontWeight: '800', textTransform: 'uppercase' }}>Gerenciar Pedido</span>
           </div>
           <Link href="/admin" style={styles.backLink}>

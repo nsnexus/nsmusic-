@@ -61,7 +61,8 @@ export async function POST(req) {
         style: tags,
         title: `Pedido ${orderId ? orderId.substring(0, 8) : 'Novo'}`.substring(0, 80),
         callBackUrl: callbackUrl
-      })
+      }),
+      signal: AbortSignal.timeout(15000)
     });
 
     const data = await response.json().catch(() => ({}));

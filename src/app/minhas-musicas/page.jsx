@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { onAuthStateChanged, signOut, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
@@ -235,7 +236,7 @@ export default function MinhasMusicasPage() {
       <header style={styles.header} className="glass-panel">
         <div style={styles.headerContainer}>
           <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none' }}>
-            <img src="/logo.png" alt="NSMusic" style={{ height: '38px', width: 'auto' }} />
+            <Image src="/logo.png" alt="NSMusic" width={38} height={38} style={{ height: '38px', width: 'auto' }} priority />
             <span style={{ fontSize: '1.25rem', fontWeight: '800', color: 'var(--text-primary)' }}>NSMusic</span>
           </Link>
 

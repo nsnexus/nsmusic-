@@ -69,7 +69,8 @@ export const verifyWhatsAppNumber = async (phone, env = {}) => {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
-      }
+      },
+      signal: AbortSignal.timeout(8000)
     });
 
     if (!res.ok) {
@@ -130,7 +131,8 @@ export const sendWhatsAppMessageDetailed = async (phone, message, env = {}) => {
           body: JSON.stringify({
             phone: num,
             message: message
-          })
+          }),
+          signal: AbortSignal.timeout(10000)
         });
 
         if (res.ok) {

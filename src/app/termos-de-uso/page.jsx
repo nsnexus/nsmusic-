@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 
 export default function TermsOfUse() {
   return (
@@ -11,7 +12,7 @@ export default function TermsOfUse() {
         <div style={styles.headerContainer}>
           <div style={styles.logo}>
             <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#fff' }}>
-              <img src="/logo.png" alt="NSMusic" style={{ height: '36px', width: 'auto' }} />
+              <Image src="/logo.png" alt="NSMusic" width={36} height={36} style={{ height: '36px', width: 'auto' }} />
             </Link>
           </div>
           <Link href="/" className="btn btn-secondary" style={{ padding: '8px 16px', fontSize: '0.85rem' }}>
@@ -107,7 +108,7 @@ export default function TermsOfUse() {
       <footer style={styles.footer}>
         <div className="container" style={styles.footerContainer}>
           <div>
-            <img src="/logo.png" alt="NSMusic" style={{ height: '32px', width: 'auto', marginBottom: '8px' }} />
+            <Image src="/logo.png" alt="NSMusic" width={32} height={32} style={{ height: '32px', width: 'auto', marginBottom: '8px' }} />
             <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Músicas personalizadas que emocionam.</p>
           </div>
           <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>

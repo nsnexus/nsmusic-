@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { doc, getDoc, collection, addDoc, updateDoc, query, where, getDocs } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, auth, storage } from '@/lib/firebase';
@@ -10,7 +11,7 @@ import { buildSunoPayload } from '@/lib/sunoPayload';
 function BrandLogo() {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-      <img src="/logo.png" alt="NSMusic" style={{ height: '38px', width: 'auto' }} />
+      <Image src="/logo.png" alt="NSMusic" width={38} height={38} style={{ height: '38px', width: 'auto' }} priority />
       <span style={{
         fontSize: '1.3rem',
         fontWeight: '900',

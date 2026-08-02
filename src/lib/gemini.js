@@ -24,14 +24,15 @@ export async function runGeminiWithFailover(prompt) {
         body: JSON.stringify({
           model: "gpt-4o-mini",
           messages: [
-            { 
-              role: "system", 
-              content: "Você é um compositor e letrista profissional premiado de música brasileira. REGRA ABSOLUTA E CRÍTICA DE FORMATO: Sua resposta deve conter EXCLUSIVAMENTE o texto da letra da música. É ESTRITAMENTE PROIBIDO incluir qualquer tipo de conversa, saudação, observação, nota de rodapé ou mensagem de cortesia (como 'As alterações foram feitas...', 'Espero que goste', 'Ajustei o refrão', etc.). Retorne APENAS a letra." 
+            {
+              role: "system",
+              content: "Você é um compositor e letrista profissional premiado de música brasileira. REGRA ABSOLUTA E CRÍTICA DE FORMATO: Sua resposta deve conter EXCLUSIVAMENTE o texto da letra da música. É ESTRITAMENTE PROIBIDO incluir qualquer tipo de conversa, saudação, observação, nota de rodapé ou mensagem de cortesia (como 'As alterações foram feitas...', 'Espero que goste', 'Ajustei o refrão', etc.). Retorne APENAS a letra."
             },
             { role: "user", content: prompt }
           ],
           temperature: 0.7
-        })
+        }),
+        signal: AbortSignal.timeout(30000)
       });
 
       if (openAiRes.ok) {

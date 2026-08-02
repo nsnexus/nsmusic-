@@ -44,7 +44,8 @@ export async function GET(req) {
         headers: {
           'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json'
-        }
+        },
+        signal: AbortSignal.timeout(10000)
       });
 
       if (kieRes.ok) {

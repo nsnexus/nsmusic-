@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useSearchParams } from 'next/navigation';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -88,7 +89,7 @@ function AcompanharContent() {
       <header style={styles.header} className="glass-panel">
         <div style={styles.headerContainer}>
           <Link href="/" style={{ display: 'flex', alignItems: 'center' }}>
-            <img src="/logo.png" alt="NSMusic" style={{ height: '40px', width: 'auto' }} />
+            <Image src="/logo.png" alt="NSMusic" width={40} height={40} style={{ height: '40px', width: 'auto' }} priority />
           </Link>
           <span style={styles.orderBadge}>Pedido: {order.orderNumber}</span>
         </div>

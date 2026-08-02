@@ -6,6 +6,7 @@ import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { collection, query, orderBy, onSnapshot, doc, getDoc, setDoc, deleteDoc, limit as fbLimit } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import Link from 'next/link';
+import Image from 'next/image';
 
 export default function AdminDashboard() {
   const [user, setUser] = useState(null);
@@ -357,7 +358,7 @@ export default function AdminDashboard() {
         <div style={styles.headerContainer}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <Link href="/admin" style={{ display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none' }}>
-              <img src="/logo.png" alt="NSMusic" style={{ height: '36px', width: 'auto' }} />
+              <Image src="/logo.png" alt="NSMusic" width={36} height={36} style={{ height: '36px', width: 'auto' }} priority />
               <span style={{ fontSize: '0.9rem', color: '#0f172a', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Painel Admin</span>
             </Link>
             

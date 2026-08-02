@@ -66,6 +66,25 @@ async function verifyMercadoPagoSignature(req, dataId) {
   }
 }
 
+// Retry com backoff exponencial para a consulta ao Mercado Pago (ver B-08 no AUDIT_REPORT.md) —
+// erro de rede ou 5xx tenta de novo; erro 4xx (ex: pagamento não encontrado) não adianta repetir.
+export async function fetchWithRetry(url, options, maxRetries = 2) {
+  let lastError = null;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const res = await fetch(url, options);
+      if (res.ok || (res.status >= 400 && res.status < 500)) return res;
+      lastError = new Error(`HTTP ${res.status}`);
+    } catch (err) {
+      lastError = err;
+    }
+    if (attempt < maxRetries) {
+      await new Promise((resolve) => setTimeout(resolve, 300 * Math.pow(3, attempt)));
+    }
+  }
+  throw lastError;
+}
+
 async function resolvePaymentAndOrder(rawPaymentId) {
   const numericMatch = String(rawPaymentId).match(/\d+/);
   const paymentId = numericMatch ? numericMatch[0] : String(rawPaymentId).replace(/\D/g, '');
@@ -77,10 +96,16 @@ async function resolvePaymentAndOrder(rawPaymentId) {
     return null;
   }
 
-  const mpRes = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
-    headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-    signal: AbortSignal.timeout(10000),
-  });
+  let mpRes;
+  try {
+    mpRes = await fetchWithRetry(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+      headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(10000),
+    });
+  } catch (err) {
+    console.warn(`[Webhook MP] Falha ao consultar pagamento ${paymentId} após retries:`, err.message);
+    return null;
+  }
 
   if (!mpRes.ok) {
     console.warn(`[Webhook MP] Erro ao consultar pagamento ${paymentId} no Mercado Pago:`, mpRes.status);

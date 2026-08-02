@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 
 export default function Home() {
   const [playingId, setPlayingId] = useState(null);
@@ -140,7 +141,7 @@ export default function Home() {
       <header style={styles.header} className="glass-panel">
         <div style={styles.headerContainer}>
           <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none' }}>
-            <img src="/logo.png" alt="NSMusic" style={{ height: '38px', width: 'auto' }} />
+            <Image src="/logo.png" alt="NSMusic" width={38} height={38} style={{ height: '38px', width: 'auto' }} priority />
             <span className="gradient-text" style={{ fontSize: '1.3rem', fontWeight: '900', letterSpacing: '-0.5px' }}>
               NSMusic
             </span>
@@ -499,7 +500,7 @@ export default function Home() {
       <footer style={styles.footer}>
         <div className="container" style={styles.footerContainer}>
           <div style={styles.footerBrand}>
-            <img src="/logo.png" alt="NSMusic" style={{ height: '36px', width: 'auto', marginBottom: '8px' }} />
+            <Image src="/logo.png" alt="NSMusic" width={36} height={36} style={{ height: '36px', width: 'auto', marginBottom: '8px' }} />
             <p style={styles.footerTagline}>Eternizando momentos marcantes através de acordes e versos únicos.</p>
           </div>
           

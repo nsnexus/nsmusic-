@@ -11,6 +11,7 @@ import {
 } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import Link from 'next/link';
+import Image from 'next/image';
 
 export default function AdminLogin() {
   const [email, setEmail] = useState('');
@@ -80,7 +81,7 @@ export default function AdminLogin() {
 
       <div style={styles.loginCard} className="glass-card">
         <div style={styles.header}>
-          <img src="/logo.png" alt="NSMusic" style={{ height: '60px', width: 'auto', marginBottom: '16px' }} />
+          <Image src="/logo.png" alt="NSMusic" width={60} height={60} style={{ height: '60px', width: 'auto', marginBottom: '16px' }} priority />
           <h2 style={styles.title}>Painel Administrativo</h2>
           <p style={styles.subtitle}>Faça login para gerenciar pedidos e produções</p>
         </div>

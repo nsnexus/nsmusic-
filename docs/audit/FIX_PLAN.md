@@ -428,15 +428,42 @@ declarado). Pedidos "excluídos" continuam no Firestore com `deletedAt` — recu
 
 ---
 
-## Lote 6 — Performance
+## Lote 6 — Performance — ✅ CONCLUÍDO (2026-08-01)
 
 - **B-08** — `AbortSignal.timeout()` em todo `fetch` externo + retry com backoff nos webhooks.
+  **Status: CORRIGIDO E VALIDADO.** Timeout adicionado aos 5 `fetch` externos que ainda não tinham
+  (Kie.ai em `suno/{generate,status}`, OpenAI em `gemini.js`, W-API em `whatsapp.js` × 2). Retry com
+  backoff exponencial (`fetchWithRetry`, até 2 tentativas, não repete em 4xx) aplicado à consulta ao
+  Mercado Pago dentro do webhook — o fetch mais crítico para receita. Testado em
+  `tests/unit/fetchWithRetry.test.js` (4 casos).
 - **B-02** — migrar para `next/image`.
+  **Status: CORRIGIDO PARCIALMENTE E VALIDADO (build).** As 14 ocorrências de `/logo.png` (em 12
+  arquivos) migradas para `<Image>` — candidato seguro: asset estático local, dimensões conhecidas
+  (500×500), sem depender de `next.config` para domínio externo. As demais ocorrências de `<img>`
+  (fotos enviadas pelo cliente, capas via proxy, placeholder do Unsplash) foram deixadas como estão —
+  migrá-las exigiria configurar `images.remotePatterns` no `next.config.mjs` para cada domínio externo
+  e validação visual que não foi possível fazer nesta sessão (sem navegador real com dados reais).
 - **M-14** — remover a imagem base64 do rascunho em `localStorage`.
+  **Status: JÁ RESOLVIDO NO LOTE 5**, como efeito colateral de M-08 (a capa deixou de ser base64 e
+  passou a ser uma URL do Storage, então o rascunho em `localStorage` nunca mais carrega um base64).
 - Code splitting de `videoGenerator.js` via `dynamic()`.
+  **Status: CORRIGIDO E VALIDADO (build).** `createSlideshowVideo` não é mais importado estaticamente
+  no topo de `entrega/page.jsx` — usa `import()` dinâmico só no momento em que o usuário realmente gera
+  o vídeo. Bundle de `/entrega` caiu de 13.8 kB para 12.1 kB no build de produção (Next não usa
+  `next/dynamic` aqui porque `createSlideshowVideo` é uma função, não um componente React — `dynamic()`
+  só se aplica a componentes; para funções, o import dinâmico nativo é o mecanismo correto).
 
-**Dependências:** Lote 5 · **Riscos:** baixos · **Aceite:** Lighthouse mobile > 70 em `/` e `/criar`
-**Rollback:** por commit
+**Testes novos:** `tests/unit/fetchWithRetry.test.js` (novo, 4 casos). 74 testes no total, todos verdes.
+
+**Arquivos:** `src/lib/gemini.js`, `src/lib/whatsapp.js`, `api/suno/{generate,status}/route.js`,
+`api/webhooks/mercadopago/route.js`, `entrega/page.jsx` + 11 outros arquivos (logo → `next/image`)
+
+**Dependências:** Lote 5 · **Riscos:** baixos, confirmados sem regressão de build/lint/typecheck/test.
+**Testes executados:** `npm run build/lint/typecheck/test` verdes (74 testes). Lighthouse **não foi
+executado** — precisa de navegador real e ambiente publicado, fora do alcance desta sessão.
+**Aceite:** parcialmente atingido — B-08 e o code splitting completos; B-02 parcial (só o logo);
+critério de Lighthouse > 70 não verificado.
+**Rollback:** por commit.
 
 ---
 

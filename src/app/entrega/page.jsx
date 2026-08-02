@@ -2,12 +2,12 @@
 
 import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useSearchParams } from 'next/navigation';
 import { doc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { createUserWithEmailAndPassword, onAuthStateChanged } from 'firebase/auth';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, auth, storage } from '@/lib/firebase';
-import { createSlideshowVideo } from '@/lib/videoGenerator';
 import VideoOfferModal from '@/components/VideoOfferModal';
 
 function EntregaContent() {
@@ -482,7 +482,7 @@ function EntregaContent() {
         <div style={styles.headerContainer}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
             <Link href="/" style={{ display: 'flex', alignItems: 'center' }}>
-              <img src="/logo.png" alt="NSMusic" style={{ height: '40px', width: 'auto' }} />
+              <Image src="/logo.png" alt="NSMusic" width={40} height={40} style={{ height: '40px', width: 'auto' }} priority />
             </Link>
             <Link href="/criar" className="btn btn-primary" style={{ padding: '6px 12px', fontSize: '0.82rem', display: 'inline-flex', alignItems: 'center', gap: '4px', textDecoration: 'none' }}>
               ✨ Criar Nova Música
@@ -920,11 +920,14 @@ function EntregaContent() {
                                     // Define a faixa de áudio escolhida pelo usuário
                                     const targetAudioUrl = selectedVideoTrack === 'v2' && secondAudioUrl ? secondAudioUrl : primaryAudioUrl;
 
-                                    // Renderiza o vídeo usando o módulo client-side (silencioso e sem CORS)
+                                    // Renderiza o vídeo usando o módulo client-side (silencioso e sem CORS).
+                                    // Import dinâmico: videoGenerator.js só é baixado por quem realmente
+                                    // gera um vídeo, não entra no bundle inicial de /entrega (ver B-08/Lote 6).
+                                    const { createSlideshowVideo } = await import('@/lib/videoGenerator');
                                     const generatedVideoUrl = await createSlideshowVideo(
-                                      orderId, 
-                                      finalUrls, 
-                                      targetAudioUrl, 
+                                      orderId,
+                                      finalUrls,
+                                      targetAudioUrl,
                                       order,
                                       (percent) => setUploadProgressMsg(`Renderizando vídeo MP4 HD... ${percent}%`)
                                     );
