@@ -336,7 +336,7 @@ O fluxo de pagamento é a área mais frágil do sistema e concentra 5 dos 11 ite
 |---|---|---|---|
 | M-18 | **CORRIGIDO E VALIDADO (Lote 2).** Unificado em `src/lib/payments.js:applyPaymentApproval`, consumido pelos dois arquivos — não há mais lógica duplicada nem divergência de `paidAt` | `src/lib/payments.js` | MÉDIA |
 | M-19 | Mensagem de WhatsApp montada em 3 lugares diferentes com texto quase idêntico | `lib/db.js:129`, `webhooks/mercadopago:159`, `payments/status:169` | MÉDIA |
-| M-20 | Componentes de 2.789 e 1.443 linhas, violando o limite de 400 de `.agents/AGENTS.md` §4 | `criar/page.jsx`, `entrega/page.jsx` | MÉDIA |
+| M-20 | **PARCIALMENTE CORRIGIDO (Lote 7), NÃO VALIDADO VISUALMENTE.** `criar/page.jsx`: 2.848→1.788 linhas (extraídos `wizardStyles.js`, `wizardOptions.js`, `CustomAudioPreview.jsx`, `WizardSteps.jsx` — passos 1-9). `entrega/page.jsx`: 1.442→1.263 linhas (`entregaStyles.js`). Os trechos mais críticos (checkout/pagamento, polling do Suno, upload de vídeo) foram deixados nos arquivos principais por decisão de risco — ver FIX_PLAN Lote 7 | `criar/page.jsx`, `entrega/page.jsx` | Confirmado |
 | B-05 | `'use client'` + `export const runtime = 'edge'` no mesmo arquivo, proibido por `.agents/AGENTS.md` §3 | `admin/pedidos/[id]/page.jsx:1-2` | BAIXA |
 | B-06 | Número de WhatsApp do administrador embutido no código | `webhooks/mercadopago/route.js:169` | BAIXA |
 | B-07 | Código morto: `HomenagemPublica.jsx` (434 linhas, órfão), `lib/sunoToken.js` (sem chamadores), `gerar-logs-pagbank.js` (raiz), `addonsConfig`/`packagesList` (`criar/page.jsx:516-534`) | vários | BAIXA |
@@ -347,8 +347,8 @@ O fluxo de pagamento é a área mais frágil do sistema e concentra 5 dos 11 ite
 
 | ID | Título | Evidência | Sev. |
 |---|---|---|---|
-| M-21 | `npm audit` reporta **14 vulnerabilidades (3 altas, 11 moderadas)** em dependências de produção | cadeia `undici` (via `@firebase/*`) e `uuid` (via `mercadopago`) | MÉDIA |
-| M-22 | Dependência `mercadopago` declarada mas **nunca importada** — traz 3 das vulnerabilidades para nada | `package.json` vs `grep "from 'mercadopago'"` → 0 resultados | MÉDIA |
+| M-21 | **PARCIALMENTE CORRIGIDO (Lote 7) — PENDENTE DE DECISÃO.** `firebase` atualizado para 10.14.1 (patch, sem breaking change). As 12 vulnerabilidades restantes (todas via `undici`) só são resolvidas com `firebase` v11 — major bump com risco de incompatibilidade, não executado sem autorização explícita | cadeia `undici` (via `@firebase/*`) | Confirmado |
+| M-22 | **CORRIGIDO E VALIDADO (Lote 7).** Dependência `mercadopago` removida — reduziu `npm audit` de 23 para 12 vulnerabilidades | `package.json` | Confirmado |
 | M-23 | `.env.example` desatualizado: faltam `KIE_API_KEY`, `WAPI_TOKEN`, `WAPI_INSTANCE_ID`, `OPENAI_API_KEY`; sobram `PAGBANK_TOKEN`/`PAGBANK_ENV` (não usados no `src/`) | `.env.example` | MÉDIA |
 | M-24 | `.gitignore` cobre `.env*.local` mas **não** `.env` — um `.env` na raiz seria commitado | `.gitignore:20-21` | MÉDIA |
 | M-25 | PII (telefone do cliente) escrita em log de servidor | `lib/db.js:137,139`, `whatsapp/notify/route.js:46,49` | MÉDIA |

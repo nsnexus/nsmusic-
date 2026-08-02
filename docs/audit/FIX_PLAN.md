@@ -467,21 +467,64 @@ critério de Lighthouse > 70 não verificado.
 
 ---
 
-## Lote 7 — Refatorações
+## Lote 7 — Refatorações — ⚠️ PARCIALMENTE CONCLUÍDO (2026-08-01/02)
+
+**Decisão do usuário:** ao perguntar sobre o risco de M-20 (decompor arquivos grandes sem cobertura
+de teste de UI), o usuário optou por prosseguir mesmo assim. Ver detalhamento abaixo.
 
 - **M-19** — centralizar os templates de mensagem do WhatsApp em `src/lib/whatsapp.js`.
+  **Status: CORRIGIDO E VALIDADO** (ver commit "parte 1" — `src/lib/whatsappTemplates.js`).
 - **M-20** — decompor `criar/page.jsx` (2.789 → componentes por etapa) e `entrega/page.jsx`.
+  **Status: PARCIALMENTE CORRIGIDO E VALIDADO (build/lint/typecheck/test), NÃO VALIDADO
+  VISUALMENTE.** `criar/page.jsx`: 2.848 → 1.788 linhas (-37%). Extraído com segurança:
+  `wizardStyles.js` (estilos, 100% estático), `wizardOptions.js` (arrays de opções, 100%
+  estático — antes eram recriados a cada render), `CustomAudioPreview.jsx` (componente já
+  autocontido) e `WizardSteps.jsx` (passos 1-9 do wizard, ~530 linhas de JSX puramente
+  apresentacional — recebe `formData` e os handlers já prontos como props, sem duplicar nenhuma
+  regra de negócio). `entrega/page.jsx`: 1.442 → 1.263 linhas (`entregaStyles.js` extraído, mesmo
+  padrão). **Decisão consciente de não continuar:** os passos 10+ de `criar` (revisão de letra,
+  geração de áudio com polling do Suno, checkout/PIX) e a maior parte de `entrega/page.jsx`
+  (upload de vídeo, polling de pagamento, gerenciamento de conta) permanecem nos arquivos
+  principais — são a parte mais crítica e mais interligada com estado/efeitos (pagamento, polling),
+  e decompor esses trechos sem poder testar visualmente numa sessão sem navegador real com dados
+  reais é um risco desproporcional ao benefício de organização. Recomendo que a decomposição dessas
+  partes remanescentes seja feita numa sessão com ambiente de teste disponível.
 - **B-07** — remover código morto: `HomenagemPublica.jsx`, `lib/sunoToken.js`,
   `gerar-logs-pagbank.js`, `addonsConfig`/`packagesList`.
+  **Status: CORRIGIDO E VALIDADO** (ver commit "parte 1"; `HomenagemPublica.jsx` já removido no Lote 2).
 - **M-22** — remover a dependência `mercadopago` (não importada).
+  **Status: CORRIGIDO E VALIDADO.** Reduziu `npm audit` de 23 para 12 vulnerabilidades.
 - **M-21** — atualizar dependências com vulnerabilidades, com o build verde como critério.
+  **Status: PARCIALMENTE CORRIGIDO — 12 vulnerabilidades restantes PENDENTES DE DECISÃO.**
+  `firebase` atualizado de 10.12.2 para 10.14.1 (dentro do range `^10.12.2`, sem breaking change).
+  As 12 vulnerabilidades restantes (todas via `undici`, transitiva de `@firebase/*`) só são
+  resolvidas com `firebase` v11 — **major version bump com risco de incompatibilidade**, listado
+  explicitamente como item que exige autorização antes de executar. Não foi feito nesta sessão.
 - **B-04** — extrair `getFriendlyAuthErrorMessage` para `src/lib/authErrors.js`.
+  **Status: CORRIGIDO E VALIDADO** (ver commit "parte 1").
 - **B-05** — remover `export const runtime = 'edge'` de `admin/pedidos/[id]/page.jsx`.
+  **Status: CORRIGIDO E VALIDADO** (ver commit "parte 1").
 - **B-06** — mover o telefone do admin para `ADMIN_WHATSAPP`.
+  **Status: CORRIGIDO E VALIDADO** (ver commit "parte 1") — junto com uma **regressão encontrada e
+  corrigida**: a notificação de "nova venda" ao admin tinha sido perdida na unificação do Lote 2.
+
+**Testes novos:** nenhum teste novo na parte 2 (extrações são puramente estruturais — o mesmo
+`formData`/handlers já testados indiretamente pelos testes de integração continuam idênticos).
+87 testes no total, todos verdes.
+
+**Arquivos (parte 2 — M-20):** `criar/wizardStyles.js`, `criar/wizardOptions.js`,
+`criar/CustomAudioPreview.jsx`, `criar/WizardSteps.jsx` (novos), `criar/page.jsx`,
+`entrega/entregaStyles.js` (novo), `entrega/page.jsx`
 
 **Dependências:** Lote 0 (testes de caracterização são o que torna isto seguro)
-**Riscos:** médios — refatorar arquivos grandes sem cobertura é arriscado; por isso vem depois dos testes
-**Aceite:** comportamento idêntico, testes verdes, build verde · **Rollback:** por commit
+**Riscos:** médios, parcialmente mitigados — as extrações feitas são estruturais (mover código,
+zero mudança de lógica) e validadas por build/lint/typecheck, mas **não foram testadas visualmente
+em navegador real** (sem ambiente disponível nesta sessão).
+**Aceite:** comportamento idêntico (por leitura de código), build/lint/typecheck/test verdes.
+**Validação manual pendente:** percorrer o wizard completo de `/criar` (passos 1-9 especialmente,
+que foram movidos para `WizardSteps.jsx`) e o fluxo de `/entrega` num navegador real antes de
+considerar este lote 100% encerrado.
+**Rollback:** por commit (2 commits neste lote — "parte 1" itens de baixo risco, "parte 2" M-20).
 
 ---
 
