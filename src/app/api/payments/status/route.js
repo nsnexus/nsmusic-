@@ -73,10 +73,25 @@ export async function GET(req) {
       return jsonNoCache({ status: "pending" });
     }
 
-    if (charge?.status === 'CONCLUIDA' && orderId) {
+    // O txid consultado precisa ser realmente uma cobrança gerada PARA ESTE pedido — nunca aprovar
+    // com base num txid de outro pedido (ex: um paymentId antigo, já pago, reaproveitado contra um
+    // orderId qualquer). Sem esta checagem, qualquer txid CONCLUIDA na Efí aprovava o orderId
+    // informado, mesmo sem relação nenhuma entre os dois (auditoria de fechamento, 2026-08-02).
+    // Também aceita um txid de uma cobrança anterior do MESMO pedido, já substituída por uma mais
+    // nova (ver previousPaymentIntentIds em api/payments/create) — evita perder um pagamento
+    // legítimo de uma cobrança antiga que o cliente pagou por engano (achado #4).
+    const previousTxids = Array.isArray(orderData?.previousPaymentIntentIds) ? orderData.previousPaymentIntentIds : [];
+    const txidBelongsToOrder = !!orderData && (
+      String(txid) === String(orderData.paymentIntentId || '') ||
+      previousTxids.some((id) => String(id) === String(txid))
+    );
+    if (charge?.status === 'CONCLUIDA' && orderId && txidBelongsToOrder) {
       const transactionAmount = Number(charge.valor?.original);
       await applyPaymentApproval(orderId, txid, { status: 'approved', transaction_amount: transactionAmount });
       return jsonNoCache({ status: "approved" });
+    }
+    if (charge?.status === 'CONCLUIDA' && orderId && !txidBelongsToOrder) {
+      console.warn('[PaymentStatus] txid consultado não corresponde ao paymentIntentId do pedido; ignorando aprovação.');
     }
 
     return jsonNoCache({ status: "pending" });

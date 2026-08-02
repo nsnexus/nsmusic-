@@ -57,13 +57,28 @@ export default function CriarMusica() {
   const [pixCopied, setPixCopied] = useState(false);
 
   const [pixPollingCount, setPixPollingCount] = useState(0);
+  const [pixPollingTimedOut, setPixPollingTimedOut] = useState(false);
+
+  // Máximo de tentativas do polling automático: 150 × 4s = 10min. Sem isso, o polling roda para
+  // sempre enquanto a aba ficar aberta (viola .claude/rules/frontend.md — "Polling precisa de
+  // limite de tentativas e de parada em caso de erro persistente"). Auditoria de fechamento, 2026-08-02.
+  const PIX_POLLING_MAX_ATTEMPTS = 150;
 
   // Polling automático de aprovação do Pix em tempo real (com fallback Firestore)
   useEffect(() => {
     let interval;
     if (pixInfo && pixInfo.paymentId && pixInfo.status !== 'approved') {
+      setPixPollingTimedOut(false);
+      setPixPollingCount(0);
       interval = setInterval(async () => {
-        setPixPollingCount(prev => prev + 1);
+        setPixPollingCount(prev => {
+          const next = prev + 1;
+          if (next >= PIX_POLLING_MAX_ATTEMPTS) {
+            clearInterval(interval);
+            setPixPollingTimedOut(true);
+          }
+          return next;
+        });
 
         // 1. Consulta a API da Efí via backend
         try {
@@ -1361,6 +1376,7 @@ export default function CriarMusica() {
                         disabled={isGeneratingPix}
                         onClick={async () => {
                           setIsGeneratingPix(true);
+                          setPaymentErrorMessage('');
                           try {
                             if (orderId) {
                               // hasVideoAccess NUNCA é definido aqui: é um flag de acesso a produto pago
@@ -1395,11 +1411,11 @@ export default function CriarMusica() {
                             } else {
                               const errData = await res.json().catch(() => ({}));
                               console.error("Payment API Error:", errData);
-                              alert(`Erro no pagamento: ${errData?.error || errData?.message || 'Tente novamente.'}`);
+                              setPaymentErrorMessage(errData?.error || errData?.message || 'Erro ao gerar o PIX. Tente novamente.');
                             }
                           } catch (err) {
                             console.error(err);
-                            alert('Falha ao conectar com o serviço de pagamento.');
+                            setPaymentErrorMessage('Falha ao conectar com o serviço de pagamento. Tente novamente.');
                           } finally {
                             setIsGeneratingPix(false);
                           }
@@ -1414,6 +1430,13 @@ export default function CriarMusica() {
                         <span style={{ fontSize: '0.85rem', color: 'var(--success)', fontWeight: 'bold' }}>
                           ✅ QR Code PIX Gerado com Sucesso!
                         </span>
+
+                        {pixPollingTimedOut && (
+                          <div style={{ width: '100%', padding: '12px 16px', background: 'rgba(234, 179, 8, 0.15)', border: '1px solid rgba(234, 179, 8, 0.4)', borderRadius: '10px', color: '#facc15', fontSize: '0.85rem', textAlign: 'center' }}>
+                            Ainda não recebemos a confirmação automática deste pagamento. Se você já
+                            pagou, use o botão &quot;Já Paguei&quot; abaixo para verificar manualmente.
+                          </div>
+                        )}
 
                         <div style={{ width: '100%' }}>
                           <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
@@ -1474,7 +1497,7 @@ export default function CriarMusica() {
                                   const orderData = orderSnap.data();
                                   if (orderData.paymentStatus === 'PAGAMENTO_APROVADO' || orderData.paymentStatus === 'PAGO') {
                                     setPixInfo(prev => ({ ...prev, status: 'approved' }));
-                                    window.location.href = `/entrega?orderId=${orderId}&status=success`;
+                                    window.location.href = `/entrega?orderId=${orderId}`;
                                     return;
                                   }
                                 }

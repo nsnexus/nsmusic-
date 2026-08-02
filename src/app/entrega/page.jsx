@@ -40,6 +40,13 @@ function EntregaContent() {
   const [pixLoading, setPixLoading] = useState(false);
   const [pixCopied, setPixCopied] = useState(false);
   const [isPaidState, setIsPaidState] = useState(false);
+  const [pixPollingTimedOut, setPixPollingTimedOut] = useState(false);
+  const [videoPixPollingTimedOut, setVideoPixPollingTimedOut] = useState(false);
+  // Máximo de tentativas do polling ativo (Efí + fallback Firestore): 150 × 4s = 10min. Depois disso
+  // o onSnapshot em tempo real (ver useEffect abaixo) continua sendo a rede de segurança — só o
+  // polling ativo para, para não rodar para sempre com a aba aberta (frontend.md). Auditoria de
+  // fechamento, 2026-08-02.
+  const PIX_POLLING_MAX_ATTEMPTS = 150;
 
   // Estados para Vídeo Homenagem com Fotos
   const [selectedPhotos, setSelectedPhotos] = useState([]);
@@ -72,7 +79,12 @@ function EntregaContent() {
   // com a URL /entrega?orderId=X&status=success, sem pagar (ver C-01 no AUDIT_REPORT.md). O parâmetro
   // de URL só pode, no máximo, disparar uma reconsulta ao servidor (ver useEffect de fetchOrder acima).
   const isPaid = isPaidState || order?.paymentStatus === 'PAGAMENTO_APROVADO' || order?.paymentStatus === 'PAGO';
-  const hasVideoAccess = hasVideoAccessState || order?.hasVideoAccess || order?.videoAddonPaid || order?.videoUrl || (isPaid && selectedPackage === 'combo');
+  // hasVideoAccess só pode vir de campos confirmados pelo servidor. `selectedPackage` é estado local
+  // do React, setado só por clique do usuário (inclusive antes de qualquer pagamento) — usá-lo aqui
+  // liberava o vídeo (renderizado e enviado ao Storage inteiramente pelo cliente, sem checagem de
+  // servidor no caminho) sem o pedido ter `hasVideoAccess`/`videoAddonPaid` gravado (auditoria de
+  // fechamento, 2026-08-02). Pagamento legítimo do combo já grava esses campos via applyPaymentApproval.
+  const hasVideoAccess = hasVideoAccessState || order?.hasVideoAccess || order?.videoAddonPaid || order?.videoUrl;
 
   // Exibe o pop-up de oferta do vídeo automaticamente ao carregar a tela de entrega
   useEffect(() => {
@@ -317,7 +329,16 @@ function EntregaContent() {
   useEffect(() => {
     if (!orderId || isPaid) return;
 
+    setPixPollingTimedOut(false);
+    let attempts = 0;
     const interval = setInterval(async () => {
+      attempts += 1;
+      if (attempts >= PIX_POLLING_MAX_ATTEMPTS) {
+        clearInterval(interval);
+        setPixPollingTimedOut(true);
+        return;
+      }
+
       // 1. Tenta via API backend (consulta a Efí)
       try {
         const paymentIdQuery = pixInfo.paymentId ? `&paymentId=${pixInfo.paymentId}` : '';
@@ -363,7 +384,16 @@ function EntregaContent() {
   useEffect(() => {
     if (!orderId || !videoPixInfo.paymentId) return;
 
+    setVideoPixPollingTimedOut(false);
+    let attempts = 0;
     const interval = setInterval(async () => {
+      attempts += 1;
+      if (attempts >= PIX_POLLING_MAX_ATTEMPTS) {
+        clearInterval(interval);
+        setVideoPixPollingTimedOut(true);
+        return;
+      }
+
       // 1. Tenta via API backend
       try {
         const res = await fetch(`/api/payments/status?orderId=${orderId}&paymentId=${videoPixInfo.paymentId}`);
@@ -655,6 +685,12 @@ function EntregaContent() {
                           >
                             {pixCopied ? '✅ Código PIX Copiado!' : '📋 Copiar Código PIX (R$ 6,90)'}
                           </button>
+                        )}
+                        {videoPixPollingTimedOut && (
+                          <div style={{ width: '100%', marginTop: '10px', padding: '10px 14px', background: 'rgba(234, 179, 8, 0.15)', border: '1px solid rgba(234, 179, 8, 0.4)', borderRadius: '10px', color: '#facc15', fontSize: '0.8rem', textAlign: 'center' }}>
+                            Ainda não recebemos a confirmação deste pagamento. Se você já pagou,
+                            atualize a página em alguns instantes.
+                          </div>
                         )}
                       </div>
                     ) : !hasVideoAccess && !order?.hasVideoAccess && !order?.videoUrl ? (
@@ -1052,6 +1088,13 @@ function EntregaContent() {
                           </button>
                         )}
 
+                        {pixPollingTimedOut && (
+                          <div style={{ width: '100%', padding: '12px 16px', background: 'rgba(234, 179, 8, 0.15)', border: '1px solid rgba(234, 179, 8, 0.4)', borderRadius: '10px', color: '#facc15', fontSize: '0.85rem', textAlign: 'center' }}>
+                            Ainda não recebemos a confirmação automática deste pagamento. Se você já
+                            pagou, atualize a página em alguns instantes.
+                          </div>
+                        )}
+
                         <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '10px', textAlign: 'center' }}>
                           A liberação é automática assim que o pagamento for confirmado — não precisa enviar comprovante.
                         </p>
@@ -1193,12 +1236,14 @@ function EntregaContent() {
                     Sua opinião é fundamental para a nossa equipe e para novos clientes!
                   </p>
 
-                  <div style={styles.starsContainer}>
+                  <div style={styles.starsContainer} role="radiogroup" aria-label="Avaliação de 1 a 5 estrelas">
                     {[1, 2, 3, 4, 5].map((star) => (
-                      <button 
+                      <button
                         key={star}
                         type="button"
                         onClick={() => setRating(star)}
+                        aria-label={`Avaliar com ${star} ${star === 1 ? 'estrela' : 'estrelas'}`}
+                        aria-pressed={rating >= star}
                         style={{
                           ...styles.starBtn,
                           color: rating >= star ? 'var(--warning)' : 'var(--text-muted)'
@@ -1209,7 +1254,11 @@ function EntregaContent() {
                     ))}
                   </div>
 
-                  <textarea 
+                  <label htmlFor="reviewText" style={{ position: 'absolute', width: '1px', height: '1px', overflow: 'hidden', clip: 'rect(0,0,0,0)' }}>
+                    Comentário sobre a música (opcional)
+                  </label>
+                  <textarea
+                    id="reviewText"
                     value={reviewText}
                     onChange={(e) => setReviewText(e.target.value)}
                     placeholder="Escreva como foi a reação de quem ouviu ou o que você achou das versões..."

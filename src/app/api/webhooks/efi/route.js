@@ -23,8 +23,17 @@ async function findOrderIdByTxid(txid) {
     const ordersRef = collection(dbEdge, 'orders');
     const q = query(ordersRef, where('paymentIntentId', '==', txid), limit(1));
     const snap = await getDocs(q);
-    if (snap.empty) return null;
-    return snap.docs[0].id;
+    if (!snap.empty) return snap.docs[0].id;
+
+    // Fallback: txid de uma cobrança que já foi substituída por uma mais recente no mesmo pedido
+    // (ver previousPaymentIntentIds em api/payments/create) — sem isso, pagar uma cobrança antiga
+    // depois de gerar uma nova faz o webhook "perder" o pedido (achado #4, auditoria de fechamento,
+    // 2026-08-02).
+    const qOld = query(ordersRef, where('previousPaymentIntentIds', 'array-contains', txid), limit(1));
+    const snapOld = await getDocs(qOld);
+    if (!snapOld.empty) return snapOld.docs[0].id;
+
+    return null;
   } catch (err) {
     console.warn('[Webhook Efí] Erro ao buscar pedido pelo txid:', err.message);
     return null;

@@ -1,9 +1,19 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // Libera a pasta de fotos e vídeos gerados nos pedidos
-    match /orders/{orderId}/{allPaths=**} {
+    // Libera a pasta de fotos e vídeos gerados nos pedidos — só os dois subcaminhos que o app
+    // realmente escreve (ver src/lib/videoGenerator.js:345 e src/app/entrega/page.jsx:902). Escopo
+    // restrito de propósito: um `{allPaths=**}` aqui permitiria sobrescrever QUALQUER arquivo dentro
+    // de orders/{orderId}/ — inclusive o MP3/vídeo já entregue de outro cliente — só por adivinhar o
+    // orderId, sem checagem alguma (auditoria de fechamento, 2026-08-02).
+    match /orders/{orderId}/photos/{fileName} {
       allow read, write: if true;
+    }
+    // Rules do Storage só casam segmento inteiro de path — "video_homenagem.{ext}" não é sintaxe
+    // válida (wildcard não pode ser parte de um segmento). Em vez disso, casa qualquer nome de
+    // arquivo direto em orders/{orderId}/ e restringe pelo prefixo esperado (ver videoGenerator.js:345).
+    match /orders/{orderId}/{fileName} {
+      allow read, write: if fileName.matches('video_homenagem[.].*');
     }
 
     // Libera a pasta de capas enviadas durante o wizard de criação — nesse ponto o pedido ainda

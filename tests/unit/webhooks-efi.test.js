@@ -15,16 +15,20 @@ vi.mock('@/lib/efi', () => ({
   getChargeStatus: (...args) => getChargeStatusMock(...args),
 }));
 
-let ordersFound;
+// ordersByPaymentIntentId simula a query where('paymentIntentId','==',txid); ordersByPreviousIntent
+// simula o fallback where('previousPaymentIntentIds','array-contains',txid) (ver achado #4 da
+// auditoria de fechamento, 2026-08-02).
+let ordersByPaymentIntentId;
+let ordersByPreviousIntent;
 vi.mock('firebase/firestore/lite', () => ({
   collection: () => ({}),
-  query: () => ({}),
-  where: () => ({}),
+  query: (_ref, whereClause) => whereClause,
+  where: (field) => field,
   limit: () => ({}),
-  getDocs: async () => ({
-    empty: ordersFound.length === 0,
-    docs: ordersFound.map((id) => ({ id })),
-  }),
+  getDocs: async (whereField) => {
+    const ids = whereField === 'previousPaymentIntentIds' ? ordersByPreviousIntent : ordersByPaymentIntentId;
+    return { empty: ids.length === 0, docs: ids.map((id) => ({ id })) };
+  },
 }));
 
 const { POST } = await import('@/app/api/webhooks/efi/route');
@@ -37,7 +41,8 @@ function makeReq(url, body) {
 }
 
 beforeEach(() => {
-  ordersFound = ['order-1'];
+  ordersByPaymentIntentId = ['order-1'];
+  ordersByPreviousIntent = [];
   applyPaymentApprovalMock.mockClear();
   getChargeStatusMock.mockReset();
   delete process.env.EFI_WEBHOOK_SECRET;
@@ -95,13 +100,32 @@ describe('POST /api/webhooks/efi', () => {
 
   it('não aprova quando nenhum pedido tem esse paymentIntentId', async () => {
     process.env.EFI_WEBHOOK_SECRET = 'segredo-correto';
-    ordersFound = [];
+    ordersByPaymentIntentId = [];
     getChargeStatusMock.mockResolvedValue({ status: 'CONCLUIDA', valor: { original: '9.99' } });
 
     const req = makeReq('https://x/api/webhooks/efi?secret=segredo-correto', { pix: [{ txid: 'TXID-ORFAO' }] });
     await POST(req);
 
     expect(applyPaymentApprovalMock).not.toHaveBeenCalled();
+  });
+
+  // Achado #4 da auditoria de fechamento (2026-08-02): se o cliente gerou uma nova cobrança
+  // (trocou de pacote, ou comprou o add-on de vídeo depois) e depois paga a cobrança ANTIGA por
+  // engano, o webhook precisa achar o pedido mesmo com paymentIntentId já apontando pra outro txid.
+  it('encontra o pedido pelo histórico (previousPaymentIntentIds) quando o txid já foi substituído', async () => {
+    process.env.EFI_WEBHOOK_SECRET = 'segredo-correto';
+    ordersByPaymentIntentId = [];
+    ordersByPreviousIntent = ['order-2'];
+    getChargeStatusMock.mockResolvedValue({ status: 'CONCLUIDA', valor: { original: '9.99' } });
+
+    const req = makeReq('https://x/api/webhooks/efi?secret=segredo-correto', { pix: [{ txid: 'TXID-ANTIGO' }] });
+    await POST(req);
+
+    expect(applyPaymentApprovalMock).toHaveBeenCalledWith(
+      'order-2',
+      'TXID-ANTIGO',
+      { status: 'approved', transaction_amount: 9.99 }
+    );
   });
 
   it('responde 200 mesmo quando getChargeStatus lança erro (nunca propaga erro ao provedor)', async () => {

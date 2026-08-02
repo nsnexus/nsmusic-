@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
-import { doc, getDoc, updateDoc } from 'firebase/firestore/lite';
+import { doc, getDoc, updateDoc, arrayUnion } from 'firebase/firestore/lite';
 import { dbEdge as db } from '@/lib/firebase-edge';
 import { getPriceForSku } from '@/lib/pricing';
 import { createPixCharge } from '@/lib/efi';
@@ -49,12 +49,21 @@ export async function POST(req) {
     // Persiste a intenção de cobrança no pedido: é o que a aprovação (webhook/status) usa depois para
     // saber o que foi realmente cobrado, em vez de inferir pelo valor da transação (ver A-13).
     try {
-      await updateDoc(orderRef, {
+      const existingOrderData = orderSnap.data();
+      const updates = {
         paymentIntentId: charge.txid,
         paymentIntentSku: sku,
         expectedAmount: amount,
         updatedAt: new Date().toISOString(),
-      });
+      };
+      // paymentIntentId é sobrescrito a cada nova cobrança (ex: cliente troca de pacote antes de
+      // pagar, ou compra o add-on de vídeo depois). Sem preservar o txid anterior em algum lugar, o
+      // webhook dessa cobrança antiga não encontra mais o pedido se ela acabar sendo paga (ver
+      // achado #4 da auditoria de fechamento, 2026-08-02) — o pagamento ficaria "perdido".
+      if (existingOrderData.paymentIntentId && existingOrderData.paymentIntentId !== charge.txid) {
+        updates.previousPaymentIntentIds = arrayUnion(existingOrderData.paymentIntentId);
+      }
+      await updateDoc(orderRef, updates);
     } catch (err) {
       console.error('[api/payments/create] Falha ao persistir paymentIntent no pedido:', err.message);
       return NextResponse.json({ error: 'Falha ao registrar a intenção de pagamento. Tente novamente.' }, { status: 500 });
