@@ -15,8 +15,9 @@ import { dbEdge as db } from './firebase-edge';
 import { skuApprovesMusic, skuGrantsVideoAccess } from './pricing';
 import { resolveDeliveryUrl, buildApprovalMessage, buildAdminSaleNotification } from './whatsappTemplates';
 
-// B-06 no AUDIT_REPORT.md: o telefone do admin estava hardcoded no código-fonte.
-function getAdminWhatsAppNumber() {
+// B-06 no AUDIT_REPORT.md: o telefone do admin estava hardcoded no código-fonte. Exportado para
+// reuso por api/reports/daily-sales, que envia ao mesmo número.
+export function getAdminWhatsAppNumber() {
   try {
     const ctx = getRequestContext();
     if (ctx?.env?.ADMIN_WHATSAPP) return String(ctx.env.ADMIN_WHATSAPP).trim();
@@ -70,20 +71,26 @@ export async function applyPaymentApproval(orderId, paymentId, payment) {
         return { applied: false, reason: 'already_processed', sku };
       }
 
-      const updates = { updatedAt: new Date().toISOString() };
+      const nowIso = new Date().toISOString();
+      const updates = { updatedAt: nowIso };
 
       if (isVideoOnly) {
         updates.hasVideoAccess = true;
         updates.videoAddonPaid = true;
         updates.videoPaymentId = String(paymentId);
+        // Usado pelo relatório diário de vendas (api/reports/daily-sales) para contar pagamentos de
+        // vídeo por período, sem depender de videoStatus (que só existe depois da renderização no
+        // navegador do cliente, um evento não confiável de servidor).
+        updates.videoPaidAt = nowIso;
       } else {
         // C-09: paymentStatus só é escrito neste ramo — o add-on de vídeo isolado nunca o altera.
         updates.paymentStatus = 'PAGAMENTO_APROVADO';
         updates.paymentId = String(paymentId);
-        updates.paidAt = new Date().toISOString();
+        updates.paidAt = nowIso;
         if (skuGrantsVideoAccess(sku)) {
           updates.hasVideoAccess = true;
           updates.videoAddonPaid = true;
+          updates.videoPaidAt = nowIso;
         }
       }
 

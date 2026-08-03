@@ -1,0 +1,23 @@
+name: Resumo diário de vendas
+
+# Dispara /api/reports/daily-sales às 8h, 13h e 19h (horário de Brasília, UTC-3 fixo — Brasil não
+# observa horário de verão desde 2019) para enviar o resumo de vendas do dia via WhatsApp. Existe
+# porque o Cloudflare Pages não tem cron nativo (só Workers têm Cron Trigger — ver docs/ARCHITECTURE.md
+# §4); o schedule do GitHub Actions pode atrasar alguns minutos sob carga, o que é aceitável para um
+# resumo informativo.
+
+on:
+  schedule:
+    - cron: '0 11 * * *'
+    - cron: '0 16 * * *'
+    - cron: '0 22 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  send-report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Chamar /api/reports/daily-sales
+        run: |
+          curl --fail --silent --show-error \
+            "${{ secrets.NEXT_PUBLIC_SITE_URL }}/api/reports/daily-sales?secret=${{ secrets.REPORTS_CRON_SECRET }}"
