@@ -73,6 +73,28 @@ function EntregaContent() {
     setMounted(true);
   }, []);
 
+  // Recupera videoPixInfo do localStorage ao carregar (idempotência ao recarregar página)
+  useEffect(() => {
+    if (mounted && orderId && typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem(`videoPixInfo_${orderId}`);
+        if (stored) {
+          const data = JSON.parse(stored);
+          setVideoPixInfo(data);
+        }
+      } catch (e) {
+        console.warn('Erro ao carregar videoPixInfo do localStorage:', e);
+      }
+    }
+  }, [mounted, orderId]);
+
+  // Limpa videoPixInfo do localStorage quando pagamento de vídeo é confirmado
+  useEffect(() => {
+    if (order?.videoAddonPaid && typeof window !== 'undefined' && orderId) {
+      localStorage.removeItem(`videoPixInfo_${orderId}`);
+    }
+  }, [order?.videoAddonPaid, orderId]);
+
   const [hasTrackedPurchase, setHasTrackedPurchase] = useState(false);
 
   // Controle de acesso dinâmico. NUNCA derivar de searchParams — isso permitia liberar o produto só
@@ -291,11 +313,15 @@ function EntregaContent() {
       if (res.ok) {
         const data = await res.json();
         if (isSecondary) {
-          setVideoPixInfo({
+          const videoPixData = {
             qrCode: data.qrCode || '',
             qrCodeBase64: data.qrCodeBase64 || '',
             paymentId: data.paymentId || ''
-          });
+          };
+          setVideoPixInfo(videoPixData);
+          if (typeof window !== 'undefined' && orderId) {
+            localStorage.setItem(`videoPixInfo_${orderId}`, JSON.stringify(videoPixData));
+          }
         } else {
           setPixInfo({
             qrCode: data.qrCode || '',
