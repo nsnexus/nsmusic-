@@ -22,6 +22,7 @@ jobs:
     environment: REPORTS_CRON_SECRET
     steps:
       - name: Chamar /api/reports/daily-sales
+        # URL fixa (mesma convenção do ci.yml) — não é segredo, é só o endereço público do site.
         run: |
           curl --fail --silent --show-error \
-            "${{ secrets.NEXT_PUBLIC_SITE_URL }}/api/reports/daily-sales?secret=${{ secrets.REPORTS_CRON_SECRET }}"
+            "https://nsmusic.nsnexus.com.br/api/reports/daily-sales?secret=${{ secrets.REPORTS_CRON_SECRET }}"
