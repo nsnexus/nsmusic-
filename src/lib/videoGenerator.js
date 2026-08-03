@@ -238,10 +238,8 @@ export async function createSlideshowVideo(orderId, imageUrls, audioUrl, orderDa
     mediaRecorder.start();
     audio.play().catch(e => console.warn("Aviso no áudio play:", e));
 
-    // 4. Loop de Animação com efeito Ken Burns (Pan & Zoom) e Titulagem
+    // 4. Loop de Animação com efeito Ken Burns (Pan & Zoom)
     let startTime = performance.now();
-    const honoreeName = orderData.honoreeName || 'Pessoa Especial';
-    const titleText = `Homenagem para ${honoreeName}`;
 
     const renderFrame = async () => {
       const now = performance.now();
@@ -278,17 +276,12 @@ export async function createSlideshowVideo(orderId, imageUrls, audioUrl, orderDa
         const scale = 1.0 + (imgProgress * 0.1);
         const imgAspect = img.naturalWidth / img.naturalHeight;
 
-        // O canvas é bem mais alto que largo (formato Stories). Comparar contra esse
-        // targetAspect faz QUALQUER foto (até vertical) cair no modo "cover" (preenche cortando
-        // as laterais) — para foto vertical o corte é pequeno e passa despercebido, mas para foto
-        // horizontal cortava boa parte dos lados. Por isso a decisão usa 1 (paisagem vs retrato)
-        // em vez do aspect do canvas: fotos horizontais usam "contain" (mostra a foto inteira,
-        // com barra escura acima/abaixo — o fundo escuro já pintado acima) e fotos
-        // verticais/quadradas continuam em "cover" como antes.
-        const isLandscape = imgAspect > 1;
-
-        let drawWidth, drawHeight, offsetX, offsetY;
-        if (isLandscape) {
+        // Sempre modo "contain": mostra a foto inteira, nunca corta nenhuma lateral. Quando a foto
+        // não bate exatamente com o formato vertical do canvas, sobra barra do fundo escuro (já
+        // pintado acima) acima/abaixo ou nas laterais — preferível a cortar parte da imagem.
+        const canvasAspect = width / height;
+        let drawWidth, drawHeight;
+        if (imgAspect > canvasAspect) {
           drawWidth = width * scale;
           drawHeight = drawWidth / imgAspect;
         } else {
@@ -296,8 +289,8 @@ export async function createSlideshowVideo(orderId, imageUrls, audioUrl, orderDa
           drawWidth = drawHeight * imgAspect;
         }
 
-        offsetX = (width - drawWidth) / 2;
-        offsetY = (height - drawHeight) / 2;
+        const offsetX = (width - drawWidth) / 2;
+        const offsetY = (height - drawHeight) / 2;
 
         ctx.save();
         // Efeito de transição Fade In nos primeiros 0.5s de cada foto
@@ -312,25 +305,6 @@ export async function createSlideshowVideo(orderId, imageUrls, audioUrl, orderDa
         ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
         ctx.restore();
       }
-
-      // Sobreposição de gradiente para legibilidade do texto
-      const gradient = ctx.createLinearGradient(0, height - 400, 0, height);
-      gradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
-      gradient.addColorStop(1, 'rgba(0, 0, 0, 0.85)');
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, height - 400, width, 400);
-
-      // Texto de Homenagem na parte inferior
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 44px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
-      ctx.shadowBlur = 10;
-      ctx.fillText(titleText, width / 2, height - 120);
-
-      ctx.fillStyle = '#ec4899';
-      ctx.font = '32px sans-serif';
-      ctx.fillText('🎵 NSMusic Personalizada', width / 2, height - 60);
 
       requestAnimationFrame(renderFrame);
     };
