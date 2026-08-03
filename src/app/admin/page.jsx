@@ -206,6 +206,16 @@ export default function AdminDashboard() {
     return result;
   };
 
+  const parseAmount = (val, fallback = null) => {
+    if (val === undefined || val === null || val === '') return fallback;
+    if (typeof val === 'number') return val;
+    if (typeof val === 'string') {
+      const parsed = parseFloat(val.replace(',', '.'));
+      if (!isNaN(parsed)) return parsed;
+    }
+    return fallback;
+  };
+
   // O valor exibido soma expectedAmount (calculado pelo SERVIDOR a partir do catálogo em
   // src/lib/pricing.js, ver C-05 no AUDIT_REPORT.md) — nunca o campo `total`, que é escrito pelo
   // navegador do cliente e pode ficar ausente se essa escrita falhar silenciosamente, subestimando
@@ -215,7 +225,15 @@ export default function AdminDashboard() {
   const getFaturamentoMusicas = () => {
     return getOrdersInDateRange()
       .filter(o => o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'PAGO')
-      .reduce((sum, o) => sum + (Number(o.expectedAmount) || Number(o.total) || 0), 0);
+      .reduce((sum, o) => {
+        let val = parseAmount(o.expectedAmount, null);
+        if (val === null) val = parseAmount(o.total, null);
+        
+        // Fallback: se o pedido está pago mas não tem valor salvo (ou está como 0), assume o valor base de 9.99
+        if (val === null || val === 0) val = 9.99;
+        
+        return sum + val;
+      }, 0);
   };
 
   // Conta só o add-on de vídeo vendido SEPARADAMENTE (videoPaymentId só existe nesse caso — ver
