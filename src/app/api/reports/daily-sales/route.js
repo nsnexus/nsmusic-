@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
-import { collection, query, where, getCountFromServer } from 'firebase/firestore/lite';
+import { collection, query, where, getCount } from 'firebase/firestore/lite';
 import { dbEdge as db } from '@/lib/firebase-edge';
 import { sendWhatsAppMessage } from '@/lib/whatsapp';
 import { getAdminWhatsAppNumber } from '@/lib/payments';
@@ -33,13 +33,14 @@ function getBrtDayBoundsIso(reference = new Date()) {
   return { startIso: startUtc.toISOString(), endIso: endUtc.toISOString(), dateLabel };
 }
 
-// Consulta de contagem (getCountFromServer) em vez de baixar os documentos — mais barata e evita a
-// varredura sem limit proibida em database.md. Filtro de intervalo num único campo não exige índice
-// composto (Firestore cria índice de campo único automaticamente).
+// Consulta de contagem (getCount, a versão do SDK lite equivalente ao getCountFromServer do SDK
+// completo) em vez de baixar os documentos — mais barata e evita a varredura sem limit proibida em
+// database.md. Filtro de intervalo num único campo não exige índice composto (Firestore cria índice
+// de campo único automaticamente).
 async function countInRange(field, startIso, endIso) {
   const ordersRef = collection(db, 'orders');
   const q = query(ordersRef, where(field, '>=', startIso), where(field, '<', endIso));
-  const snap = await getCountFromServer(q);
+  const snap = await getCount(q);
   return snap.data().count;
 }
 
