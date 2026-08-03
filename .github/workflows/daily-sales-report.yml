@@ -16,6 +16,10 @@ on:
 jobs:
   send-report:
     runs-on: ubuntu-latest
+    # REPORTS_CRON_SECRET foi criado como Environment secret (Settings > Environments >
+    # REPORTS_CRON_SECRET), não como Repository secret — sem declarar o environment aqui, o job não
+    # enxerga esse secret e `${{ secrets.REPORTS_CRON_SECRET }}` chega vazio no step abaixo.
+    environment: REPORTS_CRON_SECRET
     steps:
       - name: Chamar /api/reports/daily-sales
         run: |
