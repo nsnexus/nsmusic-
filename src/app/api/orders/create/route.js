@@ -91,7 +91,7 @@ export async function POST(req) {
       termsAccepted: true,
       termsAcceptedAt: createdAtIso,
       paymentStatus: 'AGUARDANDO_PAGAMENTO',
-      productionStatus: formData.lyrics ? 'LETRA_GERADA' : 'EM_PRODUCAO',
+      productionStatus: formData.lyrics ? 'LETRA_CRIADA' : 'EM_PRODUCAO',
       createdAt: createdAtIso,
       updatedAt: createdAtIso
     };

@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { saveTask } from '@/lib/db';
 import { getRequestContext } from '@cloudflare/next-on-pages';
+import { doc, updateDoc } from 'firebase/firestore/lite';
+import { dbEdge as db } from '@/lib/firebase-edge';
 
 export const runtime = 'edge';
 
@@ -83,6 +85,17 @@ export async function POST(req) {
 
     // Salva o task inicial como PROCESSING no Firebase Firestore
     await saveTask(taskId, 'PROCESSING', null, orderId);
+
+    if (orderId) {
+      try {
+        await updateDoc(doc(db, 'orders', orderId), {
+          productionStatus: 'GERANDO_AUDIO',
+          updatedAt: new Date().toISOString()
+        });
+      } catch (err) {
+        console.error("Erro ao atualizar status do pedido para GERANDO_AUDIO:", err);
+      }
+    }
 
     return NextResponse.json({ taskId, status: 'PROCESSING' });
   } catch (error) {
