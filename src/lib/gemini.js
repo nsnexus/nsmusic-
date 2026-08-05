@@ -13,43 +13,65 @@ export async function runGeminiWithFailover(prompt) {
   // 1. PRIMÁRIO: Tenta a API da OpenAI (ChatGPT gpt-4o-mini) primeiro se configurada
   const openAiKey = process.env.OPENAI_API_KEY;
   if (openAiKey && openAiKey.trim().length > 0) {
-    try {
-      console.log("Iniciando composição via OpenAI ChatGPT (gpt-4o-mini)...");
-      const openAiRes = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${openAiKey.trim()}`
-        },
-        body: JSON.stringify({
-          model: "gpt-4o-mini",
-          messages: [
-            {
-              role: "system",
-              content: "Você é um compositor e letrista profissional premiado de música brasileira. REGRA ABSOLUTA E CRÍTICA DE FORMATO: Sua resposta deve conter EXCLUSIVAMENTE o texto da letra da música. É ESTRITAMENTE PROIBIDO incluir qualquer tipo de conversa, saudação, observação, nota de rodapé ou mensagem de cortesia (como 'As alterações foram feitas...', 'Espero que goste', 'Ajustei o refrão', etc.). Retorne APENAS a letra."
-            },
-            { role: "user", content: prompt }
-          ],
-          temperature: 0.7
-        }),
-        signal: AbortSignal.timeout(30000)
-      });
+    // Até 2 tentativas extras para erros transitórios (timeout, falha de rede, 5xx, 429). Erros
+    // definitivos (401 chave inválida, 400 payload ruim) não são reexecutados, pois repetir não
+    // resolveria. Cada tentativa cria seu PRÓPRIO AbortSignal.timeout — reaproveitar o mesmo sinal
+    // entre tentativas faria as tentativas seguintes abortarem na hora, já que o relógio do sinal
+    // conta a partir da criação, não de cada chamada (mesma armadilha a evitar caso este padrão
+    // seja copiado em outro lugar).
+    const maxOpenAiAttempts = 3;
+    for (let attempt = 1; attempt <= maxOpenAiAttempts; attempt++) {
+      try {
+        console.log(`Iniciando composição via OpenAI ChatGPT (gpt-4o-mini), tentativa ${attempt}/${maxOpenAiAttempts}...`);
+        const openAiRes = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${openAiKey.trim()}`
+          },
+          body: JSON.stringify({
+            model: "gpt-4o-mini",
+            messages: [
+              {
+                role: "system",
+                content: "Você é um compositor e letrista profissional premiado de música brasileira. REGRA ABSOLUTA E CRÍTICA DE FORMATO: Sua resposta deve conter EXCLUSIVAMENTE o texto da letra da música. É ESTRITAMENTE PROIBIDO incluir qualquer tipo de conversa, saudação, observação, nota de rodapé ou mensagem de cortesia (como 'As alterações foram feitas...', 'Espero que goste', 'Ajustei o refrão', etc.). Retorne APENAS a letra."
+              },
+              { role: "user", content: prompt }
+            ],
+            temperature: 0.7
+          }),
+          signal: AbortSignal.timeout(30000)
+        });
 
-      if (openAiRes.ok) {
-        const data = await openAiRes.json();
-        const lyrics = data.choices[0]?.message?.content?.trim();
-        if (lyrics) {
-          console.log("Sucesso na geração utilizando OpenAI ChatGPT!");
-          return sanitizeLyrics(lyrics);
+        if (openAiRes.ok) {
+          const data = await openAiRes.json();
+          const lyrics = data.choices[0]?.message?.content?.trim();
+          if (lyrics) {
+            console.log("Sucesso na geração utilizando OpenAI ChatGPT!");
+            return sanitizeLyrics(lyrics);
+          }
+          lastError = new Error('OpenAI respondeu sem conteúdo utilizável.');
+          break; // resposta ok mas vazia não é transitório — não adianta repetir
         }
-      } else {
-        const errText = await openAiRes.text();
-        console.warn("Aviso: Chamada OpenAI retornou status de erro:", errText);
-        lastError = new Error(`OpenAI error: ${errText}`);
+
+        const errText = await openAiRes.text().catch(() => '');
+        lastError = new Error(`OpenAI error ${openAiRes.status}: ${errText}`);
+        // Só erros transitórios (5xx, 429 rate limit) valem retry; 4xx definitivo (ex: 401, 400)
+        // não muda tentando de novo.
+        if (openAiRes.status < 500 && openAiRes.status !== 429) {
+          console.warn("Aviso: OpenAI retornou erro definitivo, sem retry:", lastError.message);
+          break;
+        }
+        console.warn(`Aviso: OpenAI retornou erro transitório (tentativa ${attempt}/${maxOpenAiAttempts}):`, lastError.message);
+      } catch (openAiErr) {
+        // Timeout (AbortError) ou falha de rede (TypeError) são transitórios — vale tentar de novo.
+        lastError = openAiErr;
+        console.warn(`Aviso: Exceção ao conectar à OpenAI (tentativa ${attempt}/${maxOpenAiAttempts}):`, openAiErr.message || openAiErr);
       }
-    } catch (openAiErr) {
-      console.warn("Aviso: Exceção ao conectar à OpenAI:", openAiErr.message || openAiErr);
-      lastError = openAiErr;
+
+      if (attempt < maxOpenAiAttempts) {
+        await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
+      }
     }
   }
 
@@ -69,7 +91,14 @@ export async function runGeminiWithFailover(prompt) {
             model: modelName,
             systemInstruction: "REGRA ABSOLUTA: Retorne APENAS E EXCLUSIVAMENTE o texto da letra da música. NUNCA adicione mensagens de cortesia, explicações, notas ou cumprimentos de revisão (ex: 'As alterações foram feitas...', 'Espero que goste')."
           });
-          const result = await model.generateContent(prompt);
+          // O SDK do Gemini não expõe um timeout nativo (nem aceita AbortSignal aqui) — sem isso,
+          // uma chamada lenta travava a função inteira até o Edge Runtime matar a requisição sozinho,
+          // sem sequer chegar a tentar o próximo modelo/chave de fallback abaixo. Promise.race impõe
+          // um limite de tempo por tentativa para que o loop sempre continue.
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error(`Timeout ao chamar Gemini (${modelName})`)), 20000)
+          );
+          const result = await Promise.race([model.generateContent(prompt), timeoutPromise]);
           const response = await result.response;
           const text = response.text();
           

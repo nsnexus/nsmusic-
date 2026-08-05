@@ -45,7 +45,16 @@ export async function GET(req) {
           // o add-on de vídeo (cobrança nova, nunca verificada) de graça em qualquer pedido cuja
           // música já tivesse sido paga antes. Qualquer paymentId que não bater aqui cai no fluxo
           // normal abaixo, que sempre reconsulta a Efí antes de aprovar.
-          if (paymentId && String(paymentId) === String(orderData.paymentId)) {
+          //
+          // Checagem extra de defesa em profundidade: além do ID bater, exige paymentStatus
+          // realmente aprovado no banco. O campo paymentId só deveria existir em orderData depois
+          // de applyPaymentApproval gravá-lo — mas se algum ponto do frontend voltar a gravá-lo
+          // antes da hora (bug da aprovação falsa, achado da auditoria de fechamento 2026-08-02),
+          // esta linha garante que o atalho não aprove um pagamento que nunca foi confirmado.
+          if (
+            paymentId && String(paymentId) === String(orderData.paymentId) &&
+            (orderData.paymentStatus === 'PAGAMENTO_APROVADO' || orderData.paymentStatus === 'PAGO')
+          ) {
             return jsonNoCache({ status: "approved" });
           }
           if (paymentId && String(paymentId) === String(orderData.videoPaymentId) &&

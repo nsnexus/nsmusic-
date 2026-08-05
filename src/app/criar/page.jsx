@@ -40,6 +40,7 @@ export default function CriarMusica() {
   const [taskId, setTaskId] = useState('');
   const [isRestored, setIsRestored] = useState(false);
   const [needsReload, setNeedsReload] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Força reload da página após gerar a música para resetar o DOM e o AudioPlayer
   useEffect(() => {
@@ -758,54 +759,66 @@ export default function CriarMusica() {
 
   // Step 9: Save Order to Firestore first, then trigger lyrics generation
   const handleSaveAndGenerateLyrics = async () => {
-    // Verifica trava de 5 prévias para usuários que nunca compraram
-    const { isBlocked } = await checkUserLimit(formData.customerPhone, formData.customerEmail);
-    if (isBlocked) {
-      setShowLimitModal(true);
-      return;
-    }
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      // Verifica trava de 5 prévias para usuários que nunca compraram
+      const { isBlocked } = await checkUserLimit(formData.customerPhone, formData.customerEmail);
+      if (isBlocked) {
+        setShowLimitModal(true);
+        return;
+      }
 
-    setStep(9);
-    // Se a letra já foi gerada com sucesso anteriormente, apenas exibe a letra existente sem fazer nova requisição
-    if (formData.lyricsStatus === 'generated' && formData.lyrics) {
-      return;
-    }
+      setStep(9);
+      // Se a letra já foi gerada com sucesso anteriormente, apenas exibe a letra existente sem fazer nova requisição
+      if (formData.lyricsStatus === 'generated' && formData.lyrics) {
+        return;
+      }
 
     updateField('lyricsStatus', 'generating');
-    try {
-      // Criação segura do pedido no Firestore via API Backend (Server-Side)
+      // Criação segura do pedido no Firestore via API Backend (Server-Side).
+      // IMPORTANTE: só cria um pedido novo se ainda não existir um para esta sessão. Antes, esta
+      // chamada rodava incondicionalmente — cada vez que "Tentar Gerar Novamente" era clicado após
+      // uma falha (ex: instabilidade na API de letras), um pedido NOVO era criado no Firestore sem
+      // reaproveitar o orderId já existente. Isso gerava vários pedidos duplicados e órfãos para o
+      // mesmo cliente em poucos minutos, e fazia com que apenas o último pedido criado chegasse de
+      // fato a /api/suno/generate — os anteriores ficavam presos em AGUARDANDO_PAGAMENTO/LETRA_CRIADA
+      // parecendo que o cliente "pediu a música" mas ela nunca foi enviada à Kie.ai (achado da
+      // auditoria de fechamento, 2026-08-05). Mesmo padrão já usado em handleApproveLyrics.
       let currentOrderId = orderId;
-      try {
-        const orderRes = await fetch('/api/orders/create', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(formData)
-        });
-        if (orderRes.ok) {
-          const orderData = await orderRes.json();
-          if (orderData.orderId) {
-            currentOrderId = orderData.orderId;
-            setOrderId(orderData.orderId);
-            if (typeof window !== 'undefined') {
-              try {
-                const saved = localStorage.getItem('nsmusic_generated_orders');
-                const arr = saved ? JSON.parse(saved) : [];
-                if (!arr.includes(orderData.orderId)) {
-                  arr.push(orderData.orderId);
-                  localStorage.setItem('nsmusic_generated_orders', JSON.stringify(arr));
-                }
-              } catch (e) {}
+      if (!currentOrderId) {
+        try {
+          const orderRes = await fetch('/api/orders/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(formData)
+          });
+          if (orderRes.ok) {
+            const orderData = await orderRes.json();
+            if (orderData.orderId) {
+              currentOrderId = orderData.orderId;
+              setOrderId(orderData.orderId);
+              if (typeof window !== 'undefined') {
+                try {
+                  const saved = localStorage.getItem('nsmusic_generated_orders');
+                  const arr = saved ? JSON.parse(saved) : [];
+                  if (!arr.includes(orderData.orderId)) {
+                    arr.push(orderData.orderId);
+                    localStorage.setItem('nsmusic_generated_orders', JSON.stringify(arr));
+                  }
+                } catch (e) {}
+              }
             }
+          } else if (orderRes.status === 403) {
+            // Trava de músicas grátis reforçada no servidor (ver A-11) — o cliente já verifica isso
+            // antes de chegar aqui, mas se ainda assim for bloqueado, não prossegue para gerar a letra.
+            updateField('lyricsStatus', 'idle');
+            setShowLimitModal(true);
+            return;
           }
-        } else if (orderRes.status === 403) {
-          // Trava de músicas grátis reforçada no servidor (ver A-11) — o cliente já verifica isso
-          // antes de chegar aqui, mas se ainda assim for bloqueado, não prossegue para gerar a letra.
-          updateField('lyricsStatus', 'idle');
-          setShowLimitModal(true);
-          return;
+        } catch (orderErr) {
+          console.error("Erro ao criar pedido via API Backend:", orderErr);
         }
-      } catch (orderErr) {
-        console.error("Erro ao criar pedido via API Backend:", orderErr);
       }
 
       // Call lyrics generation with lightweight text payload (stripping Base64 coverUrl to prevent Safari Load failed errors)
@@ -844,6 +857,8 @@ export default function CriarMusica() {
         lyricsStatus: 'error',
         lyricsError: err.message
       }));
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -889,17 +904,19 @@ export default function CriarMusica() {
 
   // Step 9 Approval -> Move to Audio Generation preview screen (Step 10)
   const handleApproveLyrics = async () => {
-    setStep(10);
-    // Se as músicas já foram geradas com sucesso anteriormente, apenas navega sem regenerar
-    if (formData.sunoStatus === 'generated' && formData.sunoTracks && formData.sunoTracks.length > 0) {
-      if (orderId) window.location.href = `/entrega?orderId=${orderId}`;
-      return;
-    }
-
-    updateField('sunoStatus', 'generating');
-    updateField('sunoProgress', 'Enviando composição de letra ao Suno AI...');
-
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     try {
+      setStep(10);
+      // Se as músicas já foram geradas com sucesso anteriormente, apenas navega sem regenerar
+      if (formData.sunoStatus === 'generated' && formData.sunoTracks && formData.sunoTracks.length > 0) {
+        if (orderId) window.location.href = `/entrega?orderId=${orderId}`;
+        return;
+      }
+
+      updateField('sunoStatus', 'generating');
+      updateField('sunoProgress', 'Enviando composição de letra ao Suno AI...');
+
       let activeOrderId = orderId;
       if (!activeOrderId) {
         try {
@@ -959,6 +976,8 @@ export default function CriarMusica() {
       console.error("Erro na chamada do Suno:", err);
       updateField('sunoStatus', 'error');
       updateField('sunoProgress', err.message);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -1422,11 +1441,18 @@ export default function CriarMusica() {
                               // hasVideoAccess NUNCA é definido aqui: é um flag de acesso a produto pago
                               // e só pode ser concedido pelo servidor após confirmação de pagamento
                               // (ver C-09/A-07 em docs/audit/AUDIT_REPORT.md).
-                              await updateDoc(doc(db, 'orders', orderId), {
-                                total: getTotalPrice(),
-                                package: formData.selectedPackage,
-                                updatedAt: new Date().toISOString()
-                              }).catch(e => console.warn(e));
+                              try {
+                                await updateDoc(doc(db, 'orders', orderId), {
+                                  total: getTotalPrice(),
+                                  package: formData.selectedPackage,
+                                  updatedAt: new Date().toISOString()
+                                });
+                              } catch (e) {
+                                console.warn(e);
+                                setPaymentErrorMessage('Não foi possível salvar os dados do pedido. Verifique sua internet e tente novamente.');
+                                setIsGeneratingPix(false);
+                                return;
+                              }
                             }
 
                             const sku = formData.addons?.wantsVideo ? 'combo' : 'audio_only';
@@ -1437,14 +1463,14 @@ export default function CriarMusica() {
                             });
                             if (res.ok) {
                               const data = await res.json();
+                              // IMPORTANTE: não gravar paymentId aqui. O servidor (/api/payments/create)
+                              // já persiste o txid pendente em paymentIntentId. O campo paymentId só pode
+                              // ser escrito pelo servidor após aprovação real (ver applyPaymentApproval em
+                              // src/lib/payments.js) — gravá-lo aqui, ainda pendente, é o que permitia que
+                              // /api/payments/status aprovasse o pedido sem nunca checar a Efí (bug da
+                              // aprovação falsa).
                               setPixInfo(data);
-                              if (orderId && data.paymentId) {
-                                await updateDoc(doc(db, 'orders', orderId), {
-                                  paymentId: String(data.paymentId),
-                                  updatedAt: new Date().toISOString()
-                                }).catch(e => console.warn(e));
-                              }
-                              
+
                               if (typeof window !== 'undefined' && window.fbq) {
                                 window.fbq('track', 'InitiateCheckout', { value: 9.99, currency: 'BRL' });
                               }
@@ -1634,14 +1660,14 @@ export default function CriarMusica() {
                   {step <= totalWizardSteps ? (
                     <button 
                       onClick={step === 8 ? handleSaveAndGenerateLyrics : nextStep}
-                      disabled={isNextDisabled()}
+                      disabled={isNextDisabled() || (step === 8 && isSubmitting)}
                       className="btn btn-primary"
                       style={{
                         padding: '12px 28px',
                         fontSize: '0.95rem',
                         minHeight: '46px',
-                        background: isNextDisabled() ? 'var(--bg-tertiary)' : 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)',
-                        color: isNextDisabled() ? 'var(--text-muted)' : '#FFFFFF'
+                        background: (isNextDisabled() || (step === 8 && isSubmitting)) ? 'var(--bg-tertiary)' : 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)',
+                        color: (isNextDisabled() || (step === 8 && isSubmitting)) ? 'var(--text-muted)' : '#FFFFFF'
                       }}
                     >
                       {step === 8 ? 'Criar Música →' : 'Continuar →'}
@@ -1650,14 +1676,14 @@ export default function CriarMusica() {
                     step === 9 && (
                       <button
                         onClick={handleApproveLyrics}
-                        disabled={isNextDisabled()}
+                        disabled={isNextDisabled() || isSubmitting}
                         className="btn btn-primary"
                         style={{
                           padding: '12px 28px',
                           fontSize: '0.95rem',
                           minHeight: '46px',
-                          background: isNextDisabled() ? 'var(--bg-tertiary)' : 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)',
-                          color: isNextDisabled() ? 'var(--text-muted)' : '#FFFFFF'
+                          background: (isNextDisabled() || isSubmitting) ? 'var(--bg-tertiary)' : 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)',
+                          color: (isNextDisabled() || isSubmitting) ? 'var(--text-muted)' : '#FFFFFF'
                         }}
                       >
                         Aprovar Letra →

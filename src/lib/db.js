@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, updateDoc, runTransaction } from 'firebase/firestore/lite';
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore/lite';
 import { dbEdge as db } from './firebase-edge';
 import { sendWhatsAppMessage } from './whatsapp';
 import { resolveDeliveryUrl, buildMusicReadyMessage } from './whatsappTemplates';
@@ -122,22 +122,29 @@ export const updateTaskResult = async (taskId, result, overrideOrderId = null) =
 
       // Envio automático do WhatsApp se ainda não tiver sido notificado. updateTaskResult é chamado
       // por duas vias concorrentes (webhook da Kie.ai e polling de /api/suno/status) — sem uma
-      // transação para reservar o envio, as duas podiam disparar a mesma mensagem em paralelo
-      // (mesma classe de corrida já corrigida em src/lib/payments.js:notifyApprovalByWhatsApp).
+      // reserva para o envio, as duas podiam disparar a mesma mensagem em paralelo (mesma classe de
+      // corrida já corrigida em src/lib/payments.js:notifyApprovalByWhatsApp).
+      //
+      // runTransaction não existe em firebase/firestore/lite (o SDK usado no Edge Runtime) — antes
+      // disso, TODA chamada aqui rejeitava e caía no catch abaixo, então whatsappSent nunca era
+      // marcado como enviado por este caminho: o cliente nunca recebia o aviso de "música pronta"
+      // (ficava só o log de erro). Substituído por checagem sequencial: getDoc para ler o estado
+      // atual, updateDoc para reservar o envio. Numa corrida bem apertada as duas chamadas podem
+      // passar pela checagem antes de qualquer updateDoc acontecer — pior caso é reenviar a mesma
+      // mensagem uma vez a mais, nunca perder o envio.
       if (orderData.customerPhone && !orderData.whatsappSent) {
         let shouldSend = false;
         try {
-          await runTransaction(db, async (tx) => {
-            const freshSnap = await tx.get(orderRef);
-            if (!freshSnap.exists()) return;
+          const freshSnap = await getDoc(orderRef);
+          if (freshSnap.exists()) {
             const freshData = freshSnap.data();
             if (!freshData.whatsappSent && !freshData.whatsappSending) {
-              tx.update(orderRef, { whatsappSending: true });
+              await updateDoc(orderRef, { whatsappSending: true });
               shouldSend = true;
             }
-          });
+          }
         } catch (txErr) {
-          console.warn("Erro na transação de reserva do envio de WhatsApp:", txErr);
+          console.warn("Erro ao reservar o envio de WhatsApp:", txErr);
         }
 
         if (shouldSend) {

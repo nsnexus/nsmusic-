@@ -49,29 +49,53 @@ export async function POST(req) {
       ? `${baseUrl}/api/suno/webhook?secret=${encodeURIComponent(webhookSecret)}`
       : `${baseUrl}/api/suno/webhook`;
 
-    const response = await fetch('https://api.kie.ai/api/v1/generate', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        prompt: prompt,
-        customMode: true,
-        instrumental: false,
-        model: "V5",
-        style: tags,
-        title: `Pedido ${orderId ? orderId.substring(0, 8) : 'Novo'}`.substring(0, 80),
-        callBackUrl: callbackUrl
-      }),
-      signal: AbortSignal.timeout(15000)
-    });
+    // Até 2 tentativas extras para erros transitórios (timeout, falha de rede, 5xx). Erros
+    // definitivos (4xx, ex: payload ou chave inválida) não são reexecutados. Cada tentativa cria
+    // seu PRÓPRIO AbortSignal.timeout — reaproveitar o mesmo sinal entre tentativas faria as
+    // tentativas seguintes abortarem na hora, já que o relógio do sinal conta a partir da criação.
+    const maxKieAttempts = 3;
+    let response, data;
+    for (let attempt = 1; attempt <= maxKieAttempts; attempt++) {
+      try {
+        response = await fetch('https://api.kie.ai/api/v1/generate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+          },
+          body: JSON.stringify({
+            prompt: prompt,
+            customMode: true,
+            instrumental: false,
+            model: "V5",
+            style: tags,
+            title: `Pedido ${orderId ? orderId.substring(0, 8) : 'Novo'}`.substring(0, 80),
+            callBackUrl: callbackUrl
+          }),
+          signal: AbortSignal.timeout(15000)
+        });
 
-    const data = await response.json().catch(() => ({}));
+        data = await response.json().catch(() => ({}));
 
-    if (!response.ok || (data.code && data.code !== 200)) {
-      console.error("Erro no retorno da Kie.ai:", response.status, data);
-      const errMsg = data.msg || data.message || `Status HTTP ${response.status}`;
+        if (response.ok && (!data.code || data.code === 200)) break;
+
+        // Só erros transitórios (5xx, 429) valem retry; 4xx definitivo não muda tentando de novo.
+        if (response.status < 500 && response.status !== 429) break;
+        console.warn(`[api/suno/generate] Erro transitório da Kie.ai (tentativa ${attempt}/${maxKieAttempts}):`, response.status, data);
+      } catch (fetchErr) {
+        // Timeout (AbortError) ou falha de rede (TypeError): transitório, vale tentar de novo.
+        console.warn(`[api/suno/generate] Falha de rede ao chamar Kie.ai (tentativa ${attempt}/${maxKieAttempts}):`, fetchErr.message);
+        response = null;
+        data = { msg: fetchErr.message };
+      }
+      if (attempt < maxKieAttempts) {
+        await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
+      }
+    }
+
+    if (!response || !response.ok || (data.code && data.code !== 200)) {
+      console.error("Erro no retorno da Kie.ai:", response?.status, data);
+      const errMsg = data?.msg || data?.message || `Status HTTP ${response?.status || 'desconhecido'}`;
       return NextResponse.json({ error: `Falha ao solicitar geração na Kie.ai: ${errMsg}` }, { status: 502 });
     }
 

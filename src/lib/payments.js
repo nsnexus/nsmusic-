@@ -4,12 +4,14 @@
 // hoje montado a partir da consulta à API Pix da Efí (antes, do Mercado Pago).
 //
 // Garante, nesta ordem:
-//   - idempotência por paymentId via runTransaction (A-09) — webhook e polling podem chegar juntos;
+//   - idempotência por paymentId via checagem sequencial getDoc + updateDoc (A-09) — webhook e
+//     polling podem chegar juntos; runTransaction não é usado porque não existe em
+//     firebase/firestore/lite, o SDK deste arquivo no Edge Runtime;
 //   - paymentStatus só é escrito quando o SKU realmente aprova a música (C-09), nunca no add-on isolado;
 //   - o SKU vem do paymentIntent persistido em /api/payments/create, não de uma heurística de valor (A-13);
 //   - estados de estorno/cancelamento revogam acesso já concedido, o que nunca era tratado antes.
 
-import { doc, getDoc, updateDoc, runTransaction } from 'firebase/firestore/lite';
+import { doc, getDoc, updateDoc } from 'firebase/firestore/lite';
 import { getRequestContext } from '@cloudflare/next-on-pages';
 import { dbEdge as db } from './firebase-edge';
 import { skuApprovesMusic, skuGrantsVideoAccess } from './pricing';
@@ -50,12 +52,19 @@ export async function applyPaymentApproval(orderId, paymentId, payment) {
     return { applied: false, reason: 'not_approved', status };
   }
 
+  // Edge Runtime (Cloudflare) roda em firebase/firestore/lite, que não expõe runTransaction —
+  // toda vez que era chamada aqui, a promise rejeitava e a aprovação inteira falhava (silenciosa,
+  // só visível no log). Substituída por checagem sequencial: getDoc para ler o estado atual e
+  // idempotência, updateDoc para gravar. Numa corrida bem apertada entre webhook e polling, as duas
+  // chamadas podem passar pela checagem de "já processado" antes de qualquer updateDoc acontecer —
+  // pior caso é reenviar a notificação de WhatsApp uma vez a mais, nunca uma dupla cobrança (o
+  // paymentId gravado é sempre o mesmo, então a segunda escrita apenas repete o primeiro resultado).
   let txResult;
   try {
-    txResult = await runTransaction(db, async (tx) => {
-      const snap = await tx.get(orderRef);
-      if (!snap.exists()) return { applied: false, reason: 'order_not_found' };
-
+    const snap = await getDoc(orderRef);
+    if (!snap.exists()) {
+      txResult = { applied: false, reason: 'order_not_found' };
+    } else {
       const orderData = snap.data();
 
       // A-13: usa o SKU persistido pela criação da cobrança; heurística de valor só como fallback
@@ -68,46 +77,46 @@ export async function applyPaymentApproval(orderId, paymentId, payment) {
 
       // Idempotência: mesmo paymentId já aplicado antes (webhook e polling correndo em paralelo).
       if (String(orderData[dedupKey] || '') === String(paymentId)) {
-        return { applied: false, reason: 'already_processed', sku };
-      }
-
-      const nowIso = new Date().toISOString();
-      const updates = { updatedAt: nowIso };
-
-      if (isVideoOnly) {
-        updates.hasVideoAccess = true;
-        updates.videoAddonPaid = true;
-        updates.videoPaymentId = String(paymentId);
-        // Usado pelo relatório diário de vendas (api/reports/daily-sales) para contar pagamentos de
-        // vídeo por período, sem depender de videoStatus (que só existe depois da renderização no
-        // navegador do cliente, um evento não confiável de servidor).
-        updates.videoPaidAt = nowIso;
+        txResult = { applied: false, reason: 'already_processed', sku };
       } else {
-        // C-09: paymentStatus só é escrito neste ramo — o add-on de vídeo isolado nunca o altera.
-        updates.paymentStatus = 'PAGAMENTO_APROVADO';
-        updates.paymentId = String(paymentId);
-        updates.paidAt = nowIso;
-        if (skuGrantsVideoAccess(sku)) {
+        const nowIso = new Date().toISOString();
+        const updates = { updatedAt: nowIso };
+
+        if (isVideoOnly) {
           updates.hasVideoAccess = true;
           updates.videoAddonPaid = true;
+          updates.videoPaymentId = String(paymentId);
+          // Usado pelo relatório diário de vendas (api/reports/daily-sales) para contar pagamentos
+          // de vídeo por período, sem depender de videoStatus (que só existe depois da
+          // renderização no navegador do cliente, um evento não confiável de servidor).
           updates.videoPaidAt = nowIso;
+        } else {
+          // C-09: paymentStatus só é escrito neste ramo — o add-on de vídeo isolado nunca o altera.
+          updates.paymentStatus = 'PAGAMENTO_APROVADO';
+          updates.paymentId = String(paymentId);
+          updates.paidAt = nowIso;
+          if (skuGrantsVideoAccess(sku)) {
+            updates.hasVideoAccess = true;
+            updates.videoAddonPaid = true;
+            updates.videoPaidAt = nowIso;
+          }
         }
+
+        await updateDoc(orderRef, updates);
+
+        txResult = {
+          applied: true,
+          sku,
+          isVideoOnly,
+          customerPhone: orderData.customerPhone || null,
+          customerName: orderData.customerName || 'Cliente',
+          honoreeName: orderData.honoreeName || 'alguém especial',
+        };
       }
-
-      tx.update(orderRef, updates);
-
-      return {
-        applied: true,
-        sku,
-        isVideoOnly,
-        customerPhone: orderData.customerPhone || null,
-        customerName: orderData.customerName || 'Cliente',
-        honoreeName: orderData.honoreeName || 'alguém especial',
-      };
-    });
+    }
   } catch (err) {
-    console.error('[payments] Falha na transação de aprovação:', err.message);
-    return { applied: false, reason: 'transaction_failed' };
+    console.error('[payments] Falha ao aplicar aprovação:', err.message);
+    return { applied: false, reason: 'update_failed' };
   }
 
   if (txResult.applied) {
@@ -119,28 +128,26 @@ export async function applyPaymentApproval(orderId, paymentId, payment) {
 
 async function revokeApproval(orderRef, paymentId, status) {
   try {
+    const snap = await getDoc(orderRef);
+    if (!snap.exists()) return { applied: false, reason: 'order_not_found', status };
+    const orderData = snap.data();
+
+    const updates = { updatedAt: new Date().toISOString() };
     let revoked = false;
-    await runTransaction(db, async (tx) => {
-      const snap = await tx.get(orderRef);
-      if (!snap.exists()) return;
-      const orderData = snap.data();
+    if (String(orderData.videoPaymentId || '') === String(paymentId)) {
+      updates.hasVideoAccess = false;
+      updates.videoAddonPaid = false;
+      revoked = true;
+    } else if (String(orderData.paymentId || '') === String(paymentId)) {
+      updates.paymentStatus = 'AGUARDANDO_PAGAMENTO';
+      revoked = true;
+    }
 
-      const updates = { updatedAt: new Date().toISOString() };
-      if (String(orderData.videoPaymentId || '') === String(paymentId)) {
-        updates.hasVideoAccess = false;
-        updates.videoAddonPaid = false;
-        revoked = true;
-      } else if (String(orderData.paymentId || '') === String(paymentId)) {
-        updates.paymentStatus = 'AGUARDANDO_PAGAMENTO';
-        revoked = true;
-      }
-
-      if (revoked) tx.update(orderRef, updates);
-    });
+    if (revoked) await updateDoc(orderRef, updates);
     return { applied: revoked, revoked, status };
   } catch (err) {
-    console.error('[payments] Falha na transação de revogação:', err.message);
-    return { applied: false, reason: 'transaction_failed' };
+    console.error('[payments] Falha ao revogar aprovação:', err.message);
+    return { applied: false, reason: 'update_failed' };
   }
 }
 
@@ -153,15 +160,14 @@ async function notifyApprovalByWhatsApp(orderRef, approval) {
 
   try {
     let shouldSend = false;
-    await runTransaction(db, async (tx) => {
-      const snap = await tx.get(orderRef);
-      if (!snap.exists()) return;
+    const snap = await getDoc(orderRef);
+    if (snap.exists()) {
       const data = snap.data();
       if (!data[sentFlag] && !data[`${sentFlag}Sending`]) {
-        tx.update(orderRef, { [`${sentFlag}Sending`]: true });
+        await updateDoc(orderRef, { [`${sentFlag}Sending`]: true });
         shouldSend = true;
       }
-    });
+    }
 
     if (!shouldSend) return;
 

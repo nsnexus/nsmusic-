@@ -100,6 +100,7 @@ export default function AdminLogin() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="admin@nsmusic.com.br" 
+              autoComplete="username"
               style={styles.input}
             />
           </div>
@@ -111,6 +112,7 @@ export default function AdminLogin() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••" 
+              autoComplete="current-password"
               style={styles.input}
             />
           </div>
