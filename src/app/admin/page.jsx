@@ -18,6 +18,7 @@ export default function AdminDashboard() {
   const [purchaseTypeTab, setPurchaseTypeTab] = useState('ALL'); // 'ALL', 'MUSIC', 'VIDEO'
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Paginação (M-09 no AUDIT_REPORT.md) — antes o painel baixava a coleção inteira via onSnapshot,
   // sem limite. pageSize cresce a cada "Carregar mais" em vez de ler tudo de uma vez.
@@ -178,8 +179,9 @@ export default function AdminDashboard() {
     }
 
     // Combo entra nas duas abas — é venda de música E de vídeo ao mesmo tempo.
+    // "MUSIC" filtra pedidos sem add-on de vídeo; "VIDEO" filtra os que têm vídeo pago.
     if (purchaseTypeTab === 'MUSIC') {
-      result = result.filter(o => o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'PAGO');
+      result = result.filter(o => !o.videoAddonPaid);
     } else if (purchaseTypeTab === 'VIDEO') {
       result = result.filter(o => o.videoAddonPaid);
     }
@@ -191,6 +193,21 @@ export default function AdminDashboard() {
     }
     if (dateTo) {
       result = result.filter(o => o.createdAt && o.createdAt <= `${dateTo}T23:59:59.999`);
+    }
+
+    // Busca por texto: telefone, nome do cliente, homenageado ou código do pedido.
+    // Case-insensitive; remove formatação do telefone para comparar dígitos puros.
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      const qDigits = q.replace(/\D/g, '');
+      result = result.filter(o => {
+        const nameMatch = (o.customerName || '').toLowerCase().includes(q);
+        const honoreeMatch = (o.honoreeName || '').toLowerCase().includes(q);
+        const codeMatch = (o.orderNumber || o.id || '').toLowerCase().includes(q);
+        const rawPhone = (o.customerPhone || '').replace(/\D/g, '');
+        const phoneMatch = qDigits.length >= 3 && rawPhone.includes(qDigits);
+        return nameMatch || honoreeMatch || codeMatch || phoneMatch;
+      });
     }
 
     return result;
@@ -586,6 +603,40 @@ export default function AdminDashboard() {
                       {tab.label}
                     </button>
                   ))}
+                </div>
+
+                {/* Busca por texto (telefone, nome, código, homenageado) */}
+                <div style={{ marginBottom: '16px' }}>
+                  <div style={{ position: 'relative', maxWidth: '420px' }}>
+                    <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '1rem', pointerEvents: 'none' }}>🔍</span>
+                    <input
+                      id="admin-search"
+                      type="text"
+                      placeholder="Buscar por telefone, nome, homenageado ou código..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px 9px 36px',
+                        borderRadius: '8px',
+                        border: '1px solid #cbd5e1',
+                        fontSize: '0.88rem',
+                        color: '#0f172a',
+                        outline: 'none',
+                        boxSizing: 'border-box',
+                      }}
+                    />
+                    {searchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setSearchQuery('')}
+                        style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', color: '#94a3b8', lineHeight: 1 }}
+                        title="Limpar busca"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Filtro de data */}
