@@ -8,7 +8,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 let store;
 
 vi.mock('@/lib/firebase-edge', () => ({ dbEdge: {} }));
-vi.mock('@/lib/whatsapp', () => ({ sendMusicReadyTemplate: vi.fn().mockResolvedValue({ success: true }) }));
+vi.mock('@/lib/whatsapp', () => ({ sendWhatsAppMessage: vi.fn().mockResolvedValue(true) }));
 
 vi.mock('firebase/firestore/lite', () => ({
   doc: (_db, _collection, id) => ({ id }),

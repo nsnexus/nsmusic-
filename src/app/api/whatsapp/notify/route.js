@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { doc, getDoc, updateDoc } from 'firebase/firestore/lite';
 import { dbEdge as db } from '@/lib/firebase-edge';
-import { sendMusicReadyTemplate } from '@/lib/whatsapp';
-import { resolveDeliveryUrl } from '@/lib/whatsappTemplates';
+import { sendWhatsAppMessage } from '@/lib/whatsapp';
+import { resolveDeliveryUrl, buildMusicReadyMessage } from '@/lib/whatsappTemplates';
 
 export const runtime = 'edge';
 
@@ -29,13 +29,14 @@ export async function POST(req) {
 
     if (orderData.customerPhone) {
       const deliveryUrl = resolveDeliveryUrl(orderId);
-      const sendResult = await sendMusicReadyTemplate(orderData.customerPhone, {
+      const messageText = buildMusicReadyMessage({
         customerName: orderData.customerName,
         honoreeName: orderData.honoreeName,
         deliveryUrl,
       });
 
-      if (sendResult.success) {
+      const sent = await sendWhatsAppMessage(orderData.customerPhone, messageText);
+      if (sent) {
         await updateDoc(orderRef, {
           whatsappSent: true,
           whatsappSentAt: new Date().toISOString()
@@ -45,8 +46,8 @@ export async function POST(req) {
         console.log(`WhatsApp (música pronta) enviado com sucesso — pedido ${orderId}`);
         return NextResponse.json({ success: true });
       } else {
-        console.warn(`Falha ao enviar WhatsApp (Cloud API) — pedido ${orderId}`);
-        return NextResponse.json({ error: 'Falha no envio da mensagem via WhatsApp' }, { status: 502 });
+        console.warn(`Falha ao enviar WhatsApp via W-API — pedido ${orderId}`);
+        return NextResponse.json({ error: 'Falha no envio da mensagem via W-API' }, { status: 502 });
       }
     }
 

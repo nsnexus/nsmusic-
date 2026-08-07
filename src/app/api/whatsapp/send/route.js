@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { sendWhatsAppMessageDetailed, sendMusicReadyTemplate } from '@/lib/whatsapp';
-import { resolveDeliveryUrl, buildPaymentApprovedMessage } from '@/lib/whatsappTemplates';
+import { sendWhatsAppMessageDetailed } from '@/lib/whatsapp';
+import { resolveDeliveryUrl, buildMusicReadyMessage, buildPaymentApprovedMessage } from '@/lib/whatsappTemplates';
 import { requireAdmin } from '@/lib/auth';
 import { getRequestContext } from '@cloudflare/next-on-pages';
 import { doc, getDoc } from 'firebase/firestore/lite';
@@ -10,8 +10,7 @@ export const runtime = 'edge';
 
 // Servidor busca os dados do pedido pelo orderId em vez de confiar no texto que o admin montou no
 // browser (mais seguro e consistente com o resto do projeto — o cliente só escolhe QUAL mensagem,
-// nunca O QUE ela diz). "musica" sai pela API Oficial (Template aprovado); "pagamento" continua na
-// W-API com texto livre — só "música pronta" migrou até agora (ver src/lib/whatsapp.js).
+// nunca O QUE ela diz).
 export async function POST(req) {
   try {
     let envVars = process.env;
@@ -51,9 +50,8 @@ export async function POST(req) {
       deliveryUrl: resolveDeliveryUrl(orderId),
     };
 
-    const result = tipo === 'musica'
-      ? await sendMusicReadyTemplate(order.customerPhone, vars, envVars)
-      : await sendWhatsAppMessageDetailed(order.customerPhone, buildPaymentApprovedMessage(vars), envVars);
+    const message = tipo === 'musica' ? buildMusicReadyMessage(vars) : buildPaymentApprovedMessage(vars);
+    const result = await sendWhatsAppMessageDetailed(order.customerPhone, message, envVars);
 
     if (result.success) {
       return NextResponse.json({ success: true, message: 'Mensagem enviada com sucesso!' });
