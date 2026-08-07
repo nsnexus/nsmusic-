@@ -41,6 +41,9 @@ export default function AdminDashboard() {
   const [videoUpsellDeselected, setVideoUpsellDeselected] = useState(new Set());
   const [sendingCampaign, setSendingCampaign] = useState(null); // null | 'recovery' | 'video_upsell'
   const [campaignResult, setCampaignResult] = useState(null);
+  // Filtro de data da aba Campanhas — separado do filtro de Pedidos para não misturar os dois contextos.
+  const [campaignDateFrom, setCampaignDateFrom] = useState('');
+  const [campaignDateTo, setCampaignDateTo] = useState('');
   const [packages, setPackages] = useState([]);
   const [addons, setAddons] = useState([]);
   const [loadingPricing, setLoadingPricing] = useState(false);
@@ -294,21 +297,28 @@ export default function AdminDashboard() {
 
   // Candidatos das campanhas — a rota /api/whatsapp/campaign reconfirma o mesmo critério no
   // servidor antes de enviar, então esta lista é só para revisão, nunca a autorização em si.
-  const getRecoveryCandidates = () => orders.filter(o =>
+  const filterByCampaignDateRange = (list) => {
+    let result = list;
+    if (campaignDateFrom) result = result.filter(o => o.createdAt && o.createdAt >= campaignDateFrom);
+    if (campaignDateTo) result = result.filter(o => o.createdAt && o.createdAt <= `${campaignDateTo}T23:59:59.999`);
+    return result;
+  };
+
+  const getRecoveryCandidates = () => filterByCampaignDateRange(orders.filter(o =>
     o.productionStatus === 'AUDIO_GERADO' &&
     o.paymentStatus !== 'PAGAMENTO_APROVADO' &&
     o.paymentStatus !== 'PAGO' &&
     !o.recoveryMessageSentAt &&
     o.customerPhone
-  );
+  ));
 
-  const getVideoUpsellCandidates = () => orders.filter(o =>
+  const getVideoUpsellCandidates = () => filterByCampaignDateRange(orders.filter(o =>
     (o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'PAGO') &&
     !o.hasVideoAccess &&
     !o.videoAddonPaid &&
     !o.videoUpsellMessageSentAt &&
     o.customerPhone
-  );
+  ));
 
   const toggleCampaignSelection = (type, orderId) => {
     const setFn = type === 'recovery' ? setRecoveryDeselected : setVideoUpsellDeselected;
@@ -1034,6 +1044,39 @@ export default function AdminDashboard() {
               <p style={{ color: '#64748b', fontSize: '0.9rem', marginBottom: '24px' }}>
                 Envios manuais em lote. Revise a lista antes de confirmar — cada cliente recebe a mensagem no máximo uma vez por campanha.
               </p>
+
+              {/* Filtro de data — restringe os candidatos pela data de criação do pedido */}
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: '12px', marginBottom: '20px', flexWrap: 'wrap' }}>
+                <div>
+                  <label htmlFor="campaign-date-from" style={{ display: 'block', fontSize: '0.78rem', color: '#64748b', marginBottom: '4px' }}>De</label>
+                  <input
+                    id="campaign-date-from"
+                    type="date"
+                    value={campaignDateFrom}
+                    onChange={(e) => setCampaignDateFrom(e.target.value)}
+                    style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.85rem' }}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="campaign-date-to" style={{ display: 'block', fontSize: '0.78rem', color: '#64748b', marginBottom: '4px' }}>Até</label>
+                  <input
+                    id="campaign-date-to"
+                    type="date"
+                    value={campaignDateTo}
+                    onChange={(e) => setCampaignDateTo(e.target.value)}
+                    style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.85rem' }}
+                  />
+                </div>
+                {(campaignDateFrom || campaignDateTo) && (
+                  <button
+                    type="button"
+                    onClick={() => { setCampaignDateFrom(''); setCampaignDateTo(''); }}
+                    style={{ padding: '8px 14px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#ffffff', color: '#64748b', fontSize: '0.8rem', cursor: 'pointer' }}
+                  >
+                    Limpar datas
+                  </button>
+                )}
+              </div>
 
               {campaignResult && (
                 <div style={{ padding: '14px 18px', backgroundColor: '#d1fae5', border: '1px solid #10b981', borderRadius: '8px', marginBottom: '20px', color: '#065f46', fontWeight: '600', fontSize: '0.9rem' }}>
