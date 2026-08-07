@@ -1022,11 +1022,6 @@ export default function CriarMusica() {
                 audioUrl: primaryAudio,
                 audioFiles: audioFiles,
                 productionStatus: 'AUDIO_GERADO',
-                // Usado pelo lembrete automático de pagamento (6h/12h) — normalmente já foi gravado
-                // pelo servidor em src/lib/db.js:updateTaskResult (chamado por /api/suno/status antes
-                // desta resposta chegar aqui); reescrever com um timestamp de poucos ms de diferença
-                // é inofensivo, e cobre o caso raro da escrita do servidor ter falhado silenciosamente.
-                audioGeneratedAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString()
               }).catch(e => console.warn("Aviso ao atualizar ordem no Firebase:", e));
 

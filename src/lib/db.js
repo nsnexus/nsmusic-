@@ -117,19 +117,12 @@ export const updateTaskResult = async (taskId, result, overrideOrderId = null) =
       const orderSnap = await getDoc(orderRef);
       const orderData = orderSnap.exists() ? orderSnap.data() : {};
 
-      const orderUpdatePayload = {
+      await updateDoc(orderRef, {
         audioUrl: primaryAudio,
         audioFiles: audioFiles,
         productionStatus: 'AUDIO_GERADO',
         updatedAt: new Date().toISOString()
-      };
-      // Gravado só na primeira vez — usado pelo lembrete automático de pagamento (6h/12h) pra saber
-      // quando a música ficou pronta. updatedAt não serve pra isso porque é reescrito por várias
-      // outras operações depois (envio de WhatsApp, aprovação de pagamento, etc.).
-      if (!orderData.audioGeneratedAt) {
-        orderUpdatePayload.audioGeneratedAt = new Date().toISOString();
-      }
-      await updateDoc(orderRef, orderUpdatePayload);
+      });
       console.log(`Ordem ${orderId} no Firebase atualizada com sucesso com ${audioFiles.length} áudios!`);
 
       // Envio automático do WhatsApp se ainda não tiver sido notificado. updateTaskResult é chamado

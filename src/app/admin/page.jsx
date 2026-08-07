@@ -34,7 +34,17 @@ export default function AdminDashboard() {
   const [deletingOrders, setDeletingOrders] = useState(false);
 
   // Pricing tab state
-  const [activeTab, setActiveTab] = useState('ORDERS'); // 'ORDERS', 'PRICING', 'STUCK'
+  const [activeTab, setActiveTab] = useState('ORDERS'); // 'ORDERS', 'PRICING', 'CAMPAIGNS', 'STUCK'
+
+  // Campanhas de WhatsApp em lote (recuperação e upsell de vídeo) — só a lista de quem foi
+  // deliberadamente desmarcado antes do envio; por padrão todo mundo elegível vem selecionado.
+  const [recoveryDeselected, setRecoveryDeselected] = useState(new Set());
+  const [videoUpsellDeselected, setVideoUpsellDeselected] = useState(new Set());
+  const [sendingCampaign, setSendingCampaign] = useState(null); // null | 'recovery' | 'video_upsell'
+  const [campaignResult, setCampaignResult] = useState(null);
+  // Filtro de data da aba Campanhas — separado do filtro de Pedidos para não misturar os dois contextos.
+  const [campaignDateFrom, setCampaignDateFrom] = useState('');
+  const [campaignDateTo, setCampaignDateTo] = useState('');
 
   // Reprocessamento de pedidos travados antes da Suno (letra pronta mas geração nunca confirmada).
   const [retryDeselected, setRetryDeselected] = useState(new Set());
@@ -291,6 +301,31 @@ export default function AdminDashboard() {
     return getFaturamentoMusicas() + getFaturamentoVideos();
   };
 
+  // Candidatos das campanhas — a rota /api/whatsapp/campaign reconfirma o mesmo critério no
+  // servidor antes de enviar, então esta lista é só para revisão, nunca a autorização em si.
+  const filterByCampaignDateRange = (list) => {
+    let result = list;
+    if (campaignDateFrom) result = result.filter(o => o.createdAt && o.createdAt >= campaignDateFrom);
+    if (campaignDateTo) result = result.filter(o => o.createdAt && o.createdAt <= `${campaignDateTo}T23:59:59.999`);
+    return result;
+  };
+
+  const getRecoveryCandidates = () => filterByCampaignDateRange(orders.filter(o =>
+    o.productionStatus === 'AUDIO_GERADO' &&
+    o.paymentStatus !== 'PAGAMENTO_APROVADO' &&
+    o.paymentStatus !== 'PAGO' &&
+    !o.recoveryMessageSentAt &&
+    o.customerPhone
+  ));
+
+  const getVideoUpsellCandidates = () => filterByCampaignDateRange(orders.filter(o =>
+    (o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'PAGO') &&
+    !o.hasVideoAccess &&
+    !o.videoAddonPaid &&
+    !o.videoUpsellMessageSentAt &&
+    o.customerPhone
+  ));
+
   // Pedidos com a letra pronta cujo pedido à Kie.ai nunca foi confirmado (EM_PRODUCAO é o estado
   // inicial genérico; LETRA_CRIADA é gravado quando a letra fica pronta — ver criar/page.jsx). Sem
   // audioUrl significa que a geração de fato não chegou a completar.
@@ -334,6 +369,45 @@ export default function AdminDashboard() {
     }
     setRetryResult({ success, failed, total: selected.length });
     setRetryingGeneration(false);
+  };
+
+  const toggleCampaignSelection = (type, orderId) => {
+    const setFn = type === 'recovery' ? setRecoveryDeselected : setVideoUpsellDeselected;
+    setFn(prev => {
+      const next = new Set(prev);
+      if (next.has(orderId)) next.delete(orderId); else next.add(orderId);
+      return next;
+    });
+  };
+
+  const handleSendCampaign = async (type, candidates) => {
+    const deselected = type === 'recovery' ? recoveryDeselected : videoUpsellDeselected;
+    const orderIds = candidates.filter(o => !deselected.has(o.id)).map(o => o.id);
+    if (orderIds.length === 0) return;
+
+    const label = type === 'recovery' ? 'recuperação (última chance)' : 'upsell de vídeo';
+    if (!confirm(`Enviar mensagem de ${label} para ${orderIds.length} cliente(s)? Isso envia WhatsApp de verdade, agora.`)) return;
+
+    setSendingCampaign(type);
+    setCampaignResult(null);
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      const res = await fetch('/api/whatsapp/campaign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+        body: JSON.stringify({ orderIds, type })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setCampaignResult({ type, ...data });
+      } else {
+        alert(data.error || 'Falha ao enviar a campanha.');
+      }
+    } catch (err) {
+      console.error('Erro ao enviar campanha:', err);
+      alert('Falha ao enviar a campanha.');
+    }
+    setSendingCampaign(null);
   };
 
   const getOccasionEmoji = (occ) => {
@@ -541,6 +615,16 @@ export default function AdminDashboard() {
                 }}
               >
                 💵 Preços & Pacotes
+              </button>
+              <button
+                onClick={() => setActiveTab('CAMPAIGNS')}
+                style={{
+                  ...styles.tabBtn,
+                  backgroundColor: activeTab === 'CAMPAIGNS' ? '#7c3aed' : '#e2e8f0',
+                  color: activeTab === 'CAMPAIGNS' ? '#ffffff' : '#334155',
+                }}
+              >
+                📣 Campanhas
               </button>
               <button
                 onClick={() => setActiveTab('STUCK')}
@@ -1013,6 +1097,124 @@ export default function AdminDashboard() {
 
                 </div>
               )}
+            </div>
+          ) : activeTab === 'CAMPAIGNS' ? (
+            // Campanhas de WhatsApp em lote
+            <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+              <h2 style={{ fontSize: '1.5rem', fontWeight: '800', color: '#0f172a', marginBottom: '8px' }}>Campanhas de WhatsApp</h2>
+              <p style={{ color: '#64748b', fontSize: '0.9rem', marginBottom: '24px' }}>
+                Envios manuais em lote. Revise a lista antes de confirmar — cada cliente recebe a mensagem no máximo uma vez por campanha.
+              </p>
+
+              {/* Filtro de data — restringe os candidatos pela data de criação do pedido */}
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: '12px', marginBottom: '20px', flexWrap: 'wrap' }}>
+                <div>
+                  <label htmlFor="campaign-date-from" style={{ display: 'block', fontSize: '0.78rem', color: '#64748b', marginBottom: '4px' }}>De</label>
+                  <input
+                    id="campaign-date-from"
+                    type="date"
+                    value={campaignDateFrom}
+                    onChange={(e) => setCampaignDateFrom(e.target.value)}
+                    style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.85rem' }}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="campaign-date-to" style={{ display: 'block', fontSize: '0.78rem', color: '#64748b', marginBottom: '4px' }}>Até</label>
+                  <input
+                    id="campaign-date-to"
+                    type="date"
+                    value={campaignDateTo}
+                    onChange={(e) => setCampaignDateTo(e.target.value)}
+                    style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.85rem' }}
+                  />
+                </div>
+                {(campaignDateFrom || campaignDateTo) && (
+                  <button
+                    type="button"
+                    onClick={() => { setCampaignDateFrom(''); setCampaignDateTo(''); }}
+                    style={{ padding: '8px 14px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#ffffff', color: '#64748b', fontSize: '0.8rem', cursor: 'pointer' }}
+                  >
+                    Limpar datas
+                  </button>
+                )}
+              </div>
+
+              {campaignResult && (
+                <div style={{ padding: '14px 18px', backgroundColor: '#d1fae5', border: '1px solid #10b981', borderRadius: '8px', marginBottom: '20px', color: '#065f46', fontWeight: '600', fontSize: '0.9rem' }}>
+                  {campaignResult.type === 'recovery' ? 'Campanha de recuperação' : 'Campanha de upsell de vídeo'} enviada: {campaignResult.sent} enviada(s), {campaignResult.skipped} pulada(s), {campaignResult.failed} falhou(aram).
+                </div>
+              )}
+
+              {[
+                {
+                  type: 'recovery',
+                  title: '🎵 Última chance — gerou a música e não comprou',
+                  subtitle: 'Convite para voltar e liberar as 2 versões por R$ 9,99, com a prévia já pronta.',
+                  candidates: getRecoveryCandidates(),
+                  deselected: recoveryDeselected,
+                },
+                {
+                  type: 'video_upsell',
+                  title: '🎬 Oferta do vídeo — comprou a música, ainda não tem o vídeo',
+                  subtitle: 'Convite para completar a homenagem com o Vídeo Homenagem por +R$ 6,90.',
+                  candidates: getVideoUpsellCandidates(),
+                  deselected: videoUpsellDeselected,
+                },
+              ].map((campaign) => {
+                const selectedCount = campaign.candidates.filter(o => !campaign.deselected.has(o.id)).length;
+                return (
+                  <div key={campaign.type} className="glass-card" style={{ padding: '24px', borderRadius: '16px', marginBottom: '24px', backgroundColor: '#ffffff', border: '1px solid #e2e8f0' }}>
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: '700', color: '#0f172a', marginBottom: '4px' }}>{campaign.title}</h3>
+                    <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '16px' }}>{campaign.subtitle}</p>
+
+                    {campaign.candidates.length === 0 ? (
+                      <p style={{ fontSize: '0.85rem', color: '#94a3b8' }}>Nenhum pedido se encaixa nesse critério agora.</p>
+                    ) : (
+                      <>
+                        <div style={{ maxHeight: '260px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '10px', marginBottom: '16px' }}>
+                          <table style={{ width: '100%', fontSize: '0.85rem', borderCollapse: 'collapse' }}>
+                            <thead>
+                              <tr style={{ backgroundColor: '#f8fafc', textAlign: 'left' }}>
+                                <th style={{ padding: '10px 12px', width: '36px' }}></th>
+                                <th style={{ padding: '10px 12px' }}>Cliente</th>
+                                <th style={{ padding: '10px 12px' }}>Homenageado</th>
+                                <th style={{ padding: '10px 12px' }}>Criado em</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {campaign.candidates.map((o) => (
+                                <tr key={o.id} style={{ borderTop: '1px solid #f1f5f9' }}>
+                                  <td style={{ padding: '8px 12px' }}>
+                                    <input
+                                      type="checkbox"
+                                      checked={!campaign.deselected.has(o.id)}
+                                      onChange={() => toggleCampaignSelection(campaign.type, o.id)}
+                                      aria-label={`Incluir pedido de ${o.customerName || o.id} na campanha`}
+                                    />
+                                  </td>
+                                  <td style={{ padding: '8px 12px' }}>{o.customerName || '—'}</td>
+                                  <td style={{ padding: '8px 12px' }}>{o.honoreeName || '—'}</td>
+                                  <td style={{ padding: '8px 12px' }}>{formatDateWithTime(o.createdAt)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleSendCampaign(campaign.type, campaign.candidates)}
+                          disabled={selectedCount === 0 || sendingCampaign === campaign.type}
+                          className="btn btn-primary"
+                          style={{ padding: '10px 22px', fontSize: '0.9rem' }}
+                        >
+                          {sendingCampaign === campaign.type ? 'Enviando...' : `Enviar para ${selectedCount} cliente(s)`}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           ) : (
             // Pedidos travados — letra pronta mas a geração na Kie.ai nunca foi confirmada (ver

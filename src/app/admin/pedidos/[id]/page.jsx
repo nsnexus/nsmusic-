@@ -6,6 +6,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
+import { resolveDeliveryUrl, buildMusicReadyMessage, buildPaymentApprovedMessage } from '@/lib/whatsappTemplates';
 import Link from 'next/link';
 import Image from 'next/image';
 
@@ -290,8 +291,14 @@ export default function OrderDetailsAdmin() {
     setSendingWhatsApp(true);
     setWhatsAppMsg('');
     try {
-      // O servidor busca os dados do pedido e monta a mensagem — o cliente só escolhe qual tipo
-      // enviar (ver src/app/api/whatsapp/send/route.js).
+      const deliveryUrl = resolveDeliveryUrl(orderId);
+      const customerName = order.customerName || 'Cliente';
+      const honoreeName = order.honoreeName || 'alguém especial';
+
+      const messageText = tipo === 'musica'
+        ? buildMusicReadyMessage({ customerName, honoreeName, deliveryUrl })
+        : buildPaymentApprovedMessage({ customerName, honoreeName, deliveryUrl });
+
       const idToken = await auth.currentUser?.getIdToken();
       const res = await fetch('/api/whatsapp/send', {
         method: 'POST',
@@ -299,7 +306,10 @@ export default function OrderDetailsAdmin() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${idToken}`
         },
-        body: JSON.stringify({ orderId, tipo })
+        body: JSON.stringify({
+          phone: order.customerPhone,
+          message: messageText
+        })
       });
 
       const data = await res.json().catch(() => ({}));
@@ -307,7 +317,7 @@ export default function OrderDetailsAdmin() {
       if (res.ok && data.success) {
         setWhatsAppMsg('✅ Mensagem do WhatsApp enviada com sucesso!');
       } else {
-        setWhatsAppMsg(`❌ ${data.error || 'Falha ao enviar mensagem'}`);
+        setWhatsAppMsg(`❌ ${data.error || 'Falha ao enviar mensagem via W-API'}`);
       }
     } catch (err) {
       console.error('Erro ao enviar WhatsApp:', err);

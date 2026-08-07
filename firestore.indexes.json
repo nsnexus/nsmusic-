@@ -1,14 +1,5 @@
 {
-  "_comment": "M-05 no docs/audit/AUDIT_REPORT.md: versiona os índices do Firestore, antes ausentes do repositório. As queries atuais do projeto (orders.customerPhone, orders.customerEmail, orders.userId, suno_tasks.orderId) são todas igualdade de campo único ou orderBy de campo único — o Firestore cria índices de campo único automaticamente, sem precisar de entrada aqui. Este arquivo existe para declarar índices COMPOSTOS (mais de um campo em where/orderBy na mesma query) assim que alguma query passar a precisar de um. Ao adicionar uma nova query com where+orderBy combinando campos diferentes, declare o índice composto correspondente aqui antes do deploy, ou o Firestore vai rejeitar a query em produção com um link para criar o índice manualmente.",
-  "indexes": [
-    {
-      "collectionGroup": "orders",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "productionStatus", "order": "ASCENDING" },
-        { "fieldPath": "audioGeneratedAt", "order": "ASCENDING" }
-      ]
-    }
-  ],
+  "_comment": "M-05 no docs/audit/AUDIT_REPORT.md: versiona os índices do Firestore, antes ausentes do repositório. As queries atuais do projeto (orders.customerPhone, orders.customerEmail, orders.userId, suno_tasks.orderId) são todas igualdade de campo único ou orderBy de campo único — o Firestore cria índices de campo único automaticamente, sem precisar de entrada aqui. Este arquivo existe para declarar índices COMPOSTOS (mais de um campo em where/orderBy na mesma query) assim que alguma query passar a precisar de um — hoje nenhuma precisa. Ao adicionar uma nova query com where+orderBy combinando campos diferentes, declare o índice composto correspondente aqui antes do deploy, ou o Firestore vai rejeitar a query em produção com um link para criar o índice manualmente.",
+  "indexes": [],
   "fieldOverrides": []
 }
