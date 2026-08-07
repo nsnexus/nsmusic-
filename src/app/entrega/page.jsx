@@ -9,6 +9,7 @@ import { createUserWithEmailAndPassword, onAuthStateChanged } from 'firebase/aut
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, auth, storage } from '@/lib/firebase';
 import { getPriceForSku } from '@/lib/pricing';
+import { pushAdvancedMatching } from '@/lib/metaPixel';
 import VideoOfferModal from '@/components/VideoOfferModal';
 import { styles } from './entregaStyles';
 
@@ -130,6 +131,7 @@ function EntregaContent() {
       const alreadyTracked = localStorage.getItem(storageKey);
 
       if (!alreadyTracked && window.fbq) {
+        pushAdvancedMatching(order?.customerPhone, order?.customerEmail);
         const amount = Number(order?.expectedAmount) || Number(order?.total) || getPriceForSku('audio_only');
         window.fbq('track', 'Purchase', {
           value: amount,
@@ -142,7 +144,7 @@ function EntregaContent() {
         setHasTrackedPurchase(true);
       }
     }
-  }, [isPaid, orderId, order?.expectedAmount, order?.total]);
+  }, [isPaid, orderId, order?.expectedAmount, order?.total, order?.customerPhone, order?.customerEmail]);
 
   // Dispara um Purchase separado para o add-on de vídeo comprado ISOLADAMENTE, depois da música.
   // videoPaymentId só existe nesse caso (mesmo critério usado em admin/page.jsx:getFaturamentoVideos)
@@ -155,6 +157,7 @@ function EntregaContent() {
       const alreadyTracked = localStorage.getItem(storageKey);
 
       if (!alreadyTracked && window.fbq) {
+        pushAdvancedMatching(order?.customerPhone, order?.customerEmail);
         window.fbq('track', 'Purchase', {
           value: getPriceForSku('video_addon'),
           currency: 'BRL',
@@ -165,7 +168,7 @@ function EntregaContent() {
         localStorage.setItem(storageKey, 'true');
       }
     }
-  }, [order?.videoAddonPaid, order?.videoPaymentId, orderId]);
+  }, [order?.videoAddonPaid, order?.videoPaymentId, orderId, order?.customerPhone, order?.customerEmail]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (usr) => {

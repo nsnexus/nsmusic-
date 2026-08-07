@@ -7,6 +7,7 @@ import { doc, getDoc, collection, addDoc, updateDoc, query, where, getDocs } fro
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, auth, storage } from '@/lib/firebase';
 import { buildSunoPayload } from '@/lib/sunoPayload';
+import { pushAdvancedMatching } from '@/lib/metaPixel';
 import { styles } from './wizardStyles';
 import CustomAudioPreview from './CustomAudioPreview';
 import WizardSteps from './WizardSteps';
@@ -1479,6 +1480,9 @@ export default function CriarMusica() {
                               setPixInfo(data);
 
                               if (typeof window !== 'undefined' && window.fbq) {
+                                // Correspondência avançada manual: telefone é obrigatório e já validado
+                                // aqui, e-mail é opcional e só entra quando preenchido.
+                                pushAdvancedMatching(formData.customerPhone, formData.customerEmail);
                                 // Valor real do carrinho (9.99 ou 16.89 com vídeo), não um fixo — combo
                                 // era subcontado como se fosse sempre a música avulsa.
                                 window.fbq('track', 'InitiateCheckout', { value: getTotalPrice(), currency: 'BRL' });
