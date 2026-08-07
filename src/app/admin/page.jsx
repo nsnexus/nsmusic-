@@ -20,10 +20,11 @@ export default function AdminDashboard() {
   const [dateTo, setDateTo] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Paginação (M-09 no AUDIT_REPORT.md) — antes o painel baixava a coleção inteira via onSnapshot,
-  // sem limite. pageSize cresce a cada "Carregar mais" em vez de ler tudo de uma vez.
-  const PAGE_SIZE = 50;
-  const [pageSize, setPageSize] = useState(PAGE_SIZE);
+  // Paginação — carrega 500 de início para cobrir o histórico típico do admin.
+  // "Carregar todos" remove o limite completamente (útil para busca/filtro em toda a base).
+  const PAGE_SIZE = 200;
+  const [pageSize, setPageSize] = useState(500);
+  const [loadAll, setLoadAll] = useState(false);
   const [hasMoreOrders, setHasMoreOrders] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   
@@ -93,12 +94,14 @@ export default function AdminDashboard() {
     };
   }, [router]);
 
-  // Load orders (paginado — ver PAGE_SIZE acima)
+  // Load orders — sem limite quando loadAll=true, senão usa pageSize.
   useEffect(() => {
     if (!user) return;
 
-    // Busca um a mais que o pageSize só para saber se existe uma próxima página, sem exibi-lo.
-    const q = query(collection(db, 'orders'), orderBy('createdAt', 'desc'), fbLimit(pageSize + 1));
+    const q = loadAll
+      ? query(collection(db, 'orders'), orderBy('createdAt', 'desc'))
+      : query(collection(db, 'orders'), orderBy('createdAt', 'desc'), fbLimit(pageSize + 1));
+
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const ordersData = [];
       snapshot.forEach((doc) => {
@@ -107,8 +110,13 @@ export default function AdminDashboard() {
         if (data.deletedAt) return;
         ordersData.push({ id: doc.id, ...data });
       });
-      setHasMoreOrders(ordersData.length > pageSize);
-      setOrders(ordersData.slice(0, pageSize));
+      if (loadAll) {
+        setHasMoreOrders(false);
+        setOrders(ordersData);
+      } else {
+        setHasMoreOrders(ordersData.length > pageSize);
+        setOrders(ordersData.slice(0, pageSize));
+      }
       setLoadingOrders(false);
       setLoadingMore(false);
     }, (error) => {
@@ -118,7 +126,7 @@ export default function AdminDashboard() {
     });
 
     return () => unsubscribe();
-  }, [user, pageSize]);
+  }, [user, pageSize, loadAll]);
 
   const handleLoadMoreOrders = () => {
     setLoadingMore(true);
@@ -864,18 +872,26 @@ export default function AdminDashboard() {
                 )}
 
                 {hasMoreOrders && (
-                  <div style={{ display: 'flex', justifyContent: 'center', padding: '20px 0' }}>
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', padding: '20px 0' }}>
                     <button
                       type="button"
                       onClick={handleLoadMoreOrders}
                       disabled={loadingMore}
-                      className="btn btn-secondary"
-                      style={{ padding: '10px 24px', fontSize: '0.9rem' }}
+                      style={{ padding: '10px 24px', fontSize: '0.9rem', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#ffffff', color: '#334155', fontWeight: '600', cursor: 'pointer' }}
                     >
-                      {loadingMore ? 'Carregando...' : 'Carregar mais pedidos'}
+                      {loadingMore ? 'Carregando...' : '⬇️ Carregar mais 200'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setLoadingMore(true); setLoadAll(true); }}
+                      disabled={loadingMore}
+                      style={{ padding: '10px 24px', fontSize: '0.9rem', borderRadius: '8px', border: '1px solid #7c3aed', background: '#7c3aed', color: '#ffffff', fontWeight: '600', cursor: 'pointer' }}
+                    >
+                      {loadingMore ? 'Carregando...' : '📋 Carregar todos'}
                     </button>
                   </div>
                 )}
+
               </div>
             </div>
           ) : activeTab === 'PRICING' ? (
