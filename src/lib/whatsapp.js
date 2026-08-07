@@ -61,7 +61,9 @@ export const formatToWhatsAppNumber = (phone) => {
 };
 
 /**
- * Verifica em tempo real se um número possui conta ativa no WhatsApp via W-API
+ * Verifica em tempo real se um número possui conta ativa no WhatsApp via W-API. Tenta a variante
+ * com E sem o 9º dígito (mesmo padrão de sendWhatsAppMessageDetailed) — muita gente esquece o 9 ao
+ * digitar o celular, e o número pode estar cadastrado no WhatsApp de qualquer uma das duas formas.
  */
 export const verifyWhatsAppNumber = async (phone, env = {}) => {
   const { instanceId, token, baseUrl } = getWApiConfig(env);
@@ -71,33 +73,46 @@ export const verifyWhatsAppNumber = async (phone, env = {}) => {
     return { exists: false, reason: 'Número incompleto' };
   }
 
-  try {
-    const res = await fetch(`${baseUrl}/contacts/phone-exists?instanceId=${instanceId}&phoneNumber=${formattedNumber}`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      signal: AbortSignal.timeout(8000)
-    });
-
-    if (!res.ok) {
-      console.warn("Aviso ao consultar W-API:", res.status);
-      return { exists: false, fallback: true };
-    }
-
-    const data = await res.json();
-    const exists = data?.exists === true;
-
-    return {
-      exists,
-      lid: data?.lid || null,
-      number: formattedNumber
-    };
-  } catch (error) {
-    console.error("Erro na verificação de WhatsApp:", error);
-    return { exists: false, fallback: true, error: error.message };
+  const numbersToCheck = [formattedNumber];
+  if (formattedNumber.startsWith('55') && formattedNumber.length === 12) {
+    // 55 + DDD + 8 dígitos: também tenta a variante com o 9 inserido (12 -> 13 dígitos).
+    const withNine = `${formattedNumber.substring(0, 4)}9${formattedNumber.substring(4)}`;
+    numbersToCheck.push(withNine);
+  } else if (formattedNumber.startsWith('55') && formattedNumber.length === 13 && formattedNumber[4] === '9') {
+    // 55 + DDD + 9 dígitos: também tenta a variante sem o 9 (13 -> 12 dígitos).
+    const withoutNine = `${formattedNumber.substring(0, 4)}${formattedNumber.substring(5)}`;
+    numbersToCheck.push(withoutNine);
   }
+
+  let lastFallback = null;
+  for (const num of numbersToCheck) {
+    try {
+      const res = await fetch(`${baseUrl}/contacts/phone-exists?instanceId=${instanceId}&phoneNumber=${num}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        signal: AbortSignal.timeout(8000)
+      });
+
+      if (!res.ok) {
+        console.warn("Aviso ao consultar W-API:", res.status);
+        lastFallback = { exists: false, fallback: true };
+        continue;
+      }
+
+      const data = await res.json();
+      if (data?.exists === true) {
+        return { exists: true, lid: data?.lid || null, number: num };
+      }
+    } catch (error) {
+      console.error("Erro na verificação de WhatsApp:", error);
+      lastFallback = { exists: false, fallback: true, error: error.message };
+    }
+  }
+
+  return lastFallback || { exists: false, number: formattedNumber };
 };
 
 /**

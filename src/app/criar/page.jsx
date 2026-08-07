@@ -202,9 +202,11 @@ export default function CriarMusica() {
     const phone = formData.customerPhone || '';
     const clean = phone.replace(/\D/g, '');
 
-    if (clean.length < 11) {
+    // Aceita DDD + 8 ou 9 dígitos — muita gente esquece o 9 inicial do celular. A verificação no
+    // servidor (verifyWhatsAppNumber) tenta as duas variantes antes de dar como não encontrado.
+    if (clean.length < 10) {
       setPhoneVerifyStatus('idle');
-      setPhoneVerifyMessage(clean.length > 0 ? 'Digite o DDD + 9 dígitos do seu celular' : '');
+      setPhoneVerifyMessage(clean.length > 0 ? 'Digite o DDD + número do seu celular' : '');
       return;
     }
 
@@ -543,23 +545,29 @@ export default function CriarMusica() {
   };
 
   const handlePhoneChange = (value) => {
-    const clean = value.replace(/\D/g, '');
+    const clean = value.replace(/\D/g, '').slice(0, 11);
     let formatted = clean;
     if (clean.length > 0) {
       formatted = `(${clean.slice(0, 2)}`;
     }
     if (clean.length > 2) {
-      formatted += `) ${clean.slice(2, 7)}`;
-    }
-    if (clean.length > 7) {
-      formatted += `-${clean.slice(7, 11)}`;
+      const local = clean.slice(2);
+      // Número local pode ter 8 dígitos (sem o 9º, esquecimento comum) ou 9 (padrão atual) — o
+      // agrupamento do meio muda de tamanho conforme o total (ver isPhoneValid/verifyWhatsAppNumber,
+      // que aceitam e checam as duas variantes).
+      const splitAt = local.length >= 9 ? 5 : Math.min(4, local.length);
+      formatted += `) ${local.slice(0, splitAt)}`;
+      if (local.length > splitAt) {
+        formatted += `-${local.slice(splitAt)}`;
+      }
     }
     updateField('customerPhone', formatted);
   };
 
   const isPhoneValid = (phone) => {
     const clean = (phone || '').replace(/\D/g, '');
-    if (clean.length !== 11) return false;
+    // DDD + 8 dígitos (sem o 9, esquecimento comum) ou 9 dígitos (padrão atual) — ver verifyWhatsAppNumber.
+    if (clean.length !== 10 && clean.length !== 11) return false;
     // Bloqueia durante verificação e quando inválido
     return phoneVerifyStatus === 'valid';
   };
