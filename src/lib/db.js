@@ -1,7 +1,7 @@
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore/lite';
 import { dbEdge as db } from './firebase-edge';
-import { sendWhatsAppMessage } from './whatsapp';
-import { resolveDeliveryUrl, buildMusicReadyMessage } from './whatsappTemplates';
+import { sendMusicReadyTemplate } from './whatsapp';
+import { resolveDeliveryUrl } from './whatsappTemplates';
 
 export const getTask = async (taskId) => {
   try {
@@ -117,12 +117,19 @@ export const updateTaskResult = async (taskId, result, overrideOrderId = null) =
       const orderSnap = await getDoc(orderRef);
       const orderData = orderSnap.exists() ? orderSnap.data() : {};
 
-      await updateDoc(orderRef, {
+      const orderUpdatePayload = {
         audioUrl: primaryAudio,
         audioFiles: audioFiles,
         productionStatus: 'AUDIO_GERADO',
         updatedAt: new Date().toISOString()
-      });
+      };
+      // Gravado só na primeira vez — usado pelo lembrete automático de pagamento (6h/12h) pra saber
+      // quando a música ficou pronta. updatedAt não serve pra isso porque é reescrito por várias
+      // outras operações depois (envio de WhatsApp, aprovação de pagamento, etc.).
+      if (!orderData.audioGeneratedAt) {
+        orderUpdatePayload.audioGeneratedAt = new Date().toISOString();
+      }
+      await updateDoc(orderRef, orderUpdatePayload);
       console.log(`Ordem ${orderId} no Firebase atualizada com sucesso com ${audioFiles.length} áudios!`);
 
       // Envio automático do WhatsApp se ainda não tiver sido notificado. updateTaskResult é chamado
@@ -154,13 +161,12 @@ export const updateTaskResult = async (taskId, result, overrideOrderId = null) =
 
         if (shouldSend) {
           const deliveryUrl = resolveDeliveryUrl(orderId);
-          const messageText = buildMusicReadyMessage({
+          const sendResult = await sendMusicReadyTemplate(orderData.customerPhone, {
             customerName: orderData.customerName,
             honoreeName: orderData.honoreeName,
             deliveryUrl,
           });
-
-          const sent = await sendWhatsAppMessage(orderData.customerPhone, messageText);
+          const sent = sendResult.success;
           if (sent) {
             await updateDoc(orderRef, {
               whatsappSent: true,
