@@ -6,6 +6,7 @@ import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { collection, query, orderBy, onSnapshot, doc, getDoc, setDoc, deleteDoc, limit as fbLimit } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { getPriceForSku } from '@/lib/pricing';
+import { buildSunoPayload } from '@/lib/sunoPayload';
 import Link from 'next/link';
 import Image from 'next/image';
 
@@ -33,7 +34,7 @@ export default function AdminDashboard() {
   const [deletingOrders, setDeletingOrders] = useState(false);
 
   // Pricing tab state
-  const [activeTab, setActiveTab] = useState('ORDERS'); // 'ORDERS', 'PRICING', 'CAMPAIGNS'
+  const [activeTab, setActiveTab] = useState('ORDERS'); // 'ORDERS', 'PRICING', 'CAMPAIGNS', 'STUCK'
 
   // Campanhas de WhatsApp em lote (recuperação e upsell de vídeo) — só a lista de quem foi
   // deliberadamente desmarcado antes do envio; por padrão todo mundo elegível vem selecionado.
@@ -44,6 +45,11 @@ export default function AdminDashboard() {
   // Filtro de data da aba Campanhas — separado do filtro de Pedidos para não misturar os dois contextos.
   const [campaignDateFrom, setCampaignDateFrom] = useState('');
   const [campaignDateTo, setCampaignDateTo] = useState('');
+
+  // Reprocessamento de pedidos travados antes da Suno (letra pronta mas geração nunca confirmada).
+  const [retryDeselected, setRetryDeselected] = useState(new Set());
+  const [retryingGeneration, setRetryingGeneration] = useState(false);
+  const [retryResult, setRetryResult] = useState(null);
   const [packages, setPackages] = useState([]);
   const [addons, setAddons] = useState([]);
   const [loadingPricing, setLoadingPricing] = useState(false);
@@ -320,6 +326,51 @@ export default function AdminDashboard() {
     o.customerPhone
   ));
 
+  // Pedidos com a letra pronta cujo pedido à Kie.ai nunca foi confirmado (EM_PRODUCAO é o estado
+  // inicial genérico; LETRA_CRIADA é gravado quando a letra fica pronta — ver criar/page.jsx). Sem
+  // audioUrl significa que a geração de fato não chegou a completar.
+  const getStuckGenerationCandidates = () => orders.filter(o =>
+    !o.deletedAt &&
+    (o.productionStatus === 'EM_PRODUCAO' || o.productionStatus === 'LETRA_CRIADA') &&
+    (o.lyrics || '').trim().length > 0 &&
+    !o.audioUrl
+  );
+
+  const toggleRetrySelection = (orderId) => {
+    setRetryDeselected(prev => {
+      const next = new Set(prev);
+      if (next.has(orderId)) next.delete(orderId); else next.add(orderId);
+      return next;
+    });
+  };
+
+  // Reenvia cada pedido selecionado para /api/suno/generate, sequencialmente — em lote e em paralelo
+  // multiplicaria o risco do mesmo erro de limite de taxa da Kie.ai que provavelmente travou os
+  // pedidos em primeiro lugar.
+  const handleRetryStuckGeneration = async (candidates) => {
+    const selected = candidates.filter(o => !retryDeselected.has(o.id));
+    if (selected.length === 0) return;
+    if (!confirm(`Reenviar ${selected.length} pedido(s) para geração de música na Kie.ai agora?`)) return;
+
+    setRetryingGeneration(true);
+    setRetryResult(null);
+    let success = 0, failed = 0;
+    for (const order of selected) {
+      try {
+        const res = await fetch('/api/suno/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...buildSunoPayload(order), orderId: order.id })
+        });
+        if (res.ok) success++; else failed++;
+      } catch (e) {
+        failed++;
+      }
+    }
+    setRetryResult({ success, failed, total: selected.length });
+    setRetryingGeneration(false);
+  };
+
   const toggleCampaignSelection = (type, orderId) => {
     const setFn = type === 'recovery' ? setRecoveryDeselected : setVideoUpsellDeselected;
     setFn(prev => {
@@ -574,6 +625,16 @@ export default function AdminDashboard() {
                 }}
               >
                 📣 Campanhas
+              </button>
+              <button
+                onClick={() => setActiveTab('STUCK')}
+                style={{
+                  ...styles.tabBtn,
+                  backgroundColor: activeTab === 'STUCK' ? '#7c3aed' : '#e2e8f0',
+                  color: activeTab === 'STUCK' ? '#ffffff' : '#334155',
+                }}
+              >
+                🔧 Travados ({getStuckGenerationCandidates().length})
               </button>
             </div>
           </div>
@@ -1037,7 +1098,7 @@ export default function AdminDashboard() {
                 </div>
               )}
             </div>
-          ) : (
+          ) : activeTab === 'CAMPAIGNS' ? (
             // Campanhas de WhatsApp em lote
             <div style={{ maxWidth: '900px', margin: '0 auto' }}>
               <h2 style={{ fontSize: '1.5rem', fontWeight: '800', color: '#0f172a', marginBottom: '8px' }}>Campanhas de WhatsApp</h2>
@@ -1154,6 +1215,79 @@ export default function AdminDashboard() {
                   </div>
                 );
               })}
+            </div>
+          ) : (
+            // Pedidos travados — letra pronta mas a geração na Kie.ai nunca foi confirmada (ver
+            // sunoError/productionStatus, gravados em api/suno/generate/route.js).
+            <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+              <h2 style={{ fontSize: '1.5rem', fontWeight: '800', color: '#0f172a', marginBottom: '8px' }}>Pedidos Travados na Geração</h2>
+              <p style={{ color: '#64748b', fontSize: '0.9rem', marginBottom: '24px' }}>
+                Letra pronta, mas a geração de música nunca chegou a completar. Revise e reenvie para a Kie.ai.
+              </p>
+
+              {retryResult && (
+                <div style={{ padding: '14px 18px', backgroundColor: retryResult.failed > 0 ? '#fef3c7' : '#d1fae5', border: `1px solid ${retryResult.failed > 0 ? '#f59e0b' : '#10b981'}`, borderRadius: '8px', marginBottom: '20px', color: '#065f46', fontWeight: '600', fontSize: '0.9rem' }}>
+                  Reprocessamento concluído: {retryResult.success} enviado(s) com sucesso, {retryResult.failed} falharam de {retryResult.total} pedido(s).
+                </div>
+              )}
+
+              {(() => {
+                const stuckCandidates = getStuckGenerationCandidates();
+                const selectedCount = stuckCandidates.filter(o => !retryDeselected.has(o.id)).length;
+                return (
+                  <div className="glass-card" style={{ padding: '24px', borderRadius: '16px', backgroundColor: '#ffffff', border: '1px solid #e2e8f0' }}>
+                    {stuckCandidates.length === 0 ? (
+                      <p style={{ fontSize: '0.85rem', color: '#94a3b8' }}>Nenhum pedido travado no momento.</p>
+                    ) : (
+                      <>
+                        <div style={{ maxHeight: '400px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '10px', marginBottom: '16px' }}>
+                          <table style={{ width: '100%', fontSize: '0.85rem', borderCollapse: 'collapse' }}>
+                            <thead>
+                              <tr style={{ backgroundColor: '#f8fafc', textAlign: 'left' }}>
+                                <th style={{ padding: '10px 12px', width: '36px' }}></th>
+                                <th style={{ padding: '10px 12px' }}>Cliente</th>
+                                <th style={{ padding: '10px 12px' }}>Homenageado</th>
+                                <th style={{ padding: '10px 12px' }}>Criado em</th>
+                                <th style={{ padding: '10px 12px' }}>Motivo registrado</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {stuckCandidates.map((o) => (
+                                <tr key={o.id} style={{ borderTop: '1px solid #f1f5f9' }}>
+                                  <td style={{ padding: '8px 12px' }}>
+                                    <input
+                                      type="checkbox"
+                                      checked={!retryDeselected.has(o.id)}
+                                      onChange={() => toggleRetrySelection(o.id)}
+                                      aria-label={`Incluir pedido de ${o.customerName || o.id} no reprocessamento`}
+                                    />
+                                  </td>
+                                  <td style={{ padding: '8px 12px' }}>{o.customerName || '—'}</td>
+                                  <td style={{ padding: '8px 12px' }}>{o.honoreeName || '—'}</td>
+                                  <td style={{ padding: '8px 12px' }}>{formatDateWithTime(o.createdAt)}</td>
+                                  <td style={{ padding: '8px 12px', color: o.sunoError ? '#dc2626' : '#94a3b8' }}>
+                                    {o.sunoError ? `${o.sunoError}${o.sunoErrorCount ? ` (${o.sunoErrorCount}x)` : ''}` : 'sem registro (desistiu antes de aprovar)'}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleRetryStuckGeneration(stuckCandidates)}
+                          disabled={selectedCount === 0 || retryingGeneration}
+                          className="btn btn-primary"
+                          style={{ padding: '10px 22px', fontSize: '0.9rem' }}
+                        >
+                          {retryingGeneration ? 'Reenviando...' : `Reenviar ${selectedCount} pedido(s) 🔄`}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           )}
 

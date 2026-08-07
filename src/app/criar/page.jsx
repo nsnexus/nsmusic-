@@ -840,7 +840,14 @@ export default function CriarMusica() {
         }));
 
         if (currentOrderId) {
-          await updateDoc(doc(db, 'orders', currentOrderId), { lyrics: data.lyrics }).catch(e => console.warn(e));
+          // productionStatus separa "letra pronta, aguardando aprovação" de EM_PRODUCAO (que hoje é
+          // só o estado inicial do pedido) — sem isso não dá pra distinguir cliente que desistiu antes
+          // da letra de cliente que chegou até aqui e não avançou (achado da auditoria, 2026-08-07).
+          await updateDoc(doc(db, 'orders', currentOrderId), {
+            lyrics: data.lyrics,
+            productionStatus: 'LETRA_CRIADA',
+            updatedAt: new Date().toISOString()
+          }).catch(e => console.warn(e));
         }
 
         if (typeof window !== 'undefined' && window.fbq) {

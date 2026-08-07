@@ -1,10 +1,35 @@
 import { NextResponse } from 'next/server';
 import { saveTask } from '@/lib/db';
 import { getRequestContext } from '@cloudflare/next-on-pages';
-import { doc, updateDoc } from 'firebase/firestore/lite';
+import { doc, updateDoc, increment } from 'firebase/firestore/lite';
 import { dbEdge as db } from '@/lib/firebase-edge';
 
 export const runtime = 'edge';
+
+// A Kie.ai sinaliza a maioria dos erros com HTTP 200 e um `code` no corpo (429/430 = limite de
+// taxa, 455 = manutenção, 500 = erro interno deles) — só olhar response.status não pegava esses
+// casos e o retry abaixo nunca rodava para o modo de falha mais comum da API.
+const TRANSIENT_KIE_CODES = new Set([429, 430, 455, 500, 501, 503]);
+function isTransientKieFailure(status, code) {
+  if (status >= 500 || status === 429) return true;
+  return code != null && TRANSIENT_KIE_CODES.has(Number(code));
+}
+
+// Grava no pedido que a geração falhou, para o admin ver o motivo e reprocessar em lote — sem isso
+// o pedido só fica preso em EM_PRODUCAO/LETRA_CRIADA sem nenhum rastro do que aconteceu.
+async function recordSunoFailure(orderId, reason) {
+  if (!orderId) return;
+  try {
+    await updateDoc(doc(db, 'orders', orderId), {
+      sunoError: reason,
+      sunoErrorAt: new Date().toISOString(),
+      sunoErrorCount: increment(1),
+      updatedAt: new Date().toISOString()
+    });
+  } catch (err) {
+    console.error("Erro ao registrar falha de geração no pedido:", err);
+  }
+}
 
 export async function POST(req) {
   try {
@@ -79,9 +104,10 @@ export async function POST(req) {
 
         if (response.ok && (!data.code || data.code === 200)) break;
 
-        // Só erros transitórios (5xx, 429) valem retry; 4xx definitivo não muda tentando de novo.
-        if (response.status < 500 && response.status !== 429) break;
-        console.warn(`[api/suno/generate] Erro transitório da Kie.ai (tentativa ${attempt}/${maxKieAttempts}):`, response.status, data);
+        // Só erros transitórios valem retry (rate limit, manutenção, 5xx); erro definitivo (ex:
+        // payload ou chave inválida) não muda tentando de novo.
+        if (!isTransientKieFailure(response.status, data.code)) break;
+        console.warn(`[api/suno/generate] Erro transitório da Kie.ai (tentativa ${attempt}/${maxKieAttempts}):`, response.status, data.code);
       } catch (fetchErr) {
         // Timeout (AbortError) ou falha de rede (TypeError): transitório, vale tentar de novo.
         console.warn(`[api/suno/generate] Falha de rede ao chamar Kie.ai (tentativa ${attempt}/${maxKieAttempts}):`, fetchErr.message);
@@ -93,10 +119,12 @@ export async function POST(req) {
       }
     }
 
+    // Mensagem ao cliente nunca ecoa o texto bruto do provedor externo (ver .claude/rules/security.md)
+    // — o motivo detalhado fica só no log do servidor e no campo sunoError do pedido, para o admin.
     if (!response || !response.ok || (data.code && data.code !== 200)) {
-      console.error("Erro no retorno da Kie.ai:", response?.status, data);
-      const errMsg = data?.msg || data?.message || `Status HTTP ${response?.status || 'desconhecido'}`;
-      return NextResponse.json({ error: `Falha ao solicitar geração na Kie.ai: ${errMsg}` }, { status: 502 });
+      console.error("Erro no retorno da Kie.ai:", response?.status, data?.code, data?.msg || data?.message);
+      await recordSunoFailure(orderId, `kie_${data?.code || response?.status || 'network'}`);
+      return NextResponse.json({ error: 'Não foi possível iniciar a geração da música agora. Tente novamente em instantes.' }, { status: 502 });
     }
 
     // A Kie.ai retorna o taskId no formato data.data.taskId ou fallbacks
@@ -104,27 +132,54 @@ export async function POST(req) {
 
     if (!taskId) {
       console.error("Kie.ai não retornou um taskId válido:", data);
-      return NextResponse.json({ error: "API da Kie.ai respondeu sem um ID de tarefa (taskId) válido." }, { status: 502 });
+      await recordSunoFailure(orderId, 'kie_no_taskid');
+      return NextResponse.json({ error: 'A geração da música não pôde ser confirmada. Tente novamente em instantes.' }, { status: 502 });
     }
 
-    // Salva o task inicial como PROCESSING no Firebase Firestore
-    await saveTask(taskId, 'PROCESSING', null, orderId);
-
-    if (orderId) {
-      try {
-        await updateDoc(doc(db, 'orders', orderId), {
-          productionStatus: 'GERANDO_AUDIO',
-          updatedAt: new Date().toISOString()
-        });
-      } catch (err) {
-        console.error("Erro ao atualizar status do pedido para GERANDO_AUDIO:", err);
+    // Salva o vínculo taskId->orderId e marca o pedido como GERANDO_AUDIO. Envolvido em waitUntil:
+    // se o cliente fechar a aba/desconectar bem aqui, o Cloudflare pode cancelar o resto da execução
+    // do Worker antes desses awaits terminarem — a Kie.ai já recebeu e vai gerar a música mesmo assim,
+    // então sem waitUntil o taskId ficava órfão (sem orderId associado) e o webhook não achava pra
+    // onde escrever o resultado. waitUntil garante que a gravação conclui mesmo com a conexão caída.
+    const persistPromise = (async () => {
+      const saved = await saveTask(taskId, 'PROCESSING', null, orderId);
+      if (!saved) {
+        await recordSunoFailure(orderId, 'save_task_failed');
+        return false;
       }
+      if (orderId) {
+        try {
+          await updateDoc(doc(db, 'orders', orderId), {
+            productionStatus: 'GERANDO_AUDIO',
+            sunoRequestedAt: new Date().toISOString(),
+            sunoError: null,
+            updatedAt: new Date().toISOString()
+          });
+        } catch (err) {
+          console.error("Erro ao atualizar status do pedido para GERANDO_AUDIO:", err);
+          await recordSunoFailure(orderId, 'order_update_failed');
+          return false;
+        }
+      }
+      return true;
+    })();
+
+    try {
+      const { ctx } = getRequestContext();
+      if (ctx?.waitUntil) ctx.waitUntil(persistPromise.catch(() => {}));
+    } catch (e) {}
+
+    const persisted = await persistPromise;
+    if (!persisted) {
+      // A Kie.ai já aceitou a tarefa (créditos consumidos), mas não conseguimos gravar o vínculo —
+      // não é seguro dizer "sucesso" ao cliente, pois o resultado não vai encontrar o pedido depois.
+      return NextResponse.json({ error: 'A geração foi iniciada, mas houve uma falha ao registrar o pedido. A equipe será notificada.' }, { status: 502 });
     }
 
     return NextResponse.json({ taskId, status: 'PROCESSING' });
   } catch (error) {
     console.error("Erro fatal na rota /api/suno/generate:", error);
-    return NextResponse.json({ error: error.message || 'Erro interno de servidor' }, { status: 500 });
+    return NextResponse.json({ error: 'Erro interno ao iniciar a geração da música.' }, { status: 500 });
   }
 }
 

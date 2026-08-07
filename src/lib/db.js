@@ -17,6 +17,9 @@ export const getTask = async (taskId) => {
   }
 };
 
+// Retorna se a gravação teve sucesso — o chamador (api/suno/generate) precisa saber, porque sem
+// este documento o webhook/polling da Kie.ai nunca consegue achar o orderId de volta (taskId fica
+// órfão) e o pedido trava sem que ninguém saiba que a ligação falhou.
 export const saveTask = async (taskId, status, result = null, orderId = null) => {
   try {
     const docRef = doc(db, 'suno_tasks', taskId);
@@ -28,8 +31,10 @@ export const saveTask = async (taskId, status, result = null, orderId = null) =>
       orderId,
       updatedAt: new Date().toISOString()
     }, { merge: true });
+    return true;
   } catch (err) {
     console.error("Error saving task:", err);
+    return false;
   }
 };
 
