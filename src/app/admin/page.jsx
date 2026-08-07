@@ -161,6 +161,16 @@ export default function AdminDashboard() {
     }
   };
 
+  // Normaliza createdAt para string ISO independente do formato salvo no Firestore
+  // (string ISO, Firestore Timestamp ou número epoch).
+  const toISOStr = (createdAt) => {
+    if (!createdAt) return null;
+    if (typeof createdAt?.toDate === 'function') return createdAt.toDate().toISOString();
+    if (typeof createdAt === 'string') return createdAt;
+    if (typeof createdAt === 'number') return new Date(createdAt).toISOString();
+    return null;
+  };
+
   const getFilteredOrders = () => {
     let result = orders;
 
@@ -186,17 +196,23 @@ export default function AdminDashboard() {
       result = result.filter(o => o.videoAddonPaid);
     }
 
-    // createdAt é sempre string ISO (new Date().toISOString(), ver CLAUDE.md) — comparação
-    // lexicográfica funciona diretamente contra o "YYYY-MM-DD" do <input type="date">.
+    // toISOStr normaliza Timestamp/string/number para ISO antes de comparar
+    // lexicograficamente com o "YYYY-MM-DD" do <input type="date">.
     if (dateFrom) {
-      result = result.filter(o => o.createdAt && o.createdAt >= dateFrom);
+      result = result.filter(o => {
+        const d = toISOStr(o.createdAt);
+        return d !== null && d >= dateFrom;
+      });
     }
     if (dateTo) {
-      result = result.filter(o => o.createdAt && o.createdAt <= `${dateTo}T23:59:59.999`);
+      result = result.filter(o => {
+        const d = toISOStr(o.createdAt);
+        return d !== null && d <= `${dateTo}T23:59:59.999`;
+      });
     }
 
     // Busca por texto: telefone, nome do cliente, homenageado ou código do pedido.
-    // Case-insensitive; remove formatação do telefone para comparar dígitos puros.
+    // String() garante que customerPhone numérico não quebre o .replace().
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase();
       const qDigits = q.replace(/\D/g, '');
@@ -204,7 +220,7 @@ export default function AdminDashboard() {
         const nameMatch = (o.customerName || '').toLowerCase().includes(q);
         const honoreeMatch = (o.honoreeName || '').toLowerCase().includes(q);
         const codeMatch = (o.orderNumber || o.id || '').toLowerCase().includes(q);
-        const rawPhone = (o.customerPhone || '').replace(/\D/g, '');
+        const rawPhone = String(o.customerPhone || '').replace(/\D/g, '');
         const phoneMatch = qDigits.length >= 3 && rawPhone.includes(qDigits);
         return nameMatch || honoreeMatch || codeMatch || phoneMatch;
       });
