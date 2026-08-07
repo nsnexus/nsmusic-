@@ -8,6 +8,7 @@ import { doc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { createUserWithEmailAndPassword, onAuthStateChanged } from 'firebase/auth';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, auth, storage } from '@/lib/firebase';
+import { getPriceForSku } from '@/lib/pricing';
 import VideoOfferModal from '@/components/VideoOfferModal';
 import { styles } from './entregaStyles';
 
@@ -119,25 +120,52 @@ function EntregaContent() {
     }
   }, [order, orderId]);
 
-  // Dispara o evento de Purchase do Facebook Pixel APENAS 1 ÚNICA VEZ por pedido
+  // Dispara o evento de Purchase do Facebook Pixel APENAS 1 ÚNICA VEZ por pedido. Valor vem de
+  // expectedAmount (gravado pelo servidor a partir do catálogo em src/lib/pricing.js — mesmo campo
+  // que o faturamento do admin usa), não mais um valor fixo: o combo (R$16,89) era subcontado como
+  // se fosse sempre a música avulsa (R$9,99).
   useEffect(() => {
     if (isPaid && orderId && typeof window !== 'undefined') {
       const storageKey = `fb_purchase_tracked_${orderId}`;
       const alreadyTracked = localStorage.getItem(storageKey);
-      
+
       if (!alreadyTracked && window.fbq) {
-        window.fbq('track', 'Purchase', { 
-          value: 9.99, 
+        const amount = Number(order?.expectedAmount) || Number(order?.total) || getPriceForSku('audio_only');
+        window.fbq('track', 'Purchase', {
+          value: amount,
           currency: 'BRL',
           content_name: 'Música Homenagem Personalizada',
           content_type: 'product',
-          order_id: orderId 
+          order_id: orderId
         });
         localStorage.setItem(storageKey, 'true');
         setHasTrackedPurchase(true);
       }
     }
-  }, [isPaid, orderId]);
+  }, [isPaid, orderId, order?.expectedAmount, order?.total]);
+
+  // Dispara um Purchase separado para o add-on de vídeo comprado ISOLADAMENTE, depois da música.
+  // videoPaymentId só existe nesse caso (mesmo critério usado em admin/page.jsx:getFaturamentoVideos)
+  // — pedidos do combo já têm o vídeo contado dentro do Purchase principal acima, então não entram
+  // aqui; contar de novo duplicaria a receita do vídeo. Antes deste efeito, essa venda de R$6,90 não
+  // gerava nenhum evento — ficava invisível para o Pixel.
+  useEffect(() => {
+    if (order?.videoAddonPaid && order?.videoPaymentId && orderId && typeof window !== 'undefined') {
+      const storageKey = `fb_video_purchase_tracked_${orderId}`;
+      const alreadyTracked = localStorage.getItem(storageKey);
+
+      if (!alreadyTracked && window.fbq) {
+        window.fbq('track', 'Purchase', {
+          value: getPriceForSku('video_addon'),
+          currency: 'BRL',
+          content_name: 'Vídeo Homenagem (Add-on)',
+          content_type: 'product',
+          order_id: orderId
+        });
+        localStorage.setItem(storageKey, 'true');
+      }
+    }
+  }, [order?.videoAddonPaid, order?.videoPaymentId, orderId]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (usr) => {

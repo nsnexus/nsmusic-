@@ -1479,7 +1479,9 @@ export default function CriarMusica() {
                               setPixInfo(data);
 
                               if (typeof window !== 'undefined' && window.fbq) {
-                                window.fbq('track', 'InitiateCheckout', { value: 9.99, currency: 'BRL' });
+                                // Valor real do carrinho (9.99 ou 16.89 com vídeo), não um fixo — combo
+                                // era subcontado como se fosse sempre a música avulsa.
+                                window.fbq('track', 'InitiateCheckout', { value: getTotalPrice(), currency: 'BRL' });
                               }
                             } else {
                               const errData = await res.json().catch(() => ({}));
