@@ -437,7 +437,7 @@ export default function WizardSteps({
                 placeholder="(99) 99999-9999"
                 style={styles.wizardInput}
               />
-              <span style={{ fontSize: '0.75rem', color: phoneVerifyStatus === 'valid' ? 'var(--success)' : (phoneVerifyStatus === 'invalid' || phoneVerifyStatus === 'unknown') ? '#ef4444' : phoneVerifyStatus === 'checking' ? '#f59e0b' : 'var(--text-muted)', marginTop: '4px', display: 'block', fontWeight: (phoneVerifyStatus === 'invalid' || phoneVerifyStatus === 'unknown') ? 'bold' : 'normal' }}>
+              <span style={{ fontSize: '0.75rem', color: phoneVerifyStatus === 'valid' ? 'var(--success)' : phoneVerifyStatus === 'invalid' ? '#ef4444' : 'var(--text-muted)', marginTop: '4px', display: 'block', fontWeight: phoneVerifyStatus === 'invalid' ? 'bold' : 'normal' }}>
                 {phoneVerifyMessage || 'Digite o DDD + 9 dígitos'}
               </span>
             </div>

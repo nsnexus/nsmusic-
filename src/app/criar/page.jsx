@@ -12,6 +12,19 @@ import { styles } from './wizardStyles';
 import CustomAudioPreview from './CustomAudioPreview';
 import WizardSteps from './WizardSteps';
 
+// Códigos de área (DDD) válidos no Brasil, segundo o plano de numeração da ANATEL.
+const VALID_BRAZIL_DDDS = new Set([
+  '11', '12', '13', '14', '15', '16', '17', '18', '19',
+  '21', '22', '24', '27', '28',
+  '31', '32', '33', '34', '35', '37', '38',
+  '41', '42', '43', '44', '45', '46', '47', '48', '49',
+  '51', '53', '54', '55',
+  '61', '62', '63', '64', '65', '66', '67', '68', '69',
+  '71', '73', '74', '75', '77', '79',
+  '81', '82', '83', '84', '85', '86', '87', '88', '89',
+  '91', '92', '93', '94', '95', '96', '97', '98', '99',
+]);
+
 function BrandLogo() {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -194,55 +207,38 @@ export default function CriarMusica() {
   }, []);
 
   const [paymentErrorMessage, setPaymentErrorMessage] = useState('');
-  const [phoneVerifyStatus, setPhoneVerifyStatus] = useState('idle'); // 'idle' | 'checking' | 'valid' | 'invalid'
+  const [phoneVerifyStatus, setPhoneVerifyStatus] = useState('idle'); // 'idle' | 'valid' | 'invalid'
   const [phoneVerifyMessage, setPhoneVerifyMessage] = useState('');
 
-  // Verificação de WhatsApp em tempo real via Whats Evolution API
+  // Validação de formato do telefone. Não existe mais checagem em tempo real de conta ativa no
+  // WhatsApp — a API oficial da Meta (que substituiu o provedor não oficial W-API, banido repetidas
+  // vezes) não expõe esse tipo de consulta. Só confere DDD + quantidade de dígitos.
   useEffect(() => {
     const phone = formData.customerPhone || '';
     const clean = phone.replace(/\D/g, '');
 
-    // Aceita DDD + 8 ou 9 dígitos — muita gente esquece o 9 inicial do celular. A verificação no
-    // servidor (verifyWhatsAppNumber) tenta as duas variantes antes de dar como não encontrado.
-    if (clean.length < 10) {
+    if (clean.length === 0) {
       setPhoneVerifyStatus('idle');
-      setPhoneVerifyMessage(clean.length > 0 ? 'Digite o DDD + número do seu celular' : '');
+      setPhoneVerifyMessage('');
       return;
     }
 
-    setPhoneVerifyStatus('checking');
-    setPhoneVerifyMessage('⏳ Verificando conta no WhatsApp...');
+    // Aceita DDD + 8 ou 9 dígitos — muita gente esquece o 9 inicial do celular.
+    if (clean.length < 10) {
+      setPhoneVerifyStatus('idle');
+      setPhoneVerifyMessage('Digite o DDD + número do seu celular');
+      return;
+    }
 
-    const timer = setTimeout(async () => {
-      try {
-        const res = await fetch('/api/whatsapp/verify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone: clean })
-        });
+    const ddd = clean.slice(0, 2);
+    if (clean.length > 11 || !VALID_BRAZIL_DDDS.has(ddd)) {
+      setPhoneVerifyStatus('invalid');
+      setPhoneVerifyMessage('❌ DDD ou número inválido');
+      return;
+    }
 
-        if (res.ok) {
-          const data = await res.json();
-          if (data.exists) {
-            setPhoneVerifyStatus('valid');
-            setPhoneVerifyMessage('✓ WhatsApp ativo e verificado!');
-          } else {
-            setPhoneVerifyStatus('invalid');
-            setPhoneVerifyMessage('❌ Este número não possui WhatsApp ativo');
-          }
-        } else {
-          // Falha fechada: se o serviço de verificação não respondeu, não tratamos como validado
-          // (ver M-15 no AUDIT_REPORT.md — antes qualquer erro de rede liberava o número como válido).
-          setPhoneVerifyStatus('unknown');
-          setPhoneVerifyMessage('⚠️ Não foi possível verificar agora. Confira o número e tente novamente.');
-        }
-      } catch (err) {
-        setPhoneVerifyStatus('unknown');
-        setPhoneVerifyMessage('⚠️ Não foi possível verificar agora. Confira o número e tente novamente.');
-      }
-    }, 600);
-
-    return () => clearTimeout(timer);
+    setPhoneVerifyStatus('valid');
+    setPhoneVerifyMessage('✓ Número válido');
   }, [formData.customerPhone]);
 
   // Restore draft from localStorage on load & check URL query params
@@ -553,8 +549,8 @@ export default function CriarMusica() {
     if (clean.length > 2) {
       const local = clean.slice(2);
       // Número local pode ter 8 dígitos (sem o 9º, esquecimento comum) ou 9 (padrão atual) — o
-      // agrupamento do meio muda de tamanho conforme o total (ver isPhoneValid/verifyWhatsAppNumber,
-      // que aceitam e checam as duas variantes).
+      // agrupamento do meio muda de tamanho conforme o total (ver isPhoneValid, que aceita as
+      // duas variantes).
       const splitAt = local.length >= 9 ? 5 : Math.min(4, local.length);
       formatted += `) ${local.slice(0, splitAt)}`;
       if (local.length > splitAt) {
@@ -566,9 +562,9 @@ export default function CriarMusica() {
 
   const isPhoneValid = (phone) => {
     const clean = (phone || '').replace(/\D/g, '');
-    // DDD + 8 dígitos (sem o 9, esquecimento comum) ou 9 dígitos (padrão atual) — ver verifyWhatsAppNumber.
+    // DDD + 8 dígitos (sem o 9, esquecimento comum) ou 9 dígitos (padrão atual) e DDD real —
+    // ver VALID_BRAZIL_DDDS.
     if (clean.length !== 10 && clean.length !== 11) return false;
-    // Bloqueia durante verificação e quando inválido
     return phoneVerifyStatus === 'valid';
   };
 

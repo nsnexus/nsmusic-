@@ -1,7 +1,7 @@
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore/lite';
 import { dbEdge as db } from './firebase-edge';
-import { sendWhatsAppMessage } from './whatsapp';
-import { resolveDeliveryUrl, buildMusicReadyMessage } from './whatsappTemplates';
+import { sendMusicReadyTemplate } from './whatsapp';
+import { resolveDeliveryUrl } from './whatsappTemplates';
 
 export const getTask = async (taskId) => {
   try {
@@ -154,13 +154,12 @@ export const updateTaskResult = async (taskId, result, overrideOrderId = null) =
 
         if (shouldSend) {
           const deliveryUrl = resolveDeliveryUrl(orderId);
-          const messageText = buildMusicReadyMessage({
+          const sendResult = await sendMusicReadyTemplate(orderData.customerPhone, {
             customerName: orderData.customerName,
             honoreeName: orderData.honoreeName,
             deliveryUrl,
           });
-
-          const sent = await sendWhatsAppMessage(orderData.customerPhone, messageText);
+          const sent = sendResult.success;
           if (sent) {
             await updateDoc(orderRef, {
               whatsappSent: true,

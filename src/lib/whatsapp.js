@@ -1,43 +1,10 @@
 import { getRequestContext } from '@cloudflare/next-on-pages';
 
-/**
- * Módulo de Integração com a W-API (https://w-api.app)
- *
- * Credenciais devem estar configuradas via variáveis de ambiente
- * no Cloudflare Pages (WAPI_INSTANCE_ID e WAPI_TOKEN).
- */
-
 // Templates de mensagem (ver M-19 no AUDIT_REPORT.md) vivem em src/lib/whatsappTemplates.js — um
 // arquivo sem dependência de @cloudflare/next-on-pages, para poder ser importado também por
-// componentes client-side (ex: admin/pedidos/[id]/page.jsx) sem levar código Edge-only pro bundle
-// do browser. Re-exportados aqui só para quem já importa @/lib/whatsapp por convenção.
-export { resolveDeliveryUrl, buildMusicReadyMessage, buildPaymentApprovedMessage, buildVideoApprovedMessage, buildApprovalMessage, buildAdminSaleNotification } from './whatsappTemplates';
-
-const WAPI_BASE_URL = 'https://api.w-api.app/v1';
-
-export const getWApiConfig = (env = {}) => {
-  // Tenta pegar variáveis do Cloudflare Runtime
-  let ctxEnv = {};
-  try {
-    const ctx = getRequestContext();
-    if (ctx?.env) ctxEnv = ctx.env;
-  } catch (e) {}
-
-  // Prioridade: env passado > Cloudflare > process.env
-  const instanceId = env.WAPI_INSTANCE_ID || ctxEnv.WAPI_INSTANCE_ID || process.env.WAPI_INSTANCE_ID || '';
-  const token = env.WAPI_TOKEN || ctxEnv.WAPI_TOKEN || process.env.WAPI_TOKEN || '';
-
-  if (!instanceId || !token) {
-    console.error('[W-API Config] ❌ WAPI_INSTANCE_ID ou WAPI_TOKEN não configurados nas variáveis de ambiente!');
-  }
-
-  // Nunca logar instanceId, prefixo ou tamanho do token (ver M-26 no AUDIT_REPORT.md) — só a origem
-  // de onde a credencial veio, útil para depurar configuração sem expor material sensível.
-  const source = env.WAPI_TOKEN ? 'env-param' : ctxEnv.WAPI_TOKEN ? 'cloudflare-ctx' : process.env.WAPI_TOKEN ? 'process.env' : 'MISSING';
-  console.log(`[W-API Config] credenciais carregadas de: ${source}`);
-
-  return { instanceId, token, baseUrl: WAPI_BASE_URL };
-};
+// componentes client-side sem levar código Edge-only pro bundle do browser. Re-exportado aqui só
+// para quem já importa @/lib/whatsapp por convenção.
+export { resolveDeliveryUrl } from './whatsappTemplates';
 
 /**
  * Formata um telefone brasileiro para o formato internacional 55+DDD+Número
@@ -61,134 +28,109 @@ export const formatToWhatsAppNumber = (phone) => {
 };
 
 /**
- * Verifica em tempo real se um número possui conta ativa no WhatsApp via W-API. Tenta a variante
- * com E sem o 9º dígito (mesmo padrão de sendWhatsAppMessageDetailed) — muita gente esquece o 9 ao
- * digitar o celular, e o número pode estar cadastrado no WhatsApp de qualquer uma das duas formas.
+ * Módulo de Integração com a API Oficial da Meta (WhatsApp Business Platform / Cloud API).
+ *
+ * Migrado depois de sucessivos bloqueios de conta na W-API (provedor não oficial, removido do
+ * projeto). Único envio automático que resta é a mensagem de "música pronta". Diferente da W-API,
+ * aqui só dá pra mandar texto livre dentro de uma janela de 24h depois do cliente escrever pra
+ * gente — mensagem iniciada pela empresa (é o nosso caso) precisa de um Template pré-aprovado pela
+ * Meta. Por isso não existe um "sendWhatsAppMessage" genérico aqui: a mensagem tem sua própria
+ * função com as variáveis do Template já aprovado.
  */
-export const verifyWhatsAppNumber = async (phone, env = {}) => {
-  const { instanceId, token, baseUrl } = getWApiConfig(env);
-  const formattedNumber = formatToWhatsAppNumber(phone);
+const WHATSAPP_GRAPH_BASE_URL = 'https://graph.facebook.com/v21.0';
 
-  if (!formattedNumber || formattedNumber.length < 12) {
-    return { exists: false, reason: 'Número incompleto' };
+export const getWhatsAppCloudConfig = (env = {}) => {
+  let ctxEnv = {};
+  try {
+    const ctx = getRequestContext();
+    if (ctx?.env) ctxEnv = ctx.env;
+  } catch (e) {}
+
+  const phoneNumberId = env.WHATSAPP_PHONE_NUMBER_ID || ctxEnv.WHATSAPP_PHONE_NUMBER_ID || process.env.WHATSAPP_PHONE_NUMBER_ID || '';
+  const accessToken = env.WHATSAPP_ACCESS_TOKEN || ctxEnv.WHATSAPP_ACCESS_TOKEN || process.env.WHATSAPP_ACCESS_TOKEN || '';
+
+  if (!phoneNumberId || !accessToken) {
+    console.error('[WhatsApp Cloud API] ❌ WHATSAPP_PHONE_NUMBER_ID ou WHATSAPP_ACCESS_TOKEN não configurados nas variáveis de ambiente!');
   }
 
-  const numbersToCheck = [formattedNumber];
-  if (formattedNumber.startsWith('55') && formattedNumber.length === 12) {
-    // 55 + DDD + 8 dígitos: também tenta a variante com o 9 inserido (12 -> 13 dígitos).
-    const withNine = `${formattedNumber.substring(0, 4)}9${formattedNumber.substring(4)}`;
-    numbersToCheck.push(withNine);
-  } else if (formattedNumber.startsWith('55') && formattedNumber.length === 13 && formattedNumber[4] === '9') {
-    // 55 + DDD + 9 dígitos: também tenta a variante sem o 9 (13 -> 12 dígitos).
-    const withoutNine = `${formattedNumber.substring(0, 4)}${formattedNumber.substring(5)}`;
-    numbersToCheck.push(withoutNine);
-  }
-
-  let lastFallback = null;
-  for (const num of numbersToCheck) {
-    try {
-      const res = await fetch(`${baseUrl}/contacts/phone-exists?instanceId=${instanceId}&phoneNumber=${num}`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        signal: AbortSignal.timeout(8000)
-      });
-
-      if (!res.ok) {
-        console.warn("Aviso ao consultar W-API:", res.status);
-        lastFallback = { exists: false, fallback: true };
-        continue;
-      }
-
-      const data = await res.json();
-      if (data?.exists === true) {
-        return { exists: true, lid: data?.lid || null, number: num };
-      }
-    } catch (error) {
-      console.error("Erro na verificação de WhatsApp:", error);
-      lastFallback = { exists: false, fallback: true, error: error.message };
-    }
-  }
-
-  return lastFallback || { exists: false, number: formattedNumber };
+  return { phoneNumberId, accessToken, baseUrl: WHATSAPP_GRAPH_BASE_URL };
 };
 
 /**
- * Envia uma mensagem com detalhes de diagnóstico estendidos.
- * Tenta enviar com e sem o dígito 9 para celulares brasileiros.
+ * Envia o Template aprovado "nsmusic_musica_pronta" (categoria Utility) via WhatsApp Cloud API.
+ * Corpo do Template: "Olá, {{1}}! 🎵 Sua música personalizada para *{{2}}* ficou pronta com sucesso
+ * no estúdio NSMusic! Foram produzidas 2 versões completas em alta qualidade. Ouça e baixe em: {{3}}"
  */
-export const sendWhatsAppMessageDetailed = async (phone, message, env = {}) => {
-  const { instanceId, token, baseUrl } = getWApiConfig(env);
+export const sendMusicReadyTemplate = async (phone, { customerName, honoreeName, deliveryUrl }, env = {}) => {
+  const { phoneNumberId, accessToken, baseUrl } = getWhatsAppCloudConfig(env);
   const formattedNumber = formatToWhatsAppNumber(phone);
 
   if (!formattedNumber) {
     return { success: false, error: 'Telefone inválido ou não informado.' };
   }
+  if (!phoneNumberId || !accessToken) {
+    return { success: false, error: 'Configuração ausente: WHATSAPP_PHONE_NUMBER_ID/WHATSAPP_ACCESS_TOKEN não definidos.' };
+  }
 
   const numbersToSend = [formattedNumber];
-
-  // Para celular brasileiro com 13 dígitos (55 + DDD + 9 + 8 dígitos), tenta também a versão de 12 dígitos sem o 9 inicial
+  // Para celular brasileiro com 13 dígitos, tenta também a variante de 12 dígitos sem o 9º dígito
+  // inicial — números cadastrados no WhatsApp de formas diferentes.
   if (formattedNumber.startsWith('55') && formattedNumber.length === 13 && formattedNumber[4] === '9') {
     const withoutNine = `${formattedNumber.substring(0, 4)}${formattedNumber.substring(5)}`;
     numbersToSend.push(withoutNine);
   }
 
-  // Usa o token resolvido das variáveis de ambiente
-  const tokensToTry = [token].filter(Boolean);
+  const payloadFor = (num) => ({
+    messaging_product: 'whatsapp',
+    to: num,
+    type: 'template',
+    template: {
+      name: 'nsmusic_musica_pronta',
+      language: { code: 'pt_BR' },
+      components: [{
+        type: 'body',
+        parameters: [
+          { type: 'text', text: customerName || 'Cliente' },
+          { type: 'text', text: honoreeName || 'alguém especial' },
+          { type: 'text', text: deliveryUrl || '' },
+        ],
+      }],
+    },
+  });
 
   let lastError = '';
+  for (let i = 0; i < numbersToSend.length; i++) {
+    const num = numbersToSend[i];
+    try {
+      // Nunca logar o telefone do cliente (ver M-25 no AUDIT_REPORT.md) — o índice da variante já
+      // basta para depurar.
+      console.log(`[WhatsApp Cloud API] Enviando template música pronta (variante ${i + 1}/${numbersToSend.length})...`);
 
-  for (const currentToken of tokensToTry) {
-    for (let i = 0; i < numbersToSend.length; i++) {
-      const num = numbersToSend[i];
-      try {
-        // Nunca logar o telefone do cliente nem prefixo/tamanho do token (ver M-25/M-26 no
-        // AUDIT_REPORT.md) — o índice da variante (com/sem o dígito 9) já basta para depurar.
-        console.log(`[W-API Send] Tentando enviar (variante ${i + 1}/${numbersToSend.length})...`);
+      const res = await fetch(`${baseUrl}/${phoneNumberId}/messages`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payloadFor(num)),
+        signal: AbortSignal.timeout(10000),
+      });
 
-        const res = await fetch(`${baseUrl}/message/send-text?instanceId=${instanceId}`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${currentToken}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            phone: num,
-            message: message
-          }),
-          signal: AbortSignal.timeout(10000)
-        });
-
-        if (res.ok) {
-          console.log(`[W-API Send] ✅ Mensagem enviada com sucesso.`);
-          return { success: true, phoneUsed: num };
-        } else {
-          const errText = await res.text().catch(() => '');
-          lastError = `W-API HTTP ${res.status}: ${errText || res.statusText}`;
-          console.error(`[W-API Send] Erro ao enviar (variante ${i + 1}):`, lastError);
-
-          // Se for 403 (token inválido), pula direto para o próximo token
-          if (res.status === 403) {
-            console.warn(`[W-API Send] Token inválido, tentando próximo token...`);
-            break;
-          }
-        }
-      } catch (error) {
-        lastError = error.message;
-        console.error(`[W-API Send] Erro de rede ao disparar (variante ${i + 1}):`, error.message);
+      if (res.ok) {
+        console.log('[WhatsApp Cloud API] ✅ Template enviado com sucesso.');
+        return { success: true, phoneUsed: num };
       }
+
+      const errData = await res.json().catch(() => ({}));
+      // Mensagem de erro da Meta fica só no log do servidor, nunca repassada ao cliente (ver
+      // .claude/rules/security.md — nunca ecoar error.message de serviço externo).
+      lastError = errData?.error?.message || `HTTP ${res.status}`;
+      console.error(`[WhatsApp Cloud API] Erro ao enviar (variante ${i + 1}):`, res.status, errData?.error?.code);
+    } catch (error) {
+      lastError = error.message;
+      console.error(`[WhatsApp Cloud API] Erro de rede ao enviar (variante ${i + 1}):`, error.message);
     }
   }
 
   return { success: false, error: lastError };
-};
-
-/**
- * Envia uma mensagem de texto simples via WhatsApp
- */
-export const sendWhatsAppMessage = async (phone, message, env = {}) => {
-  const result = await sendWhatsAppMessageDetailed(phone, message, env);
-  return result.success;
 };

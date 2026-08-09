@@ -6,7 +6,6 @@ import { useRouter, useParams } from 'next/navigation';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
-import { resolveDeliveryUrl, buildMusicReadyMessage, buildPaymentApprovedMessage } from '@/lib/whatsappTemplates';
 import Link from 'next/link';
 import Image from 'next/image';
 
@@ -28,9 +27,6 @@ export default function OrderDetailsAdmin() {
   const [qrCodeUrl, setQrCodeUrl] = useState('');
   const [paymentStatus, setPaymentStatus] = useState('PENDENTE');
 
-  // WhatsApp manual send
-  const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
-  const [whatsAppMsg, setWhatsAppMsg] = useState('');
   const [sunoPrompt, setSunoPrompt] = useState('');
 
   // Suno AI direct generation states
@@ -283,51 +279,6 @@ export default function OrderDetailsAdmin() {
     }
   };
 
-  const handleSendWhatsApp = async (tipo) => {
-    if (!order?.customerPhone) {
-      alert('Este pedido não tem telefone do cliente cadastrado.');
-      return;
-    }
-    setSendingWhatsApp(true);
-    setWhatsAppMsg('');
-    try {
-      const deliveryUrl = resolveDeliveryUrl(orderId);
-      const customerName = order.customerName || 'Cliente';
-      const honoreeName = order.honoreeName || 'alguém especial';
-
-      const messageText = tipo === 'musica'
-        ? buildMusicReadyMessage({ customerName, honoreeName, deliveryUrl })
-        : buildPaymentApprovedMessage({ customerName, honoreeName, deliveryUrl });
-
-      const idToken = await auth.currentUser?.getIdToken();
-      const res = await fetch('/api/whatsapp/send', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${idToken}`
-        },
-        body: JSON.stringify({
-          phone: order.customerPhone,
-          message: messageText
-        })
-      });
-
-      const data = await res.json().catch(() => ({}));
-
-      if (res.ok && data.success) {
-        setWhatsAppMsg('✅ Mensagem do WhatsApp enviada com sucesso!');
-      } else {
-        setWhatsAppMsg(`❌ ${data.error || 'Falha ao enviar mensagem via W-API'}`);
-      }
-    } catch (err) {
-      console.error('Erro ao enviar WhatsApp:', err);
-      setWhatsAppMsg(`❌ Erro de conexão: ${err.message}`);
-    } finally {
-      setSendingWhatsApp(false);
-      setTimeout(() => setWhatsAppMsg(''), 8000);
-    }
-  };
-
   if (checkingAuth || loading) {
     return (
       <div style={styles.loadingWrapper}>
@@ -422,58 +373,6 @@ export default function OrderDetailsAdmin() {
                       <option value="AUDIO_GERADO">4. Áudio Gerado (Pronto para Entrega)</option>
                       <option value="FINALIZADO">5. Finalizado / Entregue</option>
                     </select>
-                  </div>
-
-                  <div style={{ margin: '20px 0', padding: '16px', backgroundColor: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-                    <div style={{ fontWeight: 'bold', color: '#0f172a', marginBottom: '8px', fontSize: '0.9rem' }}>
-                      Notificação via WhatsApp 📱
-                    </div>
-                    <p style={{ fontSize: '0.85rem', color: '#475569', marginBottom: '12px' }}>
-                      Telefone cadastrado: <strong style={{ color: '#0f172a' }}>{order.customerPhone || 'Nenhum'}</strong>
-                    </p>
-                    <div style={{ display: 'flex', gap: '10px', flexDirection: 'column' }}>
-                      <button 
-                        type="button" 
-                        onClick={() => handleSendWhatsApp('musica')}
-                        disabled={sendingWhatsApp || !order.customerPhone}
-                        style={{
-                          width: '100%',
-                          padding: '12px',
-                          backgroundColor: '#059669',
-                          color: '#ffffff',
-                          border: 'none',
-                          borderRadius: '8px',
-                          fontWeight: 'bold',
-                          fontSize: '0.95rem',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        {sendingWhatsApp ? '⏳ Enviando...' : '🎵 Notificar: Música Pronta'}
-                      </button>
-                      <button 
-                        type="button" 
-                        onClick={() => handleSendWhatsApp('pagamento')}
-                        disabled={sendingWhatsApp || !order.customerPhone}
-                        style={{
-                          width: '100%',
-                          padding: '12px',
-                          backgroundColor: '#2563eb',
-                          color: '#ffffff',
-                          border: 'none',
-                          borderRadius: '8px',
-                          fontWeight: 'bold',
-                          fontSize: '0.95rem',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        {sendingWhatsApp ? '⏳ Enviando...' : '💳 Notificar: Pagamento Confirmado'}
-                      </button>
-                    </div>
-                    {whatsAppMsg && (
-                      <div style={{ marginTop: '10px', fontSize: '0.85rem', fontWeight: 'bold', textAlign: 'center', color: whatsAppMsg.startsWith('✅') ? '#059669' : '#dc2626' }}>
-                        {whatsAppMsg}
-                      </div>
-                    )}
                   </div>
 
                   <div style={styles.formGroup}>

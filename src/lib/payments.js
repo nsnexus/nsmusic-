@@ -12,20 +12,8 @@
 //   - estados de estorno/cancelamento revogam acesso já concedido, o que nunca era tratado antes.
 
 import { doc, getDoc, updateDoc } from 'firebase/firestore/lite';
-import { getRequestContext } from '@cloudflare/next-on-pages';
 import { dbEdge as db } from './firebase-edge';
 import { skuApprovesMusic, skuGrantsVideoAccess } from './pricing';
-import { resolveDeliveryUrl, buildApprovalMessage, buildAdminSaleNotification } from './whatsappTemplates';
-
-// B-06 no AUDIT_REPORT.md: o telefone do admin estava hardcoded no código-fonte. Exportado para
-// reuso por api/reports/daily-sales, que envia ao mesmo número.
-export function getAdminWhatsAppNumber() {
-  try {
-    const ctx = getRequestContext();
-    if (ctx?.env?.ADMIN_WHATSAPP) return String(ctx.env.ADMIN_WHATSAPP).trim();
-  } catch (e) {}
-  return String(process.env.ADMIN_WHATSAPP || '').trim();
-}
 
 const REVOKING_STATUSES = new Set(['cancelled', 'refunded', 'charged_back']);
 
@@ -57,8 +45,8 @@ export async function applyPaymentApproval(orderId, paymentId, payment) {
   // só visível no log). Substituída por checagem sequencial: getDoc para ler o estado atual e
   // idempotência, updateDoc para gravar. Numa corrida bem apertada entre webhook e polling, as duas
   // chamadas podem passar pela checagem de "já processado" antes de qualquer updateDoc acontecer —
-  // pior caso é reenviar a notificação de WhatsApp uma vez a mais, nunca uma dupla cobrança (o
-  // paymentId gravado é sempre o mesmo, então a segunda escrita apenas repete o primeiro resultado).
+  // pior caso é reescrever os mesmos campos uma vez a mais, nunca uma dupla cobrança (o paymentId
+  // gravado é sempre o mesmo, então a segunda escrita apenas repete o primeiro resultado).
   let txResult;
   try {
     const snap = await getDoc(orderRef);
@@ -86,8 +74,7 @@ export async function applyPaymentApproval(orderId, paymentId, payment) {
           updates.hasVideoAccess = true;
           updates.videoAddonPaid = true;
           updates.videoPaymentId = String(paymentId);
-          // Usado pelo relatório diário de vendas (api/reports/daily-sales) para contar pagamentos
-          // de vídeo por período, sem depender de videoStatus (que só existe depois da
+          // Timestamp do pagamento do add-on, independente de videoStatus (que só existe depois da
           // renderização no navegador do cliente, um evento não confiável de servidor).
           updates.videoPaidAt = nowIso;
         } else {
@@ -104,23 +91,12 @@ export async function applyPaymentApproval(orderId, paymentId, payment) {
 
         await updateDoc(orderRef, updates);
 
-        txResult = {
-          applied: true,
-          sku,
-          isVideoOnly,
-          customerPhone: orderData.customerPhone || null,
-          customerName: orderData.customerName || 'Cliente',
-          honoreeName: orderData.honoreeName || 'alguém especial',
-        };
+        txResult = { applied: true, sku, isVideoOnly };
       }
     }
   } catch (err) {
     console.error('[payments] Falha ao aplicar aprovação:', err.message);
     return { applied: false, reason: 'update_failed' };
-  }
-
-  if (txResult.applied) {
-    await notifyApprovalByWhatsApp(orderRef, txResult);
   }
 
   return txResult;
@@ -148,64 +124,5 @@ async function revokeApproval(orderRef, paymentId, status) {
   } catch (err) {
     console.error('[payments] Falha ao revogar aprovação:', err.message);
     return { applied: false, reason: 'update_failed' };
-  }
-}
-
-// Efeito colateral isolado (payments.md: nunca pode impedir a gravação da aprovação, que já
-// aconteceu antes desta função ser chamada).
-async function notifyApprovalByWhatsApp(orderRef, approval) {
-  if (!approval.customerPhone) return;
-
-  const sentFlag = approval.isVideoOnly ? 'videoPaymentWhatsappSent' : 'paymentWhatsappSent';
-
-  try {
-    let shouldSend = false;
-    const snap = await getDoc(orderRef);
-    if (snap.exists()) {
-      const data = snap.data();
-      if (!data[sentFlag] && !data[`${sentFlag}Sending`]) {
-        await updateDoc(orderRef, { [`${sentFlag}Sending`]: true });
-        shouldSend = true;
-      }
-    }
-
-    if (!shouldSend) return;
-
-    const { sendWhatsAppMessage } = await import('./whatsapp');
-    const deliveryUrl = resolveDeliveryUrl(orderRef.id);
-    const messageText = buildApprovalMessage({
-      isVideo: approval.isVideoOnly,
-      customerName: approval.customerName,
-      honoreeName: approval.honoreeName,
-      deliveryUrl,
-    });
-
-    const sent = await sendWhatsAppMessage(approval.customerPhone, messageText);
-
-    // Notifica o admin de toda venda aprovada — efeito colateral isolado, nunca bloqueia a aprovação
-    // em si nem o envio ao cliente (payments.md: side effects sempre em try/catch próprio).
-    const adminPhone = getAdminWhatsAppNumber();
-    if (adminPhone) {
-      const adminMessage = buildAdminSaleNotification({
-        customerName: approval.customerName,
-        honoreeName: approval.honoreeName,
-        isVideo: approval.isVideoOnly,
-      });
-      await sendWhatsAppMessage(adminPhone, adminMessage).catch((e) =>
-        console.warn('[payments] Erro ao notificar admin:', e.message)
-      );
-    }
-
-    if (sent) {
-      await updateDoc(orderRef, {
-        [sentFlag]: true,
-        [`${sentFlag}At`]: new Date().toISOString(),
-        [`${sentFlag}Sending`]: false,
-      }).catch((e) => console.warn('[payments] Erro ao marcar WhatsApp enviado:', e.message));
-    } else {
-      await updateDoc(orderRef, { [`${sentFlag}Sending`]: false }).catch((e) => console.warn(e.message));
-    }
-  } catch (err) {
-    console.error('[payments] Erro geral no envio de WhatsApp:', err.message);
   }
 }
