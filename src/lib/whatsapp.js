@@ -62,12 +62,18 @@ export const getWhatsAppCloudConfig = (env = {}) => {
  * no estúdio NSMusic! Foram produzidas 2 versões completas em alta qualidade. Ouça e baixe em: {{3}}
  * 🎶\n\nDúvidas ou precisa de ajuda? Fale com a gente: {{4}}."
  *
- * {{4}} é o número de suporte em formato de telefone, não link — a Meta bloqueia botão com link
- * direto pro WhatsApp (wa.me), então isso fica como texto simples no corpo. Fica fora do texto
- * aprovado pela Meta de propósito: trocar o número aqui não exige reenviar o Template pra revisão
- * (mesmo número usado em criar/page.jsx).
+ * {{4}} é o link wa.me de suporte — a restrição da Meta contra link do WhatsApp é só pra BOTÃO
+ * ("Visitar site"), não pro corpo do texto; como texto livre, o link fica clicável normalmente.
+ * Fica fora do texto aprovado pela Meta de propósito: trocar o número aqui não exige reenviar o
+ * Template pra revisão (mesmo número usado em criar/page.jsx).
  */
-const SUPPORT_PHONE_DISPLAY = '(94) 99106-4043';
+const SUPPORT_WHATSAPP_URL = 'https://wa.me/5594991064043';
+
+// Cabeçalho de imagem do Template — precisa ser a MESMA imagem enviada como amostra na aprovação
+// do Template na Meta (a amostra do cadastro só serve pra revisão, não é reaproveitada no envio).
+// URL fixa de produção (a Meta busca essa imagem a partir dos servidores dela, então precisa ser
+// sempre pública — nunca localhost/preview) em vez de reenviada a cada chamada (media ID expira).
+const MUSIC_READY_HEADER_IMAGE_URL = 'https://nsmusic.nsnexus.com.br/whatsapp-musica-pronta-header.jpeg';
 
 export const sendMusicReadyTemplate = async (phone, { customerName, honoreeName, deliveryUrl }, env = {}) => {
   const { phoneNumberId, accessToken, baseUrl } = getWhatsAppCloudConfig(env);
@@ -95,15 +101,21 @@ export const sendMusicReadyTemplate = async (phone, { customerName, honoreeName,
     template: {
       name: 'nsmusic_musica_pronta',
       language: { code: 'pt_BR' },
-      components: [{
-        type: 'body',
-        parameters: [
-          { type: 'text', text: customerName || 'Cliente' },
-          { type: 'text', text: honoreeName || 'alguém especial' },
-          { type: 'text', text: deliveryUrl || '' },
-          { type: 'text', text: SUPPORT_PHONE_DISPLAY },
-        ],
-      }],
+      components: [
+        {
+          type: 'header',
+          parameters: [{ type: 'image', image: { link: MUSIC_READY_HEADER_IMAGE_URL } }],
+        },
+        {
+          type: 'body',
+          parameters: [
+            { type: 'text', text: customerName || 'Cliente' },
+            { type: 'text', text: honoreeName || 'alguém especial' },
+            { type: 'text', text: deliveryUrl || '' },
+            { type: 'text', text: SUPPORT_WHATSAPP_URL },
+          ],
+        },
+      ],
     },
   });
 
