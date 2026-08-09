@@ -57,25 +57,30 @@ export const getWhatsAppCloudConfig = (env = {}) => {
 };
 
 /**
- * Envia o Template aprovado "nsmusic_musica_pronta" (categoria Utility) via WhatsApp Cloud API.
- * Corpo do Template: "Olá, {{1}}! 🎵 Sua música personalizada para *{{2}}* ficou pronta com sucesso
- * no estúdio NSMusic! Foram produzidas 2 versões completas em alta qualidade. Ouça e baixe em: {{3}}
- * 🎶\n\nDúvidas ou precisa de ajuda? Fale com a gente: {{4}}."
- *
- * {{4}} é o link wa.me de suporte — a restrição da Meta contra link do WhatsApp é só pra BOTÃO
- * ("Visitar site"), não pro corpo do texto; como texto livre, o link fica clicável normalmente.
- * Fica fora do texto aprovado pela Meta de propósito: trocar o número aqui não exige reenviar o
- * Template pra revisão (mesmo número usado em criar/page.jsx).
+ * {{4}} (em ambos os Templates abaixo) é o link wa.me de suporte — a restrição da Meta contra link
+ * do WhatsApp é só pra BOTÃO ("Visitar site"), não pro corpo do texto; como texto livre, o link
+ * fica clicável normalmente. Fica fora do texto aprovado pela Meta de propósito: trocar o número
+ * aqui não exige reenviar o Template pra revisão (mesmo número usado em criar/page.jsx).
  */
 const SUPPORT_WHATSAPP_URL = 'https://wa.me/5594991064043';
 
-// Cabeçalho de imagem do Template — precisa ser a MESMA imagem enviada como amostra na aprovação
-// do Template na Meta (a amostra do cadastro só serve pra revisão, não é reaproveitada no envio).
+// Cabeçalho de imagem — precisa ser a MESMA imagem enviada como amostra na aprovação de cada
+// Template na Meta (a amostra do cadastro só serve pra revisão, não é reaproveitada no envio).
 // URL fixa de produção (a Meta busca essa imagem a partir dos servidores dela, então precisa ser
 // sempre pública — nunca localhost/preview) em vez de reenviada a cada chamada (media ID expira).
-const MUSIC_READY_HEADER_IMAGE_URL = 'https://nsmusic.nsnexus.com.br/whatsapp-musica-pronta-header.jpeg';
+const HEADER_IMAGE_URL = 'https://nsmusic.nsnexus.com.br/whatsapp-musica-pronta-header.jpeg';
 
-export const sendMusicReadyTemplate = async (phone, { customerName, honoreeName, deliveryUrl }, env = {}) => {
+// Base fixa dos botões "Versão 1"/"Versão 2" do Template de pagamento aprovado — a Meta exige que
+// o domínio de um botão de URL dinâmica seja fixo (definido na aprovação do Template); só o sufixo
+// (a URL real do áudio, urlencoded) varia por pedido. Reaproveita o proxy de áudio já existente
+// (src/app/api/audio/proxy/route.js) em vez de linkar direto pro CDN da Suno/Kie.ai, cujo domínio
+// muda e não pode ser fixado num botão.
+const AUDIO_PROXY_BASE_URL = 'https://nsmusic.nsnexus.com.br/api/audio/proxy?url=';
+
+// Envia um Template de cabeçalho-imagem + 4 variáveis de texto (nome, homenageado, link, suporte),
+// com até 2 botões de URL dinâmica opcionais (audioUrls) — estrutura compartilhada por todas as
+// mensagens automáticas do NS Music via Cloud API.
+const sendTemplateMessage = async (phone, templateName, { customerName, honoreeName, deliveryUrl, audioUrls }, env = {}) => {
   const { phoneNumberId, accessToken, baseUrl } = getWhatsAppCloudConfig(env);
   const formattedNumber = formatToWhatsAppNumber(phone);
 
@@ -94,17 +99,28 @@ export const sendMusicReadyTemplate = async (phone, { customerName, honoreeName,
     numbersToSend.push(withoutNine);
   }
 
+  const buttonComponents = (audioUrls || [])
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((url, index) => ({
+      type: 'button',
+      sub_type: 'url',
+      index: String(index),
+      // Só o sufixo depois de AUDIO_PROXY_BASE_URL — a Meta concatena com a URL base aprovada.
+      parameters: [{ type: 'text', text: encodeURIComponent(url) }],
+    }));
+
   const payloadFor = (num) => ({
     messaging_product: 'whatsapp',
     to: num,
     type: 'template',
     template: {
-      name: 'nsmusic_musica_pronta',
+      name: templateName,
       language: { code: 'pt_BR' },
       components: [
         {
           type: 'header',
-          parameters: [{ type: 'image', image: { link: MUSIC_READY_HEADER_IMAGE_URL } }],
+          parameters: [{ type: 'image', image: { link: HEADER_IMAGE_URL } }],
         },
         {
           type: 'body',
@@ -115,6 +131,7 @@ export const sendMusicReadyTemplate = async (phone, { customerName, honoreeName,
             { type: 'text', text: SUPPORT_WHATSAPP_URL },
           ],
         },
+        ...buttonComponents,
       ],
     },
   });
@@ -125,7 +142,7 @@ export const sendMusicReadyTemplate = async (phone, { customerName, honoreeName,
     try {
       // Nunca logar o telefone do cliente (ver M-25 no AUDIT_REPORT.md) — o índice da variante já
       // basta para depurar.
-      console.log(`[WhatsApp Cloud API] Enviando template música pronta (variante ${i + 1}/${numbersToSend.length})...`);
+      console.log(`[WhatsApp Cloud API] Enviando template ${templateName} (variante ${i + 1}/${numbersToSend.length})...`);
 
       const res = await fetch(`${baseUrl}/${phoneNumberId}/messages`, {
         method: 'POST',
@@ -155,3 +172,17 @@ export const sendMusicReadyTemplate = async (phone, { customerName, honoreeName,
 
   return { success: false, error: lastError };
 };
+
+/**
+ * Envia o Template aprovado "nsmusic_musica_pronta" (categoria Utility) — avisa que a prévia ficou
+ * pronta e o pedido ainda não foi pago.
+ */
+export const sendMusicReadyTemplate = (phone, params, env = {}) =>
+  sendTemplateMessage(phone, 'nsmusic_musica_pronta', params, env);
+
+/**
+ * Envia o Template aprovado "nsmusic_pagamento_aprovado" (categoria Utility) — avisa que o
+ * pagamento caiu e os áudios em MP3 HD já estão liberados pra download.
+ */
+export const sendPaymentApprovedTemplate = (phone, params, env = {}) =>
+  sendTemplateMessage(phone, 'nsmusic_pagamento_aprovado', params, env);

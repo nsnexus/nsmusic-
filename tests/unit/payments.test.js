@@ -11,6 +11,11 @@ let store;
 
 vi.mock('@/lib/firebase-edge', () => ({ dbEdge: {} }));
 
+const sendPaymentApprovedTemplateMock = vi.fn().mockResolvedValue({ success: true });
+vi.mock('@/lib/whatsapp', () => ({
+  sendPaymentApprovedTemplate: (...args) => sendPaymentApprovedTemplateMock(...args),
+}));
+
 vi.mock('firebase/firestore/lite', () => {
   return {
     doc: (_db, _collection, id) => ({ id }),
@@ -40,6 +45,7 @@ const { applyPaymentApproval } = await import('@/lib/payments');
 
 beforeEach(() => {
   store = {};
+  sendPaymentApprovedTemplateMock.mockClear();
 });
 
 describe('applyPaymentApproval', () => {
@@ -137,5 +143,47 @@ describe('applyPaymentApproval', () => {
 
     expect(result.applied).toBe(false);
     expect(store['order11'].paymentStatus).toBe('PAGAMENTO_APROVADO'); // inalterado
+  });
+
+  it('notifica o cliente via WhatsApp quando a música é aprovada e há telefone cadastrado', async () => {
+    store['order12'] = {
+      paymentIntentSku: 'audio_only',
+      customerPhone: '5511999999999',
+      customerName: 'Maria',
+      honoreeName: 'Vovó Lúcia',
+      audioFiles: ['https://cdn1.suno.ai/a.mp3', 'https://cdn1.suno.ai/b.mp3'],
+      paymentId: null,
+    };
+
+    await applyPaymentApproval('order12', '1212', { status: 'approved', transaction_amount: 9.99 });
+
+    expect(sendPaymentApprovedTemplateMock).toHaveBeenCalledTimes(1);
+    expect(sendPaymentApprovedTemplateMock).toHaveBeenCalledWith('5511999999999', expect.objectContaining({
+      customerName: 'Maria',
+      honoreeName: 'Vovó Lúcia',
+      audioUrls: ['https://cdn1.suno.ai/a.mp3', 'https://cdn1.suno.ai/b.mp3'],
+    }));
+    expect(store['order12'].paymentWhatsappSent).toBe(true);
+  });
+
+  it('NÃO notifica via WhatsApp no pagamento isolado do add-on de vídeo', async () => {
+    store['order13'] = { paymentIntentSku: 'video_addon', customerPhone: '5511999999999', videoPaymentId: null };
+
+    await applyPaymentApproval('order13', '1313', { status: 'approved', transaction_amount: 6.90 });
+
+    expect(sendPaymentApprovedTemplateMock).not.toHaveBeenCalled();
+  });
+
+  it('não notifica de novo se paymentWhatsappSent já é true (idempotência)', async () => {
+    store['order14'] = {
+      paymentIntentSku: 'audio_only',
+      customerPhone: '5511999999999',
+      paymentWhatsappSent: true,
+      paymentId: null,
+    };
+
+    await applyPaymentApproval('order14', '1414', { status: 'approved', transaction_amount: 9.99 });
+
+    expect(sendPaymentApprovedTemplateMock).not.toHaveBeenCalled();
   });
 });

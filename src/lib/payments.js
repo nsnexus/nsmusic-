@@ -14,6 +14,7 @@
 import { doc, getDoc, updateDoc } from 'firebase/firestore/lite';
 import { dbEdge as db } from './firebase-edge';
 import { skuApprovesMusic, skuGrantsVideoAccess } from './pricing';
+import { resolveDeliveryUrl } from './whatsappTemplates';
 
 const REVOKING_STATUSES = new Set(['cancelled', 'refunded', 'charged_back']);
 
@@ -91,7 +92,7 @@ export async function applyPaymentApproval(orderId, paymentId, payment) {
 
         await updateDoc(orderRef, updates);
 
-        txResult = { applied: true, sku, isVideoOnly };
+        txResult = { applied: true, sku, isVideoOnly, orderData };
       }
     }
   } catch (err) {
@@ -99,7 +100,56 @@ export async function applyPaymentApproval(orderId, paymentId, payment) {
     return { applied: false, reason: 'update_failed' };
   }
 
-  return txResult;
+  // Efeito colateral isolado (payments.md: nunca pode impedir a gravação da aprovação, que já
+  // aconteceu acima) — só pra pagamento da música (não pro add-on de vídeo isolado).
+  if (txResult.applied && !txResult.isVideoOnly) {
+    await notifyPaymentApproved(orderRef, txResult.orderData);
+  }
+
+  const { orderData: _omit, ...publicResult } = txResult;
+  return publicResult;
+}
+
+async function notifyPaymentApproved(orderRef, orderData) {
+  if (!orderData?.customerPhone) return;
+
+  try {
+    let shouldSend = false;
+    const snap = await getDoc(orderRef);
+    if (snap.exists()) {
+      const data = snap.data();
+      if (!data.paymentWhatsappSent && !data.paymentWhatsappSending) {
+        await updateDoc(orderRef, { paymentWhatsappSending: true });
+        shouldSend = true;
+      }
+    }
+
+    if (!shouldSend) return;
+
+    const { sendPaymentApprovedTemplate } = await import('./whatsapp');
+    const deliveryUrl = resolveDeliveryUrl(orderRef.id);
+    const sendResult = await sendPaymentApprovedTemplate(orderData.customerPhone, {
+      customerName: orderData.customerName,
+      honoreeName: orderData.honoreeName,
+      deliveryUrl,
+      // audioFiles já inclui audioUrl como primeiro item (ver src/lib/db.js:updateTaskResult) —
+      // audioUrl só como fallback pra pedidos antigos sem audioFiles gravado.
+      audioUrls: (orderData.audioFiles?.length ? orderData.audioFiles : [orderData.audioUrl]).filter(Boolean),
+    });
+
+    if (sendResult.success) {
+      await updateDoc(orderRef, {
+        paymentWhatsappSent: true,
+        paymentWhatsappSentAt: new Date().toISOString(),
+        paymentWhatsappSending: false,
+      }).catch((e) => console.warn('[payments] Erro ao marcar WhatsApp enviado:', e.message));
+    } else {
+      await updateDoc(orderRef, { paymentWhatsappSending: false }).catch((e) => console.warn(e.message));
+      console.warn(`Falha ao enviar WhatsApp (pagamento aprovado) — pedido ${orderRef.id}`);
+    }
+  } catch (err) {
+    console.error('[payments] Erro geral no envio de WhatsApp:', err.message);
+  }
 }
 
 async function revokeApproval(orderRef, paymentId, status) {
