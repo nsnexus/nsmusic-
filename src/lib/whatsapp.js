@@ -59,8 +59,16 @@ export const getWhatsAppCloudConfig = (env = {}) => {
 /**
  * Envia o Template aprovado "nsmusic_musica_pronta" (categoria Utility) via WhatsApp Cloud API.
  * Corpo do Template: "Olá, {{1}}! 🎵 Sua música personalizada para *{{2}}* ficou pronta com sucesso
- * no estúdio NSMusic! Foram produzidas 2 versões completas em alta qualidade. Ouça e baixe em: {{3}}"
+ * no estúdio NSMusic! Foram produzidas 2 versões completas em alta qualidade. Ouça e baixe em: {{3}}
+ * 🎶\n\nDúvidas ou precisa de ajuda? Fale com a gente: {{4}}."
+ *
+ * {{4}} é o número de suporte em formato de telefone, não link — a Meta bloqueia botão com link
+ * direto pro WhatsApp (wa.me), então isso fica como texto simples no corpo. Fica fora do texto
+ * aprovado pela Meta de propósito: trocar o número aqui não exige reenviar o Template pra revisão
+ * (mesmo número usado em criar/page.jsx).
  */
+const SUPPORT_PHONE_DISPLAY = '(94) 99106-4043';
+
 export const sendMusicReadyTemplate = async (phone, { customerName, honoreeName, deliveryUrl }, env = {}) => {
   const { phoneNumberId, accessToken, baseUrl } = getWhatsAppCloudConfig(env);
   const formattedNumber = formatToWhatsAppNumber(phone);
@@ -93,6 +101,7 @@ export const sendMusicReadyTemplate = async (phone, { customerName, honoreeName,
           { type: 'text', text: customerName || 'Cliente' },
           { type: 'text', text: honoreeName || 'alguém especial' },
           { type: 'text', text: deliveryUrl || '' },
+          { type: 'text', text: SUPPORT_PHONE_DISPLAY },
         ],
       }],
     },
