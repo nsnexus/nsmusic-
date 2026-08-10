@@ -186,3 +186,43 @@ export const sendMusicReadyTemplate = (phone, params, env = {}) =>
  */
 export const sendPaymentApprovedTemplate = (phone, params, env = {}) =>
   sendTemplateMessage(phone, 'nsmusic_pagamento_aprovado', params, env);
+
+/**
+ * Envia texto livre (sem Template) via WhatsApp Cloud API — só é permitido dentro da janela de 24h
+ * depois que o cliente escreveu primeiro (resposta automática do webhook). Fora dessa janela a Meta
+ * recusa mensagem de texto livre; use sempre um Template pra mensagem iniciada pela empresa.
+ */
+export const sendFreeTextReply = async (phone, message, env = {}) => {
+  const { phoneNumberId, accessToken, baseUrl } = getWhatsAppCloudConfig(env);
+
+  if (!phone) {
+    return { success: false, error: 'Telefone inválido ou não informado.' };
+  }
+  if (!phoneNumberId || !accessToken) {
+    return { success: false, error: 'Configuração ausente: WHATSAPP_PHONE_NUMBER_ID/WHATSAPP_ACCESS_TOKEN não definidos.' };
+  }
+
+  try {
+    const res = await fetch(`${baseUrl}/${phoneNumberId}/messages`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        to: phone,
+        type: 'text',
+        text: { body: message },
+      }),
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (res.ok) return { success: true };
+
+    const errData = await res.json().catch(() => ({}));
+    return { success: false, error: errData?.error?.message || `HTTP ${res.status}` };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+};
