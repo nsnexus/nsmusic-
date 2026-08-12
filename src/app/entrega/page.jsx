@@ -13,6 +13,7 @@ import { pushAdvancedMatching } from '@/lib/metaPixel';
 import { primeAudioContext } from '@/lib/audioContext';
 import VideoOfferModal from '@/components/VideoOfferModal';
 import PixQrCode from '@/components/PixQrCode';
+import { requestPixCharge } from '@/lib/pixCheckout';
 import { styles } from './entregaStyles';
 
 function EntregaContent() {
@@ -42,6 +43,9 @@ function EntregaContent() {
   const [pendingVideoPix, setPendingVideoPix] = useState(false);
   const [videoPixInfo, setVideoPixInfo] = useState({ qrCode: '', qrCodeBase64: '', paymentId: '' });
   const [pixLoading, setPixLoading] = useState(false);
+  // Falha na geração do PIX principal. Além de mostrar o motivo na tela, é o que trava a retentativa
+  // automática (ver o useEffect de geração) — sem isso o erro entra em laço infinito.
+  const [pixError, setPixError] = useState('');
   const [pixCopied, setPixCopied] = useState(false);
   const [isPaidState, setIsPaidState] = useState(false);
   const [pixPollingTimedOut, setPixPollingTimedOut] = useState(false);
@@ -51,6 +55,11 @@ function EntregaContent() {
   // polling ativo para, para não rodar para sempre com a aba aberta (frontend.md). Auditoria de
   // fechamento, 2026-08-02.
   const PIX_POLLING_MAX_ATTEMPTS = 150;
+
+  // Tentativas de CRIAR a cobrança (não confundir com o polling acima, que só consulta). A chamada à
+  // Efí falha de forma intermitente e insistir resolve na prática — 3 tentativas com espera de 1,5s
+  // e 3s cobrem isso sem deixar o cliente esperando demais quando a falha é real.
+  const MAX_PIX_ATTEMPTS = 3;
 
   // Estados para Vídeo Homenagem com Fotos
   const [selectedPhotos, setSelectedPhotos] = useState([]);
@@ -327,7 +336,10 @@ function EntregaContent() {
   const handleGeneratePix = async (customAmount = null, isSecondary = false) => {
     if (!order) return;
     if (isSecondary) setPendingVideoPix(true);
-    else setPixLoading(true);
+    else {
+      setPixError('');
+      setPixLoading(true);
+    }
 
     // O valor a cobrar é decidido pelo servidor a partir do SKU (ver src/lib/pricing.js e C-05 no
     // AUDIT_REPORT.md) — o cliente só informa QUAL produto está comprando, nunca o preço.
@@ -336,53 +348,58 @@ function EntregaContent() {
     else if (typeof customAmount === 'number' && customAmount === 16.89) sku = 'combo';
     else sku = 'audio_only';
 
-    try {
-      const res = await fetch('/api/payments/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId, sku, isSecondaryPayment: isSecondary })
-      });
+    // A retentativa vive em src/lib/pixCheckout.js, compartilhada com o checkout de /criar.
+    const resultado = await requestPixCharge(
+      { orderId, sku, isSecondaryPayment: isSecondary },
+      { attempts: MAX_PIX_ATTEMPTS }
+    );
 
-      if (res.ok) {
-        const data = await res.json();
-        if (isSecondary) {
-          const videoPixData = {
-            qrCode: data.qrCode || '',
-            qrCodeBase64: data.qrCodeBase64 || '',
-            paymentId: data.paymentId || ''
-          };
-          setVideoPixInfo(videoPixData);
-          if (typeof window !== 'undefined' && orderId) {
-            localStorage.setItem(`videoPixInfo_${orderId}`, JSON.stringify(videoPixData));
-          }
-        } else {
-          setPixInfo({
-            qrCode: data.qrCode || '',
-            qrCodeBase64: data.qrCodeBase64 || '',
-            paymentId: data.paymentId || ''
-          });
+    if (resultado.ok) {
+      const data = resultado.data;
+      if (isSecondary) {
+        const videoPixData = {
+          qrCode: data.qrCode || '',
+          qrCodeBase64: data.qrCodeBase64 || '',
+          paymentId: data.paymentId || ''
+        };
+        setVideoPixInfo(videoPixData);
+        if (typeof window !== 'undefined' && orderId) {
+          localStorage.setItem(`videoPixInfo_${orderId}`, JSON.stringify(videoPixData));
         }
       } else {
-        const errorData = await res.json().catch(() => ({}));
-        console.error("Erro na resposta do PIX:", errorData);
-        alert(errorData.error || "Erro ao gerar código PIX. Tente novamente.");
-        if (isSecondary) setPendingVideoPix(false);
+        setPixInfo({
+          qrCode: data.qrCode || '',
+          qrCodeBase64: data.qrCodeBase64 || '',
+          paymentId: data.paymentId || ''
+        });
+        setPixLoading(false);
       }
-    } catch (err) {
-      console.error("Erro gerando PIX na entrega:", err);
-      alert("Erro ao conectar com o serviço de pagamento. Tente novamente.");
-      if (isSecondary) setPendingVideoPix(false);
-    } finally {
-      if (!isSecondary) setPixLoading(false);
+      return;
+    }
+
+    // Erro do fluxo principal vira estado na tela, nunca alert: o alert era reaberto a cada
+    // retentativa automática (ver o useEffect de geração), empilhando pop-ups por cima da página e
+    // deixando o cliente sem nenhum caminho para pagar.
+    if (isSecondary) {
+      alert(resultado.error);
+      setPendingVideoPix(false);
+    } else {
+      setPixError(resultado.error);
+      setPixLoading(false);
     }
   };
 
-  // Gera o PIX automaticamente se o pedido não estiver pago
+  // Gera o PIX automaticamente se o pedido não estiver pago.
+  //
+  // `!pixError` no guarda é o que impede o laço infinito: sem ele, uma falha zerava pixLoading com
+  // pixInfo.qrCode ainda vazio, o efeito disparava de novo na hora e o cliente via o mesmo erro
+  // repetidamente, sem nunca conseguir pagar. Com a trava, a falha para o ciclo e a retomada passa a
+  // ser explícita, pelo botão "Tentar novamente" (que limpa pixError).
   useEffect(() => {
-    if (order && !isPaid && !pixInfo.qrCode && !pixLoading) {
+    if (order && !isPaid && !pixInfo.qrCode && !pixLoading && !pixError) {
       handleGeneratePix();
     }
-  }, [order, isPaid, pixInfo.qrCode, pixLoading]);
+  }, [order, isPaid, pixInfo.qrCode, pixLoading, pixError]);
 
   // Polling em tempo real para confirmação de pagamento PIX (Áudio Principal) com fallback Firestore
   useEffect(() => {
@@ -1248,6 +1265,28 @@ function EntregaContent() {
                       <div style={{ textAlign: 'center', padding: '20px' }}>
                         <div style={styles.spinner} />
                         <p style={{ fontSize: '0.85rem', marginTop: '10px', color: 'var(--text-muted)' }}>Gerando PIX com aprovação instantânea...</p>
+                      </div>
+                    ) : pixError ? (
+                      /* Estado de erro visível e com saída. Antes desta tela a falha só existia como
+                         alert, que voltava a cada retentativa automática e deixava o cliente sem
+                         nenhum caminho — nem pagar, nem entender o que aconteceu. */
+                      <div style={{ textAlign: 'center', padding: '8px 4px' }}>
+                        <p style={{ fontSize: '0.95rem', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '6px' }}>
+                          {pixError}
+                        </p>
+                        <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+                          Sua música está salva e o pedido continua valendo. Tente de novo em alguns
+                          instantes — se continuar, fale com o suporte pelo WhatsApp que a gente
+                          libera manualmente.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => handleGeneratePix()}
+                          className="btn btn-primary"
+                          style={{ width: '100%', padding: '14px', fontSize: '1rem', fontWeight: 'bold', background: 'linear-gradient(135deg, #059669 0%, #047857 100%)', border: 'none', color: '#fff', cursor: 'pointer' }}
+                        >
+                          🔄 Tentar gerar o PIX novamente
+                        </button>
                       </div>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', alignItems: 'center' }}>

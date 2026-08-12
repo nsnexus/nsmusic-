@@ -43,7 +43,14 @@ export async function POST(req) {
       charge = await createPixCharge({ orderId, amount, description: `Pedido NS Music ${orderId}` }, env);
     } catch (err) {
       console.error('[api/payments/create] Falha ao criar cobrança Pix na Efí:', err.message);
-      return NextResponse.json({ error: 'Falha ao gerar a cobrança Pix. Tente novamente.' }, { status: 502 });
+      // O código HTTP da Efí (não o texto dela — ver .claude/rules/security.md) entra na resposta
+      // porque sem ele toda falha chegava ao suporte como "erro ao gerar o PIX", sem nenhuma pista
+      // do que investigar. É informação de diagnóstico, não conteúdo de provedor externo.
+      const codigo = err?.efiStatus ? ` (cód. ${err.efiStatus})` : '';
+      return NextResponse.json(
+        { error: `Não foi possível gerar a cobrança PIX agora${codigo}. Tente novamente.` },
+        { status: 502 }
+      );
     }
 
     // Persiste a intenção de cobrança no pedido: é o que a aprovação (webhook/status) usa depois para

@@ -12,6 +12,7 @@ import { styles } from './wizardStyles';
 import CustomAudioPreview from './CustomAudioPreview';
 import WizardSteps from './WizardSteps';
 import PixQrCode from '@/components/PixQrCode';
+import { requestPixCharge } from '@/lib/pixCheckout';
 
 // Códigos de área (DDD) válidos no Brasil, segundo o plano de numeração da ANATEL.
 const VALID_BRAZIL_DDDS = new Set([
@@ -1506,20 +1507,19 @@ export default function CriarMusica() {
                             }
 
                             const sku = formData.addons?.wantsVideo ? 'combo' : 'audio_only';
-                            const res = await fetch('/api/payments/create', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ orderId, sku })
-                            });
-                            if (res.ok) {
-                              const data = await res.json();
+                            // Retentativa compartilhada com o checkout de /entrega (ver
+                            // src/lib/pixCheckout.js): a chamada à Efí falha de forma intermitente e
+                            // insistir resolve, em vez de devolver um erro para o cliente que estava
+                            // com o cartão na mão.
+                            const resultado = await requestPixCharge({ orderId, sku });
+                            if (resultado.ok) {
                               // IMPORTANTE: não gravar paymentId aqui. O servidor (/api/payments/create)
                               // já persiste o txid pendente em paymentIntentId. O campo paymentId só pode
                               // ser escrito pelo servidor após aprovação real (ver applyPaymentApproval em
                               // src/lib/payments.js) — gravá-lo aqui, ainda pendente, é o que permitia que
                               // /api/payments/status aprovasse o pedido sem nunca checar a Efí (bug da
                               // aprovação falsa).
-                              setPixInfo(data);
+                              setPixInfo(resultado.data);
 
                               if (typeof window !== 'undefined' && window.fbq) {
                                 // Correspondência avançada manual: telefone é obrigatório e já validado
@@ -1530,9 +1530,7 @@ export default function CriarMusica() {
                                 window.fbq('track', 'InitiateCheckout', { value: getTotalPrice(), currency: 'BRL' });
                               }
                             } else {
-                              const errData = await res.json().catch(() => ({}));
-                              console.error("Payment API Error:", errData);
-                              setPaymentErrorMessage(errData?.error || errData?.message || 'Erro ao gerar o PIX. Tente novamente.');
+                              setPaymentErrorMessage(resultado.error);
                             }
                           } catch (err) {
                             console.error(err);

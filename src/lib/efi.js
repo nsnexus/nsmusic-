@@ -153,7 +153,12 @@ export async function createPixCharge({ orderId, amount, description }, env) {
 
   if (!res.ok) {
     const errText = await res.text().catch(() => '');
-    throw new Error(`Falha ao criar cobrança Pix na Efí (HTTP ${res.status}): ${errText}`);
+    const err = new Error(`Falha ao criar cobrança Pix na Efí (HTTP ${res.status}): ${errText}`);
+    // Só o código HTTP sobe para a rota chamadora poder identificar a falha sem repassar ao cliente
+    // o texto do provedor (ver .claude/rules/security.md). Sem isso, toda falha aqui chegava ao
+    // suporte como "erro ao gerar o PIX", sem nenhuma pista de qual era.
+    err.efiStatus = res.status;
+    throw err;
   }
 
   const data = await res.json();
