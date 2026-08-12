@@ -12,6 +12,7 @@ import { getPriceForSku } from '@/lib/pricing';
 import { pushAdvancedMatching } from '@/lib/metaPixel';
 import { primeAudioContext } from '@/lib/audioContext';
 import VideoOfferModal from '@/components/VideoOfferModal';
+import PixQrCode from '@/components/PixQrCode';
 import { styles } from './entregaStyles';
 
 function EntregaContent() {
@@ -845,13 +846,13 @@ function EntregaContent() {
                           </div>
                         ) : (
                           <>
-                            {videoPixInfo.qrCodeBase64 && (
-                              <img
-                                src={videoPixInfo.qrCodeBase64}
-                                alt="QR Code para pagamento do Vídeo Homenagem via PIX"
-                                style={{ width: '200px', maxWidth: '100%', height: 'auto', background: '#FFFFFF', padding: '10px', borderRadius: '12px', marginBottom: '12px' }}
+                            <div style={{ marginBottom: '12px' }}>
+                              <PixQrCode
+                                payload={videoPixInfo.qrCode}
+                                size={200}
+                                label="QR Code para pagamento do Vídeo Homenagem via PIX"
                               />
-                            )}
+                            </div>
                             <div style={{ marginBottom: '10px', textAlign: 'left' }}>
                               <label htmlFor="pix-copia-cola-video" style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
                                 Ou use o código PIX Copia e Cola:
@@ -1252,21 +1253,15 @@ function EntregaContent() {
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', alignItems: 'center' }}>
                         {pixInfo.qrCode ? (
                           <div style={{ width: '100%' }}>
-                            {/* Imagem do QR Code como caminho principal: parte dos clientes não
-                                localizava o botão de copiar e desistia do pagamento. O copia-e-cola
-                                continua abaixo para quem paga pelo computador. */}
-                            {pixInfo.qrCodeBase64 && (
-                              <div style={{ textAlign: 'center', marginBottom: '14px' }}>
-                                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '10px' }}>
-                                  Abra o app do seu banco e aponte a câmera para o QR Code:
-                                </p>
-                                <img
-                                  src={pixInfo.qrCodeBase64}
-                                  alt="QR Code para pagamento via PIX"
-                                  style={{ width: '220px', maxWidth: '100%', height: 'auto', background: '#FFFFFF', padding: '10px', borderRadius: '12px' }}
-                                />
-                              </div>
-                            )}
+                            {/* QR Code como caminho principal: parte dos clientes não localizava o
+                                botão de copiar e desistia do pagamento. O copia-e-cola continua
+                                abaixo para quem paga pelo computador. */}
+                            <div style={{ textAlign: 'center', marginBottom: '14px' }}>
+                              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '10px' }}>
+                                Abra o app do seu banco e aponte a câmera para o QR Code:
+                              </p>
+                              <PixQrCode payload={pixInfo.qrCode} />
+                            </div>
 
                             <div style={{ marginBottom: '10px' }}>
                               <label htmlFor="pix-copia-cola-musica" style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>

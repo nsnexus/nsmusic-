@@ -3,7 +3,7 @@ import { getRequestContext } from '@cloudflare/next-on-pages';
 import { doc, getDoc, updateDoc, arrayUnion } from 'firebase/firestore/lite';
 import { dbEdge as db } from '@/lib/firebase-edge';
 import { getPriceForSku } from '@/lib/pricing';
-import { createPixCharge, getPixQrCodeImage } from '@/lib/efi';
+import { createPixCharge } from '@/lib/efi';
 
 export const runtime = 'edge';
 
@@ -69,16 +69,17 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Falha ao registrar a intenção de pagamento. Tente novamente.' }, { status: 500 });
     }
 
-    // Imagem do QR Code: parte dos clientes não localiza o botão de copiar e desiste do pagamento,
-    // então a imagem é exibida como caminho principal na UI. getPixQrCodeImage nunca lança — se a
-    // Efí não devolver a imagem, o copia-e-cola continua funcionando e a cobrança segue válida.
-    const qrCodeBase64 = await getPixQrCodeImage(charge.locId, env);
-
+    // O QR Code é desenhado no navegador a partir de `qrCode` (o copia-e-cola), em
+    // src/components/PixQrCode.jsx. Uma versão anterior buscava a imagem pronta na Efí aqui
+    // (GET /v2/loc/:id/qrcode); em produção ela voltava vazia e o cliente ficava sem QR Code, além
+    // de custar uma segunda autenticação OAuth e mais um hop pelo Worker de mTLS a cada checkout.
+    // O BR Code é a única entrada que um QR Code precisa, então desenhar no cliente não depende de
+    // nada disso. `qrCodeBase64` permanece na resposta, vazio, para não quebrar chamador antigo.
     return NextResponse.json({
       paymentId: charge.txid,
       status: 'pending',
       qrCode: charge.pixCopiaECola,
-      qrCodeBase64,
+      qrCodeBase64: '',
       ticketUrl: ''
     });
 

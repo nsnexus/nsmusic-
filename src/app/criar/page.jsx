@@ -11,6 +11,7 @@ import { pushAdvancedMatching } from '@/lib/metaPixel';
 import { styles } from './wizardStyles';
 import CustomAudioPreview from './CustomAudioPreview';
 import WizardSteps from './WizardSteps';
+import PixQrCode from '@/components/PixQrCode';
 
 // Códigos de área (DDD) válidos no Brasil, segundo o plano de numeração da ANATEL.
 const VALID_BRAZIL_DDDS = new Set([
@@ -1558,24 +1559,18 @@ export default function CriarMusica() {
                           </div>
                         )}
 
-                        {/* Imagem do QR Code como caminho principal: parte dos clientes não
-                            localizava o botão de copiar e desistia do pagamento. */}
-                        {pixInfo.qrCodeBase64 && (
-                          <div style={{ textAlign: 'center' }}>
-                            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '10px' }}>
-                              Abra o app do seu banco e aponte a câmera para o QR Code:
-                            </p>
-                            <img
-                              src={pixInfo.qrCodeBase64}
-                              alt="QR Code para pagamento via PIX"
-                              style={{ width: '220px', maxWidth: '100%', height: 'auto', background: '#FFFFFF', padding: '10px', borderRadius: '12px' }}
-                            />
-                          </div>
-                        )}
+                        {/* QR Code como caminho principal: parte dos clientes não localizava o
+                            botão de copiar e desistia do pagamento. */}
+                        <div style={{ textAlign: 'center' }}>
+                          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '10px' }}>
+                            Abra o app do seu banco e aponte a câmera para o QR Code:
+                          </p>
+                          <PixQrCode payload={pixInfo.qrCode} />
+                        </div>
 
                         <div style={{ width: '100%' }}>
                           <label htmlFor="pix-copia-cola-criar" style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
-                            {pixInfo.qrCodeBase64 ? 'Ou use o código PIX Copia e Cola:' : 'Código PIX Copia e Cola:'}
+                            Ou use o código PIX Copia e Cola:
                           </label>
                           <textarea
                             id="pix-copia-cola-criar"
