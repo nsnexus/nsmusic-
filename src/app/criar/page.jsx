@@ -527,6 +527,14 @@ export default function CriarMusica() {
 
   // Seleção com Avanço Automático para a próxima etapa
   const selectFieldAndAdvance = (name, value) => {
+    // Mesma trava do botão "Continuar" (ver isNextDisabled): estes botões avançam sozinhos 150ms
+    // depois do clique, então trocar de opção com o upload da capa em andamento também descartaria
+    // a foto. Registra a escolha, mas não avança enquanto o upload não terminar.
+    if (isUploadingCover) {
+      setFormData(prev => ({ ...prev, [name]: value }));
+      return;
+    }
+
     setFormData(prev => ({
       ...prev,
       [name]: value,
@@ -586,7 +594,22 @@ export default function CriarMusica() {
       return;
     }
 
+    // A flag sobe AQUI, não no início do upload para o Storage: ler o arquivo, decodificar e
+    // redimensionar no canvas leva segundos num celular com foto grande, e era exatamente nessa
+    // janela que o cliente clicava em "Continuar" e a foto se perdia. Enquanto ela for true, o
+    // wizard não avança (ver isNextDisabled e selectFieldAndAdvance).
+    //
+    // Consequência: TODO caminho de saída daqui para baixo precisa baixar a flag, senão o wizard
+    // fica travado para sempre — um bug pior do que o que estamos corrigindo.
+    setIsUploadingCover(true);
+
+    const failUpload = (mensagem) => {
+      setIsUploadingCover(false);
+      alert(mensagem);
+    };
+
     const reader = new FileReader();
+    reader.onerror = () => failUpload("Não foi possível ler a imagem selecionada. Tente novamente.");
     reader.onload = (event) => {
       // window.Image (não `new Image()`) — o identificador `Image` neste arquivo é o componente do
       // next/image importado no topo, que sombreia o construtor nativo do navegador. Chamar
@@ -594,7 +617,12 @@ export default function CriarMusica() {
       // resultante ("is not a constructor") só aparecia no overlay de dev do Next, nunca em
       // console.error — por isso o upload de capa parecia simplesmente não fazer nada.
       const img = new window.Image();
+      img.onerror = () => failUpload("Não foi possível abrir a imagem selecionada. Tente outra foto.");
       img.onload = () => {
+       // Rede de segurança: uma exceção síncrona aqui (canvas sem contexto 2d, drawImage recusando
+       // a imagem) escaparia do handler de evento sem passar por nenhum dos resets abaixo, e o
+       // wizard ficaria travado sem o cliente conseguir sequer voltar atrás.
+       try {
         const canvas = document.createElement('canvas');
         const MAX_WIDTH = 800;
         const MAX_HEIGHT = 800;
@@ -623,10 +651,9 @@ export default function CriarMusica() {
         // (ver M-08 no AUDIT_REPORT.md).
         canvas.toBlob(async (blob) => {
           if (!blob) {
-            alert("Não foi possível processar a imagem. Tente novamente.");
+            failUpload("Não foi possível processar a imagem. Tente novamente.");
             return;
           }
-          setIsUploadingCover(true);
           try {
             const fileName = `draft_${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
             const fileRef = ref(storage, `covers/${fileName}`);
@@ -640,6 +667,10 @@ export default function CriarMusica() {
             setIsUploadingCover(false);
           }
         }, 'image/jpeg', 0.82);
+       } catch (err) {
+         console.error("Erro ao processar a imagem de capa:", err);
+         failUpload("Não foi possível processar a imagem. Tente outra foto.");
+       }
       };
       img.src = event.target.result;
     };
@@ -1080,6 +1111,12 @@ export default function CriarMusica() {
   };
 
   const isNextDisabled = () => {
+    // Upload da foto de capa em andamento: sem esta trava, quem clicava em "Continuar" antes do
+    // upload terminar avançava com formData.coverUrl ainda vazio e a foto simplesmente se perdia —
+    // o pedido saía com a capa padrão sem ninguém entender por quê. Guarda global de propósito:
+    // isUploadingCover só é true durante esse upload, então não afeta nenhum outro passo.
+    if (isUploadingCover) return true;
+
     if (step === 1 && !formData.recipientType) return true;
     if (step === 2 && !formData.honoreeName) return true;
     if (step === 3 && !formData.occasion) return true;
@@ -1703,7 +1740,10 @@ export default function CriarMusica() {
                         color: (isNextDisabled() || (step === 8 && isSubmitting)) ? 'var(--text-muted)' : '#FFFFFF'
                       }}
                     >
-                      {step === 8 ? 'Criar Música →' : 'Continuar →'}
+                      {/* Botão desabilitado sem explicação lê como travamento. Diz o motivo. */}
+                      {isUploadingCover
+                        ? '⏳ Enviando foto...'
+                        : (step === 8 ? 'Criar Música →' : 'Continuar →')}
                     </button>
                   ) : (
                     step === 9 && (
