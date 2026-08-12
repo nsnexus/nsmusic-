@@ -129,6 +129,35 @@ EFI_WEBHOOK_URL="https://SEU_DOMINIO/api/webhooks/efi?secret=O_MESMO_EFI_WEBHOOK
   node scripts/register-efi-webhook.mjs
 ```
 
+### 6. Configurar a reconciliação agendada
+
+A confirmação de pagamento (e de música pronta) depende de duas vias: o webhook do provedor e o
+polling feito pelo **navegador do cliente**. Quando o webhook falha e o cliente fecha a aba, ninguém
+mais converge o pedido — ele paga e o produto nunca é liberado. A terceira via é
+`POST /api/orders/reconcile`, que consulta a Efí e a Kie.ai direto do servidor.
+
+O agendamento mora no Worker (`[triggers] crons` em `workers/efi-proxy/wrangler.toml`, handler
+`scheduled` em `src/worker.js`) porque **Cloudflare Pages não suporta cron trigger** — só Workers
+suportam, a mesma limitação que obrigou este Worker a existir.
+
+Gere um segredo e configure nos **dois** lados com o mesmo valor:
+```bash
+openssl rand -hex 32
+```
+| Onde | Como |
+|---|---|
+| Worker | `npx wrangler secret put RECONCILE_SECRET --config workers/efi-proxy/wrangler.toml` |
+| App (Pages) | Settings → Environment variables → `RECONCILE_SECRET` |
+
+Confira também que `APP_URL` em `wrangler.toml` aponta para o domínio de produção do app. Depois de
+`npm run deploy:efi-proxy`, acompanhe a primeira execução com:
+```bash
+npx wrangler tail --config workers/efi-proxy/wrangler.toml
+```
+
+Sem essas variáveis o cron roda, loga um aviso e não faz nada — a rota continua acessível
+manualmente pelo painel `/admin` (aba **Pedidos Travados**), que autoriza por token de admin.
+
 ## Testando localmente (com `npm run dev`)
 
 Diferente do binding de Pages (que só existia no runtime deployado), a chamada do app até o Worker é

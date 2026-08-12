@@ -25,6 +25,9 @@ const PATH_RULES = [
   { method: 'POST', pattern: /^\/oauth\/token$/ },
   { method: 'PUT', pattern: new RegExp(`^/v2/cob/${TXID_PATTERN}$`) },
   { method: 'GET', pattern: new RegExp(`^/v2/cob/${TXID_PATTERN}$`) },
+  // Imagem do QR Code da cobrança (src/lib/efi.js:getPixQrCodeImage). O id do `location` é numérico
+  // e vem do próprio retorno do PUT /v2/cob/:txid — nunca do cliente.
+  { method: 'GET', pattern: /^\/v2\/loc\/\d+\/qrcode$/ },
 ];
 
 const FORWARDED_HEADER_NAMES = ['authorization', 'content-type'];
@@ -114,6 +117,44 @@ async function handleRelay(request, env) {
   }
 }
 
+// Reconciliação agendada de pedidos travados.
+//
+// Mora neste Worker por um motivo só: Cloudflare Pages não suporta cron trigger, Workers suportam —
+// a mesma limitação que já obrigou este Worker a existir para o hop mTLS. Ele não sabe nada sobre
+// pedidos; só bate na rota do app, que é quem tem toda a lógica (ver
+// src/app/api/orders/reconcile/route.js).
+//
+// Necessário porque a confirmação de música pronta e de pagamento depende do polling feito pelo
+// NAVEGADOR DO CLIENTE. Quando o webhook do provedor falha e o cliente fecha a aba, o pedido fica
+// preso para sempre — sem este agendamento, só um clique manual no painel destrava.
+async function handleScheduledReconcile(env) {
+  const appUrl = env?.APP_URL;
+  const secret = env?.RECONCILE_SECRET;
+
+  if (!appUrl || !secret) {
+    console.warn('[efi-proxy] APP_URL/RECONCILE_SECRET não configurados — reconciliação agendada ignorada.');
+    return;
+  }
+
+  try {
+    const res = await fetch(`${appUrl}/api/orders/reconcile`, {
+      method: 'POST',
+      headers: { 'X-Reconcile-Secret': secret },
+      // Consulta até 10 pedidos na Kie.ai e 10 cobranças na Efí, sequencialmente — teto folgado.
+      signal: AbortSignal.timeout(60000),
+    });
+
+    const body = await res.text().catch(() => '');
+    if (!res.ok) {
+      console.warn(`[efi-proxy] Reconciliação respondeu HTTP ${res.status}: ${body.slice(0, 200)}`);
+      return;
+    }
+    console.log(`[efi-proxy] Reconciliação concluída: ${body.slice(0, 300)}`);
+  } catch (err) {
+    console.warn('[efi-proxy] Falha na reconciliação agendada:', err?.message ?? err);
+  }
+}
+
 export default {
   async fetch(request, env) {
     // Rede de segurança: qualquer exceção não prevista aqui dentro nunca deve escapar como um 500
@@ -125,5 +166,11 @@ export default {
       console.error('[efi-proxy] Exceção não tratada:', err?.stack ?? err?.message ?? err);
       return jsonError(500, 'erro interno no proxy');
     }
+  },
+
+  // Disparado pelo cron declarado em wrangler.toml. waitUntil garante que a chamada termina mesmo
+  // depois do handler retornar.
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(handleScheduledReconcile(env));
   },
 };

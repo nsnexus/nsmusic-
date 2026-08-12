@@ -26,6 +26,21 @@ certificate_id = "c8facf26-086e-455e-8faa-52c9a456be18"
 binding = "EFI_MTLS_CERT_PRODUCTION"
 certificate_id = "cb017d25-e439-418b-9b34-6ecbd4e75c89"
 
-# EFI_PROXY_SECRET é um secret, não uma var: configurar com
+# Reconciliação agendada de pedidos travados (handler `scheduled` em src/worker.js). Mora aqui e não
+# no app porque Cloudflare Pages não suporta cron trigger — só Workers suportam, a mesma limitação
+# que já obrigou este Worker a existir. A cada 10 minutos ele chama POST /api/orders/reconcile no
+# app, que recupera música já pronta na Kie.ai e pagamento já confirmado na Efí que ficaram presos
+# porque o cliente fechou a aba antes do polling terminar.
+[triggers]
+crons = ["*/10 * * * *"]
+
+# URL pública do app Next.js chamado pela reconciliação agendada. Não é segredo.
+[vars]
+APP_URL = "https://nsmusic.nsnexus.com.br"
+
+# EFI_PROXY_SECRET e RECONCILE_SECRET são secrets, não vars: configurar com
 #   npx wrangler secret put EFI_PROXY_SECRET --config workers/efi-proxy/wrangler.toml
-# Nunca colocar o valor aqui.
+#   npx wrangler secret put RECONCILE_SECRET --config workers/efi-proxy/wrangler.toml
+# RECONCILE_SECRET precisa ter o MESMO valor configurado como variável de ambiente do app no
+# Cloudflare Pages — é ele que autoriza o cron a chamar a rota sem uma conta de usuário.
+# Nunca colocar os valores aqui.

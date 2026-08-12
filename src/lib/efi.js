@@ -160,8 +160,53 @@ export async function createPixCharge({ orderId, amount, description }, env) {
   return {
     txid: data.txid || txid,
     pixCopiaECola: data.pixCopiaECola || '',
+    // id do `location` da cobrança — é ele que dá acesso à imagem do QR Code em
+    // getPixQrCodeImage. Vem sempre no retorno do PUT /v2/cob/:txid.
+    locId: data.loc?.id ?? null,
     status: data.status || 'ATIVA',
   };
+}
+
+/**
+ * Busca a imagem do QR Code de uma cobrança (GET /v2/loc/:id/qrcode). A Efí devolve `imagemQrcode`
+ * já como data URI PNG em base64, pronta para um <img src>.
+ *
+ * Sem essa imagem o cliente só tem o copia-e-cola — parte dos clientes não localiza o botão de
+ * copiar e desiste do pagamento, então a imagem é o caminho principal, não um extra.
+ *
+ * Nunca lança: falhar aqui não pode derrubar a criação da cobrança, que já foi feita e é válida.
+ * @param {string|number} locId
+ * @param {object} env
+ * @returns {Promise<string>} data URI da imagem, ou '' se não foi possível obter
+ */
+export async function getPixQrCodeImage(locId, env) {
+  if (locId === null || locId === undefined || locId === '') return '';
+
+  try {
+    const accessToken = await getAccessToken(env);
+    const relayFetch = getRelayFetch(env);
+
+    const res = await fetchWithRetry(
+      `${getBaseUrl(env)}/v2/loc/${locId}/qrcode`,
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        signal: AbortSignal.timeout(10000),
+      },
+      1,
+      relayFetch
+    );
+
+    if (!res.ok) {
+      console.warn(`[efi] Falha ao obter imagem do QR Code Pix (HTTP ${res.status}).`);
+      return '';
+    }
+
+    const data = await res.json();
+    return data.imagemQrcode || '';
+  } catch (err) {
+    console.warn('[efi] Erro ao obter imagem do QR Code Pix:', err.message);
+    return '';
+  }
 }
 
 /**

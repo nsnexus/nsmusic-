@@ -1521,14 +1521,30 @@ export default function CriarMusica() {
                           </div>
                         )}
 
+                        {/* Imagem do QR Code como caminho principal: parte dos clientes não
+                            localizava o botão de copiar e desistia do pagamento. */}
+                        {pixInfo.qrCodeBase64 && (
+                          <div style={{ textAlign: 'center' }}>
+                            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '10px' }}>
+                              Abra o app do seu banco e aponte a câmera para o QR Code:
+                            </p>
+                            <img
+                              src={pixInfo.qrCodeBase64}
+                              alt="QR Code para pagamento via PIX"
+                              style={{ width: '220px', maxWidth: '100%', height: 'auto', background: '#FFFFFF', padding: '10px', borderRadius: '12px' }}
+                            />
+                          </div>
+                        )}
+
                         <div style={{ width: '100%' }}>
-                          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
-                            Código PIX Copia e Cola:
-                          </span>
-                          <textarea 
-                            readOnly 
-                            value={pixInfo.qrCode || ''} 
-                            style={{ width: '100%', height: '70px', background: '#FFFFFF', color: 'var(--text-primary)', border: '1.5px solid var(--border-color)', borderRadius: '8px', padding: '10px', fontSize: '0.75rem', fontFamily: 'monospace', resize: 'none' }}
+                          <label htmlFor="pix-copia-cola-criar" style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
+                            {pixInfo.qrCodeBase64 ? 'Ou use o código PIX Copia e Cola:' : 'Código PIX Copia e Cola:'}
+                          </label>
+                          <textarea
+                            id="pix-copia-cola-criar"
+                            readOnly
+                            value={pixInfo.qrCode || ''}
+                            style={{ width: '100%', height: '70px', background: '#FFFFFF', color: '#0f172a', border: '1.5px solid var(--border-color)', borderRadius: '8px', padding: '10px', fontSize: '0.75rem', fontFamily: 'monospace', resize: 'none' }}
                           />
                         </div>
 

@@ -1,6 +1,37 @@
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db, storage } from '@/lib/firebase';
+// O AudioContext vive em módulo próprio porque precisa ser destravado de forma síncrona no clique
+// do usuário, e este arquivo só é carregado por import dinâmico — ver src/lib/audioContext.js.
+import { primeAudioContext } from '@/lib/audioContext';
+
+// Baixa os bytes do MP3 pelo proxy do próprio domínio. Devolver bytes (em vez de apontar um
+// <audio src>) é o que elimina de vez a segunda causa de vídeo mudo: um elemento de mídia
+// cross-origin sem CORS válido faz createMediaElementSource emitir silêncio por especificação,
+// sem erro nenhum. Com os bytes em mãos, decodeAudioData sempre produz amostras reais ou lança.
+async function fetchAudioBytes(audioUrl) {
+  const attempts = [
+    `/api/audio/proxy?url=${encodeURIComponent(audioUrl)}`,
+    `/api/image-proxy?url=${encodeURIComponent(audioUrl)}`,
+  ];
+
+  for (const url of attempts) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(30000) });
+      if (!res.ok) {
+        console.warn(`[VideoGen] Proxy de áudio respondeu HTTP ${res.status} em ${url}`);
+        continue;
+      }
+      const buffer = await res.arrayBuffer();
+      if (buffer.byteLength > 0) return buffer;
+      console.warn(`[VideoGen] Proxy de áudio devolveu 0 bytes em ${url}`);
+    } catch (e) {
+      console.warn(`[VideoGen] Falha ao baixar o áudio em ${url}:`, e?.message);
+    }
+  }
+
+  return null;
+}
 
 /**
  * Renderiza um vídeo em formato de slideshow com 10 a 20 fotos sincronizadas com a música MP3
@@ -23,40 +54,47 @@ export async function createSlideshowVideo(orderId, imageUrls, audioUrl, orderDa
   });
 
   try {
-    // 1. Carrega o elemento de áudio como Blob local via proxy para garantir CORS e obter a duração exata
-    let finalAudioSrc = audioUrl;
-    if (typeof audioUrl === 'string' && audioUrl.startsWith('http')) {
-      try {
-        const proxyRes = await fetch(`/api/image-proxy?url=${encodeURIComponent(audioUrl)}`);
-        if (proxyRes.ok) {
-          const audioBlob = await proxyRes.blob();
-          finalAudioSrc = URL.createObjectURL(audioBlob);
-        } else {
-          const audioRes = await fetch(audioUrl);
-          if (audioRes.ok) {
-            const audioBlob = await audioRes.blob();
-            finalAudioSrc = URL.createObjectURL(audioBlob);
-          }
-        }
-      } catch (e) {
-        console.warn("Aviso ao baixar áudio via proxy, usando URL direta:", e);
-      }
+    // 1. Áudio primeiro, e sempre decodificado em amostras reais.
+    //
+    // A ordem importa: se o áudio não puder ser carregado, o vídeo é abortado ANTES de gastar
+    // minutos carregando fotos e renderizando. Antes desta mudança o áudio era o último passo e
+    // qualquer falha dele resultava num vídeo mudo entregue como se estivesse correto.
+    if (!audioUrl) {
+      throw new Error('Nenhuma música foi encontrada para este pedido. Recarregue a página e tente novamente.');
     }
 
-    const audio = new Audio();
-    audio.crossOrigin = 'anonymous';
-    audio.src = finalAudioSrc;
+    const audioCtx = primeAudioContext();
+    if (!audioCtx) {
+      throw new Error('Seu navegador não permite gerar o vídeo com áudio. Tente pelo Chrome no celular ou no computador.');
+    }
 
-    await new Promise((resolve) => {
-      audio.onloadedmetadata = resolve;
-      audio.onerror = () => resolve();
-      setTimeout(resolve, 4000);
-    });
+    const audioBytes = await fetchAudioBytes(audioUrl);
+    if (!audioBytes) {
+      throw new Error('Não foi possível baixar a música para montar o vídeo. Tente novamente em instantes.');
+    }
 
-    // Garante que a duração seja um número válido positivo e realista (máx 360s)
-    let duration = audio.duration;
-    if (!duration || isNaN(duration) || !isFinite(duration) || duration > 360 || duration <= 0) {
-      duration = 180; // Duração padrão de 3 minutos
+    let audioBuffer;
+    try {
+      audioBuffer = await audioCtx.decodeAudioData(audioBytes);
+    } catch (decodeErr) {
+      console.warn('[VideoGen] Falha ao decodificar o áudio:', decodeErr?.message);
+      throw new Error('A música baixada veio corrompida. Tente novamente em instantes.');
+    }
+
+    // Duração exata do arquivo decodificado — não existe mais o palpite de 180s que sobrava do
+    // antigo timeout de 4s esperando os metadados do <audio>.
+    const duration = Math.min(audioBuffer.duration, 360);
+    if (!duration || !isFinite(duration) || duration <= 0) {
+      throw new Error('A música deste pedido está com duração inválida. Fale com o suporte.');
+    }
+
+    // Se o contexto não destravou, um BufferSource não produz som nenhum — abortar aqui é melhor do
+    // que gravar 3 minutos de silêncio e só descobrir na entrega.
+    if (audioCtx.state === 'suspended') {
+      await audioCtx.resume().catch(() => {});
+    }
+    if (audioCtx.state !== 'running') {
+      throw new Error('O navegador bloqueou o áudio. Toque na tela e clique novamente em "Criar Vídeo Homenagem".');
     }
 
     // 2. Pré-carrega todas as imagens via proxy para garantir Blob URLs de mesma origem sem contaminar o Canvas (CORS tainting)
@@ -187,21 +225,24 @@ export async function createSlideshowVideo(orderId, imageUrls, audioUrl, orderDa
     canvas.height = height;
     const ctx = canvas.getContext('2d');
 
-    // Suporte a AudioContext para juntar o áudio com o canvas stream (GRAVAÇÃO SILENCIOSA)
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    // Áudio ligado ao stream por AudioBufferSourceNode (amostras já decodificadas), não por
+    // createMediaElementSource — ver comentário de topo de primeAudioContext. `source` só é
+    // conectado ao destino do MediaRecorder, nunca a audioCtx.destination: a gravação continua
+    // silenciosa para quem está com a página aberta.
     const dest = audioCtx.createMediaStreamDestination();
-    const source = audioCtx.createMediaElementSource(audio);
+    const source = audioCtx.createBufferSource();
+    source.buffer = audioBuffer;
     source.connect(dest);
 
-    // Essencial para navegadores baseados no Chromium/WebKit: acordar o contexto se tiver sido suspenso
-    if (audioCtx.state === 'suspended') {
-      await audioCtx.resume().catch(e => console.warn("Aviso ao dar resume no audioCtx:", e));
+    const audioTracks = dest.stream.getAudioTracks();
+    if (audioTracks.length === 0) {
+      throw new Error('Não foi possível preparar o áudio do vídeo. Tente novamente pelo Chrome.');
     }
 
     const canvasStream = canvas.captureStream(24); // 24 FPS — suficiente para pan/zoom lento, mais leve que 30
     const combinedStream = new MediaStream([
       ...canvasStream.getVideoTracks(),
-      ...dest.stream.getAudioTracks()
+      ...audioTracks
     ]);
 
     const mimeType = typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported('video/mp4;codecs=h264')
@@ -236,20 +277,25 @@ export async function createSlideshowVideo(orderId, imageUrls, audioUrl, orderDa
     });
 
     mediaRecorder.start();
-    audio.play().catch(e => console.warn("Aviso no áudio play:", e));
+    source.start();
 
     // 4. Loop de Animação com efeito Ken Burns (Pan & Zoom)
-    let startTime = performance.now();
+    //
+    // O relógio é o do próprio AudioContext, não performance.now(): se o cliente trocar de aba, o
+    // navegador estrangula requestAnimationFrame (chega a 1 quadro por segundo ou menos) enquanto o
+    // áudio continua correndo no ritmo normal. Com dois relógios diferentes, a imagem dessincroniza
+    // da música e o vídeo termina no lugar errado. audioCtx.currentTime acompanha exatamente o que
+    // está sendo gravado na trilha de áudio.
+    const startTime = audioCtx.currentTime;
 
     const renderFrame = async () => {
-      const now = performance.now();
-      const elapsed = (now - startTime) / 1000;
+      const elapsed = audioCtx.currentTime - startTime;
 
-      if (elapsed >= duration || (audio.ended && elapsed > 5)) {
+      if (elapsed >= duration) {
         if (mediaRecorder.state !== 'inactive') {
           mediaRecorder.stop();
         }
-        audio.pause();
+        try { source.stop(); } catch (e) {}
         return;
       }
 

@@ -10,6 +10,7 @@ import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage
 import { db, auth, storage } from '@/lib/firebase';
 import { getPriceForSku } from '@/lib/pricing';
 import { pushAdvancedMatching } from '@/lib/metaPixel';
+import { primeAudioContext } from '@/lib/audioContext';
 import VideoOfferModal from '@/components/VideoOfferModal';
 import { styles } from './entregaStyles';
 
@@ -843,18 +844,38 @@ function EntregaContent() {
                             <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '8px' }}>Gerando PIX com aprovação instantânea...</p>
                           </div>
                         ) : (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              navigator.clipboard.writeText(videoPixInfo.qrCode);
-                              setPixCopied(true);
-                              setTimeout(() => setPixCopied(false), 3000);
-                            }}
-                            className="btn btn-primary"
-                            style={{ width: '100%', padding: '12px', borderRadius: '8px', fontWeight: 'bold', background: 'linear-gradient(135deg, #059669 0%, #047857 100%)', border: 'none', color: '#fff', cursor: 'pointer' }}
-                          >
-                            {pixCopied ? '✅ Código PIX Copiado!' : '📋 Copiar Código PIX (R$ 6,90)'}
-                          </button>
+                          <>
+                            {videoPixInfo.qrCodeBase64 && (
+                              <img
+                                src={videoPixInfo.qrCodeBase64}
+                                alt="QR Code para pagamento do Vídeo Homenagem via PIX"
+                                style={{ width: '200px', maxWidth: '100%', height: 'auto', background: '#FFFFFF', padding: '10px', borderRadius: '12px', marginBottom: '12px' }}
+                              />
+                            )}
+                            <div style={{ marginBottom: '10px', textAlign: 'left' }}>
+                              <label htmlFor="pix-copia-cola-video" style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
+                                Ou use o código PIX Copia e Cola:
+                              </label>
+                              <textarea
+                                id="pix-copia-cola-video"
+                                readOnly
+                                value={videoPixInfo.qrCode}
+                                style={{ width: '100%', height: '64px', background: '#FFFFFF', color: '#0f172a', border: '1.5px solid var(--border-color)', borderRadius: '8px', padding: '10px', fontSize: '0.72rem', fontFamily: 'monospace', resize: 'none' }}
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(videoPixInfo.qrCode);
+                                setPixCopied(true);
+                                setTimeout(() => setPixCopied(false), 3000);
+                              }}
+                              className="btn btn-primary"
+                              style={{ width: '100%', padding: '12px', borderRadius: '8px', fontWeight: 'bold', background: 'linear-gradient(135deg, #059669 0%, #047857 100%)', border: 'none', color: '#fff', cursor: 'pointer' }}
+                            >
+                              {pixCopied ? '✅ Código PIX Copiado!' : '📋 Copiar Código PIX (R$ 6,90)'}
+                            </button>
+                          </>
                         )}
                         {videoPixPollingTimedOut && (
                           <div style={{ width: '100%', marginTop: '10px', padding: '10px 14px', background: 'rgba(234, 179, 8, 0.15)', border: '1px solid rgba(234, 179, 8, 0.4)', borderRadius: '10px', color: '#facc15', fontSize: '0.8rem', textAlign: 'center' }}>
@@ -1094,6 +1115,13 @@ function EntregaContent() {
                                 onClick={async () => {
                                   const totalCount = existingPhotos.length + newPhotoFiles.length;
                                   if (!orderId || totalCount < 10) return;
+
+                                  // Destrava o áudio AQUI, síncrono e antes de qualquer await: o
+                                  // upload das fotos leva minutos e, quando a renderização enfim
+                                  // começa, o navegador já não autoriza iniciar áudio — era essa a
+                                  // causa dos vídeos entregues mudos (ver src/lib/audioContext.js).
+                                  primeAudioContext();
+
                                   setIsUploadingPhotos(true);
                                   setPhotoError('');
                                   try {
@@ -1224,6 +1252,34 @@ function EntregaContent() {
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', alignItems: 'center' }}>
                         {pixInfo.qrCode ? (
                           <div style={{ width: '100%' }}>
+                            {/* Imagem do QR Code como caminho principal: parte dos clientes não
+                                localizava o botão de copiar e desistia do pagamento. O copia-e-cola
+                                continua abaixo para quem paga pelo computador. */}
+                            {pixInfo.qrCodeBase64 && (
+                              <div style={{ textAlign: 'center', marginBottom: '14px' }}>
+                                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '10px' }}>
+                                  Abra o app do seu banco e aponte a câmera para o QR Code:
+                                </p>
+                                <img
+                                  src={pixInfo.qrCodeBase64}
+                                  alt="QR Code para pagamento via PIX"
+                                  style={{ width: '220px', maxWidth: '100%', height: 'auto', background: '#FFFFFF', padding: '10px', borderRadius: '12px' }}
+                                />
+                              </div>
+                            )}
+
+                            <div style={{ marginBottom: '10px' }}>
+                              <label htmlFor="pix-copia-cola-musica" style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
+                                Ou use o código PIX Copia e Cola:
+                              </label>
+                              <textarea
+                                id="pix-copia-cola-musica"
+                                readOnly
+                                value={pixInfo.qrCode}
+                                style={{ width: '100%', height: '70px', background: '#FFFFFF', color: '#0f172a', border: '1.5px solid var(--border-color)', borderRadius: '8px', padding: '10px', fontSize: '0.75rem', fontFamily: 'monospace', resize: 'none' }}
+                              />
+                            </div>
+
                             <button
                               type="button"
                               onClick={() => {

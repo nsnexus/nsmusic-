@@ -57,6 +57,28 @@ describe('efi-proxy worker', () => {
     expect(res.status).toBe(400);
   });
 
+  it('permite GET /v2/loc/:id/qrcode (imagem do QR Code da cobrança)', async () => {
+    const mtlsFetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ imagemQrcode: 'data:image/png;base64,AAA' }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    );
+    const env = makeEnv({ EFI_MTLS_CERT_SANDBOX: { fetch: mtlsFetch } });
+
+    const req = relayRequest({ env: 'sandbox', path: '/v2/loc/12345/qrcode', method: 'GET', headers: {} });
+    const res = await worker.fetch(req, env);
+
+    expect(res.status).toBe(200);
+    expect(mtlsFetch.mock.calls[0][0]).toBe('https://pix-h.api.efipay.com.br/v2/loc/12345/qrcode');
+  });
+
+  it('rejeita id não numérico em /v2/loc/:id/qrcode', async () => {
+    const req = relayRequest({ env: 'sandbox', path: '/v2/loc/../cob/qrcode', method: 'GET', headers: {} });
+    const res = await worker.fetch(req, makeEnv());
+    expect(res.status).toBe(400);
+  });
+
   it('rejeita método não permitido para o path', async () => {
     const req = relayRequest({ env: 'sandbox', path: '/oauth/token', method: 'DELETE', headers: {} });
     const res = await worker.fetch(req, makeEnv());

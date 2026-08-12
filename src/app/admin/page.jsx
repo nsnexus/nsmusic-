@@ -40,6 +40,8 @@ export default function AdminDashboard() {
   const [retryDeselected, setRetryDeselected] = useState(new Set());
   const [retryingGeneration, setRetryingGeneration] = useState(false);
   const [retryResult, setRetryResult] = useState(null);
+  const [reconciling, setReconciling] = useState(false);
+  const [reconcileResult, setReconcileResult] = useState(null);
   const [packages, setPackages] = useState([]);
   const [addons, setAddons] = useState([]);
   const [loadingPricing, setLoadingPricing] = useState(false);
@@ -334,6 +336,35 @@ export default function AdminDashboard() {
     }
     setRetryResult({ success, failed, total: selected.length });
     setRetryingGeneration(false);
+  };
+
+  // Reconciliação no servidor: varre pedidos presos em GERANDO_AUDIO e pagamentos ainda em
+  // AGUARDANDO_PAGAMENTO, confirmando cada um direto na Kie.ai e na Efí. Existe porque a via normal
+  // (webhook + polling do navegador do cliente) morre junto com a aba do cliente — ver o comentário
+  // de topo de src/app/api/orders/reconcile/route.js.
+  const handleReconcile = async () => {
+    if (!confirm('Verificar agora, direto na Kie.ai e na Efí, os pedidos presos em geração e os pagamentos pendentes?')) return;
+
+    setReconciling(true);
+    setReconcileResult(null);
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      const res = await fetch('/api/orders/reconcile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        // A listagem é um onSnapshot vivo — os pedidos corrigidos aparecem sozinhos, sem recarregar.
+        setReconcileResult(data);
+      } else {
+        setReconcileResult({ error: data.error || 'Falha ao reconciliar os pedidos.' });
+      }
+    } catch (e) {
+      setReconcileResult({ error: 'Falha de conexão ao reconciliar os pedidos.' });
+    } finally {
+      setReconciling(false);
+    }
   };
 
   const getOccasionEmoji = (occ) => {
@@ -1022,6 +1053,48 @@ export default function AdminDashboard() {
               <p style={{ color: '#64748b', fontSize: '0.9rem', marginBottom: '24px' }}>
                 Letra pronta, mas a geração de música nunca chegou a completar. Revise e reenvie para a Kie.ai.
               </p>
+
+              {/* Reconciliação: primeiro passo antes de reenviar qualquer coisa para a Kie.ai.
+                  Boa parte dos pedidos "travados" na verdade já tem a música pronta lá e/ou o
+                  pagamento confirmado na Efí — o que faltou foi alguém no servidor perguntar, já
+                  que o polling morre quando o cliente fecha a aba. Reenviar sem checar antes
+                  gastaria crédito à toa e geraria uma segunda música. */}
+              <div className="glass-card" style={{ padding: '20px', borderRadius: '14px', backgroundColor: '#ffffff', border: '1px solid #e2e8f0', marginBottom: '20px' }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: '800', color: '#0f172a', marginBottom: '6px' }}>
+                  1. Verificar na fonte antes de reenviar
+                </h3>
+                <p style={{ color: '#64748b', fontSize: '0.85rem', marginBottom: '14px' }}>
+                  Consulta a Kie.ai e a Efí direto do servidor: recupera música já pronta que nunca
+                  chegou ao pedido e libera pagamento já confirmado que ficou preso. Não gera música
+                  nova nem cobra nada.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleReconcile}
+                  disabled={reconciling}
+                  className="btn btn-primary"
+                  style={{ padding: '11px 20px', fontSize: '0.9rem', fontWeight: '700', opacity: reconciling ? 0.6 : 1, cursor: reconciling ? 'wait' : 'pointer' }}
+                >
+                  {reconciling ? '⏳ Verificando...' : '🔄 Verificar pedidos travados e pagamentos'}
+                </button>
+
+                {reconcileResult && (
+                  <div style={{ marginTop: '14px', padding: '12px 16px', backgroundColor: reconcileResult.error ? '#fee2e2' : '#d1fae5', border: `1px solid ${reconcileResult.error ? '#ef4444' : '#10b981'}`, borderRadius: '8px', color: reconcileResult.error ? '#991b1b' : '#065f46', fontWeight: '600', fontSize: '0.85rem' }}>
+                    {reconcileResult.error ? reconcileResult.error : (
+                      <>
+                        Música: {reconcileResult.audio?.checked || 0} verificado(s) —{' '}
+                        {reconcileResult.audio?.completed || 0} recuperado(s),{' '}
+                        {reconcileResult.audio?.stillProcessing || 0} ainda em produção,{' '}
+                        {reconcileResult.audio?.failed || 0} com falha.
+                        <br />
+                        Pagamento: {reconcileResult.payments?.checked || 0} verificado(s) —{' '}
+                        {reconcileResult.payments?.approved || 0} liberado(s),{' '}
+                        {reconcileResult.payments?.stillPending || 0} ainda pendente(s).
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
 
               {retryResult && (
                 <div style={{ padding: '14px 18px', backgroundColor: retryResult.failed > 0 ? '#fef3c7' : '#d1fae5', border: `1px solid ${retryResult.failed > 0 ? '#f59e0b' : '#10b981'}`, borderRadius: '8px', marginBottom: '20px', color: '#065f46', fontWeight: '600', fontSize: '0.9rem' }}>
