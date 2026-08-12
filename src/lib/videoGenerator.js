@@ -10,10 +10,18 @@ import { primeAudioContext } from '@/lib/audioContext';
 // cross-origin sem CORS válido faz createMediaElementSource emitir silêncio por especificação,
 // sem erro nenhum. Com os bytes em mãos, decodeAudioData sempre produz amostras reais ou lança.
 async function fetchAudioBytes(audioUrl) {
-  const attempts = [
-    `/api/audio/proxy?url=${encodeURIComponent(audioUrl)}`,
-    `/api/image-proxy?url=${encodeURIComponent(audioUrl)}`,
-  ];
+  // A URL que chega aqui pode JÁ ser do nosso próprio domínio: /entrega monta o player com
+  // formatAudioUrl, que devolve "/api/audio/proxy?url=...". Envolver isso no proxy de novo produz
+  // "/api/audio/proxy?url=%2Fapi%2Faudio%2Fproxy%3F..." — o proxy recebe um caminho relativo, a
+  // allowlist de domínio recusa, e o download falha com o áudio estando perfeitamente acessível.
+  const jaEhMesmaOrigem = audioUrl.startsWith('/') || audioUrl.startsWith('blob:');
+
+  const attempts = jaEhMesmaOrigem
+    ? [audioUrl]
+    : [
+        `/api/audio/proxy?url=${encodeURIComponent(audioUrl)}`,
+        `/api/image-proxy?url=${encodeURIComponent(audioUrl)}`,
+      ];
 
   for (const url of attempts) {
     try {
