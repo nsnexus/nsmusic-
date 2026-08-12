@@ -57,6 +57,13 @@ async function authorize(req, env) {
   return { ok: false, status: admin.status || 401, error: admin.error || 'Não autorizado.' };
 }
 
+// Descreve a falha de forma útil para o admin sem vazar mensagem de serviço externo: o `code` do
+// Firestore ('permission-denied', 'failed-precondition' para índice faltando, etc.) é o que diz o
+// que fazer a seguir, e é informação da nossa própria infraestrutura.
+function describeFirestoreError(err) {
+  return err?.code ? String(err.code) : 'erro_desconhecido';
+}
+
 async function reconcileStuckAudio(apiKey) {
   const result = { checked: 0, completed: 0, stillProcessing: 0, failed: 0 };
   if (!apiKey) {
@@ -64,11 +71,20 @@ async function reconcileStuckAudio(apiKey) {
     return result;
   }
 
-  const snap = await getDocs(query(
-    collection(db, 'orders'),
-    where('productionStatus', '==', 'GERANDO_AUDIO'),
-    limit(MAX_AUDIO_ORDERS)
-  ));
+  // Cada fase falha por conta própria: sem isso, uma query recusada derrubava a rota inteira num 500
+  // genérico e escondia qual das duas quebrou.
+  let snap;
+  try {
+    snap = await getDocs(query(
+      collection(db, 'orders'),
+      where('productionStatus', '==', 'GERANDO_AUDIO'),
+      limit(MAX_AUDIO_ORDERS)
+    ));
+  } catch (err) {
+    console.warn('[reconcile] Falha ao listar pedidos em GERANDO_AUDIO:', err.message);
+    result.error = `consulta_orders: ${describeFirestoreError(err)}`;
+    return result;
+  }
 
   for (const orderDoc of snap.docs) {
     const orderData = orderDoc.data();
@@ -149,11 +165,18 @@ async function reconcileStuckAudio(apiKey) {
 async function reconcilePendingPayments(env) {
   const result = { checked: 0, approved: 0, stillPending: 0 };
 
-  const snap = await getDocs(query(
-    collection(db, 'orders'),
-    where('paymentStatus', '==', 'AGUARDANDO_PAGAMENTO'),
-    limit(MAX_PAYMENT_ORDERS)
-  ));
+  let snap;
+  try {
+    snap = await getDocs(query(
+      collection(db, 'orders'),
+      where('paymentStatus', '==', 'AGUARDANDO_PAGAMENTO'),
+      limit(MAX_PAYMENT_ORDERS)
+    ));
+  } catch (err) {
+    console.warn('[reconcile] Falha ao listar pedidos aguardando pagamento:', err.message);
+    result.error = `consulta_orders: ${describeFirestoreError(err)}`;
+    return result;
+  }
 
   for (const orderDoc of snap.docs) {
     const orderData = orderDoc.data();
@@ -202,8 +225,24 @@ export async function POST(req) {
 
     const apiKey = readEnv(env, 'KIE_API_KEY');
 
-    const audio = await reconcileStuckAudio(apiKey);
-    const payments = await reconcilePendingPayments(env);
+    // Uma fase nunca derruba a outra: se a consulta de música falhar, a de pagamento ainda roda (e
+    // vice-versa). O erro de cada uma volta no próprio bloco, para o admin ver o que aconteceu em
+    // vez de um 500 sem explicação.
+    let audio;
+    try {
+      audio = await reconcileStuckAudio(apiKey);
+    } catch (err) {
+      console.error('[reconcile] Falha inesperada na fase de música:', err.message);
+      audio = { checked: 0, completed: 0, stillProcessing: 0, failed: 0, error: `inesperado: ${describeFirestoreError(err)}` };
+    }
+
+    let payments;
+    try {
+      payments = await reconcilePendingPayments(env);
+    } catch (err) {
+      console.error('[reconcile] Falha inesperada na fase de pagamento:', err.message);
+      payments = { checked: 0, approved: 0, stillPending: 0, error: `inesperado: ${describeFirestoreError(err)}` };
+    }
 
     console.log('[reconcile] Resultado:', JSON.stringify({ audio, payments }));
 

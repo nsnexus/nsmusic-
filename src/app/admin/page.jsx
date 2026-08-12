@@ -1078,22 +1078,39 @@ export default function AdminDashboard() {
                   {reconciling ? '⏳ Verificando...' : '🔄 Verificar pedidos travados e pagamentos'}
                 </button>
 
-                {reconcileResult && (
-                  <div style={{ marginTop: '14px', padding: '12px 16px', backgroundColor: reconcileResult.error ? '#fee2e2' : '#d1fae5', border: `1px solid ${reconcileResult.error ? '#ef4444' : '#10b981'}`, borderRadius: '8px', color: reconcileResult.error ? '#991b1b' : '#065f46', fontWeight: '600', fontSize: '0.85rem' }}>
-                    {reconcileResult.error ? reconcileResult.error : (
-                      <>
-                        Música: {reconcileResult.audio?.checked || 0} verificado(s) —{' '}
-                        {reconcileResult.audio?.completed || 0} recuperado(s),{' '}
-                        {reconcileResult.audio?.stillProcessing || 0} ainda em produção,{' '}
-                        {reconcileResult.audio?.failed || 0} com falha.
-                        <br />
-                        Pagamento: {reconcileResult.payments?.checked || 0} verificado(s) —{' '}
-                        {reconcileResult.payments?.approved || 0} liberado(s),{' '}
-                        {reconcileResult.payments?.stillPending || 0} ainda pendente(s).
-                      </>
-                    )}
-                  </div>
-                )}
+                {reconcileResult && (() => {
+                  // Erro pode vir em três lugares: na rota inteira, ou em cada uma das duas fases
+                  // (elas falham de forma independente). Sem mostrar os três, uma consulta recusada
+                  // pelo Firestore aparecia como "0 verificados", indistinguível de base limpa.
+                  const phaseErrors = [
+                    reconcileResult.audio?.error ? `Música: ${reconcileResult.audio.error}` : null,
+                    reconcileResult.payments?.error ? `Pagamento: ${reconcileResult.payments.error}` : null,
+                  ].filter(Boolean);
+                  const hasError = !!reconcileResult.error || phaseErrors.length > 0;
+
+                  return (
+                    <div style={{ marginTop: '14px', padding: '12px 16px', backgroundColor: hasError ? '#fee2e2' : '#d1fae5', border: `1px solid ${hasError ? '#ef4444' : '#10b981'}`, borderRadius: '8px', color: hasError ? '#991b1b' : '#065f46', fontWeight: '600', fontSize: '0.85rem' }}>
+                      {reconcileResult.error ? reconcileResult.error : (
+                        <>
+                          Música: {reconcileResult.audio?.checked || 0} verificado(s) —{' '}
+                          {reconcileResult.audio?.completed || 0} recuperado(s),{' '}
+                          {reconcileResult.audio?.stillProcessing || 0} ainda em produção,{' '}
+                          {reconcileResult.audio?.failed || 0} com falha.
+                          <br />
+                          Pagamento: {reconcileResult.payments?.checked || 0} verificado(s) —{' '}
+                          {reconcileResult.payments?.approved || 0} liberado(s),{' '}
+                          {reconcileResult.payments?.stillPending || 0} ainda pendente(s).
+                          {phaseErrors.length > 0 && (
+                            <>
+                              <br /><br />
+                              Falhas: {phaseErrors.join(' · ')}
+                            </>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
 
               {retryResult && (
