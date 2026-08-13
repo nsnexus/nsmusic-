@@ -56,7 +56,7 @@ export async function POST(req) {
       provider = 'efi';
     } catch (errEfi) {
       console.warn('[api/payments/create] Efí falhou, tentando PagBank:', errEfi.message);
-      debugFallback.efi = errEfi.message;
+      debugFallback.efi = errEfi.message + ' | ' + (errEfi.efiEnv || '');
 
       try {
         // 2. Prioridade 2: PagBank (Usa CNPJ fixo)

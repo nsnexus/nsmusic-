@@ -102,6 +102,11 @@ async function getAccessToken(env) {
     // o mesmo 401 de credencial inválida — sem saber o ambiente resolvido, os dois casos são
     // indistinguíveis de fora e a investigação trava (aconteceu em 13/08/2026).
     err.efiEnv = getEfiMode(env) + '-' + (clientId ? clientId.slice(-4) : 'none');
+    // TODO(debug-temp): remover junto com o resto do _debugFallback (route.js) — comparando o sufixo
+    // do EFI_PROXY_SECRET que o app está lendo agora contra o valor gerado, pra achar dessincronia.
+    const proxySecretDebug = readEnvValue(env, 'EFI_PROXY_SECRET');
+    err.efiEnv += ' proxySecretSuffix=' + (proxySecretDebug ? proxySecretDebug.slice(-6) : 'EMPTY');
+    err.efiEnv += ' proxyUrl=' + readEnvValue(env, 'EFI_PROXY_URL');
     throw err;
   }
 
