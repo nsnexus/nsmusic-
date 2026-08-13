@@ -1,7 +1,11 @@
 ﻿const PIX_KEY = '+5594991064043';
-const MERCHANT_NAME = 'NS Music';
-const MERCHANT_CITY = 'Brasilia';
-const GUI = 'BR.GOV.BCB.PIX';
+// Nome e cidade batem com o que está registrado de verdade na chave (confirmado com um Pix Copia e
+// Cola real gerado pelo banco do dono da chave) — não é o nome fantasia da empresa. A maioria dos
+// apps de banco ignora esses dois campos e busca o nome real no DICT pela chave, mas alinhar evita
+// qualquer app mais rígido que compare o texto do QR.
+const MERCHANT_NAME = 'NARCISO H F SANTOS';
+const MERCHANT_CITY = 'PARAUAPEBAS';
+const GUI = 'br.gov.bcb.pix';
 
 function emv(id, value) {
   const len = String(value.length).padStart(2, '0');
