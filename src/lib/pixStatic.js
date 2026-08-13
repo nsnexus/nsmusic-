@@ -1,10 +1,4 @@
-// Gerador local de payload EMV para PIX estatico — paliatativo enquanto a API da Efi
-// nao chama nenhuma API externa: gera o BR Code (copia-e-cola) 100%
-// no servidor a partir da chave email, valor e orderId.
-//
-// Spec: Manual de Padroes para Iniciacao do Pix (BACEN) — formato EMV QR Code.
-
-const PIX_KEY = 'nsnexustech@gmail.com';
+ï»¿const PIX_KEY = 'nsnexustech@gmail.com';
 const MERCHANT_NAME = 'NS Music';
 const MERCHANT_CITY = 'Brasilia';
 const GUI = 'br.gov.bcb.pix';
@@ -37,7 +31,7 @@ export function generateStaticPixPayload(amount, orderId) {
   const txid = generateStaticTxid(orderId);
   const valorStr = amount.toFixed(2);
 
-  const mai = emv('00', GUI) + emv('01', PIX_KEY) + emv('02', `Pedido ${orderId}`.slice(0, 25));
+  const mai = emv('00', GUI) + emv('01', PIX_KEY) + emv('02', ('Pedido ' + orderId).slice(0, 25));
   const field26 = emv('26', mai);
   const field62 = emv('62', emv('05', txid));
 
@@ -57,9 +51,5 @@ export function generateStaticPixPayload(amount, orderId) {
   const crc = crc16(payload);
   payload += crc;
 
-  return {
-    txid,
-    pixCopiaECola: payload,
-    status: 'ATIVA',
-  };
+  return { txid, pixCopiaECola: payload, status: 'ATIVA' };
 }
