@@ -42,9 +42,6 @@ export async function POST(req) {
 
     let charge;
     let provider = 'static';
-    // TODO(debug-temp): remover _debugFallback assim que a causa do fallback for confirmada —
-    // ver .claude/rules/security.md (mensagem de erro de serviço externo não deve chegar ao cliente).
-    const debugFallback = {};
 
     const existingOrderData = orderSnap.data();
     const customerName = existingOrderData.customerName || 'Cliente';
@@ -56,7 +53,6 @@ export async function POST(req) {
       provider = 'efi';
     } catch (errEfi) {
       console.warn('[api/payments/create] Efí falhou, tentando PagBank:', errEfi.message);
-      debugFallback.efi = errEfi.message + ' | ' + (errEfi.efiEnv || '');
 
       try {
         // 2. Prioridade 2: PagBank (Usa CNPJ fixo)
@@ -64,7 +60,6 @@ export async function POST(req) {
         provider = 'pagbank';
       } catch (errPagBank) {
         console.warn('[api/payments/create] PagBank falhou, caindo para PIX Estático:', errPagBank.message);
-        debugFallback.pagbank = errPagBank.message;
 
         // 3. Prioridade 3: Fallback Paliativo (Estático manual)
         charge = generateStaticPixPayload(amount, orderId);
@@ -106,8 +101,7 @@ export async function POST(req) {
       qrCode: charge.pixCopiaECola,
       qrCodeBase64: '',
       ticketUrl: '',
-      provider: provider,
-      _debugFallback: debugFallback
+      provider: provider
     });
 
   } catch (error) {
