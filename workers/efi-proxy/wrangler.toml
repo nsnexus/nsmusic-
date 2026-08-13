@@ -24,7 +24,7 @@ certificate_id = "c8facf26-086e-455e-8faa-52c9a456be18"
 
 [[mtls_certificates]]
 binding = "EFI_MTLS_CERT_PRODUCTION"
-certificate_id = "cb017d25-e439-418b-9b34-6ecbd4e75c89"
+certificate_id = "1f978a7b-f5f2-42e2-9e3f-a17e91c9ae78"
 
 # Reconciliação agendada de pedidos travados (handler `scheduled` em src/worker.js). Mora aqui e não
 # no app porque Cloudflare Pages não suporta cron trigger — só Workers suportam, a mesma limitação

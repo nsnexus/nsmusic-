@@ -101,7 +101,7 @@ async function getAccessToken(env) {
     // Credencial de produção usada contra o host de homologação (ou vice-versa) devolve exatamente
     // o mesmo 401 de credencial inválida — sem saber o ambiente resolvido, os dois casos são
     // indistinguíveis de fora e a investigação trava (aconteceu em 13/08/2026).
-    err.efiEnv = getEfiMode(env);
+    err.efiEnv = getEfiMode(env) + '-' + (clientId ? clientId.slice(-4) : 'none');
     throw err;
   }
 
