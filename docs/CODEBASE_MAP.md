@@ -81,9 +81,10 @@ para o que ainda depende de rate limiting externo (A-04/A-12, não implementado 
 | `POST /api/payments/create` | `payments/create/route.js` | Deriva o valor do catálogo (`src/lib/pricing.js`) por `sku`; cria cobrança real na Efí (`src/lib/efi.js:createPixCharge`); persiste `paymentIntentId` (txid)/`expectedAmount`/`paymentIntentSku` | Pública |
 | `GET /api/payments/status` | `payments/status/route.js` | Consulta a Efí (`getChargeStatus`) e chama `src/lib/payments.js:applyPaymentApproval` | Pública |
 | `POST /api/webhooks/efi` | `webhooks/efi/route.js` | Segredo `?secret=` (se configurado) + reconsulta `getChargeStatus` antes de aprovar; chama `applyPaymentApproval` | Segredo na URL |
-| `POST /api/suno/generate` | `suno/generate/route.js:POST` | Dispara geração na Kie.ai; inclui segredo no callback (A-03) | Pública |
-| `GET /api/suno/status` | `suno/status/route.js:GET` | Polling do status; `orderId` sempre vem do `suno_tasks`, nunca da query (A-02) | Pública |
+| `POST /api/suno/generate` | `suno/generate/route.js:POST` | Fino: valida corpo e delega a `src/lib/suno.js:requestSunoGeneration`; inclui segredo no callback (A-03) | Pública |
+| `GET /api/suno/status` | `suno/status/route.js:GET` | Polling do status; `orderId` sempre vem do `suno_tasks`, nunca da query (A-02); em falha definitiva da Kie.ai, tenta `src/lib/suno.js:maybeAutoRetrySunoFailure` antes de admitir erro ao cliente | Pública |
 | `POST /api/suno/webhook` | `suno/webhook/route.js:POST` | Callback da Kie.ai; exige `?secret=` se `KIE_WEBHOOK_SECRET` configurado | Segredo compartilhado |
+| `POST /api/orders/reconcile` | `orders/reconcile/route.js:POST` | Terceira via de convergência (webhook/polling do cliente + esta): recupera música pronta e pagamento confirmado que ficaram presos porque o cliente fechou a aba; retenta geração automaticamente via `src/lib/suno.js`. Acionável pelo painel ou por cron no Worker `efi-proxy` | Admin ou segredo (`RECONCILE_SECRET`) |
 | `POST /api/lyrics/generate` | `lyrics/generate/route.js:POST` | Compõe a letra | Pública |
 | `POST /api/lyrics/improve` | `lyrics/improve/route.js:POST` | Ajusta a letra | Pública |
 | `POST /api/video/generate` | `video/generate/route.js:POST` | Registra fotos do slideshow; exige `hasVideoAccess` (A-07) | Pública (gate por acesso pago) |
@@ -105,7 +106,8 @@ para o que ainda depende de rate limiting externo (A-04/A-12, não implementado 
 | `whatsappTemplates.js` | Templates de mensagem do WhatsApp (M-19) — sem dependência de `@cloudflare/next-on-pages`, importável por componentes client-side |
 | `whatsapp.js` | Envio/verificação via W-API; re-exporta os templates acima |
 | `authErrors.js` | `getFriendlyAuthErrorMessage` (B-04) |
-| `sunoPayload.js` | `buildSunoPayload` — payload de `/api/suno/generate` (M-12) |
+| `sunoPayload.js` | `buildSunoPayload` — payload de `/api/suno/generate`, reaproveitado também pela retentativa automática (M-12) |
+| `suno.js` | `requestSunoGeneration` (chamada à Kie.ai + persistência, extraído de `api/suno/generate`), `maybeAutoRetrySunoFailure` (retry automático limitado — até 3 tentativas — quando a Kie.ai reporta falha definitiva, com reserva de idempotência), `resolveLatestTaskId` (segue a cadeia de `retryTaskId` até a tarefa mais recente) |
 | `firebase.js` / `firebase-edge.js` | Client SDK completo (browser) / `firestore/lite` (rotas Edge) |
 | `gemini.js` | `runGeminiWithFailover` — OpenAI primário, Gemini fallback |
 | `videoGenerator.js` | `createSlideshowVideo` — importado dinamicamente em `entrega/page.jsx` (code splitting, Lote 6) |
@@ -161,11 +163,17 @@ cancelamentos, revogando acesso já concedido.
 
 `criar/page.jsx` → `POST /api/lyrics/generate` (`src/lib/gemini.js:runGeminiWithFailover`) →
 aprovação da letra pelo usuário → `POST /api/suno/generate` (payload via
-`src/lib/sunoPayload.js:buildSunoPayload`, M-12) → Kie.ai → resultado chega por **duas** vias
-concorrentes: `POST /api/suno/webhook` (autenticado por segredo, A-03) e polling
-`GET /api/suno/status` (orderId nunca vem da query, A-02), ambas convergindo em
-`src/lib/db.js:updateTaskResult` (que também dispara o WhatsApp, com idempotência via `runTransaction`).
-Normalização das faixas: `src/lib/db.js:extractAudioTracks`.
+`src/lib/sunoPayload.js:buildSunoPayload`, M-12; chamada real em `src/lib/suno.js:requestSunoGeneration`)
+→ Kie.ai → resultado chega por **três** vias: `POST /api/suno/webhook` (autenticado por segredo, A-03),
+polling `GET /api/suno/status` (orderId nunca vem da query, A-02) e o cron de `POST /api/orders/reconcile`
+para quem já fechou a aba — as três convergem em `src/lib/db.js:updateTaskResult` (que também dispara o
+WhatsApp, com idempotência via `runTransaction`). Normalização das faixas: `src/lib/db.js:extractAudioTracks`.
+
+Quando a Kie.ai reporta falha definitiva para uma tarefa (não timeout — falha real), o polling e o cron
+tentam reenviar automaticamente via `src/lib/suno.js:maybeAutoRetrySunoFailure` (até 3 vezes, com reserva
+de idempotência no pedido). A nova tarefa fica encadeada à antiga por `retryTaskId` em `suno_tasks`, e
+`resolveLatestTaskId` segue essa cadeia — quem já estava consultando a tarefa antiga (cliente com a aba
+aberta, ou o próprio cron) acaba vendo o resultado da nova sem precisar saber que ela existe.
 
 **A geração ocorre antes do pagamento** — a cobrança acontece só para liberar o download.
 

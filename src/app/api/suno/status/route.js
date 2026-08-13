@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getTask, updateTaskResult, extractAudioTracks } from '@/lib/db';
 import { getRequestContext } from '@cloudflare/next-on-pages';
+import { resolveLatestTaskId, maybeAutoRetrySunoFailure, recordSunoFailure } from '@/lib/suno';
+
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
@@ -16,22 +18,23 @@ export async function GET(req) {
       return NextResponse.json({ error: "taskId é obrigatório" }, { status: 400 });
     }
 
-    let apiKey = '';
+    let env = {};
     try {
       const ctx = getRequestContext();
-      if (ctx?.env?.KIE_API_KEY) {
-        apiKey = String(ctx.env.KIE_API_KEY).trim();
-      }
+      if (ctx?.env) env = ctx.env;
     } catch (e) {}
 
-    if (!apiKey) {
-      apiKey = String(process.env.KIE_API_KEY || '').trim();
-    }
+    let apiKey = String(env.KIE_API_KEY || process.env.KIE_API_KEY || '').trim();
 
     if (!apiKey) {
       console.error('[api/suno/status] Variável de ambiente KIE_API_KEY não configurada.');
       return NextResponse.json({ error: 'Configuração ausente: KIE_API_KEY não definida no servidor.' }, { status: 500 });
     }
+
+    // Segue a cadeia de retentativas automáticas (ver src/lib/suno.js): se esta tarefa já falhou e
+    // foi reenviada por trás das cortinas, o cliente que está fazendo polling pelo taskId ORIGINAL
+    // acaba consultando o resultado da tarefa nova, sem precisar saber que ela existe.
+    const effectiveTaskId = await resolveLatestTaskId(taskId);
 
     // ============================================================
     // 1. PRIMÁRIO: Consulta direta na API da Kie.ai (sem depender do Firestore)
@@ -40,7 +43,7 @@ export async function GET(req) {
     //    - Reconhece TEXT_SUCCESS (stream pronto) e SUCCESS (MP3 finalizado)
     // ============================================================
     try {
-      const kieRes = await fetch(`https://api.kie.ai/api/v1/generate/record-info?taskId=${taskId}`, {
+      const kieRes = await fetch(`https://api.kie.ai/api/v1/generate/record-info?taskId=${effectiveTaskId}`, {
         headers: {
           'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json'
@@ -64,7 +67,7 @@ export async function GET(req) {
             const tracksArray = extractAudioTracks(kieData);
             if (tracksArray.length > 0) {
               // Garante a atualização do pedido no Firestore e envio do WhatsApp antes de responder
-              await updateTaskResult(taskId, kieData);
+              await updateTaskResult(effectiveTaskId, kieData);
               return NextResponse.json({ status: "COMPLETED", tracks: tracksArray });
             }
           }
@@ -74,8 +77,26 @@ export async function GET(req) {
             return NextResponse.json({ status: "PROCESSING", kieStatus: rawStatus });
           }
 
-          // Se tem erro, retorna o erro da Kie.ai
+          // Falha definitiva reportada pela Kie.ai: tenta retentativa automática antes de admitir
+          // erro ao cliente. Enquanto houver orçamento de tentativas (ver MAX_AUTO_RETRIES em
+          // src/lib/suno.js), o cliente nem chega a ver essa falha — continua vendo "PROCESSING" e o
+          // polling segue, agora seguindo a cadeia acima na próxima consulta.
           if (rawStatus.includes('FAIL') || rawStatus.includes('ERROR')) {
+            const task = await getTask(effectiveTaskId);
+            const orderId = task?.orderId || null;
+            const motivo = `kie_status_${rawStatus}`;
+
+            const retry = orderId
+              ? await maybeAutoRetrySunoFailure({ taskId: effectiveTaskId, orderId, env, reason: motivo })
+              : { retried: false, reason: 'sem_order_id' };
+
+            if (retry.retried) {
+              return NextResponse.json({ status: "PROCESSING", kieStatus: "RETRYING" });
+            }
+
+            // Sem orderId associado não há pedido para marcar — registra só quando existe.
+            if (orderId) await recordSunoFailure(orderId, `${motivo}_${retry.reason}`);
+
             return NextResponse.json({
               status: "ERROR",
               error: kieData.data.errorMessage || `Kie.ai retornou status: ${rawStatus}`
@@ -94,7 +115,7 @@ export async function GET(req) {
     //    - Pode falhar no Edge por permissões, mas tentamos com try/catch
     // ============================================================
     try {
-      const task = await getTask(taskId);
+      const task = await getTask(effectiveTaskId);
       if (task && task.status === "COMPLETED") {
         const tracks = extractAudioTracks(task.result);
         if (tracks.length > 0) {

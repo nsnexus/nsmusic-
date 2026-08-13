@@ -1078,6 +1078,14 @@ export default function CriarMusica() {
               await waitForAudioReady(primaryAudio);
               window.location.href = `/entrega?orderId=${targetOrder}`;
             }
+          } else if (statusData.status === 'ERROR') {
+            // Falha definitiva da Kie.ai, já com a retentativa automática do servidor esgotada (ver
+            // src/lib/suno.js) — antes disso o polling nunca checava esse status e tratava como "em
+            // produção" até o timeout de 6 minutos, mesmo quando a Kie.ai já tinha desistido em
+            // segundos. Agora o cliente sabe na hora, sem esperar o relógio inteiro rodar.
+            clearInterval(pollIntervalRef.current);
+            updateField('sunoStatus', 'error');
+            updateField('sunoProgress', statusData.error || 'A geração da música falhou. Tente novamente.');
           } else {
             updateField('sunoProgress', `Estúdio produzindo arranjos...`);
           }

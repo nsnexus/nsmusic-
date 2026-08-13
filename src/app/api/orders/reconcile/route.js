@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
-import { collection, query, where, limit, getDocs, doc, updateDoc } from 'firebase/firestore/lite';
+import { collection, query, where, limit, getDocs } from 'firebase/firestore/lite';
 import { dbEdge as db } from '@/lib/firebase-edge';
 import { updateTaskResult, extractAudioTracks } from '@/lib/db';
 import { applyPaymentApproval } from '@/lib/payments';
 import { getChargeStatus } from '@/lib/efi';
 import { requireAdmin } from '@/lib/auth';
+import { resolveLatestTaskId, maybeAutoRetrySunoFailure, recordSunoFailure } from '@/lib/suno';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
@@ -64,8 +65,9 @@ function describeFirestoreError(err) {
   return err?.code ? String(err.code) : 'erro_desconhecido';
 }
 
-async function reconcileStuckAudio(apiKey) {
-  const result = { checked: 0, completed: 0, stillProcessing: 0, failed: 0 };
+async function reconcileStuckAudio(env) {
+  const result = { checked: 0, completed: 0, retried: 0, stillProcessing: 0, failed: 0 };
+  const apiKey = readEnv(env, 'KIE_API_KEY');
   if (!apiKey) {
     result.error = 'KIE_API_KEY não configurada';
     return result;
@@ -93,7 +95,10 @@ async function reconcileStuckAudio(apiKey) {
     result.checked++;
 
     // O vínculo taskId -> orderId mora em suno_tasks (ver saveTask em src/lib/db.js); o pedido não
-    // guarda o taskId, então a busca é pelo caminho inverso.
+    // guarda o taskId, então a busca é pelo caminho inverso. Se houver mais de uma tarefa para o
+    // mesmo pedido (uma retentativa automática já rodou e criou uma segunda), não importa qual das
+    // duas esta query encontra primeiro — resolveLatestTaskId, logo abaixo, segue a cadeia de
+    // retryTaskId a partir de QUALQUER ponto dela e sempre converge na mais recente.
     let taskId = null;
     try {
       const taskSnap = await getDocs(query(
@@ -110,16 +115,17 @@ async function reconcileStuckAudio(apiKey) {
       // Sem taskId não há o que consultar: a chamada à Kie.ai nunca chegou a ser registrada.
       // Marcar o motivo é o que permite ao admin reprocessar o lote pelo painel.
       result.failed++;
-      await updateDoc(doc(db, 'orders', orderDoc.id), {
-        sunoError: 'reconcile_sem_taskid',
-        sunoErrorAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }).catch((e) => console.warn('[reconcile] Falha ao marcar pedido sem taskId:', e.message));
+      await recordSunoFailure(orderDoc.id, 'reconcile_sem_taskid');
       continue;
     }
 
     try {
-      const kieRes = await fetch(`https://api.kie.ai/api/v1/generate/record-info?taskId=${taskId}`, {
+      // Segue a cadeia de retentativas automáticas até a tarefa mais recente (ver
+      // src/lib/suno.js) — o taskId achado acima pode já ter sido substituído por uma retentativa
+      // disparada em tempo real por /api/suno/status enquanto o cliente ainda estava na página.
+      const effectiveTaskId = await resolveLatestTaskId(taskId);
+
+      const kieRes = await fetch(`https://api.kie.ai/api/v1/generate/record-info?taskId=${effectiveTaskId}`, {
         headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
         signal: AbortSignal.timeout(10000),
       });
@@ -136,19 +142,23 @@ async function reconcileStuckAudio(apiKey) {
         if (extractAudioTracks(kieData).length > 0) {
           // Mesmo ponto de convergência do webhook e do polling: grava os áudios, marca
           // AUDIO_GERADO e dispara o WhatsApp de "música pronta" (com a própria idempotência dele).
-          await updateTaskResult(taskId, kieData);
+          await updateTaskResult(effectiveTaskId, kieData);
           result.completed++;
           continue;
         }
       }
 
       if (rawStatus.includes('FAIL') || rawStatus.includes('ERROR')) {
-        result.failed++;
-        await updateDoc(doc(db, 'orders', orderDoc.id), {
-          sunoError: `kie_status_${rawStatus}`,
-          sunoErrorAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        }).catch((e) => console.warn('[reconcile] Falha ao marcar erro da Kie.ai:', e.message));
+        // O cliente já fechou a aba (é por isso que o pedido chegou até aqui) — a retentativa
+        // automática é a única chance de recuperar sem intervenção manual do admin.
+        const motivo = `kie_status_${rawStatus}`;
+        const retry = await maybeAutoRetrySunoFailure({ taskId: effectiveTaskId, orderId: orderDoc.id, env, reason: motivo });
+        if (retry.retried) {
+          result.retried++;
+        } else {
+          result.failed++;
+          await recordSunoFailure(orderDoc.id, `${motivo}_${retry.reason}`);
+        }
         continue;
       }
 
@@ -223,17 +233,15 @@ export async function POST(req) {
       return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
 
-    const apiKey = readEnv(env, 'KIE_API_KEY');
-
     // Uma fase nunca derruba a outra: se a consulta de música falhar, a de pagamento ainda roda (e
     // vice-versa). O erro de cada uma volta no próprio bloco, para o admin ver o que aconteceu em
     // vez de um 500 sem explicação.
     let audio;
     try {
-      audio = await reconcileStuckAudio(apiKey);
+      audio = await reconcileStuckAudio(env);
     } catch (err) {
       console.error('[reconcile] Falha inesperada na fase de música:', err.message);
-      audio = { checked: 0, completed: 0, stillProcessing: 0, failed: 0, error: `inesperado: ${describeFirestoreError(err)}` };
+      audio = { checked: 0, completed: 0, retried: 0, stillProcessing: 0, failed: 0, error: `inesperado: ${describeFirestoreError(err)}` };
     }
 
     let payments;
