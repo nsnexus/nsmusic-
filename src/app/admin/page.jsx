@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { collection, query, orderBy, onSnapshot, limit as fbLimit } from 'firebase/firestore';
@@ -198,6 +198,20 @@ export default function AdminDashboard() {
     return result;
   };
 
+  // Quantas vezes o mesmo telefone aparece nos pedidos já CARREGADOS (não só nos filtrados) — é uma
+  // noção de "cliente recorrente", não uma contagem oficial: se a paginação ainda não carregou tudo
+  // (ver hasMoreOrders/"Carregar todos"), pedidos antigos desse telefone fora da página não entram
+  // na conta. useMemo para não escanear todos os pedidos de novo a cada linha da tabela.
+  const phoneOrderCounts = useMemo(() => {
+    const counts = {};
+    for (const o of orders) {
+      const phone = String(o.customerPhone || '').replace(/\D/g, '');
+      if (!phone) continue;
+      counts[phone] = (counts[phone] || 0) + 1;
+    }
+    return counts;
+  }, [orders]);
+
   // Faturamento respeita o filtro de data (quando definido), mas não as abas de status/tipo — os
   // cartões de topo mostram sempre "quanto entrou no período", independente de qual lista o admin
   // está navegando no momento.
@@ -239,29 +253,54 @@ export default function AdminDashboard() {
   // o faturamento real. `total` só entra como fallback em pedidos antigos sem `expectedAmount`.
   // As condições contra 'FINALIZADO'/'ENTREGUE' foram removidas: são valores de `productionStatus`,
   // nunca de `paymentStatus` — nunca bateram, é código morto de uma confusão entre os dois campos.
+  const AUDIO_PRICE = getPriceForSku('audio_only'); // 9.99, preço base sem variação por pedido
+  const VIDEO_PRICE = getPriceForSku('video_addon'); // 6.90
+
+  // Divide o valor pago entre os dois cards abaixo em vez de jogar tudo em "Músicas": um combo
+  // (música + vídeo comprados juntos, sku 'combo', R$16,89) tem o vídeo embutido no mesmo
+  // expectedAmount — sem separar, "Vídeos" ficava zerado para todo combo vendido, mesmo quando
+  // eram "várias vendas de vídeo" de verdade (achado do admin em 2026-08-12).
   const getFaturamentoMusicas = () => {
     return getOrdersInDateRange()
       .filter(o => o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'PAGO')
       .reduce((sum, o) => {
+        // Vídeo cobrado numa intenção de pagamento SEPARADA (videoPaymentId): expectedAmount reflete
+        // a cobrança mais recente do pedido (a do vídeo, sobrescrita depois da música em
+        // /api/payments/create), não a da música — usar o valor base evita contar o preço do vídeo
+        // como se fosse música.
+        if (o.videoPaymentId) return sum + AUDIO_PRICE;
+
         let val = parseAmount(o.expectedAmount, null);
         if (val === null) val = parseAmount(o.total, null);
-        
-        // Fallback: se o pedido está pago mas não tem valor salvo (ou está como 0), assume o valor base de 9.99
-        if (val === null || val === 0) val = 9.99;
-        
-        return sum + val;
+
+        // Fallback: se o pedido está pago mas não tem valor salvo (ou está como 0), assume o valor base.
+        if (val === null || val === 0) val = AUDIO_PRICE;
+
+        // Combo: conta só a parte da música aqui — a diferença vai para getFaturamentoVideos.
+        return sum + (val > AUDIO_PRICE ? AUDIO_PRICE : val);
       }, 0);
   };
 
-  // Conta só o add-on de vídeo vendido SEPARADAMENTE (videoPaymentId só existe nesse caso — ver
-  // src/lib/payments.js). Pedidos do pacote combo também têm videoAddonPaid=true (o vídeo vem
-  // incluído), mas o valor do vídeo já está dentro do expectedAmount do combo, somado em
-  // getFaturamentoMusicas — contar de novo aqui duplicava a receita do vídeo em todo combo vendido.
   const getFaturamentoVideos = () => {
-    const videoPrice = getPriceForSku('video_addon'); // preço fixo do add-on, sem variação por pedido
-    return getOrdersInDateRange()
+    // Add-on vendido SEPARADAMENTE (videoPaymentId só existe nesse caso — ver src/lib/payments.js).
+    const standalone = getOrdersInDateRange()
       .filter(o => o.videoAddonPaid && o.videoPaymentId)
-      .reduce((sum, o) => sum + videoPrice, 0);
+      .reduce((sum) => sum + VIDEO_PRICE, 0);
+
+    // Vídeo vendido junto com a música no MESMO checkout (combo): a parte do valor pago que excede
+    // o preço da música sozinha. Exclui pedidos com videoPaymentId próprio para não contar duas
+    // vezes o mesmo vídeo comprado depois, em separado.
+    const comboPortion = getOrdersInDateRange()
+      .filter(o => (o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'PAGO') && !o.videoPaymentId)
+      .reduce((sum, o) => {
+        let val = parseAmount(o.expectedAmount, null);
+        if (val === null) val = parseAmount(o.total, null);
+        if (val === null) return sum;
+        const excess = val - AUDIO_PRICE;
+        return sum + (excess > 0 ? excess : 0);
+      }, 0);
+
+    return standalone + comboPortion;
   };
 
   const getFaturamentoTotal = () => {
@@ -748,7 +787,22 @@ export default function AdminDashboard() {
                               </td>
                               <td style={styles.td}>
                                 <div style={{ fontWeight: '600', color: '#0f172a' }}>{o.customerName || 'Cliente'}</div>
-                                <div style={{ fontSize: '0.8rem', color: '#2563eb', fontWeight: '500' }}>{o.customerPhone || 'N/A'}</div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <span style={{ fontSize: '0.8rem', color: '#2563eb', fontWeight: '500' }}>{o.customerPhone || 'N/A'}</span>
+                                  {(() => {
+                                    const digits = String(o.customerPhone || '').replace(/\D/g, '');
+                                    const count = digits ? phoneOrderCounts[digits] : 0;
+                                    // Só aparece a partir da 2ª música — na 1ª seria ruído visual sem informação nova.
+                                    // Total de pedidos deste telefone entre os já carregados — o
+                                    // mesmo número aparece em todas as linhas dele, não é a posição
+                                    // desta linha na sequência.
+                                    return count > 1 ? (
+                                      <span title="Total de pedidos carregados com este telefone" style={{ fontSize: '0.68rem', fontWeight: '700', color: '#7c3aed', backgroundColor: '#f3e8ff', padding: '1px 6px', borderRadius: '999px' }}>
+                                        {count}x cliente
+                                      </span>
+                                    ) : null;
+                                  })()}
+                                </div>
                               </td>
                               <td style={{ ...styles.td, fontWeight: '700' }}>
                                 {(() => {
@@ -842,7 +896,9 @@ export default function AdminDashboard() {
                 </h3>
                 <p style={{ color: '#64748b', fontSize: '0.85rem', marginBottom: '14px' }}>
                   Consulta a Kie.ai e a Efí direto do servidor: recupera música já pronta que nunca
-                  chegou ao pedido, libera pagamento já confirmado que ficou preso e reenvia
+                  chegou ao pedido, libera pagamento já confirmado que ficou preso — inclusive de
+                  add-on de vídeo comprado em separado, que fica preso de um jeito que os outros
+                  pedidos travados não ficam (não é revisado pela mesma checagem) — e reenvia
                   automaticamente (até 3 vezes) quem a Kie.ai reportou como falha real. Nunca cobra o
                   cliente de novo — mas cada reenvio consome um crédito de geração na Kie.ai.
                 </p>
@@ -857,12 +913,13 @@ export default function AdminDashboard() {
                 </button>
 
                 {reconcileResult && (() => {
-                  // Erro pode vir em três lugares: na rota inteira, ou em cada uma das duas fases
-                  // (elas falham de forma independente). Sem mostrar os três, uma consulta recusada
+                  // Erro pode vir em quatro lugares: na rota inteira, ou em cada uma das três fases
+                  // (elas falham de forma independente). Sem mostrar todos, uma consulta recusada
                   // pelo Firestore aparecia como "0 verificados", indistinguível de base limpa.
                   const phaseErrors = [
                     reconcileResult.audio?.error ? `Música: ${reconcileResult.audio.error}` : null,
                     reconcileResult.payments?.error ? `Pagamento: ${reconcileResult.payments.error}` : null,
+                    reconcileResult.videoAddon?.error ? `Add-on de vídeo: ${reconcileResult.videoAddon.error}` : null,
                   ].filter(Boolean);
                   const hasError = !!reconcileResult.error || phaseErrors.length > 0;
 
@@ -879,6 +936,10 @@ export default function AdminDashboard() {
                           Pagamento: {reconcileResult.payments?.checked || 0} verificado(s) —{' '}
                           {reconcileResult.payments?.approved || 0} liberado(s),{' '}
                           {reconcileResult.payments?.stillPending || 0} ainda pendente(s).
+                          <br />
+                          Add-on de vídeo avulso: {reconcileResult.videoAddon?.checked || 0} verificado(s) —{' '}
+                          {reconcileResult.videoAddon?.approved || 0} liberado(s),{' '}
+                          {reconcileResult.videoAddon?.stillPending || 0} ainda pendente(s).
                           {phaseErrors.length > 0 && (
                             <>
                               <br /><br />

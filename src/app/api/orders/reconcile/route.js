@@ -172,6 +172,29 @@ async function reconcileStuckAudio(env) {
   return result;
 }
 
+// Reconsulta uma cobrança na Efí e aplica a aprovação se estiver CONCLUIDA — núcleo compartilhado
+// pelas duas fases de pagamento abaixo (música/combo e add-on de vídeo avulso). O txid vem do
+// próprio documento do pedido, então já é por construção uma cobrança deste pedido — a checagem de
+// posse que /api/payments/status faz contra o paymentId da query string não se aplica aqui. O valor
+// continua vindo sempre da consulta à Efí, nunca do cliente.
+async function checkAndApplyCharge(orderId, txid, env, result) {
+  try {
+    const charge = await getChargeStatus(txid, env);
+    if (charge?.status === 'CONCLUIDA') {
+      await applyPaymentApproval(orderId, txid, {
+        status: 'approved',
+        transaction_amount: Number(charge.valor?.original),
+      });
+      result.approved++;
+    } else {
+      result.stillPending++;
+    }
+  } catch (err) {
+    console.warn('[reconcile] Erro ao consultar cobrança na Efí:', err.message);
+    result.stillPending++;
+  }
+}
+
 async function reconcilePendingPayments(env) {
   const result = { checked: 0, approved: 0, stillPending: 0 };
 
@@ -196,25 +219,49 @@ async function reconcilePendingPayments(env) {
     if (!isOlderThan(orderData.updatedAt, MIN_AGE_MINUTES)) continue;
 
     result.checked++;
+    await checkAndApplyCharge(orderDoc.id, txid, env, result);
+  }
 
-    try {
-      const charge = await getChargeStatus(txid, env);
-      if (charge?.status === 'CONCLUIDA') {
-        // O txid veio do próprio documento do pedido, então já é por construção uma cobrança deste
-        // pedido — a checagem de posse que /api/payments/status faz contra o paymentId da query
-        // string não se aplica aqui. O valor continua vindo da consulta à Efí, nunca do cliente.
-        await applyPaymentApproval(orderDoc.id, txid, {
-          status: 'approved',
-          transaction_amount: Number(charge.valor?.original),
-        });
-        result.approved++;
-      } else {
-        result.stillPending++;
-      }
-    } catch (err) {
-      console.warn('[reconcile] Erro ao consultar cobrança na Efí:', err.message);
-      result.stillPending++;
-    }
+  return result;
+}
+
+// Add-on de vídeo comprado EM SEPARADO (depois da música já paga) nunca escreve `paymentStatus`
+// (regra C-09 — o add-on isolado não pode mexer nesse campo). Isso significa que
+// reconcilePendingPayments, que só olha `paymentStatus === 'AGUARDANDO_PAGAMENTO'`, NUNCA enxerga
+// um pagamento de vídeo avulso que ficou preso — o pedido já está com paymentStatus aprovado (da
+// música) muito antes de o vídeo ser comprado. Achado real: "venda só do vídeo que não
+// contabilizou" (2026-08-12). Esta é a via de reconciliação equivalente, para essa cobrança.
+async function reconcilePendingVideoAddons(env) {
+  const result = { checked: 0, approved: 0, stillPending: 0 };
+
+  // paymentIntentSku é campo único (sem where composto) — índice automático, sem entrada em
+  // firestore.indexes.json. O filtro de "ainda não liberado" (!videoAddonPaid) e o de idade
+  // ficam em memória: a maioria das cobranças com este sku já foi paga com sucesso pela via normal
+  // (polling do cliente em /entrega), então a lista só de fato revisada é sempre pequena.
+  let snap;
+  try {
+    snap = await getDocs(query(
+      collection(db, 'orders'),
+      where('paymentIntentSku', '==', 'video_addon'),
+      limit(MAX_PAYMENT_ORDERS * 4)
+    ));
+  } catch (err) {
+    console.warn('[reconcile] Falha ao listar pedidos com add-on de vídeo pendente:', err.message);
+    result.error = `consulta_orders: ${describeFirestoreError(err)}`;
+    return result;
+  }
+
+  for (const orderDoc of snap.docs) {
+    if (result.checked >= MAX_PAYMENT_ORDERS) break;
+
+    const orderData = orderDoc.data();
+    if (orderData.videoAddonPaid) continue; // já liberado — nada a fazer
+    const txid = orderData.paymentIntentId;
+    if (!txid) continue;
+    if (!isOlderThan(orderData.updatedAt, MIN_AGE_MINUTES)) continue;
+
+    result.checked++;
+    await checkAndApplyCharge(orderDoc.id, txid, env, result);
   }
 
   return result;
@@ -252,9 +299,20 @@ export async function POST(req) {
       payments = { checked: 0, approved: 0, stillPending: 0, error: `inesperado: ${describeFirestoreError(err)}` };
     }
 
-    console.log('[reconcile] Resultado:', JSON.stringify({ audio, payments }));
+    // Fase própria (não dentro de reconcilePendingPayments) porque o add-on de vídeo avulso nunca
+    // toca paymentStatus (C-09) — teria que ser encontrado de um jeito diferente de qualquer forma,
+    // então isolar em outra função e outro try/catch segue o mesmo padrão das outras duas fases.
+    let videoAddon;
+    try {
+      videoAddon = await reconcilePendingVideoAddons(env);
+    } catch (err) {
+      console.error('[reconcile] Falha inesperada na fase de add-on de vídeo:', err.message);
+      videoAddon = { checked: 0, approved: 0, stillPending: 0, error: `inesperado: ${describeFirestoreError(err)}` };
+    }
 
-    return NextResponse.json({ audio, payments });
+    console.log('[reconcile] Resultado:', JSON.stringify({ audio, payments, videoAddon }));
+
+    return NextResponse.json({ audio, payments, videoAddon });
   } catch (error) {
     console.error('[reconcile] Erro geral:', error.message);
     return NextResponse.json({ error: 'Falha ao reconciliar pedidos.' }, { status: 500 });
