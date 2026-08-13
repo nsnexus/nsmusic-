@@ -58,7 +58,7 @@ export async function POST(req) {
       // 424 (Failed Dependency) descreve exatamente o caso — dependência externa falhou — e passa
       // pela borda com o corpo intacto.
       return NextResponse.json(
-        { error: `Não foi possível gerar a cobrança PIX agora${codigo}. Tente novamente.` },
+        { error: `Não foi possível gerar a cobrança PIX agora${codigo}. Tente novamente.`, _debug: err.message },
         { status: 424 }
       );
     }
