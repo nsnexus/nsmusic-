@@ -426,7 +426,8 @@ function EntregaContent() {
         setPixInfo({
           qrCode: data.qrCode || '',
           qrCodeBase64: data.qrCodeBase64 || '',
-          paymentId: data.paymentId || ''
+          paymentId: data.paymentId || '',
+          provider: data.provider || ''
         });
         setPixLoading(false);
       }
