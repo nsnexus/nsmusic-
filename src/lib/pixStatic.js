@@ -31,13 +31,17 @@ export function generateStaticTxid(orderId) {
   return txid;
 }
 
+// Estrutura idêntica, campo por campo, a um Pix Copia e Cola gerado pelo próprio banco do dono da
+// chave (confirmado pagável em outro banco em teste real 2026-08-13) — sem campo de descrição (02)
+// e sem txid real embutido no 62 (usa o marcador genérico "***" que o banco também usa). O txid
+// retornado aqui é só para controle interno (Firestore/admin); nunca entra no payload do QR.
 export function generateStaticPixPayload(amount, orderId) {
   const txid = generateStaticTxid(orderId);
   const valorStr = amount.toFixed(2);
 
-  const mai = emv('00', GUI) + emv('01', PIX_KEY) + emv('02', ('Pedido ' + orderId).slice(0, 25));
+  const mai = emv('00', GUI) + emv('01', PIX_KEY);
   const field26 = emv('26', mai);
-  const field62 = emv('62', emv('05', txid));
+  const field62 = emv('62', emv('05', '***'));
 
   let payload =
     emv('00', '01') +
