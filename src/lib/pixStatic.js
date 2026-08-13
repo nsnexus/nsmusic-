@@ -1,4 +1,4 @@
-﻿const PIX_KEY = 'nsnexustech@gmail.com';
+﻿const PIX_KEY = '+5594991064043';
 const MERCHANT_NAME = 'NS Music';
 const MERCHANT_CITY = 'Brasilia';
 const GUI = 'br.gov.bcb.pix';
@@ -37,7 +37,7 @@ export function generateStaticPixPayload(amount, orderId) {
 
   let payload =
     emv('00', '01') +
-    emv('01', '12') +
+    emv('01', '11') +
     field26 +
     emv('52', '0000') +
     emv('53', '986') +
