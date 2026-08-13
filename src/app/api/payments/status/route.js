@@ -4,6 +4,7 @@ import { doc, getDoc } from 'firebase/firestore/lite';
 import { dbEdge } from '@/lib/firebase-edge';
 import { applyPaymentApproval } from '@/lib/payments';
 import { getChargeStatus } from '@/lib/efi';
+import { getPagBankChargeStatus } from '@/lib/pagbank';
 
 export const runtime = 'edge';
 
@@ -75,11 +76,24 @@ export async function GET(req) {
     }
 
     let charge;
+    let providerFound = null;
     try {
+      // Tenta na Efí primeiro
       charge = await getChargeStatus(txid, env);
+      if (charge) providerFound = 'efi';
     } catch (err) {
-      console.warn("[PaymentStatus] Erro ao consultar a Efí:", err.message);
-      return jsonNoCache({ status: "pending" });
+      // Se falhar (ex: txid não é da efí, ou api inativa), tenta no PagBank
+      try {
+        const pbStatus = await getPagBankChargeStatus(txid, env);
+        charge = {
+          status: pbStatus.status === 'PAID' ? 'CONCLUIDA' : 'PENDENTE',
+          valor: { original: pbStatus.amount }
+        };
+        providerFound = 'pagbank';
+      } catch (errPb) {
+        console.warn("[PaymentStatus] Erro ao consultar Efí e PagBank:", errPb.message);
+        return jsonNoCache({ status: "pending" });
+      }
     }
 
     // O txid consultado precisa ser realmente uma cobrança gerada PARA ESTE pedido — nunca aprovar

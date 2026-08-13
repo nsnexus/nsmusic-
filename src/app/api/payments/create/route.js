@@ -4,6 +4,8 @@ import { doc, getDoc, updateDoc, arrayUnion } from 'firebase/firestore/lite';
 import { dbEdge as db } from '@/lib/firebase-edge';
 import { getPriceForSku } from '@/lib/pricing';
 import { generateStaticPixPayload } from '@/lib/pixStatic';
+import { createPixCharge } from '@/lib/efi';
+import { createPagBankPixCharge } from '@/lib/pagbank';
 
 export const runtime = 'edge';
 
@@ -39,24 +41,35 @@ export async function POST(req) {
     }
 
     let charge;
+    let provider = 'static';
+    
+    const existingOrderData = orderSnap.data();
+    const customerName = existingOrderData.customerName || 'Cliente';
+    const customerEmail = existingOrderData.customerEmail || 'contato@nsnexus.com.br';
+
     try {
-      // PALIATIVO: API da Efí com credenciais inativas — gera cobrança estática local
-      // enquanto a equipe da Efí libera o acesso à API Pix de produção.
-      // A aprovação do pagamento é manual (admin confirma no painel após checar comprovante no WhatsApp).
-      // TODO: reverter para createPixCharge da @/lib/efi quando a Efí liberar as credenciais.
-      charge = generateStaticPixPayload(amount, orderId);
-    } catch (err) {
-      console.error('[api/payments/create] Falha ao gerar cobrança PIX:', err.message);
-      return NextResponse.json(
-        { error: 'Não foi possível gerar a cobrança PIX agora. Tente novamente.' },
-        { status: 500 }
-      );
+      // 1. Prioridade 1: Efí (Pix puro, sem exigência de CPF)
+      charge = await createPixCharge(orderId, amount, sku, env);
+      provider = 'efi';
+    } catch (errEfi) {
+      console.warn('[api/payments/create] Efí falhou, tentando PagBank:', errEfi.message);
+      
+      try {
+        // 2. Prioridade 2: PagBank (Usa CNPJ fixo)
+        charge = await createPagBankPixCharge(orderId, amount, customerName, customerEmail, env);
+        provider = 'pagbank';
+      } catch (errPagBank) {
+        console.warn('[api/payments/create] PagBank falhou, caindo para PIX Estático:', errPagBank.message);
+        
+        // 3. Prioridade 3: Fallback Paliativo (Estático manual)
+        charge = generateStaticPixPayload(amount, orderId);
+        provider = 'static';
+      }
     }
 
     // Persiste a intenção de cobrança no pedido: é o que a aprovação (webhook/status) usa depois para
     // saber o que foi realmente cobrado, em vez de inferir pelo valor da transação (ver A-13).
     try {
-      const existingOrderData = orderSnap.data();
       const updates = {
         paymentIntentId: charge.txid,
         paymentIntentSku: sku,
@@ -87,7 +100,8 @@ export async function POST(req) {
       status: 'pending',
       qrCode: charge.pixCopiaECola,
       qrCodeBase64: '',
-      ticketUrl: ''
+      ticketUrl: '',
+      provider: provider
     });
 
   } catch (error) {

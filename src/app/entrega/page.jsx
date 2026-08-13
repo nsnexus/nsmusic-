@@ -1370,12 +1370,14 @@ function EntregaContent() {
                               />
                             </div>
 
-                            {/* Banner paliativo — remover quando a Efí liberar as credenciais */}
-                            <div style={{ background: '#fef3c7', border: '1.5px solid #f59e0b', borderRadius: '10px', padding: '12px 14px', marginBottom: '4px', textAlign: 'center' }}>
-                              <p style={{ margin: 0, fontSize: '0.82rem', color: '#92400e', fontWeight: '600' }}>
-                                ⚠️ Após pagar, envie o comprovante pelo WhatsApp para liberarmos sua música manualmente.
-                              </p>
-                            </div>
+                            {/* Banner paliativo — só aparece se caiu pro fallback estático */}
+                            {pixInfo.provider === 'static' && (
+                              <div style={{ background: '#fef3c7', border: '1.5px solid #f59e0b', borderRadius: '10px', padding: '12px 14px', marginBottom: '4px', textAlign: 'center' }}>
+                                <p style={{ margin: 0, fontSize: '0.82rem', color: '#92400e', fontWeight: '600' }}>
+                                  ⚠️ Após pagar, envie o comprovante pelo WhatsApp para liberarmos sua música manualmente.
+                                </p>
+                              </div>
+                            )}
 
                             <div style={{ display: 'flex', gap: '10px', width: '100%' }}>
                               <button
@@ -1401,30 +1403,32 @@ function EntregaContent() {
                                 {pixCopied ? '✅ Copiado!' : '📋 Copiar PIX'}
                               </button>
 
-                              <a
-                                href={`https://wa.me/5594991064043?text=${encodeURIComponent(`Olá! Acabei de pagar o pedido *#${orderId}* (R$ ${order?.totalPrice?.toFixed(2) || '9,99'}). Segue o comprovante:`)}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                style={{
-                                  flex: 1,
-                                  padding: '14px',
-                                  borderRadius: '10px',
-                                  border: 'none',
-                                  background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)',
-                                  color: '#FFFFFF',
-                                  fontWeight: 'bold',
-                                  fontSize: '0.95rem',
-                                  cursor: 'pointer',
-                                  boxShadow: '0 4px 14px rgba(37, 211, 102, 0.3)',
-                                  textDecoration: 'none',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  gap: '6px'
-                                }}
-                              >
-                                📲 Enviar comprovante
-                              </a>
+                              {pixInfo.provider === 'static' && (
+                                <a
+                                  href={`https://wa.me/5594991064043?text=${encodeURIComponent(`Olá! Acabei de pagar o pedido *#${orderId}* (R$ ${order?.totalPrice?.toFixed(2) || '9,99'}). Segue o comprovante:`)}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{
+                                    flex: 1,
+                                    padding: '14px',
+                                    borderRadius: '10px',
+                                    border: 'none',
+                                    background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)',
+                                    color: '#FFFFFF',
+                                    fontWeight: 'bold',
+                                    fontSize: '0.95rem',
+                                    cursor: 'pointer',
+                                    boxShadow: '0 4px 14px rgba(37, 211, 102, 0.3)',
+                                    textDecoration: 'none',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '6px'
+                                  }}
+                                >
+                                  📲 Enviar comprovante
+                                </a>
+                              )}
                             </div>
                           </div>
 
