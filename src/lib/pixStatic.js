@@ -1,7 +1,7 @@
 ﻿const PIX_KEY = '+5594991064043';
 const MERCHANT_NAME = 'NS Music';
 const MERCHANT_CITY = 'Brasilia';
-const GUI = 'br.gov.bcb.pix';
+const GUI = 'BR.GOV.BCB.PIX';
 
 function emv(id, value) {
   const len = String(value.length).padStart(2, '0');
