@@ -108,6 +108,62 @@ function EntregaContent() {
     }
   }, [order?.videoAddonPaid, orderId]);
 
+  // Recupera o pixInfo da MÚSICA do localStorage ao carregar — mesma idempotência que já existia
+  // para o vídeo (acima), agora também para a cobrança principal.
+  //
+  // Causa raiz de um incidente real (2026-08-13): sem isso, TODO recarregamento da página (celular
+  // em segundo plano recarrega a aba com frequência) zerava pixInfo de volta para { qrCode: '' },
+  // e o efeito de geração automática (mais abaixo) via isso como "nunca gerou PIX" e criava uma
+  // cobrança NOVA na Efí — abandonando a anterior, que ficava pendurada — e reiniciava o polling do
+  // zero para essa nova cobrança. Um único cliente com a aba reabrindo sozinha ao longo da madrugada
+  // gerou uma sequência longa de cobranças e consultas repetidas à Efí, visível no painel deles,
+  // possivelmente estourando limite de taxa da conta e explicando falhas de PIX em OUTROS pedidos.
+  // A cobrança Pix expira em 1h na Efí (calendario.expiracao: 3600 em src/lib/efi.js). Restaurar um
+  // código já expirado seria pior que gerar um novo — o app do banco recusaria o pagamento sem
+  // explicação nenhuma. Margem de 55min (não 60) para nunca restaurar algo prestes a expirar no
+  // meio da tentativa de pagamento do cliente.
+  const PIX_RESTORE_MAX_AGE_MS = 55 * 60 * 1000;
+
+  useEffect(() => {
+    if (mounted && orderId && typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem(`pixInfo_${orderId}`);
+        if (stored) {
+          const data = JSON.parse(stored);
+          const idade = data?.generatedAt ? Date.now() - new Date(data.generatedAt).getTime() : Infinity;
+          if (data?.qrCode && idade < PIX_RESTORE_MAX_AGE_MS) {
+            setPixInfo(data);
+          } else {
+            localStorage.removeItem(`pixInfo_${orderId}`);
+          }
+        }
+      } catch (e) {
+        console.warn('Erro ao carregar pixInfo do localStorage:', e);
+      }
+    }
+  }, [mounted, orderId]);
+
+  // Persiste o pixInfo da música assim que uma cobrança é gerada — para o restore acima ter o que
+  // recuperar no próximo carregamento da página. generatedAt não vem do servidor (a resposta de
+  // /api/payments/create não inclui isso) — é carimbado aqui, no exato momento em que este cliente
+  // recebeu a cobrança, tempo suficiente para o guard de expiração acima.
+  useEffect(() => {
+    if (orderId && pixInfo.qrCode && typeof window !== 'undefined') {
+      const paraGravar = pixInfo.generatedAt ? pixInfo : { ...pixInfo, generatedAt: new Date().toISOString() };
+      localStorage.setItem(`pixInfo_${orderId}`, JSON.stringify(paraGravar));
+    }
+  }, [orderId, pixInfo]);
+
+  // Limpa pixInfo do localStorage quando o pagamento é confirmado — mesmo padrão do vídeo
+  // (order?.videoAddonPaid acima). Não usa a constante `isPaid`: ela só é declarada mais abaixo
+  // neste componente, e referenciá-la aqui em cima quebraria por uso antes da declaração.
+  useEffect(() => {
+    const paid = order?.paymentStatus === 'PAGAMENTO_APROVADO' || order?.paymentStatus === 'PAGO';
+    if (paid && typeof window !== 'undefined' && orderId) {
+      localStorage.removeItem(`pixInfo_${orderId}`);
+    }
+  }, [order?.paymentStatus, orderId]);
+
   const [hasTrackedPurchase, setHasTrackedPurchase] = useState(false);
 
   // Controle de acesso dinâmico. NUNCA derivar de searchParams — isso permitia liberar o produto só
