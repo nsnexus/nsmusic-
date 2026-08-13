@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { collection, query, orderBy, onSnapshot, doc, getDoc, setDoc, deleteDoc, limit as fbLimit } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, limit as fbLimit } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { getPriceForSku } from '@/lib/pricing';
 import { buildSunoPayload } from '@/lib/sunoPayload';
@@ -33,8 +33,7 @@ export default function AdminDashboard() {
   const [selectedOrderIds, setSelectedOrderIds] = useState([]);
   const [deletingOrders, setDeletingOrders] = useState(false);
 
-  // Pricing tab state
-  const [activeTab, setActiveTab] = useState('ORDERS'); // 'ORDERS', 'PRICING', 'STUCK'
+  const [activeTab, setActiveTab] = useState('ORDERS'); // 'ORDERS', 'STUCK'
 
   // Reprocessamento de pedidos travados antes da Suno (letra pronta mas geração nunca confirmada).
   const [retryDeselected, setRetryDeselected] = useState(new Set());
@@ -42,32 +41,8 @@ export default function AdminDashboard() {
   const [retryResult, setRetryResult] = useState(null);
   const [reconciling, setReconciling] = useState(false);
   const [reconcileResult, setReconcileResult] = useState(null);
-  const [packages, setPackages] = useState([]);
-  const [addons, setAddons] = useState([]);
-  const [loadingPricing, setLoadingPricing] = useState(false);
-  const [savingPricing, setSavingPricing] = useState(false);
-  const [pricingMessage, setPricingMessage] = useState('');
 
   const router = useRouter();
-
-  // Default values to initialize or fallback
-  const defaultPackages = [
-    { id: 'essencial', name: 'Essencial', price: 9.99, desc: '1 Música + MP3 + Capa Simples' },
-    { id: 'presente', name: 'Presente Completo', price: 9.99, desc: '1 Música + MP3/WAV + Capa Personalizada + QR Code' },
-    { id: 'tres_versoes', name: 'Multi-Estilos (3 Versões)', price: 9.99, desc: '3 Versões com ritmos diferentes + Capa + QR Code' }
-  ];
-
-  const defaultAddons = [
-    { id: 'extraSongs2', name: '➕ 2 Músicas adicionais (mesma letra, estilos diferentes)', price: 9.99 },
-    { id: 'extraSongs3', name: '➕ 3 Músicas adicionais (mesma letra, estilos diferentes)', price: 9.99 },
-    { id: 'photoVideo', name: '🎥 Vídeo com fotos (sincronizado com a música)', price: 9.99 },
-    { id: 'spotifyDistribution', name: '🎧 Publicação no Spotify e plataformas de streaming', price: 9.99 },
-    { id: 'premiumCover', name: '🖼️ Capa Premium personalizada profissional', price: 9.99 },
-    { id: 'qrCode', name: '📱 QR Code da música para cartões e presentes', price: 9.99 },
-    { id: 'instrumentalVersion', name: '🎤 Versão Instrumental (Sem voz - para karaokê)', price: 9.99 },
-    { id: 'wavFormat', name: '💿 Áudio em formato WAV (Qualidade de estúdio)', price: 9.99 },
-    { id: 'priorityDelivery', name: '🚀 Entrega Prioritária em até 24 horas', price: 9.99 },
-  ];
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -134,33 +109,6 @@ export default function AdminDashboard() {
     setPageSize(prev => prev + PAGE_SIZE);
   };
 
-  // Load pricing
-  useEffect(() => {
-    if (!user) return;
-
-    const loadPricing = async () => {
-      setLoadingPricing(true);
-      try {
-        const docSnap = await getDoc(doc(db, 'config', 'pricing'));
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          setPackages(data.packages || defaultPackages);
-          setAddons(data.addons || defaultAddons);
-        } else {
-          setPackages(defaultPackages);
-          setAddons(defaultAddons);
-        }
-      } catch (err) {
-        console.error("Erro ao carregar preços:", err);
-        setPackages(defaultPackages);
-        setAddons(defaultAddons);
-      }
-      setLoadingPricing(false);
-    };
-
-    loadPricing();
-  }, [user]);
-
   const handleLogout = async () => {
     try {
       await signOut(auth);
@@ -179,6 +127,15 @@ export default function AdminDashboard() {
     if (typeof createdAt === 'number') return new Date(createdAt).toISOString();
     return null;
   };
+
+  // O <input type="date"> devolve "AAAA-MM-DD" no calendário LOCAL do navegador (fuso do Brasil,
+  // UTC-3), mas createdAt é gravado sempre em UTC (new Date().toISOString(), convenção do projeto —
+  // ver CLAUDE.md). Comparar a string bruta do input contra createdAt tratava "AAAA-MM-DD" como se
+  // já fosse meia-noite UTC — 3 horas ANTES da meia-noite local de verdade. Resultado: filtrar "dia
+  // 12" incluía pedidos feitos às 21h do dia 11 no horário do Brasil. `new Date("...T00:00:00")` sem
+  // sufixo de fuso é interpretado como horário LOCAL pelo motor JS — é isso que corrige o deslocamento.
+  const localDayStartIso = (dateStr) => (dateStr ? new Date(`${dateStr}T00:00:00`).toISOString() : null);
+  const localDayEndIso = (dateStr) => (dateStr ? new Date(`${dateStr}T23:59:59.999`).toISOString() : null);
 
   const getFilteredOrders = () => {
     let result = orders;
@@ -205,18 +162,21 @@ export default function AdminDashboard() {
       result = result.filter(o => o.videoAddonPaid);
     }
 
-    // toISOStr normaliza Timestamp/string/number para ISO antes de comparar
-    // lexicograficamente com o "YYYY-MM-DD" do <input type="date">.
+    // toISOStr normaliza Timestamp/string/number para ISO; localDayStartIso/localDayEndIso convertem
+    // o "YYYY-MM-DD" do <input type="date"> (calendário local) para o instante UTC correto — ver o
+    // comentário ao lado da definição, mais acima.
     if (dateFrom) {
+      const from = localDayStartIso(dateFrom);
       result = result.filter(o => {
         const d = toISOStr(o.createdAt);
-        return d !== null && d >= dateFrom;
+        return d !== null && d >= from;
       });
     }
     if (dateTo) {
+      const to = localDayEndIso(dateTo);
       result = result.filter(o => {
         const d = toISOStr(o.createdAt);
-        return d !== null && d <= `${dateTo}T23:59:59.999`;
+        return d !== null && d <= to;
       });
     }
 
@@ -243,8 +203,23 @@ export default function AdminDashboard() {
   // está navegando no momento.
   const getOrdersInDateRange = () => {
     let result = orders;
-    if (dateFrom) result = result.filter(o => o.createdAt && o.createdAt >= dateFrom);
-    if (dateTo) result = result.filter(o => o.createdAt && o.createdAt <= `${dateTo}T23:59:59.999`);
+    // toISOStr normaliza Timestamp/string/number antes de comparar — sem isso, um createdAt salvo
+    // como Firestore Timestamp (em vez de string ISO) comparava objeto contra string e nunca batia.
+    // localDayStartIso/localDayEndIso corrigem o mesmo deslocamento de fuso de getFilteredOrders.
+    if (dateFrom) {
+      const from = localDayStartIso(dateFrom);
+      result = result.filter(o => {
+        const d = toISOStr(o.createdAt);
+        return d !== null && d >= from;
+      });
+    }
+    if (dateTo) {
+      const to = localDayEndIso(dateTo);
+      result = result.filter(o => {
+        const d = toISOStr(o.createdAt);
+        return d !== null && d <= to;
+      });
+    }
     return result;
   };
 
@@ -291,6 +266,20 @@ export default function AdminDashboard() {
 
   const getFaturamentoTotal = () => {
     return getFaturamentoMusicas() + getFaturamentoVideos();
+  };
+
+  // Custo por chamada aceita pela Kie.ai — não por pedido: um pedido retentado (manual ou pela
+  // retentativa automática, ver src/lib/suno.js) custa uma vez por tentativa, nunca só uma vez no
+  // total. sunoGenerationCount conta exatamente essas chamadas (ver requestSunoGeneration).
+  // Pedidos de antes desse campo existir não têm o contador — para não subestimar o gasto real
+  // desses pedidos antigos, qualquer um que tenha ao menos chegado a solicitar geração
+  // (sunoRequestedAt) conta como 1, o mínimo que com certeza aconteceu.
+  const KIE_COST_PER_GENERATION = 0.30;
+  const getGastoGeracaoMusicas = () => {
+    return getOrdersInDateRange().reduce((sum, o) => {
+      const count = Number(o.sunoGenerationCount) || (o.sunoRequestedAt ? 1 : 0);
+      return sum + count * KIE_COST_PER_GENERATION;
+    }, 0);
   };
 
   // Pedidos com a letra pronta cujo pedido à Kie.ai nunca foi confirmado (EM_PRODUCAO é o estado
@@ -364,16 +353,6 @@ export default function AdminDashboard() {
       setReconcileResult({ error: 'Falha de conexão ao reconciliar os pedidos.' });
     } finally {
       setReconciling(false);
-    }
-  };
-
-  const getOccasionEmoji = (occ) => {
-    switch (occ) {
-      case 'Aniversário': return '🎂';
-      case 'Aniv. de Casamento': return '💎';
-      case 'Dia dos Namorados': return '💝';
-      case 'Dia das Mães': return '🌷';
-      default: return '✨';
     }
   };
 
@@ -482,54 +461,6 @@ export default function AdminDashboard() {
     );
   };
 
-  // Pricing edit handlers
-  const handleUpdatePackage = (index, field, value) => {
-    const updated = [...packages];
-    updated[index][field] = field === 'price' ? parseFloat(value) || 0 : value;
-    setPackages(updated);
-  };
-
-  const handleUpdateAddon = (index, field, value) => {
-    const updated = [...addons];
-    updated[index][field] = field === 'price' ? parseFloat(value) || 0 : value;
-    setAddons(updated);
-  };
-
-  const handleAddPackage = () => {
-    const newId = `pacote_${Date.now()}`;
-    setPackages([...packages, { id: newId, name: 'Novo Pacote', price: 9.99, desc: 'Descrição do pacote...' }]);
-  };
-
-  const handleRemovePackage = (index) => {
-    setPackages(packages.filter((_, i) => i !== index));
-  };
-
-  const handleAddAddon = () => {
-    const newId = `addon_${Date.now()}`;
-    setAddons([...addons, { id: newId, name: 'Novo Adicional', price: 9.99 }]);
-  };
-
-  const handleRemoveAddon = (index) => {
-    setAddons(addons.filter((_, i) => i !== index));
-  };
-
-  const handleSavePricing = async () => {
-    setSavingPricing(true);
-    setPricingMessage('');
-    try {
-      await setDoc(doc(db, 'config', 'pricing'), {
-        packages,
-        addons
-      });
-      setPricingMessage('✅ Configurações de preços salvas com sucesso!');
-      setTimeout(() => setPricingMessage(''), 4000);
-    } catch (err) {
-      console.error(err);
-      setPricingMessage('❌ Erro ao salvar preços no Firestore.');
-    }
-    setSavingPricing(false);
-  };
-
   if (checkingAuth) {
     return (
       <div style={styles.loadingWrapper}>
@@ -562,16 +493,6 @@ export default function AdminDashboard() {
                 }}
               >
                 📦 Pedidos ({orders.length})
-              </button>
-              <button 
-                onClick={() => setActiveTab('PRICING')}
-                style={{
-                  ...styles.tabBtn,
-                  backgroundColor: activeTab === 'PRICING' ? '#7c3aed' : '#e2e8f0',
-                  color: activeTab === 'PRICING' ? '#ffffff' : '#334155',
-                }}
-              >
-                💵 Preços & Pacotes
               </button>
               <button
                 onClick={() => setActiveTab('STUCK')}
@@ -613,8 +534,12 @@ export default function AdminDashboard() {
                   <h2 style={{ ...styles.metricValue, color: '#7c3aed' }}>R$ {getFaturamentoVideos().toFixed(2).replace('.', ',')}</h2>
                 </div>
                 <div style={styles.metricCard}>
-                  <span style={styles.metricLabel}>Pedidos (Total)</span>
-                  <h2 style={{ ...styles.metricValue, color: '#d97706' }}>{orders.length}</h2>
+                  <span style={styles.metricLabel}>Pedidos</span>
+                  <h2 style={{ ...styles.metricValue, color: '#d97706' }}>{getOrdersInDateRange().length}</h2>
+                </div>
+                <div style={styles.metricCard}>
+                  <span style={styles.metricLabel}>Gasto em Geração (Kie.ai)</span>
+                  <h2 style={{ ...styles.metricValue, color: '#dc2626' }}>R$ {getGastoGeracaoMusicas().toFixed(2).replace('.', ',')}</h2>
                 </div>
               </div>
 
@@ -798,9 +723,6 @@ export default function AdminDashboard() {
                           </th>
                           <th style={styles.th}>Código</th>
                           <th style={styles.th}>Cliente / Zap</th>
-                          <th style={styles.th}>Homenageado</th>
-                          <th style={styles.th}>Estilo/Voz</th>
-                          <th style={styles.th}>Pacote</th>
                           <th style={styles.th}>Valor</th>
                           <th style={styles.th}>Pagamento</th>
                           <th style={styles.th}>Produção</th>
@@ -827,18 +749,6 @@ export default function AdminDashboard() {
                               <td style={styles.td}>
                                 <div style={{ fontWeight: '600', color: '#0f172a' }}>{o.customerName || 'Cliente'}</div>
                                 <div style={{ fontSize: '0.8rem', color: '#2563eb', fontWeight: '500' }}>{o.customerPhone || 'N/A'}</div>
-                              </td>
-                              <td style={styles.td}>
-                                <span style={{ color: '#0f172a', fontWeight: '600' }}>
-                                  {getOccasionEmoji(o.occasion)} {o.honoreeName || 'N/A'}
-                                </span>
-                              </td>
-                              <td style={{ ...styles.td, fontSize: '0.85rem', color: '#334155' }}>
-                                <div style={{ fontWeight: '600' }}>{o.musicStyle || 'Pop'}</div>
-                                <div style={{ color: '#64748b' }}>{o.voiceType || 'Masculina'}</div>
-                              </td>
-                              <td style={{ ...styles.td, textTransform: 'capitalize', color: '#334155' }}>
-                                {o.package || 'Promo 2 Músicas'}
                               </td>
                               <td style={{ ...styles.td, fontWeight: '700' }}>
                                 {(() => {
@@ -868,8 +778,8 @@ export default function AdminDashboard() {
                               </td>
                               <td style={styles.td}>
                                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                  <Link href={`/admin/pedidos/${o.id}`} style={styles.manageBtn}>
-                                    Gerenciar ⚙️
+                                  <Link href={`/admin/pedidos/${o.id}`} title="Gerenciar Pedido" aria-label="Gerenciar Pedido" style={{ ...styles.manageBtn, padding: '6px 10px' }}>
+                                    ⚙️
                                   </Link>
                                   <button
                                     type="button"
@@ -912,139 +822,6 @@ export default function AdminDashboard() {
 
               </div>
             </div>
-          ) : activeTab === 'PRICING' ? (
-            // Pricing management tab
-            <div style={{ maxWidth: '800px', margin: '0 auto' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-                <h2 style={{ fontSize: '1.5rem', fontWeight: '800', color: '#0f172a' }}>Configurações de Preços e Pacotes</h2>
-                <button 
-                  onClick={handleSavePricing}
-                  disabled={savingPricing}
-                  style={{
-                    padding: '12px 28px',
-                    fontSize: '0.95rem',
-                    backgroundColor: '#7c3aed',
-                    color: '#ffffff',
-                    border: 'none',
-                    borderRadius: '8px',
-                    fontWeight: 'bold',
-                    cursor: 'pointer'
-                  }}
-                >
-                  {savingPricing ? 'Salvando...' : 'Salvar Alterações 💾'}
-                </button>
-              </div>
-
-              {pricingMessage && (
-                <div style={{ padding: '16px 20px', backgroundColor: '#d1fae5', border: '1px solid #10b981', color: '#065f46', borderRadius: '8px', marginBottom: '20px', fontWeight: 'bold' }}>
-                  {pricingMessage}
-                </div>
-              )}
-
-              {loadingPricing ? (
-                <div style={styles.loadingOrders}>
-                  <div style={styles.spinner} />
-                  <p style={{ marginTop: '16px', color: '#475569' }}>Carregando dados de preços...</p>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-                  
-                  {/* Pacotes section */}
-                  <div style={styles.whiteCard}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                      <h3 style={{ fontSize: '1.2rem', color: '#7c3aed', fontWeight: '800' }}>Pacotes de Áudio</h3>
-                      <button onClick={handleAddPackage} style={styles.addBtn}>
-                        ➕ Adicionar Pacote
-                      </button>
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                      {packages.map((pkg, idx) => (
-                        <div key={pkg.id || idx} style={{ borderBottom: '1px solid #e2e8f0', paddingBottom: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                          <div style={{ display: 'flex', gap: '16px' }}>
-                            <div style={{ flex: 2 }}>
-                              <label style={styles.formLabel}>Nome do Pacote</label>
-                              <input 
-                                type="text" 
-                                value={pkg.name}
-                                onChange={(e) => handleUpdatePackage(idx, 'name', e.target.value)}
-                                style={styles.adminInput}
-                              />
-                            </div>
-                            <div style={{ flex: 1 }}>
-                              <label style={styles.formLabel}>Preço (R$)</label>
-                              <input 
-                                type="number" 
-                                step="0.01"
-                                value={pkg.price}
-                                onChange={(e) => handleUpdatePackage(idx, 'price', e.target.value)}
-                                style={styles.adminInput}
-                              />
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-                              <button onClick={() => handleRemovePackage(idx)} style={{ ...styles.deleteSingleBtn, padding: '10px 14px' }}>
-                                🗑️ Excluir
-                              </button>
-                            </div>
-                          </div>
-                          <div>
-                            <label style={styles.formLabel}>Descrição / Benefícios</label>
-                            <input 
-                              type="text" 
-                              value={pkg.desc}
-                              onChange={(e) => handleUpdatePackage(idx, 'desc', e.target.value)}
-                              style={styles.adminInput}
-                            />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Adicionais section */}
-                  <div style={styles.whiteCard}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                      <h3 style={{ fontSize: '1.2rem', color: '#2563eb', fontWeight: '800' }}>Produtos Adicionais (Addons)</h3>
-                      <button onClick={handleAddAddon} style={styles.addBtn}>
-                        ➕ Adicionar Opcional
-                      </button>
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                      {addons.map((addon, idx) => (
-                        <div key={addon.id || idx} style={{ display: 'flex', gap: '16px', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px' }}>
-                          <div style={{ flex: 3 }}>
-                            <label style={styles.formLabel}>Nome do Adicional</label>
-                            <input 
-                              type="text" 
-                              value={addon.name}
-                              onChange={(e) => handleUpdateAddon(idx, 'name', e.target.value)}
-                              style={styles.adminInput}
-                            />
-                          </div>
-                          <div style={{ flex: 1 }}>
-                            <label style={styles.formLabel}>Preço (R$)</label>
-                            <input 
-                              type="number" 
-                              step="0.01"
-                              value={addon.price}
-                              onChange={(e) => handleUpdateAddon(idx, 'price', e.target.value)}
-                              style={styles.adminInput}
-                            />
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'flex-end', marginTop: '22px' }}>
-                            <button onClick={() => handleRemoveAddon(idx)} style={{ ...styles.deleteSingleBtn, padding: '10px 14px' }}>
-                              🗑️ Excluir
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                </div>
-              )}
-            </div>
           ) : (
             // Pedidos travados — letra pronta mas a geração na Kie.ai nunca foi confirmada (ver
             // sunoError/productionStatus, gravados em api/suno/generate/route.js).
@@ -1065,8 +842,9 @@ export default function AdminDashboard() {
                 </h3>
                 <p style={{ color: '#64748b', fontSize: '0.85rem', marginBottom: '14px' }}>
                   Consulta a Kie.ai e a Efí direto do servidor: recupera música já pronta que nunca
-                  chegou ao pedido e libera pagamento já confirmado que ficou preso. Não gera música
-                  nova nem cobra nada.
+                  chegou ao pedido, libera pagamento já confirmado que ficou preso e reenvia
+                  automaticamente (até 3 vezes) quem a Kie.ai reportou como falha real. Nunca cobra o
+                  cliente de novo — mas cada reenvio consome um crédito de geração na Kie.ai.
                 </p>
                 <button
                   type="button"
@@ -1094,6 +872,7 @@ export default function AdminDashboard() {
                         <>
                           Música: {reconcileResult.audio?.checked || 0} verificado(s) —{' '}
                           {reconcileResult.audio?.completed || 0} recuperado(s),{' '}
+                          {reconcileResult.audio?.retried || 0} reenviado(s) automaticamente,{' '}
                           {reconcileResult.audio?.stillProcessing || 0} ainda em produção,{' '}
                           {reconcileResult.audio?.failed || 0} com falha.
                           <br />
