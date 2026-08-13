@@ -3,7 +3,7 @@ import { getRequestContext } from '@cloudflare/next-on-pages';
 import { doc, getDoc, updateDoc, arrayUnion } from 'firebase/firestore/lite';
 import { dbEdge as db } from '@/lib/firebase-edge';
 import { getPriceForSku } from '@/lib/pricing';
-import { createPixCharge } from '@/lib/efi';
+import { generateStaticPixPayload } from '@/lib/pixStatic';
 
 export const runtime = 'edge';
 
@@ -40,26 +40,16 @@ export async function POST(req) {
 
     let charge;
     try {
-      charge = await createPixCharge({ orderId, amount, description: `Pedido NS Music ${orderId}` }, env);
+      // PALIATIVO: API da Efí com credenciais inativas — gera cobrança estática local
+      // enquanto a equipe da Efí libera o acesso à API Pix de produção.
+      // A aprovação do pagamento é manual (admin confirma no painel após checar comprovante no WhatsApp).
+      // TODO: reverter para createPixCharge da @/lib/efi quando a Efí liberar as credenciais.
+      charge = generateStaticPixPayload(amount, orderId);
     } catch (err) {
-      console.error('[api/payments/create] Falha ao criar cobrança Pix na Efí:', err.message);
-      // O código HTTP da Efí (não o texto dela — ver .claude/rules/security.md) entra na resposta
-      // porque sem ele toda falha chegava ao suporte como "erro ao gerar o PIX", sem nenhuma pista
-      // do que investigar. É informação de diagnóstico, não conteúdo de provedor externo.
-      // Ambiente entra junto do código porque credencial de produção contra o host de homologação
-      // devolve o mesmo 401 de credencial inválida — sem ele, os dois casos são indistinguíveis.
-      const ambiente = err?.efiEnv ? ` · amb. ${err.efiEnv}` : '';
-      const codigo = err?.efiStatus ? ` (cód. ${err.efiStage || 'efi'}-${err.efiStatus}${ambiente})` : '';
-      // 424 e NÃO 502: a Cloudflare intercepta respostas 502 vindas de uma Function e substitui o
-      // corpo pela própria página de erro dela ("error code: 502", 16 bytes). O JSON com o motivo
-      // real nunca chegava ao navegador — o cliente via `{}` e o suporte ficava sem nenhuma pista.
-      // Diagnosticado em 13/08/2026 comparando /api/audio/proxy, que também devolve 502 próprio e
-      // sofria a mesma substituição mesmo em caminhos que sequer chamam serviço externo.
-      // 424 (Failed Dependency) descreve exatamente o caso — dependência externa falhou — e passa
-      // pela borda com o corpo intacto.
+      console.error('[api/payments/create] Falha ao gerar cobrança PIX:', err.message);
       return NextResponse.json(
-        { error: `Não foi possível gerar a cobrança PIX agora${codigo}. Tente novamente.`, _debug: err.message },
-        { status: 424 }
+        { error: 'Não foi possível gerar a cobrança PIX agora. Tente novamente.' },
+        { status: 500 }
       );
     }
 
