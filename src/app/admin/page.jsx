@@ -307,6 +307,15 @@ export default function AdminDashboard() {
     return getFaturamentoMusicas() + getFaturamentoVideos();
   };
 
+  // "Pedidos" conta TODO pedido criado (inclusive quem nunca pagou — abandonou no meio do wizard ou
+  // nunca chegou a gerar PIX). Venda é outra coisa: pagamento de música aprovado OU add-on de vídeo
+  // liberado, o que vier primeiro (um pedido não conta duas vezes se vendeu os dois).
+  const getVendasCount = () => {
+    return getOrdersInDateRange().filter(o =>
+      o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'PAGO' || o.videoAddonPaid
+    ).length;
+  };
+
   // Custo por chamada aceita pela Kie.ai — não por pedido: um pedido retentado (manual ou pela
   // retentativa automática, ver src/lib/suno.js) custa uma vez por tentativa, nunca só uma vez no
   // total. sunoGenerationCount conta exatamente essas chamadas (ver requestSunoGeneration).
@@ -575,6 +584,10 @@ export default function AdminDashboard() {
                 <div style={styles.metricCard}>
                   <span style={styles.metricLabel}>Pedidos</span>
                   <h2 style={{ ...styles.metricValue, color: '#d97706' }}>{getOrdersInDateRange().length}</h2>
+                </div>
+                <div style={styles.metricCard}>
+                  <span style={styles.metricLabel}>Vendas (pagas)</span>
+                  <h2 style={{ ...styles.metricValue, color: '#059669' }}>{getVendasCount()}</h2>
                 </div>
                 <div style={styles.metricCard}>
                   <span style={styles.metricLabel}>Gasto em Geração (Kie.ai)</span>
