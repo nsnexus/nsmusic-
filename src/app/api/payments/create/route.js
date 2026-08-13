@@ -49,7 +49,7 @@ export async function POST(req) {
 
     try {
       // 1. Prioridade 1: Efí (Pix puro, sem exigência de CPF)
-      charge = await createPixCharge(orderId, amount, sku, env);
+      charge = await createPixCharge({ orderId, amount, description: `Pedido NS Music ${orderId}` }, env);
       provider = 'efi';
     } catch (errEfi) {
       console.warn('[api/payments/create] Efí falhou, tentando PagBank:', errEfi.message);
