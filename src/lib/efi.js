@@ -19,9 +19,16 @@ function readEnvValue(env, name) {
   return String((env && env[name]) || process.env[name] || '').trim();
 }
 
+// Qualquer valor que não seja exatamente 'production' cai em homologação — inclusive a variável
+// ausente ou com espaço/maiúscula sobrando. Isso é silencioso e produz um 401 idêntico ao de
+// credencial errada (credencial de produção recusada pelo host de homologação), então o modo
+// resolvido é exposto no diagnóstico de erro das rotas. O nome do ambiente não é segredo.
+export function getEfiMode(env) {
+  return readEnvValue(env, 'EFI_ENV') === 'production' ? 'production' : 'sandbox';
+}
+
 function getBaseUrl(env) {
-  const mode = readEnvValue(env, 'EFI_ENV') || 'sandbox';
-  return mode === 'production'
+  return getEfiMode(env) === 'production'
     ? 'https://pix.api.efipay.com.br'
     : 'https://pix-h.api.efipay.com.br';
 }
@@ -91,6 +98,10 @@ async function getAccessToken(env) {
     // distinguir "credencial recusada" de "cobrança recusada" sem repassar texto do provedor.
     err.efiStatus = res.status;
     err.efiStage = 'auth';
+    // Credencial de produção usada contra o host de homologação (ou vice-versa) devolve exatamente
+    // o mesmo 401 de credencial inválida — sem saber o ambiente resolvido, os dois casos são
+    // indistinguíveis de fora e a investigação trava (aconteceu em 13/08/2026).
+    err.efiEnv = getEfiMode(env);
     throw err;
   }
 
@@ -164,6 +175,7 @@ export async function createPixCharge({ orderId, amount, description }, env) {
     // suporte como "erro ao gerar o PIX", sem nenhuma pista de qual era.
     err.efiStatus = res.status;
     err.efiStage = 'cob';
+    err.efiEnv = getEfiMode(env);
     throw err;
   }
 
