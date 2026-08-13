@@ -1459,11 +1459,11 @@ function EntregaContent() {
                             </div>
 
                             {pixInfo.provider === 'static' && (
-                              <div style={{ display: 'flex', gap: '10px', width: '100%' }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
                                 <input
                                   ref={receiptInputRef}
                                   type="file"
-                                  accept="image/*"
+                                  accept="image/*,application/pdf"
                                   style={{ display: 'none' }}
                                   onChange={(e) => {
                                     const file = e.target.files?.[0];
@@ -1471,12 +1471,15 @@ function EntregaContent() {
                                     e.target.value = '';
                                   }}
                                 />
+                                {/* Passo 1: tenta liberar automático primeiro. O botão do WhatsApp só
+                                    aparece depois de uma falha confirmada (receiptStatus === 'failed'),
+                                    para não competir com a tentativa automática. */}
                                 <button
                                   type="button"
                                   disabled={receiptStatus === 'uploading'}
                                   onClick={() => receiptInputRef.current?.click()}
                                   style={{
-                                    flex: 1,
+                                    width: '100%',
                                     padding: '14px',
                                     borderRadius: '10px',
                                     border: 'none',
@@ -1491,30 +1494,32 @@ function EntregaContent() {
                                   {receiptStatus === 'uploading' ? '⏳ Analisando...' : '📎 Anexar comprovante'}
                                 </button>
 
-                                <a
-                                  href={`https://wa.me/5594991064043?text=${encodeURIComponent(`Olá! Acabei de pagar o pedido *#${orderId}* (R$ ${order?.totalPrice?.toFixed(2) || '9,99'}). Segue o comprovante:`)}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  style={{
-                                    flex: 1,
-                                    padding: '14px',
-                                    borderRadius: '10px',
-                                    border: 'none',
-                                    background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)',
-                                    color: '#FFFFFF',
-                                    fontWeight: 'bold',
-                                    fontSize: '0.95rem',
-                                    cursor: 'pointer',
-                                    boxShadow: '0 4px 14px rgba(37, 211, 102, 0.3)',
-                                    textDecoration: 'none',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: '6px'
-                                  }}
-                                >
-                                  📲 Mandar no WhatsApp
-                                </a>
+                                {receiptStatus === 'failed' && (
+                                  <a
+                                    href={`https://wa.me/5594991064043?text=${encodeURIComponent(`Olá! Acabei de pagar o pedido *#${orderId}* (R$ ${order?.totalPrice?.toFixed(2) || '9,99'}). Segue o comprovante:`)}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{
+                                      width: '100%',
+                                      padding: '14px',
+                                      borderRadius: '10px',
+                                      border: 'none',
+                                      background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)',
+                                      color: '#FFFFFF',
+                                      fontWeight: 'bold',
+                                      fontSize: '0.95rem',
+                                      cursor: 'pointer',
+                                      boxShadow: '0 4px 14px rgba(37, 211, 102, 0.3)',
+                                      textDecoration: 'none',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      gap: '6px'
+                                    }}
+                                  >
+                                    📲 Mandar no WhatsApp
+                                  </a>
+                                )}
                               </div>
                             )}
                           </div>

@@ -12,7 +12,7 @@ export const runtime = 'edge';
 // src/lib/receiptVerification.js) — enquanto a integração com a Efí está bloqueada. Qualquer falha
 // de extração/validação devolve approved:false com um motivo seguro; o cliente cai no botão manual
 // de WhatsApp já existente em entrega/page.jsx.
-const MAX_IMAGE_BASE64_CHARS = 8_000_000; // ~6MB decodificado, folga sobre uma foto de comprovante
+const MAX_FILE_BASE64_CHARS = 8_000_000; // ~6MB decodificado, folga sobre uma foto de comprovante
 
 function isAlreadyApproved(order) {
   return order.paymentStatus === 'PAGAMENTO_APROVADO' || order.paymentStatus === 'PAGO';
@@ -41,13 +41,15 @@ export async function POST(req) {
       return NextResponse.json({ error: 'orderId é obrigatório.' }, { status: 400 });
     }
     if (!imageBase64 || typeof imageBase64 !== 'string') {
-      return NextResponse.json({ error: 'Imagem do comprovante é obrigatória.' }, { status: 400 });
+      return NextResponse.json({ error: 'Arquivo do comprovante é obrigatório.' }, { status: 400 });
     }
-    if (imageBase64.length > MAX_IMAGE_BASE64_CHARS) {
-      return NextResponse.json({ error: 'Imagem muito grande.' }, { status: 400 });
+    if (imageBase64.length > MAX_FILE_BASE64_CHARS) {
+      return NextResponse.json({ error: 'Arquivo muito grande.' }, { status: 400 });
     }
-    if (!mimeType || !String(mimeType).startsWith('image/')) {
-      return NextResponse.json({ error: 'Tipo de arquivo inválido — envie uma imagem.' }, { status: 400 });
+    const isImage = mimeType && String(mimeType).startsWith('image/');
+    const isPdf = mimeType === 'application/pdf';
+    if (!isImage && !isPdf) {
+      return NextResponse.json({ error: 'Tipo de arquivo inválido — envie uma imagem ou PDF.' }, { status: 400 });
     }
 
     const sku = rawSku || 'audio_only';
