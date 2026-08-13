@@ -48,6 +48,11 @@ function EntregaContent() {
   const [pixError, setPixError] = useState('');
   const [pixCopied, setPixCopied] = useState(false);
   const [isPaidState, setIsPaidState] = useState(false);
+  // Verificação automática de comprovante por IA (provisória — ver src/lib/receiptVerification.js).
+  // 'idle' | 'uploading' | 'failed' — some depois de aprovado, pois a UI já muda pra "pago" via
+  // onSnapshot assim que applyPaymentApproval grava o pedido.
+  const [receiptStatus, setReceiptStatus] = useState('idle');
+  const receiptInputRef = useRef(null);
   const [pixPollingTimedOut, setPixPollingTimedOut] = useState(false);
   const [videoPixPollingTimedOut, setVideoPixPollingTimedOut] = useState(false);
   // Máximo de tentativas do polling ativo (Efí + fallback Firestore): 150 × 4s = 10min. Depois disso
@@ -380,6 +385,45 @@ function EntregaContent() {
     }
   };
 
+  // Liberação automática provisória a partir do comprovante Pix (ver aviso em
+  // src/lib/receiptVerification.js). Se a IA não conseguir validar por qualquer motivo, o estado
+  // volta a 'idle' e o botão manual de WhatsApp (já renderizado ao lado) continua disponível — nunca
+  // trava o cliente sem saída.
+  const handleReceiptUpload = async (file) => {
+    if (!file || !orderId) return;
+    setReceiptStatus('uploading');
+    try {
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
+        reader.onerror = () => reject(new Error('Falha ao ler o arquivo.'));
+        reader.readAsDataURL(file);
+      });
+
+      const res = await fetch('/api/payments/verify-receipt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId,
+          sku: pixInfo.sku || 'audio_only',
+          imageBase64: base64,
+          mimeType: file.type || 'image/jpeg',
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok && data.approved) {
+        // Não precisa mexer em mais nada aqui: applyPaymentApproval já gravou o pedido, e o
+        // onSnapshot do pedido (useEffect mais acima) atualiza a tela sozinho para o estado "pago".
+        return;
+      }
+      setReceiptStatus('failed');
+    } catch (err) {
+      console.warn('Erro ao enviar comprovante:', err.message);
+      setReceiptStatus('failed');
+    }
+  };
+
   const handleCopyLink = () => {
     if (typeof window !== 'undefined' && orderId) {
       const sharePageUrl = `${window.location.origin}/homenagem?orderId=${orderId}`;
@@ -427,7 +471,8 @@ function EntregaContent() {
           qrCode: data.qrCode || '',
           qrCodeBase64: data.qrCodeBase64 || '',
           paymentId: data.paymentId || '',
-          provider: data.provider || ''
+          provider: data.provider || '',
+          sku
         });
         setPixLoading(false);
       }
@@ -1375,7 +1420,15 @@ function EntregaContent() {
                             {pixInfo.provider === 'static' && (
                               <div style={{ background: '#fef3c7', border: '1.5px solid #f59e0b', borderRadius: '10px', padding: '12px 14px', marginBottom: '4px', textAlign: 'center' }}>
                                 <p style={{ margin: 0, fontSize: '0.82rem', color: '#92400e', fontWeight: '600' }}>
-                                  ⚠️ Após pagar, envie o comprovante pelo WhatsApp para liberarmos sua música manualmente.
+                                  ⚠️ Após pagar, anexe o comprovante abaixo para liberar automaticamente.
+                                </p>
+                              </div>
+                            )}
+
+                            {receiptStatus === 'failed' && (
+                              <div style={{ background: '#fee2e2', border: '1.5px solid #ef4444', borderRadius: '10px', padding: '12px 14px', marginBottom: '4px', textAlign: 'center' }}>
+                                <p style={{ margin: 0, fontSize: '0.82rem', color: '#991b1b', fontWeight: '600' }}>
+                                  Não conseguimos confirmar automaticamente. Manda pra gente pelo WhatsApp que liberamos na mão.
                                 </p>
                               </div>
                             )}
@@ -1403,8 +1456,41 @@ function EntregaContent() {
                               >
                                 {pixCopied ? '✅ Copiado!' : '📋 Copiar PIX'}
                               </button>
+                            </div>
 
-                              {pixInfo.provider === 'static' && (
+                            {pixInfo.provider === 'static' && (
+                              <div style={{ display: 'flex', gap: '10px', width: '100%' }}>
+                                <input
+                                  ref={receiptInputRef}
+                                  type="file"
+                                  accept="image/*"
+                                  style={{ display: 'none' }}
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) handleReceiptUpload(file);
+                                    e.target.value = '';
+                                  }}
+                                />
+                                <button
+                                  type="button"
+                                  disabled={receiptStatus === 'uploading'}
+                                  onClick={() => receiptInputRef.current?.click()}
+                                  style={{
+                                    flex: 1,
+                                    padding: '14px',
+                                    borderRadius: '10px',
+                                    border: 'none',
+                                    background: receiptStatus === 'uploading' ? 'var(--border-color)' : 'linear-gradient(135deg, #2563eb 0%, #1e40af 100%)',
+                                    color: '#FFFFFF',
+                                    fontWeight: 'bold',
+                                    fontSize: '0.95rem',
+                                    cursor: receiptStatus === 'uploading' ? 'default' : 'pointer',
+                                    boxShadow: '0 4px 14px rgba(37, 99, 235, 0.3)'
+                                  }}
+                                >
+                                  {receiptStatus === 'uploading' ? '⏳ Analisando...' : '📎 Anexar comprovante'}
+                                </button>
+
                                 <a
                                   href={`https://wa.me/5594991064043?text=${encodeURIComponent(`Olá! Acabei de pagar o pedido *#${orderId}* (R$ ${order?.totalPrice?.toFixed(2) || '9,99'}). Segue o comprovante:`)}`}
                                   target="_blank"
@@ -1427,10 +1513,10 @@ function EntregaContent() {
                                     gap: '6px'
                                   }}
                                 >
-                                  📲 Enviar comprovante
+                                  📲 Mandar no WhatsApp
                                 </a>
-                              )}
-                            </div>
+                              </div>
+                            )}
                           </div>
 
                         ) : (
@@ -1452,7 +1538,9 @@ function EntregaContent() {
                         )}
 
                         <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '10px', textAlign: 'center' }}>
-                          A liberação é automática assim que o pagamento for confirmado — não precisa enviar comprovante.
+                          {pixInfo.provider === 'static'
+                            ? 'Anexe o comprovante logo após pagar para liberar na hora.'
+                            : 'A liberação é automática assim que o pagamento for confirmado — não precisa enviar comprovante.'}
                         </p>
                       </div>
                     )}
