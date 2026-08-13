@@ -104,7 +104,7 @@ para o que ainda depende de rate limiting externo (A-04/A-12, não implementado 
 | `auth.js` | `requireAdmin()` — verificação de ID token + custom claim/allowlist |
 | `proxyAllowlist.js` | Domínios permitidos nos proxies de mídia |
 | `whatsappTemplates.js` | Templates de mensagem do WhatsApp (M-19) — sem dependência de `@cloudflare/next-on-pages`, importável por componentes client-side |
-| `whatsapp.js` | Envio/verificação via W-API; re-exporta os templates acima |
+| `whatsapp.js` | Envio via WhatsApp Business Platform (API Oficial da Meta, `graph.facebook.com`); re-exporta os templates acima |
 | `authErrors.js` | `getFriendlyAuthErrorMessage` (B-04) |
 | `sunoPayload.js` | `buildSunoPayload` — payload de `/api/suno/generate`, reaproveitado também pela retentativa automática (M-12) |
 | `suno.js` | `requestSunoGeneration` (chamada à Kie.ai + persistência, extraído de `api/suno/generate`), `maybeAutoRetrySunoFailure` (retry automático limitado — até 3 tentativas — quando a Kie.ai reporta falha definitiva, com reserva de idempotência), `resolveLatestTaskId` (segue a cadeia de `retryTaskId` até a tarefa mais recente) |
@@ -198,7 +198,7 @@ aberta, ou o próprio cron) acaba vendo o resultado da nova sem precisar saber q
 | OpenAI | `src/lib/gemini.js` | `OPENAI_API_KEY` |
 | Google Gemini | `src/lib/gemini.js` | `GEMINI_API_KEYS` (lista separada por vírgula) |
 | Efí (API Pix) | `src/lib/efi.js`, `api/payments/*`, `api/webhooks/efi`, `workers/efi-proxy/` | `EFI_CLIENT_ID`, `EFI_CLIENT_SECRET`, `EFI_PIX_KEY`, `EFI_ENV`, `EFI_WEBHOOK_SECRET`, `EFI_PROXY_URL`, `EFI_PROXY_SECRET` (mTLS fica no Worker `efi-proxy`, não num binding do Pages — ver `docs/EFI_SETUP.md`) |
-| W-API (WhatsApp) | `src/lib/whatsapp.js` | `WAPI_INSTANCE_ID`, `WAPI_TOKEN`, `ADMIN_WHATSAPP` |
+| WhatsApp Business Platform (API Oficial da Meta) | `src/lib/whatsapp.js` (`graph.facebook.com`) | `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_WEBHOOK_VERIFY_TOKEN`. Provedor não oficial (W-API) removido do projeto após bloqueios de conta. |
 | Firebase | `src/lib/firebase.js`, `firebase-edge.js` | `NEXT_PUBLIC_FIREBASE_*` |
 | Admin (allowlist interina) | `src/lib/auth.js` | `ADMIN_EMAILS` |
 
