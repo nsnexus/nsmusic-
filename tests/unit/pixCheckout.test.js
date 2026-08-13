@@ -42,6 +42,17 @@ describe('requestPixCharge', () => {
     expect(global.fetch).toHaveBeenCalledTimes(2);
   });
 
+  it('repete 424 (falha da Efí) — é transitório, ao contrário dos demais 4xx', async () => {
+    global.fetch = vi.fn()
+      .mockResolvedValueOnce(jsonResponse(424, { error: 'Não foi possível gerar a cobrança PIX agora (cód. auth-401).' }))
+      .mockResolvedValueOnce(jsonResponse(200, { qrCode: 'BR-CODE', paymentId: 'TX9' }));
+
+    const resultado = await requestPixCharge({ orderId: 'pedido-1', sku: 'audio_only' }, { attempts: 3 });
+
+    expect(resultado.ok).toBe(true);
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+  });
+
   it('não repete erro 4xx — é decisão do servidor e repetir não muda o resultado', async () => {
     global.fetch = vi.fn().mockResolvedValue(jsonResponse(404, { error: 'Pedido não encontrado.' }));
 

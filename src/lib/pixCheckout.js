@@ -41,7 +41,10 @@ export async function requestPixCharge({ orderId, sku, isSecondaryPayment = fals
       ultimoErro = errData?.error || errData?.message || ultimoErro;
 
       // 4xx é decisão do servidor (pedido inexistente, SKU inválido) — repetir não muda o resultado.
-      if (res.status >= 400 && res.status < 500) {
+      // Exceção: 424 (Failed Dependency) significa que a Efí falhou, não que o pedido está errado —
+      // é transitório e insistir resolve. A rota usa 424 em vez de 502 porque a Cloudflare apaga o
+      // corpo de respostas 502 vindas de uma Function (ver api/payments/create/route.js).
+      if (res.status >= 400 && res.status < 500 && res.status !== 424) {
         return { ok: false, error: ultimoErro };
       }
     } catch (err) {

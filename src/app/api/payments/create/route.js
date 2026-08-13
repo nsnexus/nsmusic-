@@ -46,10 +46,17 @@ export async function POST(req) {
       // O código HTTP da Efí (não o texto dela — ver .claude/rules/security.md) entra na resposta
       // porque sem ele toda falha chegava ao suporte como "erro ao gerar o PIX", sem nenhuma pista
       // do que investigar. É informação de diagnóstico, não conteúdo de provedor externo.
-      const codigo = err?.efiStatus ? ` (cód. ${err.efiStatus})` : '';
+      const codigo = err?.efiStatus ? ` (cód. ${err.efiStage || 'efi'}-${err.efiStatus})` : '';
+      // 424 e NÃO 502: a Cloudflare intercepta respostas 502 vindas de uma Function e substitui o
+      // corpo pela própria página de erro dela ("error code: 502", 16 bytes). O JSON com o motivo
+      // real nunca chegava ao navegador — o cliente via `{}` e o suporte ficava sem nenhuma pista.
+      // Diagnosticado em 13/08/2026 comparando /api/audio/proxy, que também devolve 502 próprio e
+      // sofria a mesma substituição mesmo em caminhos que sequer chamam serviço externo.
+      // 424 (Failed Dependency) descreve exatamente o caso — dependência externa falhou — e passa
+      // pela borda com o corpo intacto.
       return NextResponse.json(
         { error: `Não foi possível gerar a cobrança PIX agora${codigo}. Tente novamente.` },
-        { status: 502 }
+        { status: 424 }
       );
     }
 

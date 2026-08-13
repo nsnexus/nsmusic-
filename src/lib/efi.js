@@ -86,7 +86,12 @@ async function getAccessToken(env) {
 
   if (!res.ok) {
     const errText = await res.text().catch(() => '');
-    throw new Error(`Falha ao autenticar na Efí (HTTP ${res.status}): ${errText}`);
+    const err = new Error(`Falha ao autenticar na Efí (HTTP ${res.status}): ${errText}`);
+    // Mesma ideia do efiStatus em createPixCharge: só o código sobe para a rota chamadora poder
+    // distinguir "credencial recusada" de "cobrança recusada" sem repassar texto do provedor.
+    err.efiStatus = res.status;
+    err.efiStage = 'auth';
+    throw err;
   }
 
   const data = await res.json();
@@ -158,6 +163,7 @@ export async function createPixCharge({ orderId, amount, description }, env) {
     // o texto do provedor (ver .claude/rules/security.md). Sem isso, toda falha aqui chegava ao
     // suporte como "erro ao gerar o PIX", sem nenhuma pista de qual era.
     err.efiStatus = res.status;
+    err.efiStage = 'cob';
     throw err;
   }
 
