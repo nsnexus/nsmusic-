@@ -15,16 +15,18 @@ routes = [
 # (ver src/worker.js). Subir com:
 #   npx wrangler mtls-certificate upload --cert cert.pem --key key.pem --name efi-pix-sandbox
 # (ou --name efi-pix-production para o de produção) e colar o `certificate_id` retornado abaixo
-# (ver docs/EFI_SETUP.md). CUIDADO: confira antes que o certificado não tenha serial number
-# negativo (`openssl x509 -in cert.pem -noout -text | grep -A1 "Serial Number"`) — a Cloudflare
-# rejeita esse tipo de certificado no upload.
+# (ver docs/EFI_SETUP.md). Prefira um certificado com serial number positivo (`openssl x509 -in
+# cert.pem -noout -text | grep -A1 "Serial Number"`) quando possível — mas em 14/08/2026 a Cloudflare
+# aceitou o upload de 3 certificados com serial negativo sem erro (o bloqueio 1408 documentado em
+# 02/08 não se repetiu), e trocar para um com serial positivo não resolveu o bloqueio 403 da Efí
+# (WAF bloqueando o IP do Worker, não relacionado ao certificado — ver docs/EFI_SETUP.md).
 [[mtls_certificates]]
 binding = "EFI_MTLS_CERT_SANDBOX"
 certificate_id = "c8facf26-086e-455e-8faa-52c9a456be18"
 
 [[mtls_certificates]]
 binding = "EFI_MTLS_CERT_PRODUCTION"
-certificate_id = "1f978a7b-f5f2-42e2-9e3f-a17e91c9ae78"
+certificate_id = "5bba60d5-7047-4e5b-9607-3641b86a1c35"
 
 # Reconciliação agendada de pedidos travados (handler `scheduled` em src/worker.js). Mora aqui e não
 # no app porque Cloudflare Pages não suporta cron trigger — só Workers suportam, a mesma limitação
