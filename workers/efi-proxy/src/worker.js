@@ -96,7 +96,11 @@ async function handleRelay(request, env) {
   try {
     upstreamRes = await mtlsBinding.fetch(`${host}${path}`, {
       method,
-      headers: pickAllowedHeaders(headers),
+      // User-Agent explícito — fetch de dentro de um Worker sai sem UA nenhum por padrão. Testado
+      // em 14/08/2026 como hipótese pro 403 "Sorry, you have been blocked" da Efí: não mudou o
+      // resultado (ver commit), então a causa não é heurística de header ausente — mantido mesmo
+      // assim por ser boa prática e não ter custo.
+      headers: { ...pickAllowedHeaders(headers), 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36' },
       body: method === 'GET' ? undefined : body,
       signal: AbortSignal.timeout(8000),
     });
