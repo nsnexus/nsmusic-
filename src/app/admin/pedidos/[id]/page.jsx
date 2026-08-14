@@ -27,6 +27,7 @@ export default function OrderDetailsAdmin() {
   const [videoUrl, setVideoUrl] = useState('');
   const [qrCodeUrl, setQrCodeUrl] = useState('');
   const [paymentStatus, setPaymentStatus] = useState('PENDENTE');
+  const [hasVideoAccess, setHasVideoAccess] = useState(false);
   const [notifying, setNotifying] = useState(false);
   const [notifyMsg, setNotifyMsg] = useState('');
   const [copiedClientLink, setCopiedClientLink] = useState(false);
@@ -81,6 +82,7 @@ export default function OrderDetailsAdmin() {
           setOrder(data);
           setProductionStatus(data.productionStatus || 'LETRA_APROVADA');
           setPaymentStatus(data.paymentStatus || 'PENDENTE');
+          setHasVideoAccess(Boolean(data.hasVideoAccess || data.videoAddonPaid));
           setAudioUrl(data.audioFiles?.[0] || data.audioUrl || '');
           setAudioUrl2(data.audioFiles?.[1] || '');
           setWavUrl(data.wavFiles?.[0] || data.wavUrl || '');
@@ -121,6 +123,8 @@ export default function OrderDetailsAdmin() {
       await updateDoc(docRef, {
         productionStatus,
         paymentStatus,
+        hasVideoAccess,
+        videoAddonPaid: hasVideoAccess,
         lyrics,
         audioUrl,
         audioFiles: [audioUrl, audioUrl2].filter(Boolean),
@@ -136,6 +140,8 @@ export default function OrderDetailsAdmin() {
         ...prev,
         productionStatus,
         paymentStatus,
+        hasVideoAccess,
+        videoAddonPaid: hasVideoAccess,
         lyrics,
         audioUrl,
         audioFiles: [audioUrl, audioUrl2].filter(Boolean),
@@ -449,6 +455,22 @@ export default function OrderDetailsAdmin() {
                         {notifyMsg && <p style={{ fontSize: '0.8rem', marginTop: '6px', color: notifyMsg.startsWith('✅') ? '#059669' : '#dc2626' }}>{notifyMsg}</p>}
                       </div>
                     )}
+                  </div>
+
+                  <div style={styles.formGroup}>
+                    <label style={{ ...styles.label, display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={hasVideoAccess}
+                        onChange={(e) => setHasVideoAccess(e.target.checked)}
+                        style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                      />
+                      Liberar Vídeo Homenagem 🎬
+                    </label>
+                    <p style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '4px' }}>
+                      Marca e clica em &quot;Salvar&quot; para o cliente poder enviar as fotos e gerar
+                      o vídeo sem precisar pagar o add-on (cortesia/liberação manual).
+                    </p>
                   </div>
 
                   <div style={styles.formGroup}>
