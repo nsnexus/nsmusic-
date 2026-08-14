@@ -4,28 +4,7 @@ import { getRequestContext } from '@cloudflare/next-on-pages';
 // arquivo sem dependência de @cloudflare/next-on-pages, para poder ser importado também por
 // componentes client-side sem levar código Edge-only pro bundle do browser. Re-exportado aqui só
 // para quem já importa @/lib/whatsapp por convenção.
-export { resolveDeliveryUrl } from './whatsappTemplates';
-
-/**
- * Formata um telefone brasileiro para o formato internacional 55+DDD+Número
- */
-export const formatToWhatsAppNumber = (phone) => {
-  if (!phone) return '';
-  let clean = phone.replace(/\D/g, '');
-  if (!clean) return '';
-
-  // Se já começar com 55 e tiver 12 ou 13 dígitos
-  if (clean.startsWith('55') && (clean.length === 12 || clean.length === 13)) {
-    return clean;
-  }
-
-  // Se for DDD + 8 ou 9 dígitos (ex: 94991064040 ou 9491064040)
-  if (clean.length === 10 || clean.length === 11) {
-    return `55${clean}`;
-  }
-
-  return clean;
-};
+export { resolveDeliveryUrl, formatToWhatsAppNumber } from './whatsappTemplates';
 
 /**
  * Módulo de Integração com a API Oficial da Meta (WhatsApp Business Platform / Cloud API).

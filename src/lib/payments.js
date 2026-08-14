@@ -110,7 +110,10 @@ export async function applyPaymentApproval(orderId, paymentId, payment) {
   return publicResult;
 }
 
-async function notifyPaymentApproved(orderRef, orderData) {
+// Exportada para permitir reenvio manual pelo admin (api/admin/notify-payment-approved) quando o
+// pedido é aprovado manualmente no painel — updateDoc direto do browser (admin/pedidos/[id]/page.jsx)
+// não passa por applyPaymentApproval, então o WhatsApp automático nunca dispararia sem isso.
+export async function notifyPaymentApproved(orderRef, orderData) {
   if (!orderData?.customerPhone) return;
 
   try {

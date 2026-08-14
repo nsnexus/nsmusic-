@@ -6,6 +6,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
+import { formatToWhatsAppNumber } from '@/lib/whatsappTemplates';
 import Link from 'next/link';
 import Image from 'next/image';
 
@@ -26,6 +27,9 @@ export default function OrderDetailsAdmin() {
   const [videoUrl, setVideoUrl] = useState('');
   const [qrCodeUrl, setQrCodeUrl] = useState('');
   const [paymentStatus, setPaymentStatus] = useState('PENDENTE');
+  const [notifying, setNotifying] = useState(false);
+  const [notifyMsg, setNotifyMsg] = useState('');
+  const [copiedClientLink, setCopiedClientLink] = useState(false);
 
   const [sunoPrompt, setSunoPrompt] = useState('');
 
@@ -148,6 +152,57 @@ export default function OrderDetailsAdmin() {
       setTimeout(() => setSuccessMsg(''), 4000);
     } finally {
       setUpdating(false);
+    }
+  };
+
+  // Reenvia a notificação de "pagamento aprovado" — necessário quando o status é aprovado manualmente
+  // aqui no painel, porque esse updateDoc é feito direto do browser e não passa por
+  // applyPaymentApproval (único lugar que dispara o WhatsApp automático).
+  const handleNotifyPayment = async () => {
+    setNotifying(true);
+    setNotifyMsg('');
+    try {
+      const idToken = await auth.currentUser.getIdToken();
+      const res = await fetch('/api/admin/notify-payment-approved', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ orderId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      setNotifyMsg(res.ok ? '✅ Cliente notificado no WhatsApp!' : `❌ ${data.error || 'Falha ao notificar.'}`);
+    } catch (err) {
+      setNotifyMsg('❌ Falha ao notificar cliente.');
+    } finally {
+      setNotifying(false);
+      setTimeout(() => setNotifyMsg(''), 5000);
+    }
+  };
+
+  const handleCopyClientLink = () => {
+    if (typeof window === 'undefined') return;
+    const url = `${window.location.origin}/entrega?orderId=${orderId}`;
+    navigator.clipboard.writeText(url);
+    setCopiedClientLink(true);
+    setTimeout(() => setCopiedClientLink(false), 3000);
+  };
+
+  const handleDownload = async (url, filename) => {
+    if (!url) return;
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Erro de rede ao buscar o arquivo');
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.warn('Erro ao fazer download via fetch, abrindo nova aba:', err);
+      window.open(url, '_blank');
     }
   };
 
@@ -326,6 +381,29 @@ export default function OrderDetailsAdmin() {
               <p style={{ color: '#475569', fontSize: '0.95rem', marginTop: '4px', fontWeight: '500' }}>
                 Cliente: <strong style={{ color: '#0f172a' }}>{order.customerName}</strong> ({order.customerEmail || 'Sem e-mail'}) • <strong style={{ color: '#2563eb' }}>{order.customerPhone || 'Sem telefone'}</strong>
               </p>
+              <div style={{ display: 'flex', gap: '8px', marginTop: '10px', flexWrap: 'wrap' }}>
+                {order.customerPhone && (
+                  <a
+                    href={`https://wa.me/${formatToWhatsAppNumber(order.customerPhone)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ ...styles.quickActionBtn, background: '#25D366', color: '#fff', textDecoration: 'none' }}
+                  >
+                    📲 Conversar no WhatsApp
+                  </a>
+                )}
+                <button type="button" onClick={handleCopyClientLink} style={{ ...styles.quickActionBtn, background: '#e2e8f0', color: '#0f172a' }}>
+                  {copiedClientLink ? '✅ Link copiado!' : '🔗 Copiar página do cliente'}
+                </button>
+                <a
+                  href={`/entrega?orderId=${orderId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ ...styles.quickActionBtn, background: '#e2e8f0', color: '#0f172a', textDecoration: 'none' }}
+                >
+                  🔗 Abrir página do cliente
+                </a>
+              </div>
             </div>
             <div style={styles.priceTag}>
               R$ {(Number(order.total) || 9.99).toFixed(2)}
@@ -358,6 +436,19 @@ export default function OrderDetailsAdmin() {
                       <option value="PAGO">PAGO</option>
                       <option value="RECUSADO">RECUSADO</option>
                     </select>
+                    {(order.paymentStatus === 'PAGAMENTO_APROVADO' || order.paymentStatus === 'PAGO') && (
+                      <div style={{ marginTop: '8px' }}>
+                        <button
+                          type="button"
+                          onClick={handleNotifyPayment}
+                          disabled={notifying}
+                          style={{ ...styles.quickActionBtn, background: notifying ? '#94a3b8' : '#25D366', color: '#fff', cursor: notifying ? 'default' : 'pointer' }}
+                        >
+                          {notifying ? '⏳ Enviando...' : '📲 Notificar cliente (pagamento aprovado)'}
+                        </button>
+                        {notifyMsg && <p style={{ fontSize: '0.8rem', marginTop: '6px', color: notifyMsg.startsWith('✅') ? '#059669' : '#dc2626' }}>{notifyMsg}</p>}
+                      </div>
+                    )}
                   </div>
 
                   <div style={styles.formGroup}>
@@ -387,35 +478,56 @@ export default function OrderDetailsAdmin() {
 
                   <div style={styles.formGroup}>
                     <label style={styles.label}>Link do Áudio Principal (Versão 1 - MP3 HD)</label>
-                    <input 
-                      type="url" 
-                      value={audioUrl}
-                      onChange={(e) => setAudioUrl(e.target.value)}
-                      placeholder="https://..." 
-                      style={styles.input}
-                    />
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <input
+                        type="url"
+                        value={audioUrl}
+                        onChange={(e) => setAudioUrl(e.target.value)}
+                        placeholder="https://..."
+                        style={{ ...styles.input, flex: 1 }}
+                      />
+                      {audioUrl && (
+                        <button type="button" onClick={() => handleDownload(audioUrl, `${order.orderNumber || orderId}-versao1.mp3`)} style={{ ...styles.quickActionBtn, background: '#2563eb', color: '#fff' }} title="Baixar MP3">
+                          ⬇️
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   <div style={styles.formGroup}>
                     <label style={styles.label}>Link do Áudio Secundário (Versão 2 Bônus - MP3 HD)</label>
-                    <input 
-                      type="url" 
-                      value={audioUrl2}
-                      onChange={(e) => setAudioUrl2(e.target.value)}
-                      placeholder="https://..." 
-                      style={styles.input}
-                    />
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <input
+                        type="url"
+                        value={audioUrl2}
+                        onChange={(e) => setAudioUrl2(e.target.value)}
+                        placeholder="https://..."
+                        style={{ ...styles.input, flex: 1 }}
+                      />
+                      {audioUrl2 && (
+                        <button type="button" onClick={() => handleDownload(audioUrl2, `${order.orderNumber || orderId}-versao2.mp3`)} style={{ ...styles.quickActionBtn, background: '#2563eb', color: '#fff' }} title="Baixar MP3">
+                          ⬇️
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   <div style={styles.formGroup}>
                     <label style={styles.label}>Link do Arquivo WAV (Alta Definição)</label>
-                    <input 
-                      type="url" 
-                      value={wavUrl}
-                      onChange={(e) => setWavUrl(e.target.value)}
-                      placeholder="https://..." 
-                      style={styles.input}
-                    />
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <input
+                        type="url"
+                        value={wavUrl}
+                        onChange={(e) => setWavUrl(e.target.value)}
+                        placeholder="https://..."
+                        style={{ ...styles.input, flex: 1 }}
+                      />
+                      {wavUrl && (
+                        <button type="button" onClick={() => handleDownload(wavUrl, `${order.orderNumber || orderId}.wav`)} style={{ ...styles.quickActionBtn, background: '#2563eb', color: '#fff' }} title="Baixar WAV">
+                          ⬇️
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   <div style={styles.formGroup}>
@@ -671,6 +783,17 @@ const styles = {
     fontSize: '0.9rem',
     fontWeight: '700',
     textDecoration: 'none',
+  },
+  quickActionBtn: {
+    border: 'none',
+    borderRadius: '8px',
+    padding: '8px 14px',
+    fontSize: '0.82rem',
+    fontWeight: '700',
+    cursor: 'pointer',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '4px',
   },
   titleRow: {
     display: 'flex',

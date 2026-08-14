@@ -7,6 +7,7 @@ import { collection, query, orderBy, onSnapshot, limit as fbLimit } from 'fireba
 import { auth, db } from '@/lib/firebase';
 import { getPriceForSku } from '@/lib/pricing';
 import { buildSunoPayload } from '@/lib/sunoPayload';
+import { formatToWhatsAppNumber } from '@/lib/whatsappTemplates';
 import Link from 'next/link';
 import Image from 'next/image';
 
@@ -801,7 +802,19 @@ export default function AdminDashboard() {
                               <td style={styles.td}>
                                 <div style={{ fontWeight: '600', color: '#0f172a' }}>{o.customerName || 'Cliente'}</div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                  <span style={{ fontSize: '0.8rem', color: '#2563eb', fontWeight: '500' }}>{o.customerPhone || 'N/A'}</span>
+                                  {o.customerPhone ? (
+                                    <a
+                                      href={`https://wa.me/${formatToWhatsAppNumber(o.customerPhone)}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      title="Abrir conversa no WhatsApp"
+                                      style={{ fontSize: '0.8rem', color: '#25D366', fontWeight: '600', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '3px' }}
+                                    >
+                                      📲 {o.customerPhone}
+                                    </a>
+                                  ) : (
+                                    <span style={{ fontSize: '0.8rem', color: '#2563eb', fontWeight: '500' }}>N/A</span>
+                                  )}
                                   {(() => {
                                     const digits = String(o.customerPhone || '').replace(/\D/g, '');
                                     const count = digits ? phoneOrderCounts[digits] : 0;
