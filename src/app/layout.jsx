@@ -32,6 +32,7 @@ export default function RootLayout({ children }) {
             gtag('js', new Date());
 
             gtag('config', 'G-W4FMK1K20Y');
+            gtag('config', 'AW-966585092');
           `}
         </Script>
         <Script id="facebook-pixel" strategy="afterInteractive">
