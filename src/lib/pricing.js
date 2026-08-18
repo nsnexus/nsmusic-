@@ -11,6 +11,8 @@ export const SKU_PRICES = {
   audio_only: 9.99,
   combo: 16.89,
   video_addon: 6.90,
+  recovery_combo_24h: 9.99,
+  recovery_combo_48h: 6.99,
 };
 
 export function getPriceForSku(sku) {
@@ -21,11 +23,11 @@ export function getPriceForSku(sku) {
 // Um SKU "inclui vídeo" quando concede acesso ao add-on de vídeo (ver A-13 no AUDIT_REPORT.md —
 // antes disso era decidido por uma heurística de valor, frágil a qualquer cobrança futura de 6.90).
 export function skuGrantsVideoAccess(sku) {
-  return sku === 'combo' || sku === 'video_addon';
+  return sku === 'combo' || sku === 'video_addon' || sku === 'recovery_combo_24h' || sku === 'recovery_combo_48h';
 }
 
 // Um SKU "aprova a música" quando confirma o pagamento principal (paymentStatus). O video_addon
 // isolado NUNCA deve alterar paymentStatus (ver C-09 no AUDIT_REPORT.md).
 export function skuApprovesMusic(sku) {
-  return sku === 'audio_only' || sku === 'combo';
+  return sku === 'audio_only' || sku === 'combo' || sku === 'recovery_combo_24h' || sku === 'recovery_combo_48h';
 }

@@ -19,6 +19,7 @@ import { styles } from './entregaStyles';
 function EntregaContent() {
   const searchParams = useSearchParams();
   const orderId = searchParams.get('orderId') || searchParams.get('id');
+  const promo = searchParams.get('promo');
 
   const [loading, setLoading] = useState(true);
   const [order, setOrder] = useState(null);
@@ -184,7 +185,7 @@ function EntregaContent() {
 
   // Exibe o pop-up de oferta do vídeo automaticamente ao carregar a tela de entrega
   useEffect(() => {
-    if (order && !order.videoUrl && !order.hasVideoAccess && typeof window !== 'undefined') {
+    if (order && !order.videoUrl && !order.hasVideoAccess && !promo && typeof window !== 'undefined') {
       const dismissed = sessionStorage.getItem(`video_modal_dismissed_${orderId}`);
       if (!dismissed) {
         const timer = setTimeout(() => setShowVideoModal(true), 1200);
@@ -445,6 +446,8 @@ function EntregaContent() {
     // AUDIT_REPORT.md) — o cliente só informa QUAL produto está comprando, nunca o preço.
     let sku;
     if (isSecondary) sku = 'video_addon';
+    else if (promo === '48h') sku = 'recovery_combo_48h';
+    else if (promo === '24h') sku = 'recovery_combo_24h';
     else if (typeof customAmount === 'number' && customAmount === 16.89) sku = 'combo';
     else sku = 'audio_only';
 
@@ -1356,10 +1359,16 @@ function EntregaContent() {
                     <div style={{ textAlign: 'center', marginBottom: '16px' }}>
                       <span style={{ fontSize: '2rem' }}>⚡</span>
                       <h3 style={{ fontSize: '1.25rem', fontWeight: '800', marginTop: '6px', color: 'var(--text-primary)' }}>
-                        Liberar Músicas Completas em MP3 HD
+                        {promo ? '🎁 Oferta Especial Liberada!' : 'Liberar Músicas Completas em MP3 HD'}
                       </h3>
                       <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                        Pague apenas <strong style={{ color: 'var(--success)', fontSize: '1.1rem' }}>R$ 9,99</strong> para liberar o download das 2 versões completas sem corte e a página especial de presente!
+                        {promo === '48h' ? (
+                          <>Pague apenas <strong style={{ color: 'var(--success)', fontSize: '1.1rem' }}>R$ 6,99</strong> para liberar as 2 versões completas e <strong>ganhe o Vídeo Homenagem de brinde!</strong></>
+                        ) : promo === '24h' ? (
+                          <>Pague apenas <strong style={{ color: 'var(--success)', fontSize: '1.1rem' }}>R$ 9,99</strong> para liberar as 2 versões completas e <strong>ganhe o Vídeo Homenagem de brinde!</strong></>
+                        ) : (
+                          <>Pague apenas <strong style={{ color: 'var(--success)', fontSize: '1.1rem' }}>R$ 9,99</strong> para liberar o download das 2 versões completas sem corte e a página especial de presente!</>
+                        )}
                       </p>
                     </div>
 
@@ -1531,7 +1540,7 @@ function EntregaContent() {
                             className="btn btn-primary"
                             style={{ width: '100%', padding: '14px', fontSize: '1rem' }}
                           >
-                            💚 Gerar PIX (R$ 9,99)
+                            💚 Gerar PIX (R$ {promo === '48h' ? '6,99' : '9,99'})
                           </button>
                         )}
 

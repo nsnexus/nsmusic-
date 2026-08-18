@@ -1,0 +1,2 @@
+
+exemplo quero uma música que em alguns momentos o cantor fale algumas coisas, como patrocinadores, recite um versículo da biblia etc. nao ficar só engessado nas perguntas padroes e tal.... a IA ser expecialista em desenolver jsutamente o prompt correta pra que o SUNO faça oq for pedido.

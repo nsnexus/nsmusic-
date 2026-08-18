@@ -160,6 +160,12 @@ export const sendMusicReadyTemplate = (phone, params, env = {}) =>
   sendTemplateMessage(phone, 'nsmusic_musica_pronta', params, env);
 
 /**
+ * Envia um Template de recuperação de carrinho (ex: nsmusic_recovery_4h, nsmusic_recovery_24h).
+ */
+export const sendRecoveryTemplate = (phone, templateName, params, env = {}) =>
+  sendTemplateMessage(phone, templateName, params, env);
+
+/**
  * Envia o Template aprovado "nsmusic_pagamento_aprovado" (categoria Utility) — avisa que o
  * pagamento caiu e os áudios em MP3 HD já estão liberados pra download.
  */
