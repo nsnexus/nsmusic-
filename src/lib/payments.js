@@ -13,8 +13,9 @@
 
 import { doc, getDoc, updateDoc } from 'firebase/firestore/lite';
 import { dbEdge as db } from './firebase-edge';
-import { skuApprovesMusic, skuGrantsVideoAccess } from './pricing';
+import { skuApprovesMusic, skuGrantsVideoAccess, getPriceForSku } from './pricing';
 import { resolveDeliveryUrl } from './whatsappTemplates';
+import { sendMetaPurchaseEvent } from './metaCapi';
 
 const REVOKING_STATUSES = new Set(['cancelled', 'refunded', 'charged_back']);
 
@@ -23,9 +24,12 @@ const REVOKING_STATUSES = new Set(['cancelled', 'refunded', 'charged_back']);
  * @param {string} orderId
  * @param {string|number} paymentId txid (Efí) que identifica a cobrança
  * @param {{status: string, transaction_amount?: number}} payment
+ * @param {object} env contexto de ambiente resolvido pela rota chamadora — usado só para o evento
+ *   de Purchase da Meta Conversions API (META_CAPI_ACCESS_TOKEN); opcional, sem ele o evento
+ *   simplesmente não é enviado (log de aviso, nunca falha a aprovação em si).
  * @returns {Promise<{applied: boolean, reason?: string, revoked?: boolean, sku?: string}>}
  */
-export async function applyPaymentApproval(orderId, paymentId, payment) {
+export async function applyPaymentApproval(orderId, paymentId, payment, env = {}) {
   if (!orderId || !paymentId || !payment) {
     return { applied: false, reason: 'missing_arguments' };
   }
@@ -100,10 +104,29 @@ export async function applyPaymentApproval(orderId, paymentId, payment) {
     return { applied: false, reason: 'update_failed' };
   }
 
-  // Efeito colateral isolado (payments.md: nunca pode impedir a gravação da aprovação, que já
-  // aconteceu acima) — só pra pagamento da música (não pro add-on de vídeo isolado).
-  if (txResult.applied && !txResult.isVideoOnly) {
-    await notifyPaymentApproved(orderRef, txResult.orderData);
+  // Efeitos colaterais isolados (payments.md: nunca podem impedir a gravação da aprovação, que já
+  // aconteceu acima). WhatsApp só pra pagamento da música; Purchase da Meta pros dois casos (a venda
+  // do add-on isolado é receita real, tem que contar também — ver src/lib/metaCapi.js).
+  if (txResult.applied) {
+    if (!txResult.isVideoOnly) {
+      await notifyPaymentApproved(orderRef, txResult.orderData);
+    }
+
+    try {
+      const value = txResult.isVideoOnly
+        ? (Number(payment.transaction_amount) || getPriceForSku('video_addon'))
+        : (Number(txResult.orderData?.expectedAmount) || Number(payment.transaction_amount) || getPriceForSku(txResult.sku));
+      const contentName = txResult.isVideoOnly ? 'Vídeo Homenagem (Add-on)' : 'Música Homenagem Personalizada';
+      await sendMetaPurchaseEvent({
+        orderId,
+        value,
+        contentName,
+        customerPhone: txResult.orderData?.customerPhone,
+        customerEmail: txResult.orderData?.customerEmail,
+      }, env);
+    } catch (err) {
+      console.warn('[payments] Erro ao enviar evento de Purchase (Meta CAPI):', err.message);
+    }
   }
 
   const { orderData: _omit, ...publicResult } = txResult;

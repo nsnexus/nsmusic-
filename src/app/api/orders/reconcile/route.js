@@ -184,7 +184,7 @@ async function checkAndApplyCharge(orderId, txid, env, result) {
       await applyPaymentApproval(orderId, txid, {
         status: 'approved',
         transaction_amount: Number(charge.valor?.original),
-      });
+      }, env);
       result.approved++;
     } else {
       result.stillPending++;

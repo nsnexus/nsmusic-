@@ -62,7 +62,7 @@ async function processPixItem(item, env) {
   }
 
   const transactionAmount = Number(charge.valor?.original);
-  await applyPaymentApproval(orderId, txid, { status: 'approved', transaction_amount: transactionAmount });
+  await applyPaymentApproval(orderId, txid, { status: 'approved', transaction_amount: transactionAmount }, env);
 }
 
 export async function POST(req) {

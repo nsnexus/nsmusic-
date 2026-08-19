@@ -84,7 +84,8 @@ describe('POST /api/webhooks/efi', () => {
     expect(applyPaymentApprovalMock).toHaveBeenCalledWith(
       'order-1',
       'TXID1',
-      { status: 'approved', transaction_amount: 9.99 }
+      { status: 'approved', transaction_amount: 9.99 },
+      expect.anything()
     );
   });
 
@@ -124,7 +125,8 @@ describe('POST /api/webhooks/efi', () => {
     expect(applyPaymentApprovalMock).toHaveBeenCalledWith(
       'order-2',
       'TXID-ANTIGO',
-      { status: 'approved', transaction_amount: 9.99 }
+      { status: 'approved', transaction_amount: 9.99 },
+      expect.anything()
     );
   });
 

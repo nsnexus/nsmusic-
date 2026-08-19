@@ -8,8 +8,6 @@ import { doc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { createUserWithEmailAndPassword, onAuthStateChanged } from 'firebase/auth';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, auth, storage } from '@/lib/firebase';
-import { getPriceForSku } from '@/lib/pricing';
-import { pushAdvancedMatching } from '@/lib/metaPixel';
 import { primeAudioContext } from '@/lib/audioContext';
 import VideoOfferModal from '@/components/VideoOfferModal';
 import PixQrCode from '@/components/PixQrCode';
@@ -170,8 +168,6 @@ function EntregaContent() {
     }
   }, [order?.paymentStatus, orderId]);
 
-  const [hasTrackedPurchase, setHasTrackedPurchase] = useState(false);
-
   // Controle de acesso dinâmico. NUNCA derivar de searchParams — isso permitia liberar o produto só
   // com a URL /entrega?orderId=X&status=success, sem pagar (ver C-01 no AUDIT_REPORT.md). O parâmetro
   // de URL só pode, no máximo, disparar uma reconsulta ao servidor (ver useEffect de fetchOrder acima).
@@ -194,54 +190,13 @@ function EntregaContent() {
     }
   }, [order, orderId]);
 
-  // Dispara o evento de Purchase do Facebook Pixel APENAS 1 ÚNICA VEZ por pedido. Valor vem de
-  // expectedAmount (gravado pelo servidor a partir do catálogo em src/lib/pricing.js — mesmo campo
-  // que o faturamento do admin usa), não mais um valor fixo: o combo (R$16,89) era subcontado como
-  // se fosse sempre a música avulsa (R$9,99).
-  useEffect(() => {
-    if (isPaid && orderId && typeof window !== 'undefined') {
-      const storageKey = `fb_purchase_tracked_${orderId}`;
-      const alreadyTracked = localStorage.getItem(storageKey);
-
-      if (!alreadyTracked && window.fbq) {
-        pushAdvancedMatching(order?.customerPhone, order?.customerEmail);
-        const amount = Number(order?.expectedAmount) || Number(order?.total) || getPriceForSku('audio_only');
-        window.fbq('track', 'Purchase', {
-          value: amount,
-          currency: 'BRL',
-          content_name: 'Música Homenagem Personalizada',
-          content_type: 'product',
-          order_id: orderId
-        });
-        localStorage.setItem(storageKey, 'true');
-        setHasTrackedPurchase(true);
-      }
-    }
-  }, [isPaid, orderId, order?.expectedAmount, order?.total, order?.customerPhone, order?.customerEmail]);
-
-  // Dispara um Purchase separado para o add-on de vídeo comprado ISOLADAMENTE, depois da música.
-  // videoPaymentId só existe nesse caso (mesmo critério usado em admin/page.jsx:getFaturamentoVideos)
-  // — pedidos do combo já têm o vídeo contado dentro do Purchase principal acima, então não entram
-  // aqui; contar de novo duplicaria a receita do vídeo. Antes deste efeito, essa venda de R$6,90 não
-  // gerava nenhum evento — ficava invisível para o Pixel.
-  useEffect(() => {
-    if (order?.videoAddonPaid && order?.videoPaymentId && orderId && typeof window !== 'undefined') {
-      const storageKey = `fb_video_purchase_tracked_${orderId}`;
-      const alreadyTracked = localStorage.getItem(storageKey);
-
-      if (!alreadyTracked && window.fbq) {
-        pushAdvancedMatching(order?.customerPhone, order?.customerEmail);
-        window.fbq('track', 'Purchase', {
-          value: getPriceForSku('video_addon'),
-          currency: 'BRL',
-          content_name: 'Vídeo Homenagem (Add-on)',
-          content_type: 'product',
-          order_id: orderId
-        });
-        localStorage.setItem(storageKey, 'true');
-      }
-    }
-  }, [order?.videoAddonPaid, order?.videoPaymentId, orderId, order?.customerPhone, order?.customerEmail]);
+  // O evento de Purchase (Facebook Pixel / Meta Ads) NÃO é mais disparado aqui no cliente — movido
+  // pro servidor (src/lib/payments.js:applyPaymentApproval, via src/lib/metaCapi.js), no único ponto
+  // de aprovação de pagamento. A versão anterior usava localStorage pra não contar a mesma venda duas
+  // vezes, mas localStorage é por navegador: o link de entrega chega pelo WhatsApp, o cliente
+  // frequentemente reabre no navegador embutido do WhatsApp (contexto diferente de onde pagou), e
+  // cada reabertura sem o registro local disparava um Purchase novo. Resultado real (14-19/08/2026):
+  // 25 vendas confirmadas no banco, 42 contadas no Pixel. Ver metaCapi.js para o motivo completo.
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (usr) => {

@@ -102,7 +102,7 @@ describe('GET /api/payments/status — atalho de verificação rápida', () => {
     const data = await res.json();
 
     expect(getChargeStatusMock).toHaveBeenCalledWith('txid-video-recem-pago', expect.anything());
-    expect(applyPaymentApprovalMock).toHaveBeenCalledWith('order4', 'txid-video-recem-pago', expect.objectContaining({ status: 'approved' }));
+    expect(applyPaymentApprovalMock).toHaveBeenCalledWith('order4', 'txid-video-recem-pago', expect.objectContaining({ status: 'approved' }), expect.anything());
     expect(data.status).toBe('approved');
   });
 
@@ -141,7 +141,8 @@ describe('GET /api/payments/status — atalho de verificação rápida', () => {
     expect(applyPaymentApprovalMock).toHaveBeenCalledWith(
       'order6',
       'txid-antigo-audio-only',
-      expect.objectContaining({ status: 'approved' })
+      expect.objectContaining({ status: 'approved' }),
+      expect.anything()
     );
     expect(data.status).toBe('approved');
   });

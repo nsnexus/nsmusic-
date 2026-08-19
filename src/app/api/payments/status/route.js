@@ -110,7 +110,7 @@ export async function GET(req) {
     );
     if (charge?.status === 'CONCLUIDA' && orderId && txidBelongsToOrder) {
       const transactionAmount = Number(charge.valor?.original);
-      await applyPaymentApproval(orderId, txid, { status: 'approved', transaction_amount: transactionAmount });
+      await applyPaymentApproval(orderId, txid, { status: 'approved', transaction_amount: transactionAmount }, env);
       return jsonNoCache({ status: "approved" });
     }
     if (charge?.status === 'CONCLUIDA' && orderId && !txidBelongsToOrder) {
