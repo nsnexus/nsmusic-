@@ -159,6 +159,35 @@ async function handleScheduledReconcile(env) {
   }
 }
 
+// Régua de recuperação de carrinho via WhatsApp (4h/24h) — dispara a rota que antes dependia de um
+// agendador externo (cron-job.org) nunca configurado. Ver src/app/api/cron/recover/route.js.
+async function handleScheduledRecover(env) {
+  const appUrl = env?.APP_URL;
+  const secret = env?.CRON_SECRET;
+
+  if (!appUrl || !secret) {
+    console.warn('[efi-proxy] APP_URL/CRON_SECRET não configurados — régua de recuperação ignorada.');
+    return;
+  }
+
+  try {
+    const res = await fetch(`${appUrl}/api/cron/recover`, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${secret}` },
+      signal: AbortSignal.timeout(60000),
+    });
+
+    const body = await res.text().catch(() => '');
+    if (!res.ok) {
+      console.warn(`[efi-proxy] Régua de recuperação respondeu HTTP ${res.status}: ${body.slice(0, 200)}`);
+      return;
+    }
+    console.log(`[efi-proxy] Régua de recuperação concluída: ${body.slice(0, 300)}`);
+  } catch (err) {
+    console.warn('[efi-proxy] Falha na régua de recuperação agendada:', err?.message ?? err);
+  }
+}
+
 export default {
   async fetch(request, env) {
     // Rede de segurança: qualquer exceção não prevista aqui dentro nunca deve escapar como um 500
@@ -172,9 +201,13 @@ export default {
     }
   },
 
-  // Disparado pelo cron declarado em wrangler.toml. waitUntil garante que a chamada termina mesmo
-  // depois do handler retornar.
+  // Disparado pelos crons declarados em wrangler.toml — event.cron diz qual dos dois disparou.
+  // waitUntil garante que a chamada termina mesmo depois do handler retornar.
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(handleScheduledReconcile(env));
+    if (event.cron === '7 * * * *') {
+      ctx.waitUntil(handleScheduledRecover(env));
+    } else {
+      ctx.waitUntil(handleScheduledReconcile(env));
+    }
   },
 };
