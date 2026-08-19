@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { getRequestContext } from '@cloudflare/next-on-pages';
 import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore/lite';
 import { dbEdge as db } from '@/lib/firebase-edge';
 import { sendRecoveryTemplate } from '@/lib/whatsapp';
@@ -8,9 +9,20 @@ export const runtime = 'edge';
 // Executado a cada 1 hora via cron-job.org
 export async function GET(req) {
   try {
-    const authHeader = req.headers.get('authorization');
-    const cronSecret = process.env.CRON_SECRET || 'nsmusic-recovery-secret-2026';
+    let env = {};
+    try {
+      const ctx = getRequestContext();
+      if (ctx?.env) env = ctx.env;
+    } catch (e) {}
 
+    // Nunca hardcodar segredo, nem como fallback (ver .claude/rules/security.md) — se a variável
+    // faltar, falha com 500 citando o nome dela, em vez de aceitar um valor fixo previsível.
+    const cronSecret = String(env.CRON_SECRET || process.env.CRON_SECRET || '').trim();
+    if (!cronSecret) {
+      return NextResponse.json({ error: 'CRON_SECRET não configurada no servidor.' }, { status: 500 });
+    }
+
+    const authHeader = req.headers.get('authorization');
     if (authHeader !== `Bearer ${cronSecret}`) {
       return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 });
     }
@@ -35,11 +47,19 @@ export async function GET(req) {
     snap1.forEach(d => pendingOrders.push({ id: d.id, ...d.data() }));
     snap2.forEach(d => pendingOrders.push({ id: d.id, ...d.data() }));
 
-    const results = { total: pendingOrders.length, processed: 0, sent: [] };
+    // ?dryRun=true simula sem enviar WhatsApp nem gravar recoveryStage — só conta quantos
+    // disparariam. Usado pra medir o tamanho do primeiro lote antes de ligar de vez (nenhum pedido
+    // tem recoveryStage gravado ainda, então a primeira execução real processa todo o backlog atual
+    // de uma vez).
+    const dryRun = new URL(req.url).searchParams.get('dryRun') === 'true';
+
+    const results = { total: pendingOrders.length, processed: 0, sent: [], dryRun };
 
     const promises = pendingOrders.map(async (order) => {
-      // Ignora se não gerou música (sunoTaskId ausente) ou se não tem telefone válido
-      if (!order.sunoTaskId || !order.customerPhone || !order.createdAt) return;
+      // Ignora se não gerou música (audioUrl ausente — sunoTaskId nunca é gravado em orders, só em
+      // suno_tasks) ou se não tem telefone válido. audioUrl é setado em src/lib/db.js:updateTaskResult
+      // assim que a Kie.ai termina a geração — é o sinal real de "cliente já viu a prévia".
+      if (!order.audioUrl || !order.customerPhone || !order.createdAt) return;
       
       const orderTime = new Date(order.createdAt).getTime();
       // Ignora pedidos muito antigos (mais de 72h) ou muito recentes (menos de 4h)
@@ -61,9 +81,14 @@ export async function GET(req) {
       }
 
       if (targetStage > 0) {
+        if (dryRun) {
+          results.processed++;
+          results.sent.push({ id: order.id, stage: targetStage });
+          return;
+        }
         try {
           const deliveryUrl = `https://nsmusic.nsnexus.com.br/entrega?id=${order.id}${promoParam}`;
-          
+
           const params = {
             customerName: order.customerName || 'Cliente',
             honoreeName: order.honoreeName || 'alguém especial',
@@ -71,7 +96,7 @@ export async function GET(req) {
           };
 
           const waRes = await sendRecoveryTemplate(order.customerPhone, templateName, params);
-          
+
           if (waRes.success) {
             await updateDoc(doc(db, 'orders', order.id), {
               recoveryStage: targetStage,
