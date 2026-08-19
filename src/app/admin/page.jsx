@@ -21,6 +21,9 @@ export default function AdminDashboard() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState('ALL');
+  const [productionStatusFilter, setProductionStatusFilter] = useState('ALL');
+  const [sortBy, setSortBy] = useState('createdAt_desc'); // 'createdAt_desc'|'createdAt_asc'|'paidAt_desc'|'paidAt_asc'
 
   // Paginação — carrega 500 de início para cobrir o histórico típico do admin.
   // "Carregar todos" remove o limite completamente (útil para busca/filtro em toda a base).
@@ -201,7 +204,39 @@ export default function AdminDashboard() {
       });
     }
 
-    return result;
+    if (paymentStatusFilter !== 'ALL') {
+      // PAGAMENTO_APROVADO e PAGO são equivalentes (ver CLAUDE.md) — filtro "Pago" cobre os dois.
+      result = result.filter(o =>
+        paymentStatusFilter === 'PAGAMENTO_APROVADO'
+          ? (o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'PAGO')
+          : o.paymentStatus === paymentStatusFilter
+      );
+    }
+
+    if (productionStatusFilter !== 'ALL') {
+      result = result.filter(o => o.productionStatus === productionStatusFilter);
+    }
+
+    // Ordenação — client-side porque a lista já está toda carregada em memória (evita depender de
+    // índice composto novo no Firestore só pra isso, ver .claude/rules/database.md). paidAt ausente
+    // vai sempre para o fim, em qualquer direção de ordenação.
+    const sorted = [...result];
+    const getTime = (v) => {
+      const iso = toISOStr(v);
+      return iso ? new Date(iso).getTime() : null;
+    };
+    sorted.sort((a, b) => {
+      const field = sortBy.startsWith('paidAt') ? 'paidAt' : 'createdAt';
+      const dir = sortBy.endsWith('_asc') ? 1 : -1;
+      const ta = getTime(a[field]);
+      const tb = getTime(b[field]);
+      if (ta === null && tb === null) return 0;
+      if (ta === null) return 1;
+      if (tb === null) return -1;
+      return (ta - tb) * dir;
+    });
+
+    return sorted;
   };
 
   // Quantas vezes o mesmo telefone aparece nos pedidos já CARREGADOS (não só nos filtrados) — é uma
@@ -575,14 +610,14 @@ export default function AdminDashboard() {
       {/* Header com Tema Claro */}
       <header style={styles.header}>
         <div style={styles.headerContainer}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
             <Link href="/admin" style={{ display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none' }}>
               <Image src="/logo.png" alt="NSMusic" width={36} height={36} style={{ height: '36px', width: 'auto' }} priority />
               <span style={{ fontSize: '0.9rem', color: '#0f172a', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Painel Admin</span>
             </Link>
-            
+
             {/* Tabs Navigation */}
-            <div style={{ display: 'flex', gap: '8px', marginLeft: '24px' }}>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
               <button 
                 onClick={() => setActiveTab('ORDERS')}
                 style={{
@@ -603,6 +638,9 @@ export default function AdminDashboard() {
               >
                 🔧 Travados ({getStuckGenerationCandidates().length})
               </button>
+              <Link href="/admin/dashboard" style={{ ...styles.tabBtn, backgroundColor: '#e2e8f0', color: '#334155', textDecoration: 'none', display: 'inline-block' }}>
+                📊 Dashboard
+              </Link>
             </div>
           </div>
 
@@ -649,7 +687,7 @@ export default function AdminDashboard() {
               {/* Filtros e Barra de Ações em Massa */}
               <div style={{ marginTop: '32px' }}>
                 {/* Abas: tipo de compra (música/vídeo) */}
-                <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
                   {[
                     { id: 'ALL', label: 'Todas as vendas' },
                     { id: 'MUSIC', label: '🎵 Vendas de música' },
@@ -740,6 +778,54 @@ export default function AdminDashboard() {
                       Limpar datas
                     </button>
                   )}
+
+                  <div>
+                    <label htmlFor="admin-payment-status" style={{ display: 'block', fontSize: '0.78rem', color: '#64748b', marginBottom: '4px' }}>Status pagamento</label>
+                    <select
+                      id="admin-payment-status"
+                      value={paymentStatusFilter}
+                      onChange={(e) => setPaymentStatusFilter(e.target.value)}
+                      style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.85rem', color: '#0f172a' }}
+                    >
+                      <option value="ALL">Todos</option>
+                      <option value="AGUARDANDO_PAGAMENTO">Aguardando pagamento</option>
+                      <option value="PAGAMENTO_APROVADO">Pago</option>
+                      <option value="RECUSADO">Recusado</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label htmlFor="admin-production-status" style={{ display: 'block', fontSize: '0.78rem', color: '#64748b', marginBottom: '4px' }}>Status produção</label>
+                    <select
+                      id="admin-production-status"
+                      value={productionStatusFilter}
+                      onChange={(e) => setProductionStatusFilter(e.target.value)}
+                      style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.85rem', color: '#0f172a' }}
+                    >
+                      <option value="ALL">Todos</option>
+                      <option value="LETRA_APROVADA">Letra aprovada</option>
+                      <option value="EM_PRODUCAO">Em produção</option>
+                      <option value="VERSOES_EM_PRODUCAO">Versões em produção</option>
+                      <option value="AUDIO_GERADO">Áudio gerado</option>
+                      <option value="FINALIZADO">Finalizado</option>
+                      <option value="ENTREGUE">Entregue</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label htmlFor="admin-sort-by" style={{ display: 'block', fontSize: '0.78rem', color: '#64748b', marginBottom: '4px' }}>Ordenar por</label>
+                    <select
+                      id="admin-sort-by"
+                      value={sortBy}
+                      onChange={(e) => setSortBy(e.target.value)}
+                      style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.85rem', color: '#0f172a' }}
+                    >
+                      <option value="createdAt_desc">Criação (mais recente)</option>
+                      <option value="createdAt_asc">Criação (mais antigo)</option>
+                      <option value="paidAt_desc">Pagamento (mais recente)</option>
+                      <option value="paidAt_asc">Pagamento (mais antigo)</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div style={styles.filterBar}>
@@ -830,6 +916,7 @@ export default function AdminDashboard() {
                           <th style={styles.th}>Pagamento</th>
                           <th style={styles.th}>Produção</th>
                           <th style={styles.th}>Data & Hora</th>
+                          <th style={styles.th}>Pago em</th>
                           <th style={styles.th}>Ação</th>
                         </tr>
                       </thead>
@@ -905,6 +992,9 @@ export default function AdminDashboard() {
                               </td>
                               <td style={{ ...styles.td, fontSize: '0.85rem', color: '#0f172a', fontWeight: '600', whitespace: 'nowrap' }}>
                                 🕒 {formatDateWithTime(o.createdAt)}
+                              </td>
+                              <td style={{ ...styles.td, fontSize: '0.85rem', color: o.paidAt ? '#059669' : '#94a3b8', fontWeight: '600', whitespace: 'nowrap' }}>
+                                {o.paidAt ? `💰 ${formatDateWithTime(o.paidAt)}` : '—'}
                               </td>
                               <td style={styles.td}>
                                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -1044,7 +1134,7 @@ export default function AdminDashboard() {
                       <p style={{ fontSize: '0.85rem', color: '#94a3b8' }}>Nenhum pedido travado no momento.</p>
                     ) : (
                       <>
-                        <div style={{ maxHeight: '400px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '10px', marginBottom: '16px' }}>
+                        <div style={{ maxHeight: '400px', overflowY: 'auto', overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '10px', marginBottom: '16px' }}>
                           <table style={{ width: '100%', fontSize: '0.85rem', borderCollapse: 'collapse' }}>
                             <thead>
                               <tr style={{ backgroundColor: '#f8fafc', textAlign: 'left' }}>
@@ -1116,7 +1206,7 @@ export default function AdminDashboard() {
                       <p style={{ fontSize: '0.85rem', color: '#94a3b8' }}>Nenhum pedido pendente de notificação.</p>
                     ) : (
                       <>
-                        <div style={{ maxHeight: '400px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '10px', marginBottom: '16px' }}>
+                        <div style={{ maxHeight: '400px', overflowY: 'auto', overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '10px', marginBottom: '16px' }}>
                           <table style={{ width: '100%', fontSize: '0.85rem', borderCollapse: 'collapse' }}>
                             <thead>
                               <tr style={{ backgroundColor: '#f8fafc', textAlign: 'left' }}>
@@ -1216,6 +1306,8 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: '12px',
   },
   tabBtn: {
     padding: '8px 16px',
@@ -1280,6 +1372,7 @@ const styles = {
   filterBtns: {
     display: 'flex',
     gap: '8px',
+    flexWrap: 'wrap',
   },
   filterBtn: {
     background: 'none',
