@@ -125,59 +125,71 @@ export const updateTaskResult = async (taskId, result, overrideOrderId = null) =
       });
       console.log(`Ordem ${orderId} no Firebase atualizada com sucesso com ${audioFiles.length} áudios!`);
 
-      // Envio automático do WhatsApp se ainda não tiver sido notificado. updateTaskResult é chamado
-      // por duas vias concorrentes (webhook da Kie.ai e polling de /api/suno/status) — sem uma
-      // reserva para o envio, as duas podiam disparar a mesma mensagem em paralelo (mesma classe de
-      // corrida já corrigida em src/lib/payments.js:notifyApprovalByWhatsApp).
-      //
-      // runTransaction não existe em firebase/firestore/lite (o SDK usado no Edge Runtime) — antes
-      // disso, TODA chamada aqui rejeitava e caía no catch abaixo, então whatsappSent nunca era
-      // marcado como enviado por este caminho: o cliente nunca recebia o aviso de "música pronta"
-      // (ficava só o log de erro). Substituído por checagem sequencial: getDoc para ler o estado
-      // atual, updateDoc para reservar o envio. Numa corrida bem apertada as duas chamadas podem
-      // passar pela checagem antes de qualquer updateDoc acontecer — pior caso é reenviar a mesma
-      // mensagem uma vez a mais, nunca perder o envio.
-      if (orderData.customerPhone && !orderData.whatsappSent) {
-        let shouldSend = false;
-        try {
-          const freshSnap = await getDoc(orderRef);
-          if (freshSnap.exists()) {
-            const freshData = freshSnap.data();
-            if (!freshData.whatsappSent && !freshData.whatsappSending) {
-              await updateDoc(orderRef, { whatsappSending: true });
-              shouldSend = true;
-            }
-          }
-        } catch (txErr) {
-          console.warn("Erro ao reservar o envio de WhatsApp:", txErr);
-        }
-
-        if (shouldSend) {
-          const deliveryUrl = resolveDeliveryUrl(orderId);
-          const sendResult = await sendMusicReadyTemplate(orderData.customerPhone, {
-            customerName: orderData.customerName,
-            honoreeName: orderData.honoreeName,
-            deliveryUrl,
-          });
-          const sent = sendResult.success;
-          if (sent) {
-            await updateDoc(orderRef, {
-              whatsappSent: true,
-              whatsappSentAt: new Date().toISOString(),
-              whatsappSending: false
-            }).catch(e => console.warn("Erro ao atualizar whatsappSent:", e));
-            // Nunca logar telefone/e-mail do cliente (ver M-25 no AUDIT_REPORT.md) — orderId já
-            // identifica o pedido o suficiente para depuração.
-            console.log(`Mensagem do WhatsApp (música pronta) enviada com sucesso — pedido ${orderId}`);
-          } else {
-            await updateDoc(orderRef, { whatsappSending: false }).catch(e => console.warn(e));
-            console.warn(`Falha ao enviar WhatsApp (música pronta) — pedido ${orderId}`);
-          }
-        }
-      }
+      await notifyMusicReady(orderRef, orderData, orderId);
     }
   } catch (err) {
     console.error("Error updating task result:", err);
   }
+};
+
+/**
+ * Envia o WhatsApp de "música pronta", com reserva de idempotência — chamado automaticamente por
+ * updateTaskResult, e reutilizado pelo reenvio manual do painel admin (api/admin/notify-music-ready).
+ * @param {object} orderRef referência Firestore do pedido
+ * @param {object} orderData dados já lidos do pedido (evita um getDoc a mais quando o chamador já tem)
+ * @param {string} orderId só para os logs (nunca telefone/e-mail — ver M-25 no AUDIT_REPORT.md)
+ * @param {{force?: boolean}} opts force=true ignora whatsappSent/whatsappSending — uso do reenvio
+ *   manual, para destravar pedidos com whatsappSending preso (ver incidente 14-19/08/2026: export
+ *   sem import local quebrava o envio antes de marcar whatsappSending:false).
+ * @returns {Promise<{sent: boolean, reason?: string}>}
+ */
+export const notifyMusicReady = async (orderRef, orderData, orderId, opts = {}) => {
+  const force = Boolean(opts.force);
+
+  if (!orderData.customerPhone) return { sent: false, reason: 'no_phone' };
+  if (!force && orderData.whatsappSent) return { sent: false, reason: 'already_sent' };
+
+  // runTransaction não existe em firebase/firestore/lite (o SDK usado no Edge Runtime) — checagem
+  // sequencial: getDoc para ler o estado atual, updateDoc para reservar o envio. Numa corrida bem
+  // apertada entre webhook e polling, as duas chamadas podem passar pela checagem antes de qualquer
+  // updateDoc acontecer — pior caso é reenviar a mesma mensagem uma vez a mais, nunca perder o envio.
+  let shouldSend = force;
+  if (!force) {
+    try {
+      const freshSnap = await getDoc(orderRef);
+      if (freshSnap.exists()) {
+        const freshData = freshSnap.data();
+        if (!freshData.whatsappSent && !freshData.whatsappSending) {
+          await updateDoc(orderRef, { whatsappSending: true });
+          shouldSend = true;
+        }
+      }
+    } catch (txErr) {
+      console.warn("Erro ao reservar o envio de WhatsApp:", txErr);
+    }
+  }
+
+  if (!shouldSend) return { sent: false, reason: 'already_sending' };
+
+  const deliveryUrl = resolveDeliveryUrl(orderId);
+  const sendResult = await sendMusicReadyTemplate(orderData.customerPhone, {
+    customerName: orderData.customerName,
+    honoreeName: orderData.honoreeName,
+    deliveryUrl,
+  });
+
+  if (sendResult.success) {
+    await updateDoc(orderRef, {
+      whatsappSent: true,
+      whatsappSentAt: new Date().toISOString(),
+      whatsappSending: false
+    }).catch(e => console.warn("Erro ao atualizar whatsappSent:", e));
+    console.log(`Mensagem do WhatsApp (música pronta) enviada com sucesso — pedido ${orderId}`);
+    return { sent: true };
+  }
+
+  await updateDoc(orderRef, { whatsappSending: false }).catch(e => console.warn(e));
+  console.warn(`Falha ao enviar WhatsApp (música pronta) — pedido ${orderId}`);
+  return { sent: false, reason: sendResult.error || 'send_failed' };
 };
 
