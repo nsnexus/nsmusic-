@@ -1,10 +1,18 @@
 import { getRequestContext } from '@cloudflare/next-on-pages';
+import { resolveDeliveryUrl, formatToWhatsAppNumber } from './whatsappTemplates';
 
 // Templates de mensagem (ver M-19 no AUDIT_REPORT.md) vivem em src/lib/whatsappTemplates.js — um
 // arquivo sem dependência de @cloudflare/next-on-pages, para poder ser importado também por
-// componentes client-side sem levar código Edge-only pro bundle do browser. Re-exportado aqui só
-// para quem já importa @/lib/whatsapp por convenção.
-export { resolveDeliveryUrl, formatToWhatsAppNumber } from './whatsappTemplates';
+// componentes client-side sem levar código Edge-only pro bundle do browser.
+//
+// IMPORTANTE: import explícito acima (não só `export ... from`) — `export {x} from 'y'` reexporta
+// mas NÃO cria uma referência local utilizável neste arquivo (semântica de ES Modules). Uma versão
+// anterior só tinha o `export ... from`, e o uso de formatToWhatsAppNumber() dentro de
+// sendTemplateMessage (mais abaixo) virava undefined no bundle da Cloudflare — TypeError não
+// capturado pelo try/catch interno (a chamada é antes do loop protegido), subindo até o catch
+// genérico de src/lib/db.js:updateTaskResult sem nenhum log específico. É a causa provável de
+// nenhuma notificação de WhatsApp ter saído desde a mudança (14/08/2026).
+export { resolveDeliveryUrl, formatToWhatsAppNumber };
 
 /**
  * Módulo de Integração com a API Oficial da Meta (WhatsApp Business Platform / Cloud API).
