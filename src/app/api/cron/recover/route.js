@@ -6,6 +6,11 @@ import { sendRecoveryTemplate } from '@/lib/whatsapp';
 
 export const runtime = 'edge';
 
+// Ativado em 19/08/2026 — pedidos criados antes disso nunca entram na régua (decisão consciente pra
+// não disparar de uma vez o backlog de meses de pedidos pendentes acumulados antes da rotina existir
+// de verdade). Só quem foi criado a partir daqui é elegível.
+const RECOVERY_ENABLED_AFTER = new Date('2026-08-19T17:44:19.000Z').getTime();
+
 // Executado a cada 1 hora via cron-job.org
 export async function GET(req) {
   try {
@@ -62,6 +67,8 @@ export async function GET(req) {
       if (!order.audioUrl || !order.customerPhone || !order.createdAt) return;
       
       const orderTime = new Date(order.createdAt).getTime();
+      // Nunca processa backlog anterior à ativação da régua (ver RECOVERY_ENABLED_AFTER acima).
+      if (orderTime < RECOVERY_ENABLED_AFTER) return;
       // Ignora pedidos muito antigos (mais de 72h) ou muito recentes (menos de 4h)
       if (orderTime < cut72h || orderTime > cut4h) return;
 
