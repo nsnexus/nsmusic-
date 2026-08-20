@@ -112,18 +112,46 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
       await notifyPaymentApproved(orderRef, txResult.orderData);
     }
 
+    // Reserva com o mesmo padrão do WhatsApp (getDoc fresco + updateDoc antes de enviar) — sem isso,
+    // chamadas concorrentes de applyPaymentApproval (webhook + polling + os dois crons de
+    // reconciliação, que hoje rodam em paralelo) podiam todas passar pela checagem de idempotência
+    // ANTES de qualquer updateDoc acontecer, e cada uma disparava seu próprio evento de Purchase pra
+    // Meta — a escrita em si é idempotente (resultado final correto), mas o efeito colateral não era
+    // (achado real em produção: 2 vendas genuínas geraram 15 eventos de Compra em ~5h, 19-20/08/2026).
+    const sentField = txResult.isVideoOnly ? 'metaVideoPurchaseSent' : 'metaPurchaseSent';
+    const sendingField = txResult.isVideoOnly ? 'metaVideoPurchaseSending' : 'metaPurchaseSending';
     try {
-      const value = txResult.isVideoOnly
-        ? (Number(payment.transaction_amount) || getPriceForSku('video_addon'))
-        : (Number(txResult.orderData?.expectedAmount) || Number(payment.transaction_amount) || getPriceForSku(txResult.sku));
-      const contentName = txResult.isVideoOnly ? 'Vídeo Homenagem (Add-on)' : 'Música Homenagem Personalizada';
-      await sendMetaPurchaseEvent({
-        orderId,
-        value,
-        contentName,
-        customerPhone: txResult.orderData?.customerPhone,
-        customerEmail: txResult.orderData?.customerEmail,
-      }, env);
+      let shouldSend = false;
+      const freshSnap = await getDoc(orderRef);
+      if (freshSnap.exists()) {
+        const freshData = freshSnap.data();
+        if (!freshData[sentField] && !freshData[sendingField]) {
+          await updateDoc(orderRef, { [sendingField]: true });
+          shouldSend = true;
+        }
+      }
+
+      if (shouldSend) {
+        const value = txResult.isVideoOnly
+          ? (Number(payment.transaction_amount) || getPriceForSku('video_addon'))
+          : (Number(txResult.orderData?.expectedAmount) || Number(payment.transaction_amount) || getPriceForSku(txResult.sku));
+        const contentName = txResult.isVideoOnly ? 'Vídeo Homenagem (Add-on)' : 'Música Homenagem Personalizada';
+        const sendResult = await sendMetaPurchaseEvent({
+          orderId,
+          value,
+          contentName,
+          customerPhone: txResult.orderData?.customerPhone,
+          customerEmail: txResult.orderData?.customerEmail,
+        }, env);
+
+        if (sendResult.sent) {
+          await updateDoc(orderRef, { [sentField]: true, [sendingField]: false })
+            .catch((e) => console.warn('[payments] Erro ao marcar Purchase enviado:', e.message));
+        } else {
+          await updateDoc(orderRef, { [sendingField]: false }).catch((e) => console.warn(e.message));
+          console.warn(`[payments] Falha ao enviar Purchase (Meta CAPI) — pedido ${orderId}:`, sendResult.reason);
+        }
+      }
     } catch (err) {
       console.warn('[payments] Erro ao enviar evento de Purchase (Meta CAPI):', err.message);
     }
