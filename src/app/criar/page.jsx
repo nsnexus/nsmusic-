@@ -345,14 +345,20 @@ export default function CriarMusica() {
 
   // Confirma que o áudio já responde de verdade (via o mesmo proxy que o player usa) antes de
   // redirecionar pra /entrega — evita mandar o cliente pra uma prévia que ainda não carrega porque
-  // a Kie.ai reportou "pronto" antes do arquivo propagar de fato na CDN deles.
+  // a Kie.ai reportou "pronto" antes do arquivo propagar de fato na CDN deles. Consome o corpo da
+  // resposta inteiro (res.blob()) de propósito — o proxy manda Cache-Control immutable, mas sem ler
+  // o body o navegador não termina de baixar/cachear o arquivo, e o player de /entrega baixava tudo
+  // de novo do zero (era o "parece que tá baixando" antes de tocar).
   const waitForAudioReady = async (rawUrl, maxAttempts = 6, delayMs = 2000) => {
     if (!rawUrl) return false;
     const proxiedUrl = `/api/audio/proxy?url=${encodeURIComponent(rawUrl)}`;
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       try {
-        const res = await fetch(proxiedUrl, { signal: AbortSignal.timeout(10000) });
-        if (res.ok) return true;
+        const res = await fetch(proxiedUrl, { signal: AbortSignal.timeout(20000) });
+        if (res.ok) {
+          await res.blob();
+          return true;
+        }
       } catch (e) {
         // Aviso silencioso — só uma verificação de prontidão, não bloqueia o fluxo em caso de erro.
       }
@@ -1044,11 +1050,7 @@ export default function CriarMusica() {
           const statusData = await res.json();
 
           if (statusData.status === 'COMPLETED' && statusData.tracks && statusData.tracks.length > 0) {
-            setFormData(prev => ({
-              ...prev,
-              sunoTracks: statusData.tracks,
-              sunoStatus: 'generated'
-            }));
+            setFormData(prev => ({ ...prev, sunoTracks: statusData.tracks }));
             clearInterval(pollIntervalRef.current);
 
             // Garante que o documento do pedido em orders no Firebase receba os links reais dos áudios
@@ -1069,14 +1071,20 @@ export default function CriarMusica() {
                 body: JSON.stringify({ orderId: targetOrder })
               }).catch(e => console.warn("Erro ao notificar WhatsApp:", e));
 
+              // sunoStatus fica em 'generating' (tela de loading) até aqui de propósito — só vira
+              // 'generated' (tela de prévia com os players, mais abaixo) se não der pra redirecionar.
               // A Kie.ai às vezes reporta "pronto" antes do arquivo terminar de propagar na CDN
-              // deles — redirecionar na hora podia levar a uma prévia que não tocava (só resolvia
-              // atualizando a página). Confirma que o áudio já responde de verdade antes de mandar
-              // o cliente pra lá; se não conseguir confirmar a tempo, redireciona mesmo assim (o
-              // player em /entrega também tenta recarregar sozinho).
+              // deles — redirecionar na hora podia levar a uma prévia que não tocava. Confirma que o
+              // áudio já responde e já está em cache do navegador antes de mandar o cliente pra lá;
+              // se não conseguir confirmar a tempo, redireciona mesmo assim (o player em /entrega
+              // também tenta recarregar sozinho).
               updateField('sunoProgress', 'Finalizando e conferindo o áudio...');
               await waitForAudioReady(primaryAudio);
               window.location.href = `/entrega?orderId=${targetOrder}`;
+            } else {
+              // Sem orderId não tem pra onde redirecionar — cai na tela de prévia in-page como
+              // fallback, senão o cliente fica travado numa tela de loading que nunca sai do lugar.
+              updateField('sunoStatus', 'generated');
             }
           } else if (statusData.status === 'ERROR') {
             // Falha definitiva da Kie.ai, já com a retentativa automática do servidor esgotada (ver
