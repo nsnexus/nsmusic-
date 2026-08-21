@@ -64,10 +64,11 @@ const HEADER_IMAGE_URL = 'https://nsmusic.nsnexus.com.br/whatsapp-musica-pronta-
 // muda e não pode ser fixado num botão.
 const AUDIO_PROXY_BASE_URL = 'https://nsmusic.nsnexus.com.br/api/audio/proxy?url=';
 
-// Envia um Template de cabeçalho-imagem + 4 variáveis de texto (nome, homenageado, link, suporte),
-// com até 2 botões de URL dinâmica opcionais (audioUrls) — estrutura compartilhada por todas as
-// mensagens automáticas do NS Music via Cloud API.
-const sendTemplateMessage = async (phone, templateName, { customerName, honoreeName, deliveryUrl, audioUrls }, env = {}) => {
+// Envia um Template de cabeçalho-imagem + N variáveis de texto (bodyParams, na ordem {{1}}, {{2}}...
+// exigida pelo Template aprovado na Meta — cada Template tem seu próprio número de variáveis, por
+// isso quem chama monta o array, não essa função), com até 2 botões de URL dinâmica opcionais
+// (audioUrls) — estrutura compartilhada por todas as mensagens automáticas do NS Music via Cloud API.
+const sendTemplateMessage = async (phone, templateName, { bodyParams = [], audioUrls } = {}, env = {}) => {
   const { phoneNumberId, accessToken, baseUrl } = getWhatsAppCloudConfig(env);
   const formattedNumber = formatToWhatsAppNumber(phone);
 
@@ -111,12 +112,7 @@ const sendTemplateMessage = async (phone, templateName, { customerName, honoreeN
         },
         {
           type: 'body',
-          parameters: [
-            { type: 'text', text: customerName || 'Cliente' },
-            { type: 'text', text: honoreeName || 'alguém especial' },
-            { type: 'text', text: deliveryUrl || '' },
-            { type: 'text', text: SUPPORT_WHATSAPP_URL },
-          ],
+          parameters: bodyParams.map((text) => ({ type: 'text', text: text || '' })),
         },
         ...buttonComponents,
       ],
@@ -162,23 +158,33 @@ const sendTemplateMessage = async (phone, templateName, { customerName, honoreeN
 
 /**
  * Envia o Template aprovado "nsmusic_musica_pronta" (categoria Utility) — avisa que a prévia ficou
- * pronta e o pedido ainda não foi pago.
+ * pronta e o pedido ainda não foi pago. 4 variáveis: nome, homenageado, link, contato de suporte.
  */
-export const sendMusicReadyTemplate = (phone, params, env = {}) =>
-  sendTemplateMessage(phone, 'nsmusic_musica_pronta', params, env);
+export const sendMusicReadyTemplate = (phone, { customerName, honoreeName, deliveryUrl, audioUrls }, env = {}) =>
+  sendTemplateMessage(phone, 'nsmusic_musica_pronta', {
+    bodyParams: [customerName || 'Cliente', honoreeName || 'alguém especial', deliveryUrl || '', SUPPORT_WHATSAPP_URL],
+    audioUrls,
+  }, env);
 
 /**
- * Envia um Template de recuperação de carrinho (ex: nsmusic_recovery_4h, nsmusic_recovery_24h).
+ * Envia um Template de recuperação de carrinho (nsmusic_recovery_4h/24h) — aprovados na Meta com
+ * só 2 variáveis (nome do cliente, link de entrega), diferente dos outros Templates deste arquivo.
  */
-export const sendRecoveryTemplate = (phone, templateName, params, env = {}) =>
-  sendTemplateMessage(phone, templateName, params, env);
+export const sendRecoveryTemplate = (phone, templateName, { customerName, deliveryUrl }, env = {}) =>
+  sendTemplateMessage(phone, templateName, {
+    bodyParams: [customerName || 'Cliente', deliveryUrl || ''],
+  }, env);
 
 /**
  * Envia o Template aprovado "nsmusic_pagamento_aprovado" (categoria Utility) — avisa que o
- * pagamento caiu e os áudios em MP3 HD já estão liberados pra download.
+ * pagamento caiu e os áudios em MP3 HD já estão liberados pra download. 4 variáveis: nome,
+ * homenageado, link, contato de suporte.
  */
-export const sendPaymentApprovedTemplate = (phone, params, env = {}) =>
-  sendTemplateMessage(phone, 'nsmusic_pagamento_aprovado', params, env);
+export const sendPaymentApprovedTemplate = (phone, { customerName, honoreeName, deliveryUrl, audioUrls }, env = {}) =>
+  sendTemplateMessage(phone, 'nsmusic_pagamento_aprovado', {
+    bodyParams: [customerName || 'Cliente', honoreeName || 'alguém especial', deliveryUrl || '', SUPPORT_WHATSAPP_URL],
+    audioUrls,
+  }, env);
 
 /**
  * Envia texto livre (sem Template) via WhatsApp Cloud API — só é permitido dentro da janela de 24h

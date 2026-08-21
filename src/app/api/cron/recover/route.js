@@ -11,6 +11,13 @@ export const runtime = 'edge';
 // de verdade). Só quem foi criado a partir daqui é elegível.
 const RECOVERY_ENABLED_AFTER = new Date('2026-08-19T17:44:19.000Z').getTime();
 
+// Teto de envios por execução — mandar tudo de uma vez em paralelo (Promise.allSettled) já estourou
+// o limite de subrequests por invocação do Cloudflare Pages Function quando o backlog de pedidos
+// elegíveis era grande (ver 21/08/2026: "Too many subrequests by single Worker invocation"), fazendo
+// a maioria falhar em cascata. Roda a cada hora, então um backlog grande escoa em algumas execuções
+// em vez de tentar tudo de uma vez. Envio sequencial (não paralelo) também evita rajada de subrequest.
+const MAX_SENDS_PER_RUN = 20;
+
 // Executado a cada 1 hora via cron-job.org
 export async function GET(req) {
   try {
@@ -58,19 +65,19 @@ export async function GET(req) {
     // de uma vez).
     const dryRun = new URL(req.url).searchParams.get('dryRun') === 'true';
 
-    const results = { total: pendingOrders.length, processed: 0, sent: [], dryRun };
-
-    const promises = pendingOrders.map(async (order) => {
+    // 1ª passada: só filtra e classifica, sem I/O nenhum — decide quem é elegível e pra qual estágio.
+    const eligible = [];
+    for (const order of pendingOrders) {
       // Ignora se não gerou música (audioUrl ausente — sunoTaskId nunca é gravado em orders, só em
       // suno_tasks) ou se não tem telefone válido. audioUrl é setado em src/lib/db.js:updateTaskResult
       // assim que a Kie.ai termina a geração — é o sinal real de "cliente já viu a prévia".
-      if (!order.audioUrl || !order.customerPhone || !order.createdAt) return;
-      
+      if (!order.audioUrl || !order.customerPhone || !order.createdAt) continue;
+
       const orderTime = new Date(order.createdAt).getTime();
       // Nunca processa backlog anterior à ativação da régua (ver RECOVERY_ENABLED_AFTER acima).
-      if (orderTime < RECOVERY_ENABLED_AFTER) return;
+      if (orderTime < RECOVERY_ENABLED_AFTER) continue;
       // Ignora pedidos muito antigos (mais de 72h) ou muito recentes (menos de 4h)
-      if (orderTime < cut72h || orderTime > cut4h) return;
+      if (orderTime < cut72h || orderTime > cut4h) continue;
 
       const currentStage = order.recoveryStage || 0;
       let targetStage = 0;
@@ -87,40 +94,47 @@ export async function GET(req) {
         promoParam = '';
       }
 
-      if (targetStage > 0) {
-        if (dryRun) {
+      if (targetStage > 0) eligible.push({ order, orderTime, targetStage, templateName, promoParam });
+    }
+
+    const results = { total: pendingOrders.length, eligible: eligible.length, processed: 0, sent: [], dryRun };
+
+    if (dryRun) {
+      results.processed = eligible.length;
+      results.sent = eligible.map(({ order, targetStage }) => ({ id: order.id, stage: targetStage }));
+      return NextResponse.json({ success: true, results });
+    }
+
+    // 2ª passada: envia de fato, mais antigos primeiro, em série e com teto por execução — ver
+    // MAX_SENDS_PER_RUN acima (limite de subrequest por invocação, não de taxa da Meta).
+    eligible.sort((a, b) => a.orderTime - b.orderTime);
+    const batch = eligible.slice(0, MAX_SENDS_PER_RUN);
+
+    for (const { order, targetStage, templateName, promoParam } of batch) {
+      try {
+        const deliveryUrl = `https://nsmusic.nsnexus.com.br/entrega?id=${order.id}${promoParam}`;
+
+        const params = {
+          customerName: order.customerName || 'Cliente',
+          deliveryUrl: deliveryUrl
+        };
+
+        const waRes = await sendRecoveryTemplate(order.customerPhone, templateName, params);
+
+        if (waRes.success) {
+          await updateDoc(doc(db, 'orders', order.id), {
+            recoveryStage: targetStage,
+            updatedAt: new Date().toISOString()
+          });
           results.processed++;
           results.sent.push({ id: order.id, stage: targetStage });
-          return;
+        } else {
+          console.error(`Falha no envio WA (Cron) para pedido ${order.id}:`, waRes.error);
         }
-        try {
-          const deliveryUrl = `https://nsmusic.nsnexus.com.br/entrega?id=${order.id}${promoParam}`;
-
-          const params = {
-            customerName: order.customerName || 'Cliente',
-            honoreeName: order.honoreeName || 'alguém especial',
-            deliveryUrl: deliveryUrl
-          };
-
-          const waRes = await sendRecoveryTemplate(order.customerPhone, templateName, params);
-
-          if (waRes.success) {
-            await updateDoc(doc(db, 'orders', order.id), {
-              recoveryStage: targetStage,
-              updatedAt: new Date().toISOString()
-            });
-            results.processed++;
-            results.sent.push({ id: order.id, stage: targetStage });
-          } else {
-            console.error(`Falha no envio WA (Cron) para pedido ${order.id}:`, waRes.error);
-          }
-        } catch (e) {
-          console.error(`Erro ao processar recuperação para pedido ${order.id}:`, e);
-        }
+      } catch (e) {
+        console.error(`Erro ao processar recuperação para pedido ${order.id}:`, e);
       }
-    });
-
-    await Promise.allSettled(promises);
+    }
 
     return NextResponse.json({ success: true, results });
 
