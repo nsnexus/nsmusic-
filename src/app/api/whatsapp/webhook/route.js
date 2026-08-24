@@ -112,7 +112,24 @@ export async function POST(req) {
   } catch (e) {}
 
   try {
-    const rawBody = await req.json().catch(() => ({}));
+    let rawBody = {};
+    const contentType = req.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      rawBody = await req.json().catch(() => ({}));
+    } else if (contentType.includes('form') || contentType.includes('urlencoded')) {
+      const formData = await req.formData().catch(() => null);
+      if (formData) {
+        rawBody = Object.fromEntries(formData.entries());
+      }
+    } else {
+      const text = await req.text().catch(() => '');
+      try {
+        rawBody = JSON.parse(text);
+      } catch (e) {
+        rawBody = { message: text };
+      }
+    }
+
     const body = normalizeWebhookBody(rawBody);
     console.log('[WhatsApp Webhook] Mensagem recebida no Webhook');
 
