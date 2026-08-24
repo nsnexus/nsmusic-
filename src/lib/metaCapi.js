@@ -22,6 +22,21 @@ async function sha256Hex(text) {
   return Array.from(new Uint8Array(hashBuffer)).map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+function normalizePhoneForMatching(phone) {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (!digits) return null;
+  // Telefones no Brasil com 10 ou 11 dígitos (DDD + número) — a Meta exige DDI 55 em E.164
+  if (digits.length === 10 || digits.length === 11) {
+    return `55${digits}`;
+  }
+  return digits;
+}
+
+function normalizeEmailForMatching(email) {
+  const trimmed = String(email || '').trim().toLowerCase();
+  return trimmed.includes('@') ? trimmed : null;
+}
+
 /**
  * Envia um evento de Purchase pro Conversions API da Meta.
  * @param {{orderId: string, value: number, contentName: string, customerPhone?: string, customerEmail?: string}} params
@@ -41,19 +56,24 @@ export async function sendMetaPurchaseEvent({ orderId, value, contentName, custo
   // Hasheado (SHA-256) — a Meta nunca recebe o telefone/e-mail em texto puro, só o hash pra
   // correspondência (ver .claude/rules/security.md — nunca logar PII; aqui nem chega a logar).
   const userData = {};
-  const phoneDigits = String(customerPhone || '').replace(/\D/g, '');
-  if (phoneDigits) userData.ph = [await sha256Hex(phoneDigits)];
-  if (customerEmail) userData.em = [await sha256Hex(customerEmail)];
+  const normalizedPhone = normalizePhoneForMatching(customerPhone);
+  const normalizedEmail = normalizeEmailForMatching(customerEmail);
+  if (normalizedPhone) userData.ph = [await sha256Hex(normalizedPhone)];
+  if (normalizedEmail) userData.em = [await sha256Hex(normalizedEmail)];
 
   // event_id estável (orderId + qual produto) — se este evento for reenviado por qualquer motivo, a
   // Meta deduplica sozinha pelo mesmo event_id, então nunca conta duas vezes mesmo em retry.
   const eventId = `purchase_${orderId}_${contentName.replace(/\s+/g, '_').toLowerCase()}`;
+
+  const siteUrl = readEnvValue(env, 'NEXT_PUBLIC_SITE_URL') || 'https://nsmusic.nsnexus.com.br';
+  const eventSourceUrl = `${siteUrl.replace(/\/$/, '')}/entrega?id=${encodeURIComponent(orderId)}`;
 
   const payload = {
     data: [{
       event_name: 'Purchase',
       event_time: Math.floor(Date.now() / 1000),
       event_id: eventId,
+      event_source_url: eventSourceUrl,
       action_source: 'website',
       user_data: userData,
       custom_data: {
