@@ -68,10 +68,11 @@ export async function GET(req) {
     // 1ª passada: só filtra e classifica, sem I/O nenhum — decide quem é elegível e pra qual estágio.
     const eligible = [];
     for (const order of pendingOrders) {
-      // Ignora se não gerou música (audioUrl ausente — sunoTaskId nunca é gravado em orders, só em
-      // suno_tasks) ou se não tem telefone válido. audioUrl é setado em src/lib/db.js:updateTaskResult
-      // assim que a Kie.ai termina a geração — é o sinal real de "cliente já viu a prévia".
-      if (!order.audioUrl || !order.customerPhone || !order.createdAt) continue;
+      // Ignora se não gerou música ou se não tem telefone válido.
+      // REGRA ANTI-BAN: Só envia mensagens de recuperação (4h / 24h) para quem iniciou conversa
+      // pelo WhatsApp (whatsappRequested === true). Clientes que nunca clicaram no botão não recebem
+      // mensagens frias, eliminando qualquer risco de denúncia ou bloqueio.
+      if (!order.audioUrl || !order.customerPhone || !order.createdAt || !order.whatsappRequested) continue;
 
       const orderTime = new Date(order.createdAt).getTime();
       // Nunca processa backlog anterior à ativação da régua (ver RECOVERY_ENABLED_AFTER acima).
@@ -119,7 +120,8 @@ export async function GET(req) {
           deliveryUrl: deliveryUrl
         };
 
-        const waRes = await sendRecoveryTemplate(order.customerPhone, templateName, params);
+        const targetPhone = order.whatsappSenderPhone || order.customerPhone;
+        const waRes = await sendRecoveryTemplate(targetPhone, templateName, params);
 
         if (waRes.success) {
           await updateDoc(doc(db, 'orders', order.id), {
