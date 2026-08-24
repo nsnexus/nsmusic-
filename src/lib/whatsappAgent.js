@@ -5,45 +5,87 @@ import { sendWApiTextMessage, resolveDeliveryUrl } from './whatsapp.js';
 import { requestSunoGeneration } from './suno.js';
 import { generateUniqueOrderNumber } from './orderNumber.js';
 
+// Cache em memória para resposta instantânea (<500ms) e resiliência total
+const memorySessions = new Map();
+
+/**
+ * Lê a sessão atual da memória ou do Firestore
+ */
+async function loadSession(phone) {
+  if (memorySessions.has(phone)) {
+    return memorySessions.get(phone);
+  }
+  try {
+    const snap = await getDoc(doc(db, 'orders', `session_${phone}`));
+    if (snap.exists()) {
+      const data = snap.data();
+      memorySessions.set(phone, data);
+      return data;
+    }
+  } catch (e) {
+    console.warn('[WhatsApp Agent] Fallback para memória:', e.message);
+  }
+  return null;
+}
+
+/**
+ * Salva a sessão na memória e no Firestore com campos padrão de orders
+ */
+async function saveSession(phone, data) {
+  memorySessions.set(phone, data);
+  try {
+    const docRef = doc(db, 'orders', `session_${phone}`);
+    await setDoc(docRef, {
+      orderNumber: `SESSION-${phone}`,
+      customerPhone: phone,
+      productionStatus: 'RASCUNHO',
+      paymentStatus: 'PENDENTE',
+      createdAt: data.startedAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      ...data,
+    });
+  } catch (e) {
+    console.warn('[WhatsApp Agent] Erro ao sincronizar sessão no Firestore:', e.message);
+  }
+}
+
+/**
+ * Remove a sessão
+ */
+async function clearSession(phone) {
+  memorySessions.delete(phone);
+  try {
+    await deleteDoc(doc(db, 'orders', `session_${phone}`));
+  } catch (e) {}
+}
+
 /**
  * Agente de IA Conversacional para WhatsApp do NS Music
- * Guia o cliente passo a passo desde a ideia até a composição da letra e geração da música na Suno.
  */
 export async function handleWhatsAppAgentMessage(senderPhone, messageText, envVars = {}) {
   const cleanPhone = String(senderPhone || '').replace(/\D/g, '');
   if (!cleanPhone || cleanPhone.length < 8) return false;
 
   const textLower = (messageText || '').trim().toLowerCase();
-  const sessionRef = doc(db, 'orders', `session_${cleanPhone}`);
 
   // 1. Comando de reinício
   if (['reiniciar', 'começar de novo', 'comecar de novo', 'novo pedido', 'cancelar', 'menu'].includes(textLower)) {
-    try {
-      await deleteDoc(sessionRef);
-    } catch (e) {}
+    await clearSession(cleanPhone);
     const welcome = `🎵 *NS Music — Novo Atendimento*
 
 Vamos começar uma nova música personalizada do zero! 🎧
 
 Para quem é essa linda homenagem e qual é o *nome* dessa pessoa especial? ❤️`;
     await sendWApiTextMessage(cleanPhone, welcome, envVars);
-    await setDoc(sessionRef, {
+    await saveSession(cleanPhone, {
       step: 'AWAITING_HONOREE',
-      updatedAt: new Date().toISOString(),
+      startedAt: new Date().toISOString(),
     });
     return true;
   }
 
   // 2. Carrega sessão atual
-  let session = null;
-  try {
-    const snap = await getDoc(sessionRef);
-    if (snap.exists()) {
-      session = snap.data();
-    }
-  } catch (e) {
-    console.warn('[WhatsApp Agent] Erro ao carregar sessão:', e.message);
-  }
+  const session = await loadSession(cleanPhone);
 
   // Se não tem sessão ativa, verifica se a mensagem é um gatilho de início de atendimento
   const isTriggerMessage = 
@@ -77,10 +119,9 @@ Para começarmos, me diga:
 👉 *Para quem é essa homenagem* (ex: mãe, namorado, esposa, pai, filho, amiga...) e qual é o *nome* dessa pessoa especial?`;
 
     await sendWApiTextMessage(cleanPhone, greeting, envVars);
-    await setDoc(sessionRef, {
+    await saveSession(cleanPhone, {
       step: 'AWAITING_HONOREE',
       startedAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
     });
     return true;
   }
@@ -92,11 +133,10 @@ Para começarmos, me diga:
   if (currentStep === 'AWAITING_HONOREE') {
     const honoreeText = messageText.trim();
     
-    await setDoc(sessionRef, {
+    await saveSession(cleanPhone, {
       ...session,
       honoreeName: honoreeText,
       step: 'AWAITING_STORY',
-      updatedAt: new Date().toISOString(),
     });
 
     const reply = `Que maravilha! Uma homenagem para *${honoreeText}* vai ser emocionante! ❤️
@@ -106,7 +146,7 @@ Agora, me conte um pouco sobre a história de vocês:
 • Quais qualidades ou manias você mais admira nele(a)?
 • Tem algum apelido carinhoso, frase especial ou lembrança que você quer na letra?
 
-_(Pode escrever do seu jeito, com quantos detalhes quiser! Quanto mais detalhes, mais emocionante fica a canção.)_ ✨`;
+_(Pode escrever em texto ou mandar em áudio com quantos detalhes quiser!)_ ✨`;
 
     await sendWApiTextMessage(cleanPhone, reply, envVars);
     return true;
@@ -116,11 +156,10 @@ _(Pode escrever do seu jeito, com quantos detalhes quiser! Quanto mais detalhes,
   if (currentStep === 'AWAITING_STORY') {
     const storyText = messageText.trim();
 
-    await setDoc(sessionRef, {
+    await saveSession(cleanPhone, {
       ...session,
       story: storyText,
       step: 'AWAITING_STYLE',
-      updatedAt: new Date().toISOString(),
     });
 
     const reply = `Nossa, que história linda! Já estou super inspirada para compor essa homenagem! 🎶
@@ -198,13 +237,12 @@ RETORNE EXCLUSIVAMENTE O TEXTO DA LETRA DA MÚSICA, sem saudações ou comentár
       return true;
     }
 
-    await setDoc(sessionRef, {
+    await saveSession(cleanPhone, {
       ...session,
       musicStyle: styleText,
       voiceType: detectedVoice,
       lyrics: generatedLyrics,
       step: 'AWAITING_LYRICS_APPROVAL',
-      updatedAt: new Date().toISOString(),
     });
 
     const lyricsMessage = `🎵 *Aqui está a letra exclusiva que compus para ${session.honoreeName || 'sua homenagem'}:*
@@ -271,12 +309,11 @@ O que você achou dessa letra? Quer que nosso estúdio grave as *2 versões musi
         console.error('[WhatsApp Agent] Erro ao criar pedido e disparar Suno:', err.message);
       }
 
-      await setDoc(sessionRef, {
+      await saveSession(cleanPhone, {
         ...session,
         orderId,
         step: 'COMPLETED',
         completedAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
       });
 
       const deliveryUrl = resolveDeliveryUrl(orderId);
@@ -330,10 +367,9 @@ RETORNE EXCLUSIVAMENTE O TEXTO DA LETRA DA MÚSICA, sem saudações ou comentár
         revisedLyrics = session.lyrics;
       }
 
-      await setDoc(sessionRef, {
+      await saveSession(cleanPhone, {
         ...session,
         lyrics: revisedLyrics,
-        updatedAt: new Date().toISOString(),
       });
 
       const adjustedMsg = `🎵 *Aqui está a letra atualizada com os seus ajustes:*
