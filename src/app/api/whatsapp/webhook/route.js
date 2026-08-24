@@ -1,12 +1,11 @@
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
-import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore/lite';
+import { collection, getDocs, doc, getDoc, updateDoc } from 'firebase/firestore/lite';
 import { dbEdge as db } from '@/lib/firebase-edge';
 import { sendWApiTextMessage, resolveDeliveryUrl } from '@/lib/whatsapp';
 
 export const runtime = 'edge';
 
-// GET para verificação se necessário
 export async function GET(req) {
   const { searchParams } = new URL(req.url);
   const challenge = searchParams.get('hub.challenge');
@@ -16,9 +15,69 @@ export async function GET(req) {
   return NextResponse.json({ status: 'ok', service: 'NSMusic WhatsApp Webhook' });
 }
 
-// Extrai o número do telefone de forma limpa (somente dígitos)
-function extractPhoneDigits(val) {
-  return String(val || '').replace(/\D/g, '');
+function extractMessageText(body) {
+  if (!body) return '';
+  if (typeof body === 'string') return body;
+
+  const candidates = [
+    body.message,
+    body.text,
+    body.body,
+    body.msg?.body,
+    body.msg?.text,
+    body.data?.message,
+    body.data?.text,
+    body.data?.body,
+    body.data?.msg?.body,
+    body.data?.msg?.text,
+    body.data?.conversation,
+    body.data?.message?.conversation,
+    body.data?.message?.extendedTextMessage?.text,
+    body.message?.conversation,
+    body.message?.extendedTextMessage?.text,
+  ];
+
+  for (const c of candidates) {
+    if (typeof c === 'string' && c.trim()) return c.trim();
+  }
+
+  return '';
+}
+
+function extractSenderPhone(body) {
+  if (!body) return '';
+  const candidates = [
+    body.phone,
+    body.from,
+    body.sender,
+    body.data?.phone,
+    body.data?.from,
+    body.data?.sender,
+    body.data?.key?.remoteJid,
+    body.key?.remoteJid,
+    body.chatId,
+    body.data?.chatId,
+  ];
+
+  for (let raw of candidates) {
+    if (raw) {
+      raw = String(raw);
+      if (raw.includes('@')) raw = raw.split('@')[0];
+      const digits = raw.replace(/\D/g, '');
+      if (digits.length >= 8) return digits;
+    }
+  }
+
+  // Fallback Meta Cloud API entry
+  const entries = Array.isArray(body.entry) ? body.entry : [];
+  for (const entry of entries) {
+    for (const change of entry?.changes || []) {
+      const msg = change?.value?.messages?.[0];
+      if (msg?.from) return String(msg.from).replace(/\D/g, '');
+    }
+  }
+
+  return '';
 }
 
 export async function POST(req) {
@@ -31,41 +90,18 @@ export async function POST(req) {
     const body = await req.json().catch(() => ({}));
     console.log('[WhatsApp Webhook] Mensagem recebida no Webhook');
 
-    // Suporta múltiplos formatos de webhook (W-API, Meta Cloud API, etc.)
-    let senderPhone = '';
-    let messageText = '';
-
-    // Formato W-API padrão: { phone, message, ... } ou { data: { phone, message, ... } }
-    if (body.phone) {
-      senderPhone = body.phone;
-      messageText = body.message || body.text || body.body || '';
-    } else if (body.data?.phone) {
-      senderPhone = body.data.phone;
-      messageText = body.data.message || body.data.text || body.data.body || '';
-    } else if (body.from) {
-      senderPhone = body.from;
-      messageText = body.message || body.text || body.body || '';
-    } else if (body.entry) {
-      // Formato Meta Cloud API
-      const entries = Array.isArray(body.entry) ? body.entry : [];
-      for (const entry of entries) {
-        for (const change of entry?.changes || []) {
-          const msg = change?.value?.messages?.[0];
-          if (msg?.from) {
-            senderPhone = msg.from;
-            messageText = msg.text?.body || '';
-          }
-        }
-      }
+    // Ignora mensagens enviadas por nós mesmos (fromMe: true)
+    if (body.fromMe === true || body.data?.key?.fromMe === true || body.key?.fromMe === true) {
+      return NextResponse.json({ success: true, ignored: 'from_me' }, { status: 200 });
     }
 
-    senderPhone = extractPhoneDigits(senderPhone);
+    const senderPhone = extractSenderPhone(body);
+    const messageText = extractMessageText(body);
 
     if (!senderPhone || senderPhone.length < 8) {
       return NextResponse.json({ success: true, warning: 'Nenhum remetente identificado' }, { status: 200 });
     }
 
-    // Procura por ID de pedido ou número de pedido no texto da mensagem
     let matchedOrder = null;
     let matchedOrderId = '';
 
@@ -74,12 +110,14 @@ export async function POST(req) {
     if (idMatch && idMatch[1]) {
       const candidateId = idMatch[1].trim();
       try {
-        const snap = await getDocs(query(collection(db, 'orders'), where('__name__', '==', candidateId)));
-        if (!snap.empty) {
-          matchedOrderId = snap.docs[0].id;
-          matchedOrder = snap.docs[0].data();
+        const snap = await getDoc(doc(db, 'orders', candidateId));
+        if (snap.exists()) {
+          matchedOrderId = snap.id;
+          matchedOrder = snap.data();
         }
-      } catch (e) {}
+      } catch (e) {
+        console.warn('[WhatsApp Webhook] Erro ao buscar pedido por ID:', e.message);
+      }
     }
 
     // 2. Se não encontrou por ID explícito, busca os pedidos mais recentes pelo telefone do cliente
@@ -92,14 +130,13 @@ export async function POST(req) {
         let foundDocs = [];
         snap.forEach((d) => {
           const data = d.data();
-          const orderPhoneDigits = extractPhoneDigits(data.customerPhone);
+          const orderPhoneDigits = String(data.customerPhone || '').replace(/\D/g, '');
           if (orderPhoneDigits && orderPhoneDigits.endsWith(phoneDigits)) {
             foundDocs.push({ id: d.id, data, createdAt: data.createdAt || '' });
           }
         });
 
         if (foundDocs.length > 0) {
-          // Ordena pelo mais recente
           foundDocs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
           matchedOrderId = foundDocs[0].id;
           matchedOrder = foundDocs[0].data;
