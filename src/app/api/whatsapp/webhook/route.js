@@ -15,19 +15,6 @@ export async function GET(req) {
     return new NextResponse(challenge, { status: 200, headers: { 'Content-Type': 'text/plain' } });
   }
 
-  // Permite consultar os últimos webhooks recebidos em tempo real para diagnóstico
-  if (searchParams.get('logs') === 'true') {
-    try {
-      const snap = await getDocs(collection(db, 'whatsapp_webhook_logs'));
-      const logs = [];
-      snap.forEach((d) => logs.push({ id: d.id, ...d.data() }));
-      logs.sort((a, b) => new Date(b.receivedAt || 0).getTime() - new Date(a.receivedAt || 0).getTime());
-      return NextResponse.json({ logs: logs.slice(0, 15) });
-    } catch (e) {
-      return NextResponse.json({ error: e.message }, { status: 500 });
-    }
-  }
-
   return NextResponse.json({ status: 'ok', service: 'NSMusic WhatsApp Webhook' });
 }
 
@@ -124,19 +111,7 @@ export async function POST(req) {
       }
     }
 
-    // Grava log para auditoria e diagnóstico em tempo real
-    try {
-      const logId = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-      await setDoc(doc(db, 'whatsapp_webhook_logs', logId), {
-        receivedAt: new Date().toISOString(),
-        rawBody: JSON.stringify(body).slice(0, 2500),
-        senderPhone: senderPhone || null,
-        messageText: messageText || null,
-        isAudio: Boolean(audioSource),
-      });
-    } catch (logErr) {
-      console.warn('[Webhook Log] Erro ao gravar log:', logErr.message);
-    }
+    console.log(`[WhatsApp Webhook] De: ${senderPhone || 'Desconhecido'} | Texto: "${messageText || ''}" | Audio: ${Boolean(audioSource)}`);
 
     // Ignora mensagens enviadas por nós mesmos (fromMe: true)
     if (body.fromMe === true || body.data?.key?.fromMe === true || body.key?.fromMe === true) {

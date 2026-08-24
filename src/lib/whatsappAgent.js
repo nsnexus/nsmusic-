@@ -14,7 +14,7 @@ export async function handleWhatsAppAgentMessage(senderPhone, messageText, envVa
   if (!cleanPhone || cleanPhone.length < 8) return false;
 
   const textLower = (messageText || '').trim().toLowerCase();
-  const sessionRef = doc(db, 'whatsapp_chat_sessions', cleanPhone);
+  const sessionRef = doc(db, 'orders', `session_${cleanPhone}`);
 
   // 1. Comando de reinício
   if (['reiniciar', 'começar de novo', 'comecar de novo', 'novo pedido', 'cancelar', 'menu'].includes(textLower)) {
