@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
-import { collection, getDocs, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore/lite';
+import { doc, getDoc, updateDoc } from 'firebase/firestore/lite';
 import { dbEdge as db } from '@/lib/firebase-edge';
 import { sendWApiTextMessage, resolveDeliveryUrl } from '@/lib/whatsapp';
 import { handleWhatsAppAgentMessage } from '@/lib/whatsappAgent';
@@ -16,6 +16,24 @@ export async function GET(req) {
   }
 
   return NextResponse.json({ status: 'ok', service: 'NSMusic WhatsApp Webhook' });
+}
+
+function normalizeWebhookBody(rawBody) {
+  let body = rawBody;
+  if (!body) return {};
+  if (Array.isArray(body) && body.length > 0) {
+    body = body[0];
+  }
+  if (Array.isArray(body?.data) && body.data.length > 0) {
+    body = { ...body, data: body.data[0] };
+  }
+  if (Array.isArray(body?.data?.messages) && body.data.messages.length > 0) {
+    body = { ...body, data: body.data.messages[0] };
+  }
+  if (Array.isArray(body?.messages) && body.messages.length > 0) {
+    body = { ...body, data: body.messages[0] };
+  }
+  return body;
 }
 
 function extractMessageText(body) {
@@ -36,6 +54,8 @@ function extractMessageText(body) {
     body.data?.conversation,
     body.data?.message?.conversation,
     body.data?.message?.extendedTextMessage?.text,
+    body.data?.message?.imageMessage?.caption,
+    body.data?.message?.videoMessage?.caption,
     body.message?.conversation,
     body.message?.extendedTextMessage?.text,
   ];
@@ -57,7 +77,9 @@ function extractSenderPhone(body) {
     body.data?.from,
     body.data?.sender,
     body.data?.key?.remoteJid,
+    body.data?.key?.participant,
     body.key?.remoteJid,
+    body.key?.participant,
     body.chatId,
     body.data?.chatId,
   ];
@@ -90,7 +112,8 @@ export async function POST(req) {
   } catch (e) {}
 
   try {
-    const body = await req.json().catch(() => ({}));
+    const rawBody = await req.json().catch(() => ({}));
+    const body = normalizeWebhookBody(rawBody);
     console.log('[WhatsApp Webhook] Mensagem recebida no Webhook');
 
     const senderPhone = extractSenderPhone(body);
