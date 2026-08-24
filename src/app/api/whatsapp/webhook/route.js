@@ -240,16 +240,8 @@ Assim que a renderização terminar (leva cerca de 1 a 2 minutos), enviaremos o 
       }
     }
 
-    // Mensagem de boas-vindas/atendimento geral caso não seja identificado pedido específico
-    const generalReply = `Olá! Seja muito bem-vindo ao suporte do *NS Music* 🎵
-
-Se você acabou de criar uma música, você pode acessar ou acompanhar seu pedido diretamente no site:
-👉 https://nsmusic.nsnexus.com.br/acompanhar
-
-Como podemos te ajudar hoje? 💜`;
-
-    await sendWApiTextMessage(senderPhone, generalReply, envVars);
-    return NextResponse.json({ success: true, action: 'sent_general_reply' }, { status: 200 });
+    // Se NÃO for uma mensagem com ID ou referente a pedido, NÃO RESPONDE NADA para não atrapalhar conversas pessoais/outros contatos
+    return NextResponse.json({ success: true, ignored: 'regular_conversation' }, { status: 200 });
 
   } catch (err) {
     console.error('[WhatsApp Webhook] Erro geral:', err.message);
