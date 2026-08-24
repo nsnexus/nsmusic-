@@ -208,16 +208,21 @@ Assim que a renderização terminar (leva cerca de 1 a 2 minutos), enviaremos o 
     }
 
     // 2. Se NÃO é um pedido por ID, passa para o Agente Conversacional de Criação de Música no WhatsApp
-    const agentHandled = await handleWhatsAppAgentMessage(senderPhone, messageText, envVars);
-    if (agentHandled) {
-      return NextResponse.json({ success: true, action: 'agent_handled' }, { status: 200 });
+    try {
+      const agentHandled = await handleWhatsAppAgentMessage(senderPhone, messageText, envVars);
+      if (agentHandled) {
+        return NextResponse.json({ success: true, action: 'agent_handled' }, { status: 200 });
+      }
+    } catch (agentErr) {
+      console.error('[WhatsApp Webhook] Erro no Agente:', agentErr.message, agentErr.stack);
+      return NextResponse.json({ success: true, error: `agent_error: ${agentErr.message}` }, { status: 200 });
     }
 
     // 3. Se não for gatilho de atendimento nem houver sessão ativa, ignora silenciosamente para não atrapalhar conversas pessoais
     return NextResponse.json({ success: true, ignored: 'regular_conversation' }, { status: 200 });
 
   } catch (err) {
-    console.error('[WhatsApp Webhook] Erro geral:', err.message);
-    return NextResponse.json({ success: true, error: err.message }, { status: 200 });
+    console.error('[WhatsApp Webhook] Erro geral:', err.message, err.stack);
+    return NextResponse.json({ success: true, error: `general_error: ${err.message}` }, { status: 200 });
   }
 }
