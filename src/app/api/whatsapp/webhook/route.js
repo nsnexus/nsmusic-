@@ -4,6 +4,7 @@ import { collection, getDocs, doc, getDoc, setDoc, updateDoc } from 'firebase/fi
 import { dbEdge as db } from '@/lib/firebase-edge';
 import { sendWApiTextMessage, resolveDeliveryUrl } from '@/lib/whatsapp';
 import { handleWhatsAppAgentMessage } from '@/lib/whatsappAgent';
+import { extractAudioFromWebhook, transcribeAudioWithFailover } from '@/lib/transcribeAudio';
 
 export const runtime = 'edge';
 
@@ -106,7 +107,22 @@ export async function POST(req) {
     console.log('[WhatsApp Webhook] Mensagem recebida no Webhook');
 
     const senderPhone = extractSenderPhone(body);
-    const messageText = extractMessageText(body);
+    let messageText = extractMessageText(body);
+
+    // Se o cliente enviou um áudio, transcreve com OpenAI Whisper / Gemini
+    const audioSource = extractAudioFromWebhook(body);
+    if (audioSource && !messageText) {
+      console.log('[WhatsApp Webhook] Áudio detectado no webhook. Iniciando transcrição...');
+      try {
+        const transcribedText = await transcribeAudioWithFailover(audioSource, envVars);
+        if (transcribedText) {
+          messageText = transcribedText;
+          console.log('[WhatsApp Webhook] Áudio transcrito com sucesso:', messageText);
+        }
+      } catch (err) {
+        console.warn('[WhatsApp Webhook] Erro ao transcrever áudio:', err.message);
+      }
+    }
 
     // Grava log para auditoria e diagnóstico em tempo real
     try {
@@ -116,6 +132,7 @@ export async function POST(req) {
         rawBody: JSON.stringify(body).slice(0, 2500),
         senderPhone: senderPhone || null,
         messageText: messageText || null,
+        isAudio: Boolean(audioSource),
       });
     } catch (logErr) {
       console.warn('[Webhook Log] Erro ao gravar log:', logErr.message);
@@ -134,7 +151,7 @@ export async function POST(req) {
     let matchedOrder = null;
     let matchedOrderId = '';
 
-    const idMatch = messageText.match(/(?:id=|pedido[:\s]+|#)([a-zA-Z0-9_-]{6,30})/i);
+    const idMatch = (messageText || '').match(/(?:id=|pedido[:\s]+|#)([a-zA-Z0-9_-]{6,30})/i);
     if (idMatch && idMatch[1]) {
       const candidateId = idMatch[1].trim();
       try {
