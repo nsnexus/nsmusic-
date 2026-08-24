@@ -1,9 +1,9 @@
 import { doc, getDoc, setDoc, deleteDoc, addDoc, collection } from 'firebase/firestore/lite';
-import { dbEdge as db } from './firebase-edge';
-import { runGeminiWithFailover } from './gemini';
-import { sendWApiTextMessage, resolveDeliveryUrl } from './whatsapp';
-import { requestSunoGeneration } from './suno';
-import { generateUniqueOrderNumber } from './orderNumber';
+import { dbEdge as db } from './firebase-edge.js';
+import { runGeminiWithFailover } from './gemini.js';
+import { sendWApiTextMessage, resolveDeliveryUrl } from './whatsapp.js';
+import { requestSunoGeneration } from './suno.js';
+import { generateUniqueOrderNumber } from './orderNumber.js';
 
 /**
  * Agente de IA Conversacional para WhatsApp do NS Music
