@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { collection, query, where, limit, getDocs } from 'firebase/firestore/lite';
+import { collection, query, where, limit, getDocs, doc, getDoc } from 'firebase/firestore/lite';
 import { dbEdge as db } from '@/lib/firebase-edge';
 
 export const runtime = 'edge';
@@ -11,15 +11,23 @@ export async function GET(req) {
   try {
     const { searchParams } = new URL(req.url);
     const orderNumber = searchParams.get('orderNumber');
+    const orderId = searchParams.get('orderId') || searchParams.get('id');
     const phoneLast4 = searchParams.get('phoneLast4');
 
-    if (!orderNumber && !phoneLast4) {
-      return NextResponse.json({ error: 'Informe orderNumber ou phoneLast4.' }, { status: 400 });
+    if (!orderNumber && !orderId && !phoneLast4) {
+      return NextResponse.json({ error: 'Informe orderNumber, orderId ou phoneLast4.' }, { status: 400 });
     }
 
     const ordersRef = collection(db, 'orders');
     let snap;
-    if (orderNumber) {
+    let found = null;
+
+    if (orderId) {
+      const docSnap = await getDoc(doc(db, 'orders', orderId));
+      if (docSnap.exists()) {
+        found = { id: docSnap.id, data: docSnap.data() };
+      }
+    } else if (orderNumber) {
       snap = await getDocs(query(ordersRef, where('orderNumber', '==', orderNumber), limit(1)));
     } else {
       // Sem índice em customerPhone terminando em X — varre só os mais recentes via createdAt seria
