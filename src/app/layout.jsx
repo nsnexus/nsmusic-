@@ -53,7 +53,7 @@ export default function RootLayout({ children }) {
       <body>
         {children}
         <a
-          href="https://wa.me/5594991081351?text=Ol%C3%A1!%20Vim%20pelo%20site%20da%20NSMusic."
+          href="https://wa.me/559491081351?text=Ol%C3%A1!%20Vim%20pelo%20site%20da%20NSMusic."
           target="_blank"
           rel="noopener noreferrer"
           aria-label="Falar no WhatsApp"

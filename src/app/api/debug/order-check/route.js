@@ -35,15 +35,16 @@ export async function GET(req) {
       snap = await getDocs(query(ordersRef, limit(500)));
     }
 
-    let found = null;
-    snap.forEach((d) => {
-      const data = d.data();
-      if (orderNumber) {
-        found = { id: d.id, data };
-      } else if (String(data.customerPhone || '').endsWith(phoneLast4)) {
-        found = { id: d.id, data };
-      }
-    });
+    if (!found && snap) {
+      snap.forEach((d) => {
+        const data = d.data();
+        if (orderNumber) {
+          found = { id: d.id, data };
+        } else if (String(data.customerPhone || '').endsWith(phoneLast4)) {
+          found = { id: d.id, data };
+        }
+      });
+    }
 
     if (!found) {
       return NextResponse.json({ error: 'Pedido não encontrado.' }, { status: 404 });

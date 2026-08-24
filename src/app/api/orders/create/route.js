@@ -30,26 +30,8 @@ export async function isBlockedByFreeLimit(phone, email) {
   return !hasPaid && matches.length >= 5;
 }
 
-// M-02 no AUDIT_REPORT.md: o orderNumber antigo tinha só 5 dígitos aleatórios (90.000 combinações,
-// sem checar unicidade) e o ano "2026" era um literal fixo no código. Agora combina o ano real com
-// um componente de tempo (alta resolução) e um sufixo aleatório, e confirma unicidade no Firestore
-// antes de aceitar — com um pequeno número de tentativas para o caso raro de colisão.
-export async function generateUniqueOrderNumber() {
-  const ordersRef = collection(db, 'orders');
-  const year = new Date().getFullYear();
-
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const timePart = Date.now().toString(36).toUpperCase();
-    const randomPart = Math.floor(1000 + Math.random() * 9000);
-    const candidate = `NS-${timePart}-${randomPart}-${year}`;
-
-    const snap = await getDocs(query(ordersRef, where('orderNumber', '==', candidate), limit(1))).catch(() => null);
-    if (!snap || snap.empty) return candidate;
-  }
-
-  // Praticamente impossível de colidir: timestamp em milissegundos + aleatório de alta entropia.
-  return `NS-${Date.now()}-${Math.floor(Math.random() * 1_000_000)}-${year}`;
-}
+import { generateUniqueOrderNumber } from '@/lib/orderNumber';
+export { generateUniqueOrderNumber };
 
 export async function POST(req) {
   try {

@@ -3,6 +3,7 @@ import { getRequestContext } from '@cloudflare/next-on-pages';
 import { collection, getDocs, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore/lite';
 import { dbEdge as db } from '@/lib/firebase-edge';
 import { sendWApiTextMessage, resolveDeliveryUrl } from '@/lib/whatsapp';
+import { handleWhatsAppAgentMessage } from '@/lib/whatsappAgent';
 
 export const runtime = 'edge';
 
@@ -129,10 +130,10 @@ export async function POST(req) {
       return NextResponse.json({ success: true, warning: 'Nenhum remetente identificado' }, { status: 200 });
     }
 
+    // 1. Tentar encontrar ID de pedido no texto (ex: id=abc12345 ou pedido abc12345)
     let matchedOrder = null;
     let matchedOrderId = '';
 
-    // 1. Tentar encontrar ID de pedido no texto (ex: id=abc12345 ou pedido abc12345)
     const idMatch = messageText.match(/(?:id=|pedido[:\s]+|#)([a-zA-Z0-9_-]{6,30})/i);
     if (idMatch && idMatch[1]) {
       const candidateId = idMatch[1].trim();
@@ -147,33 +148,7 @@ export async function POST(req) {
       }
     }
 
-    // 2. Se não encontrou por ID explícito, busca os pedidos mais recentes pelo telefone do cliente
-    if (!matchedOrder) {
-      const phoneDigits = senderPhone.slice(-8); // últimos 8 dígitos para cobrir variações de DDD/9º dígito
-      try {
-        const ordersRef = collection(db, 'orders');
-        const snap = await getDocs(ordersRef);
-        
-        let foundDocs = [];
-        snap.forEach((d) => {
-          const data = d.data();
-          const orderPhoneDigits = String(data.customerPhone || '').replace(/\D/g, '');
-          if (orderPhoneDigits && orderPhoneDigits.endsWith(phoneDigits)) {
-            foundDocs.push({ id: d.id, data, createdAt: data.createdAt || '' });
-          }
-        });
-
-        if (foundDocs.length > 0) {
-          foundDocs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-          matchedOrderId = foundDocs[0].id;
-          matchedOrder = foundDocs[0].data;
-        }
-      } catch (err) {
-        console.warn('[WhatsApp Webhook] Erro ao buscar pedido por telefone:', err.message);
-      }
-    }
-
-    // Se encontrou o pedido do cliente:
+    // Se encontrou o pedido do cliente por ID explícito:
     if (matchedOrder && matchedOrderId) {
       const customerName = matchedOrder.customerName || 'Cliente';
       const honoreeName = matchedOrder.honoreeName || 'alguém especial';
@@ -240,7 +215,13 @@ Assim que a renderização terminar (leva cerca de 1 a 2 minutos), enviaremos o 
       }
     }
 
-    // Se NÃO for uma mensagem com ID ou referente a pedido, NÃO RESPONDE NADA para não atrapalhar conversas pessoais/outros contatos
+    // 2. Se NÃO é um pedido por ID, passa para o Agente Conversacional de Criação de Música no WhatsApp
+    const agentHandled = await handleWhatsAppAgentMessage(senderPhone, messageText, envVars);
+    if (agentHandled) {
+      return NextResponse.json({ success: true, action: 'agent_handled' }, { status: 200 });
+    }
+
+    // 3. Se não for gatilho de atendimento nem houver sessão ativa, ignora silenciosamente para não atrapalhar conversas pessoais
     return NextResponse.json({ success: true, ignored: 'regular_conversation' }, { status: 200 });
 
   } catch (err) {
