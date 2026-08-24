@@ -1,99 +1,168 @@
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
-import { doc, getDoc, setDoc } from 'firebase/firestore/lite';
+import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore/lite';
 import { dbEdge as db } from '@/lib/firebase-edge';
-import { sendFreeTextReply } from '@/lib/whatsapp';
+import { sendWApiTextMessage, resolveDeliveryUrl } from '@/lib/whatsapp';
 
 export const runtime = 'edge';
 
-// Webhook exigido pela Meta pra configurar o produto WhatsApp Business Platform no App Dashboard.
-// Também responde automaticamente quem manda mensagem pro número — ele é usado só pra envio via
-// API (Templates), ninguém lê o app normal desse número pra responder de verdade.
-function getVerifyToken() {
-  try {
-    const ctx = getRequestContext();
-    if (ctx?.env?.WHATSAPP_WEBHOOK_VERIFY_TOKEN) return String(ctx.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN).trim();
-  } catch (e) {}
-  return String(process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN || '').trim();
-}
-
-// Handshake de verificação da Meta: GET com hub.mode=subscribe, hub.verify_token e hub.challenge.
-// Precisa responder com o valor de hub.challenge em texto puro (não JSON) se o token bater.
+// GET para verificação se necessário
 export async function GET(req) {
-  const expected = getVerifyToken();
   const { searchParams } = new URL(req.url);
-  const mode = searchParams.get('hub.mode');
-  const token = searchParams.get('hub.verify_token');
   const challenge = searchParams.get('hub.challenge');
-
-  if (!expected) {
-    console.warn('[WhatsApp Webhook] WHATSAPP_WEBHOOK_VERIFY_TOKEN não configurado — verificação recusada.');
-    return NextResponse.json({ error: 'unconfigured' }, { status: 403 });
-  }
-
-  if (mode === 'subscribe' && token === expected && challenge) {
+  if (challenge) {
     return new NextResponse(challenge, { status: 200, headers: { 'Content-Type': 'text/plain' } });
   }
-
-  console.warn('[WhatsApp Webhook] Verificação recusada — token ausente ou inválido.');
-  return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+  return NextResponse.json({ status: 'ok', service: 'NSMusic WhatsApp Webhook' });
 }
 
-const AUTO_REPLY_TEXT = 'Olá! Esse número é usado só para o envio automático de notificações do NSMusic e não tem atendimento por aqui. Para falar com a gente, chama no nosso WhatsApp de suporte: https://wa.me/5594991064043 💜';
-const AUTO_REPLY_COOLDOWN_MS = 24 * 60 * 60 * 1000;
-
-// Responde automaticamente uma única vez a cada 24h por número — evita reenviar a mesma resposta
-// se a pessoa mandar várias mensagens seguidas. Registro simples por doc ID (sem where), não
-// precisa de índice novo em firestore.indexes.json.
-async function maybeSendAutoReply(from, env) {
-  try {
-    const ref = doc(db, 'whatsapp_autoreplies', from);
-    const snap = await getDoc(ref);
-    if (snap.exists()) {
-      const lastSentAt = snap.data()?.lastSentAt;
-      if (lastSentAt && (Date.now() - new Date(lastSentAt).getTime()) < AUTO_REPLY_COOLDOWN_MS) {
-        return;
-      }
-    }
-
-    const result = await sendFreeTextReply(from, AUTO_REPLY_TEXT, env);
-    if (result.success) {
-      await setDoc(ref, { lastSentAt: new Date().toISOString() }, { merge: true });
-    } else {
-      console.warn('[WhatsApp Webhook] Falha ao enviar resposta automática:', result.error);
-    }
-  } catch (err) {
-    console.warn('[WhatsApp Webhook] Erro na resposta automática:', err.message);
-  }
+// Extrai o número do telefone de forma limpa (somente dígitos)
+function extractPhoneDigits(val) {
+  return String(val || '').replace(/\D/g, '');
 }
 
-// Sempre responde 200 pra Meta não ficar reenviando, mesmo se a resposta automática falhar.
 export async function POST(req) {
   let envVars = process.env;
   try {
-    if (getRequestContext().env) envVars = getRequestContext().env;
+    if (getRequestContext()?.env) envVars = getRequestContext().env;
   } catch (e) {}
 
   try {
     const body = await req.json().catch(() => ({}));
-    const entries = Array.isArray(body?.entry) ? body.entry : [];
-    // Nunca logar payload completo (pode conter telefone do cliente, ver M-25 no AUDIT_REPORT.md) —
-    // só o tipo de evento recebido, útil pra confirmar que o webhook está vivo.
-    console.log(`[WhatsApp Webhook] Notificação recebida (${entries.length} entrada(s)).`);
+    console.log('[WhatsApp Webhook] Mensagem recebida no Webhook');
 
-    for (const entry of entries) {
-      for (const change of entry?.changes || []) {
-        const messages = change?.value?.messages;
-        if (!Array.isArray(messages)) continue;
-        for (const message of messages) {
-          if (message?.from) {
-            await maybeSendAutoReply(message.from, envVars);
+    // Suporta múltiplos formatos de webhook (W-API, Meta Cloud API, etc.)
+    let senderPhone = '';
+    let messageText = '';
+
+    // Formato W-API padrão: { phone, message, ... } ou { data: { phone, message, ... } }
+    if (body.phone) {
+      senderPhone = body.phone;
+      messageText = body.message || body.text || body.body || '';
+    } else if (body.data?.phone) {
+      senderPhone = body.data.phone;
+      messageText = body.data.message || body.data.text || body.data.body || '';
+    } else if (body.from) {
+      senderPhone = body.from;
+      messageText = body.message || body.text || body.body || '';
+    } else if (body.entry) {
+      // Formato Meta Cloud API
+      const entries = Array.isArray(body.entry) ? body.entry : [];
+      for (const entry of entries) {
+        for (const change of entry?.changes || []) {
+          const msg = change?.value?.messages?.[0];
+          if (msg?.from) {
+            senderPhone = msg.from;
+            messageText = msg.text?.body || '';
           }
         }
       }
     }
+
+    senderPhone = extractPhoneDigits(senderPhone);
+
+    if (!senderPhone || senderPhone.length < 8) {
+      return NextResponse.json({ success: true, warning: 'Nenhum remetente identificado' }, { status: 200 });
+    }
+
+    // Procura por ID de pedido ou número de pedido no texto da mensagem
+    let matchedOrder = null;
+    let matchedOrderId = '';
+
+    // 1. Tentar encontrar ID de pedido no texto (ex: id=abc12345 ou pedido abc12345)
+    const idMatch = messageText.match(/(?:id=|pedido[:\s]+|#)([a-zA-Z0-9_-]{6,30})/i);
+    if (idMatch && idMatch[1]) {
+      const candidateId = idMatch[1].trim();
+      try {
+        const snap = await getDocs(query(collection(db, 'orders'), where('__name__', '==', candidateId)));
+        if (!snap.empty) {
+          matchedOrderId = snap.docs[0].id;
+          matchedOrder = snap.docs[0].data();
+        }
+      } catch (e) {}
+    }
+
+    // 2. Se não encontrou por ID explícito, busca os pedidos mais recentes pelo telefone do cliente
+    if (!matchedOrder) {
+      const phoneDigits = senderPhone.slice(-8); // últimos 8 dígitos para cobrir variações de DDD/9º dígito
+      try {
+        const ordersRef = collection(db, 'orders');
+        const snap = await getDocs(ordersRef);
+        
+        let foundDocs = [];
+        snap.forEach((d) => {
+          const data = d.data();
+          const orderPhoneDigits = extractPhoneDigits(data.customerPhone);
+          if (orderPhoneDigits && orderPhoneDigits.endsWith(phoneDigits)) {
+            foundDocs.push({ id: d.id, data, createdAt: data.createdAt || '' });
+          }
+        });
+
+        if (foundDocs.length > 0) {
+          // Ordena pelo mais recente
+          foundDocs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          matchedOrderId = foundDocs[0].id;
+          matchedOrder = foundDocs[0].data;
+        }
+      } catch (err) {
+        console.warn('[WhatsApp Webhook] Erro ao buscar pedido por telefone:', err.message);
+      }
+    }
+
+    // Se encontrou o pedido do cliente:
+    if (matchedOrder && matchedOrderId) {
+      const customerName = matchedOrder.customerName || 'Cliente';
+      const honoreeName = matchedOrder.honoreeName || 'alguém especial';
+      const deliveryUrl = resolveDeliveryUrl(matchedOrderId);
+
+      // Marca que o cliente solicitou o envio pelo WhatsApp
+      try {
+        await updateDoc(doc(db, 'orders', matchedOrderId), {
+          whatsappRequested: true,
+          whatsappSenderPhone: senderPhone,
+          updatedAt: new Date().toISOString(),
+        });
+      } catch (e) {}
+
+      // Se a música já estiver pronta:
+      if (matchedOrder.audioUrl || matchedOrder.audioFiles?.length) {
+        const replyMsg = `🎵 *Olá, ${customerName}!*
+
+A sua música personalizada para *${honoreeName}* já está pronta com 2 arranjos exclusivos! 🎧
+
+👉 *Ouça as prévias e baixe seus arquivos em alta qualidade no link:*
+${deliveryUrl}
+
+Se precisar de qualquer ajuda para concluir seu pedido, basta responder aqui! 💜`;
+
+        await sendWApiTextMessage(senderPhone, replyMsg, envVars);
+        return NextResponse.json({ success: true, action: 'sent_ready_link' }, { status: 200 });
+      } else {
+        // A música ainda está sendo gerada pela IA:
+        const replyMsg = `⏳ *Olá, ${customerName}!*
+
+Recebemos seu pedido com sucesso! Nosso estúdio está finalizando as 2 versões da música para *${honoreeName}*. 🎶
+
+Assim que a renderização terminar (leva cerca de 1 a 2 minutos), enviaremos o link direto aqui nesta conversa! 💜`;
+
+        await sendWApiTextMessage(senderPhone, replyMsg, envVars);
+        return NextResponse.json({ success: true, action: 'sent_wait_acknowledgment' }, { status: 200 });
+      }
+    }
+
+    // Mensagem de boas-vindas/atendimento geral caso não seja identificado pedido específico
+    const generalReply = `Olá! Seja muito bem-vindo ao suporte do *NS Music* 🎵
+
+Se você acabou de criar uma música, você pode acessar ou acompanhar seu pedido diretamente no site:
+👉 https://nsmusic.nsnexus.com.br/acompanhar
+
+Como podemos te ajudar hoje? 💜`;
+
+    await sendWApiTextMessage(senderPhone, generalReply, envVars);
+    return NextResponse.json({ success: true, action: 'sent_general_reply' }, { status: 200 });
+
   } catch (err) {
-    console.warn('[WhatsApp Webhook] Erro ao processar notificação:', err.message);
+    console.error('[WhatsApp Webhook] Erro geral:', err.message);
+    return NextResponse.json({ success: true, error: err.message }, { status: 200 });
   }
-  return NextResponse.json({ success: true }, { status: 200 });
 }

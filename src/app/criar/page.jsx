@@ -1263,11 +1263,38 @@ export default function CriarMusica() {
                   Isso leva cerca de 2 minutos. Aguarde enquanto nosso estúdio sintetiza os vocalistas e a base instrumental.
                 </p>
 
-                {/* Notificação sobre aviso no WhatsApp caso não queira esperar na tela */}
-                <div style={{ marginTop: '20px', padding: '16px 20px', background: 'rgba(52, 211, 153, 0.1)', border: '1px solid rgba(52, 211, 153, 0.3)', borderRadius: '14px', textAlign: 'left' }}>
-                  <p style={{ fontSize: '0.88rem', color: '#34d399', margin: 0, lineHeight: '1.5', fontWeight: '600' }}>
-                    💡 <strong>Não precisa ficar esperando nesta tela!</strong> Assim que suas 2 versões da música forem totalmente sintetizadas em nosso estúdio, enviaremos automaticamente uma mensagem no seu WhatsApp com o link direto para você ouvir e baixar quando quiser.
+                {/* Botão de recebimento direto no WhatsApp com proteção anti-ban */}
+                <div style={{ marginTop: '24px', padding: '20px', background: 'rgba(37, 211, 102, 0.08)', border: '1px solid rgba(37, 211, 102, 0.3)', borderRadius: '16px', textAlign: 'center' }}>
+                  <p style={{ fontSize: '0.95rem', color: '#10b981', margin: '0 0 10px 0', lineHeight: '1.5', fontWeight: '600' }}>
+                    💡 <strong>Não precisa ficar esperando nesta tela!</strong>
                   </p>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '0 0 16px 0', lineHeight: '1.4' }}>
+                    Toque no botão abaixo para receber a prévia dos seus 2 arranjos diretamente no seu WhatsApp assim que o estúdio finalizar:
+                  </p>
+                  <a
+                    href={`https://wa.me/559491081351?text=${encodeURIComponent(`Olá! Quero receber a prévia da música do meu pedido ${orderId ? `id=${orderId}` : ''}`)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '10px',
+                      padding: '14px 22px',
+                      fontSize: '1.02rem',
+                      fontWeight: '700',
+                      borderRadius: '12px',
+                      background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)',
+                      color: '#ffffff',
+                      textDecoration: 'none',
+                      boxShadow: '0 4px 15px rgba(37, 211, 102, 0.35)',
+                      width: '100%',
+                      maxWidth: '420px',
+                      margin: '0 auto'
+                    }}
+                  >
+                    <span>💬 Receber Música no meu WhatsApp</span>
+                  </a>
                 </div>
                 {formData.sunoStatus === 'error' && (
                   <div style={{ color: 'var(--danger)', marginTop: '16px', background: 'rgba(239, 68, 68, 0.1)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
