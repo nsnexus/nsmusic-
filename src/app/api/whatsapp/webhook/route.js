@@ -133,6 +133,15 @@ export async function POST(req) {
     const body = normalizeWebhookBody(rawBody);
     console.log('[WhatsApp Webhook] Mensagem recebida no Webhook');
 
+    // DEBUG TEMPORÁRIO — extractSenderPhone/extractMessageText vindo vazios em mensagem real de
+    // cliente (24/08/2026); nenhum dos formatos previstos bate com o payload real da W-API. Loga a
+    // estrutura crua (dígitos de 8+ mascarados — nunca telefone em log, ver .claude/rules/security.md)
+    // só até identificar o formato certo. Remover depois.
+    try {
+      const debugRaw = JSON.stringify(rawBody).replace(/\d{8,}/g, '[NUM]');
+      console.log('[WhatsApp Webhook] DEBUG rawBody:', debugRaw.slice(0, 3000));
+    } catch (e) {}
+
     const senderPhone = extractSenderPhone(body);
     let messageText = extractMessageText(body);
 
