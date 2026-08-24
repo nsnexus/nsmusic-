@@ -190,14 +190,40 @@ export async function POST(req) {
 
       // Se a música já estiver pronta:
       if (matchedOrder.audioUrl || matchedOrder.audioFiles?.length) {
-        const replyMsg = `🎵 *Olá, ${customerName}!*
+        const isPaid = matchedOrder.paymentStatus === 'PAGAMENTO_APROVADO' || matchedOrder.paymentStatus === 'PAGO';
+        const urls = (matchedOrder.audioFiles?.length ? matchedOrder.audioFiles : [matchedOrder.audioUrl]).filter(Boolean);
+        const audiosList = urls.map((link, idx) => `• *Versão ${idx + 1}:* ${link}`).join('\n');
 
-A sua música personalizada para *${honoreeName}* já está pronta com 2 arranjos exclusivos! 🎧
+        let replyMsg = '';
+        if (isPaid) {
+          replyMsg = `🎉 *PAGAMENTO CONFIRMADO!*
 
-👉 *Ouça as prévias e baixe seus arquivos em alta qualidade no link:*
+Olá, ${customerName}! As músicas personalizadas para *${honoreeName}* já estão 100% liberadas em alta definição (MP3 HD)! 🎶
+
+${audiosList ? `📥 *Baixe seus áudios diretamente:*\n${audiosList}\n\n` : ''}🔗 *Acesse sua página de entrega permanente:*
 ${deliveryUrl}
 
-Se precisar de qualquer ajuda para concluir seu pedido, basta responder aqui! 💜`;
+━━━━━━━━━━━━━━━━━━━━
+🎬 *QUE TAL UM VÍDEO HOMENAGEM?*
+Transforme essa música linda em um *vídeo com fotos e legendas sincronizadas* para emocionar ainda mais ${honoreeName}!
+
+✨ *Adicione o vídeo ao seu pedido por apenas R$ 6,90:*
+${deliveryUrl}
+━━━━━━━━━━━━━━━━━━━━
+
+Muito obrigado por escolher o *NS Music*! 💜`;
+        } else {
+          replyMsg = `🎵 *Olá, ${customerName}!*
+
+A sua música personalizada para *${honoreeName}* já foi produzida com sucesso no estúdio *NS Music*! 🎧
+
+Foram gravadas *2 versões exclusivas* com arranjos diferentes para você escolher.
+
+👉 *Ouça a prévia agora mesmo:*
+${deliveryUrl}
+
+Qualquer dúvida ou se precisar de ajuda, basta responder aqui! 💜`;
+        }
 
         await sendWApiTextMessage(senderPhone, replyMsg, envVars);
         return NextResponse.json({ success: true, action: 'sent_ready_link' }, { status: 200 });

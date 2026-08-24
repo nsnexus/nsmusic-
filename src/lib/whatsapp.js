@@ -85,32 +85,47 @@ export const sendMusicReadyTemplate = async (phone, { customerName, honoreeName,
 
   const message = `🎵 *Olá, ${name}!*
 
-A sua música personalizada para *${honoree}* já está pronta com 2 arranjos exclusivos no estúdio *NS Music*! 🎧
+A sua música personalizada para *${honoree}* já foi produzida com sucesso no estúdio *NS Music*! 🎧
 
-👉 *Ouça as prévias e baixe os arquivos em alta definição:*
+Foram gravadas *2 versões exclusivas* com arranjos diferentes para você escolher ou ficar com as duas.
+
+👉 *Ouça a prévia agora mesmo:*
 ${url}
 
-Se precisar de qualquer suporte, basta responder a esta mensagem! 💜`;
+Se precisar de qualquer ajuda ou tiver dúvidas, é só me responder por aqui! 💜`;
 
   return await sendWApiTextMessage(phone, message, env);
 };
 
 /**
- * Envia mensagem de confirmação de pagamento aprovado.
+ * Envia mensagem de confirmação de pagamento aprovado com links diretos de áudio e oferta do vídeo homenagem.
  */
-export const sendPaymentApprovedTemplate = async (phone, { customerName, honoreeName, deliveryUrl }, env = {}) => {
+export const sendPaymentApprovedTemplate = async (phone, { customerName, honoreeName, deliveryUrl, audioUrls }, env = {}) => {
   const name = customerName || 'Cliente';
   const honoree = honoreeName || 'alguém especial';
   const url = deliveryUrl || 'https://nsmusic.nsnexus.com.br';
 
-  const message = `🎉 *Pagamento Confirmado!*
+  let audiosList = '';
+  if (Array.isArray(audioUrls) && audioUrls.length > 0) {
+    audiosList = audioUrls.filter(Boolean).map((link, idx) => `• *Versão ${idx + 1}:* ${link}`).join('\n');
+  }
 
-Olá, ${name}! Os arquivos de áudio em MP3 HD da sua homenagem para *${honoree}* já estão 100% liberados para download!
+  const message = `🎉 *PAGAMENTO CONFIRMADO!*
 
-👉 *Baixe suas músicas completas aqui:*
+Olá, ${name}! As músicas personalizadas para *${honoree}* já estão 100% liberadas em alta definição (MP3 HD)! 🎶
+
+${audiosList ? `📥 *Baixe seus áudios diretamente:*\n${audiosList}\n\n` : ''}🔗 *Acesse sua página de entrega permanente:*
 ${url}
 
-Muito obrigado por escolher o NS Music para eternizar esse momento! 💜`;
+━━━━━━━━━━━━━━━━━━━━
+🎬 *QUE TAL UM VÍDEO HOMENAGEM?*
+Transforme essa música linda em um *vídeo com fotos e legendas sincronizadas* para emocionar ainda mais ${honoree}!
+
+✨ *Adicione o vídeo ao seu pedido por apenas R$ 6,90:*
+${url}
+━━━━━━━━━━━━━━━━━━━━
+
+Muito obrigado por escolher o *NS Music* para fazer parte desse momento tão especial! 💜`;
 
   return await sendWApiTextMessage(phone, message, env);
 };
