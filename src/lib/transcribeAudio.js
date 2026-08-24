@@ -8,6 +8,9 @@ export function extractAudioFromWebhook(body) {
 
   // 1. URLs diretas de mídia
   const urlCandidates = [
+    // Formato real da W-API (ver src/app/api/whatsapp/webhook/route.js) — mídia vem em
+    // msgContent.audioMessage, não em data.message.audioMessage.
+    body.msgContent?.audioMessage?.url,
     body.mediaUrl,
     body.audioUrl,
     body.fileUrl,
@@ -30,6 +33,7 @@ export function extractAudioFromWebhook(body) {
 
   // 2. Base64
   const base64Candidates = [
+    body.msgContent?.audioMessage?.base64,
     body.base64,
     body.data?.base64,
     body.data?.media?.base64,

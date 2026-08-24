@@ -41,6 +41,13 @@ function extractMessageText(body) {
   if (typeof body === 'string') return body;
 
   const candidates = [
+    // Formato real da W-API (confirmado em produção 24/08/2026): texto vem em msgContent.conversation,
+    // não em data.message.conversation como os candidatos abaixo assumiam — payload inteiro é
+    // top-level (event, instanceId, chat, sender, msgContent), sem wrapper "data".
+    body.msgContent?.conversation,
+    body.msgContent?.extendedTextMessage?.text,
+    body.msgContent?.imageMessage?.caption,
+    body.msgContent?.videoMessage?.caption,
     body.message,
     body.text,
     body.body,
@@ -70,6 +77,10 @@ function extractMessageText(body) {
 function extractSenderPhone(body) {
   if (!body) return '';
   const candidates = [
+    // Formato real da W-API — sender é um objeto ({ id, senderLid, pushName, ... }), não uma string;
+    // o número puro fica em sender.id (senderLid/chat.id usam o formato novo "@lid" da Meta, que não
+    // é o telefone). body.sender sozinho (candidato abaixo) vira "[object Object]" e é descartado.
+    body.sender?.id,
     body.phone,
     body.from,
     body.sender,
@@ -132,15 +143,6 @@ export async function POST(req) {
 
     const body = normalizeWebhookBody(rawBody);
     console.log('[WhatsApp Webhook] Mensagem recebida no Webhook');
-
-    // DEBUG TEMPORÁRIO — extractSenderPhone/extractMessageText vindo vazios em mensagem real de
-    // cliente (24/08/2026); nenhum dos formatos previstos bate com o payload real da W-API. Loga a
-    // estrutura crua (dígitos de 8+ mascarados — nunca telefone em log, ver .claude/rules/security.md)
-    // só até identificar o formato certo. Remover depois.
-    try {
-      const debugRaw = JSON.stringify(rawBody).replace(/\d{8,}/g, '[NUM]');
-      console.log('[WhatsApp Webhook] DEBUG rawBody:', debugRaw.slice(0, 3000));
-    } catch (e) {}
 
     const senderPhone = extractSenderPhone(body);
     let messageText = extractMessageText(body);
