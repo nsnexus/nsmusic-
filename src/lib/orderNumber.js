@@ -1,5 +1,5 @@
 import { collection, query, where, limit, getDocs } from 'firebase/firestore/lite';
-import { dbEdge as db } from './firebase-edge';
+import { dbEdge as db } from './firebase-edge.js';
 
 /**
  * Gera um número de pedido único com alta entropia e confirma unicidade no Firestore.

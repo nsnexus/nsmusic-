@@ -1,7 +1,7 @@
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore/lite';
-import { dbEdge as db } from './firebase-edge';
-import { sendMusicReadyTemplate } from './whatsapp';
-import { resolveDeliveryUrl } from './whatsappTemplates';
+import { dbEdge as db } from './firebase-edge.js';
+import { sendMusicReadyTemplate } from './whatsapp.js';
+import { resolveDeliveryUrl } from './whatsappTemplates.js';
 
 export const getTask = async (taskId) => {
   try {

@@ -7,9 +7,9 @@
 // Import de firebase/firestore/lite é seguro aqui: este módulo só é usado a partir de rotas Edge.
 
 import { doc, getDoc, updateDoc, increment } from 'firebase/firestore/lite';
-import { dbEdge as db } from './firebase-edge';
-import { saveTask, getTask } from './db';
-import { buildSunoPayload } from './sunoPayload';
+import { dbEdge as db } from './firebase-edge.js';
+import { saveTask, getTask } from './db.js';
+import { buildSunoPayload } from './sunoPayload.js';
 
 // A Kie.ai sinaliza a maioria dos erros com HTTP 200 e um `code` no corpo (429/430 = limite de
 // taxa, 455 = manutenção, 500 = erro interno deles) — só olhar response.status não pegava esses

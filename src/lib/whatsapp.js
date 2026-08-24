@@ -1,5 +1,5 @@
 import { getRequestContext } from '@cloudflare/next-on-pages';
-import { resolveDeliveryUrl, formatToWhatsAppNumber } from './whatsappTemplates';
+import { resolveDeliveryUrl, formatToWhatsAppNumber } from './whatsappTemplates.js';
 
 export { resolveDeliveryUrl, formatToWhatsAppNumber };
 
