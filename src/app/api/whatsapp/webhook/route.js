@@ -346,17 +346,18 @@ export async function POST(req) {
 
       // Se a música já estiver pronta:
       if (matchedOrder.audioUrl || matchedOrder.audioFiles?.length) {
-        // Se foi apenas um "ok", "obrigado", "valeu" e o cliente JÁ recebeu a prévia ou aprovação,
-        // não reenvia o template completo repetidamente para não poluir a conversa.
+        // Se NÃO passou ID explícito (caiu aqui só porque o telefone bateu com um pedido existente)
+        // E o cliente JÁ foi notificado antes (já recebeu o link da prévia ou pagamento),
+        // NÃO reenvia o template completo repetidamente para qualquer mensagem comum (dúvidas, "oi", "não gostei", etc.).
         const alreadyNotified = Boolean(
           matchedOrder.whatsappSent ||
           matchedOrder.paymentWhatsappSent ||
           matchedOrder.readyTemplateSent
         );
 
-        if (isShortAck && !isExplicitId && alreadyNotified) {
-          console.log(`[WhatsApp Webhook] Mensagem de confirmação recebida ("${messageText}"), prévia já enviada anteriormente. Silêncio.`);
-          return NextResponse.json({ success: true, ignored: 'ready_link_already_sent_ack' }, { status: 200 });
+        if (!isExplicitId && alreadyNotified) {
+          console.log(`[WhatsApp Webhook] Cliente já possui o link do pedido #${matchedOrderId}. Mensagem "${messageText}" não reenvia template de música pronta.`);
+          return NextResponse.json({ success: true, ignored: 'already_notified_silence' }, { status: 200 });
         }
 
         const isPaid = matchedOrder.paymentStatus === 'PAGAMENTO_APROVADO' || matchedOrder.paymentStatus === 'PAGO';
@@ -409,9 +410,9 @@ ${deliveryUrl}
       } else {
         // A música ainda está sendo gerada pela IA:
         // Se o cliente já recebeu o aviso de espera (whatsappWaitAckSent) e não mandou um ID novo explícito,
-        // ou se mandou uma resposta curta ("ok", "obrigado"), NÃO repete a mensagem de espera.
-        if (matchedOrder.whatsappWaitAckSent && (!isExplicitId || isShortAck)) {
-          console.log(`[WhatsApp Webhook] Mensagem de espera já enviada para o pedido #${matchedOrderId}. Silêncio para resposta "${messageText}".`);
+        // NÃO repete a mensagem de espera para qualquer mensagem de texto subsequente.
+        if (matchedOrder.whatsappWaitAckSent && !isExplicitId) {
+          console.log(`[WhatsApp Webhook] Mensagem de espera já enviada para o pedido #${matchedOrderId}. Silêncio para mensagem "${messageText}".`);
           return NextResponse.json({ success: true, ignored: 'wait_ack_already_sent' }, { status: 200 });
         }
 
