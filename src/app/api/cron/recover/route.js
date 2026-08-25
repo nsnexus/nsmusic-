@@ -11,14 +11,13 @@ export const runtime = 'edge';
 // de verdade). Só quem foi criado a partir daqui é elegível.
 const RECOVERY_ENABLED_AFTER = new Date('2026-08-19T17:44:19.000Z').getTime();
 
-// Teto de envios por execução — mandar tudo de uma vez em paralelo (Promise.allSettled) já estourou
-// o limite de subrequests por invocação do Cloudflare Pages Function quando o backlog de pedidos
-// elegíveis era grande (ver 21/08/2026: "Too many subrequests by single Worker invocation"), fazendo
-// a maioria falhar em cascata. Roda a cada hora, então um backlog grande escoa em algumas execuções
-// em vez de tentar tudo de uma vez. Envio sequencial (não paralelo) também evita rajada de subrequest.
-const MAX_SENDS_PER_RUN = 20;
+// Teto de envios por execução — baixo de propósito (ver incidente de banimento 24/08/2026: mandar
+// muitas mensagens de uma vez, mesmo pra quem já escreveu antes, ainda tem cara de bot pro sistema
+// anti-abuso do WhatsApp). Roda a cada 15min (ver wrangler.toml) em vez de de hora em hora — mais
+// execuções menores em vez de uma rajada só, espalha o envio no tempo.
+const MAX_SENDS_PER_RUN = 4;
 
-// Executado a cada 1 hora via cron-job.org
+// Executado a cada 15 minutos via Cron Trigger do Worker efi-proxy (ver workers/efi-proxy/wrangler.toml)
 export async function GET(req) {
   try {
     let env = {};
@@ -41,10 +40,11 @@ export async function GET(req) {
 
     const now = Date.now();
     const HOUR_IN_MS = 60 * 60 * 1000;
-    
-    // Tempos de corte
+
+    // Tempos de corte — estágio de 24h removido de propósito (incidente de banimento 24/08/2026):
+    // alcançar de volta um lead frio 24h depois é o padrão mais parecido com mensagem de marketing
+    // não solicitada. Mantém só o de 4h, mais "quente" (cliente ainda lembra do pedido).
     const cut4h = now - (4 * HOUR_IN_MS);
-    const cut24h = now - (24 * HOUR_IN_MS);
     const cut72h = now - (72 * HOUR_IN_MS);
 
     const ordersRef = collection(db, 'orders');
@@ -85,11 +85,7 @@ export async function GET(req) {
       let templateName = '';
       let promoParam = '';
 
-      if (orderTime <= cut24h && currentStage < 2) {
-        targetStage = 2;
-        templateName = 'nsmusic_recovery_24h';
-        promoParam = '&promo=24h';
-      } else if (orderTime <= cut4h && orderTime > cut24h && currentStage < 1) {
+      if (orderTime <= cut4h && currentStage < 1) {
         targetStage = 1;
         templateName = 'nsmusic_recovery_4h';
         promoParam = '';

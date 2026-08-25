@@ -159,8 +159,9 @@ async function handleScheduledReconcile(env) {
   }
 }
 
-// Régua de recuperação de carrinho via WhatsApp (4h/24h) — dispara a rota que antes dependia de um
-// agendador externo (cron-job.org) nunca configurado. Ver src/app/api/cron/recover/route.js.
+// Régua de recuperação de carrinho via WhatsApp (só 4h desde 24/08/2026, ver route.js) — dispara a
+// rota que antes dependia de um agendador externo (cron-job.org) nunca configurado.
+// Ver src/app/api/cron/recover/route.js.
 async function handleScheduledRecover(env) {
   const appUrl = env?.APP_URL;
   const secret = env?.CRON_SECRET;
@@ -204,7 +205,7 @@ export default {
   // Disparado pelos crons declarados em wrangler.toml — event.cron diz qual dos dois disparou.
   // waitUntil garante que a chamada termina mesmo depois do handler retornar.
   async scheduled(event, env, ctx) {
-    if (event.cron === '7 * * * *') {
+    if (event.cron === '7,22,37,52 * * * *') {
       ctx.waitUntil(handleScheduledRecover(env));
     } else {
       ctx.waitUntil(handleScheduledReconcile(env));

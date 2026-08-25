@@ -31,15 +31,17 @@ certificate_id = "5bba60d5-7047-4e5b-9607-3641b86a1c35"
 # Dois agendamentos (handler `scheduled` em src/worker.js, que distingue pelo event.cron). Moram
 # aqui e não no app porque Cloudflare Pages não suporta cron trigger — só Workers suportam, a mesma
 # limitação que já obrigou este Worker a existir.
-#   */10 * * * *  — a cada 10min, chama POST /api/orders/reconcile: recupera música já pronta na
-#                   Kie.ai e pagamento já confirmado na Efí que ficaram presos porque o cliente
-#                   fechou a aba antes do polling terminar.
-#   7 * * * *     — a cada hora (minuto 7, fora de :00, ver .claude convenção de evitar minuto cheio),
-#                   chama GET /api/cron/recover: régua de recuperação de carrinho via WhatsApp
-#                   (4h/24h). Antes disso dependia de um agendador externo (cron-job.org) que nunca
-#                   chegou a ser configurado.
+#   */10 * * * *        — a cada 10min, chama POST /api/orders/reconcile: recupera música já pronta
+#                         na Kie.ai e pagamento já confirmado na Efí que ficaram presos porque o
+#                         cliente fechou a aba antes do polling terminar.
+#   7,22,37,52 * * * *  — a cada 15min (minuto 7, fora de :00, ver .claude convenção de evitar minuto
+#                         cheio), chama GET /api/cron/recover: régua de recuperação de carrinho via
+#                         WhatsApp (só estágio de 4h desde 24/08/2026 — ver incidente de banimento no
+#                         AUDIT/histórico do commit). Rodava 1x/hora com lote de até 20 mensagens;
+#                         agora roda 4x mais vezes com lote de até 4, pra espalhar o envio no tempo em
+#                         vez de mandar tudo em rajada — bate menos com padrão de bot pro WhatsApp.
 [triggers]
-crons = ["*/10 * * * *", "7 * * * *"]
+crons = ["*/10 * * * *", "7,22,37,52 * * * *"]
 
 # URL pública do app Next.js chamado pelos crons acima. Não é segredo.
 [vars]
