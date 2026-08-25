@@ -194,6 +194,7 @@ export async function notifyPaymentApproved(orderRef, orderData, opts = {}) {
       // audioFiles já inclui audioUrl como primeiro item (ver src/lib/db.js:updateTaskResult) —
       // audioUrl só como fallback pra pedidos antigos sem audioFiles gravado.
       audioUrls: (orderData.audioFiles?.length ? orderData.audioFiles : [orderData.audioUrl]).filter(Boolean),
+      hasVideoAccess: Boolean(orderData.hasVideoAccess),
     });
 
     if (sendResult.success) {

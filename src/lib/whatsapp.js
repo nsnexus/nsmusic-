@@ -100,7 +100,7 @@ Se precisar de qualquer ajuda ou tiver dúvidas, é só me responder por aqui! �
 /**
  * Envia mensagem de confirmação de pagamento aprovado com links diretos de áudio e oferta do vídeo homenagem.
  */
-export const sendPaymentApprovedTemplate = async (phone, { customerName, honoreeName, deliveryUrl, audioUrls }, env = {}) => {
+export const sendPaymentApprovedTemplate = async (phone, { customerName, honoreeName, deliveryUrl, audioUrls, hasVideoAccess }, env = {}) => {
   const name = customerName || 'Cliente';
   const honoree = honoreeName || 'alguém especial';
   const url = deliveryUrl || 'https://nsmusic.nsnexus.com.br';
@@ -110,14 +110,15 @@ export const sendPaymentApprovedTemplate = async (phone, { customerName, honoree
     audiosList = audioUrls.filter(Boolean).map((link, idx) => `• *Versão ${idx + 1}:* ${link}`).join('\n');
   }
 
-  const message = `🎉 *PAGAMENTO CONFIRMADO!*
-
-Olá, ${name}! As músicas personalizadas para *${honoree}* já estão 100% liberadas em alta definição (MP3 HD)! 🎶
-
-${audiosList ? `📥 *Baixe seus áudios diretamente:*\n${audiosList}\n\n` : ''}🔗 *Acesse sua página de entrega permanente:*
-${url}
-
+  // Oferta do vídeo só faz sentido pra quem ainda não comprou o add-on — mandar a mesma oferta pra
+  // quem já pagou pelo vídeo soava como se o pagamento não tivesse sido reconhecido.
+  const videoBlock = hasVideoAccess
+    ? `━━━━━━━━━━━━━━━━━━━━
+🎬 Seu *vídeo homenagem* também já está confirmado! Pra gerar, é só enviar de 10 a 20 fotos na sua página de entrega (mesmo link acima) que a gente sincroniza tudo com a música. 📸
 ━━━━━━━━━━━━━━━━━━━━
+
+`
+    : `━━━━━━━━━━━━━━━━━━━━
 🎬 *QUE TAL UM VÍDEO HOMENAGEM?*
 Transforme essa música linda em um *vídeo com fotos e legendas sincronizadas* para emocionar ainda mais ${honoree}!
 
@@ -125,7 +126,16 @@ Transforme essa música linda em um *vídeo com fotos e legendas sincronizadas* 
 ${url}
 ━━━━━━━━━━━━━━━━━━━━
 
-Muito obrigado por escolher o *NS Music* para fazer parte desse momento tão especial! 💜`;
+`;
+
+  const message = `🎉 *PAGAMENTO CONFIRMADO!*
+
+Olá, ${name}! As músicas personalizadas para *${honoree}* já estão 100% liberadas em alta definição (MP3 HD)! 🎶
+
+${audiosList ? `📥 *Baixe seus áudios diretamente:*\n${audiosList}\n\n` : ''}🔗 *Acesse sua página de entrega permanente:*
+${url}
+
+${videoBlock}Muito obrigado por escolher o *NS Music* para fazer parte desse momento tão especial! 💜`;
 
   return await sendWApiTextMessage(phone, message, env);
 };
