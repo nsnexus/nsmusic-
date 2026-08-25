@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { collection, query, orderBy, onSnapshot, limit as fbLimit, doc, setDoc } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, limit as fbLimit, doc, setDoc, where } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { getPriceForSku } from '@/lib/pricing';
 import { buildSunoPayload } from '@/lib/sunoPayload';
@@ -18,7 +18,12 @@ export default function AdminDashboard() {
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [filter, setFilter] = useState('ALL'); // 'ALL', 'NEW', 'PRODUCTION', 'FINISHED'
   const [purchaseTypeTab, setPurchaseTypeTab] = useState('ALL'); // 'ALL', 'MUSIC', 'VIDEO'
-  const [dateFrom, setDateFrom] = useState('');
+  // Padrão "hoje" — reduz leituras do Firestore no carregamento inicial (ver where() na query de orders).
+  const todayLocalStr = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+  const [dateFrom, setDateFrom] = useState(todayLocalStr);
   const [dateTo, setDateTo] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [paymentStatusFilter, setPaymentStatusFilter] = useState('ALL');
@@ -83,13 +88,29 @@ export default function AdminDashboard() {
     };
   }, [router]);
 
+  // O <input type="date"> devolve "AAAA-MM-DD" no calendário LOCAL do navegador (fuso do Brasil,
+  // UTC-3), mas createdAt é gravado sempre em UTC (new Date().toISOString(), convenção do projeto —
+  // ver CLAUDE.md). Comparar a string bruta do input contra createdAt tratava "AAAA-MM-DD" como se
+  // já fosse meia-noite UTC — 3 horas ANTES da meia-noite local de verdade. Resultado: filtrar "dia
+  // 12" incluía pedidos feitos às 21h do dia 11 no horário do Brasil. `new Date("...T00:00:00")` sem
+  // sufixo de fuso é interpretado como horário LOCAL pelo motor JS — é isso que corrige o deslocamento.
+  const localDayStartIso = (dateStr) => (dateStr ? new Date(`${dateStr}T00:00:00`).toISOString() : null);
+  const localDayEndIso = (dateStr) => (dateStr ? new Date(`${dateStr}T23:59:59.999`).toISOString() : null);
+
   // Load orders — sem limite quando loadAll=true, senão usa pageSize.
   useEffect(() => {
     if (!user) return;
 
-    const q = loadAll
-      ? query(collection(db, 'orders'), orderBy('createdAt', 'desc'))
-      : query(collection(db, 'orders'), orderBy('createdAt', 'desc'), fbLimit(pageSize + 1));
+    // Filtro de data já entra na query do Firestore (onde() sobre createdAt) — não só no cliente
+    // depois do fetch. Padrão é "hoje" (ver todayLocalStr), então o carregamento comum lê poucos
+    // documentos em vez da base inteira.
+    const constraints = [];
+    if (dateFrom) constraints.push(where('createdAt', '>=', localDayStartIso(dateFrom)));
+    if (dateTo) constraints.push(where('createdAt', '<=', localDayEndIso(dateTo)));
+    constraints.push(orderBy('createdAt', 'desc'));
+    if (!loadAll) constraints.push(fbLimit(pageSize + 1));
+
+    const q = query(collection(db, 'orders'), ...constraints);
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const ordersData = [];
@@ -115,7 +136,7 @@ export default function AdminDashboard() {
     });
 
     return () => unsubscribe();
-  }, [user, loadAll, pageSize]);
+  }, [user, loadAll, pageSize, dateFrom, dateTo]);
 
   // Escuta configurações do WhatsApp (Master Switch do Agente)
   useEffect(() => {
@@ -171,15 +192,6 @@ export default function AdminDashboard() {
     return null;
   };
 
-  // O <input type="date"> devolve "AAAA-MM-DD" no calendário LOCAL do navegador (fuso do Brasil,
-  // UTC-3), mas createdAt é gravado sempre em UTC (new Date().toISOString(), convenção do projeto —
-  // ver CLAUDE.md). Comparar a string bruta do input contra createdAt tratava "AAAA-MM-DD" como se
-  // já fosse meia-noite UTC — 3 horas ANTES da meia-noite local de verdade. Resultado: filtrar "dia
-  // 12" incluía pedidos feitos às 21h do dia 11 no horário do Brasil. `new Date("...T00:00:00")` sem
-  // sufixo de fuso é interpretado como horário LOCAL pelo motor JS — é isso que corrige o deslocamento.
-  const localDayStartIso = (dateStr) => (dateStr ? new Date(`${dateStr}T00:00:00`).toISOString() : null);
-  const localDayEndIso = (dateStr) => (dateStr ? new Date(`${dateStr}T23:59:59.999`).toISOString() : null);
-
   const getFilteredOrders = () => {
     let result = orders;
 
@@ -205,23 +217,8 @@ export default function AdminDashboard() {
       result = result.filter(o => o.videoAddonPaid);
     }
 
-    // toISOStr normaliza Timestamp/string/number para ISO; localDayStartIso/localDayEndIso convertem
-    // o "YYYY-MM-DD" do <input type="date"> (calendário local) para o instante UTC correto — ver o
-    // comentário ao lado da definição, mais acima.
-    if (dateFrom) {
-      const from = localDayStartIso(dateFrom);
-      result = result.filter(o => {
-        const d = toISOStr(o.createdAt);
-        return d !== null && d >= from;
-      });
-    }
-    if (dateTo) {
-      const to = localDayEndIso(dateTo);
-      result = result.filter(o => {
-        const d = toISOStr(o.createdAt);
-        return d !== null && d <= to;
-      });
-    }
+    // Filtro de data já aconteceu na query do Firestore (where() em createdAt) — orders só chega
+    // aqui com o intervalo certo, não precisa refiltrar.
 
     // Busca por texto: telefone, nome do cliente, homenageado ou código do pedido.
     // String() garante que customerPhone numérico não quebre o .replace().
@@ -291,25 +288,8 @@ export default function AdminDashboard() {
   // cartões de topo mostram sempre "quanto entrou no período", independente de qual lista o admin
   // está navegando no momento.
   const getOrdersInDateRange = () => {
-    let result = orders;
-    // toISOStr normaliza Timestamp/string/number antes de comparar — sem isso, um createdAt salvo
-    // como Firestore Timestamp (em vez de string ISO) comparava objeto contra string e nunca batia.
-    // localDayStartIso/localDayEndIso corrigem o mesmo deslocamento de fuso de getFilteredOrders.
-    if (dateFrom) {
-      const from = localDayStartIso(dateFrom);
-      result = result.filter(o => {
-        const d = toISOStr(o.createdAt);
-        return d !== null && d >= from;
-      });
-    }
-    if (dateTo) {
-      const to = localDayEndIso(dateTo);
-      result = result.filter(o => {
-        const d = toISOStr(o.createdAt);
-        return d !== null && d <= to;
-      });
-    }
-    return result;
+    // Filtro de data já aconteceu na query do Firestore — orders já é o período certo.
+    return orders;
   };
 
   const parseAmount = (val, fallback = null) => {
