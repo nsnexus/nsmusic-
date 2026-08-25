@@ -178,7 +178,12 @@ export const notifyMusicReady = async (orderRef, orderData, orderId, opts = {}) 
   if (!shouldSend) return { sent: false, reason: 'already_sending' };
 
   const deliveryUrl = resolveDeliveryUrl(orderId);
-  const sendResult = await sendMusicReadyTemplate(orderData.customerPhone, {
+  // Prioriza o número que de fato escreveu no WhatsApp (whatsappSenderPhone, gravado em
+  // src/app/api/whatsapp/webhook/route.js) sobre o customerPhone digitado no formulário do site —
+  // podem ser números diferentes (ex: pessoa comprou com um número e escreveu no WhatsApp com outro).
+  // Mandar pro customerPhone nesse caso é mensagem pra pessoa errada (ver incidente 25/08/2026).
+  const targetPhone = orderData.whatsappSenderPhone || orderData.customerPhone;
+  const sendResult = await sendMusicReadyTemplate(targetPhone, {
     customerName: orderData.customerName,
     honoreeName: orderData.honoreeName,
     deliveryUrl,

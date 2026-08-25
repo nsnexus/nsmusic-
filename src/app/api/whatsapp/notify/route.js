@@ -37,7 +37,10 @@ export async function POST(req) {
 
     if (orderData.customerPhone) {
       const deliveryUrl = resolveDeliveryUrl(orderId);
-      const sendResult = await sendMusicReadyTemplate(orderData.customerPhone, {
+      // Prioriza quem de fato escreveu no WhatsApp sobre o telefone digitado no formulário do site —
+      // podem ser números diferentes (ver incidente 25/08/2026, mesma correção de src/lib/db.js).
+      const targetPhone = orderData.whatsappSenderPhone || orderData.customerPhone;
+      const sendResult = await sendMusicReadyTemplate(targetPhone, {
         customerName: orderData.customerName,
         honoreeName: orderData.honoreeName,
         deliveryUrl,

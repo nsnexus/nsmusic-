@@ -187,7 +187,10 @@ export async function notifyPaymentApproved(orderRef, orderData, opts = {}) {
 
     const { sendPaymentApprovedTemplate } = await import('./whatsapp');
     const deliveryUrl = resolveDeliveryUrl(orderRef.id);
-    const sendResult = await sendPaymentApprovedTemplate(orderData.customerPhone, {
+    // Prioriza quem de fato escreveu no WhatsApp sobre o telefone digitado no formulário do site —
+    // podem ser números diferentes (ver incidente 25/08/2026, mesma correção de src/lib/db.js).
+    const targetPhone = orderData.whatsappSenderPhone || orderData.customerPhone;
+    const sendResult = await sendPaymentApprovedTemplate(targetPhone, {
       customerName: orderData.customerName,
       honoreeName: orderData.honoreeName,
       deliveryUrl,
