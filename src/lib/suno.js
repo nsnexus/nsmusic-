@@ -15,7 +15,7 @@ import { buildSunoPayload } from './sunoPayload.js';
 // taxa, 455 = manutenção, 500 = erro interno deles) — só olhar response.status não pegava esses
 // casos e o retry abaixo nunca rodava para o modo de falha mais comum da API.
 const TRANSIENT_KIE_CODES = new Set([429, 430, 455, 500, 501, 503]);
-function isTransientKieFailure(status, code) {
+export function isTransientKieFailure(status, code) {
   if (status >= 500 || status === 429) return true;
   return code != null && TRANSIENT_KIE_CODES.has(Number(code));
 }
@@ -27,7 +27,7 @@ function isTransientKieFailure(status, code) {
 // e queimando crédito à toa. Esgotado o limite, o pedido fica para reprocessamento manual no painel.
 const MAX_AUTO_RETRIES = 3;
 
-function readEnvValue(env, name) {
+export function readEnvValue(env, name) {
   return String((env && env[name]) || process.env[name] || '').trim();
 }
 
@@ -145,6 +145,9 @@ export async function requestSunoGeneration({ orderId, prompt, tags }, env) {
         productionStatus: 'GERANDO_AUDIO',
         sunoRequestedAt: new Date().toISOString(),
         sunoError: null,
+        // Guardado pra permitir separação vocal (add-on de playback) depois — a Kie.ai identifica a
+        // faixa por taskId+audioId da geração original, ver src/lib/playback.js.
+        sunoTaskId: taskId,
         // Conta cada chamada que a Kie.ai de fato aceitou (e portanto cobrou) — usado no painel
         // admin para estimar o gasto com geração. increment() soma mesmo sem leitura prévia, então
         // sobrevive a retentativas concorrentes sem duplicar nem perder contagem.

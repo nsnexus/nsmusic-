@@ -112,7 +112,10 @@ export const updateTaskResult = async (taskId, result, overrideOrderId = null) =
     if (orderId && tracks.length > 0) {
       const primaryAudio = tracks[0].audio_url;
       const audioFiles = tracks.map(t => t.audio_url).filter(Boolean);
-      
+      // trackId de cada faixa — é o audioId que a Kie.ai usa pra identificar a variante na hora de
+      // separar vocal/instrumental (add-on de playback, ver src/lib/playback.js).
+      const audioIds = tracks.map(t => t.trackId).filter(Boolean);
+
       const orderRef = doc(db, 'orders', orderId);
       const orderSnap = await getDoc(orderRef);
       const orderData = orderSnap.exists() ? orderSnap.data() : {};
@@ -120,6 +123,7 @@ export const updateTaskResult = async (taskId, result, overrideOrderId = null) =
       await updateDoc(orderRef, {
         audioUrl: primaryAudio,
         audioFiles: audioFiles,
+        audioIds: audioIds,
         productionStatus: 'AUDIO_GERADO',
         updatedAt: new Date().toISOString()
       });

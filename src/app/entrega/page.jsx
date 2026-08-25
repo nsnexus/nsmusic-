@@ -11,6 +11,7 @@ import { db, auth, storage } from '@/lib/firebase';
 import { primeAudioContext } from '@/lib/audioContext';
 import VideoOfferModal from '@/components/VideoOfferModal';
 import PixQrCode from '@/components/PixQrCode';
+import PlaybackAddonCard from '@/components/PlaybackAddonCard';
 import { requestPixCharge } from '@/lib/pixCheckout';
 import { styles } from './entregaStyles';
 
@@ -1370,7 +1371,15 @@ function EntregaContent() {
                     </div>
                     <img src={qrCodeUrl} alt="QR Code" style={styles.qrImg} />
                   </div>
-                ) : (
+                ) : null}
+
+                {/* Add-on de playback (instrumental) — só pra pedidos com sunoTaskId/audioIds
+                    gravados na geração (pedidos anteriores a este recurso não têm esses campos). */}
+                {isPaid && order?.audioIds?.length > 0 && order?.sunoTaskId && (
+                  <PlaybackAddonCard orderId={orderId} order={order} />
+                )}
+
+                {!isPaid && (
                   /* SE PENDENTE: Bloco de Pagamento PIX Instantâneo */
                   <div className="glass-card" style={{ padding: '24px', borderRadius: '16px', background: 'linear-gradient(135deg, rgba(5, 150, 105, 0.08) 0%, rgba(16, 185, 129, 0.12) 100%)', border: '1.5px solid rgba(16, 185, 129, 0.3)' }}>
                     <div style={{ textAlign: 'center', marginBottom: '16px' }}>

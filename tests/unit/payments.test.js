@@ -17,6 +17,11 @@ vi.mock('@/lib/whatsapp', () => ({
   isVideoPurchased: (orderData) => Boolean(orderData?.hasVideoAccess || orderData?.paymentIntentSku === 'combo'),
 }));
 
+const requestPlaybackGenerationMock = vi.fn().mockResolvedValue({ ok: true, taskId: 'kie-task-1' });
+vi.mock('@/lib/playback', () => ({
+  requestPlaybackGeneration: (...args) => requestPlaybackGenerationMock(...args),
+}));
+
 vi.mock('firebase/firestore/lite', () => {
   return {
     doc: (_db, _collection, id) => ({ id }),
@@ -47,6 +52,7 @@ const { applyPaymentApproval } = await import('@/lib/payments');
 beforeEach(() => {
   store = {};
   sendPaymentApprovedTemplateMock.mockClear();
+  requestPlaybackGenerationMock.mockClear();
 });
 
 describe('applyPaymentApproval', () => {
@@ -187,5 +193,80 @@ describe('applyPaymentApproval', () => {
     await applyPaymentApproval('order14', '1414', { status: 'approved', transaction_amount: 9.99 });
 
     expect(sendPaymentApprovedTemplateMock).not.toHaveBeenCalled();
+  });
+
+  it('playback_addon isolado NUNCA escreve paymentStatus, só hasPlaybackAccess', async () => {
+    store['order15'] = {
+      paymentIntentSku: 'playback_addon',
+      paymentStatus: 'PAGAMENTO_APROVADO',
+      sunoTaskId: 'task-abc',
+      audioIds: ['audio-1', 'audio-2'],
+      playbackPaymentId: null,
+    };
+
+    const result = await applyPaymentApproval('order15', '1515', { status: 'approved', transaction_amount: 4.99 });
+
+    expect(result.applied).toBe(true);
+    expect(store['order15'].paymentStatus).toBe('PAGAMENTO_APROVADO'); // inalterado
+    expect(store['order15'].hasPlaybackAccess).toBe(true);
+    expect(store['order15'].playbackAddonPaid).toBe(true);
+    expect(store['order15'].playbackPaymentId).toBe('1515');
+  });
+
+  it('playback_addon aprovado dispara a geração na Kie.ai com o taskId/audioId do pedido', async () => {
+    store['order16'] = {
+      paymentIntentSku: 'playback_addon',
+      sunoTaskId: 'task-xyz',
+      audioIds: ['audio-primary', 'audio-secondary'],
+      playbackPaymentId: null,
+    };
+
+    await applyPaymentApproval('order16', '1616', { status: 'approved', transaction_amount: 4.99 });
+
+    expect(requestPlaybackGenerationMock).toHaveBeenCalledTimes(1);
+    expect(requestPlaybackGenerationMock).toHaveBeenCalledWith(
+      { orderId: 'order16', sunoTaskId: 'task-xyz', audioId: 'audio-primary' },
+      expect.anything()
+    );
+    expect(store['order16'].playbackRequested).toBe(true);
+    expect(store['order16'].playbackRequesting).toBe(false);
+  });
+
+  it('playback_addon em pedido antigo (sem sunoTaskId/audioIds) marca FAILED e não chama a Kie.ai', async () => {
+    store['order17'] = {
+      paymentIntentSku: 'playback_addon',
+      playbackPaymentId: null,
+      // sem sunoTaskId nem audioIds — pedido gerado antes deste recurso existir
+    };
+
+    const result = await applyPaymentApproval('order17', '1717', { status: 'approved', transaction_amount: 4.99 });
+
+    expect(result.applied).toBe(true);
+    expect(store['order17'].hasPlaybackAccess).toBe(true); // pagamento continua válido
+    expect(requestPlaybackGenerationMock).not.toHaveBeenCalled();
+    expect(store['order17'].playbackStatus).toBe('FAILED');
+    expect(store['order17'].playbackError).toBe('missing_track_reference');
+  });
+
+  it('NÃO notifica via WhatsApp no pagamento isolado do add-on de playback', async () => {
+    store['order18'] = {
+      paymentIntentSku: 'playback_addon',
+      customerPhone: '5511999999999',
+      sunoTaskId: 'task-1',
+      audioIds: ['audio-1'],
+      playbackPaymentId: null,
+    };
+
+    await applyPaymentApproval('order18', '1818', { status: 'approved', transaction_amount: 4.99 });
+
+    expect(sendPaymentApprovedTemplateMock).not.toHaveBeenCalled();
+  });
+
+  it('cancelamento do playback revoga hasPlaybackAccess/playbackAddonPaid', async () => {
+    store['order19'] = { hasPlaybackAccess: true, playbackAddonPaid: true, playbackPaymentId: '1919' };
+    const result = await applyPaymentApproval('order19', '1919', { status: 'cancelled' });
+    expect(result.applied).toBe(true);
+    expect(store['order19'].hasPlaybackAccess).toBe(false);
+    expect(store['order19'].playbackAddonPaid).toBe(false);
   });
 });

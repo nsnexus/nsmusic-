@@ -84,6 +84,7 @@ para o que ainda depende de rate limiting externo (A-04/A-12, não implementado 
 | `POST /api/suno/generate` | `suno/generate/route.js:POST` | Fino: valida corpo e delega a `src/lib/suno.js:requestSunoGeneration`; inclui segredo no callback (A-03) | Pública |
 | `GET /api/suno/status` | `suno/status/route.js:GET` | Polling do status; `orderId` sempre vem do `suno_tasks`, nunca da query (A-02); em falha definitiva da Kie.ai, tenta `src/lib/suno.js:maybeAutoRetrySunoFailure` antes de admitir erro ao cliente | Pública |
 | `POST /api/suno/webhook` | `suno/webhook/route.js:POST` | Callback da Kie.ai; exige `?secret=` se `KIE_WEBHOOK_SECRET` configurado | Segredo compartilhado |
+| `POST /api/playback/webhook` | `playback/webhook/route.js:POST` | Callback da Kie.ai pra separação vocal (add-on de playback instrumental, R$ 4,99); `orderId` vem na query string do próprio callback (não há `suno_tasks` equivalente pra essa tarefa) | Segredo compartilhado |
 | `POST /api/orders/reconcile` | `orders/reconcile/route.js:POST` | Terceira via de convergência (webhook/polling do cliente + esta): recupera música pronta e pagamento confirmado que ficaram presos porque o cliente fechou a aba; retenta geração automaticamente via `src/lib/suno.js`. Acionável pelo painel ou por cron no Worker `efi-proxy` | Admin ou segredo (`RECONCILE_SECRET`) |
 | `POST /api/lyrics/generate` | `lyrics/generate/route.js:POST` | Compõe a letra | Pública |
 | `POST /api/lyrics/improve` | `lyrics/improve/route.js:POST` | Ajusta a letra | Pública |
@@ -100,7 +101,7 @@ para o que ainda depende de rate limiting externo (A-04/A-12, não implementado 
 | `payments.js` | `applyPaymentApproval` — único ponto de aprovação de pagamento (M-18), com idempotência via `runTransaction` (A-09) |
 | `efi.js` | Cliente da API Pix da Efí (`createPixCharge`, `getChargeStatus`) — toda chamada exige mTLS (ver `docs/EFI_SETUP.md`) |
 | `httpRetry.js` | `fetchWithRetry` — retry com backoff, compartilhado entre webhook e polling de pagamento (B-08) |
-| `pricing.js` | Catálogo de preços por SKU (`audio_only`, `combo`, `video_addon`) — fonte única de valor (C-05) |
+| `pricing.js` | Catálogo de preços por SKU (`audio_only`, `combo`, `video_addon`, `playback_addon`) — fonte única de valor (C-05) |
 | `auth.js` | `requireAdmin()` — verificação de ID token + custom claim/allowlist |
 | `proxyAllowlist.js` | Domínios permitidos nos proxies de mídia |
 | `whatsappTemplates.js` | Templates de mensagem do WhatsApp (M-19) — sem dependência de `@cloudflare/next-on-pages`, importável por componentes client-side |
@@ -108,6 +109,7 @@ para o que ainda depende de rate limiting externo (A-04/A-12, não implementado 
 | `authErrors.js` | `getFriendlyAuthErrorMessage` (B-04) |
 | `sunoPayload.js` | `buildSunoPayload` — payload de `/api/suno/generate`, reaproveitado também pela retentativa automática (M-12) |
 | `suno.js` | `requestSunoGeneration` (chamada à Kie.ai + persistência, extraído de `api/suno/generate`), `maybeAutoRetrySunoFailure` (retry automático limitado — até 3 tentativas — quando a Kie.ai reporta falha definitiva, com reserva de idempotência), `resolveLatestTaskId` (segue a cadeia de `retryTaskId` até a tarefa mais recente) |
+| `playback.js` | `requestPlaybackGeneration` — separação vocal na Kie.ai (add-on de playback instrumental), disparada automaticamente por `payments.js:applyPaymentApproval` quando `sku === 'playback_addon'` é aprovado; usa `sunoTaskId`+`audioIds[0]` gravados no pedido pela geração original |
 | `firebase.js` / `firebase-edge.js` | Client SDK completo (browser) / `firestore/lite` (rotas Edge) |
 | `gemini.js` | `runGeminiWithFailover` — OpenAI primário, Gemini fallback |
 | `videoGenerator.js` | `createSlideshowVideo` — importado dinamicamente em `entrega/page.jsx` (code splitting, Lote 6) |
@@ -125,9 +127,13 @@ antes uma identidade de servidor, que ainda não existe nesta arquitetura Edge-o
   Campos de pagamento: `paymentStatus` (só `AGUARDANDO_PAGAMENTO`/`PAGAMENTO_APROVADO` são escritos
   hoje; `PAGO` só existe em pedidos antigos, migração pronta em `scripts/migrate-payment-status.mjs`
   mas não executada), `paymentId`, `paidAt`, `paymentIntentId`, `paymentIntentSku`, `expectedAmount`,
-  `videoPaymentId`, `hasVideoAccess`, `videoAddonPaid`.
-  Campos de produção: `productionStatus`, `audioUrl`, `audioFiles`, `sunoTaskId`, `slideshowImages`,
-  `videoStatus`, `coverUrl` (URL do Firebase Storage — nunca mais base64, M-08).
+  `videoPaymentId`, `hasVideoAccess`, `videoAddonPaid`, `playbackPaymentId`, `hasPlaybackAccess`,
+  `playbackAddonPaid` (add-on de playback instrumental, R$ 4,99 — isolado, nunca escreve `paymentStatus`,
+  mesmo padrão do vídeo).
+  Campos de produção: `productionStatus`, `audioUrl`, `audioFiles`, `audioIds` (trackId de cada faixa,
+  usado pela separação vocal), `sunoTaskId`, `slideshowImages`, `videoStatus`, `coverUrl` (URL do
+  Firebase Storage — nunca mais base64, M-08), `playbackStatus`/`playbackUrl`/`playbackTaskId`
+  (`PROCESSING`/`READY`/`FAILED`, preenchidos pelo callback de `api/playback/webhook`).
   Flags de notificação: `whatsappSent`/`whatsappSending`, `paymentWhatsappSent`,
   `videoPaymentWhatsappSent` (+ sufixos `Sending`/`At`).
   Consentimento: `termsAccepted`, `termsAcceptedAt` (M-13).
@@ -150,7 +156,7 @@ declarar um novo quando necessário.
 
 ## Pagamentos
 
-Ponto de entrada: cliente escolhe o `sku` (`audio_only`/`combo`/`video_addon`) →
+Ponto de entrada: cliente escolhe o `sku` (`audio_only`/`combo`/`video_addon`/`playback_addon`) →
 `POST /api/payments/create` deriva o valor de `src/lib/pricing.js`, gera BR Code com `txid` único
 (A-10) e persiste `expectedAmount`/`paymentIntentSku` no pedido → polling contra
 `GET /api/payments/status`.

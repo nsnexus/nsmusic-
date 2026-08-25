@@ -16,6 +16,7 @@ import { dbEdge as db } from './firebase-edge';
 import { skuApprovesMusic, skuGrantsVideoAccess, getPriceForSku } from './pricing';
 import { resolveDeliveryUrl } from './whatsappTemplates';
 import { sendMetaPurchaseEvent } from './metaCapi';
+import { requestPlaybackGeneration } from './playback';
 
 const REVOKING_STATUSES = new Set(['cancelled', 'refunded', 'charged_back']);
 
@@ -65,8 +66,9 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
       const sku = orderData.paymentIntentSku
         || (Math.abs(Number(payment.transaction_amount) - 6.90) < 0.01 ? 'video_addon' : 'audio_only');
 
-      const isVideoOnly = !skuApprovesMusic(sku);
-      const dedupKey = isVideoOnly ? 'videoPaymentId' : 'paymentId';
+      const isVideoOnly = sku === 'video_addon';
+      const isPlaybackOnly = sku === 'playback_addon';
+      const dedupKey = isVideoOnly ? 'videoPaymentId' : isPlaybackOnly ? 'playbackPaymentId' : 'paymentId';
 
       // Idempotência: mesmo paymentId já aplicado antes (webhook e polling correndo em paralelo).
       if (String(orderData[dedupKey] || '') === String(paymentId)) {
@@ -82,8 +84,13 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
           // Timestamp do pagamento do add-on, independente de videoStatus (que só existe depois da
           // renderização no navegador do cliente, um evento não confiável de servidor).
           updates.videoPaidAt = nowIso;
+        } else if (isPlaybackOnly) {
+          updates.hasPlaybackAccess = true;
+          updates.playbackAddonPaid = true;
+          updates.playbackPaymentId = String(paymentId);
+          updates.playbackPaidAt = nowIso;
         } else {
-          // C-09: paymentStatus só é escrito neste ramo — o add-on de vídeo isolado nunca o altera.
+          // C-09: paymentStatus só é escrito neste ramo — os add-ons isolados nunca o alteram.
           updates.paymentStatus = 'PAGAMENTO_APROVADO';
           updates.paymentId = String(paymentId);
           updates.paidAt = nowIso;
@@ -96,7 +103,7 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
 
         await updateDoc(orderRef, updates);
 
-        txResult = { applied: true, sku, isVideoOnly, orderData };
+        txResult = { applied: true, sku, isVideoOnly, isPlaybackOnly, orderData };
       }
     }
   } catch (err) {
@@ -108,8 +115,51 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
   // aconteceu acima). WhatsApp só pra pagamento da música; Purchase da Meta pros dois casos (a venda
   // do add-on isolado é receita real, tem que contar também — ver src/lib/metaCapi.js).
   if (txResult.applied) {
-    if (!txResult.isVideoOnly) {
+    if (!txResult.isVideoOnly && !txResult.isPlaybackOnly) {
       await notifyPaymentApproved(orderRef, txResult.orderData);
+    }
+
+    // Playback (instrumental) é gerado automaticamente assim que o pagamento do add-on é aprovado —
+    // sem clique extra do cliente. Isolado em try/catch próprio (payments.md: efeito colateral nunca
+    // pode impedir a gravação da aprovação, que já aconteceu acima) e com a mesma reserva sequencial
+    // usada abaixo pro Meta CAPI, pra não disparar a Kie.ai duas vezes se webhook e polling do
+    // pagamento chegarem juntos (cada chamada cobra crédito da Kie.ai, sem estorno).
+    if (txResult.isPlaybackOnly) {
+      try {
+        let shouldGenerate = false;
+        const freshSnap = await getDoc(orderRef);
+        if (freshSnap.exists()) {
+          const freshData = freshSnap.data();
+          if (!freshData.playbackRequested && !freshData.playbackRequesting) {
+            await updateDoc(orderRef, { playbackRequesting: true });
+            shouldGenerate = true;
+          }
+        }
+
+        if (shouldGenerate) {
+          const sunoTaskId = txResult.orderData?.sunoTaskId;
+          const audioId = txResult.orderData?.audioIds?.[0];
+          if (sunoTaskId && audioId) {
+            const genResult = await requestPlaybackGeneration({ orderId, sunoTaskId, audioId }, env);
+            await updateDoc(orderRef, {
+              playbackRequested: true,
+              playbackRequesting: false,
+            }).catch((e) => console.warn('[payments] Erro ao marcar playback solicitado:', e.message));
+            if (!genResult.ok) {
+              console.warn(`[payments] Falha ao iniciar playback (Kie.ai) — pedido ${orderId}:`, genResult.error);
+            }
+          } else {
+            console.warn(`[payments] Pedido ${orderId} sem sunoTaskId/audioId — playback pago mas não pôde ser gerado (pedido anterior a este recurso).`);
+            await updateDoc(orderRef, {
+              playbackRequesting: false,
+              playbackStatus: 'FAILED',
+              playbackError: 'missing_track_reference',
+            }).catch((e) => console.warn(e.message));
+          }
+        }
+      } catch (err) {
+        console.warn('[payments] Erro ao disparar geração de playback:', err.message);
+      }
     }
 
     // Reserva com o mesmo padrão do WhatsApp (getDoc fresco + updateDoc antes de enviar) — sem isso,
@@ -118,8 +168,8 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
     // ANTES de qualquer updateDoc acontecer, e cada uma disparava seu próprio evento de Purchase pra
     // Meta — a escrita em si é idempotente (resultado final correto), mas o efeito colateral não era
     // (achado real em produção: 2 vendas genuínas geraram 15 eventos de Compra em ~5h, 19-20/08/2026).
-    const sentField = txResult.isVideoOnly ? 'metaVideoPurchaseSent' : 'metaPurchaseSent';
-    const sendingField = txResult.isVideoOnly ? 'metaVideoPurchaseSending' : 'metaPurchaseSending';
+    const sentField = txResult.isVideoOnly ? 'metaVideoPurchaseSent' : txResult.isPlaybackOnly ? 'metaPlaybackPurchaseSent' : 'metaPurchaseSent';
+    const sendingField = txResult.isVideoOnly ? 'metaVideoPurchaseSending' : txResult.isPlaybackOnly ? 'metaPlaybackPurchaseSending' : 'metaPurchaseSending';
     try {
       let shouldSend = false;
       const freshSnap = await getDoc(orderRef);
@@ -132,10 +182,12 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
       }
 
       if (shouldSend) {
-        const value = txResult.isVideoOnly
-          ? (Number(payment.transaction_amount) || getPriceForSku('video_addon'))
+        const value = (txResult.isVideoOnly || txResult.isPlaybackOnly)
+          ? (Number(payment.transaction_amount) || getPriceForSku(txResult.sku))
           : (Number(txResult.orderData?.expectedAmount) || Number(payment.transaction_amount) || getPriceForSku(txResult.sku));
-        const contentName = txResult.isVideoOnly ? 'Vídeo Homenagem (Add-on)' : 'Música Homenagem Personalizada';
+        const contentName = txResult.isVideoOnly
+          ? 'Vídeo Homenagem (Add-on)'
+          : txResult.isPlaybackOnly ? 'Playback Instrumental (Add-on)' : 'Música Homenagem Personalizada';
         const sendResult = await sendMetaPurchaseEvent({
           orderId,
           value,
@@ -229,6 +281,10 @@ async function revokeApproval(orderRef, paymentId, status) {
     if (String(orderData.videoPaymentId || '') === String(paymentId)) {
       updates.hasVideoAccess = false;
       updates.videoAddonPaid = false;
+      revoked = true;
+    } else if (String(orderData.playbackPaymentId || '') === String(paymentId)) {
+      updates.hasPlaybackAccess = false;
+      updates.playbackAddonPaid = false;
       revoked = true;
     } else if (String(orderData.paymentId || '') === String(paymentId)) {
       updates.paymentStatus = 'AGUARDANDO_PAGAMENTO';
