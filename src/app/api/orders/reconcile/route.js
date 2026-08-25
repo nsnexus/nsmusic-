@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
-import { collection, query, where, limit, getDocs } from 'firebase/firestore/lite';
+import { collection, query, where, limit, getDocs, deleteDoc } from 'firebase/firestore/lite';
 import { dbEdge as db } from '@/lib/firebase-edge';
 import { updateTaskResult, extractAudioTracks } from '@/lib/db';
 import { applyPaymentApproval } from '@/lib/payments';
@@ -267,6 +267,49 @@ async function reconcilePendingVideoAddons(env) {
   return result;
 }
 
+// Rascunho de sessão do agente de WhatsApp (src/lib/whatsappAgent.js) — documento
+// `session_{telefone}` gravado em `orders` com orderNumber SESSION-* e productionStatus RASCUNHO
+// enquanto o cliente ainda tá conversando, sem prazo de expiração. Se ele nunca voltar, o rascunho
+// fica pra sempre solto na coleção. Exclusão física (não lógica) de propósito: nunca virou pedido
+// de verdade, não tem suno_tasks nem pagamento associado — não é o "pedido" que a regra de
+// database.md pede pra soft-delete.
+const ABANDONED_SESSION_MAX_AGE_HOURS = 24;
+const MAX_SESSIONS_CLEANED = 30;
+
+async function cleanupAbandonedWhatsAppSessions(env) {
+  const result = { checked: 0, deleted: 0 };
+
+  let snap;
+  try {
+    snap = await getDocs(query(
+      collection(db, 'orders'),
+      where('productionStatus', '==', 'RASCUNHO'),
+      limit(MAX_SESSIONS_CLEANED * 2)
+    ));
+  } catch (err) {
+    console.warn('[reconcile] Falha ao listar sessões de WhatsApp em rascunho:', err.message);
+    result.error = `consulta_orders: ${describeFirestoreError(err)}`;
+    return result;
+  }
+
+  for (const orderDoc of snap.docs) {
+    if (result.deleted >= MAX_SESSIONS_CLEANED) break;
+    const data = orderDoc.data();
+    if (!String(data.orderNumber || '').startsWith('SESSION-')) continue;
+    if (!isOlderThan(data.updatedAt, ABANDONED_SESSION_MAX_AGE_HOURS * 60)) continue;
+
+    result.checked++;
+    try {
+      await deleteDoc(orderDoc.ref);
+      result.deleted++;
+    } catch (err) {
+      console.warn('[reconcile] Falha ao excluir sessão de WhatsApp abandonada:', err.message);
+    }
+  }
+
+  return result;
+}
+
 export async function POST(req) {
   try {
     let env = {};
@@ -310,9 +353,17 @@ export async function POST(req) {
       videoAddon = { checked: 0, approved: 0, stillPending: 0, error: `inesperado: ${describeFirestoreError(err)}` };
     }
 
-    console.log('[reconcile] Resultado:', JSON.stringify({ audio, payments, videoAddon }));
+    let abandonedSessions;
+    try {
+      abandonedSessions = await cleanupAbandonedWhatsAppSessions(env);
+    } catch (err) {
+      console.error('[reconcile] Falha inesperada na limpeza de sessões de WhatsApp:', err.message);
+      abandonedSessions = { checked: 0, deleted: 0, error: `inesperado: ${describeFirestoreError(err)}` };
+    }
 
-    return NextResponse.json({ audio, payments, videoAddon });
+    console.log('[reconcile] Resultado:', JSON.stringify({ audio, payments, videoAddon, abandonedSessions }));
+
+    return NextResponse.json({ audio, payments, videoAddon, abandonedSessions });
   } catch (error) {
     console.error('[reconcile] Erro geral:', error.message);
     return NextResponse.json({ error: 'Falha ao reconciliar pedidos.' }, { status: 500 });
