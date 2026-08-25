@@ -39,7 +39,7 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Pedido ainda não está com pagamento aprovado.' }, { status: 400 });
     }
 
-    await notifyPaymentApproved(orderRef, orderData);
+    await notifyPaymentApproved(orderRef, orderData, { force: true });
 
     return NextResponse.json({ success: true });
   } catch (error) {

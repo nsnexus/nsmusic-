@@ -164,8 +164,13 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
 // Exportada para permitir reenvio manual pelo admin (api/admin/notify-payment-approved) quando o
 // pedido é aprovado manualmente no painel — updateDoc direto do browser (admin/pedidos/[id]/page.jsx)
 // não passa por applyPaymentApproval, então o WhatsApp automático nunca dispararia sem isso.
-export async function notifyPaymentApproved(orderRef, orderData) {
+export async function notifyPaymentApproved(orderRef, orderData, opts = {}) {
   if (!orderData?.customerPhone) return;
+  // REGRA ANTI-BAN: só manda mensagem de "pagamento aprovado" pra quem já iniciou conversa pelo
+  // WhatsApp (whatsappRequested === true) — mesma regra de src/lib/db.js:notifyMusicReady e
+  // src/app/api/cron/recover/route.js. force=true (reenvio manual do admin) ignora a checagem —
+  // decisão humana deliberada, não mensagem fria automática.
+  if (!opts.force && !orderData.whatsappRequested) return;
 
   try {
     let shouldSend = false;
