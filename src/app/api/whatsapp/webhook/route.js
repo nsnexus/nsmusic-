@@ -117,6 +117,77 @@ function extractSenderPhone(body) {
   return '';
 }
 
+const processedMessageIds = new Map();
+const activePhoneLocks = new Map();
+
+function isIgnoredEvent(body) {
+  if (!body) return false;
+  const eventName = String(body.event || body.type || body.data?.event || '').toLowerCase().trim();
+  const ignoredEvents = [
+    'chat-presence',
+    'presence',
+    'presence.update',
+    'message-status',
+    'status',
+    'messages.update',
+    'message.update',
+    'connected',
+    'disconnected',
+    'connection.update',
+    'group-participants-update',
+    'groups.upsert',
+  ];
+  if (ignoredEvents.includes(eventName)) return true;
+
+  // Se o payload indicar evento de status (ex: status: "DELIVERY_ACK", "READ", "SENT") sem texto nem áudio
+  if (body.status || body.data?.status || body.presence || body.data?.presence) {
+    if (!body.msgContent && !body.message && !body.data?.message && !body.data?.conversation) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function extractMessageId(body) {
+  if (!body) return '';
+  const candidates = [
+    body.msgId,
+    body.messageId,
+    body.id,
+    body.key?.id,
+    body.data?.key?.id,
+    body.data?.id,
+    body.msg?.id,
+    body.data?.msg?.id,
+  ];
+  for (const c of candidates) {
+    if (c && typeof c === 'string' && c.trim()) return c.trim();
+  }
+  return '';
+}
+
+function isDuplicateMessage(msgId) {
+  if (!msgId) return false;
+  const now = Date.now();
+  for (const [id, time] of processedMessageIds.entries()) {
+    if (now - time > 120000) processedMessageIds.delete(id);
+  }
+  if (processedMessageIds.has(msgId)) return true;
+  processedMessageIds.set(msgId, now);
+  return false;
+}
+
+function isPhoneLocked(phone) {
+  if (!phone) return false;
+  const now = Date.now();
+  const lastTime = activePhoneLocks.get(phone);
+  if (lastTime && now - lastTime < 3000) {
+    return true;
+  }
+  activePhoneLocks.set(phone, now);
+  return false;
+}
+
 export async function POST(req) {
   let envVars = process.env;
   try {
@@ -143,7 +214,18 @@ export async function POST(req) {
     }
 
     const body = normalizeWebhookBody(rawBody);
-    console.log('[WhatsApp Webhook] Mensagem recebida no Webhook');
+
+    // 1. Ignora eventos que não são de mensagens reais (presença, status de entrega/leitura, conexão)
+    if (isIgnoredEvent(body)) {
+      return NextResponse.json({ success: true, ignored: 'non_message_event' }, { status: 200 });
+    }
+
+    // 2. Deduplicação por ID da mensagem (evita processamento duplicado de retries do webhook)
+    const messageId = extractMessageId(body);
+    if (messageId && isDuplicateMessage(messageId)) {
+      console.log(`[WhatsApp Webhook] Mensagem duplicada ignorada (ID: ${messageId})`);
+      return NextResponse.json({ success: true, ignored: 'duplicate_message_id' }, { status: 200 });
+    }
 
     const senderPhone = extractSenderPhone(body);
     let messageText = extractMessageText(body);
@@ -163,7 +245,18 @@ export async function POST(req) {
       }
     }
 
+    // 3. Ignora eventos sem nenhum conteúdo de texto ou áudio
+    if (!messageText && !audioSource) {
+      return NextResponse.json({ success: true, ignored: 'empty_content' }, { status: 200 });
+    }
+
     console.log(`[WhatsApp Webhook] De: ${senderPhone || 'Desconhecido'} | Texto: "${messageText || ''}" | Audio: ${Boolean(audioSource)}`);
+
+    // 4. Trava de concorrência por telefone (evita disparos paralelos dentro de 3 segundos para o mesmo número)
+    if (senderPhone && isPhoneLocked(senderPhone)) {
+      console.log(`[WhatsApp Webhook] Processamento concorrente descartado para: ${senderPhone}`);
+      return NextResponse.json({ success: true, ignored: 'concurrent_lock' }, { status: 200 });
+    }
 
     // Quando a mensagem foi enviada por nós mesmos (fromMe: true), detectamos intervenção humana
     if (body.fromMe === true || body.data?.key?.fromMe === true || body.key?.fromMe === true) {
