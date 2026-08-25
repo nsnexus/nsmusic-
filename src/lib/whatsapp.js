@@ -21,6 +21,30 @@ export const getWApiConfig = (env = {}) => {
 };
 
 /**
+ * Simula status de presença ("composing" = digitando..., "recording" = gravando áudio...)
+ */
+export const sendWApiPresence = async (phone, presence = 'composing', env = {}) => {
+  const { instanceId, token, baseUrl } = getWApiConfig(env);
+  const formattedNumber = formatToWhatsAppNumber(phone);
+  if (!formattedNumber || !instanceId || !token) return;
+
+  try {
+    await fetch(`${baseUrl}/message/send-presence?instanceId=${instanceId}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        phone: formattedNumber,
+        presence: presence,
+      }),
+      signal: AbortSignal.timeout(4000),
+    }).catch(() => {});
+  } catch (e) {}
+};
+
+/**
  * Envia uma mensagem de texto simples via W-API
  */
 export const sendWApiTextMessage = async (phone, message, env = {}) => {

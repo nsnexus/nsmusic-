@@ -1,19 +1,19 @@
 import { doc, getDoc, setDoc, deleteDoc, addDoc, collection } from 'firebase/firestore/lite';
 import { dbEdge as db } from './firebase-edge.js';
 import { runGeminiWithFailover, runJsonCompletion } from './gemini.js';
-import { sendWApiTextMessage, resolveDeliveryUrl } from './whatsapp.js';
+import { sendWApiTextMessage, sendWApiPresence, resolveDeliveryUrl } from './whatsapp.js';
 import { requestSunoGeneration } from './suno.js';
 import { generateUniqueOrderNumber } from './orderNumber.js';
 
-// Cache em memória para resposta instantânea (<500ms) e resiliência total
+// Cache em memória para resposta instantânea e resiliência total
 const memorySessions = new Map();
 
 const PERSONA_NAME = 'Ana';
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Persona + instruções de extração pra etapa de coleta (step COLLECTING) — uma IA por turno decide
 // tanto o que já foi informado quanto a resposta natural, em vez da máquina de estados rígida
-// anterior (uma pergunta fixa por vez, que aceitava qualquer texto como resposta certa — "boa"
-// virava nome do homenageado, "vinheta" quebrava o fluxo, ver incidente 25/08/2026).
+// anterior (uma pergunta fixa por vez, que aceitava qualquer texto como resposta certa).
 const COLLECTING_SYSTEM_PROMPT = `Você é ${PERSONA_NAME}, atendente humana e compositora do estúdio NS Music, que cria músicas personalizadas por IA pra homenagens (aniversário, casamento, dia das mães, etc.) — o cliente conta a história, o estúdio grava 2 versões completas em áudio por R$ 9,99.
 
 Sua missão nesta conversa por WhatsApp: coletar de forma natural, como uma conversa de verdade (nunca como formulário), estas informações:
@@ -134,6 +134,9 @@ export async function handleWhatsAppAgentMessage(senderPhone, messageText, envVa
   // 1. Comando de reinício
   if (['reiniciar', 'começar de novo', 'comecar de novo', 'novo pedido', 'cancelar', 'menu'].includes(textLower)) {
     await clearSession(cleanPhone);
+    await sendWApiPresence(cleanPhone, 'composing', envVars);
+    await sleep(2500);
+
     const welcome = `🎵 *NS Music — Novo Atendimento*
 
 Oi! Eu sou a ${PERSONA_NAME}, do estúdio NS Music 🎧 Vamos começar uma homenagem nova do zero!
@@ -172,8 +175,10 @@ Me conta: pra quem vai ser essa música e um pouco da história de vocês? ❤�
       return false;
     }
 
-    // Inicia nova sessão com uma saudação fixa (resposta instantânea, sem esperar IA) e já entra
-    // direto na etapa de coleta livre — a próxima mensagem do cliente já é tratada pela IA.
+    // Mostra "digitando..." e aguarda tempo natural (3.5s) para dar tempo de mensagens adicionais
+    await sendWApiPresence(cleanPhone, 'composing', envVars);
+    await sleep(3500);
+
     const greeting = `🎵 *Olá! Seja muito bem-vindo(a) ao NS Music!* 🎧
 
 Eu sou a ${PERSONA_NAME}, atendente e compositora daqui do estúdio! Eu escrevo a letra exclusiva da sua história e a gente grava 2 versões completas em áudio MP3 HD, por apenas *R$ 9,99*. ✨
@@ -188,6 +193,10 @@ Me conta: pra quem vai ser essa homenagem, e um pouco da história de vocês? Po
     });
     return true;
   }
+
+  // Se já há sessão ativa, simula digitação natural de 3 a 4 segundos
+  await sendWApiPresence(cleanPhone, 'composing', envVars);
+  await sleep(3500);
 
   // 3. Máquina de Estados da Conversa
   const currentStep = session.step || 'COLLECTING';
@@ -276,18 +285,9 @@ RETORNE EXCLUSIVAMENTE O TEXTO DA LETRA DA MÚSICA, sem saudações ou comentár
     if (!generatedLyrics || generatedLyrics.length < 50) {
       await sendWApiTextMessage(
         cleanPhone,
-        `Tivemos uma pequena instabilidade momentânea ao compor a letra. Pode me mandar de novo o estilo musical que eu tento outra vez? 💜`,
+        `Tivemos uma pequena instabilidade momentânea ao gerar a letra. Pode me mandar um "continuar" pra eu tentar de novo? 💜`,
         envVars
       );
-      await saveSession(cleanPhone, {
-        ...session,
-        honoreeName,
-        relationship: turn.fields.relationship || session.relationship || '',
-        story,
-        musicStyle,
-        voiceType,
-        chatHistory: updatedHistory,
-      });
       return true;
     }
 
@@ -323,13 +323,7 @@ O que você achou dessa letra? Quer que nosso estúdio grave as *2 versões musi
       /^(sim|s|pode|gravar|pode gravar|quero|bora|aprovo|aprovado|top|show|ficou linda|amei|adorei|perfeito|perfeita|gostei|maravilha|pode ser|gerar|gera|vamos)/i.test(textLower);
 
     if (isApproval) {
-      // Cliente aprovou a letra! Cria o pedido e aciona a Suno
-      await sendWApiTextMessage(
-        cleanPhone,
-        `🚀 *Excelente! Criando seu pedido e iniciando a gravação no estúdio agora mesmo...* 🎧`,
-        envVars
-      );
-
+      // Cliente aprovou a letra! Cria o pedido e aciona a gravação na Suno
       let orderId = '';
       try {
         const orderNumber = await generateUniqueOrderNumber();
@@ -374,18 +368,14 @@ O que você achou dessa letra? Quer que nosso estúdio grave as *2 versões musi
         completedAt: new Date().toISOString(),
       });
 
-      const deliveryUrl = resolveDeliveryUrl(orderId);
+      // Mensagem de confirmação SEM o link do pedido (o link será enviado automaticamente quando a música estiver pronta)
+      const finalReply = `🎉 *Pedido Confirmado com Sucesso!*
 
-      const finalReply = `🎉 *Pedido Gerado com Sucesso!*
+🎧 Nossos produtores e nossa IA já estão gravando as suas *2 versões musicais completas em alta definição*!
 
-🎧 Nosso estúdio profissional já está renderizando as suas *2 versões completas em alta definição*!
+⏳ O processo de gravação e arranjos leva cerca de *1 a 2 minutinhos*.
 
-Em cerca de 1 a 2 minutos seus áudios estarão prontos para você ouvir.
-
-👉 *Acompanhe a produção e libere seus arquivos aqui:*
-${deliveryUrl}
-
-Assim que os arranjos terminarem de gravar, eu também te aviso aqui nesta conversa com o link direto! 💜`;
+Assim que os áudios ficarem prontos, eu te envio os arquivos e o link direto aqui nesta conversa para você ouvir e aprovar! 💜`;
 
       await sendWApiTextMessage(cleanPhone, finalReply, envVars);
       return true;
@@ -445,17 +435,45 @@ Ficou do jeitinho que você queria? Quer que nosso estúdio grave as *2 versões
     }
   }
 
-  // --- ETAPA: PEDIDO CONCLUÍDO ---
+  // --- ETAPA: PEDIDO CONCLUÍDO / EM ANDAMENTO ---
   if (currentStep === 'COMPLETED') {
-    const deliveryUrl = resolveDeliveryUrl(session.orderId);
-    const completedReply = `Olá! O seu pedido já foi enviado para gravação em nosso estúdio! 🎶
+    // Se o cliente enviar mensagem após a criação do pedido, verifica se a música já está pronta
+    let orderData = null;
+    if (session.orderId) {
+      try {
+        const snap = await getDoc(doc(db, 'orders', session.orderId));
+        if (snap.exists()) orderData = snap.data();
+      } catch (e) {}
+    }
 
-👉 *Acompanhe seu pedido e ouça suas prévias no link:*
-${deliveryUrl}
+    if (orderData?.audioUrl || orderData?.audioFiles?.length) {
+      const deliveryUrl = resolveDeliveryUrl(session.orderId);
+      const isPaid = orderData.paymentStatus === 'PAGAMENTO_APROVADO' || orderData.paymentStatus === 'PAGO';
+      
+      let readyReply = '';
+      if (isPaid) {
+        readyReply = `🎉 As suas músicas personalizadas já estão gravadas e liberadas! 🎶
 
-Se você quiser compor uma nova música para outra pessoa, basta digitar *REINICIAR* a qualquer momento! 💜`;
+👉 *Acesse sua página permanente e baixe seus arquivos:*
+${deliveryUrl}`;
+      } else {
+        readyReply = `🎵 As suas *2 versões exclusivas* já estão gravadas e prontas no estúdio! 🎧
 
-    await sendWApiTextMessage(cleanPhone, completedReply, envVars);
+👉 *Ouça a prévia agora mesmo no link:*
+${deliveryUrl}`;
+      }
+      await sendWApiTextMessage(cleanPhone, readyReply, envVars);
+      return true;
+    }
+
+    // Se ainda não ficou pronto:
+    const inProgressReply = `Olá! O seu pedido está sendo gravado pelo nosso estúdio neste exato momento! 🎶
+
+⏳ Assim que os áudios ficarem prontos (leva de 1 a 2 minutinhos), eu te envio o link direto aqui nesta conversa para você ouvir!
+
+_(Se quiser compor uma nova música para outra pessoa, basta digitar *REINICIAR* a qualquer momento!)_ 💜`;
+
+    await sendWApiTextMessage(cleanPhone, inProgressReply, envVars);
     return true;
   }
 
