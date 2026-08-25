@@ -123,6 +123,38 @@ ${historyText ? `Histórico da conversa:\n${historyText}\n\n` : ''}Cliente: ${us
 }
 
 /**
+ * Pausa o Agente para um telefone específico (quando o atendente humano assume a conversa)
+ */
+export async function pauseAgentForPhone(phone) {
+  const cleanPhone = String(phone || '').replace(/\D/g, '');
+  if (!cleanPhone) return;
+
+  const current = (await loadSession(cleanPhone)) || {};
+  await saveSession(cleanPhone, {
+    ...current,
+    humanTakeover: true,
+    pausedAt: new Date().toISOString(),
+  });
+  console.log('[WhatsApp Agent] Atendimento humano assumido. IA pausada para:', cleanPhone);
+}
+
+/**
+ * Reativa o Agente para um telefone específico
+ */
+export async function resumeAgentForPhone(phone) {
+  const cleanPhone = String(phone || '').replace(/\D/g, '');
+  if (!cleanPhone) return;
+
+  const current = (await loadSession(cleanPhone)) || {};
+  await saveSession(cleanPhone, {
+    ...current,
+    humanTakeover: false,
+    resumedAt: new Date().toISOString(),
+  });
+  console.log('[WhatsApp Agent] IA reativada para:', cleanPhone);
+}
+
+/**
  * Agente de IA Conversacional para WhatsApp do NS Music
  */
 export async function handleWhatsAppAgentMessage(senderPhone, messageText, envVars = {}) {
@@ -131,8 +163,11 @@ export async function handleWhatsAppAgentMessage(senderPhone, messageText, envVa
 
   const textLower = (messageText || '').trim().toLowerCase();
 
-  // 1. Comando de reinício
-  if (['reiniciar', 'começar de novo', 'comecar de novo', 'novo pedido', 'cancelar', 'menu'].includes(textLower)) {
+  // 1. Comando de reinício ou reativação da IA
+  const isReactivationCommand = 
+    ['#ia', '#bot', '#reativar', 'ligar bot', 'ativar bot', 'reiniciar', 'começar de novo', 'comecar de novo', 'novo pedido', 'cancelar', 'menu'].includes(textLower);
+
+  if (isReactivationCommand) {
     await clearSession(cleanPhone);
     await sendWApiPresence(cleanPhone, 'composing', envVars);
     await sleep(2500);
@@ -145,6 +180,7 @@ Me conta: pra quem vai ser essa música e um pouco da história de vocês? ❤�
     await sendWApiTextMessage(cleanPhone, welcome, envVars);
     await saveSession(cleanPhone, {
       step: 'COLLECTING',
+      humanTakeover: false,
       chatHistory: [{ role: 'assistant', text: welcome }],
       startedAt: new Date().toISOString(),
     });
@@ -153,6 +189,12 @@ Me conta: pra quem vai ser essa música e um pouco da história de vocês? ❤�
 
   // 2. Carrega sessão atual
   const session = await loadSession(cleanPhone);
+
+  // Se o atendimento foi assumido por um atendente humano, a IA permanece 100% em silêncio
+  if (session?.humanTakeover === true) {
+    console.log(`[WhatsApp Agent] Chat com ${cleanPhone} está em atendimento humano. IA em silêncio.`);
+    return false;
+  }
 
   // Se não tem sessão ativa, verifica se a mensagem é um gatilho de início de atendimento
   const isTriggerMessage =

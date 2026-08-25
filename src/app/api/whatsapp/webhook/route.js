@@ -3,7 +3,7 @@ import { getRequestContext } from '@cloudflare/next-on-pages';
 import { doc, getDoc, updateDoc } from 'firebase/firestore/lite';
 import { dbEdge as db } from '@/lib/firebase-edge';
 import { sendWApiTextMessage, resolveDeliveryUrl, isVideoPurchased } from '@/lib/whatsapp';
-import { handleWhatsAppAgentMessage } from '@/lib/whatsappAgent';
+import { handleWhatsAppAgentMessage, pauseAgentForPhone, resumeAgentForPhone } from '@/lib/whatsappAgent';
 import { extractAudioFromWebhook, transcribeAudioWithFailover } from '@/lib/transcribeAudio';
 
 export const runtime = 'edge';
@@ -164,9 +164,20 @@ export async function POST(req) {
 
     console.log(`[WhatsApp Webhook] De: ${senderPhone || 'Desconhecido'} | Texto: "${messageText || ''}" | Audio: ${Boolean(audioSource)}`);
 
-    // Ignora mensagens enviadas por nós mesmos (fromMe: true)
+    // Quando a mensagem foi enviada por nós mesmos (fromMe: true), detectamos intervenção humana
     if (body.fromMe === true || body.data?.key?.fromMe === true || body.key?.fromMe === true) {
-      return NextResponse.json({ success: true, ignored: 'from_me' }, { status: 200 });
+      if (senderPhone) {
+        const lower = (messageText || '').toLowerCase();
+        // Se o atendente humano enviou comando explícito para reativar o bot:
+        if (lower.includes('#ia') || lower.includes('#bot') || lower.includes('#ligar')) {
+          await resumeAgentForPhone(senderPhone);
+          return NextResponse.json({ success: true, action: 'agent_resumed_by_human' }, { status: 200 });
+        }
+
+        // Caso contrário, qualquer mensagem enviada manualmente pelo WhatsApp pausa a IA automaticamente para este cliente:
+        await pauseAgentForPhone(senderPhone);
+      }
+      return NextResponse.json({ success: true, ignored: 'from_me_human_takeover' }, { status: 200 });
     }
 
     if (!senderPhone || senderPhone.length < 8) {
