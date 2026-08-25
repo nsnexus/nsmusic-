@@ -1221,6 +1221,33 @@ function EntregaContent() {
                               </div>
                             )}
 
+                            {/* Aviso de troca de aba — a causa mais comum de vídeo mudo é o usuário
+                                trocar de aba durante a geração, o que estrangula o requestAnimationFrame
+                                e dessincroniza áudio/vídeo. */}
+                            {(existingPhotos.length + newPhotoFiles.length >= 10 && existingPhotos.length + newPhotoFiles.length <= 20) && (
+                              <div style={{
+                                backgroundColor: 'rgba(251, 191, 36, 0.12)',
+                                border: '1px solid rgba(251, 191, 36, 0.35)',
+                                borderRadius: '10px',
+                                padding: '10px 14px',
+                                marginBottom: '8px',
+                                display: 'flex',
+                                alignItems: 'flex-start',
+                                gap: '8px'
+                              }}>
+                                <span style={{ fontSize: '1.1rem', flexShrink: 0 }}>⚠️</span>
+                                <p style={{
+                                  margin: 0,
+                                  fontSize: '0.8rem',
+                                  color: '#fbbf24',
+                                  lineHeight: '1.4'
+                                }}>
+                                  <strong>Importante:</strong> Durante a geração do vídeo, <strong>não troque de aba</strong> nem minimize o navegador.
+                                  Isso pode fazer o vídeo sair sem áudio. O processo leva alguns minutos.
+                                </p>
+                              </div>
+                            )}
+
                             {/* Botão de Criação / Re-geração do Vídeo */}
                             {(existingPhotos.length + newPhotoFiles.length >= 10 && existingPhotos.length + newPhotoFiles.length <= 20) && (
                               <button

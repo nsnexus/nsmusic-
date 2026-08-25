@@ -284,6 +284,40 @@ export async function createSlideshowVideo(orderId, imageUrls, audioUrl, orderDa
       mediaRecorder.onerror = err => reject(err);
     });
 
+    // Monitora se o usuário trocou de aba durante a gravação. O requestAnimationFrame é
+    // estrangulado em abas em segundo plano, mas o AudioBufferSourceNode continua tocando —
+    // isso dessincroniza áudio e vídeo e pode produzir um vídeo mudo ou com áudio cortado.
+    let tabWasHidden = false;
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        tabWasHidden = true;
+        console.warn('[VideoGen] Usuário trocou de aba durante a gravação — risco de vídeo sem áudio!');
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    // Re-destravar o AudioContext imediatamente antes de iniciar a gravação. O primeAudioContext()
+    // original foi chamado no clique, mas o upload de fotos pode ter levado minutos — alguns
+    // navegadores (especialmente iOS Safari) re-suspendem o contexto de áudio após inatividade
+    // prolongada, mesmo que ele tenha sido destravado por gesto do usuário.
+    if (audioCtx.state === 'suspended') {
+      try {
+        await Promise.race([
+          audioCtx.resume(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000))
+        ]);
+      } catch (resumeErr) {
+        console.warn('[VideoGen] Falha ao re-destravar AudioContext:', resumeErr?.message);
+      }
+    }
+    if (audioCtx.state !== 'running') {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      throw new Error(
+        'O navegador bloqueou o áudio antes de iniciar a gravação. ' +
+        'Toque na tela e clique novamente em "Criar Vídeo Homenagem".'
+      );
+    }
+
     mediaRecorder.start();
     source.start();
 
@@ -367,6 +401,33 @@ export async function createSlideshowVideo(orderId, imageUrls, audioUrl, orderDa
 
     const videoBlob = await recordingPromise;
 
+    // Remove o listener de visibilidade — a gravação já terminou
+    document.removeEventListener('visibilitychange', onVisibilityChange);
+
+    // Validação pós-gravação: um vídeo de ~3min com áudio a 900kbps de vídeo + áudio deveria ter
+    // ao menos algumas centenas de KB. Um blob muito pequeno (< 50KB) indica que o MediaRecorder
+    // gravou silêncio ou frames vazios — é melhor avisar o usuário do que entregar vídeo mudo.
+    const blobSizeKB = videoBlob.size / 1024;
+    const minExpectedKB = Math.max(50, duration * 5); // ~5 KB por segundo é o mínimo razoável
+    console.log(`[VideoGen] Blob gerado: ${blobSizeKB.toFixed(1)} KB (mínimo esperado: ${minExpectedKB.toFixed(1)} KB, duração: ${duration.toFixed(1)}s)`);
+
+    if (blobSizeKB < minExpectedKB) {
+      console.error(`[VideoGen] Blob muito pequeno (${blobSizeKB.toFixed(1)} KB) — provável vídeo sem áudio ou corrompido.`);
+      throw new Error(
+        'O vídeo gerado ficou muito pequeno e provavelmente está sem áudio. ' +
+        (tabWasHidden
+          ? 'Isso pode ter acontecido porque você trocou de aba durante a geração. '
+          : '') +
+        'Por favor, tente novamente sem sair desta página.'
+      );
+    }
+
+    // Se o usuário trocou de aba, o vídeo PODE estar OK (nem sempre corrompe), mas vale alertar
+    // no console para facilitar debugging futuro.
+    if (tabWasHidden) {
+      console.warn('[VideoGen] Vídeo gerado com sucesso, mas o usuário trocou de aba durante a gravação. O áudio pode estar dessincronizado.');
+    }
+
     // 5. Upload do vídeo para o Firebase Storage — extensão e Content-Type batendo com o container
     // real gravado (ver comentário acima sobre fileExtension), para o arquivo baixado/compartilhado
     // ser reconhecido corretamente pelo WhatsApp e outros apps.
@@ -387,6 +448,8 @@ export async function createSlideshowVideo(orderId, imageUrls, audioUrl, orderDa
 
   } catch (err) {
     console.error("Erro na geração do vídeo:", err);
+    // Limpa o listener de visibilidade caso tenha sido registrado antes do erro
+    try { document.removeEventListener('visibilitychange', onVisibilityChange); } catch (_) {}
     await updateDoc(orderRef, {
       videoStatus: 'ERRO',
       videoError: err.message,
