@@ -3,7 +3,7 @@ import { getRequestContext } from '@cloudflare/next-on-pages';
 import { doc, getDoc, updateDoc } from 'firebase/firestore/lite';
 import { dbEdge as db } from '@/lib/firebase-edge';
 import { sendWApiTextMessage, resolveDeliveryUrl, isVideoPurchased } from '@/lib/whatsapp';
-import { handleWhatsAppAgentMessage, pauseAgentForPhone, resumeAgentForPhone, isWhatsAppAgentGloballyEnabled } from '@/lib/whatsappAgent';
+import { handleWhatsAppAgentMessage, pauseAgentForPhone, resumeAgentForPhone } from '@/lib/whatsappAgent';
 import { findRecentOrderByPhone, isNewSongIntent } from '@/lib/orderLookup';
 import { extractAudioFromWebhook, transcribeAudioWithFailover } from '@/lib/transcribeAudio';
 
@@ -276,13 +276,6 @@ export async function POST(req) {
 
     if (!senderPhone || senderPhone.length < 8) {
       return NextResponse.json({ success: true, warning: 'Nenhum remetente identificado' }, { status: 200 });
-    }
-
-    // 0. Verifica se o Agente de IA está ativado globalmente pelo Painel Admin
-    const isAgentGloballyActive = await isWhatsAppAgentGloballyEnabled();
-    if (!isAgentGloballyActive) {
-      console.log(`[WhatsApp Webhook] Agente de IA DESATIVADO no Admin. Mensagem de ${senderPhone} ignorada.`);
-      return NextResponse.json({ success: true, ignored: 'agent_disabled_by_admin' }, { status: 200 });
     }
 
     // 1. Tentar encontrar ID de pedido no texto (ex: id=abc12345 ou pedido abc12345)
