@@ -1412,6 +1412,8 @@ export default function CriarMusica() {
                       badge="VERSÃO 2 - ARRANJO ALTERNATIVO BÔNUS"
                       isBonus={true}
                     />
+                  )}
+
                   {/* Card: Não gostou do resultado? Chame no WhatsApp */}
                   <div className="glass-card" style={{ padding: '16px 20px', borderRadius: '16px', border: '1px solid rgba(37, 211, 102, 0.3)', background: 'rgba(37, 211, 102, 0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
                     <div style={{ flex: 1, minWidth: '220px' }}>
