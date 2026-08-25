@@ -149,6 +149,7 @@ describe('applyPaymentApproval', () => {
     store['order12'] = {
       paymentIntentSku: 'audio_only',
       customerPhone: '5511999999999',
+      whatsappRequested: true,
       customerName: 'Maria',
       honoreeName: 'Vovó Lúcia',
       audioFiles: ['https://cdn1.suno.ai/a.mp3', 'https://cdn1.suno.ai/b.mp3'],

@@ -45,7 +45,7 @@ beforeEach(() => {
 describe('updateTaskResult — idempotência do envio de WhatsApp', () => {
   it('envia WhatsApp uma única vez mesmo com duas chamadas concorrentes para o mesmo pedido', async () => {
     store['task1'] = { orderId: 'order1' };
-    store['order1'] = { customerPhone: '5511999999999', customerName: 'Cliente', honoreeName: 'Alguém' };
+    store['order1'] = { customerPhone: '5511999999999', whatsappRequested: true, customerName: 'Cliente', honoreeName: 'Alguém' };
 
     const result = { data: [{ id: 'audio1', audio_url: 'https://cdn1.suno.ai/audio1.mp3' }] };
 
