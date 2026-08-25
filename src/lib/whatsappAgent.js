@@ -123,6 +123,38 @@ ${historyText ? `Histórico da conversa:\n${historyText}\n\n` : ''}Cliente: ${us
 }
 
 /**
+ * Verifica se o Agente de IA está ativado globalmente nas configurações do sistema
+ */
+export async function isWhatsAppAgentGloballyEnabled() {
+  try {
+    const snap = await getDoc(doc(db, 'settings', 'whatsapp'));
+    if (snap.exists()) {
+      const data = snap.data();
+      if (data.agentEnabled === false) return false;
+    }
+  } catch (e) {
+    console.warn('[WhatsApp Agent] Erro ao consultar settings/whatsapp:', e.message);
+  }
+  return true;
+}
+
+/**
+ * Altera o status global do Agente de IA
+ */
+export async function setWhatsAppAgentGloballyEnabled(enabled) {
+  try {
+    await setDoc(doc(db, 'settings', 'whatsapp'), {
+      agentEnabled: Boolean(enabled),
+      updatedAt: new Date().toISOString(),
+    }, { merge: true });
+    return true;
+  } catch (e) {
+    console.error('[WhatsApp Agent] Erro ao salvar settings/whatsapp:', e.message);
+    return false;
+  }
+}
+
+/**
  * Pausa o Agente para um telefone específico (quando o atendente humano assume a conversa)
  */
 export async function pauseAgentForPhone(phone) {
@@ -163,7 +195,22 @@ export async function handleWhatsAppAgentMessage(senderPhone, messageText, envVa
 
   const textLower = (messageText || '').trim().toLowerCase();
 
-  // 1. Comando de reinício ou reativação da IA
+  // 1. Comando de pausa explícita pelo chat
+  const isPauseCommand = ['#pausar', '#pausa', '#desligar', '#parar', '#stop', '#off', '#humano', '#atendente'].includes(textLower);
+  if (isPauseCommand) {
+    await pauseAgentForPhone(cleanPhone);
+    await sendWApiTextMessage(cleanPhone, '🛑 *Atendimento com a IA pausado!*\nNossa equipe humana já vai te responder por aqui.', envVars);
+    return true;
+  }
+
+  // 2. Verifica se o Agente de IA está desativado globalmente pelo Painel Admin
+  const isGloballyActive = await isWhatsAppAgentGloballyEnabled();
+  if (!isGloballyActive) {
+    console.log(`[WhatsApp Agent] Agente desativado globalmente no Admin. Silêncio para ${cleanPhone}.`);
+    return false;
+  }
+
+  // 3. Comando de reinício ou reativação da IA
   const isReactivationCommand = 
     ['#ia', '#bot', '#reativar', 'ligar bot', 'ativar bot', 'reiniciar', 'começar de novo', 'comecar de novo', 'novo pedido', 'cancelar', 'menu'].includes(textLower);
 
@@ -187,7 +234,7 @@ Me conta: pra quem vai ser essa música e um pouco da história de vocês? ❤�
     return true;
   }
 
-  // 2. Carrega sessão atual
+  // 4. Carrega sessão atual
   const session = await loadSession(cleanPhone);
 
   // Se o atendimento foi assumido por um atendente humano, a IA permanece 100% em silêncio

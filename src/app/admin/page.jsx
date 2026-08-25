@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { collection, query, orderBy, onSnapshot, limit as fbLimit } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, limit as fbLimit, doc, setDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { getPriceForSku } from '@/lib/pricing';
 import { buildSunoPayload } from '@/lib/sunoPayload';
@@ -24,6 +24,10 @@ export default function AdminDashboard() {
   const [paymentStatusFilter, setPaymentStatusFilter] = useState('ALL');
   const [productionStatusFilter, setProductionStatusFilter] = useState('ALL');
   const [sortBy, setSortBy] = useState('createdAt_desc'); // 'createdAt_desc'|'createdAt_asc'|'paidAt_desc'|'paidAt_asc'
+
+  // Controle Master do Agente de IA do WhatsApp
+  const [agentEnabled, setAgentEnabled] = useState(true);
+  const [togglingAgent, setTogglingAgent] = useState(false);
 
   // Paginação — carrega 500 de início para cobrir o histórico típico do admin.
   // "Carregar todos" remove o limite completamente (útil para busca/filtro em toda a base).
@@ -111,7 +115,35 @@ export default function AdminDashboard() {
     });
 
     return () => unsubscribe();
-  }, [user, pageSize, loadAll]);
+  }, [user, loadAll, pageSize]);
+
+  // Escuta configurações do WhatsApp (Master Switch do Agente)
+  useEffect(() => {
+    if (!user) return;
+    const unsub = onSnapshot(doc(db, 'settings', 'whatsapp'), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        setAgentEnabled(data.agentEnabled !== false);
+      } else {
+        setAgentEnabled(true);
+      }
+    });
+    return () => unsub();
+  }, [user]);
+
+  const handleToggleAgent = async () => {
+    setTogglingAgent(true);
+    try {
+      await setDoc(doc(db, 'settings', 'whatsapp'), {
+        agentEnabled: !agentEnabled,
+        updatedAt: new Date().toISOString(),
+      }, { merge: true });
+    } catch (err) {
+      alert('Erro ao alterar status do robô: ' + err.message);
+    } finally {
+      setTogglingAgent(false);
+    }
+  };
 
   const handleLoadMoreOrders = () => {
     setLoadingMore(true);
@@ -656,6 +688,54 @@ export default function AdminDashboard() {
           
           {activeTab === 'ORDERS' ? (
             <div>
+              {/* Barra de Controle Master do Agente WhatsApp */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '14px 20px',
+                borderRadius: '12px',
+                background: agentEnabled ? 'rgba(16, 185, 129, 0.08)' : 'rgba(239, 68, 68, 0.08)',
+                border: agentEnabled ? '1.5px solid #10b981' : '1.5px solid #ef4444',
+                marginBottom: '24px',
+                flexWrap: 'wrap',
+                gap: '12px',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <span style={{ fontSize: '1.6rem' }}>{agentEnabled ? '🤖' : '🛑'}</span>
+                  <div>
+                    <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: '800', color: agentEnabled ? '#047857' : '#b91c1c' }}>
+                      Robô de Atendimento IA no WhatsApp: {agentEnabled ? 'ATIVADO' : 'DESATIVADO (Atendimento 100% Humano)'}
+                    </h4>
+                    <p style={{ margin: '2px 0 0 0', fontSize: '0.84rem', color: '#475569' }}>
+                      {agentEnabled
+                        ? 'A IA está conversando com clientes no WhatsApp. Se quiser assumir o WhatsApp sem interferência do robô, desative aqui.'
+                        : 'A IA está 100% em silêncio no WhatsApp. Você pode conversar livremente com os clientes.'}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleToggleAgent}
+                  disabled={togglingAgent}
+                  style={{
+                    padding: '10px 22px',
+                    fontSize: '0.9rem',
+                    fontWeight: '800',
+                    borderRadius: '8px',
+                    backgroundColor: agentEnabled ? '#ef4444' : '#10b981',
+                    color: '#ffffff',
+                    border: 'none',
+                    cursor: 'pointer',
+                    boxShadow: agentEnabled ? '0 4px 12px rgba(239, 68, 68, 0.3)' : '0 4px 12px rgba(16, 185, 129, 0.3)',
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  {togglingAgent ? 'Salvando...' : (agentEnabled ? '🛑 Desativar Robô Agora' : '✅ Ativar Robô Agora')}
+                </button>
+              </div>
+
               {/* Cards de Métricas em Tema Claro */}
               <div style={styles.metricsGrid}>
                 <div style={styles.metricCard}>
