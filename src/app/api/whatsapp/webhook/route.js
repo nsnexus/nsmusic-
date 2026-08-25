@@ -4,6 +4,7 @@ import { doc, getDoc, updateDoc } from 'firebase/firestore/lite';
 import { dbEdge as db } from '@/lib/firebase-edge';
 import { sendWApiTextMessage, resolveDeliveryUrl, isVideoPurchased } from '@/lib/whatsapp';
 import { handleWhatsAppAgentMessage, pauseAgentForPhone, resumeAgentForPhone } from '@/lib/whatsappAgent';
+import { findRecentOrderByPhone, isNewSongIntent } from '@/lib/orderLookup';
 import { extractAudioFromWebhook, transcribeAudioWithFailover } from '@/lib/transcribeAudio';
 
 export const runtime = 'edge';
@@ -202,10 +203,26 @@ export async function POST(req) {
       }
     }
 
-    // Se encontrou o pedido do cliente por ID explícito:
+    // Se NÃO passou ID explícito e NÃO é intenção explícita de criar nova música,
+    // verifica se o telefone do cliente já possui algum pedido realizado no sistema:
+    if (!matchedOrder && senderPhone && !isNewSongIntent(messageText)) {
+      try {
+        const existingOrder = await findRecentOrderByPhone(senderPhone);
+        if (existingOrder) {
+          matchedOrderId = existingOrder.id;
+          matchedOrder = existingOrder;
+          console.log(`[WhatsApp Webhook] Pedido existente localizado para o telefone ${senderPhone}: #${existingOrder.orderNumber || existingOrder.id}`);
+        }
+      } catch (lookupErr) {
+        console.warn('[WhatsApp Webhook] Erro ao buscar pedido por telefone:', lookupErr.message);
+      }
+    }
+
+    // Se encontrou o pedido do cliente (por ID ou pelo telefone):
     if (matchedOrder && matchedOrderId) {
       const customerName = matchedOrder.customerName || 'Cliente';
       const honoreeName = matchedOrder.honoreeName || 'alguém especial';
+      const orderNum = matchedOrder.orderNumber ? `#${matchedOrder.orderNumber}` : '';
       const deliveryUrl = resolveDeliveryUrl(matchedOrderId);
 
       // Marca que o cliente solicitou o envio pelo WhatsApp
@@ -232,23 +249,29 @@ export async function POST(req) {
 
           replyMsg = `🎉 *PAGAMENTO CONFIRMADO!*
 
-Olá, ${customerName}! As músicas personalizadas para *${honoreeName}* já estão 100% liberadas em alta definição (MP3 HD)! 🎶
+Olá, ${customerName}! Localizei seu pedido ${orderNum ? `*(${orderNum})* ` : ''}para *${honoreeName}*! 🎶
+
+As músicas personalizadas já estão 100% liberadas em alta definição (MP3 HD):
 
 ${audiosList ? `📥 *Baixe seus áudios diretamente:*\n${audiosList}\n\n` : ''}🔗 *Acesse sua página de entrega permanente:*
 ${deliveryUrl}
 
-${videoBlock}Muito obrigado por escolher o *NS Music*! 💜`;
+${videoBlock}───────────────────
+💬 *Precisa de ajuda ou suporte com este pedido?* Nossa equipe humana já vai te atender aqui!
+🎵 *Quer criar uma NOVA música para outra pessoa?* Basta responder *NOVO PEDIDO*.`;
         } else {
           replyMsg = `🎵 *Olá, ${customerName}!*
 
-A sua música personalizada para *${honoreeName}* já foi produzida com sucesso no estúdio *NS Music*! 🎧
+Localizei seu pedido ${orderNum ? `*(${orderNum})* ` : ''}para *${honoreeName}*! 🎧
 
-Foram gravadas *2 versões exclusivas* com arranjos diferentes para você escolher.
+A sua música personalizada já foi produzida com sucesso no estúdio *NS Music*. Foram gravadas 2 versões exclusivas com arranjos diferentes para você escolher.
 
-👉 *Ouça a prévia agora mesmo:*
+👉 *Ouça a prévia e libere seus arquivos aqui:*
 ${deliveryUrl}
 
-Qualquer dúvida ou se precisar de ajuda, basta responder aqui! 💜`;
+───────────────────
+💬 *Precisa de suporte ou ajuda com o pagamento?* Nossa equipe humana já vai te atender por aqui!
+🎵 *Quer criar uma NOVA música do zero?* Basta responder *NOVO PEDIDO*.`;
         }
 
         await sendWApiTextMessage(senderPhone, replyMsg, envVars);
@@ -257,9 +280,14 @@ Qualquer dúvida ou se precisar de ajuda, basta responder aqui! 💜`;
         // A música ainda está sendo gerada pela IA:
         const replyMsg = `⏳ *Olá, ${customerName}!*
 
-Recebemos seu pedido com sucesso! Nosso estúdio está finalizando as 2 versões da música para *${honoreeName}*. 🎶
+Localizei seu pedido ${orderNum ? `*(${orderNum})* ` : ''}para *${honoreeName}*! 🎧
 
-Assim que a renderização terminar (leva cerca de 1 a 2 minutos), enviaremos o link direto aqui nesta conversa! 💜`;
+Nosso estúdio está finalizando a gravação das 2 versões da música neste momento (leva de 1 a 2 minutinhos).
+
+Assim que a renderização terminar, eu te envio os arquivos e o link direto aqui nesta conversa! 💜
+
+───────────────────
+💬 *Precisa de suporte?* Nossa equipe humana já vai te responder!`;
 
         await sendWApiTextMessage(senderPhone, replyMsg, envVars);
         return NextResponse.json({ success: true, action: 'sent_wait_acknowledgment' }, { status: 200 });
