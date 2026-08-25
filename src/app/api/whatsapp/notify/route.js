@@ -27,6 +27,14 @@ export async function POST(req) {
       return NextResponse.json({ success: true, message: 'WhatsApp já notificado anteriormente.' });
     }
 
+    // REGRA ANTI-BAN: só manda mensagem de "música pronta" pra quem já iniciou conversa pelo
+    // WhatsApp (whatsappRequested === true) — mesma regra de src/lib/db.js:notifyMusicReady e
+    // src/app/api/cron/recover/route.js. Mensagem iniciada pela empresa pra quem nunca escreveu já
+    // gerou bloqueio de conta antes.
+    if (!orderData.whatsappRequested) {
+      return NextResponse.json({ success: true, message: 'Cliente ainda não iniciou conversa pelo WhatsApp.' });
+    }
+
     if (orderData.customerPhone) {
       const deliveryUrl = resolveDeliveryUrl(orderId);
       const sendResult = await sendMusicReadyTemplate(orderData.customerPhone, {

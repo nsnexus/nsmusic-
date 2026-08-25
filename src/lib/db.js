@@ -148,6 +148,12 @@ export const notifyMusicReady = async (orderRef, orderData, orderId, opts = {}) 
 
   if (!orderData.customerPhone) return { sent: false, reason: 'no_phone' };
   if (!force && orderData.whatsappSent) return { sent: false, reason: 'already_sent' };
+  // REGRA ANTI-BAN: só manda mensagem de "música pronta" pra quem já iniciou conversa pelo WhatsApp
+  // (whatsappRequested === true, gravado em src/app/api/whatsapp/webhook/route.js quando o cliente
+  // manda o ID do pedido). Mensagem iniciada pela empresa pra quem nunca escreveu é o padrão que
+  // gerou bloqueio de conta antes (ver comentário histórico em src/lib/whatsapp.js) — mesma regra já
+  // aplicada na régua de recuperação (src/app/api/cron/recover/route.js).
+  if (!force && !orderData.whatsappRequested) return { sent: false, reason: 'not_requested' };
 
   // runTransaction não existe em firebase/firestore/lite (o SDK usado no Edge Runtime) — checagem
   // sequencial: getDoc para ler o estado atual, updateDoc para reservar o envio. Numa corrida bem
