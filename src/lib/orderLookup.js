@@ -1,4 +1,4 @@
-import { collection, query, where, getDocs } from 'firebase/firestore/lite';
+import { collection, query, where, limit, getDocs, doc, getDoc } from 'firebase/firestore/lite';
 import { dbEdge as db } from './firebase-edge.js';
 
 /**
@@ -64,6 +64,99 @@ export function isNewSongIntent(text) {
     lower.includes('#ia') ||
     lower.includes('#bot')
   );
+}
+
+/**
+ * Identifica se a mensagem enviada pelo cliente é apenas uma confirmação curta ou agradecimento
+ * (ex: "ok", "obrigado", "beleza", "show", "valeu", "ta bom", etc.) que não requer reenvio de templates.
+ */
+export function isShortAckMessage(text) {
+  if (!text) return false;
+  const clean = String(text)
+    .toLowerCase()
+    .trim()
+    .replace(/[.!?,;:\-_~*#👍👏❤️😊🙏🎧🎶🎉]/g, '')
+    .trim();
+
+  if (!clean) return true; // Mensagem com apenas emojis ou pontuação
+
+  const acks = new Set([
+    'ok',
+    'okay',
+    'okey',
+    'blz',
+    'beleza',
+    'obrigado',
+    'obrigada',
+    'obg',
+    'brigado',
+    'brigada',
+    'valeu',
+    'vlw',
+    'show',
+    'top',
+    'joia',
+    'jóia',
+    'legal',
+    'ta bom',
+    'tá bom',
+    'tabom',
+    'certo',
+    'combinado',
+    'entendido',
+    'perfeito',
+    'tudo bem',
+    'tmj',
+    'aguardo',
+    'aguardando',
+    'no aguardo',
+    'blzinha',
+    'belezinha',
+    'sim',
+    's',
+    'joinha',
+    'combinadissimo',
+    'combinadíssimo',
+    'maravilha',
+    'otimo',
+    'ótimo',
+    'mto obrigado',
+    'muito obrigado',
+    'mto obrigada',
+    'muito obrigada',
+  ]);
+
+  return acks.has(clean);
+}
+
+/**
+ * Busca pedido no Firestore por ID do documento direto ou pelo orderNumber (ex: NS-...)
+ */
+export async function findOrderByIdOrNumber(candidate) {
+  if (!candidate) return null;
+  const trimmed = String(candidate).trim();
+  if (!trimmed) return null;
+
+  try {
+    // 1. Tenta buscar por ID de documento direto
+    const docSnap = await getDoc(doc(db, 'orders', trimmed)).catch(() => null);
+    if (docSnap && docSnap.exists()) {
+      return { id: docSnap.id, ...docSnap.data() };
+    }
+
+    // 2. Tenta buscar por orderNumber
+    const ordersRef = collection(db, 'orders');
+    const q = query(ordersRef, where('orderNumber', '==', trimmed), limit(1));
+    const snap = await getDocs(q).catch(() => null);
+    if (snap && !snap.empty) {
+      const first = snap.docs[0];
+      return { id: first.id, ...first.data() };
+    }
+  } catch (err) {
+    console.warn('[OrderLookup] Erro ao buscar por ID/orderNumber:', err.message);
+  }
+
+  return null;
 }
 
 /**

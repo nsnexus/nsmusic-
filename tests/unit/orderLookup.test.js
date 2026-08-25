@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { generatePhoneVariants, isNewSongIntent } from '@/lib/orderLookup';
+import { generatePhoneVariants, isNewSongIntent, isShortAckMessage } from '@/lib/orderLookup';
 
 let store;
 
@@ -7,25 +7,43 @@ vi.mock('@/lib/firebase-edge', () => ({ dbEdge: {} }));
 
 vi.mock('firebase/firestore/lite', () => ({
   collection: (_db, name) => ({ name }),
+  doc: (_db, col, id) => ({ col, id }),
+  getDoc: async (d) => ({
+    exists: () => Boolean(store[d.id]),
+    id: d.id,
+    data: () => store[d.id] || {},
+  }),
+  limit: (n) => ({ limit: n }),
   query: (ref, ...constraints) => ({ ref, constraints }),
   where: (field, op, val) => ({ field, op, val }),
   getDocs: async (q) => {
-    const whereConstraint = q.constraints.find((c) => c.op === 'in');
-    const field = whereConstraint?.field;
-    const values = whereConstraint?.val || [];
+    const inConstraint = q.constraints.find((c) => c.op === 'in');
+    const eqConstraint = q.constraints.find((c) => c.op === '==');
 
-    const matches = Object.entries(store)
-      .filter(([id, data]) => values.includes(data[field]))
-      .map(([id, data]) => ({ id, data: () => data }));
+    let matches = [];
+    if (inConstraint) {
+      const field = inConstraint.field;
+      const values = inConstraint.val || [];
+      matches = Object.entries(store)
+        .filter(([id, data]) => values.includes(data[field]))
+        .map(([id, data]) => ({ id, data: () => data }));
+    } else if (eqConstraint) {
+      const field = eqConstraint.field;
+      const val = eqConstraint.val;
+      matches = Object.entries(store)
+        .filter(([id, data]) => data[field] === val)
+        .map(([id, data]) => ({ id, data: () => data }));
+    }
 
     return {
       empty: matches.length === 0,
+      docs: matches,
       forEach: (cb) => matches.forEach(cb),
     };
   },
 }));
 
-const { findRecentOrderByPhone } = await import('@/lib/orderLookup');
+const { findRecentOrderByPhone, findOrderByIdOrNumber } = await import('@/lib/orderLookup');
 
 beforeEach(() => {
   store = {};
@@ -69,6 +87,54 @@ describe('orderLookup — isNewSongIntent', () => {
     expect(isNewSongIntent('Não recebi o áudio')).toBe(false);
     expect(isNewSongIntent('Como faço para baixar?')).toBe(false);
     expect(isNewSongIntent('Olá! Vim pelo site da NSMusic')).toBe(false);
+  });
+});
+
+describe('orderLookup — isShortAckMessage', () => {
+  it('identifica confirmações curtas e agradecimentos comuns', () => {
+    expect(isShortAckMessage('ok')).toBe(true);
+    expect(isShortAckMessage('OK!')).toBe(true);
+    expect(isShortAckMessage('beleza')).toBe(true);
+    expect(isShortAckMessage('blz')).toBe(true);
+    expect(isShortAckMessage('obrigado')).toBe(true);
+    expect(isShortAckMessage('obrigada 🙏')).toBe(true);
+    expect(isShortAckMessage('valeu')).toBe(true);
+    expect(isShortAckMessage('show')).toBe(true);
+    expect(isShortAckMessage('tá bom')).toBe(true);
+    expect(isShortAckMessage('👍')).toBe(true);
+  });
+
+  it('não confunde perguntas ou mensagens complexas com acks', () => {
+    expect(isShortAckMessage('Quanto tempo demora?')).toBe(false);
+    expect(isShortAckMessage('Quero alterar o nome do homenageado')).toBe(false);
+    expect(isShortAckMessage('Onde ouço a prévia?')).toBe(false);
+    expect(isShortAckMessage('id=abc12345')).toBe(false);
+  });
+});
+
+describe('orderLookup — findOrderByIdOrNumber', () => {
+  it('localiza por ID de documento direto do Firestore', async () => {
+    store['doc12345'] = {
+      orderNumber: 'NS-999-2026',
+      customerName: 'Maria',
+    };
+
+    const found = await findOrderByIdOrNumber('doc12345');
+    expect(found).not.toBeNull();
+    expect(found.id).toBe('doc12345');
+    expect(found.customerName).toBe('Maria');
+  });
+
+  it('localiza por orderNumber quando o ID do documento é diferente', async () => {
+    store['firestoreRandomKey'] = {
+      orderNumber: 'NS-ML1234-5678-2026',
+      customerName: 'João',
+    };
+
+    const found = await findOrderByIdOrNumber('NS-ML1234-5678-2026');
+    expect(found).not.toBeNull();
+    expect(found.id).toBe('firestoreRandomKey');
+    expect(found.customerName).toBe('João');
   });
 });
 

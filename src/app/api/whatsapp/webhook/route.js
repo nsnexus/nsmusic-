@@ -4,7 +4,7 @@ import { doc, getDoc, updateDoc } from 'firebase/firestore/lite';
 import { dbEdge as db } from '@/lib/firebase-edge';
 import { sendWApiTextMessage, resolveDeliveryUrl, isVideoPurchased } from '@/lib/whatsapp';
 import { handleWhatsAppAgentMessage, pauseAgentForPhone, resumeAgentForPhone } from '@/lib/whatsappAgent';
-import { findRecentOrderByPhone, isNewSongIntent } from '@/lib/orderLookup';
+import { findRecentOrderByPhone, isNewSongIntent, findOrderByIdOrNumber, isShortAckMessage } from '@/lib/orderLookup';
 import { extractAudioFromWebhook, transcribeAudioWithFailover } from '@/lib/transcribeAudio';
 
 export const runtime = 'edge';
@@ -70,6 +70,25 @@ function extractMessageText(body) {
 
   for (const c of candidates) {
     if (typeof c === 'string' && c.trim()) return c.trim();
+  }
+
+  return '';
+}
+
+function extractCandidateOrderId(text) {
+  if (!text) return '';
+  const str = String(text);
+
+  // 1. Padrão orderNumber (ex: NS-xxxx-xxxx-2026 ou NS-xxxx...)
+  const nsMatch = str.match(/\b(NS-[A-Z0-9-]+)\b/i);
+  if (nsMatch && nsMatch[1]) {
+    return nsMatch[1].trim();
+  }
+
+  // 2. Padrão com prefixo explícito (ex: id=abc12345, id: abc12345, pedido: abc12345, pedido #abc12345, #abc12345)
+  const prefixMatch = str.match(/(?:id\s*[:=]\s*|pedido\s*[:=]?\s*#?|#)([a-zA-Z0-9_-]{6,30})/i);
+  if (prefixMatch && prefixMatch[1]) {
+    return prefixMatch[1].trim();
   }
 
   return '';
@@ -278,21 +297,16 @@ export async function POST(req) {
       return NextResponse.json({ success: true, warning: 'Nenhum remetente identificado' }, { status: 200 });
     }
 
-    // 1. Tentar encontrar ID de pedido no texto (ex: id=abc12345 ou pedido abc12345)
+    // 1. Tentar encontrar ID ou número de pedido no texto
     let matchedOrder = null;
     let matchedOrderId = '';
 
-    const idMatch = (messageText || '').match(/(?:id=|pedido[:\s]+|#)([a-zA-Z0-9_-]{6,30})/i);
-    if (idMatch && idMatch[1]) {
-      const candidateId = idMatch[1].trim();
-      try {
-        const snap = await getDoc(doc(db, 'orders', candidateId));
-        if (snap.exists()) {
-          matchedOrderId = snap.id;
-          matchedOrder = snap.data();
-        }
-      } catch (e) {
-        console.warn('[WhatsApp Webhook] Erro ao buscar pedido por ID:', e.message);
+    const candidateId = extractCandidateOrderId(messageText);
+    if (candidateId) {
+      const found = await findOrderByIdOrNumber(candidateId);
+      if (found) {
+        matchedOrderId = found.id;
+        matchedOrder = found;
       }
     }
 
@@ -313,6 +327,9 @@ export async function POST(req) {
 
     // Se encontrou o pedido do cliente (por ID ou pelo telefone):
     if (matchedOrder && matchedOrderId) {
+      const isShortAck = isShortAckMessage(messageText);
+      const isExplicitId = Boolean(candidateId);
+
       const customerName = matchedOrder.customerName || 'Cliente';
       const honoreeName = matchedOrder.honoreeName || 'alguém especial';
       const orderNum = matchedOrder.orderNumber ? `#${matchedOrder.orderNumber}` : '';
@@ -329,6 +346,19 @@ export async function POST(req) {
 
       // Se a música já estiver pronta:
       if (matchedOrder.audioUrl || matchedOrder.audioFiles?.length) {
+        // Se foi apenas um "ok", "obrigado", "valeu" e o cliente JÁ recebeu a prévia ou aprovação,
+        // não reenvia o template completo repetidamente para não poluir a conversa.
+        const alreadyNotified = Boolean(
+          matchedOrder.whatsappSent ||
+          matchedOrder.paymentWhatsappSent ||
+          matchedOrder.readyTemplateSent
+        );
+
+        if (isShortAck && !isExplicitId && alreadyNotified) {
+          console.log(`[WhatsApp Webhook] Mensagem de confirmação recebida ("${messageText}"), prévia já enviada anteriormente. Silêncio.`);
+          return NextResponse.json({ success: true, ignored: 'ready_link_already_sent_ack' }, { status: 200 });
+        }
+
         const isPaid = matchedOrder.paymentStatus === 'PAGAMENTO_APROVADO' || matchedOrder.paymentStatus === 'PAGO';
         const urls = (matchedOrder.audioFiles?.length ? matchedOrder.audioFiles : [matchedOrder.audioUrl]).filter(Boolean);
         const audiosList = urls.map((link, idx) => `• *Versão ${idx + 1}:* ${link}`).join('\n');
@@ -368,9 +398,23 @@ ${deliveryUrl}
         }
 
         await sendWApiTextMessage(senderPhone, replyMsg, envVars);
+        try {
+          await updateDoc(doc(db, 'orders', matchedOrderId), {
+            readyTemplateSent: true,
+            readyTemplateSentAt: new Date().toISOString(),
+          });
+        } catch (e) {}
+
         return NextResponse.json({ success: true, action: 'sent_ready_link' }, { status: 200 });
       } else {
         // A música ainda está sendo gerada pela IA:
+        // Se o cliente já recebeu o aviso de espera (whatsappWaitAckSent) e não mandou um ID novo explícito,
+        // ou se mandou uma resposta curta ("ok", "obrigado"), NÃO repete a mensagem de espera.
+        if (matchedOrder.whatsappWaitAckSent && (!isExplicitId || isShortAck)) {
+          console.log(`[WhatsApp Webhook] Mensagem de espera já enviada para o pedido #${matchedOrderId}. Silêncio para resposta "${messageText}".`);
+          return NextResponse.json({ success: true, ignored: 'wait_ack_already_sent' }, { status: 200 });
+        }
+
         const replyMsg = `⏳ *Olá, ${customerName}!*
 
 Localizei seu pedido ${orderNum ? `*(${orderNum})* ` : ''}para *${honoreeName}*! 🎧
@@ -383,6 +427,13 @@ Assim que a renderização terminar, eu te envio os arquivos e o link direto aqu
 💬 *Precisa de suporte?* Nossa equipe humana já vai te responder!`;
 
         await sendWApiTextMessage(senderPhone, replyMsg, envVars);
+        try {
+          await updateDoc(doc(db, 'orders', matchedOrderId), {
+            whatsappWaitAckSent: true,
+            whatsappWaitAckSentAt: new Date().toISOString(),
+          });
+        } catch (e) {}
+
         return NextResponse.json({ success: true, action: 'sent_wait_acknowledgment' }, { status: 200 });
       }
     }
