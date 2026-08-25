@@ -122,23 +122,41 @@ Se precisar de qualquer ajuda ou tiver dúvidas, é só me responder por aqui! �
 };
 
 /**
+ * Verifica se o pedido inclui acesso ao Vídeo Homenagem em qualquer uma das propriedades possíveis
+ */
+export const isVideoPurchased = (orderData = {}) => {
+  if (!orderData) return false;
+  return Boolean(
+    orderData.hasVideoAccess ||
+    orderData.videoAddonPaid ||
+    orderData.paymentIntentSku === 'combo' ||
+    orderData.paymentIntentSku === 'video_addon' ||
+    orderData.addons?.wantsVideo ||
+    orderData.selectedPackage === 'combo' ||
+    orderData.includeVideo
+  );
+};
+
+/**
  * Envia mensagem de confirmação de pagamento aprovado com links diretos de áudio e oferta do vídeo homenagem.
  */
-export const sendPaymentApprovedTemplate = async (phone, { customerName, honoreeName, deliveryUrl, audioUrls, hasVideoAccess }, env = {}) => {
+export const sendPaymentApprovedTemplate = async (phone, { customerName, honoreeName, deliveryUrl, audioUrls, hasVideoAccess, orderData }, env = {}) => {
   const name = customerName || 'Cliente';
   const honoree = honoreeName || 'alguém especial';
   const url = deliveryUrl || 'https://nsmusic.nsnexus.com.br';
+
+  const userHasVideo = Boolean(hasVideoAccess || isVideoPurchased(orderData));
 
   let audiosList = '';
   if (Array.isArray(audioUrls) && audioUrls.length > 0) {
     audiosList = audioUrls.filter(Boolean).map((link, idx) => `• *Versão ${idx + 1}:* ${link}`).join('\n');
   }
 
-  // Oferta do vídeo só faz sentido pra quem ainda não comprou o add-on — mandar a mesma oferta pra
-  // quem já pagou pelo vídeo soava como se o pagamento não tivesse sido reconhecido.
-  const videoBlock = hasVideoAccess
+  // Se o cliente comprou o vídeo (combo ou add-on), orienta sobre o envio das fotos.
+  // Se NÃO comprou o vídeo, exibe a oferta de upsell por R$ 6,90.
+  const videoBlock = userHasVideo
     ? `━━━━━━━━━━━━━━━━━━━━
-🎬 Seu *vídeo homenagem* também já está confirmado! Pra gerar, é só enviar de 10 a 20 fotos na sua página de entrega (mesmo link acima) que a gente sincroniza tudo com a música. 📸
+🎬 Seu *vídeo homenagem* também já está liberado! Pra gerar, é só enviar de 10 a 20 fotos na sua página de entrega (mesmo link acima) que a gente sincroniza tudo com a música. 📸
 ━━━━━━━━━━━━━━━━━━━━
 
 `

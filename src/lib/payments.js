@@ -175,9 +175,10 @@ export async function notifyPaymentApproved(orderRef, orderData, opts = {}) {
   try {
     let shouldSend = false;
     const snap = await getDoc(orderRef);
+    let freshData = {};
     if (snap.exists()) {
-      const data = snap.data();
-      if (!data.paymentWhatsappSent && !data.paymentWhatsappSending) {
+      freshData = snap.data();
+      if (!freshData.paymentWhatsappSent && !freshData.paymentWhatsappSending) {
         await updateDoc(orderRef, { paymentWhatsappSending: true });
         shouldSend = true;
       }
@@ -185,19 +186,21 @@ export async function notifyPaymentApproved(orderRef, orderData, opts = {}) {
 
     if (!shouldSend) return;
 
-    const { sendPaymentApprovedTemplate } = await import('./whatsapp');
+    const mergedData = { ...orderData, ...freshData };
+    const { sendPaymentApprovedTemplate, isVideoPurchased } = await import('./whatsapp.js');
     const deliveryUrl = resolveDeliveryUrl(orderRef.id);
     // Prioriza quem de fato escreveu no WhatsApp sobre o telefone digitado no formulário do site —
     // podem ser números diferentes (ver incidente 25/08/2026, mesma correção de src/lib/db.js).
-    const targetPhone = orderData.whatsappSenderPhone || orderData.customerPhone;
+    const targetPhone = mergedData.whatsappSenderPhone || mergedData.customerPhone;
     const sendResult = await sendPaymentApprovedTemplate(targetPhone, {
-      customerName: orderData.customerName,
-      honoreeName: orderData.honoreeName,
+      customerName: mergedData.customerName,
+      honoreeName: mergedData.honoreeName,
       deliveryUrl,
       // audioFiles já inclui audioUrl como primeiro item (ver src/lib/db.js:updateTaskResult) —
       // audioUrl só como fallback pra pedidos antigos sem audioFiles gravado.
-      audioUrls: (orderData.audioFiles?.length ? orderData.audioFiles : [orderData.audioUrl]).filter(Boolean),
-      hasVideoAccess: Boolean(orderData.hasVideoAccess),
+      audioUrls: (mergedData.audioFiles?.length ? mergedData.audioFiles : [mergedData.audioUrl]).filter(Boolean),
+      hasVideoAccess: isVideoPurchased(mergedData),
+      orderData: mergedData,
     });
 
     if (sendResult.success) {

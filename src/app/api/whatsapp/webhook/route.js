@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
 import { doc, getDoc, updateDoc } from 'firebase/firestore/lite';
 import { dbEdge as db } from '@/lib/firebase-edge';
-import { sendWApiTextMessage, resolveDeliveryUrl } from '@/lib/whatsapp';
+import { sendWApiTextMessage, resolveDeliveryUrl, isVideoPurchased } from '@/lib/whatsapp';
 import { handleWhatsAppAgentMessage } from '@/lib/whatsappAgent';
 import { extractAudioFromWebhook, transcribeAudioWithFailover } from '@/lib/transcribeAudio';
 
@@ -214,6 +214,11 @@ export async function POST(req) {
 
         let replyMsg = '';
         if (isPaid) {
+          const userHasVideo = isVideoPurchased(matchedOrder);
+          const videoBlock = userHasVideo
+            ? `━━━━━━━━━━━━━━━━━━━━\n🎬 Seu *vídeo homenagem* também já está liberado! Pra gerar, é só enviar de 10 a 20 fotos na sua página de entrega (mesmo link acima) que a gente sincroniza tudo com a música. 📸\n━━━━━━━━━━━━━━━━━━━━\n\n`
+            : `━━━━━━━━━━━━━━━━━━━━\n🎬 *QUE TAL UM VÍDEO HOMENAGEM?*\nTransforme essa música linda em um *vídeo com fotos e legendas sincronizadas* para emocionar ainda mais ${honoreeName}!\n\n✨ *Adicione o vídeo ao seu pedido por apenas R$ 6,90:*\n${deliveryUrl}\n━━━━━━━━━━━━━━━━━━━━\n\n`;
+
           replyMsg = `🎉 *PAGAMENTO CONFIRMADO!*
 
 Olá, ${customerName}! As músicas personalizadas para *${honoreeName}* já estão 100% liberadas em alta definição (MP3 HD)! 🎶
@@ -221,15 +226,7 @@ Olá, ${customerName}! As músicas personalizadas para *${honoreeName}* já est�
 ${audiosList ? `📥 *Baixe seus áudios diretamente:*\n${audiosList}\n\n` : ''}🔗 *Acesse sua página de entrega permanente:*
 ${deliveryUrl}
 
-━━━━━━━━━━━━━━━━━━━━
-🎬 *QUE TAL UM VÍDEO HOMENAGEM?*
-Transforme essa música linda em um *vídeo com fotos e legendas sincronizadas* para emocionar ainda mais ${honoreeName}!
-
-✨ *Adicione o vídeo ao seu pedido por apenas R$ 6,90:*
-${deliveryUrl}
-━━━━━━━━━━━━━━━━━━━━
-
-Muito obrigado por escolher o *NS Music*! 💜`;
+${videoBlock}Muito obrigado por escolher o *NS Music*! 💜`;
         } else {
           replyMsg = `🎵 *Olá, ${customerName}!*
 

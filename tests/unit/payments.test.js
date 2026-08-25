@@ -14,6 +14,7 @@ vi.mock('@/lib/firebase-edge', () => ({ dbEdge: {} }));
 const sendPaymentApprovedTemplateMock = vi.fn().mockResolvedValue({ success: true });
 vi.mock('@/lib/whatsapp', () => ({
   sendPaymentApprovedTemplate: (...args) => sendPaymentApprovedTemplateMock(...args),
+  isVideoPurchased: (orderData) => Boolean(orderData?.hasVideoAccess || orderData?.paymentIntentSku === 'combo'),
 }));
 
 vi.mock('firebase/firestore/lite', () => {
