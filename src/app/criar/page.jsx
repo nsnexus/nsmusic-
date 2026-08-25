@@ -1238,6 +1238,34 @@ export default function CriarMusica() {
                         💡 Você tem direito a ajustes ilimitados na composição para que ela fique do jeitinho que sonhou.
                       </p>
                     </div>
+
+                    <div style={{ padding: '16px', borderRadius: '14px', background: 'rgba(37, 211, 102, 0.08)', border: '1px solid rgba(37, 211, 102, 0.25)', textAlign: 'center' }}>
+                      <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', margin: '0 0 10px 0', lineHeight: '1.4' }}>
+                        💬 <strong>Não gostou do resultado da letra?</strong> Nos chame no WhatsApp que fazemos do seu jeito!
+                      </p>
+                      <a
+                        href={`https://wa.me/559491081351?text=${encodeURIComponent(`Olá! Gostaria de ajuda para ajustar a letra da minha música para ${formData.honoreeName || 'alguém especial'}.`)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '8px',
+                          padding: '10px 18px',
+                          fontSize: '0.9rem',
+                          fontWeight: '700',
+                          borderRadius: '10px',
+                          background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)',
+                          color: '#ffffff',
+                          textDecoration: 'none',
+                          boxShadow: '0 3px 12px rgba(37, 211, 102, 0.25)',
+                          width: '100%',
+                        }}
+                      >
+                        <span>Falar no WhatsApp 📲</span>
+                      </a>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1384,7 +1412,38 @@ export default function CriarMusica() {
                       badge="VERSÃO 2 - ARRANJO ALTERNATIVO BÔNUS"
                       isBonus={true}
                     />
-                  )}
+                  {/* Card: Não gostou do resultado? Chame no WhatsApp */}
+                  <div className="glass-card" style={{ padding: '16px 20px', borderRadius: '16px', border: '1px solid rgba(37, 211, 102, 0.3)', background: 'rgba(37, 211, 102, 0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+                    <div style={{ flex: 1, minWidth: '220px' }}>
+                      <h5 style={{ fontSize: '0.96rem', fontWeight: '700', color: '#10b981', margin: '0 0 4px 0' }}>
+                        🤔 Não gostou do resultado da música?
+                      </h5>
+                      <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.4' }}>
+                        Nos chame no WhatsApp que fazemos do seu jeito com nossos produtores!
+                      </p>
+                    </div>
+                    <a
+                      href={`https://wa.me/559491081351?text=${encodeURIComponent(`Olá! Ouvi as prévias da música para ${formData.honoreeName || 'alguém especial'}${orderId ? ` (pedido #${orderId})` : ''} e gostaria de ajuda para fazer do meu jeito.`)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '10px 18px',
+                        fontSize: '0.88rem',
+                        fontWeight: '700',
+                        borderRadius: '10px',
+                        background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)',
+                        color: '#ffffff',
+                        textDecoration: 'none',
+                        boxShadow: '0 3px 12px rgba(37, 211, 102, 0.25)',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      <span>Falar no WhatsApp 📲</span>
+                    </a>
+                  </div>
 
                   {/* Card de Oferta do Vídeo Homenagem */}
                   <div className="glass-card" style={{ padding: '20px 24px', borderRadius: '16px', border: formData.addons?.wantsVideo ? '2px solid #8b5cf6' : '1px solid rgba(139, 92, 246, 0.3)', background: formData.addons?.wantsVideo ? 'linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(236, 72, 153, 0.15) 100%)' : 'rgba(139, 92, 246, 0.05)', transition: 'all 0.3s ease' }}>

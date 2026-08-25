@@ -896,6 +896,41 @@ function EntregaContent() {
                   </div>
                 )}
 
+                {/* Card: Não gostou do resultado? Chame no WhatsApp */}
+                {!isPaid && (
+                  <div className="glass-card" style={{ padding: '16px 20px', borderRadius: '16px', marginTop: '16px', border: '1px solid rgba(37, 211, 102, 0.3)', background: 'rgba(37, 211, 102, 0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+                    <div style={{ flex: 1, minWidth: '220px' }}>
+                      <h5 style={{ fontSize: '0.96rem', fontWeight: '700', color: '#10b981', margin: '0 0 4px 0' }}>
+                        🤔 Não gostou do resultado da música?
+                      </h5>
+                      <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.4' }}>
+                        Nos chame no WhatsApp que fazemos do seu jeito com nossos produtores!
+                      </p>
+                    </div>
+                    <a
+                      href={`https://wa.me/559491081351?text=${encodeURIComponent(`Olá! Ouvi a prévia do pedido #${orderId || ''} (${order?.honoreeName || 'música personalizada'}) e gostaria de ajuda para fazer do meu jeito.`)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '10px 18px',
+                        fontSize: '0.88rem',
+                        fontWeight: '700',
+                        borderRadius: '10px',
+                        background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)',
+                        color: '#ffffff',
+                        textDecoration: 'none',
+                        boxShadow: '0 3px 12px rgba(37, 211, 102, 0.25)',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      <span>Falar no WhatsApp 📲</span>
+                    </a>
+                  </div>
+                )}
+
                 {/* SEÇÃO VÍDEO HOMENAGEM (10 A 20 FOTOS) */}
                 {isPaid && (
                   <div className="glass-card" style={{ padding: '24px', borderRadius: '16px', marginTop: '20px', border: '1.5px solid rgba(236, 72, 153, 0.3)', background: 'linear-gradient(135deg, rgba(236, 72, 153, 0.06) 0%, rgba(168, 85, 247, 0.08) 100%)' }}>
