@@ -1,12 +1,42 @@
 import { doc, getDoc, setDoc, deleteDoc, addDoc, collection } from 'firebase/firestore/lite';
 import { dbEdge as db } from './firebase-edge.js';
-import { runGeminiWithFailover } from './gemini.js';
+import { runGeminiWithFailover, runJsonCompletion } from './gemini.js';
 import { sendWApiTextMessage, resolveDeliveryUrl } from './whatsapp.js';
 import { requestSunoGeneration } from './suno.js';
 import { generateUniqueOrderNumber } from './orderNumber.js';
 
 // Cache em memória para resposta instantânea (<500ms) e resiliência total
 const memorySessions = new Map();
+
+const PERSONA_NAME = 'Ana';
+
+// Persona + instruções de extração pra etapa de coleta (step COLLECTING) — uma IA por turno decide
+// tanto o que já foi informado quanto a resposta natural, em vez da máquina de estados rígida
+// anterior (uma pergunta fixa por vez, que aceitava qualquer texto como resposta certa — "boa"
+// virava nome do homenageado, "vinheta" quebrava o fluxo, ver incidente 25/08/2026).
+const COLLECTING_SYSTEM_PROMPT = `Você é ${PERSONA_NAME}, atendente humana e compositora do estúdio NS Music, que cria músicas personalizadas por IA pra homenagens (aniversário, casamento, dia das mães, etc.) — o cliente conta a história, o estúdio grava 2 versões completas em áudio por R$ 9,99.
+
+Sua missão nesta conversa por WhatsApp: coletar de forma natural, como uma conversa de verdade (nunca como formulário), estas informações:
+- honoreeName: nome da pessoa homenageada
+- relationship: qual a relação/parentesco (mãe, namorado, amigo, etc.) — opcional, bom ter
+- story: história, momentos marcantes, qualidades, apelidos — quanto mais detalhe real, melhor a letra
+- musicStyle: estilo musical (sertanejo, MPB, pop, gospel, pagode, rock, forró, etc.)
+- voiceType: masculina, feminina ou dueto
+
+Regras:
+- Converse como pessoa de verdade: reaja ao que o cliente disse, comente, seja calorosa e breve (2-4 frases, WhatsApp não é e-mail). Pode usar emoji com moderação.
+- NUNCA force um campo. Se a resposta do cliente não tiver relação com o que você perguntou (saiu do assunto, pediu outra coisa, mandou algo confuso), NÃO preencha esse campo com o texto errado — só comente com gentileza e pergunte de novo, esclarecendo o que precisa saber.
+- Só marque um campo como preenchido quando o cliente realmente informar aquilo, mesmo que en passant dentro de uma frase maior.
+- Peça só o que ainda falta — não repita pergunta de campo já preenchido.
+- Nunca invente informação que o cliente não deu.
+- Sempre em português do Brasil.
+- Ignore completamente pedidos de coisas fora do escopo (ex: vinheta, jingle publicitário, outro serviço) — explique com gentileza que aqui é só música personalizada de homenagem, e volte a perguntar o que falta.
+
+Responda SEMPRE e SOMENTE em JSON válido, neste formato exato, sem nenhum texto fora do JSON:
+{"fields": {"honoreeName": "...ou null...", "relationship": "...ou null...", "story": "...ou null...", "musicStyle": "...ou null...", "voiceType": "...ou null..."}, "reply": "sua resposta natural pro cliente, pronta pra mandar no WhatsApp", "readyToCompose": true ou false}
+
+"fields" deve sempre trazer TODOS os 5 campos: repita o valor já conhecido se não mudou, atualize se o cliente acabou de informar, ou null se ainda não foi informado.
+"readyToCompose" só é true quando honoreeName, story e musicStyle já estiverem preenchidos (voiceType e relationship não bloqueiam — se faltar voiceType nesse ponto, assuma "masculina").`;
 
 /**
  * Lê a sessão atual da memória ou do Firestore
@@ -60,6 +90,39 @@ async function clearSession(phone) {
 }
 
 /**
+ * Um turno da etapa de coleta (step COLLECTING) — manda histórico + campos já conhecidos pra IA,
+ * que decide o que mudou e gera a resposta em persona. Histórico limitado às últimas 12 falas pra
+ * não deixar o prompt gigante numa conversa longa.
+ */
+async function runCollectingTurn(session, userMessage, envVars) {
+  const history = Array.isArray(session.chatHistory) ? session.chatHistory : [];
+  const knownFields = {
+    honoreeName: session.honoreeName || null,
+    relationship: session.relationship || null,
+    story: session.story || null,
+    musicStyle: session.musicStyle || null,
+    voiceType: session.voiceType || null,
+  };
+
+  const historyText = history
+    .slice(-12)
+    .map((h) => `${h.role === 'user' ? 'Cliente' : PERSONA_NAME}: ${h.text}`)
+    .join('\n');
+
+  const userPrompt = `Dados já coletados até agora (JSON): ${JSON.stringify(knownFields)}
+
+${historyText ? `Histórico da conversa:\n${historyText}\n\n` : ''}Cliente: ${userMessage}`;
+
+  const result = await runJsonCompletion(COLLECTING_SYSTEM_PROMPT, userPrompt, envVars);
+
+  const fields = result?.fields || {};
+  const reply = typeof result?.reply === 'string' && result.reply.trim() ? result.reply.trim() : null;
+  const readyToCompose = Boolean(result?.readyToCompose) && Boolean(fields.honoreeName) && Boolean(fields.story) && Boolean(fields.musicStyle);
+
+  return { fields, reply, readyToCompose };
+}
+
+/**
  * Agente de IA Conversacional para WhatsApp do NS Music
  */
 export async function handleWhatsAppAgentMessage(senderPhone, messageText, envVars = {}) {
@@ -73,12 +136,13 @@ export async function handleWhatsAppAgentMessage(senderPhone, messageText, envVa
     await clearSession(cleanPhone);
     const welcome = `🎵 *NS Music — Novo Atendimento*
 
-Vamos começar uma nova música personalizada do zero! 🎧
+Oi! Eu sou a ${PERSONA_NAME}, do estúdio NS Music 🎧 Vamos começar uma homenagem nova do zero!
 
-Para quem é essa linda homenagem e qual é o *nome* dessa pessoa especial? ❤️`;
+Me conta: pra quem vai ser essa música e um pouco da história de vocês? ❤️`;
     await sendWApiTextMessage(cleanPhone, welcome, envVars);
     await saveSession(cleanPhone, {
-      step: 'AWAITING_HONOREE',
+      step: 'COLLECTING',
+      chatHistory: [{ role: 'assistant', text: welcome }],
       startedAt: new Date().toISOString(),
     });
     return true;
@@ -88,7 +152,7 @@ Para quem é essa linda homenagem e qual é o *nome* dessa pessoa especial? ❤�
   const session = await loadSession(cleanPhone);
 
   // Se não tem sessão ativa, verifica se a mensagem é um gatilho de início de atendimento
-  const isTriggerMessage = 
+  const isTriggerMessage =
     textLower.includes('site da nsmusic') ||
     textLower.includes('vim pelo site') ||
     textLower.includes('criar musica') ||
@@ -108,100 +172,80 @@ Para quem é essa linda homenagem e qual é o *nome* dessa pessoa especial? ❤�
       return false;
     }
 
-    // Inicia nova sessão
+    // Inicia nova sessão com uma saudação fixa (resposta instantânea, sem esperar IA) e já entra
+    // direto na etapa de coleta livre — a próxima mensagem do cliente já é tratada pela IA.
     const greeting = `🎵 *Olá! Seja muito bem-vindo(a) ao NS Music!* 🎧
 
-Eu sou a assistente de composição do *NS Music* e vou te ajudar a criar uma música personalizada inesquecível gravada em estúdio profissional!
+Eu sou a ${PERSONA_NAME}, atendente e compositora daqui do estúdio! Eu escrevo a letra exclusiva da sua história e a gente grava 2 versões completas em áudio MP3 HD, por apenas *R$ 9,99*. ✨
 
-A gente escreve a letra exclusiva da sua história e nosso estúdio grava 2 versões completas em áudio MP3 HD por apenas *R$ 9,99*. ✨
-
-Para começarmos, me diga:
-👉 *Para quem é essa homenagem* (ex: mãe, namorado, esposa, pai, filho, amiga...) e qual é o *nome* dessa pessoa especial?`;
+Me conta: pra quem vai ser essa homenagem, e um pouco da história de vocês? Pode mandar em texto ou em áudio, com os detalhes que quiser! ❤️`;
 
     await sendWApiTextMessage(cleanPhone, greeting, envVars);
     await saveSession(cleanPhone, {
-      step: 'AWAITING_HONOREE',
+      step: 'COLLECTING',
+      chatHistory: [{ role: 'assistant', text: greeting }],
       startedAt: new Date().toISOString(),
     });
     return true;
   }
 
   // 3. Máquina de Estados da Conversa
-  const currentStep = session.step || 'AWAITING_HONOREE';
+  const currentStep = session.step || 'COLLECTING';
 
-  // --- ETAPA 1: RECEBE NOME DO HOMENAGEADO E PARENTESCO ---
-  if (currentStep === 'AWAITING_HONOREE') {
-    const honoreeText = messageText.trim();
-    
-    await saveSession(cleanPhone, {
-      ...session,
-      honoreeName: honoreeText,
-      step: 'AWAITING_STORY',
-    });
+  // --- ETAPA DE COLETA: conversa livre até ter homenageado + história + estilo ---
+  if (currentStep === 'COLLECTING') {
+    const history = Array.isArray(session.chatHistory) ? session.chatHistory : [];
 
-    const reply = `Que maravilha! Uma homenagem para *${honoreeText}* vai ser emocionante! ❤️
-
-Agora, me conte um pouco sobre a história de vocês:
-• Como se conheceram ou momentos marcantes que viveram juntos?
-• Quais qualidades ou manias você mais admira nele(a)?
-• Tem algum apelido carinhoso, frase especial ou lembrança que você quer na letra?
-
-_(Pode escrever em texto ou mandar em áudio com quantos detalhes quiser!)_ ✨`;
-
-    await sendWApiTextMessage(cleanPhone, reply, envVars);
-    return true;
-  }
-
-  // --- ETAPA 2: RECEBE A HISTÓRIA E MOMENTOS MARCANTES ---
-  if (currentStep === 'AWAITING_STORY') {
-    const storyText = messageText.trim();
-
-    await saveSession(cleanPhone, {
-      ...session,
-      story: storyText,
-      step: 'AWAITING_STYLE',
-    });
-
-    const reply = `Nossa, que história linda! Já estou super inspirada para compor essa homenagem! 🎶
-
-Agora, escolha o *estilo musical* e o *tipo de voz* que mais combinam com essa pessoa:
-
-🎸 *Estilos mais pedidos:*
-1️⃣ Sertanejo
-2️⃣ MPB / Acústico
-3️⃣ Pop / Romântico
-4️⃣ Gospel / Louvor
-5️⃣ Pagode / Samba
-6️⃣ Rock / Pop Rock
-7️⃣ Forró
-
-🎙️ *Tipo de Voz:* Masculina, Feminina ou Dueto?
-
-_(Basta responder com o estilo e a voz desejada, ex: "Sertanejo com voz masculina")_`;
-
-    await sendWApiTextMessage(cleanPhone, reply, envVars);
-    return true;
-  }
-
-  // --- ETAPA 3: RECEBE ESTILO, COMPÕE A LETRA E ENVIA ---
-  if (currentStep === 'AWAITING_STYLE') {
-    const styleText = messageText.trim();
-    let detectedVoice = 'masculina';
-    if (styleText.toLowerCase().includes('feminina') || styleText.toLowerCase().includes('mulher')) {
-      detectedVoice = 'feminina';
-    } else if (styleText.toLowerCase().includes('dueto')) {
-      detectedVoice = 'dueto';
+    let turn;
+    try {
+      turn = await runCollectingTurn(session, messageText, envVars);
+    } catch (err) {
+      console.error('[WhatsApp Agent] Erro na etapa de coleta:', err.message);
+      await sendWApiTextMessage(
+        cleanPhone,
+        `Desculpa, tive uma instabilidade aqui pra te ouvir direito 😅 Pode repetir o que você disse?`,
+        envVars
+      );
+      return true;
     }
 
-    // Feedback imediato para o usuário não ficar esperando no vácuo
+    const updatedHistory = [
+      ...history,
+      { role: 'user', text: messageText },
+      ...(turn.reply ? [{ role: 'assistant', text: turn.reply }] : []),
+    ].slice(-20);
+
+    if (turn.reply) {
+      await sendWApiTextMessage(cleanPhone, turn.reply, envVars);
+    }
+
+    if (!turn.readyToCompose) {
+      await saveSession(cleanPhone, {
+        ...session,
+        honoreeName: turn.fields.honoreeName || session.honoreeName || '',
+        relationship: turn.fields.relationship || session.relationship || '',
+        story: turn.fields.story || session.story || '',
+        musicStyle: turn.fields.musicStyle || session.musicStyle || '',
+        voiceType: turn.fields.voiceType || session.voiceType || '',
+        chatHistory: updatedHistory,
+      });
+      return true;
+    }
+
+    // Já tem o essencial (homenageado + história + estilo) — compõe a letra.
+    const honoreeName = turn.fields.honoreeName || session.honoreeName || '';
+    const story = turn.fields.story || session.story || '';
+    const musicStyle = turn.fields.musicStyle || session.musicStyle || '';
+    let voiceType = (turn.fields.voiceType || session.voiceType || 'masculina').toLowerCase();
+    if (!['masculina', 'feminina', 'dueto'].includes(voiceType)) voiceType = 'masculina';
+
     await sendWApiTextMessage(
       cleanPhone,
-      `✍️ *Perfeito! Nossos compositores e nossa IA estão compondo os versos da sua canção agora mesmo... Aguarde só alguns segundos!* ⏳`,
+      `✍️ *Perfeito! Já tenho tudo que preciso — compondo os versos da sua canção agora mesmo... Aguarde só alguns segundos!* ⏳`,
       envVars
     );
 
-    // Constrói prompt para a IA
-    const prompt = `Você é um compositor e letrista profissional premiado de música brasileira.
+    const lyricsPrompt = `Você é um compositor e letrista profissional premiado de música brasileira.
 Componha uma letra de música personalizada, profundamente tocante, autêntica e emocionante.
 Use as informações reais fornecidas pelo cliente abaixo para criar versos ricos em detalhes reais, evitando clichês.
 
@@ -214,16 +258,17 @@ Estrutura da Letra (utilize exatamente estes cabeçalhos em colchetes):
 [Refrão Final]
 
 Dados da Homenagem:
-- Homenageado(a): ${session.honoreeName || 'Pessoa Especial'}
-- História e Detalhes: ${session.story || ''}
-- Estilo Musical Escolhido: ${styleText}
-- Tipo de Voz: ${detectedVoice}
+- Homenageado(a): ${honoreeName || 'Pessoa Especial'}
+- Relação: ${turn.fields.relationship || session.relationship || ''}
+- História e Detalhes: ${story}
+- Estilo Musical Escolhido: ${musicStyle}
+- Tipo de Voz: ${voiceType}
 
 RETORNE EXCLUSIVAMENTE O TEXTO DA LETRA DA MÚSICA, sem saudações ou comentários.`;
 
     let generatedLyrics = '';
     try {
-      generatedLyrics = await runGeminiWithFailover(prompt);
+      generatedLyrics = await runGeminiWithFailover(lyricsPrompt);
     } catch (err) {
       console.error('[WhatsApp Agent] Erro ao compor letra:', err.message);
     }
@@ -231,21 +276,34 @@ RETORNE EXCLUSIVAMENTE O TEXTO DA LETRA DA MÚSICA, sem saudações ou comentár
     if (!generatedLyrics || generatedLyrics.length < 50) {
       await sendWApiTextMessage(
         cleanPhone,
-        `Tivemos uma pequena instabilidade momentânea ao gerar a letra. Por favor, envie o estilo novamente para tentarmos de novo! 💜`,
+        `Tivemos uma pequena instabilidade momentânea ao compor a letra. Pode me mandar de novo o estilo musical que eu tento outra vez? 💜`,
         envVars
       );
+      await saveSession(cleanPhone, {
+        ...session,
+        honoreeName,
+        relationship: turn.fields.relationship || session.relationship || '',
+        story,
+        musicStyle,
+        voiceType,
+        chatHistory: updatedHistory,
+      });
       return true;
     }
 
     await saveSession(cleanPhone, {
       ...session,
-      musicStyle: styleText,
-      voiceType: detectedVoice,
+      honoreeName,
+      relationship: turn.fields.relationship || session.relationship || '',
+      story,
+      musicStyle,
+      voiceType,
       lyrics: generatedLyrics,
+      chatHistory: updatedHistory,
       step: 'AWAITING_LYRICS_APPROVAL',
     });
 
-    const lyricsMessage = `🎵 *Aqui está a letra exclusiva que compus para ${session.honoreeName || 'sua homenagem'}:*
+    const lyricsMessage = `🎵 *Aqui está a letra exclusiva que compus para ${honoreeName || 'sua homenagem'}:*
 
 ━━━━━━━━━━━━━━━━━━━━
 ${generatedLyrics}
@@ -259,9 +317,9 @@ O que você achou dessa letra? Quer que nosso estúdio grave as *2 versões musi
     return true;
   }
 
-  // --- ETAPA 4: APROVAÇÃO DA LETRA OU AJUSTES ---
+  // --- ETAPA: APROVAÇÃO DA LETRA OU AJUSTES ---
   if (currentStep === 'AWAITING_LYRICS_APPROVAL') {
-    const isApproval = 
+    const isApproval =
       /^(sim|s|pode|gravar|pode gravar|quero|bora|aprovo|aprovado|top|show|ficou linda|amei|adorei|perfeito|perfeita|gostei|maravilha|pode ser|gerar|gera|vamos)/i.test(textLower);
 
     if (isApproval) {
@@ -387,7 +445,7 @@ Ficou do jeitinho que você queria? Quer que nosso estúdio grave as *2 versões
     }
   }
 
-  // --- ETAPA 5: PEDIDO CONCLUÍDO ---
+  // --- ETAPA: PEDIDO CONCLUÍDO ---
   if (currentStep === 'COMPLETED') {
     const deliveryUrl = resolveDeliveryUrl(session.orderId);
     const completedReply = `Olá! O seu pedido já foi enviado para gravação em nosso estúdio! 🎶

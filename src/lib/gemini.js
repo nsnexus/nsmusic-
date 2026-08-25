@@ -117,6 +117,85 @@ export async function runGeminiWithFailover(prompt) {
   throw new Error(`Falha nos serviços de composição. Último erro: ${lastError ? lastError.message : 'Verifique suas chaves de API da OpenAI ou Gemini'}`);
 }
 
+/**
+ * Executa um prompt pedindo resposta em JSON estruturado — usado pelo agente conversacional do
+ * WhatsApp (src/lib/whatsappAgent.js) pra extrair dados da conversa + gerar a resposta em persona
+ * na mesma chamada. Mesmo padrão de failover do runGeminiWithFailover (OpenAI primário, Gemini com
+ * rotação de chaves como fallback), mas sem o systemInstruction/sanitizeLyrics específicos de letra.
+ *
+ * @param {string} systemPrompt Instruções fixas (persona, formato do JSON esperado)
+ * @param {string} userPrompt Contexto variável (histórico, campos já conhecidos, mensagem atual)
+ * @param {object} env Variáveis de ambiente do Edge Runtime (getRequestContext().env)
+ * @returns {Promise<object>} Objeto já parseado do JSON retornado pela IA
+ */
+export async function runJsonCompletion(systemPrompt, userPrompt, env = {}) {
+  let lastError = null;
+
+  const openAiKey = (env.OPENAI_API_KEY || process.env.OPENAI_API_KEY || '').trim();
+  if (openAiKey) {
+    try {
+      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${openAiKey}`,
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          temperature: 0.8,
+          response_format: { type: 'json_object' },
+        }),
+        signal: AbortSignal.timeout(20000),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const text = data.choices?.[0]?.message?.content;
+        if (text) return JSON.parse(text);
+        lastError = new Error('OpenAI respondeu sem conteúdo utilizável.');
+      } else {
+        const errText = await res.text().catch(() => '');
+        lastError = new Error(`OpenAI error ${res.status}: ${errText}`);
+      }
+    } catch (err) {
+      lastError = err;
+      console.warn('[gemini] Falha OpenAI (JSON):', err.message || err);
+    }
+  }
+
+  const keysString = env.GEMINI_API_KEYS || process.env.GEMINI_API_KEYS || env.GEMINI_API_KEY || process.env.GEMINI_API_KEY || '';
+  const keys = keysString.split(',').map((k) => k.trim()).filter(Boolean);
+  const validModels = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-flash-latest'];
+
+  for (const key of keys) {
+    for (const modelName of validModels) {
+      try {
+        const genAI = new GoogleGenerativeAI(key);
+        const model = genAI.getGenerativeModel({
+          model: modelName,
+          systemInstruction: systemPrompt,
+          generationConfig: { responseMimeType: 'application/json' },
+        });
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error(`Timeout ao chamar Gemini (${modelName})`)), 15000)
+        );
+        const result = await Promise.race([model.generateContent(userPrompt), timeoutPromise]);
+        const text = result.response.text();
+        if (text) return JSON.parse(text);
+      } catch (err) {
+        lastError = err;
+        console.warn(`[gemini] Falha Gemini JSON (modelo ${modelName}):`, err.message || err);
+      }
+    }
+  }
+
+  throw new Error(`Falha ao gerar resposta JSON. Último erro: ${lastError ? lastError.message : 'nenhum provedor de IA configurado'}`);
+}
+
 function sanitizeLyrics(rawLyrics) {
   if (!rawLyrics) return '';
   let cleaned = rawLyrics.trim();
