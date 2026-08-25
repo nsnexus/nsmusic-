@@ -127,13 +127,13 @@ ${historyText ? `Histórico da conversa:\n${historyText}\n\n` : ''}Cliente: ${us
  */
 export async function isWhatsAppAgentGloballyEnabled() {
   try {
-    const snap = await getDoc(doc(db, 'settings', 'whatsapp'));
+    const snap = await getDoc(doc(db, 'orders', 'config_whatsapp'));
     if (snap.exists()) {
       const data = snap.data();
       if (data.agentEnabled === false) return false;
     }
   } catch (e) {
-    console.warn('[WhatsApp Agent] Erro ao consultar settings/whatsapp:', e.message);
+    console.warn('[WhatsApp Agent] Erro ao consultar config_whatsapp:', e.message);
   }
   return true;
 }
@@ -143,13 +143,15 @@ export async function isWhatsAppAgentGloballyEnabled() {
  */
 export async function setWhatsAppAgentGloballyEnabled(enabled) {
   try {
-    await setDoc(doc(db, 'settings', 'whatsapp'), {
+    await setDoc(doc(db, 'orders', 'config_whatsapp'), {
+      orderNumber: 'CONFIG-WHATSAPP',
+      productionStatus: 'CONFIG',
       agentEnabled: Boolean(enabled),
       updatedAt: new Date().toISOString(),
     }, { merge: true });
     return true;
   } catch (e) {
-    console.error('[WhatsApp Agent] Erro ao salvar settings/whatsapp:', e.message);
+    console.error('[WhatsApp Agent] Erro ao salvar config_whatsapp:', e.message);
     return false;
   }
 }

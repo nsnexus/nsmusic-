@@ -95,8 +95,8 @@ export default function AdminDashboard() {
       const ordersData = [];
       snapshot.forEach((doc) => {
         const data = doc.data();
-        // Exclusão lógica (M-07 no AUDIT_REPORT.md) — pedidos excluídos não aparecem na listagem.
-        if (data.deletedAt) return;
+        // Exclusão lógica e de sistema — pedidos excluídos, sessões e configs não aparecem na listagem.
+        if (data.deletedAt || doc.id.startsWith('config_') || doc.id.startsWith('session_') || data.productionStatus === 'CONFIG' || data.productionStatus === 'RASCUNHO') return;
         ordersData.push({ id: doc.id, ...data });
       });
       if (loadAll) {
@@ -120,7 +120,7 @@ export default function AdminDashboard() {
   // Escuta configurações do WhatsApp (Master Switch do Agente)
   useEffect(() => {
     if (!user) return;
-    const unsub = onSnapshot(doc(db, 'settings', 'whatsapp'), (snap) => {
+    const unsub = onSnapshot(doc(db, 'orders', 'config_whatsapp'), (snap) => {
       if (snap.exists()) {
         const data = snap.data();
         setAgentEnabled(data.agentEnabled !== false);
@@ -134,7 +134,9 @@ export default function AdminDashboard() {
   const handleToggleAgent = async () => {
     setTogglingAgent(true);
     try {
-      await setDoc(doc(db, 'settings', 'whatsapp'), {
+      await setDoc(doc(db, 'orders', 'config_whatsapp'), {
+        orderNumber: 'CONFIG-WHATSAPP',
+        productionStatus: 'CONFIG',
         agentEnabled: !agentEnabled,
         updatedAt: new Date().toISOString(),
       }, { merge: true });

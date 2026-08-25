@@ -96,9 +96,9 @@ export async function findRecentOrderByPhone(phone) {
       });
     }
 
-    // Filtra documentos de sessão temporária e rascunhos vazios
+    // Filtra documentos de sessão temporária, rascunhos e configs do sistema
     const validOrders = candidates.filter(
-      (o) => !o.id.startsWith('session_') && o.productionStatus !== 'RASCUNHO' && (o.orderNumber || o.lyrics || o.audioUrl)
+      (o) => !o.id.startsWith('session_') && !o.id.startsWith('config_') && o.productionStatus !== 'RASCUNHO' && o.productionStatus !== 'CONFIG' && (o.orderNumber || o.lyrics || o.audioUrl)
     );
 
     if (validOrders.length === 0) return null;
