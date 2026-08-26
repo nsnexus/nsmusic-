@@ -3,6 +3,7 @@ import { getRequestContext } from '@cloudflare/next-on-pages';
 import { collection, query, where, limit, getDocs } from 'firebase/firestore/lite';
 import { dbEdge } from '@/lib/firebase-edge';
 import { applyPaymentApproval } from '@/lib/payments';
+import { applyGatewayPaymentApproval } from '@/lib/gateway';
 import { getChargeStatus } from '@/lib/efi';
 // AVISO IMPORTANTE: Não importar @/lib/firebase ou firebase/firestore aqui, pois quebram o Edge Runtime
 
@@ -55,14 +56,22 @@ async function processPixItem(item, env) {
 
   if (!charge || charge.status !== 'CONCLUIDA') return;
 
+  const transactionAmount = Number(charge.valor?.original);
   const orderId = await findOrderIdByTxid(txid);
-  if (!orderId) {
-    console.warn('[Webhook Efí] Nenhum pedido encontrado para o txid recebido.');
+
+  if (orderId) {
+    await applyPaymentApproval(orderId, txid, { status: 'approved', transaction_amount: transactionAmount }, env);
     return;
   }
 
-  const transactionAmount = Number(charge.valor?.original);
-  await applyPaymentApproval(orderId, txid, { status: 'approved', transaction_amount: transactionAmount }, env);
+  // Fallback: se não pertence a nenhum pedido de música do NSMusic, processa como cobrança do Gateway
+  const gatewayResult = await applyGatewayPaymentApproval(txid, { status: 'approved', transaction_amount: transactionAmount }, env);
+  if (gatewayResult?.applied) {
+    console.log(`[Webhook Efí] Pagamento de gateway (${gatewayResult.chargeData?.appId}) aprovado com sucesso para txid: ${txid}`);
+    return;
+  }
+
+  console.warn('[Webhook Efí] Nenhum pedido ou cobrança de gateway encontrado para o txid recebido:', txid);
 }
 
 export async function POST(req) {

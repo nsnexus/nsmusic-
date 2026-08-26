@@ -10,6 +10,11 @@ vi.mock('@/lib/payments', () => ({
   applyPaymentApproval: (...args) => applyPaymentApprovalMock(...args),
 }));
 
+const applyGatewayPaymentApprovalMock = vi.fn().mockResolvedValue({ applied: true, chargeData: { appId: 'metodo-21' } });
+vi.mock('@/lib/gateway', () => ({
+  applyGatewayPaymentApproval: (...args) => applyGatewayPaymentApprovalMock(...args),
+}));
+
 const getChargeStatusMock = vi.fn();
 vi.mock('@/lib/efi', () => ({
   getChargeStatus: (...args) => getChargeStatusMock(...args),
@@ -44,6 +49,7 @@ beforeEach(() => {
   ordersByPaymentIntentId = ['order-1'];
   ordersByPreviousIntent = [];
   applyPaymentApprovalMock.mockClear();
+  applyGatewayPaymentApprovalMock.mockReset().mockResolvedValue({ applied: false });
   getChargeStatusMock.mockReset();
   delete process.env.EFI_WEBHOOK_SECRET;
 });
@@ -140,4 +146,23 @@ describe('POST /api/webhooks/efi', () => {
     expect(res.status).toBe(200);
     expect(applyPaymentApprovalMock).not.toHaveBeenCalled();
   });
+
+  it('redireciona para aprovação de cobrança de gateway quando não encontra o pedido em orders', async () => {
+    process.env.EFI_WEBHOOK_SECRET = 'segredo-correto';
+    ordersByPaymentIntentId = [];
+    ordersByPreviousIntent = [];
+    getChargeStatusMock.mockResolvedValue({ status: 'CONCLUIDA', valor: { original: '49.90' } });
+    applyGatewayPaymentApprovalMock.mockResolvedValue({ applied: true, chargeData: { appId: 'metodo-21' } });
+
+    const req = makeReq('https://x/api/webhooks/efi?secret=segredo-correto', { pix: [{ txid: 'TXID-GATEWAY' }] });
+    await POST(req);
+
+    expect(applyPaymentApprovalMock).not.toHaveBeenCalled();
+    expect(applyGatewayPaymentApprovalMock).toHaveBeenCalledWith(
+      'TXID-GATEWAY',
+      { status: 'approved', transaction_amount: 49.90 },
+      expect.anything()
+    );
+  });
 });
+
