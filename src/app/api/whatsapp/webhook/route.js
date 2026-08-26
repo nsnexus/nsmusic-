@@ -158,12 +158,15 @@ function isIgnoredEvent(body) {
   ];
   if (ignoredEvents.includes(eventName)) return true;
 
-  // Se o payload indicar evento de status (ex: status: "DELIVERY_ACK", "READ", "SENT") sem texto nem áudio
-  if (body.status || body.data?.status || body.presence || body.data?.presence) {
-    if (!body.msgContent && !body.message && !body.data?.message && !body.data?.conversation) {
-      return true;
-    }
-  }
+  // Removido o filtro heurístico de "status/presence sem texto" que existia aqui: ele só reconhecia
+  // texto em 4 campos (msgContent/message/data.message/data.conversation), bem menos que os que
+  // extractMessageText de fato verifica (body.text, body.body, body.data.msg.body etc.) — mensagem
+  // real que carregasse qualquer campo genérico `status`/`presence` junto (comum em payload
+  // combinado com metadado de entrega) e tivesse o texto num desses campos não cobertos morria aqui,
+  // silenciosa, antes de qualquer lógica de pedido rodar (achado 26/08/2026: cliente pagou e nunca
+  // recebeu nem a confirmação, porque whatsappRequested nunca chegou a ser gravado). O filtro
+  // definitivo e completo já existe mais abaixo (`if (!messageText && !audioSource)`), que só
+  // descarta depois de checar de verdade todos os campos — esse aqui era redundante e mais arriscado.
   return false;
 }
 
@@ -236,6 +239,8 @@ export async function POST(req) {
 
     // 1. Ignora eventos que não são de mensagens reais (presença, status de entrega/leitura, conexão)
     if (isIgnoredEvent(body)) {
+      const eventName = body.event || body.type || body.data?.event || 'desconhecido';
+      console.log(`[WhatsApp Webhook] Evento não-mensagem ignorado: ${eventName}`);
       return NextResponse.json({ success: true, ignored: 'non_message_event' }, { status: 200 });
     }
 
@@ -266,6 +271,9 @@ export async function POST(req) {
 
     // 3. Ignora eventos sem nenhum conteúdo de texto ou áudio
     if (!messageText && !audioSource) {
+      // Object.keys(body) (nunca o conteúdo) ajuda a flagrar formato de payload novo da W-API que
+      // extractMessageText/extractAudioFromWebhook ainda não reconheçam (ver histórico 24/08/2026).
+      console.log(`[WhatsApp Webhook] Sem texto nem áudio reconhecido. Campos do payload: ${Object.keys(body || {}).join(', ')}`);
       return NextResponse.json({ success: true, ignored: 'empty_content' }, { status: 200 });
     }
 
@@ -289,6 +297,7 @@ export async function POST(req) {
 
         // Caso contrário, qualquer mensagem enviada manualmente pelo WhatsApp pausa a IA automaticamente para este cliente:
         await pauseAgentForPhone(senderPhone);
+        console.log('[WhatsApp Webhook] fromMe detectado — IA pausada (intervenção humana).');
       }
       return NextResponse.json({ success: true, ignored: 'from_me_human_takeover' }, { status: 200 });
     }
