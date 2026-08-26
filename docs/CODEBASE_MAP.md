@@ -81,6 +81,8 @@ para o que ainda depende de rate limiting externo (A-04/A-12, não implementado 
 | `POST /api/payments/create` | `payments/create/route.js` | Deriva o valor do catálogo (`src/lib/pricing.js`) por `sku`; cria cobrança real na Efí (`src/lib/efi.js:createPixCharge`); persiste `paymentIntentId` (txid)/`expectedAmount`/`paymentIntentSku` | Pública |
 | `GET /api/payments/status` | `payments/status/route.js` | Consulta a Efí (`getChargeStatus`) e chama `src/lib/payments.js:applyPaymentApproval` | Pública |
 | `POST /api/webhooks/efi` | `webhooks/efi/route.js` | Segredo `?secret=` (se configurado) + reconsulta `getChargeStatus` antes de aprovar; chama `applyPaymentApproval` | Segredo na URL |
+| `POST /api/gateway/v1/charges` | `gateway/v1/charges/route.js:POST` | Cria cobrança Pix para sistemas externos (NSNexus Pay); persiste em `gateway_charges` | Chave de API (`GATEWAY_API_KEY`) |
+| `GET /api/gateway/v1/charges/[txid]` | `gateway/v1/charges/[txid]/route.js:GET` | Consulta status da cobrança Pix externa com auto-reconciliação na Efí | Chave de API (`GATEWAY_API_KEY`) |
 | `POST /api/suno/generate` | `suno/generate/route.js:POST` | Fino: valida corpo e delega a `src/lib/suno.js:requestSunoGeneration`; inclui segredo no callback (A-03) | Pública |
 | `GET /api/suno/status` | `suno/status/route.js:GET` | Polling do status; `orderId` sempre vem do `suno_tasks`, nunca da query (A-02); em falha definitiva da Kie.ai, tenta `src/lib/suno.js:maybeAutoRetrySunoFailure` antes de admitir erro ao cliente | Pública |
 | `POST /api/suno/webhook` | `suno/webhook/route.js:POST` | Callback da Kie.ai; exige `?secret=` se `KIE_WEBHOOK_SECRET` configurado | Segredo compartilhado |
@@ -97,6 +99,7 @@ para o que ainda depende de rate limiting externo (A-04/A-12, não implementado 
 
 | Arquivo | Responsabilidade |
 |---|---|
+| `gateway.js` | Autenticação de API Key, criação de cobranças Pix externas, gravação em `gateway_charges` e despacho de webhooks (`docs/GATEWAY_INTEGRATION.md`) |
 | `db.js` | `saveTask`/`updateTaskResult`/`extractAudioTracks`/`getTask` — resultado da Suno, com `runTransaction` para o envio de WhatsApp (M-06) |
 | `payments.js` | `applyPaymentApproval` — único ponto de aprovação de pagamento (M-18), com idempotência via `runTransaction` (A-09) |
 | `efi.js` | Cliente da API Pix da Efí (`createPixCharge`, `getChargeStatus`) — toda chamada exige mTLS (ver `docs/EFI_SETUP.md`) |
