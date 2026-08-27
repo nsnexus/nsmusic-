@@ -115,12 +115,34 @@ function extractSenderPhone(body) {
     body.data?.chatId,
   ];
 
-  for (let raw of candidates) {
+  const candidateNames = [
+    'sender.id', 'phone', 'from', 'sender', 'data.phone', 'data.from', 'data.sender',
+    'data.key.remoteJid', 'data.key.participant', 'key.remoteJid', 'key.participant',
+    'chatId', 'data.chatId',
+  ];
+
+  for (let i = 0; i < candidates.length; i++) {
+    let raw = candidates[i];
     if (raw) {
       raw = String(raw);
       if (raw.includes('@')) raw = raw.split('@')[0];
       const digits = raw.replace(/\D/g, '');
-      if (digits.length >= 8) return digits;
+      if (digits.length >= 8) {
+        // BR válido (com código do país) tem 12 ou 13 dígitos. Fora disso é provavelmente LID (novo
+        // identificador de privacidade do WhatsApp/Meta) em vez do telefone real — achado 27/08/2026:
+        // 3 clientes sem receber NENHUMA mensagem porque o "telefone" salvo era um LID de 15 dígitos.
+        // Nunca logar o valor em si (telefone é PII) — só a forma, pra achar o campo certo da próxima vez.
+        if (digits.length !== 12 && digits.length !== 13) {
+          const senderKeys = body.sender && typeof body.sender === 'object' ? Object.keys(body.sender) : null;
+          console.warn(
+            `[WhatsApp Webhook] Telefone suspeito de ser LID: candidato "${candidateNames[i]}" (posição ${i}), ${digits.length} dígitos (esperado 12-13). ` +
+            `Campos em body: ${Object.keys(body).join(', ')}. ` +
+            `Campos em body.data: ${body.data && typeof body.data === 'object' ? Object.keys(body.data).join(', ') : 'n/a'}. ` +
+            `Campos em body.sender: ${senderKeys ? senderKeys.join(', ') : 'n/a'}.`
+          );
+        }
+        return digits;
+      }
     }
   }
 
