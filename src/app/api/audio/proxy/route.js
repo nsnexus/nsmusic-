@@ -29,30 +29,34 @@ export async function GET(req) {
     if (rawUrl) {
       let formattedRaw = String(rawUrl).trim();
 
+      // musicfile.kie.ai fica atrás de CloudFront com assinatura por path exato — qualquer sufixo
+      // extra no path (mesmo só ".mp3") quebra a assinatura e a CDN responde 403 "MissingKey"
+      // (confirmado ao vivo em 28/08/2026: a MESMA URL sem sufixo respondeu 200 com Content-Type
+      // audio/mp3 já correto). Nunca acrescentar ".mp3" numa URL dessa CDN — nem aqui nem em
+      // src/lib/db.js (que também parou de acrescentar). Pedido antigo cuja URL já foi salva com
+      // ".mp3" grudado ainda funciona: stripKieMp3Suffix tenta a versão sem sufixo primeiro.
+      const stripKieMp3Suffix = (u) => (u.includes('musicfile.kie.ai') && u.endsWith('.mp3')) ? u.slice(0, -4) : u;
+
       // Se a URL não for um link HTTP absoluto, adiciona os domínios da Kie.ai e Suno
       if (!formattedRaw.startsWith('http://') && !formattedRaw.startsWith('https://')) {
-        const cleanPath = formattedRaw.replace(/^\/+/, '');
+        const cleanPath = formattedRaw.replace(/^\/+/, '').replace(/\.mp3$/, '');
         candidates.push(`https://musicfile.kie.ai/${cleanPath}`);
-        if (!cleanPath.endsWith('.mp3')) {
-          candidates.push(`https://musicfile.kie.ai/${cleanPath}.mp3`);
-        }
         candidates.push(`https://cdn1.suno.ai/${cleanPath}`);
         candidates.push(`https://cdn2.suno.ai/${cleanPath}`);
       } else if (isAllowedMediaUrl(formattedRaw)) {
         // SSRF: só repassamos a URL absoluta ao fetch se o domínio estiver na allowlist
         // (ver A-06 no AUDIT_REPORT.md) — caso contrário, ignoramos e seguimos só com os
         // candidatos construídos a partir do itemId extraído abaixo.
-        if (formattedRaw.includes('musicfile.kie.ai') && !formattedRaw.endsWith('.mp3')) {
-          candidates.push(`${formattedRaw}.mp3`);
-        }
-        candidates.push(formattedRaw);
+        const withoutSuffix = stripKieMp3Suffix(formattedRaw);
+        candidates.push(withoutSuffix);
+        if (withoutSuffix !== formattedRaw) candidates.push(formattedRaw);
       }
     }
 
     if (itemId) {
       try {
         const b64 = btoa(itemId);
-        candidates.push(`https://musicfile.kie.ai/${b64}.mp3`);
+        candidates.push(`https://musicfile.kie.ai/${b64}`);
       } catch (e) {}
       candidates.push(`https://cdn1.suno.ai/${itemId}.mp3`);
       candidates.push(`https://cdn2.suno.ai/${itemId}.mp3`);

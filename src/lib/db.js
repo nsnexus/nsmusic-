@@ -59,19 +59,20 @@ export const extractAudioTracks = (result) => {
   return tracks.map(t => {
     if (!t) return null;
     if (typeof t === 'string') {
-      let u = t;
-      if (u.includes('musicfile.kie.ai') && !u.endsWith('.mp3')) {
-        u = `${u}.mp3`;
-      }
-      return { audio_url: u, audioUrl: u };
+      // NÃO acrescenta .mp3 em URL da musicfile.kie.ai — ver comentário abaixo (achado 28/08/2026).
+      return { audio_url: t, audioUrl: t };
     }
-    
+
     let url = t.audio_url || t.audioUrl || t.stream_audio_url || t.streamAudioUrl || t.source_audio_url || t.sourceAudioUrl || '';
 
-    // Se a URL da Kie.ai não terminar com .mp3, adiciona .mp3 automaticamente
-    if (url && url.includes('musicfile.kie.ai') && !url.endsWith('.mp3')) {
-      url = `${url}.mp3`;
-    }
+    // Removido o "adiciona .mp3 automaticamente" que existia aqui desde 01/08/2026: a Kie.ai passou a
+    // servir musicfile.kie.ai atrás de CloudFront com assinatura por path exato — qualquer sufixo
+    // extra no path (mesmo só ".mp3") quebra a assinatura e a CDN responde 403 (confirmado ao vivo em
+    // 28/08/2026: a MESMA URL sem o sufixo respondeu 200 com Content-Type: audio/mp3 já correto; com
+    // o sufixo, 403 "MissingKey"). O Content-Type já vem certo do servidor deles — nunca foi
+    // necessário pra reprodução, só quebrava. Pedidos antigos que já gravaram a URL com o sufixo
+    // continuam funcionando via src/app/api/audio/proxy/route.js, que agora tenta a versão sem
+    // sufixo primeiro.
 
     // Extrai o UUID da faixa para o proxy usar nas CDNs de fallback
     const trackId = t.id || (url.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i) || [])[1];

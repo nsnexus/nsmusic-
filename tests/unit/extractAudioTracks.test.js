@@ -56,11 +56,11 @@ describe('extractAudioTracks', () => {
     expect(tracks[0].audio_url).toBe('https://cdn1.suno.ai/d1.mp3');
   });
 
-  it('formato 5: string simples de URL da musicfile.kie.ai sem extensão', () => {
+  it('formato 5: string simples de URL da musicfile.kie.ai — NÃO acrescenta .mp3 (achado 28/08/2026: CDN assina por path exato, sufixo extra quebra a assinatura, 403)', () => {
     const result = ['https://musicfile.kie.ai/tracks/e1'];
     const tracks = extractAudioTracks(result);
     expect(tracks).toHaveLength(1);
-    expect(tracks[0].audio_url).toBe('https://musicfile.kie.ai/tracks/e1.mp3');
+    expect(tracks[0].audio_url).toBe('https://musicfile.kie.ai/tracks/e1');
   });
 
   it('gera URL de fallback da CDN do Suno quando só há trackId (sem audio_url)', () => {
