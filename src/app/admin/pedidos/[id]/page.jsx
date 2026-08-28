@@ -194,10 +194,17 @@ export default function OrderDetailsAdmin() {
 
   const handleDownload = async (url, filename) => {
     if (!url) return;
+    // Sempre pelo proxy (nunca direto na CDN da Kie.ai): é ele que sabe tentar as fontes
+    // alternativas quando uma delas falha ou devolve corpo vazio — ver
+    // src/app/api/audio/proxy/route.js (incidente 28/08/2026, download do admin quebrado com
+    // "MissingKey" enquanto a mesma faixa seguia disponível na outra CDN).
+    const isAlreadyProxied = url.startsWith('/api/') || url.startsWith('blob:');
+    const fetchUrl = isAlreadyProxied ? url : `/api/audio/proxy?url=${encodeURIComponent(url)}`;
     try {
-      const response = await fetch(url);
+      const response = await fetch(fetchUrl);
       if (!response.ok) throw new Error('Erro de rede ao buscar o arquivo');
       const blob = await response.blob();
+      if (!blob.size) throw new Error('Arquivo veio vazio da origem');
       const blobUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = blobUrl;
@@ -208,7 +215,7 @@ export default function OrderDetailsAdmin() {
       window.URL.revokeObjectURL(blobUrl);
     } catch (err) {
       console.warn('Erro ao fazer download via fetch, abrindo nova aba:', err);
-      window.open(url, '_blank');
+      window.open(fetchUrl, '_blank');
     }
   };
 

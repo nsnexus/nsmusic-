@@ -328,6 +328,9 @@ function EntregaContent() {
       const response = await fetch(url);
       if (!response.ok) throw new Error("Network error fetching audio file");
       const blob = await response.blob();
+      // Origem pode responder 200 com corpo vazio (incidente 28/08/2026 na CDN da Kie.ai) — baixar
+      // um arquivo de 0 byte é pior que falhar: o cliente acha que deu certo até tentar abrir.
+      if (!blob.size) throw new Error("Arquivo veio vazio da origem");
       const blobUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = blobUrl;
