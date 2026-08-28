@@ -27,6 +27,12 @@ export function isTransientKieFailure(status, code) {
 // e queimando crédito à toa. Esgotado o limite, o pedido fica para reprocessamento manual no painel.
 const MAX_AUTO_RETRIES = 3;
 
+// Fidelidade ao estilo pedido pelo cliente — ver comentário no corpo da chamada, requestSunoGeneration.
+// Valores altos de estilo + baixos de estranheza favorecem o pedido do cliente sobre a "criatividade"
+// da IA; ajuste aqui se o resultado ficar genérico/repetitivo demais pro gosto do estúdio.
+const STYLE_WEIGHT = 0.75;
+const WEIRDNESS_CONSTRAINT = 0.2;
+
 export function readEnvValue(env, name) {
   return String((env && env[name]) || process.env[name] || '').trim();
 }
@@ -97,7 +103,13 @@ export async function requestSunoGeneration({ orderId, prompt, tags }, env) {
           model: 'V5',
           style: tags,
           title: `Pedido ${orderId ? orderId.substring(0, 8) : 'Novo'}`.substring(0, 80),
-          callBackUrl: callbackUrl
+          callBackUrl: callbackUrl,
+          // Sem esses dois campos, a Kie.ai decide sozinha (default não documentado) — explica cliente
+          // pedir um estilo e a música sair "torta" (achado 28/08/2026). styleWeight alto = mais fiel
+          // ao estilo pedido; weirdnessConstraint baixo = MENOS desvio criativo (documentação da
+          // Kie.ai: valor alto em weirdnessConstraint é mais estranho/experimental, não o contrário).
+          styleWeight: STYLE_WEIGHT,
+          weirdnessConstraint: WEIRDNESS_CONSTRAINT,
         }),
         signal: AbortSignal.timeout(15000)
       });

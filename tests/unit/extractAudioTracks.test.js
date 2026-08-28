@@ -78,4 +78,16 @@ describe('extractAudioTracks', () => {
     const result = [{ id: null, foo: 'bar' }];
     expect(extractAudioTracks(result)).toEqual([]);
   });
+
+  it('captura a capa (image_url) gerada pela Kie.ai junto do áudio', () => {
+    const result = [{ id: 'f1', audio_url: 'https://cdn1.suno.ai/f1.mp3', image_url: 'https://kie.ai/cover-f1.jpg' }];
+    const tracks = extractAudioTracks(result);
+    expect(tracks[0].imageUrl).toBe('https://kie.ai/cover-f1.jpg');
+  });
+
+  it('imageUrl fica vazio quando a Kie.ai não manda capa', () => {
+    const result = [{ id: 'g1', audio_url: 'https://cdn1.suno.ai/g1.mp3' }];
+    const tracks = extractAudioTracks(result);
+    expect(tracks[0].imageUrl).toBe('');
+  });
 });

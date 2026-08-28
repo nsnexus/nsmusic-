@@ -81,11 +81,16 @@ export const extractAudioTracks = (result) => {
       url = `https://cdn1.suno.ai/${trackId}.mp3`;
     }
 
+    // Capa gerada pela Kie.ai junto do áudio (campo `image_url` no callback, doc oficial da Kie.ai) —
+    // usada como capa padrão quando o cliente não subiu foto própria, ver updateTaskResult abaixo.
+    const imageUrl = t.image_url || t.imageUrl || t.cover_image_url || t.coverImageUrl || '';
+
     return {
       ...t,
       audio_url: url,
       audioUrl: url,
-      trackId: trackId || ''
+      trackId: trackId || '',
+      imageUrl,
     };
   }).filter(t => t && t.audio_url);
 };
@@ -120,13 +125,22 @@ export const updateTaskResult = async (taskId, result, overrideOrderId = null) =
       const orderSnap = await getDoc(orderRef);
       const orderData = orderSnap.exists() ? orderSnap.data() : {};
 
-      await updateDoc(orderRef, {
+      const updates = {
         audioUrl: primaryAudio,
         audioFiles: audioFiles,
         audioIds: audioIds,
         productionStatus: 'AUDIO_GERADO',
         updatedAt: new Date().toISOString()
-      });
+      };
+
+      // Capa gerada pela Kie.ai substitui a capa padrão (Unsplash) só quando o cliente NÃO subiu foto
+      // própria — coverUrl vazio é o sinal disso em todo o resto do app (ver criar/page.jsx,
+      // entrega/page.jsx). Nunca sobrescreve uma foto que o cliente já escolheu.
+      if (!orderData.coverUrl && tracks[0]?.imageUrl) {
+        updates.coverUrl = tracks[0].imageUrl;
+      }
+
+      await updateDoc(orderRef, updates);
       console.log(`Ordem ${orderId} no Firebase atualizada com sucesso com ${audioFiles.length} áudios!`);
 
       await notifyMusicReady(orderRef, orderData, orderId);

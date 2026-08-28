@@ -70,6 +70,28 @@ describe('updateTaskResult — idempotência do envio de WhatsApp', () => {
   });
 });
 
+describe('updateTaskResult — capa gerada pela Kie.ai (achado 28/08/2026)', () => {
+  it('usa a capa da Kie.ai (image_url) quando o cliente não subiu foto própria', async () => {
+    store['task4'] = { orderId: 'order4' };
+    store['order4'] = { customerPhone: '5511999999999', coverUrl: '' };
+
+    const result = { data: [{ id: 'audio4', audio_url: 'https://cdn1.suno.ai/audio4.mp3', image_url: 'https://kie.ai/cover4.jpg' }] };
+    await updateTaskResult('task4', result);
+
+    expect(store['order4'].coverUrl).toBe('https://kie.ai/cover4.jpg');
+  });
+
+  it('NUNCA sobrescreve a foto que o cliente já escolheu', async () => {
+    store['task5'] = { orderId: 'order5' };
+    store['order5'] = { customerPhone: '5511999999999', coverUrl: 'https://firebasestorage.example/minha-foto.jpg' };
+
+    const result = { data: [{ id: 'audio5', audio_url: 'https://cdn1.suno.ai/audio5.mp3', image_url: 'https://kie.ai/cover5.jpg' }] };
+    await updateTaskResult('task5', result);
+
+    expect(store['order5'].coverUrl).toBe('https://firebasestorage.example/minha-foto.jpg');
+  });
+});
+
 describe('saveTask', () => {
   it('usa merge:true e não apaga campos já existentes no documento', async () => {
     store['task3'] = { customPreExistingField: 'preserved' };
