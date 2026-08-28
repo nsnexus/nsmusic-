@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
-import { doc, getDoc, updateDoc } from 'firebase/firestore/lite';
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore/lite';
 import { dbEdge as db } from '@/lib/firebase-edge';
 import { sendWApiTextMessage, resolveDeliveryUrl, isVideoPurchased } from '@/lib/whatsapp';
 import { handleWhatsAppAgentMessage, pauseAgentForPhone, resumeAgentForPhone } from '@/lib/whatsappAgent';
@@ -121,29 +121,57 @@ function extractSenderPhone(body) {
     'chatId', 'data.chatId',
   ];
 
+  // Varre TODOS os candidatos (não para no primeiro) e prefere um de formato BR válido (12 ou 13
+  // dígitos com código do país) — achado 27/08/2026: o candidato de maior prioridade (`sender.id`)
+  // às vezes vem como LID (identificador de privacidade do WhatsApp/Meta, tipicamente 14-15 dígitos)
+  // em vez do telefone real, mesmo esse sendo, pra ESSE contato, o campo certo pra outros clientes.
+  // Preferir o primeiro de formato válido entre TODOS os candidatos, em vez de aceitar cegamente o
+  // primeiro que aparecer, resolve o caso em que o telefone de verdade está num campo mais abaixo na
+  // lista — sem precisar saber de antemão qual campo é. Nunca regride o caso comum: quando o primeiro
+  // candidato já é válido, o resultado é idêntico ao comportamento anterior.
+  let firstValid = null;
+  let firstValidName = '';
+  let preferredValid = null;
+  let preferredValidName = '';
+
   for (let i = 0; i < candidates.length; i++) {
     let raw = candidates[i];
-    if (raw) {
-      raw = String(raw);
-      if (raw.includes('@')) raw = raw.split('@')[0];
-      const digits = raw.replace(/\D/g, '');
-      if (digits.length >= 8) {
-        // BR válido (com código do país) tem 12 ou 13 dígitos. Fora disso é provavelmente LID (novo
-        // identificador de privacidade do WhatsApp/Meta) em vez do telefone real — achado 27/08/2026:
-        // 3 clientes sem receber NENHUMA mensagem porque o "telefone" salvo era um LID de 15 dígitos.
-        // Nunca logar o valor em si (telefone é PII) — só a forma, pra achar o campo certo da próxima vez.
-        if (digits.length !== 12 && digits.length !== 13) {
-          const senderKeys = body.sender && typeof body.sender === 'object' ? Object.keys(body.sender) : null;
-          console.warn(
-            `[WhatsApp Webhook] Telefone suspeito de ser LID: candidato "${candidateNames[i]}" (posição ${i}), ${digits.length} dígitos (esperado 12-13). ` +
-            `Campos em body: ${Object.keys(body).join(', ')}. ` +
-            `Campos em body.data: ${body.data && typeof body.data === 'object' ? Object.keys(body.data).join(', ') : 'n/a'}. ` +
-            `Campos em body.sender: ${senderKeys ? senderKeys.join(', ') : 'n/a'}.`
-          );
-        }
-        return digits;
-      }
+    if (!raw) continue;
+    raw = String(raw);
+    if (raw.includes('@')) raw = raw.split('@')[0];
+    const digits = raw.replace(/\D/g, '');
+    if (digits.length < 8) continue;
+
+    if (firstValid === null) {
+      firstValid = digits;
+      firstValidName = candidateNames[i];
     }
+    if (preferredValid === null && (digits.length === 12 || digits.length === 13)) {
+      preferredValid = digits;
+      preferredValidName = candidateNames[i];
+    }
+  }
+
+  if (preferredValid) {
+    if (firstValidName && firstValidName !== preferredValidName) {
+      // O primeiro candidato da lista não era o de formato válido — provavelmente era um LID e essa
+      // troca é o que evitou mandar mensagem pro identificador errado. Log só de nomes, sem telefone.
+      console.log(`[WhatsApp Webhook] Telefone: candidato "${firstValidName}" não tinha formato BR válido, usado "${preferredValidName}" em vez dele.`);
+    }
+    return preferredValid;
+  }
+
+  if (firstValid) {
+    // Nenhum candidato bateu o formato BR esperado — provável LID em todos os campos conhecidos.
+    // Nunca logar o valor em si (telefone é PII) — só a forma, pra achar o campo certo da próxima vez.
+    const senderKeys = body.sender && typeof body.sender === 'object' ? Object.keys(body.sender) : null;
+    console.warn(
+      `[WhatsApp Webhook] Telefone suspeito de ser LID em TODOS os candidatos — nenhum com 12-13 dígitos. Melhor candidato: "${firstValidName}" (${firstValid.length} dígitos). ` +
+      `Campos em body: ${Object.keys(body).join(', ')}. ` +
+      `Campos em body.data: ${body.data && typeof body.data === 'object' ? Object.keys(body.data).join(', ') : 'n/a'}. ` +
+      `Campos em body.sender: ${senderKeys ? senderKeys.join(', ') : 'n/a'}.`
+    );
+    return firstValid;
   }
 
   // Fallback Meta Cloud API entry
@@ -158,8 +186,17 @@ function extractSenderPhone(body) {
   return '';
 }
 
-const processedMessageIds = new Map();
-const activePhoneLocks = new Map();
+// Dedup/trava de concorrência via Firestore, não Map em memória — achado 27/08/2026: Cloudflare
+// Edge Functions não garantem a mesma instância entre requisições, então um `Map` module-level só
+// protegia retentativas da W-API que caíssem, por acaso, na mesma instância. Quando caíam em
+// instâncias diferentes (comum), a trava nunca via a primeira chamada e o cliente recebia a
+// mensagem duplicada. Sem `runTransaction` no SDK `firestore/lite` do Edge (mesma limitação já
+// documentada em src/lib/payments.js) — getDoc+setDoc sequencial ainda deixa uma janela mínima em
+// concorrência bem apertada, mas fecha o caso comum (retentativa chegando alguns segundos depois),
+// que é o que estava realmente acontecendo.
+const DEDUP_COLLECTION = 'whatsapp_dedup';
+const MESSAGE_DEDUP_WINDOW_MS = 120000;
+const PHONE_LOCK_WINDOW_MS = 3000;
 
 function isIgnoredEvent(body) {
   if (!body) return false;
@@ -210,26 +247,46 @@ function extractMessageId(body) {
   return '';
 }
 
-function isDuplicateMessage(msgId) {
-  if (!msgId) return false;
-  const now = Date.now();
-  for (const [id, time] of processedMessageIds.entries()) {
-    if (now - time > 120000) processedMessageIds.delete(id);
-  }
-  if (processedMessageIds.has(msgId)) return true;
-  processedMessageIds.set(msgId, now);
-  return false;
+// messageId da própria W-API pode ter caracteres fora do permitido em ID de documento Firestore
+// (barra, por exemplo) — sanitiza pra nunca quebrar o doc(...) por causa disso.
+function sanitizeDedupKey(raw) {
+  return String(raw).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 200);
 }
 
-function isPhoneLocked(phone) {
-  if (!phone) return false;
-  const now = Date.now();
-  const lastTime = activePhoneLocks.get(phone);
-  if (lastTime && now - lastTime < 3000) {
-    return true;
+async function isDuplicateMessage(msgId) {
+  if (!msgId) return false;
+  const ref = doc(db, DEDUP_COLLECTION, `msg_${sanitizeDedupKey(msgId)}`);
+  try {
+    const snap = await getDoc(ref);
+    if (snap.exists()) {
+      const at = Date.parse(snap.data()?.at || '');
+      if (!Number.isNaN(at) && Date.now() - at < MESSAGE_DEDUP_WINDOW_MS) return true;
+    }
+    await setDoc(ref, { at: new Date().toISOString() });
+    return false;
+  } catch (err) {
+    // Falha ao consultar/gravar a trava nunca pode travar a mensagem — melhor arriscar duplicata
+    // (que já era o comportamento de hoje) do que silenciar cliente por um erro do Firestore.
+    console.warn('[WhatsApp Webhook] Erro na deduplicação por Firestore:', err.message);
+    return false;
   }
-  activePhoneLocks.set(phone, now);
-  return false;
+}
+
+async function isPhoneLocked(phone) {
+  if (!phone) return false;
+  const ref = doc(db, DEDUP_COLLECTION, `lock_${sanitizeDedupKey(phone)}`);
+  try {
+    const snap = await getDoc(ref);
+    if (snap.exists()) {
+      const at = Date.parse(snap.data()?.at || '');
+      if (!Number.isNaN(at) && Date.now() - at < PHONE_LOCK_WINDOW_MS) return true;
+    }
+    await setDoc(ref, { at: new Date().toISOString() });
+    return false;
+  } catch (err) {
+    console.warn('[WhatsApp Webhook] Erro na trava de concorrência por Firestore:', err.message);
+    return false;
+  }
 }
 
 export async function POST(req) {
@@ -268,7 +325,7 @@ export async function POST(req) {
 
     // 2. Deduplicação por ID da mensagem (evita processamento duplicado de retries do webhook)
     const messageId = extractMessageId(body);
-    if (messageId && isDuplicateMessage(messageId)) {
+    if (messageId && await isDuplicateMessage(messageId)) {
       console.log(`[WhatsApp Webhook] Mensagem duplicada ignorada (ID: ${messageId})`);
       return NextResponse.json({ success: true, ignored: 'duplicate_message_id' }, { status: 200 });
     }
@@ -302,7 +359,7 @@ export async function POST(req) {
     console.log(`[WhatsApp Webhook] De: ${senderPhone || 'Desconhecido'} | Texto: "${messageText || ''}" | Audio: ${Boolean(audioSource)}`);
 
     // 4. Trava de concorrência por telefone (evita disparos paralelos dentro de 3 segundos para o mesmo número)
-    if (senderPhone && isPhoneLocked(senderPhone)) {
+    if (senderPhone && await isPhoneLocked(senderPhone)) {
       console.log(`[WhatsApp Webhook] Processamento concorrente descartado para: ${senderPhone}`);
       return NextResponse.json({ success: true, ignored: 'concurrent_lock' }, { status: 200 });
     }
