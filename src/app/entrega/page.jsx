@@ -9,6 +9,7 @@ import { createUserWithEmailAndPassword, onAuthStateChanged } from 'firebase/aut
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, auth, storage } from '@/lib/firebase';
 import { primeAudioContext } from '@/lib/audioContext';
+import { AUDIO_CACHE_VERSION } from '@/lib/audioCacheVersion';
 import VideoOfferModal from '@/components/VideoOfferModal';
 import PixQrCode from '@/components/PixQrCode';
 import PlaybackAddonCard from '@/components/PlaybackAddonCard';
@@ -612,7 +613,12 @@ function EntregaContent() {
     if (!url) return '';
     if (typeof url === 'string' && (url.startsWith('blob:') || url.startsWith('/api/'))) return url;
     const idParam = trackId ? `&id=${encodeURIComponent(trackId)}` : '';
-    return `/api/audio/proxy?url=${encodeURIComponent(url)}${idParam}`;
+    // AUDIO_CACHE_VERSION quebra o cache do navegador (incidente 28/08/2026: a CDN de origem
+    // devolveu 200 com corpo vazio e o proxy mandava "immutable, 1 ano" — o arquivo VAZIO ficou
+    // preso no navegador de quem abriu a página naquela janela, e continuava quebrado mesmo depois
+    // da origem voltar). Incrementar esta constante é o único jeito de invalidar remotamente o que
+    // já está cacheado no cliente. Ver src/lib/audioCacheVersion.js.
+    return `/api/audio/proxy?url=${encodeURIComponent(url)}${idParam}&v=${AUDIO_CACHE_VERSION}`;
   };
   // Extrai trackId das faixas do Suno quando disponível (para fallback de CDN no proxy)
   const primaryTrackId = order?.sunoTracks?.[0]?.trackId || '';

@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { doc, getDoc, collection, addDoc, updateDoc, query, where, getDocs } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, auth, storage } from '@/lib/firebase';
+import { AUDIO_CACHE_VERSION } from '@/lib/audioCacheVersion';
 import { buildSunoPayload } from '@/lib/sunoPayload';
 import { pushAdvancedMatching } from '@/lib/metaPixel';
 import { styles } from './wizardStyles';
@@ -340,7 +341,8 @@ export default function CriarMusica() {
     const raw = getRawAudioUrl(track);
     if (!raw) return '';
     if (raw.startsWith('blob:') || raw.startsWith('/api/')) return raw;
-    return `/api/audio/proxy?url=${encodeURIComponent(raw)}`;
+    // &v= quebra cache de resposta quebrada já salva no navegador — ver src/lib/audioCacheVersion.js.
+    return `/api/audio/proxy?url=${encodeURIComponent(raw)}&v=${AUDIO_CACHE_VERSION}`;
   };
 
   // Confirma que o áudio já responde de verdade (via o mesmo proxy que o player usa) antes de
@@ -351,13 +353,16 @@ export default function CriarMusica() {
   // de novo do zero (era o "parece que tá baixando" antes de tocar).
   const waitForAudioReady = async (rawUrl, maxAttempts = 6, delayMs = 2000) => {
     if (!rawUrl) return false;
-    const proxiedUrl = `/api/audio/proxy?url=${encodeURIComponent(rawUrl)}`;
+    const proxiedUrl = `/api/audio/proxy?url=${encodeURIComponent(rawUrl)}&v=${AUDIO_CACHE_VERSION}`;
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       try {
         const res = await fetch(proxiedUrl, { signal: AbortSignal.timeout(20000) });
         if (res.ok) {
-          await res.blob();
-          return true;
+          // Só considera pronto se veio conteúdo de verdade: a CDN de origem já respondeu 200 com
+          // corpo vazio (incidente 28/08/2026), o que fazia o cliente ser mandado pra /entrega com
+          // uma prévia que nunca ia tocar.
+          const blob = await res.blob();
+          if (blob.size > 0) return true;
         }
       } catch (e) {
         // Aviso silencioso — só uma verificação de prontidão, não bloqueia o fluxo em caso de erro.

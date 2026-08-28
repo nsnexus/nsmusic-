@@ -181,7 +181,12 @@ export async function GET(req) {
 
     const headers = new Headers();
     headers.set('Content-Type', audioResponse.headers.get('content-type') || 'audio/mpeg');
-    headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+    // 1 dia com revalidação, não mais 1 ano "immutable" (incidente 28/08/2026): quando a CDN de
+    // origem devolveu 200 com corpo vazio, esse cabeçalho fez o navegador do cliente guardar o
+    // arquivo VAZIO por um ano — a prévia continuava quebrada mesmo depois da origem voltar ao
+    // normal, e não havia como invalidar remotamente. O ganho de banda de cachear por um ano não
+    // compensa o risco de congelar uma resposta ruim no navegador de quem já pagou.
+    headers.set('Cache-Control', 'public, max-age=86400, must-revalidate');
     headers.set('Access-Control-Allow-Origin', '*');
     headers.set('Accept-Ranges', 'bytes');
 

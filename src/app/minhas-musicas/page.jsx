@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { onAuthStateChanged, signOut, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
+import { AUDIO_CACHE_VERSION } from '@/lib/audioCacheVersion';
 import { getFriendlyAuthErrorMessage } from '@/lib/authErrors';
 
 export default function MinhasMusicasPage() {
@@ -184,7 +185,8 @@ export default function MinhasMusicasPage() {
     let url = typeof track === 'string' ? track : (track.audioUrl || track.sourceAudioUrl || track.sourceStreamAudioUrl || track.audio_url || track.streamAudioUrl || track.stream_url || track.url || track.audioFile || track.cdn_url || '');
     if (!url) return '';
     if (typeof url === 'string' && (url.startsWith('blob:') || url.startsWith('/api/'))) return url;
-    return `/api/audio/proxy?url=${encodeURIComponent(url)}`;
+    // &v= quebra cache de resposta quebrada já salva no navegador — ver src/lib/audioCacheVersion.js.
+    return `/api/audio/proxy?url=${encodeURIComponent(url)}&v=${AUDIO_CACHE_VERSION}`;
   };
 
   const handleDownload = async (url, filename) => {

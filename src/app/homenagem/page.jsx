@@ -4,6 +4,7 @@ import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { AUDIO_CACHE_VERSION } from '@/lib/audioCacheVersion';
 
 function HomenagemContent() {
   const searchParams = useSearchParams();
@@ -173,7 +174,7 @@ function HomenagemContent() {
                         </span>
                       </div>
                       <audio 
-                        src={typeof url === 'string' && (url.startsWith('blob:') || url.startsWith('/api/')) ? url : `/api/audio/proxy?url=${encodeURIComponent(url)}`} 
+                        src={typeof url === 'string' && (url.startsWith('blob:') || url.startsWith('/api/')) ? url : `/api/audio/proxy?url=${encodeURIComponent(url)}&v=${AUDIO_CACHE_VERSION}`}
                         controls 
                         style={{ width: '100%', borderRadius: '8px' }} 
                         onPlay={() => setActiveAudioIndex(idx)}

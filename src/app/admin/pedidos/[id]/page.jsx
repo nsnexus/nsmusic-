@@ -7,6 +7,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { formatToWhatsAppNumber } from '@/lib/whatsappTemplates';
+import { AUDIO_CACHE_VERSION } from '@/lib/audioCacheVersion';
 import Link from 'next/link';
 import Image from 'next/image';
 
@@ -199,7 +200,7 @@ export default function OrderDetailsAdmin() {
     // src/app/api/audio/proxy/route.js (incidente 28/08/2026, download do admin quebrado com
     // "MissingKey" enquanto a mesma faixa seguia disponível na outra CDN).
     const isAlreadyProxied = url.startsWith('/api/') || url.startsWith('blob:');
-    const fetchUrl = isAlreadyProxied ? url : `/api/audio/proxy?url=${encodeURIComponent(url)}`;
+    const fetchUrl = isAlreadyProxied ? url : `/api/audio/proxy?url=${encodeURIComponent(url)}&v=${AUDIO_CACHE_VERSION}`;
     try {
       const response = await fetch(fetchUrl);
       if (!response.ok) throw new Error('Erro de rede ao buscar o arquivo');
