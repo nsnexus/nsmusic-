@@ -43,8 +43,10 @@ export async function GET(req) {
           whatsappSenderPhone: classifyPhoneDigits(data.whatsappSenderPhone),
           whatsappWaitAckSent: Boolean(data.whatsappWaitAckSent),
           whatsappSent: Boolean(data.whatsappSent),
+          whatsappSending: Boolean(data.whatsappSending),
           readyTemplateSent: Boolean(data.readyTemplateSent),
           paymentWhatsappSent: Boolean(data.paymentWhatsappSent),
+          paymentWhatsappSending: Boolean(data.paymentWhatsappSending),
         });
       });
       return NextResponse.json({ count: rows.length, orders: rows });
