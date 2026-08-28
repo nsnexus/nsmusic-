@@ -196,7 +196,14 @@ function extractSenderPhone(body) {
 // que é o que estava realmente acontecendo.
 const DEDUP_COLLECTION = 'whatsapp_dedup';
 const MESSAGE_DEDUP_WINDOW_MS = 120000;
-const PHONE_LOCK_WINDOW_MS = 3000;
+// 10s, não 3s (achado 27/08/2026) — a etapa de coleta do agente (src/lib/whatsappAgent.js) faz
+// sleep(3500) + chamada de LLM antes de salvar a sessão; 3s era menor que essa janela de
+// processamento, então uma segunda mensagem do cliente enviada logo em seguida (comum em WhatsApp)
+// lia a sessão ANTES da primeira salvar e sobrescrevia campo já respondido ao terminar depois dela.
+// Trade-off aceito: com a trava maior, 2 mensagens rápidas e DIFERENTES do mesmo cliente dentro da
+// janela — a segunda é descartada silenciosa em vez de processada. Preferível a perder dado de
+// sessão; ver análise completa no histórico da sessão de 27/08/2026.
+const PHONE_LOCK_WINDOW_MS = 10000;
 
 function isIgnoredEvent(body) {
   if (!body) return false;
