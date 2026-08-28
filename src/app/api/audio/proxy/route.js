@@ -64,6 +64,11 @@ export async function GET(req) {
     }
 
     let audioResponse = null;
+    // Diagnóstico temporário (achado 28/08/2026: proxy retornando 502 pra URL que funciona quando
+    // buscada de fora da rede da Cloudflare — suspeita de bloqueio da Kie.ai contra IP da Cloudflare).
+    // Só aparece na resposta com ?debug=1, nunca por padrão. Remover depois de identificado.
+    const debugMode = searchParams.get('debug') === '1';
+    const attempts = [];
 
     for (const targetUrl of candidates) {
       try {
@@ -74,6 +79,8 @@ export async function GET(req) {
           },
           signal: AbortSignal.timeout(15000)
         });
+
+        if (debugMode) attempts.push({ url: targetUrl, status: res.status, contentType: res.headers.get('content-type') });
 
         if (res.ok && res.body) {
           const contentType = res.headers.get('content-type') || '';
@@ -92,11 +99,17 @@ export async function GET(req) {
         }
       } catch (err) {
         console.warn(`[Audio Proxy] Falha ao buscar de ${targetUrl}:`, err?.message);
+        if (debugMode) attempts.push({ url: targetUrl, error: err?.message || 'erro desconhecido' });
       }
     }
 
     if (!audioResponse || !audioResponse.body) {
-      return NextResponse.json({ error: 'Não foi possível carregar o áudio de nenhuma fonte' }, { status: 502 });
+      return NextResponse.json(
+        debugMode
+          ? { error: 'Não foi possível carregar o áudio de nenhuma fonte', attempts }
+          : { error: 'Não foi possível carregar o áudio de nenhuma fonte' },
+        { status: 502 }
+      );
     }
 
     const headers = new Headers();
