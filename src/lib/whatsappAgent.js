@@ -414,8 +414,13 @@ O que você achou dessa letra? Quer que nosso estúdio grave as *2 versões musi
       /^(sim|s|pode|gravar|pode gravar|quero|bora|aprovo|aprovado|top|show|ficou linda|amei|adorei|perfeito|perfeita|gostei|maravilha|pode ser|gerar|gera|vamos)/i.test(textLower);
 
     if (isApproval) {
-      // Cliente aprovou a letra! Cria o pedido e aciona a gravação na Suno
+      // Cliente aprovou a letra! Cria o pedido e aciona a gravação na Suno.
+      // sunoOk rastreia se a geração de fato confirmou início — nunca dizer "já estamos gravando" pro
+      // cliente sem isso ter acontecido de verdade (mesma regra de frontend.md: escrita falhou, tela
+      // não mostra sucesso; achado 27/08/2026, antes mandava a mensagem de sucesso incondicional).
       let orderId = '';
+      let sunoOk = false;
+      let sunoErrorReason = '';
       try {
         const orderNumber = await generateUniqueOrderNumber();
         const orderPayload = {
@@ -430,7 +435,11 @@ O que você achou dessa letra? Quer que nosso estúdio grave as *2 versões musi
           voiceType: session.voiceType || 'masculina',
           lyrics: session.lyrics,
           productionStatus: 'EM_PRODUCAO',
-          paymentStatus: 'PENDENTE',
+          // AGUARDANDO_PAGAMENTO, não 'PENDENTE' — 'PENDENTE' é valor legado nunca escrito pelo resto
+          // do sistema (ver CLAUDE.md) e reconcilePendingPayments (orders/reconcile/route.js) só
+          // busca AGUARDANDO_PAGAMENTO; pedido criado pelo agente com 'PENDENTE' ficava invisível pra
+          // rede de segurança de reconciliação de pagamento (achado 27/08/2026).
+          paymentStatus: 'AGUARDANDO_PAGAMENTO',
           whatsappRequested: true,
           whatsappSenderPhone: cleanPhone,
           createdAt: new Date().toISOString(),
@@ -440,16 +449,30 @@ O que você achou dessa letra? Quer que nosso estúdio grave as *2 versões musi
         const docRef = await addDoc(collection(db, 'orders'), orderPayload);
         orderId = docRef.id;
 
-        // Dispara a geração na Suno (Kie.ai)
+        // Dispara a geração na Suno (Kie.ai) — recordSunoFailure já roda dentro de
+        // requestSunoGeneration em caso de erro, então o pedido fica com o motivo gravado mesmo aqui.
         const tags = `${session.musicStyle || 'Pop'} Emocionante voice ${session.voiceType || 'masculina'}`;
-        await requestSunoGeneration({
+        const genResult = await requestSunoGeneration({
           orderId: orderId,
           prompt: session.lyrics,
           tags: tags,
         }, envVars);
+        sunoOk = Boolean(genResult?.ok);
+        if (!sunoOk) sunoErrorReason = genResult?.error || 'motivo desconhecido';
 
       } catch (err) {
         console.error('[WhatsApp Agent] Erro ao criar pedido e disparar Suno:', err.message);
+      }
+
+      if (!orderId) {
+        // Nem o pedido foi criado — não avança de etapa, deixa o cliente tentar de novo respondendo
+        // SIM (mesma letra continua salva na sessão, nada se perde).
+        await sendWApiTextMessage(
+          cleanPhone,
+          `😥 Tive um probleminha técnico aqui pra registrar seu pedido. Pode me mandar *SIM* de novo, por favor?`,
+          envVars
+        );
+        return true;
       }
 
       await saveSession(cleanPhone, {
@@ -459,8 +482,9 @@ O que você achou dessa letra? Quer que nosso estúdio grave as *2 versões musi
         completedAt: new Date().toISOString(),
       });
 
-      // Mensagem de confirmação SEM o link do pedido (o link será enviado automaticamente quando a música estiver pronta)
-      const finalReply = `🎉 *Pedido Confirmado com Sucesso!*
+      if (sunoOk) {
+        // Mensagem de confirmação SEM o link do pedido (o link será enviado automaticamente quando a música estiver pronta)
+        const finalReply = `🎉 *Pedido Confirmado com Sucesso!*
 
 🎧 Nossos produtores e nossa IA já estão gravando as suas *2 versões musicais completas em alta definição*!
 
@@ -468,7 +492,17 @@ O que você achou dessa letra? Quer que nosso estúdio grave as *2 versões musi
 
 Assim que os áudios ficarem prontos, eu te envio os arquivos e o link direto aqui nesta conversa para você ouvir e aprovar! 💜`;
 
-      await sendWApiTextMessage(cleanPhone, finalReply, envVars);
+        await sendWApiTextMessage(cleanPhone, finalReply, envVars);
+      } else {
+        // Pedido existe e a letra está salva, mas a gravação não confirmou início — nunca afirma que
+        // já está gravando. console.warn com o motivo pro admin acompanhar (nunca PII).
+        console.warn(`[WhatsApp Agent] Pedido ${orderId} criado mas Suno não confirmou início:`, sunoErrorReason);
+        const delayReply = `✅ *Seu pedido foi registrado!*
+
+Tivemos uma instabilidade momentânea agora pra iniciar a gravação, mas sua letra e seus dados já estão salvos com a gente. Nossa equipe já foi avisada e vai colocar pra gravar — assim que ficar pronto, te aviso aqui! 💜`;
+
+        await sendWApiTextMessage(cleanPhone, delayReply, envVars);
+      }
       return true;
     } else {
       // Cliente pediu ajustes na letra
