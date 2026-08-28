@@ -189,6 +189,38 @@ async function handleScheduledRecover(env) {
   }
 }
 
+// Limpeza diária de pedidos antigos — consolida as métricas em `stats` e APAGA de verdade o que
+// passou da retenção (documento, suno_tasks e arquivos no Storage). Ver
+// src/app/api/orders/cleanup/route.js: é irreversível por decisão de negócio, para parar de pagar
+// armazenamento de pedido que ninguém vai mais acessar.
+async function handleScheduledCleanup(env) {
+  const appUrl = env?.APP_URL;
+  const secret = env?.CLEANUP_SECRET || env?.RECONCILE_SECRET;
+
+  if (!appUrl || !secret) {
+    console.warn('[efi-proxy] APP_URL/CLEANUP_SECRET não configurados — limpeza agendada ignorada.');
+    return;
+  }
+
+  try {
+    const res = await fetch(`${appUrl}/api/orders/cleanup`, {
+      method: 'POST',
+      headers: { 'X-Cleanup-Secret': secret },
+      // Apaga até 40 pedidos, cada um com suas suno_tasks e arquivos do Storage — teto folgado.
+      signal: AbortSignal.timeout(120000),
+    });
+
+    const body = await res.text().catch(() => '');
+    if (!res.ok) {
+      console.warn(`[efi-proxy] Limpeza respondeu HTTP ${res.status}: ${body.slice(0, 200)}`);
+      return;
+    }
+    console.log(`[efi-proxy] Limpeza concluída: ${body.slice(0, 300)}`);
+  } catch (err) {
+    console.warn('[efi-proxy] Falha na limpeza agendada:', err?.message ?? err);
+  }
+}
+
 export default {
   async fetch(request, env) {
     // Rede de segurança: qualquer exceção não prevista aqui dentro nunca deve escapar como um 500
@@ -207,6 +239,8 @@ export default {
   async scheduled(event, env, ctx) {
     if (event.cron === '7,22,37,52 * * * *') {
       ctx.waitUntil(handleScheduledRecover(env));
+    } else if (event.cron === '40 6 * * *') {
+      ctx.waitUntil(handleScheduledCleanup(env));
     } else {
       ctx.waitUntil(handleScheduledReconcile(env));
     }

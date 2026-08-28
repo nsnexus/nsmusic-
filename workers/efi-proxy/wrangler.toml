@@ -40,8 +40,12 @@ certificate_id = "5bba60d5-7047-4e5b-9607-3641b86a1c35"
 #                         AUDIT/histórico do commit). Rodava 1x/hora com lote de até 20 mensagens;
 #                         agora roda 4x mais vezes com lote de até 4, pra espalhar o envio no tempo em
 #                         vez de mandar tudo em rajada — bate menos com padrão de bot pro WhatsApp.
+#   40 6 * * *          — 1x/dia (06:40 UTC = 03:40 em Brasília, madrugada, fora do horário de venda),
+#                         chama POST /api/orders/cleanup: consolida as métricas do pedido na coleção
+#                         `stats` e APAGA de vez o que passou de 10 dias (documento, suno_tasks e
+#                         arquivos no Storage). IRREVERSÍVEL — ver o cabeçalho da rota.
 [triggers]
-crons = ["*/10 * * * *", "7,22,37,52 * * * *"]
+crons = ["*/10 * * * *", "7,22,37,52 * * * *", "40 6 * * *"]
 
 # URL pública do app Next.js chamado pelos crons acima. Não é segredo.
 [vars]
@@ -54,3 +58,9 @@ APP_URL = "https://nsmusic.nsnexus.com.br"
 # RECONCILE_SECRET e CRON_SECRET precisam ter o MESMO valor configurado como variável de ambiente do
 # app no Cloudflare Pages — é o que autoriza os crons a chamar as rotas sem uma conta de usuário.
 # Nunca colocar os valores aqui.
+#
+# CLEANUP_SECRET é OPCIONAL: se não for configurado, a limpeza diária cai no RECONCILE_SECRET. Vale
+# configurar um próprio justamente por ser a rota que APAGA dados — um segredo separado limita o
+# estrago se o outro vazar:
+#   npx wrangler secret put CLEANUP_SECRET --config workers/efi-proxy/wrangler.toml
+# (e a MESMA variável no Cloudflare Pages do app).
