@@ -10,12 +10,12 @@ export const dynamic = 'force-dynamic';
 
 // Limpeza de pedidos antigos.
 //
-// Decisão de negócio (28/08/2026): pedido com mais de RETENTION_DAYS dias é apagado DE VERDADE
-// (documento, suno_tasks e arquivos no Storage), sem exceção — inclusive os pagos. Quem baixou a
-// música dentro da janela, baixou; depois disso o link deixa de funcionar. Isso é uma exceção
-// consciente à regra de exclusão lógica de .claude/rules/database.md, que existe para exclusão
-// pontual feita pelo admin — aqui o objetivo é justamente parar de pagar armazenamento, e um
-// `deletedAt` continuaria custando (o Storage é o que pesa: ~10 MB de fotos/vídeo por pedido).
+// Decisão de negócio (28/08/2026): pedido NÃO PAGO com mais de RETENTION_DAYS dias é apagado DE
+// VERDADE (documento, suno_tasks e arquivos no Storage). É esse o volume que pesa — prévia gerada e
+// abandonada, que ninguém vai acessar de novo. QUEM PAGOU FICA: o cliente continua conseguindo abrir
+// a entrega e baixar meses depois. Exceção consciente à regra de exclusão lógica de
+// .claude/rules/database.md, que existe para exclusão pontual feita pelo admin — aqui o objetivo é
+// parar de pagar armazenamento, e um `deletedAt` continuaria custando.
 //
 // O FATURAMENTO não se perde: antes de apagar, os números vão para a coleção `stats`
 // (ver src/lib/stats.js) — quantas músicas geradas/pagas, vídeos, playbacks e receita, por dia.
@@ -32,6 +32,21 @@ const MAX_ORDERS_PER_RUN = 40;
 
 function readEnv(env, name) {
   return String((env && env[name]) || process.env[name] || '').trim();
+}
+
+// Quem pagou nunca é apagado. Considera pago também quem comprou só um add-on (vídeo ou playback)
+// sem que o pagamento principal tenha sido registrado — é dinheiro que entrou, o cliente tem
+// conteúdo liberado esperando por ele. PAGO e PAGAMENTO_APROVADO são equivalentes (ver CLAUDE.md).
+function isPaidOrder(order) {
+  return Boolean(
+    order?.paymentStatus === 'PAGAMENTO_APROVADO' ||
+    order?.paymentStatus === 'PAGO' ||
+    order?.paidAt ||
+    order?.videoAddonPaid ||
+    order?.hasVideoAccess ||
+    order?.playbackAddonPaid ||
+    order?.hasPlaybackAccess
+  );
 }
 
 // Autoriza por segredo compartilhado (cron, que não tem conta de usuário) OU por token de admin
@@ -103,6 +118,7 @@ async function runCleanup(env, { dryRun }) {
     retentionDays: RETENTION_DAYS,
     dryRun,
     found: 0,
+    paidKept: 0,
     consolidated: 0,
     ordersDeleted: 0,
     tasksDeleted: 0,
@@ -131,22 +147,32 @@ async function runCleanup(env, { dryRun }) {
     // vida próprio — as sessões abandonadas já são limpas por api/orders/reconcile.
     if (d.id.startsWith('config_') || d.id.startsWith('session_')) continue;
     if (data.productionStatus === 'CONFIG' || data.productionStatus === 'RASCUNHO') continue;
-    candidates.push({ id: d.id, data });
+    candidates.push({ id: d.id, data, paid: isPaidOrder(data) });
   }
 
   result.found = candidates.length;
   if (candidates.length === 0) return result;
 
-  // Só entra na consolidação quem ainda não foi contado. Se a exclusão falhar depois de consolidar,
-  // a flag impede que o mesmo pedido seja somado de novo na execução do dia seguinte.
+  // QUEM PAGOU FICA. Só o pedido não pago é apagado — é ele que representa a maior parte do volume
+  // (prévia gerada e abandonada) e não tem cliente esperando acessar depois. Cliente que pagou
+  // continua conseguindo abrir a página de entrega e baixar meses depois.
+  const toDelete = candidates.filter((c) => !c.paid);
+  result.paidKept = candidates.length - toDelete.length;
+
+  // Consolida TODOS os antigos (pagos e não pagos), não só os que serão apagados: assim a coleção
+  // `stats` reflete o período inteiro, e não uma fatia enviesada só de quem não pagou. A flag
+  // statsConsolidated impede que o pedido pago — que continua no banco e reaparece nesta consulta
+  // todo dia — seja somado de novo a cada execução.
   const toConsolidate = candidates.filter((c) => !c.data.statsConsolidated);
 
   if (dryRun) {
     result.consolidated = toConsolidate.length;
+    result.wouldDelete = toDelete.length;
     result.sample = candidates.slice(0, 5).map((c) => ({
       id: c.id,
       createdAt: c.data.createdAt || null,
       paymentStatus: c.data.paymentStatus || null,
+      acao: c.paid ? 'MANTIDO (pago)' : 'seria apagado',
       storageFiles: collectStorageUrls(c.data).length,
     }));
     return result;
@@ -167,7 +193,8 @@ async function runCleanup(env, { dryRun }) {
     }
   }
 
-  for (const c of candidates) {
+  // toDelete, não candidates: pedido pago é preservado por completo (documento, arquivos e tasks).
+  for (const c of toDelete) {
     try {
       for (const url of collectStorageUrls(c.data)) {
         const ok = await deleteStorageFile(url);
