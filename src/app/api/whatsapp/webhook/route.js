@@ -227,6 +227,23 @@ const MESSAGE_DEDUP_WINDOW_MS = 120000;
 // sessão; ver análise completa no histórico da sessão de 27/08/2026.
 const PHONE_LOCK_WINDOW_MS = 10000;
 
+// Janela em que NÃO se repete um template que o cliente acabou de receber, mesmo que ele mande de
+// novo uma mensagem com o ID do pedido (achado 28/08/2026: cliente recebendo a mensagem de espera
+// duplicada). O botão do site abre o WhatsApp com o texto "…do meu pedido id=XXXX" já preenchido,
+// então TODA mensagem vinda dali tem ID explícito — e a checagem de "já enviei" era pulada
+// justamente nesse caso, que é o mais comum de todos. Dedup por messageId e trava por telefone não
+// cobrem isso: são mensagens distintas, com ids distintos, às vezes com minutos de intervalo.
+// Passada a janela, o reenvio volta a ser permitido — cliente que volta mais tarde querendo o link
+// de novo continua sendo atendido.
+const TEMPLATE_RESEND_COOLDOWN_MS = 10 * 60 * 1000;
+
+function sentWithinCooldown(sentAtIso) {
+  if (!sentAtIso) return false;
+  const ts = Date.parse(sentAtIso);
+  if (Number.isNaN(ts)) return false;
+  return Date.now() - ts < TEMPLATE_RESEND_COOLDOWN_MS;
+}
+
 function isIgnoredEvent(body) {
   if (!body) return false;
   const eventName = String(body.event || body.type || body.data?.event || '').toLowerCase().trim();
@@ -477,6 +494,18 @@ export async function POST(req) {
           return NextResponse.json({ success: true, ignored: 'already_notified_silence' }, { status: 200 });
         }
 
+        // Mesmo COM ID explícito: não repete um template recém-enviado (ver
+        // TEMPLATE_RESEND_COOLDOWN_MS) — vale para qualquer um dos três, já que todos entregam o
+        // mesmo link e o cliente veria duas mensagens praticamente iguais.
+        const recentlySent = sentWithinCooldown(matchedOrder.readyTemplateSentAt)
+          || sentWithinCooldown(matchedOrder.whatsappSentAt)
+          || sentWithinCooldown(matchedOrder.paymentWhatsappSentAt);
+
+        if (recentlySent) {
+          console.log(`[WhatsApp Webhook] Template de música pronta enviado há pouco para o pedido #${matchedOrderId} — não repete.`);
+          return NextResponse.json({ success: true, ignored: 'ready_template_cooldown' }, { status: 200 });
+        }
+
         const isPaid = matchedOrder.paymentStatus === 'PAGAMENTO_APROVADO' || matchedOrder.paymentStatus === 'PAGO';
         const urls = (matchedOrder.audioFiles?.length ? matchedOrder.audioFiles : [matchedOrder.audioUrl]).filter(Boolean);
         const audiosList = urls.map((link, idx) => `• *Versão ${idx + 1}:* ${link}`).join('\n');
@@ -531,6 +560,14 @@ ${deliveryUrl}
         if (matchedOrder.whatsappWaitAckSent && !isExplicitId) {
           console.log(`[WhatsApp Webhook] Mensagem de espera já enviada para o pedido #${matchedOrderId}. Silêncio para mensagem "${messageText}".`);
           return NextResponse.json({ success: true, ignored: 'wait_ack_already_sent' }, { status: 200 });
+        }
+
+        // Mesmo COM ID explícito: não repete o que o cliente acabou de receber (ver
+        // TEMPLATE_RESEND_COOLDOWN_MS). Sem isso, duas mensagens seguidas vindas do botão do site —
+        // que sempre carrega o ID — geravam duas respostas idênticas.
+        if (sentWithinCooldown(matchedOrder.whatsappWaitAckSentAt)) {
+          console.log(`[WhatsApp Webhook] Aviso de espera enviado há pouco para o pedido #${matchedOrderId} — não repete.`);
+          return NextResponse.json({ success: true, ignored: 'wait_ack_cooldown' }, { status: 200 });
         }
 
         const replyMsg = `⏳ *Olá, ${customerName}!*
