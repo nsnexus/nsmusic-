@@ -6,11 +6,23 @@ import { dbEdge as db } from './firebase-edge.js';
  * (com/sem 55, com/sem o 9º dígito) para busca precisa no banco de dados.
  */
 export function generatePhoneVariants(phone) {
-  const digits = String(phone || '').replace(/\D/g, '');
+  const rawInput = String(phone || '');
+  const digits = rawInput.replace(/\D/g, '');
   if (!digits || digits.length < 8) return [];
 
   const variants = new Set();
   variants.add(digits);
+
+  // LID (identificador de privacidade do WhatsApp — ver route.js:extractSenderPhone, achado
+  // 28/08/2026) não é telefone: nenhuma variante de DDI/9º dígito faz sentido pra ele. Inclui as duas
+  // formas que podem estar salvas em whatsappSenderPhone (com e sem o sufixo "@lid" — pedidos antigos
+  // gravaram sem, a partir de agora grava com) pra achar o pedido de qualquer jeito nessa busca.
+  const looksLikeLid = rawInput.includes('@lid')
+    || (digits.length !== 10 && digits.length !== 11 && !(digits.startsWith('55') && digits.length >= 12 && digits.length <= 13));
+  if (looksLikeLid) {
+    variants.add(`${digits}@lid`);
+    return Array.from(variants);
+  }
 
   // Se começa com DDI 55
   if (digits.startsWith('55') && digits.length >= 12) {

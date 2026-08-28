@@ -170,3 +170,20 @@ describe('orderLookup — findRecentOrderByPhone', () => {
     expect(found).toBeNull();
   });
 });
+
+// Achado 28/08/2026: LID não é telefone, nenhuma variante de DDI/9º dígito faz sentido pra ele — só
+// as duas formas que podem estar salvas em whatsappSenderPhone (ver route.js:extractSenderPhone).
+describe('generatePhoneVariants — LID', () => {
+  it('inclui a forma com e sem sufixo @lid, sem tentar variantes de celular BR', () => {
+    const variants = generatePhoneVariants('273005418684627@lid');
+    expect(variants).toContain('273005418684627');
+    expect(variants).toContain('273005418684627@lid');
+    expect(variants).toHaveLength(2);
+  });
+
+  it('telefone BR normal continua gerando as variantes de sempre (sem @lid)', () => {
+    const variants = generatePhoneVariants('5594991064043');
+    expect(variants).toContain('5594991064043');
+    expect(variants).not.toContain('5594991064043@lid');
+  });
+});

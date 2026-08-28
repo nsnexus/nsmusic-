@@ -123,14 +123,25 @@ function extractSenderPhone(body) {
 
   // Varre TODOS os candidatos (não para no primeiro) e prefere um de formato BR válido (12 ou 13
   // dígitos com código do país) — achado 27/08/2026: o candidato de maior prioridade (`sender.id`)
-  // às vezes vem como LID (identificador de privacidade do WhatsApp/Meta, tipicamente 14-15 dígitos)
-  // em vez do telefone real, mesmo esse sendo, pra ESSE contato, o campo certo pra outros clientes.
-  // Preferir o primeiro de formato válido entre TODOS os candidatos, em vez de aceitar cegamente o
-  // primeiro que aparecer, resolve o caso em que o telefone de verdade está num campo mais abaixo na
-  // lista — sem precisar saber de antemão qual campo é. Nunca regride o caso comum: quando o primeiro
-  // candidato já é válido, o resultado é idêntico ao comportamento anterior.
+  // às vezes vem como LID (identificador de privacidade do WhatsApp/Meta) em vez do telefone real,
+  // mesmo esse sendo, pra ESSE contato, o campo certo pra outros clientes. Preferir o primeiro de
+  // formato válido entre TODOS os candidatos resolve o caso em que o telefone de verdade está num
+  // campo mais abaixo na lista — sem precisar saber de antemão qual campo é. Nunca regride o caso
+  // comum: quando o primeiro candidato já é válido, o resultado é idêntico ao comportamento anterior.
+  //
+  // Achado 28/08/2026, mais importante: quando NENHUM candidato é um telefone real (só existe LID —
+  // acontece de verdade, é impossível converter LID pra telefone, decisão de privacidade da própria
+  // Meta), o código antigo devolvia só os dígitos do LID, sem o sufixo "@lid". A W-API (e provedores
+  // similares) SÓ entrega mensagem a um LID se o sufixo "@lid" for mantido no envio — dígito solto
+  // não é um telefone válido, a API aceita a chamada (200) mas a mensagem não chega em lugar nenhum.
+  // Por isso agora, quando o candidato vem com sufixo "@lid" explícito no payload OU tem formato que
+  // não bate com telefone BR (a maior parte dos casos reais, já que a W-API costuma entregar sender.id
+  // já sem o domínio), o valor final é reconstruído como "<dígitos>@lid" — ver formatToWhatsAppNumber
+  // em src/lib/whatsappTemplates.js, que agora repassa esse formato sem tentar "consertar" como se
+  // fosse número de celular.
   let firstValid = null;
   let firstValidName = '';
+  let firstValidIsLid = false;
   let preferredValid = null;
   let preferredValidName = '';
 
@@ -138,15 +149,28 @@ function extractSenderPhone(body) {
     let raw = candidates[i];
     if (!raw) continue;
     raw = String(raw);
-    if (raw.includes('@')) raw = raw.split('@')[0];
+
+    let explicitLid = false;
+    if (raw.includes('@')) {
+      const domain = raw.split('@')[1] || '';
+      explicitLid = domain === 'lid';
+      raw = raw.split('@')[0];
+    }
+
     const digits = raw.replace(/\D/g, '');
     if (digits.length < 8) continue;
+
+    // BR válido (código do país + DDD) é sempre 12 ou 13 dígitos — fora disso, mesmo sem sufixo
+    // "@lid" explícito no payload, é (na prática observada) um LID que a W-API já entregou sem o
+    // domínio. Tratar como LID também nesse caso é o que garante a reconstrução do "@lid" abaixo.
+    const isLid = explicitLid || (digits.length !== 12 && digits.length !== 13);
 
     if (firstValid === null) {
       firstValid = digits;
       firstValidName = candidateNames[i];
+      firstValidIsLid = isLid;
     }
-    if (preferredValid === null && (digits.length === 12 || digits.length === 13)) {
+    if (preferredValid === null && !isLid) {
       preferredValid = digits;
       preferredValidName = candidateNames[i];
     }
@@ -162,15 +186,13 @@ function extractSenderPhone(body) {
   }
 
   if (firstValid) {
-    // Nenhum candidato bateu o formato BR esperado — provável LID em todos os campos conhecidos.
-    // Nunca logar o valor em si (telefone é PII) — só a forma, pra achar o campo certo da próxima vez.
-    const senderKeys = body.sender && typeof body.sender === 'object' ? Object.keys(body.sender) : null;
-    console.warn(
-      `[WhatsApp Webhook] Telefone suspeito de ser LID em TODOS os candidatos — nenhum com 12-13 dígitos. Melhor candidato: "${firstValidName}" (${firstValid.length} dígitos). ` +
-      `Campos em body: ${Object.keys(body).join(', ')}. ` +
-      `Campos em body.data: ${body.data && typeof body.data === 'object' ? Object.keys(body.data).join(', ') : 'n/a'}. ` +
-      `Campos em body.sender: ${senderKeys ? senderKeys.join(', ') : 'n/a'}.`
-    );
+    // Nenhum candidato é telefone real — só LID em todos os campos conhecidos. Reconstrói o sufixo
+    // "@lid" pra mensagem conseguir ser entregue (ver comentário acima). Nunca logar o valor em si
+    // (telefone é PII) — só a forma, útil se aparecer um formato ainda não coberto.
+    if (firstValidIsLid) {
+      console.log(`[WhatsApp Webhook] Telefone é LID (candidato "${firstValidName}", ${firstValid.length} dígitos) — enviando com sufixo @lid.`);
+      return `${firstValid}@lid`;
+    }
     return firstValid;
   }
 

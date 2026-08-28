@@ -39,3 +39,15 @@ describe('formatToWhatsAppNumber', () => {
     expect(formatToWhatsAppNumber('12345678901234')).toBe('12345678901234');
   });
 });
+
+// Achado 28/08/2026: LID (identificador de privacidade do WhatsApp) precisa manter o sufixo "@lid"
+// pra W-API entregar a mensagem — sem ele, a API aceita o envio (200) mas nunca chega no destino.
+describe('formatToWhatsAppNumber — LID (achado 28/08/2026)', () => {
+  it('preserva o sufixo @lid em vez de tentar formatar como celular BR', () => {
+    expect(formatToWhatsAppNumber('273005418684627@lid')).toBe('273005418684627@lid');
+  });
+
+  it('remove pontuação extra mas mantém o sufixo @lid', () => {
+    expect(formatToWhatsAppNumber('27-3005-418684627@lid')).toBe('273005418684627@lid');
+  });
+});

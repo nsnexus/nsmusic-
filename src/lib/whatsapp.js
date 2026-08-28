@@ -1,7 +1,7 @@
 import { getRequestContext } from '@cloudflare/next-on-pages';
-import { resolveDeliveryUrl, formatToWhatsAppNumber } from './whatsappTemplates.js';
+import { resolveDeliveryUrl, formatToWhatsAppNumber, cleanWhatsAppId } from './whatsappTemplates.js';
 
-export { resolveDeliveryUrl, formatToWhatsAppNumber };
+export { resolveDeliveryUrl, formatToWhatsAppNumber, cleanWhatsAppId };
 
 const WAPI_BASE_URL = 'https://api.w-api.app/v1';
 const DEFAULT_INSTANCE_ID = 'LITE-34O7BP-59EWJO';

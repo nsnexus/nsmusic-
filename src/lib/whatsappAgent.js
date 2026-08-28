@@ -1,7 +1,7 @@
 import { doc, getDoc, setDoc, deleteDoc, addDoc, collection } from 'firebase/firestore/lite';
 import { dbEdge as db } from './firebase-edge.js';
 import { runGeminiWithFailover, runJsonCompletion } from './gemini.js';
-import { sendWApiTextMessage, sendWApiPresence, resolveDeliveryUrl } from './whatsapp.js';
+import { sendWApiTextMessage, sendWApiPresence, resolveDeliveryUrl, cleanWhatsAppId } from './whatsapp.js';
 import { requestSunoGeneration } from './suno.js';
 import { generateUniqueOrderNumber } from './orderNumber.js';
 
@@ -160,7 +160,9 @@ export async function setWhatsAppAgentGloballyEnabled(enabled) {
  * Pausa o Agente para um telefone específico (quando o atendente humano assume a conversa)
  */
 export async function pauseAgentForPhone(phone) {
-  const cleanPhone = String(phone || '').replace(/\D/g, '');
+  // cleanWhatsAppId (não replace(/\D/g,'') ingênuo) preserva o sufixo "@lid" quando o contato só tem
+  // LID disponível — ver src/lib/whatsappTemplates.js e route.js:extractSenderPhone (achado 28/08/2026).
+  const cleanPhone = cleanWhatsAppId(phone);
   if (!cleanPhone) return;
 
   const current = (await loadSession(cleanPhone)) || {};
@@ -169,14 +171,14 @@ export async function pauseAgentForPhone(phone) {
     humanTakeover: true,
     pausedAt: new Date().toISOString(),
   });
-  console.log('[WhatsApp Agent] Atendimento humano assumido. IA pausada para:', cleanPhone);
+  console.log('[WhatsApp Agent] Atendimento humano assumido. IA pausada.');
 }
 
 /**
  * Reativa o Agente para um telefone específico
  */
 export async function resumeAgentForPhone(phone) {
-  const cleanPhone = String(phone || '').replace(/\D/g, '');
+  const cleanPhone = cleanWhatsAppId(phone);
   if (!cleanPhone) return;
 
   const current = (await loadSession(cleanPhone)) || {};
@@ -185,14 +187,14 @@ export async function resumeAgentForPhone(phone) {
     humanTakeover: false,
     resumedAt: new Date().toISOString(),
   });
-  console.log('[WhatsApp Agent] IA reativada para:', cleanPhone);
+  console.log('[WhatsApp Agent] IA reativada.');
 }
 
 /**
  * Agente de IA Conversacional para WhatsApp do NS Music
  */
 export async function handleWhatsAppAgentMessage(senderPhone, messageText, envVars = {}) {
-  const cleanPhone = String(senderPhone || '').replace(/\D/g, '');
+  const cleanPhone = cleanWhatsAppId(senderPhone);
   if (!cleanPhone || cleanPhone.length < 8) return false;
 
   const textLower = (messageText || '').trim().toLowerCase();
