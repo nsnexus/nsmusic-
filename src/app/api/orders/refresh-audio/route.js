@@ -29,6 +29,16 @@ export const dynamic = 'force-dynamic';
 
 const MAX_ORDERS_PER_RUN = 25;
 
+// Quantos documentos a consulta traz por execução para depois filtrar em memória. Mais alto que o
+// lote porque a maioria já está com URL boa e é descartada no filtro.
+const SCAN_LIMIT = 300;
+
+// Depois de uma tentativa fracassada, o pedido só é tentado de novo passado este tempo. Sem isso ele
+// volta em toda execução e ocupa o lote para sempre — foi o que aconteceu com um pedido de 12/08,
+// cujo áudio a Kie.ai já apagou (a doc deles avisa que expira em ~14 dias) e que por isso nunca vai
+// ter URL nova. Uma nova tentativa por dia é suficiente para cobrir instabilidade momentânea da API.
+const RETRY_FAILED_AFTER_MS = 24 * 60 * 60 * 1000;
+
 function readEnv(env, name) {
   return String((env && env[name]) || process.env[name] || '').trim();
 }
@@ -96,7 +106,7 @@ async function fetchFreshTracks(taskId, apiKey) {
 
 async function runRefresh(env, { dryRun }) {
   const apiKey = readEnv(env, 'KIE_API_KEY');
-  const result = { dryRun, scanned: 0, needingRefresh: 0, refreshed: 0, failed: 0, skippedNoTaskId: 0, samples: [] };
+  const result = { dryRun, scanned: 0, needingRefresh: 0, refreshed: 0, failed: 0, skippedNoTaskId: 0, skippedRecentFailure: 0, samples: [] };
 
   if (!apiKey) {
     return { ...result, error: 'KIE_API_KEY não configurada no servidor.' };
@@ -109,7 +119,7 @@ async function runRefresh(env, { dryRun }) {
     snap = await getDocs(query(
       collection(db, 'orders'),
       where('productionStatus', '==', 'AUDIO_GERADO'),
-      limit(MAX_ORDERS_PER_RUN * 4)
+      limit(SCAN_LIMIT)
     ));
   } catch (err) {
     return { ...result, error: `consulta_falhou: ${err?.code || err?.message}` };
@@ -127,6 +137,15 @@ async function runRefresh(env, { dryRun }) {
     if (data.audioRefreshFailed === 'sem_taskid') {
       result.skippedNoTaskId++;
       continue;
+    }
+
+    // Falhou há pouco: não insiste antes do intervalo (ver RETRY_FAILED_AFTER_MS).
+    if (data.audioRefreshFailed && data.audioRefreshCheckedAt) {
+      const checkedAt = Date.parse(data.audioRefreshCheckedAt);
+      if (!Number.isNaN(checkedAt) && Date.now() - checkedAt < RETRY_FAILED_AFTER_MS) {
+        result.skippedRecentFailure++;
+        continue;
+      }
     }
 
     candidates.push({ id: d.id, data });
