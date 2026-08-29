@@ -44,8 +44,12 @@ certificate_id = "5bba60d5-7047-4e5b-9607-3641b86a1c35"
 #                         chama POST /api/orders/cleanup: consolida as métricas do pedido na coleção
 #                         `stats` e APAGA de vez o que passou de 10 dias (documento, suno_tasks e
 #                         arquivos no Storage). IRREVERSÍVEL — ver o cabeçalho da rota.
+#   25 * * * *          — 1x/hora, chama POST /api/orders/archive-audio: copia para o nosso Firebase
+#                         Storage o áudio dos pedidos PAGOS que ainda dependem da CDN da Kie.ai (ela
+#                         apaga os arquivos em ~14 dias, e em 28-29/08/2026 parou de servir bem antes
+#                         disso). Sem isso, todo pedido pago vira link quebrado com data marcada.
 [triggers]
-crons = ["*/10 * * * *", "7,22,37,52 * * * *", "40 6 * * *"]
+crons = ["*/10 * * * *", "7,22,37,52 * * * *", "40 6 * * *", "25 * * * *"]
 
 # URL pública do app Next.js chamado pelos crons acima. Não é segredo.
 [vars]

@@ -221,6 +221,38 @@ async function handleScheduledCleanup(env) {
   }
 }
 
+// Copia para o nosso Firebase Storage o áudio dos pedidos PAGOS que ainda dependem da CDN da
+// Kie.ai. Ver src/app/api/orders/archive-audio/route.js: os arquivos deles expiram (a própria
+// documentação avisa que some em ~14 dias), então sem isso todo pedido pago vira um link quebrado
+// com data marcada — inclusive o link que o cliente já recebeu por WhatsApp.
+async function handleScheduledArchive(env) {
+  const appUrl = env?.APP_URL;
+  const secret = env?.CLEANUP_SECRET || env?.RECONCILE_SECRET;
+
+  if (!appUrl || !secret) {
+    console.warn('[efi-proxy] APP_URL/CLEANUP_SECRET não configurados — arquivamento de áudio ignorado.');
+    return;
+  }
+
+  try {
+    const res = await fetch(`${appUrl}/api/orders/archive-audio`, {
+      method: 'POST',
+      headers: { 'X-Cleanup-Secret': secret },
+      // Cada faixa é uma transferência de vários MB atravessando o Worker — timeout generoso.
+      signal: AbortSignal.timeout(180000),
+    });
+
+    const body = await res.text().catch(() => '');
+    if (!res.ok) {
+      console.warn(`[efi-proxy] Arquivamento respondeu HTTP ${res.status}: ${body.slice(0, 200)}`);
+      return;
+    }
+    console.log(`[efi-proxy] Arquivamento concluído: ${body.slice(0, 300)}`);
+  } catch (err) {
+    console.warn('[efi-proxy] Falha no arquivamento agendado:', err?.message ?? err);
+  }
+}
+
 export default {
   async fetch(request, env) {
     // Rede de segurança: qualquer exceção não prevista aqui dentro nunca deve escapar como um 500
@@ -241,6 +273,8 @@ export default {
       ctx.waitUntil(handleScheduledRecover(env));
     } else if (event.cron === '40 6 * * *') {
       ctx.waitUntil(handleScheduledCleanup(env));
+    } else if (event.cron === '25 * * * *') {
+      ctx.waitUntil(handleScheduledArchive(env));
     } else {
       ctx.waitUntil(handleScheduledReconcile(env));
     }
