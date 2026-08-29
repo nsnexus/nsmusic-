@@ -242,6 +242,35 @@ export async function createSlideshowVideo(orderId, imageUrls, audioUrl, orderDa
     source.buffer = audioBuffer;
     source.connect(dest);
 
+    // Um AudioContext cujo grafo não chega a `destination` pode ser considerado ocioso pelo
+    // navegador e ter o processamento suspenso ou reduzido — e aí o MediaStreamDestination recebe
+    // silêncio, sem erro nenhum. Ligar o mesmo source a um ganho ZERO que chega ao destination real
+    // mantém o grafo ativo sem tocar som para quem está com a página aberta. É a causa de vídeo mudo
+    // que sobrevivia mesmo com o AudioContext em estado "running".
+    const keepAliveGain = audioCtx.createGain();
+    keepAliveGain.gain.value = 0;
+    source.connect(keepAliveGain);
+    keepAliveGain.connect(audioCtx.destination);
+
+    // Mede o sinal que está de fato indo para a gravação. É o que permite detectar vídeo mudo
+    // ENQUANTO ele grava — a validação por tamanho de arquivo não pega esse caso: vídeo com imagem e
+    // sem áudio tem tamanho normal e passava como se estivesse bom.
+    const analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 2048;
+    source.connect(analyser);
+    const analyserBuffer = new Uint8Array(analyser.fftSize);
+    let maxAudioLevel = 0;
+    const sampleAudioLevel = () => {
+      try {
+        analyser.getByteTimeDomainData(analyserBuffer);
+        // 128 é o zero do domínio do tempo em 8 bits; desvio a partir daí é sinal real.
+        for (let i = 0; i < analyserBuffer.length; i += 32) {
+          const level = Math.abs(analyserBuffer[i] - 128);
+          if (level > maxAudioLevel) maxAudioLevel = level;
+        }
+      } catch (e) {}
+    };
+
     const audioTracks = dest.stream.getAudioTracks();
     if (audioTracks.length === 0) {
       throw new Error('Não foi possível preparar o áudio do vídeo. Tente novamente pelo Chrome.');
@@ -318,7 +347,9 @@ export async function createSlideshowVideo(orderId, imageUrls, audioUrl, orderDa
       );
     }
 
-    mediaRecorder.start();
+    // timeslice de 1s: sem ele o MediaRecorder acumula o vídeo inteiro em memória até o stop, o que
+    // em celular mais fraco pode derrubar a aba no meio de um slideshow de 3 minutos.
+    mediaRecorder.start(1000);
     source.start();
 
     // 4. Loop de Animação com efeito Ken Burns (Pan & Zoom)
@@ -332,6 +363,10 @@ export async function createSlideshowVideo(orderId, imageUrls, audioUrl, orderDa
 
     const renderFrame = async () => {
       const elapsed = audioCtx.currentTime - startTime;
+
+      // Amostra o sinal de áudio a cada quadro: é assim que se descobre que o vídeo saiu mudo antes
+      // de entregá-lo ao cliente (ver sampleAudioLevel).
+      sampleAudioLevel();
 
       if (elapsed >= duration) {
         if (mediaRecorder.state !== 'inactive') {
@@ -419,6 +454,22 @@ export async function createSlideshowVideo(orderId, imageUrls, audioUrl, orderDa
           ? 'Isso pode ter acontecido porque você trocou de aba durante a geração. '
           : '') +
         'Por favor, tente novamente sem sair desta página.'
+      );
+    }
+
+    // Verificação que a checagem de tamanho NÃO cobre: vídeo com imagem e sem áudio tem tamanho
+    // perfeitamente normal e passava como bom — era a reclamação recorrente de "vídeo veio mudo".
+    // maxAudioLevel é o pico medido no sinal que foi de fato para a gravação; ficar praticamente em
+    // zero durante o vídeo inteiro significa trilha silenciosa.
+    console.log(`[VideoGen] Pico de áudio medido durante a gravação: ${maxAudioLevel} (0 = silêncio absoluto)`);
+    if (maxAudioLevel <= 2) {
+      console.error('[VideoGen] Trilha de áudio silenciosa — vídeo não será entregue.');
+      throw new Error(
+        'O vídeo foi gerado sem áudio. ' +
+        (tabWasHidden
+          ? 'Você trocou de aba durante a geração — o navegador interrompe o áudio nesse caso. '
+          : 'O navegador bloqueou o áudio durante a gravação. ') +
+        'Toque na tela e tente novamente, mantendo esta página aberta e visível.'
       );
     }
 
