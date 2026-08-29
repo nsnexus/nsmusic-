@@ -50,6 +50,26 @@ function needsRefresh(order) {
   return urls.some((u) => typeof u === 'string' && u.includes('musicfile.kie.ai'));
 }
 
+// O taskId só passou a ser gravado no próprio pedido (`sunoTaskId`) em 28/08/2026 — antes disso o
+// vínculo taskId->orderId existia apenas na coleção `suno_tasks`, escrita por src/lib/db.js:saveTask.
+// Para os pedidos anteriores (a grande maioria dos que estão com URL quebrada), é de lá que dá para
+// descobrir qual tarefa da Kie.ai gerou aquela música. Mesma busca inversa que api/orders/reconcile
+// já faz para destravar pedido preso.
+async function resolveTaskId(order, orderId) {
+  if (order?.sunoTaskId) return order.sunoTaskId;
+  try {
+    const snap = await getDocs(query(
+      collection(db, 'suno_tasks'),
+      where('orderId', '==', orderId),
+      limit(1)
+    ));
+    if (!snap.empty) return snap.docs[0].id;
+  } catch (err) {
+    console.warn('[refresh-audio] Falha ao buscar taskId em suno_tasks:', err.message);
+  }
+  return '';
+}
+
 async function fetchFreshTracks(taskId, apiKey) {
   try {
     const res = await fetch(`https://api.kie.ai/api/v1/generate/record-info?taskId=${encodeURIComponent(taskId)}`, {
@@ -101,11 +121,10 @@ async function runRefresh(env, { dryRun }) {
     const data = d.data();
     if (!needsRefresh(data)) continue;
 
-    // Sem sunoTaskId não há como perguntar à Kie.ai qual é a URL atual — pedido anterior a quando
-    // esse campo passou a ser gravado. Contabiliza e SAI da fila: se ficasse entre os candidatos,
-    // ocuparia o lote a cada execução (a consulta traz sempre os mesmos documentos primeiro) e
-    // travaria o avanço sobre os que de fato dá para recuperar.
-    if (!data.sunoTaskId) {
+    // Já foi verificado antes e não tem como recuperar (sem taskId em lugar nenhum). Sem esta
+    // exclusão ele voltaria à fila em toda execução — a consulta traz sempre os mesmos documentos
+    // primeiro — e travaria o avanço sobre os que ainda dá para renovar.
+    if (data.audioRefreshFailed === 'sem_taskid') {
       result.skippedNoTaskId++;
       continue;
     }
@@ -127,7 +146,19 @@ async function runRefresh(env, { dryRun }) {
   }
 
   for (const c of candidates.slice(0, MAX_ORDERS_PER_RUN)) {
-    const taskId = c.data.sunoTaskId;
+    const taskId = await resolveTaskId(c.data, c.id);
+
+    if (!taskId) {
+      // Nem no pedido nem em suno_tasks — não há como perguntar à Kie.ai qual é a URL atual desta
+      // música. Marca para não voltar na fila a cada execução e travar o avanço dos recuperáveis.
+      result.skippedNoTaskId++;
+      await updateDoc(doc(db, 'orders', c.id), {
+        audioRefreshFailed: 'sem_taskid',
+        audioRefreshCheckedAt: new Date().toISOString(),
+      }).catch(() => {});
+      continue;
+    }
+
     const fresh = await fetchFreshTracks(taskId, apiKey);
     if (!fresh.ok) {
       result.failed++;
@@ -151,6 +182,9 @@ async function runRefresh(env, { dryRun }) {
       };
       // Só sobrescreve audioIds se a consulta trouxe — não vale perder o que já estava salvo.
       if (audioIds.length > 0) updates.audioIds = audioIds;
+      // Persiste o taskId que veio de suno_tasks: da próxima vez não precisa da busca inversa, e é
+      // o campo que o add-on de playback usa para pedir a separação vocal à Kie.ai.
+      if (!c.data.sunoTaskId) updates.sunoTaskId = taskId;
 
       await updateDoc(doc(db, 'orders', c.id), updates);
       result.refreshed++;
