@@ -324,25 +324,30 @@ function EntregaContent() {
     }
   };
 
+  // Acrescenta ?download=<nome> à URL do proxy: é o que faz o servidor mandar Content-Disposition e
+  // o navegador BAIXAR em vez de tocar (ver src/app/api/audio/proxy/route.js).
+  const withDownloadFlag = (url, filename) => {
+    if (!url || !url.startsWith('/api/')) return url;
+    return `${url}${url.includes('?') ? '&' : '?'}download=${encodeURIComponent(filename)}`;
+  };
+
   const handleDownload = async (url, filename) => {
+    // Link direto para o proxy, com Content-Disposition — não baixa os ~5 MB para a memória da aba
+    // antes de salvar, e continua sendo download (não vira player) mesmo se algo der errado no meio.
+    // A versão anterior buscava o arquivo por fetch e, em qualquer falha, caía num window.open que
+    // só ABRIA a música numa aba nova: o cliente clicava em "Baixar" e ouvia em vez de baixar.
+    const downloadUrl = withDownloadFlag(url, filename);
     try {
-      const response = await fetch(url);
-      if (!response.ok) throw new Error("Network error fetching audio file");
-      const blob = await response.blob();
-      // Origem pode responder 200 com corpo vazio (incidente 28/08/2026 na CDN da Kie.ai) — baixar
-      // um arquivo de 0 byte é pior que falhar: o cliente acha que deu certo até tentar abrir.
-      if (!blob.size) throw new Error("Arquivo veio vazio da origem");
-      const blobUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
-      link.href = blobUrl;
+      link.href = downloadUrl;
       link.setAttribute('download', filename);
+      link.rel = 'noopener';
       document.body.appendChild(link);
       link.click();
       link.parentNode.removeChild(link);
-      window.URL.revokeObjectURL(blobUrl);
     } catch (err) {
-      console.warn("Erro ao fazer download via fetch, abrindo nova aba:", err);
-      window.open(url, '_blank');
+      console.warn('Erro ao iniciar o download:', err);
+      window.location.href = downloadUrl;
     }
   };
 

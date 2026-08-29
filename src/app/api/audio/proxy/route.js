@@ -190,6 +190,17 @@ export async function GET(req) {
     headers.set('Access-Control-Allow-Origin', '*');
     headers.set('Accept-Ranges', 'bytes');
 
+    // ?download=<nome> faz o navegador BAIXAR em vez de tocar. Sem isso, quando o download pelo
+    // JavaScript falha por qualquer motivo, o fallback (abrir a URL numa aba) só abre o player — foi
+    // o que o cliente viu ao clicar em "Baixar" depois de pagar. Com Content-Disposition o download
+    // acontece mesmo por link direto, sem depender de baixar o arquivo inteiro na memória da aba.
+    const downloadName = searchParams.get('download');
+    if (downloadName) {
+      // Só ASCII seguro no filename: acento/emoji em cabeçalho HTTP quebra a resposta inteira.
+      const safeName = downloadName.replace(/[^\w.\- ]/g, '_').slice(0, 120) || 'musica.mp3';
+      headers.set('Content-Disposition', `attachment; filename="${safeName}"`);
+    }
+
     const contentLength = audioResponse.headers.get('content-length');
     if (contentLength && parseInt(contentLength, 10) > 0) {
       headers.set('Content-Length', contentLength);

@@ -33,14 +33,22 @@ export async function GET(req) {
 
     const blob = await res.arrayBuffer();
 
-    return new NextResponse(blob, {
-      status: 200,
-      headers: {
-        'Content-Type': contentType,
-        'Access-Control-Allow-Origin': '*',
-        'Cache-Control': 'public, max-age=86400'
-      }
-    });
+    const headers = {
+      'Content-Type': contentType,
+      'Access-Control-Allow-Origin': '*',
+      'Cache-Control': 'public, max-age=86400'
+    };
+
+    // ?download=<nome> faz o navegador BAIXAR em vez de abrir/tocar — mesmo contrato do
+    // /api/audio/proxy. É por aqui que passa o download do vídeo homenagem.
+    const downloadName = searchParams.get('download');
+    if (downloadName) {
+      // Só ASCII seguro: acento/emoji em cabeçalho HTTP quebra a resposta inteira.
+      const safeName = downloadName.replace(/[^\w.\- ]/g, '_').slice(0, 120) || 'arquivo';
+      headers['Content-Disposition'] = `attachment; filename="${safeName}"`;
+    }
+
+    return new NextResponse(blob, { status: 200, headers });
   } catch (error) {
     console.error("Erro no image-proxy:", error);
     return NextResponse.json({ error: error.message || 'Erro interno no proxy' }, { status: 500 });

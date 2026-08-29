@@ -200,23 +200,24 @@ export default function OrderDetailsAdmin() {
     // src/app/api/audio/proxy/route.js (incidente 28/08/2026, download do admin quebrado com
     // "MissingKey" enquanto a mesma faixa seguia disponível na outra CDN).
     const isAlreadyProxied = url.startsWith('/api/') || url.startsWith('blob:');
-    const fetchUrl = isAlreadyProxied ? url : `/api/audio/proxy?url=${encodeURIComponent(url)}&v=${AUDIO_CACHE_VERSION}`;
+    const base = isAlreadyProxied ? url : `/api/audio/proxy?url=${encodeURIComponent(url)}&v=${AUDIO_CACHE_VERSION}`;
+    // ?download= faz o servidor mandar Content-Disposition — sem isso o navegador toca o arquivo em
+    // vez de baixar quando o link é aberto direto (ver src/app/api/audio/proxy/route.js).
+    const downloadUrl = base.startsWith('/api/')
+      ? `${base}${base.includes('?') ? '&' : '?'}download=${encodeURIComponent(filename)}`
+      : base;
+
     try {
-      const response = await fetch(fetchUrl);
-      if (!response.ok) throw new Error('Erro de rede ao buscar o arquivo');
-      const blob = await response.blob();
-      if (!blob.size) throw new Error('Arquivo veio vazio da origem');
-      const blobUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
-      link.href = blobUrl;
+      link.href = downloadUrl;
       link.setAttribute('download', filename);
+      link.rel = 'noopener';
       document.body.appendChild(link);
       link.click();
       link.parentNode.removeChild(link);
-      window.URL.revokeObjectURL(blobUrl);
     } catch (err) {
-      console.warn('Erro ao fazer download via fetch, abrindo nova aba:', err);
-      window.open(fetchUrl, '_blank');
+      console.warn('Erro ao iniciar o download:', err);
+      window.location.href = downloadUrl;
     }
   };
 
