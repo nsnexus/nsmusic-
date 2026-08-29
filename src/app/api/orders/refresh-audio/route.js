@@ -29,9 +29,12 @@ export const dynamic = 'force-dynamic';
 
 const MAX_ORDERS_PER_RUN = 25;
 
-// Quantos documentos a consulta traz por execução para depois filtrar em memória. Mais alto que o
-// lote porque a maioria já está com URL boa e é descartada no filtro.
-const SCAN_LIMIT = 300;
+// Quantos documentos a consulta traz por execução para depois filtrar em memória. Bem mais alto que
+// o lote porque a maioria já está com URL boa e é descartada no filtro — e porque um limite curto
+// esconde o tamanho real do problema: com 100, a rota relatou "só sobrou 1" quando ainda havia 165
+// pedidos quebrados fora da janela. Leitura de documento é barata perto de deixar cliente com link
+// morto; o custo real está nas chamadas à Kie.ai, que continuam limitadas por MAX_ORDERS_PER_RUN.
+const SCAN_LIMIT = 1000;
 
 // Depois de uma tentativa fracassada, o pedido só é tentado de novo passado este tempo. Sem isso ele
 // volta em toda execução e ocupa o lote para sempre — foi o que aconteceu com um pedido de 12/08,
