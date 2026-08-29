@@ -100,6 +100,16 @@ async function runRefresh(env, { dryRun }) {
     result.scanned++;
     const data = d.data();
     if (!needsRefresh(data)) continue;
+
+    // Sem sunoTaskId não há como perguntar à Kie.ai qual é a URL atual — pedido anterior a quando
+    // esse campo passou a ser gravado. Contabiliza e SAI da fila: se ficasse entre os candidatos,
+    // ocuparia o lote a cada execução (a consulta traz sempre os mesmos documentos primeiro) e
+    // travaria o avanço sobre os que de fato dá para recuperar.
+    if (!data.sunoTaskId) {
+      result.skippedNoTaskId++;
+      continue;
+    }
+
     candidates.push({ id: d.id, data });
   }
 
@@ -118,13 +128,6 @@ async function runRefresh(env, { dryRun }) {
 
   for (const c of candidates.slice(0, MAX_ORDERS_PER_RUN)) {
     const taskId = c.data.sunoTaskId;
-    if (!taskId) {
-      // Pedido anterior a quando o taskId passou a ser gravado — sem ele não há como perguntar à
-      // Kie.ai qual é a URL atual dessa música.
-      result.skippedNoTaskId++;
-      continue;
-    }
-
     const fresh = await fetchFreshTracks(taskId, apiKey);
     if (!fresh.ok) {
       result.failed++;
