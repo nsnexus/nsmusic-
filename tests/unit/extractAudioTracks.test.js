@@ -79,6 +79,32 @@ describe('extractAudioTracks', () => {
     expect(extractAudioTracks(result)).toEqual([]);
   });
 
+  // Achado 29/08/2026: musicfile.kie.ai (o stream de preview) parou de entregar os arquivos, mas o
+  // audioUrl do MESMO pedido continuava servindo os 5 MB. Gravar a URL errada não quebra só o
+  // player: ela vai crua pro cliente na mensagem de WhatsApp.
+  it('prefere audioUrl a streamAudioUrl quando o stream é do domínio quebrado', () => {
+    const result = [{
+      id: 'h1',
+      audioUrl: 'https://tempfile.aiquickdraw.com/r/abc123.mp3',
+      streamAudioUrl: 'https://musicfile.kie.ai/QUJD.mp3',
+    }];
+    expect(extractAudioTracks(result)[0].audio_url).toBe('https://tempfile.aiquickdraw.com/r/abc123.mp3');
+  });
+
+  it('prefere QUALQUER alternativa a musicfile, mesmo quando ela vem num campo de menor prioridade', () => {
+    const result = [{
+      id: 'h2',
+      audio_url: 'https://musicfile.kie.ai/WFla.mp3',
+      sourceAudioUrl: 'https://cdn1.suno.ai/h2.mp3',
+    }];
+    expect(extractAudioTracks(result)[0].audio_url).toBe('https://cdn1.suno.ai/h2.mp3');
+  });
+
+  it('usa musicfile quando é a única URL do payload — melhor que descartar a faixa', () => {
+    const result = [{ id: 'h3', audio_url: 'https://musicfile.kie.ai/SEg.mp3' }];
+    expect(extractAudioTracks(result)[0].audio_url).toBe('https://musicfile.kie.ai/SEg.mp3');
+  });
+
   it('captura a capa (image_url) gerada pela Kie.ai junto do áudio', () => {
     const result = [{ id: 'f1', audio_url: 'https://cdn1.suno.ai/f1.mp3', image_url: 'https://kie.ai/cover-f1.jpg' }];
     const tracks = extractAudioTracks(result);

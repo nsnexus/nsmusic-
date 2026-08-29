@@ -63,7 +63,22 @@ export const extractAudioTracks = (result) => {
       return { audio_url: t, audioUrl: t };
     }
 
-    let url = t.audio_url || t.audioUrl || t.stream_audio_url || t.streamAudioUrl || t.source_audio_url || t.sourceAudioUrl || '';
+    // Ordem de preferência entre os campos que a Kie.ai manda para a mesma faixa. `audio_url`/
+    // `audioUrl` é o arquivo definitivo; `stream_audio_url`/`streamAudioUrl` é o stream de preview.
+    //
+    // Achado 29/08/2026: o stream é servido pelo domínio musicfile.kie.ai, que parou de entregar os
+    // arquivos (403 quando o path tem sufixo, 200 com corpo VAZIO quando não tem) — enquanto o
+    // `audioUrl` do MESMO pedido, servido por outro domínio, devolvia os 5 MB normalmente. Por isso
+    // qualquer URL de musicfile.kie.ai é rebaixada para última opção: só é usada quando o payload
+    // não trouxe nenhuma alternativa. Sem isso, um payload com os dois campos podia gravar no pedido
+    // justamente a URL que não funciona — e ela vai crua para o cliente na mensagem de WhatsApp.
+    const urlCandidates = [
+      t.audio_url, t.audioUrl,
+      t.source_audio_url, t.sourceAudioUrl,
+      t.stream_audio_url, t.streamAudioUrl,
+    ].filter((u) => typeof u === 'string' && u.trim());
+
+    let url = urlCandidates.find((u) => !u.includes('musicfile.kie.ai')) || urlCandidates[0] || '';
 
     // Removido o "adiciona .mp3 automaticamente" que existia aqui desde 01/08/2026: a Kie.ai passou a
     // servir musicfile.kie.ai atrás de CloudFront com assinatura por path exato — qualquer sufixo
