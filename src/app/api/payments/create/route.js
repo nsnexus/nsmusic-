@@ -75,6 +75,13 @@ export async function POST(req) {
         paymentIntentSku: sku,
         expectedAmount: amount,
         updatedAt: new Date().toISOString(),
+        // Vínculo txid -> SKU, que é o que a aprovação precisa saber (ver C-12 / achado 30/08/2026).
+        // paymentIntentSku sozinho guarda apenas a ÚLTIMA cobrança criada: quando a aprovação chega
+        // de uma cobrança ANTERIOR (retentativa de webhook, reconciliação por cron, cliente pagando
+        // um QR antigo), ela era creditada ao produto errado — o pedido cuja música já tinha sido
+        // paga liberava o add-on recém-oferecido sem ninguém pagar por ele.
+        [`paymentIntentSkuByTxid.${charge.txid}`]: sku,
+        [`paymentIntentAmountByTxid.${charge.txid}`]: amount,
       };
       // paymentIntentId é sobrescrito a cada nova cobrança (ex: cliente troca de pacote antes de
       // pagar, ou compra o add-on de vídeo depois). Sem preservar o txid anterior em algum lugar, o

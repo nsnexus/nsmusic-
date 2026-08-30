@@ -270,3 +270,121 @@ describe('applyPaymentApproval', () => {
     expect(store['order19'].playbackAddonPaid).toBe(false);
   });
 });
+
+// ACHADO 30/08/2026 — add-on liberado sem pagamento.
+//
+// paymentIntentSku guarda apenas a ÚLTIMA cobrança criada no pedido. Quando a aprovação chegava de
+// uma cobrança ANTERIOR (retentativa de webhook da Efí, cron de reconciliação, ou cliente pagando um
+// QR Code antigo), o crédito ia para o produto errado: quem pagou a música e depois só ABRIU a
+// oferta de playback — o que já cria a cobrança e sobrescreve paymentIntentSku — ganhava o playback
+// de graça assim que qualquer notificação atrasada da música chegasse.
+//
+// A correção é o mapa paymentIntentSkuByTxid (txid -> SKU), gravado por /api/payments/create.
+describe('applyPaymentApproval — SKU vem do txid pago, não da última cobrança criada', () => {
+  it('pagamento ATRASADO da música NÃO libera o playback recém-oferecido', async () => {
+    store['order20'] = {
+      // Estado real: música paga, cliente abriu a oferta de playback (cobrança criada, não paga).
+      paymentIntentId: 'txid-playback',
+      paymentIntentSku: 'playback_addon',
+      paymentIntentSkuByTxid: {
+        'txid-musica': 'audio_only',
+        'txid-playback': 'playback_addon',
+      },
+      previousPaymentIntentIds: ['txid-musica'],
+      sunoTaskId: 'task-1',
+      audioIds: ['audio-1'],
+      paymentId: null,
+      playbackPaymentId: null,
+    };
+
+    // Chega a confirmação da MÚSICA (txid antigo), não do playback.
+    const result = await applyPaymentApproval('order20', 'txid-musica', { status: 'approved', transaction_amount: 9.99 });
+
+    expect(result.applied).toBe(true);
+    expect(result.sku).toBe('audio_only');
+    // O que importa: o playback continua bloqueado.
+    expect(store['order20'].hasPlaybackAccess).toBeUndefined();
+    expect(store['order20'].playbackAddonPaid).toBeUndefined();
+    // E a música foi corretamente aprovada.
+    expect(store['order20'].paymentStatus).toBe('PAGAMENTO_APROVADO');
+    expect(requestPlaybackGenerationMock).not.toHaveBeenCalled();
+  });
+
+  it('pagamento ATRASADO da música NÃO libera o add-on de vídeo recém-oferecido', async () => {
+    store['order21'] = {
+      paymentIntentId: 'txid-video',
+      paymentIntentSku: 'video_addon',
+      paymentIntentSkuByTxid: {
+        'txid-musica': 'audio_only',
+        'txid-video': 'video_addon',
+      },
+      previousPaymentIntentIds: ['txid-musica'],
+      paymentId: null,
+      videoPaymentId: null,
+    };
+
+    const result = await applyPaymentApproval('order21', 'txid-musica', { status: 'approved', transaction_amount: 9.99 });
+
+    expect(result.applied).toBe(true);
+    expect(result.sku).toBe('audio_only');
+    expect(store['order21'].hasVideoAccess).toBeUndefined();
+    expect(store['order21'].videoAddonPaid).toBeUndefined();
+  });
+
+  it('o pagamento do PRÓPRIO playback continua liberando normalmente', async () => {
+    store['order22'] = {
+      paymentIntentId: 'txid-playback',
+      paymentIntentSku: 'playback_addon',
+      paymentIntentSkuByTxid: {
+        'txid-musica': 'audio_only',
+        'txid-playback': 'playback_addon',
+      },
+      paymentStatus: 'PAGAMENTO_APROVADO',
+      sunoTaskId: 'task-1',
+      audioIds: ['audio-1'],
+      playbackPaymentId: null,
+    };
+
+    const result = await applyPaymentApproval('order22', 'txid-playback', { status: 'approved', transaction_amount: 4.99 });
+
+    expect(result.applied).toBe(true);
+    expect(result.sku).toBe('playback_addon');
+    expect(store['order22'].hasPlaybackAccess).toBe(true);
+    expect(requestPlaybackGenerationMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('pedido antigo sem o mapa: usa paymentIntentSku só quando o txid é o da cobrança atual', async () => {
+    store['order23'] = {
+      paymentIntentId: 'txid-atual',
+      paymentIntentSku: 'video_addon',
+      paymentId: null,
+      videoPaymentId: null,
+    };
+
+    const result = await applyPaymentApproval('order23', 'txid-atual', { status: 'approved', transaction_amount: 6.90 });
+
+    expect(result.applied).toBe(true);
+    expect(result.sku).toBe('video_addon');
+    expect(store['order23'].hasVideoAccess).toBe(true);
+  });
+
+  it('pedido antigo sem o mapa e txid DIFERENTE do atual: cai na heurística de valor, não no SKU da última cobrança', async () => {
+    store['order24'] = {
+      paymentIntentId: 'txid-playback-novo',
+      paymentIntentSku: 'playback_addon',
+      previousPaymentIntentIds: ['txid-musica-antigo'],
+      sunoTaskId: 'task-1',
+      audioIds: ['audio-1'],
+      paymentId: null,
+      playbackPaymentId: null,
+    };
+
+    // Valor de 9,99 => música, apesar de paymentIntentSku dizer playback_addon.
+    const result = await applyPaymentApproval('order24', 'txid-musica-antigo', { status: 'approved', transaction_amount: 9.99 });
+
+    expect(result.applied).toBe(true);
+    expect(result.sku).toBe('audio_only');
+    expect(store['order24'].hasPlaybackAccess).toBeUndefined();
+    expect(store['order24'].paymentStatus).toBe('PAGAMENTO_APROVADO');
+  });
+});

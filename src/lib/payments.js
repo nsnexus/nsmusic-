@@ -61,10 +61,36 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
     } else {
       const orderData = snap.data();
 
-      // A-13: usa o SKU persistido pela criação da cobrança; heurística de valor só como fallback
-      // para pedidos antigos que nunca passaram pelo novo /api/payments/create.
-      const sku = orderData.paymentIntentSku
+      // O SKU tem que ser o da cobrança QUE ESTÁ SENDO PAGA (identificada pelo txid), não o da
+      // última cobrança criada no pedido.
+      //
+      // Achado 30/08/2026: `paymentIntentSku` guarda só a cobrança mais recente. Quando a aprovação
+      // chegava de uma cobrança anterior — retentativa de webhook da Efí, cron de reconciliação, ou
+      // cliente pagando um QR Code antigo — ela era creditada ao produto errado. Na prática: quem
+      // pagou a música e depois apenas ABRIU a oferta de playback (o que já cria a cobrança e
+      // sobrescreve paymentIntentSku) ganhava o playback de graça assim que qualquer notificação
+      // atrasada da música chegasse. O mesmo valia para o add-on de vídeo.
+      //
+      // paymentIntentSkuByTxid é o mapa txid -> SKU gravado por /api/payments/create. Só caímos no
+      // paymentIntentSku quando o txid pago é mesmo o da cobrança atual (pedido criado antes do mapa
+      // existir), e na heurística de valor para os mais antigos ainda.
+      const skuByTxid = orderData.paymentIntentSkuByTxid || {};
+      const skuForThisTxid = skuByTxid[String(paymentId)];
+      // Sem paymentIntentId registrado não há como afirmar que este txid é de OUTRA cobrança — nesse
+      // caso mantém o comportamento anterior (confiar em paymentIntentSku). O bloqueio só vale
+      // quando existe evidência de que a cobrança paga é diferente da última criada.
+      const hasIntentId = Boolean(orderData.paymentIntentId);
+      const isCurrentIntent = !hasIntentId || String(orderData.paymentIntentId) === String(paymentId);
+
+      const sku = skuForThisTxid
+        || (isCurrentIntent ? orderData.paymentIntentSku : null)
         || (Math.abs(Number(payment.transaction_amount) - 6.90) < 0.01 ? 'video_addon' : 'audio_only');
+
+      if (!skuForThisTxid && !isCurrentIntent) {
+        // Cobrança antiga sem registro próprio: o SKU acima veio da heurística de valor. Fica no log
+        // para dar rastro caso um pedido antigo seja creditado ao produto errado.
+        console.warn(`[payments] txid sem SKU registrado e diferente do intent atual — SKU inferido por valor: ${sku}`);
+      }
 
       const isVideoOnly = sku === 'video_addon';
       const isPlaybackOnly = sku === 'playback_addon';
@@ -182,9 +208,15 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
       }
 
       if (shouldSend) {
-        const value = (txResult.isVideoOnly || txResult.isPlaybackOnly)
-          ? (Number(payment.transaction_amount) || getPriceForSku(txResult.sku))
-          : (Number(txResult.orderData?.expectedAmount) || Number(payment.transaction_amount) || getPriceForSku(txResult.sku));
+        // Mesmo cuidado do SKU: `expectedAmount` guarda só a última cobrança criada, então usar o
+        // valor registrado PARA ESTE txid evita reportar à Meta a receita do produto errado quando a
+        // aprovação chega de uma cobrança anterior (ver comentário do SKU, achado 30/08/2026).
+        const amountByTxid = txResult.orderData?.paymentIntentAmountByTxid || {};
+        const amountForThisTxid = Number(amountByTxid[String(paymentId)]);
+        const value = amountForThisTxid
+          || Number(payment.transaction_amount)
+          || getPriceForSku(txResult.sku)
+          || Number(txResult.orderData?.expectedAmount);
         const contentName = txResult.isVideoOnly
           ? 'Vídeo Homenagem (Add-on)'
           : txResult.isPlaybackOnly ? 'Playback Instrumental (Add-on)' : 'Música Homenagem Personalizada';
