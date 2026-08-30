@@ -23,6 +23,39 @@ export async function GET(req) {
     const orderId = searchParams.get('orderId') || searchParams.get('id');
     const phoneLast4 = searchParams.get('phoneLast4');
     const recentParam = searchParams.get('recent');
+    const gatewayParam = searchParams.get('gateway');
+
+    // ?gateway=N lista as cobranças do gateway (NSNexus Pay) mais recentes — usado para conferir se
+    // alguma foi marcada como paga sem o pagamento ter caído de fato. Não expõe dados do pagador.
+    if (gatewayParam) {
+      const n = Math.min(Math.max(parseInt(gatewayParam, 10) || 30, 1), 100);
+      const gSnap = await getDocs(query(collection(db, 'gateway_charges'), orderBy('createdAt', 'desc'), limit(n)));
+      const rows = [];
+      gSnap.forEach((d) => {
+        const data = d.data();
+        rows.push({
+          txid: d.id,
+          appId: data.appId || null,
+          externalOrderId: data.externalOrderId || null,
+          amount: data.amount ?? null,
+          status: data.status || null,
+          paidAmount: data.paidAmount ?? null,
+          createdAt: data.createdAt || null,
+          paidAt: data.paidAt || null,
+          webhookSent: Boolean(data.webhookSent),
+          webhookHttpStatus: data.webhookHttpStatus ?? null,
+          temWebhookUrl: Boolean(data.webhookUrl),
+        });
+      });
+      const pagas = rows.filter((r) => r.status === 'PAID');
+      return NextResponse.json({
+        total: rows.length,
+        pagas: pagas.length,
+        pendentes: rows.filter((r) => r.status === 'PENDING').length,
+        porApp: rows.reduce((acc, r) => { acc[r.appId || 'sem-app'] = (acc[r.appId || 'sem-app'] || 0) + 1; return acc; }, {}),
+        charges: rows,
+      });
+    }
 
     if (recentParam) {
       const n = Math.min(Math.max(parseInt(recentParam, 10) || 20, 1), 50);
