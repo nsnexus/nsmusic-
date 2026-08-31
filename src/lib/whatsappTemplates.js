@@ -1,12 +1,34 @@
 // resolveDeliveryUrl não depende de nada específico de servidor (ao contrário de src/lib/whatsapp.js,
 // que precisa de @cloudflare/next-on-pages) — arquivo separado só por isso, ver M-19 no AUDIT_REPORT.md.
 
-export function resolveDeliveryUrl(orderId) {
+import { AUDIO_CACHE_VERSION } from './audioCacheVersion.js';
+
+function resolveSiteBaseUrl() {
   const rawUrl = (process.env.NEXT_PUBLIC_SITE_URL || '').trim().replace(/\/+$/, '');
-  const baseUrl = (!rawUrl || rawUrl.includes('pages.dev') || rawUrl.includes('localhost'))
+  return (!rawUrl || rawUrl.includes('pages.dev') || rawUrl.includes('localhost'))
     ? 'https://nsmusic.nsnexus.com.br'
     : rawUrl;
-  return `${baseUrl}/entrega?orderId=${orderId}`;
+}
+
+export function resolveDeliveryUrl(orderId) {
+  return `${resolveSiteBaseUrl()}/entrega?orderId=${orderId}`;
+}
+
+// AUDIT_VERSION=2, achado 31/08/2026: o link de áudio mandado direto no WhatsApp (pagamento
+// aprovado / "cadê minha música") era a URL CRUA da CDN da Kie.ai/tempfile — o próprio arquivo mp3
+// externo, sem passar pelo nosso /api/audio/proxy. No navegador do celular isso geralmente nem toca
+// nem baixa (o app de WhatsApp abre uma aba em branco, sem player nem download automático), e ainda
+// herdava os mesmos problemas de CDN que o proxy já existe pra contornar (403/corpo vazio,
+// candidatos alternativos — ver src/app/api/audio/proxy/route.js). Passando pelo proxy com
+// `?download=`, o link abre com Content-Disposition: attachment — no celular isso já dispara o
+// download direto ao tocar no link, sem precisar de player.
+export function buildAudioDownloadLink(rawUrl, filename) {
+  if (!rawUrl) return '';
+  // Já é um link do nosso próprio proxy (ex: URL arquivada em Firebase Storage e reconstruída por
+  // outro ponto de chamada) — não precisa envelopar de novo.
+  if (rawUrl.startsWith('/api/audio/proxy') || rawUrl.includes('/api/audio/proxy?')) return rawUrl;
+  const safeFilename = (filename || 'musica.mp3').replace(/[^\w.\- ]/g, '_').slice(0, 120) || 'musica.mp3';
+  return `${resolveSiteBaseUrl()}/api/audio/proxy?url=${encodeURIComponent(rawUrl)}&download=${encodeURIComponent(safeFilename)}&v=${AUDIO_CACHE_VERSION}`;
 }
 
 /**

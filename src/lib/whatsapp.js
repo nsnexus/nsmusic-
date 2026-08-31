@@ -1,7 +1,7 @@
 import { getRequestContext } from '@cloudflare/next-on-pages';
-import { resolveDeliveryUrl, formatToWhatsAppNumber, cleanWhatsAppId } from './whatsappTemplates.js';
+import { resolveDeliveryUrl, formatToWhatsAppNumber, cleanWhatsAppId, buildAudioDownloadLink } from './whatsappTemplates.js';
 
-export { resolveDeliveryUrl, formatToWhatsAppNumber, cleanWhatsAppId };
+export { resolveDeliveryUrl, formatToWhatsAppNumber, cleanWhatsAppId, buildAudioDownloadLink };
 
 const WAPI_BASE_URL = 'https://api.w-api.app/v1';
 const DEFAULT_INSTANCE_ID = 'LITE-34O7BP-59EWJO';
@@ -149,7 +149,13 @@ export const sendPaymentApprovedTemplate = async (phone, { customerName, honoree
 
   let audiosList = '';
   if (Array.isArray(audioUrls) && audioUrls.length > 0) {
-    audiosList = audioUrls.filter(Boolean).map((link, idx) => `• *Versão ${idx + 1}:* ${link}`).join('\n');
+    // Nunca manda o link CRU da CDN da Kie.ai/tempfile direto no WhatsApp — passa pelo nosso
+    // /api/audio/proxy com `?download=`, que baixa o MP3 na hora ao tocar no link, em vez de abrir
+    // aba em branco (achado 31/08/2026, ver comentário em buildAudioDownloadLink).
+    audiosList = audioUrls
+      .filter(Boolean)
+      .map((link, idx) => `• *Versão ${idx + 1}:* ${buildAudioDownloadLink(link, `NS-Music-${honoree}-Versao-${idx + 1}.mp3`)}`)
+      .join('\n');
   }
 
   // Se o cliente comprou o vídeo (combo ou add-on), orienta sobre o envio das fotos.

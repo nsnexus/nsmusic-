@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore/lite';
 import { dbEdge as db } from '@/lib/firebase-edge';
-import { sendWApiTextMessage, resolveDeliveryUrl, isVideoPurchased } from '@/lib/whatsapp';
+import { sendWApiTextMessage, resolveDeliveryUrl, isVideoPurchased, buildAudioDownloadLink } from '@/lib/whatsapp';
 import { handleWhatsAppAgentMessage, pauseAgentForPhone, resumeAgentForPhone } from '@/lib/whatsappAgent';
 import { findRecentOrderByPhone, isNewSongIntent, findOrderByIdOrNumber, isShortAckMessage } from '@/lib/orderLookup';
 import { extractAudioFromWebhook, transcribeAudioWithFailover } from '@/lib/transcribeAudio';
@@ -531,7 +531,11 @@ export async function POST(req) {
 
         const isPaid = freshData.paymentStatus === 'PAGAMENTO_APROVADO' || freshData.paymentStatus === 'PAGO';
         const urls = (freshData.audioFiles?.length ? freshData.audioFiles : [freshData.audioUrl]).filter(Boolean);
-        const audiosList = urls.map((link, idx) => `• *Versão ${idx + 1}:* ${link}`).join('\n');
+        // Link CRU da CDN da Kie.ai/tempfile não toca nem baixa no navegador do celular — passa pelo
+        // proxy próprio com `?download=` (achado 31/08/2026, mesma correção de sendPaymentApprovedTemplate).
+        const audiosList = urls
+          .map((link, idx) => `• *Versão ${idx + 1}:* ${buildAudioDownloadLink(link, `NS-Music-${honoreeName}-Versao-${idx + 1}.mp3`)}`)
+          .join('\n');
 
         let replyMsg = '';
         if (isPaid) {
