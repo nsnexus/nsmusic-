@@ -22,6 +22,7 @@ export default function PlaybackAddonCard({ orderId, order }) {
   const [pixError, setPixError] = useState('');
   const [unlocked, setUnlocked] = useState(false);
   const [pollingTimedOut, setPollingTimedOut] = useState(false);
+  const [pixCopied, setPixCopied] = useState(false);
 
   const hasAccess = unlocked || order?.hasPlaybackAccess || order?.playbackAddonPaid;
 
@@ -81,7 +82,30 @@ export default function PlaybackAddonCard({ orderId, order }) {
             <p style={{ fontSize: '0.9rem', fontWeight: '700', marginBottom: '10px' }}>
               Escaneie pra liberar o Playback (Instrumental)
             </p>
-            <PixQrCode payload={pixInfo.qrCode} size={180} />
+            <PixQrCode payload={pixInfo.qrCode} size={180} label="QR Code para pagamento do Playback via PIX" />
+            <div style={{ margin: '12px 0 10px', textAlign: 'left' }}>
+              <label htmlFor="pix-copia-cola-playback" style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
+                Ou use o código PIX Copia e Cola:
+              </label>
+              <textarea
+                id="pix-copia-cola-playback"
+                readOnly
+                value={pixInfo.qrCode}
+                style={{ width: '100%', height: '60px', background: '#FFFFFF', color: '#0f172a', border: '1.5px solid var(--border-color)', borderRadius: '8px', padding: '10px', fontSize: '0.72rem', fontFamily: 'monospace', resize: 'none' }}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                navigator.clipboard.writeText(pixInfo.qrCode);
+                setPixCopied(true);
+                setTimeout(() => setPixCopied(false), 3000);
+              }}
+              className="btn btn-primary"
+              style={{ width: '100%', padding: '11px', borderRadius: '8px', fontWeight: 'bold', border: 'none', cursor: 'pointer' }}
+            >
+              {pixCopied ? '✅ Código PIX Copiado!' : '📋 Copiar Código PIX (R$ 4,99)'}
+            </button>
             {pollingTimedOut && (
               <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '10px' }}>
                 Ainda não identificamos o pagamento. Se já pagou, aguarde mais um instante — a confirmação
