@@ -32,6 +32,14 @@ const MAX_PAYMENT_ORDERS = 10;
 // competiria com o polling do cliente que ainda está com a aba aberta e funcionando.
 const MIN_AGE_MINUTES = 5;
 
+// Quando a Kie.ai não devolve nem sucesso nem falha (HTTP com erro na consulta, ou status
+// pendente/desconhecido que não converge), o pedido antes ficava preso em GERANDO_AUDIO pra
+// sempre — cada rodada do cron só marcava "stillProcessing" e nunca tentava de novo (achado
+// 30/08/2026: cliente reportou pedido morto em "gerando música"). A partir de MIN_AGE_MINUTES já
+// dá margem suficiente pro tempo normal de gravação (1-2 min pela doc da Kie.ai); retenta pelo
+// mesmo caminho automático usado para falha explícita, respeitando o mesmo limite de tentativas.
+const STUCK_RETRY_MINUTES = 8;
+
 function readEnv(env, name) {
   return String((env && env[name]) || process.env[name] || '').trim();
 }
@@ -63,6 +71,19 @@ async function authorize(req, env) {
 // que fazer a seguir, e é informação da nossa própria infraestrutura.
 function describeFirestoreError(err) {
   return err?.code ? String(err.code) : 'erro_desconhecido';
+}
+
+// Retentativa automática compartilhada pelos dois gatilhos: falha explícita reportada pela Kie.ai e
+// timeout de pedido travado sem status conclusivo (STUCK_RETRY_MINUTES). Mesma reserva sequencial de
+// maybeAutoRetrySunoFailure evita disparo duplo com o polling do cliente.
+async function forceStuckRetry(orderId, effectiveTaskId, env, result, motivo) {
+  const retry = await maybeAutoRetrySunoFailure({ taskId: effectiveTaskId, orderId, env, reason: motivo });
+  if (retry.retried) {
+    result.retried++;
+  } else {
+    result.failed++;
+    await recordSunoFailure(orderId, `${motivo}_${retry.reason}`);
+  }
 }
 
 async function reconcileStuckAudio(env) {
@@ -131,7 +152,11 @@ async function reconcileStuckAudio(env) {
       });
 
       if (!kieRes.ok) {
-        result.stillProcessing++;
+        if (isOlderThan(orderData.sunoRequestedAt, STUCK_RETRY_MINUTES)) {
+          await forceStuckRetry(orderDoc.id, effectiveTaskId, env, result, `kie_http_${kieRes.status}`);
+        } else {
+          result.stillProcessing++;
+        }
         continue;
       }
 
@@ -151,18 +176,17 @@ async function reconcileStuckAudio(env) {
       if (rawStatus.includes('FAIL') || rawStatus.includes('ERROR')) {
         // O cliente já fechou a aba (é por isso que o pedido chegou até aqui) — a retentativa
         // automática é a única chance de recuperar sem intervenção manual do admin.
-        const motivo = `kie_status_${rawStatus}`;
-        const retry = await maybeAutoRetrySunoFailure({ taskId: effectiveTaskId, orderId: orderDoc.id, env, reason: motivo });
-        if (retry.retried) {
-          result.retried++;
-        } else {
-          result.failed++;
-          await recordSunoFailure(orderDoc.id, `${motivo}_${retry.reason}`);
-        }
+        await forceStuckRetry(orderDoc.id, effectiveTaskId, env, result, `kie_status_${rawStatus}`);
         continue;
       }
 
-      result.stillProcessing++;
+      // Nem sucesso, nem falha explícita — status pendente/desconhecido que não converge. Sem o
+      // timeout abaixo, esse pedido ficava marcado "stillProcessing" pra sempre, rodada após rodada.
+      if (isOlderThan(orderData.sunoRequestedAt, STUCK_RETRY_MINUTES)) {
+        await forceStuckRetry(orderDoc.id, effectiveTaskId, env, result, `kie_status_travado_${rawStatus || 'vazio'}`);
+      } else {
+        result.stillProcessing++;
+      }
     } catch (err) {
       console.warn('[reconcile] Erro ao consultar a Kie.ai:', err.message);
       result.stillProcessing++;
