@@ -480,13 +480,23 @@ export async function POST(req) {
 
       // Se a música já estiver pronta:
       if (matchedOrder.audioUrl || matchedOrder.audioFiles?.length) {
+        // Estado FRESCO, não o `matchedOrder` capturado no início da requisição — é o que permite a
+        // reserva abaixo fechar a corrida (achado 30/08/2026: mesma mensagem de espera chegando 2x
+        // pro cliente no mesmo minuto, quando a W-API reentrega o evento e a segunda chamada chega
+        // antes da primeira terminar de enviar).
+        let freshData = matchedOrder;
+        try {
+          const freshSnap = await getDoc(doc(db, 'orders', matchedOrderId));
+          if (freshSnap.exists()) freshData = freshSnap.data();
+        } catch (e) {}
+
         // Se NÃO passou ID explícito (caiu aqui só porque o telefone bateu com um pedido existente)
         // E o cliente JÁ foi notificado antes (já recebeu o link da prévia ou pagamento),
         // NÃO reenvia o template completo repetidamente para qualquer mensagem comum (dúvidas, "oi", "não gostei", etc.).
         const alreadyNotified = Boolean(
-          matchedOrder.whatsappSent ||
-          matchedOrder.paymentWhatsappSent ||
-          matchedOrder.readyTemplateSent
+          freshData.whatsappSent ||
+          freshData.paymentWhatsappSent ||
+          freshData.readyTemplateSent
         );
 
         if (!isExplicitId && alreadyNotified) {
@@ -496,18 +506,31 @@ export async function POST(req) {
 
         // Mesmo COM ID explícito: não repete um template recém-enviado (ver
         // TEMPLATE_RESEND_COOLDOWN_MS) — vale para qualquer um dos três, já que todos entregam o
-        // mesmo link e o cliente veria duas mensagens praticamente iguais.
-        const recentlySent = sentWithinCooldown(matchedOrder.readyTemplateSentAt)
-          || sentWithinCooldown(matchedOrder.whatsappSentAt)
-          || sentWithinCooldown(matchedOrder.paymentWhatsappSentAt);
+        // mesmo link e o cliente veria duas mensagens praticamente iguais. `readyTemplateSending`
+        // cobre o envio em andamento AGORA (reservado abaixo) — sem timestamp ainda, porque o envio
+        // pode não ter terminado.
+        const recentlySent = sentWithinCooldown(freshData.readyTemplateSentAt)
+          || sentWithinCooldown(freshData.whatsappSentAt)
+          || sentWithinCooldown(freshData.paymentWhatsappSentAt)
+          || Boolean(freshData.readyTemplateSending);
 
         if (recentlySent) {
-          console.log(`[WhatsApp Webhook] Template de música pronta enviado há pouco para o pedido #${matchedOrderId} — não repete.`);
+          console.log(`[WhatsApp Webhook] Template de música pronta enviado (ou sendo enviado) há pouco para o pedido #${matchedOrderId} — não repete.`);
           return NextResponse.json({ success: true, ignored: 'ready_template_cooldown' }, { status: 200 });
         }
 
-        const isPaid = matchedOrder.paymentStatus === 'PAGAMENTO_APROVADO' || matchedOrder.paymentStatus === 'PAGO';
-        const urls = (matchedOrder.audioFiles?.length ? matchedOrder.audioFiles : [matchedOrder.audioUrl]).filter(Boolean);
+        // Reserva o envio ANTES de mandar a mensagem — é isso que fecha a corrida, não a checagem
+        // acima sozinha. A escrita de "enviado" só acontecia DEPOIS do envio completar, deixando uma
+        // janela do tamanho da chamada inteira (rede até a W-API incluída) em que uma segunda entrega
+        // do mesmo evento passava pela checagem sem ver nada ainda gravado. Reservar aqui reduz a
+        // janela para dois round-trips de Firestore bem próximos — mesma limitação de sempre (sem
+        // runTransaction no SDK Edge, ver payments.js), mas fecha o caso real observado.
+        try {
+          await updateDoc(doc(db, 'orders', matchedOrderId), { readyTemplateSending: true });
+        } catch (e) {}
+
+        const isPaid = freshData.paymentStatus === 'PAGAMENTO_APROVADO' || freshData.paymentStatus === 'PAGO';
+        const urls = (freshData.audioFiles?.length ? freshData.audioFiles : [freshData.audioUrl]).filter(Boolean);
         const audiosList = urls.map((link, idx) => `• *Versão ${idx + 1}:* ${link}`).join('\n');
 
         let replyMsg = '';

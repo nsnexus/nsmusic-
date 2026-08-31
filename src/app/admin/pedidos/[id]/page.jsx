@@ -31,6 +31,8 @@ export default function OrderDetailsAdmin() {
   const [hasVideoAccess, setHasVideoAccess] = useState(false);
   const [notifying, setNotifying] = useState(false);
   const [notifyMsg, setNotifyMsg] = useState('');
+  const [checkingPayment, setCheckingPayment] = useState(false);
+  const [checkPaymentMsg, setCheckPaymentMsg] = useState('');
   const [copiedClientLink, setCopiedClientLink] = useState(false);
 
   const [sunoPrompt, setSunoPrompt] = useState('');
@@ -182,6 +184,51 @@ export default function OrderDetailsAdmin() {
     } finally {
       setNotifying(false);
       setTimeout(() => setNotifyMsg(''), 5000);
+    }
+  };
+
+  // Reconsulta a Efí AGORA pra este pedido, em vez de esperar o webhook ou a reconciliação por cron
+  // (a cada 10min) — achado 30/08/2026: pedido pago de verdade só foi aprovado pelo sistema minutos
+  // DEPOIS de o admin ter editado paymentStatus manualmente aqui na tela, achando que precisava
+  // forçar. Editar o campo direto pula a verificação real (payments.md) e não grava paymentId/paidAt
+  // (só o form de baixo faz isso — quem grava esses dois é sempre applyPaymentApproval). Este botão
+  // dá o mesmo resultado — na hora — sem abrir mão de checar de verdade: chama a mesma rota pública
+  // que o polling do cliente usa, que só aprova depois de confirmar na Efí.
+  const handleCheckPaymentNow = async () => {
+    const txid = order?.paymentIntentId;
+    if (!txid) {
+      setCheckPaymentMsg('❌ Este pedido não tem cobrança Pix registrada (paymentIntentId ausente).');
+      setTimeout(() => setCheckPaymentMsg(''), 6000);
+      return;
+    }
+
+    setCheckingPayment(true);
+    setCheckPaymentMsg('');
+    try {
+      const res = await fetch(`/api/payments/status?orderId=${orderId}&paymentId=${encodeURIComponent(txid)}`);
+      const data = await res.json().catch(() => ({}));
+
+      if (data.status === 'approved') {
+        // A rota já rodou applyPaymentApproval (paymentStatus/paymentId/paidAt gravados de verdade)
+        // — só falta refletir aqui na tela sem precisar recarregar a página inteira.
+        const docSnap = await getDoc(doc(db, 'orders', orderId));
+        if (docSnap.exists()) {
+          const freshData = docSnap.data();
+          setOrder(freshData);
+          setPaymentStatus(freshData.paymentStatus || 'PENDENTE');
+          setHasVideoAccess(Boolean(freshData.hasVideoAccess || freshData.videoAddonPaid));
+        }
+        setCheckPaymentMsg('✅ Pagamento confirmado na Efí e aprovado agora!');
+      } else if (data.status === 'pending') {
+        setCheckPaymentMsg('⏳ A Efí ainda não confirma este pagamento. Se o cliente já pagou, pode levar alguns instantes.');
+      } else {
+        setCheckPaymentMsg(`❌ ${data.error || 'Não foi possível verificar agora.'}`);
+      }
+    } catch (err) {
+      setCheckPaymentMsg('❌ Falha ao consultar a Efí.');
+    } finally {
+      setCheckingPayment(false);
+      setTimeout(() => setCheckPaymentMsg(''), 8000);
     }
   };
 
@@ -451,6 +498,22 @@ export default function OrderDetailsAdmin() {
                       <option value="PAGO">PAGO</option>
                       <option value="RECUSADO">RECUSADO</option>
                     </select>
+
+                    {order.paymentStatus !== 'PAGAMENTO_APROVADO' && order.paymentStatus !== 'PAGO' && order.paymentIntentId && (
+                      <div style={{ marginTop: '8px' }}>
+                        <button
+                          type="button"
+                          onClick={handleCheckPaymentNow}
+                          disabled={checkingPayment}
+                          style={{ ...styles.quickActionBtn, background: checkingPayment ? '#94a3b8' : '#2563eb', color: '#fff', cursor: checkingPayment ? 'default' : 'pointer' }}
+                          title="Consulta a Efí agora, na hora — não espera o webhook nem os 10min da reconciliação automática"
+                        >
+                          {checkingPayment ? '⏳ Consultando a Efí...' : '🔍 Verificar pagamento agora (Efí)'}
+                        </button>
+                        {checkPaymentMsg && <p style={{ fontSize: '0.8rem', marginTop: '6px', color: checkPaymentMsg.startsWith('✅') ? '#059669' : checkPaymentMsg.startsWith('⏳') ? '#d97706' : '#dc2626' }}>{checkPaymentMsg}</p>}
+                      </div>
+                    )}
+
                     {(order.paymentStatus === 'PAGAMENTO_APROVADO' || order.paymentStatus === 'PAGO') && (
                       <div style={{ marginTop: '8px' }}>
                         <button
