@@ -337,12 +337,20 @@ export default function AdminDashboard() {
       if (musicAmount === null) musicAmount = parseAmount(o.expectedAmount, null);
       if (musicAmount === null || musicAmount === 0) musicAmount = AUDIO_PRICE;
       // Vídeo concedido pelo próprio SKU da música (combo/recovery_combo) tem hasVideoAccess sem
-      // videoPaymentId próprio — é a mesma cobrança, não soma de novo.
+      // videoPaymentId próprio — é a mesma cobrança, uma única cobrança paga por dois produtos.
+      // Separa em dois itens (preço base da música + o excedente) pra sempre aparecer a seta de
+      // detalhamento quando o cliente levou os dois, mesmo pagando tudo de uma vez só (achado do
+      // admin, 31/08/2026: combo não mostrava a seta porque virava um item só).
       const videoIncludedNoCharge = Boolean(o.hasVideoAccess && !o.videoPaymentId);
-      items.push({
-        label: videoIncludedNoCharge ? '🎵 Música + 🎬 Vídeo (combo)' : '🎵 Música',
-        amount: musicAmount,
-      });
+      if (videoIncludedNoCharge && musicAmount > AUDIO_PRICE) {
+        items.push({ label: '🎵 Música (combo)', amount: AUDIO_PRICE });
+        items.push({ label: '🎬 Vídeo (combo)', amount: musicAmount - AUDIO_PRICE });
+      } else {
+        items.push({
+          label: videoIncludedNoCharge ? '🎵 Música + 🎬 Vídeo (combo)' : '🎵 Música',
+          amount: musicAmount,
+        });
+      }
     }
 
     if (o.videoAddonPaid && o.videoPaymentId) {
