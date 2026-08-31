@@ -30,6 +30,16 @@ export default function AdminDashboard() {
   const [productionStatusFilter, setProductionStatusFilter] = useState('ALL');
   const [sortBy, setSortBy] = useState('createdAt_desc'); // 'createdAt_desc'|'createdAt_asc'|'paidAt_desc'|'paidAt_asc'
 
+  // Linhas da tabela com o detalhamento de produtos (Valor) expandido — ver getOrderProductBreakdown.
+  const [expandedValueRows, setExpandedValueRows] = useState(() => new Set());
+  const toggleValueExpanded = (orderId) => {
+    setExpandedValueRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(orderId)) next.delete(orderId); else next.add(orderId);
+      return next;
+    });
+  };
+
   // Controle Master do Agente de IA do WhatsApp
   const [agentEnabled, setAgentEnabled] = useState(true);
   const [togglingAgent, setTogglingAgent] = useState(false);
@@ -310,6 +320,46 @@ export default function AdminDashboard() {
   // nunca de `paymentStatus` — nunca bateram, é código morto de uma confusão entre os dois campos.
   const AUDIO_PRICE = getPriceForSku('audio_only'); // 9.99, preço base sem variação por pedido
   const VIDEO_PRICE = getPriceForSku('video_addon'); // 6.90
+  const PLAYBACK_PRICE = getPriceForSku('playback_addon'); // 4.99
+
+  // Reconstrói o que o pedido tem CONFIRMADO por produto (música / vídeo / playback), a partir dos
+  // flags que applyPaymentApproval grava por aprovação — nunca de `expectedAmount`, que é
+  // sobrescrito a cada nova cobrança criada em /api/payments/create. Antes disso, a coluna Valor da
+  // tabela "regredia" pro preço do add-on assim que o cliente comprava vídeo/playback depois da
+  // música, escondendo o que já tinha sido pago (achado do admin, 31/08/2026).
+  const getOrderProductBreakdown = (o) => {
+    const amountByTxid = o.paymentIntentAmountByTxid || {};
+    const items = [];
+    const isPaidMusic = o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'PAGO';
+
+    if (isPaidMusic) {
+      let musicAmount = parseAmount(amountByTxid[o.paymentId], null);
+      if (musicAmount === null) musicAmount = parseAmount(o.expectedAmount, null);
+      if (musicAmount === null || musicAmount === 0) musicAmount = AUDIO_PRICE;
+      // Vídeo concedido pelo próprio SKU da música (combo/recovery_combo) tem hasVideoAccess sem
+      // videoPaymentId próprio — é a mesma cobrança, não soma de novo.
+      const videoIncludedNoCharge = Boolean(o.hasVideoAccess && !o.videoPaymentId);
+      items.push({
+        label: videoIncludedNoCharge ? '🎵 Música + 🎬 Vídeo (combo)' : '🎵 Música',
+        amount: musicAmount,
+      });
+    }
+
+    if (o.videoAddonPaid && o.videoPaymentId) {
+      let videoAmount = parseAmount(amountByTxid[o.videoPaymentId], null);
+      if (videoAmount === null || videoAmount === 0) videoAmount = VIDEO_PRICE;
+      items.push({ label: '🎬 Vídeo (add-on)', amount: videoAmount });
+    }
+
+    if (o.playbackAddonPaid && o.playbackPaymentId) {
+      let playbackAmount = parseAmount(amountByTxid[o.playbackPaymentId], null);
+      if (playbackAmount === null || playbackAmount === 0) playbackAmount = PLAYBACK_PRICE;
+      items.push({ label: '🎧 Playback (add-on)', amount: playbackAmount });
+    }
+
+    const total = items.reduce((sum, item) => sum + item.amount, 0);
+    return { items, total };
+  };
 
   // Divide o valor pago entre os dois cards abaixo em vez de jogar tudo em "Músicas": um combo
   // (música + vídeo comprados juntos, sku 'combo', R$16,89) tem o vídeo embutido no mesmo
@@ -1031,15 +1081,33 @@ export default function AdminDashboard() {
                               </td>
                               <td style={{ ...styles.td, fontWeight: '700' }}>
                                 {(() => {
-                                  const isPaidOrder = o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'PAGO';
-                                  // Mesma resolução da soma do topo (expectedAmount do servidor, com
-                                  // fallback pro total antigo) — nunca um valor fixo de 9,99 quando o
-                                  // real é desconhecido, isso mascarava pedidos sem valor gravado e
-                                  // fazia a lista "parecer" ter mais faturamento do que a soma real.
-                                  const amount = Number(o.expectedAmount) || Number(o.total) || null;
-                                  if (!isPaidOrder) return <span style={{ color: '#94a3b8' }}>Não pago</span>;
-                                  if (amount === null) return <span style={{ color: '#d97706' }}>Valor desconhecido</span>;
-                                  return <span style={{ color: '#059669' }}>R$ {amount.toFixed(2).replace('.', ',')}</span>;
+                                  const { items, total } = getOrderProductBreakdown(o);
+                                  if (items.length === 0) return <span style={{ color: '#94a3b8', fontWeight: '500' }}>Não pago</span>;
+                                  const isExpanded = expandedValueRows.has(o.id);
+                                  return (
+                                    <div>
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleValueExpanded(o.id)}
+                                        title={isExpanded ? 'Ocultar produtos confirmados' : 'Ver produtos confirmados'}
+                                        style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: '#059669', fontWeight: '700', fontSize: 'inherit', fontFamily: 'inherit' }}
+                                      >
+                                        R$ {total.toFixed(2).replace('.', ',')}
+                                        {items.length > 1 && (
+                                          <span style={{ fontSize: '0.7rem', color: '#64748b' }}>{isExpanded ? '▲' : '▼'}</span>
+                                        )}
+                                      </button>
+                                      {isExpanded && items.length > 1 && (
+                                        <div style={{ marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                                          {items.map((item) => (
+                                            <span key={item.label} style={{ fontSize: '0.7rem', fontWeight: '600', color: '#334155', whiteSpace: 'nowrap' }}>
+                                              {item.label}: R$ {item.amount.toFixed(2).replace('.', ',')}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
                                 })()}
                               </td>
                               <td style={styles.td}>
