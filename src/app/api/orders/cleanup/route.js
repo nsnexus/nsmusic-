@@ -25,6 +25,17 @@ export const dynamic = 'force-dynamic';
 
 const RETENTION_DAYS = 10;
 
+// Fotos do slideshow (upload feito pelo cliente pra gerar o Vídeo Homenagem, ver entrega/page.jsx)
+// já são apagadas do Storage pelo PRÓPRIO NAVEGADOR assim que o vídeo termina de renderizar — mas
+// isso só acontece no caminho feliz. Se o cliente fecha a aba, a conexão cai, ou a renderização
+// falha no meio (videoStatus fica 'GERANDO' ou 'ERRO'), as fotos ficam órfãs no Storage pra sempre —
+// ninguém mais aponta pra elas, e o cliente normalmente nem volta pra tentar de novo (pedido do
+// admin, 02/09/2026). Retenção bem mais curta que RETENTION_DAYS: são fotos de terceiros
+// (homenageado), não o produto pago em si, e não faz sentido guardar por 10 dias uma tentativa
+// abandonada de vídeo.
+const STALE_PHOTO_HOURS = 48;
+const MAX_PHOTO_ORDERS_PER_RUN = 30;
+
 // Teto por execução: cada pedido custa leitura + escrita + chamadas ao Storage, e o Edge Runtime tem
 // limite de CPU e de subrequests por requisição. O cron roda diariamente, então o backlog é
 // consumido em algumas execuções em vez de tentar tudo de uma vez e estourar no meio.
@@ -109,6 +120,84 @@ async function deleteRelatedTasks(orderId) {
     console.warn('[cleanup] Erro ao listar suno_tasks do pedido:', err.message);
   }
   return removed;
+}
+
+// O nome do arquivo no Storage começa com Date.now() no momento do upload (ver
+// `orders/${orderId}/photos/${Date.now()}_${i}_${nome}` em entrega/page.jsx) — dá pra saber a idade
+// real de cada foto sem precisar de uma chamada de metadata extra por arquivo. A URL pública tem a
+// barra do path escapada (%2F), por isso decodeURIComponent antes de casar o padrão.
+function extractPhotoTimestamp(rawUrl) {
+  try {
+    const decodedPath = decodeURIComponent(new URL(rawUrl).pathname);
+    const match = decodedPath.match(/\/photos\/(\d{10,})_/);
+    return match ? Number(match[1]) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+// Limpa fotos de slideshow órfãs (upload feito, vídeo nunca terminou de gerar) com mais de
+// STALE_PHOTO_HOURS. Não apaga o pedido nem toca em `paymentStatus`/áudio — só o array
+// `slideshowImages` e os arquivos que ele aponta. `videoStatus` cobre os dois jeitos de travar: preso
+// em 'GERANDO' (aba fechada no meio) ou 'ERRO' (falhou e o cliente nunca tentou de novo).
+async function cleanupStalePhotos(env, { dryRun }) {
+  const result = { checked: 0, ordersCleaned: 0, filesDeleted: 0, errors: 0, dryRun };
+
+  let snap;
+  try {
+    snap = await getDocs(query(
+      collection(db, 'orders'),
+      where('videoStatus', 'in', ['GERANDO', 'ERRO']),
+      limit(MAX_PHOTO_ORDERS_PER_RUN)
+    ));
+  } catch (err) {
+    console.warn('[cleanup] Falha ao listar pedidos com fotos pendentes:', err.message);
+    return { ...result, error: err?.code || 'consulta_falhou' };
+  }
+
+  const cutoffMs = Date.now() - STALE_PHOTO_HOURS * 60 * 60 * 1000;
+
+  for (const d of snap.docs) {
+    const data = d.data();
+    const photos = Array.isArray(data.slideshowImages) ? data.slideshowImages.filter((u) => typeof u === 'string') : [];
+    if (photos.length === 0) continue;
+
+    // Sem timestamp legível no nome (pedido bem antigo, formato mudou), trata como antiga — mesma
+    // postura conservadora de isOlderThan em api/orders/reconcile: preferir limpar a acumular pra
+    // sempre um caso que não deveria existir no fluxo atual.
+    const isStale = photos.every((url) => {
+      const ts = extractPhotoTimestamp(url);
+      return ts === null || ts < cutoffMs;
+    });
+    if (!isStale) continue;
+
+    result.checked++;
+    if (dryRun) continue;
+
+    let allDeleted = true;
+    for (const url of photos) {
+      const ok = await deleteStorageFile(url);
+      if (ok) result.filesDeleted++; else allDeleted = false;
+    }
+
+    if (allDeleted) {
+      try {
+        await updateDoc(doc(db, 'orders', d.id), {
+          slideshowImages: [],
+          updatedAt: new Date().toISOString(),
+        });
+        result.ordersCleaned++;
+      } catch (err) {
+        result.errors++;
+        console.warn(`[cleanup] Falha ao limpar slideshowImages do pedido ${d.id}:`, err.message);
+      }
+    } else {
+      result.errors++;
+    }
+  }
+
+  if (dryRun) result.wouldClean = result.checked;
+  return result;
 }
 
 async function runCleanup(env, { dryRun }) {
@@ -225,8 +314,12 @@ export async function GET(req) {
   const auth = await authorize(req, env);
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
-  const result = await runCleanup(env, { dryRun: true });
-  return NextResponse.json(result);
+  const orders = await runCleanup(env, { dryRun: true });
+  const photos = await cleanupStalePhotos(env, { dryRun: true }).catch((err) => {
+    console.error('[cleanup] Falha inesperada na fase de fotos:', err.message);
+    return { error: 'falha_inesperada' };
+  });
+  return NextResponse.json({ orders, photos });
 }
 
 // POST = execução real, salvo com ?dryRun=true.
@@ -242,8 +335,19 @@ export async function POST(req) {
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
     const dryRun = new URL(req.url).searchParams.get('dryRun') === 'true';
-    const result = await runCleanup(env, { dryRun });
+    const orders = await runCleanup(env, { dryRun });
 
+    // Fase independente (mesmo padrão de api/orders/reconcile): uma falha aqui nunca pode impedir a
+    // limpeza de pedidos antigos, que já rodou e é a que mais pesa no custo de armazenamento.
+    let photos;
+    try {
+      photos = await cleanupStalePhotos(env, { dryRun });
+    } catch (err) {
+      console.error('[cleanup] Falha inesperada na fase de fotos:', err.message);
+      photos = { error: 'falha_inesperada' };
+    }
+
+    const result = { orders, photos };
     console.log('[cleanup] Resultado:', JSON.stringify(result));
     return NextResponse.json(result);
   } catch (error) {
