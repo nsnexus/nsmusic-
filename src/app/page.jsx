@@ -1,8 +1,12 @@
 "use client";
 import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
+import HeroVideoBackground from '@/components/HeroVideoBackground';
 import Image from 'next/image';
 import { Sparkles, Gift, Headphones, Star, Clock, ShieldCheck, Music, Flame, Check, ChevronDown, Heart } from 'lucide-react';
+
+// Milhar com ponto, padrão brasileiro (1924 -> 1.924).
+const formatarNumero = (n) => Number(n || 0).toLocaleString('pt-BR');
 
 export default function Home() {
   const [playingId, setPlayingId] = useState(null);
@@ -13,6 +17,29 @@ export default function Home() {
   
   const audioRef = useRef(null);
   const examplesSectionRef = useRef(null);
+
+  // Prova social com número real (stats/_live, uma leitura só — ver src/lib/liveStats.js).
+  // Começa com os números conhecidos no dia em que isso entrou no ar: assim a home nunca pisca
+  // "+0 músicas" enquanto a consulta não volta, nem some se a consulta falhar.
+  // A base guarda GERAÇÕES; cada geração entrega 2 versões, então as músicas exibidas são x2.
+  // Os valores iniciais são os reais medidos no dia em que isso entrou no ar: a home nunca pisca
+  // "+0 músicas" enquanto a consulta não volta, nem some se a consulta falhar.
+  const [stats, setStats] = useState({ generations: 2423, sales: 962 });
+
+  useEffect(() => {
+    let ativo = true;
+    fetch('/api/stats/public')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        // Só sobrescreve com número maior que zero: contador ainda não semeado devolveria 0 e faria
+        // a vitrine anunciar menos do que o estúdio realmente entregou.
+        if (ativo && d && (d.generations > 0 || d.sales > 0)) {
+          setStats({ generations: d.generations || 0, sales: d.sales || 0 });
+        }
+      })
+      .catch(() => {});
+    return () => { ativo = false; };
+  }, []);
 
   const examples = [
     {
@@ -140,7 +167,7 @@ export default function Home() {
   return (
     <div style={styles.wrapper}>
       {/* Header / Navbar */}
-      <header style={styles.header} className="glass-panel">
+      <header style={styles.header} className="glass-panel header-dark">
         <div style={styles.headerContainer}>
           <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none' }}>
             <Image src="/logo.png" alt="NSMusic" width={38} height={38} style={{ height: '38px', width: 'auto' }} priority />
@@ -202,25 +229,48 @@ export default function Home() {
       )}
 
       {/* Hero Section — fundo escuro ecoando a logo (azul/violeta/magenta), pedido do usuário em 2026-08-02 */}
-      <section style={styles.hero} className="hero-dark">
-        <div className="hero-orb hero-orb-1" style={{ width: '560px', height: '560px', top: '-220px', left: '50%', marginLeft: '-280px' }} />
-        <div className="hero-orb hero-orb-2" style={{ width: '440px', height: '440px', bottom: '-180px', right: '-80px' }} />
-        <div className="hero-orb hero-orb-3" style={{ width: '420px', height: '420px', bottom: '-160px', left: '-100px' }} />
-        <div className="container" style={styles.heroContainer}>
+      <section style={{ ...styles.hero, position: 'relative' }} className="hero-dark">
+        {/* Vídeo de fundo (10s em câmera lenta, ~30s, em loop) — substituiu os orbs animados.
+            Fica atrás de tudo; o conteúdo abaixo sobe com zIndex/position própria. */}
+        <HeroVideoBackground />
+        <div className="container" style={{ position: 'relative', zIndex: 1, width: '100%' }}>
+          <div className="hero-conteudo">
           <div style={{ ...styles.heroBadge, display: 'inline-flex', alignItems: 'center', gap: '8px', animationDelay: '0s' }} className="hero-rise">
             <Sparkles size={15} aria-hidden="true" />
             <span>Composta por IA, do zero, pra vocês</span>
           </div>
 
           <h1 style={{ ...styles.heroTitle, animationDelay: '0.1s' }} className="hero-rise">
-            Uma canção que <span className="hero-gradient-text">só existe porque vocês existem</span>
+            Uma canção que <span className="hero-gradient-text">só existe porque </span>
+            {/* "vocês existem" ganha o traço curvo do mockup. O SVG fica DENTRO do span para
+                acompanhar a quebra de linha do título — um traço posicionado por cima, em
+                coordenadas fixas, sairia do lugar assim que a frase quebrasse em outro ponto. */}
+            <span className="hero-gradient-text hero-sublinhado">
+              vocês existem
+              <svg viewBox="0 0 300 14" preserveAspectRatio="none" aria-hidden="true">
+                <defs>
+                  <linearGradient id="tracoHero" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stopColor="#38BDF8" />
+                    <stop offset="50%" stopColor="#A855F7" />
+                    <stop offset="100%" stopColor="#EC4899" />
+                  </linearGradient>
+                </defs>
+                <path
+                  d="M4 10 C 70 3, 150 2, 296 6"
+                  fill="none"
+                  stroke="url(#tracoHero)"
+                  strokeWidth="6"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </span>
           </h1>
 
           <p style={{ ...styles.heroSubtitle, animationDelay: '0.2s' }} className="hero-rise">
             Nossa IA escreve a letra, compõe a melodia e canta a história de vocês do zero, com qualidade de estúdio, pronta em minutos. Uma canção assim nunca existiu, porque a sua história é só sua.
           </p>
 
-          <div style={{ ...styles.heroActions, animationDelay: '0.3s' }} className="hero-rise">
+          <div style={{ ...styles.heroActions, animationDelay: '0.3s' }} className="hero-rise hero-botoes">
             <Link href="/criar" className="btn btn-primary" style={{ ...styles.heroPrimaryCta, display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
               <Gift size={18} aria-hidden="true" /> Criar nossa música agora
             </Link>
@@ -229,17 +279,54 @@ export default function Home() {
             </a>
           </div>
 
-          <div className="eq-container hero-rise" style={{ marginBottom: '10px', animationDelay: '0.4s' }} aria-hidden="true">
-            <div className="eq-bar eq-bar-1" /><div className="eq-bar eq-bar-2" /><div className="eq-bar eq-bar-3" />
-            <div className="eq-bar eq-bar-4" /><div className="eq-bar eq-bar-5" /><div className="eq-bar eq-bar-6" />
+          <div style={{ ...styles.heroTrust, color: '#ADA3D9', animationDelay: '0.5s' }} className="hero-rise hero-prova">
+            {/* Cada item: ícone + valor em destaque + rótulo embaixo, como no mockup. Em grid (e não
+                em linha que quebra sozinha) porque com 4 itens a quebra deixava um sobrando
+                desalinhado no meio da caixa. */}
+            <span className="hero-prova-item">
+              <Heart size={17} aria-hidden="true" />
+              <span>
+                <strong>+{formatarNumero(stats.generations * 2)}</strong>
+                músicas produzidas
+              </span>
+            </span>
+            <span className="hero-prova-item">
+              <Star size={17} aria-hidden="true" />
+              <span>
+                <strong>+{formatarNumero(stats.sales)}</strong>
+                clientes satisfeitos
+              </span>
+            </span>
+            <span className="hero-prova-item">
+              <Clock size={17} aria-hidden="true" />
+              <span>
+                <strong>Entrega</strong>
+                rápida
+              </span>
+            </span>
+            <span className="hero-prova-item">
+              <ShieldCheck size={17} aria-hidden="true" />
+              <span>
+                <strong>Garantia</strong>
+                de aprovação
+              </span>
+            </span>
           </div>
-
-          <div style={{ ...styles.heroTrust, color: '#ADA3D9', animationDelay: '0.5s' }} className="hero-rise">
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><Heart size={15} aria-hidden="true" /> +2.400 músicas produzidas</span>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><Clock size={15} aria-hidden="true" /> Entrega rápida</span>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><ShieldCheck size={15} aria-hidden="true" /> Garantia de aprovação</span>
           </div>
         </div>
+
+        {/* Curva de transição pro conteúdo claro (mockup aprovado, 03/09/2026): o branco sobe nas
+            laterais e desce no centro. Feito em SVG, e não com border-radius, porque a curva precisa
+            manter o formato em qualquer largura — `preserveAspectRatio="none"` estica só na
+            horizontal. Fica por cima do vídeo e sem interferir em clique. */}
+        <svg
+          viewBox="0 0 1440 110"
+          preserveAspectRatio="none"
+          aria-hidden="true"
+          className="hero-curva"
+        >
+          <path d="M0,0 C 400,88 1040,88 1440,0 L1440,110 L0,110 Z" fill="var(--bg-primary)" />
+        </svg>
       </section>
 
       {/* How it works Section */}
@@ -552,7 +639,8 @@ const styles = {
     borderTop: 'none',
     borderLeft: 'none',
     borderRight: 'none',
-    backgroundColor: 'rgba(247, 248, 252, 0.9)',
+    // Cor real vem de .header-dark (globals.css) — mantido aqui só como fallback se o CSS não carregar.
+    backgroundColor: 'rgba(8, 5, 20, 0.88)',
   },
   headerContainer: {
     maxWidth: '1200px',
@@ -570,6 +658,10 @@ const styles = {
   hero: {
     position: 'relative',
     padding: '96px 0 76px 0',
+    // Altura maior desde que a hero passou a ter vídeo de fundo (03/09/2026): com o padding sozinho
+    // a arte aparecia numa faixa fina e cortada. `min-height` (não `height`) para o bloco ainda
+    // crescer se o texto quebrar em mais linhas no celular.
+    minHeight: '88vh',
     textAlign: 'center',
     display: 'flex',
     flexDirection: 'column',
@@ -608,12 +700,11 @@ const styles = {
     maxWidth: '620px',
     marginBottom: '32px',
   },
+  // Direção/largura ficam na classe .hero-botoes (globals.css), não aqui: estilo inline vence
+  // media query, então mantê-los aqui impedia os botões de ficarem lado a lado no desktop.
   heroActions: {
     display: 'flex',
     gap: '12px',
-    flexDirection: 'column',
-    width: '100%',
-    maxWidth: '450px',
     marginBottom: '28px',
   },
   heroPrimaryCta: {

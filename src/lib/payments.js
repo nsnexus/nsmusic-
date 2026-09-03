@@ -169,6 +169,17 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
   if (txResult.applied) {
     if (!txResult.isVideoOnly && !txResult.isPlaybackOnly && !txResult.isCartaOnly && !txResult.isRetroOnly) {
       await notifyPaymentApproved(orderRef, txResult.orderData);
+
+      // Contador de vendas da vitrine da home (stats/_live). Só neste ramo: add-on isolado é receita,
+      // mas não é cliente novo — contá-lo inflaria o número de clientes com a mesma pessoa.
+      // A idempotência já está garantida acima: este bloco só roda quando a aprovação foi de fato
+      // aplicada (paymentId novo), nunca em reentrega de webhook.
+      try {
+        const { addSale } = await import('./liveStats.js');
+        await addSale();
+      } catch (err) {
+        console.warn('[payments] Falha ao somar venda no contador da home:', err.message);
+      }
     }
 
     // Playback (instrumental) é gerado automaticamente assim que o pagamento do add-on é aprovado —

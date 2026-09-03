@@ -279,14 +279,17 @@ a {
   gap: 28px;
 }
 
-@media (max-width: 767px) {
+/* 1023px, não 767: no tablet (768–1023) o menu completo mais os dois botões não cabiam na barra —
+   "Como Funciona" quebrava em duas linhas e o botão "Criar" saía da tela (achado 03/09/2026).
+   Até essa largura o site usa o menu hambúrguer. */
+@media (max-width: 1023px) {
   .nav-menu,
   .desktop-only {
     display: none !important;
   }
 }
 
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
   .mobile-only {
     display: none !important;
   }
@@ -326,7 +329,7 @@ a {
   transition: all 0.3s ease;
 }
 
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
   .mobile-nav-toggle {
     display: none;
   }
@@ -510,4 +513,183 @@ label {
   font-size: 0.95rem;
   color: var(--text-primary);
   margin-bottom: 6px;
+}
+
+/* ============================================================
+   HERO COM VÍDEO DE FUNDO (03/09/2026)
+   Layout espelhando os mockups aprovados: no desktop o texto vai à ESQUERDA, deixando a arte do
+   vídeo aparecer à direita; no celular tudo volta a ser centralizado, empilhado. Media query em
+   CSS (e não estilo inline) porque inline não faz responsivo.
+   ============================================================ */
+.hero-conteudo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  width: 100%;
+}
+
+/* Prova social em card, como no mockup — antes era uma linha solta de texto. */
+.hero-botoes {
+  flex-direction: column;
+  width: 100%;
+  max-width: 450px;
+}
+
+.hero-prova {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 10px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  background: rgba(18, 12, 38, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(6px);
+}
+
+@media (min-width: 900px) {
+  .hero-conteudo {
+    align-items: flex-start;
+    text-align: left;
+    /* Metade da largura: a outra metade fica livre pra arte do vídeo, como no mockup. */
+    max-width: 56%;
+    margin-right: auto;
+  }
+
+  /* Botões lado a lado no desktop. */
+  .hero-botoes {
+    flex-direction: row;
+    width: auto;
+    max-width: none;
+  }
+  .hero-botoes > * {
+    width: auto;
+    /* Sem isso "Criar nossa música agora" quebra em duas linhas dentro do botão. */
+    white-space: nowrap;
+  }
+
+  .hero-prova {
+    grid-template-columns: repeat(4, auto);
+    gap: 22px;
+    padding: 16px 24px;
+  }
+}
+
+/* Título maior no desktop, proporção do mockup (no celular segue o tamanho atual, que já cabe). */
+@media (min-width: 900px) {
+  .hero-conteudo h1 { font-size: 3.4rem; }
+  .hero-conteudo p { font-size: 1.15rem; }
+}
+
+/* ============================================================
+   HEADER ESCURO DA HOME (03/09/2026) — espelha o mockup aprovado.
+   Escopo restrito a .header-dark: o mesmo componente de header é claro nas outras telas, e o tema
+   global do site continua claro. Sem isso, os links herdam --text-secondary (escuro) e ficariam
+   ilegíveis sobre o fundo preto.
+   ============================================================ */
+.header-dark {
+  background-color: rgba(8, 5, 20, 0.88) !important;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow: none !important;
+}
+
+.header-dark .nav-menu-link {
+  color: #E8E4F7;
+  font-size: 1rem;
+}
+
+.header-dark .nav-menu-link:hover {
+  color: #C084FC;
+}
+
+/* "Minhas Músicas": contorno claro em pill, como no mockup (o btn-secondary padrão é claro). */
+.header-dark .btn-secondary {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  color: #F4F1FF !important;
+  border-radius: 100px !important;
+}
+
+.header-dark .btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border-color: rgba(255, 255, 255, 0.3) !important;
+}
+
+.header-dark .btn-primary {
+  border-radius: 100px !important;
+}
+
+/* Hambúrguer branco — as barras herdavam a cor escura do tema claro e sumiam no fundo preto. */
+.header-dark .mobile-nav-bar {
+  background-color: #F4F1FF;
+}
+
+/* Traço curvo sob "vocês existem" na hero (mockup aprovado, 03/09/2026).
+   `inline-block` para o SVG poder se posicionar em relação à palavra; o SVG estica na largura do
+   texto (preserveAspectRatio="none"), então funciona igual em qualquer tamanho de tela. */
+.hero-sublinhado {
+  position: relative;
+  display: inline-block;
+}
+
+.hero-sublinhado svg {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -0.18em;
+  width: 100%;
+  height: 0.22em;
+  overflow: visible;
+  pointer-events: none;
+}
+
+/* Curva na base da hero. Altura menor no celular: a MESMA curva numa largura pequena parece muito
+   mais funda — no 375px ela virava quase um arco fechado. */
+.hero-curva {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  width: 100%;
+  height: 42px;
+  z-index: 2;
+  pointer-events: none;
+  display: block;
+}
+
+@media (min-width: 900px) {
+  .hero-curva { height: 90px; }
+}
+
+/* Item da prova social: ícone à esquerda, valor em destaque e rótulo embaixo. */
+.hero-prova-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  text-align: left;
+}
+
+.hero-prova-item > span {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+.hero-prova-item strong {
+  color: #F4F1FF;
+  font-size: 0.92rem;
+  font-weight: 800;
+}
+
+.hero-prova-item > span {
+  font-size: 0.76rem;
+  color: #ADA3D9;
+  font-weight: 600;
+}
+
+.hero-prova-item svg {
+  flex-shrink: 0;
+  color: #C084FC;
 }

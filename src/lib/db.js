@@ -159,6 +159,15 @@ export const updateTaskResult = async (taskId, result, overrideOrderId = null) =
       await updateDoc(orderRef, updates);
       console.log(`Ordem ${orderId} no Firebase atualizada com sucesso com ${audioFiles.length} áudios!`);
 
+      // Contador da vitrine da home (stats/_live). Só soma se o pedido AINDA NÃO tinha áudio: esta
+      // função também roda em reprocessamento e nas duas vias concorrentes (webhook e polling), e
+      // sem essa checagem o mesmo pedido inflaria o número várias vezes.
+      const jaTinhaAudio = Boolean(orderData.audioUrl || orderData.audioFiles?.length);
+      if (!jaTinhaAudio) {
+        const { addGeneration } = await import('./liveStats.js');
+        await addGeneration();
+      }
+
       await notifyMusicReady(orderRef, orderData, orderId);
     }
   } catch (err) {
