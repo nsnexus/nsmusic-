@@ -11,10 +11,20 @@ import PixQrCode from '@/components/PixQrCode';
 // Página "pague conforme o impacto emocional" — link avulso que o estúdio manda manualmente por
 // WhatsApp (pedido do dono do estúdio, 02/09/2026), separada do checkout fixo de R$9,99 em
 // /entrega pra não arriscar o funil principal. Preço mínimo é o da música (getPriceForSku
-// 'audio_only'); pagando a partir do preço do combo, o vídeo vem de brinde — ver
-// src/lib/payments.js:applyPaymentApproval, que decide isso pelo valor REAL confirmado na Efí,
-// nunca pelo que esta página exibe. Sem segmento dinâmico ([id]) — usa `?orderId=` em query string,
-// então não precisa de `export const runtime = 'edge'` (ver .claude/rules/frontend.md).
+// 'audio_only'); pagando a partir do preço do combo, o vídeo vem de brinde. Sem segmento dinâmico
+// ([id]) — usa query string, então não precisa de `export const runtime = 'edge'`
+// (ver .claude/rules/frontend.md).
+//
+// Dois modos, na mesma página:
+//  - COM `?orderId=`: pedido de verdade no sistema. Cobrança dinâmica na Efí (sku 'impacto', ver
+//    /api/payments/create), aprovação e brinde de vídeo automáticos por
+//    src/lib/payments.js:applyPaymentApproval, decidido pelo valor REAL confirmado — nunca pelo
+//    que esta página exibe. Ao aprovar, libera a página de entrega (/entrega?orderId=).
+//  - SEM `orderId` (música feita fora da plataforma, achado 02/09/2026 — não existe pedido no
+//    Firestore pra vincular a cobrança): PIX estático (mesmo mecanismo de /apoie, sem confirmação
+//    automática — não há webhook nem pedido pra gravar aprovação), usando a chave PRINCIPAL do
+//    estúdio (não a de doação). `?nome=` personaliza o texto; sem confirmação automática, a
+//    página pede que o cliente avise no WhatsApp depois de pagar.
 const MIN_PRICE = getPriceForSku('audio_only');
 const VIDEO_THRESHOLD = getPriceForSku('combo');
 const SUGGESTED_AMOUNTS = [MIN_PRICE, VIDEO_THRESHOLD, 25, 50].filter((v, i, arr) => arr.indexOf(v) === i);
@@ -24,9 +34,11 @@ const PIX_POLLING_MAX_ATTEMPTS = 150; // ~10min a cada 4s, mesmo limite usado no
 function PagarContent() {
   const searchParams = useSearchParams();
   const orderId = searchParams.get('orderId') || '';
+  const nomeParam = searchParams.get('nome') || '';
+  const standalone = !orderId;
 
   const [order, setOrder] = useState(null);
-  const [orderLoading, setOrderLoading] = useState(true);
+  const [orderLoading, setOrderLoading] = useState(!standalone);
   const [orderError, setOrderError] = useState('');
 
   const [pixInfo, setPixInfo] = useState(null); // { qrCode, paymentId, amount }
@@ -37,13 +49,10 @@ function PagarContent() {
   const [pollingTimedOut, setPollingTimedOut] = useState(false);
 
   // Estado do pedido ao vivo — mesmo padrão de /entrega, pra refletir aprovação assim que o
-  // webhook/polling do servidor gravar, mesmo sem depender só do polling local abaixo.
+  // webhook/polling do servidor gravar, mesmo sem depender só do polling local abaixo. Só roda no
+  // modo com pedido — no modo avulso não há documento nenhum pra escutar.
   useEffect(() => {
-    if (!orderId) {
-      setOrderLoading(false);
-      setOrderError('Link inválido — falta o identificador do pedido.');
-      return;
-    }
+    if (standalone) return;
     const unsub = onSnapshot(
       doc(db, 'orders', orderId),
       (snap) => {
@@ -62,15 +71,36 @@ function PagarContent() {
       }
     );
     return () => unsub();
-  }, [orderId]);
+  }, [standalone, orderId]);
 
   const isPaid = Boolean(order?.paymentStatus === 'PAGAMENTO_APROVADO' || order?.paymentStatus === 'PAGO' || approved);
 
   const generatePix = useCallback(async (amount) => {
-    if (!orderId) return;
     setPixLoading(true);
     setPixError('');
     setPollingTimedOut(false);
+
+    if (standalone) {
+      try {
+        const res = await fetch('/api/support/pix', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ amount, useMainKey: true }),
+        });
+        const data = await res.json().catch(() => ({}));
+        setPixLoading(false);
+        if (!res.ok) {
+          setPixError(data.error || 'Não foi possível gerar o PIX agora.');
+          return;
+        }
+        setPixInfo({ qrCode: data.pixCopiaECola || '', paymentId: '', amount });
+      } catch (e) {
+        setPixLoading(false);
+        setPixError('Falha de conexão. Tente novamente.');
+      }
+      return;
+    }
+
     const resultado = await requestPixCharge({ orderId, sku: 'impacto', amount });
     setPixLoading(false);
     if (resultado.ok) {
@@ -78,19 +108,25 @@ function PagarContent() {
     } else {
       setPixError(resultado.error);
     }
-  }, [orderId]);
+  }, [standalone, orderId]);
 
-  // Gera automaticamente o PIX no valor mínimo assim que o pedido carrega — "já vem gerado",
-  // sem o cliente precisar clicar em nada pra ver o QR Code.
+  // Gera automaticamente o PIX no valor mínimo assim que a página carrega (ou, no modo com
+  // pedido, assim que o pedido carrega) — "já vem gerado", sem precisar clicar em nada pra ver o QR.
   useEffect(() => {
+    if (standalone) {
+      if (!pixInfo && !pixLoading && !pixError) generatePix(MIN_PRICE);
+      return;
+    }
     if (order && !isPaid && !pixInfo && !pixLoading && !pixError) {
       generatePix(MIN_PRICE);
     }
-  }, [order, isPaid, pixInfo, pixLoading, pixError, generatePix]);
+  }, [standalone, order, isPaid, pixInfo, pixLoading, pixError, generatePix]);
 
-  // Polling do pagamento — com cleanup obrigatório (ver .claude/rules/frontend.md).
+  // Polling do pagamento — só existe no modo com pedido (cobrança dinâmica na Efí, com paymentId
+  // pra consultar). No modo avulso o PIX é estático, sem nenhuma confirmação automática possível.
+  // Cleanup obrigatório (ver .claude/rules/frontend.md).
   useEffect(() => {
-    if (!orderId || !pixInfo?.paymentId || isPaid) return;
+    if (standalone || !orderId || !pixInfo?.paymentId || isPaid) return;
 
     let attempts = 0;
     const interval = setInterval(async () => {
@@ -115,7 +151,7 @@ function PagarContent() {
     }, 4000);
 
     return () => clearInterval(interval);
-  }, [orderId, pixInfo?.paymentId, isPaid]);
+  }, [standalone, orderId, pixInfo?.paymentId, isPaid]);
 
   const handlePickAmount = (value) => {
     setCustomAmount('');
@@ -141,7 +177,7 @@ function PagarContent() {
     );
   }
 
-  if (orderError || !order) {
+  if (!standalone && (orderError || !order)) {
     return (
       <div style={pageWrapStyle}>
         <div className="glass-card" style={cardStyle}>
@@ -153,10 +189,10 @@ function PagarContent() {
     );
   }
 
-  const honoreeName = order.honoreeName || 'alguém especial';
-  const hasVideo = Boolean(order.hasVideoAccess || order.videoAddonPaid);
+  const honoreeName = (!standalone ? order?.honoreeName : nomeParam) || 'alguém especial';
+  const hasVideo = Boolean(order?.hasVideoAccess || order?.videoAddonPaid);
 
-  if (isPaid) {
+  if (!standalone && isPaid) {
     return (
       <div style={pageWrapStyle}>
         <div className="glass-card" style={cardStyle}>
@@ -183,7 +219,7 @@ function PagarContent() {
       <div style={{ maxWidth: '480px', width: '100%' }}>
         <div style={{ textAlign: 'center', marginBottom: '22px' }}>
           <div style={{ fontSize: '2.2rem', marginBottom: '8px' }}>🎶</div>
-          <h1 style={titleStyle}>A música de {honoreeName} tá pronta!</h1>
+          <h1 style={titleStyle}>{standalone ? `Sua música tá pronta, ${honoreeName}!` : `A música de ${honoreeName} tá pronta!`}</h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: '1.5' }}>
             Se essa homenagem te emocionou, pague o quanto achar justo — o mínimo já libera sua
             música. A partir de <strong>R$ {VIDEO_THRESHOLD.toFixed(2).replace('.', ',')}</strong> você
@@ -277,7 +313,12 @@ function PagarContent() {
                   style={{ width: '100%', height: '64px', background: '#FFFFFF', color: '#0f172a', border: '1.5px solid var(--border-color)', borderRadius: '8px', padding: '10px', fontSize: '0.72rem', fontFamily: 'monospace', resize: 'none', boxSizing: 'border-box' }}
                 />
               </div>
-              {pollingTimedOut && (
+              {standalone ? (
+                <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: '1.4' }}>
+                  Depois de pagar, me manda um print aqui no WhatsApp que eu confirmo e já te
+                  entrego tudo certinho! 💜
+                </p>
+              ) : pollingTimedOut && (
                 <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
                   Ainda não identificamos o pagamento. Se já pagou, aguarde mais um instante.
                 </p>

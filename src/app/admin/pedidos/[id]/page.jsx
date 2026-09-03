@@ -34,6 +34,7 @@ export default function OrderDetailsAdmin() {
   const [checkingPayment, setCheckingPayment] = useState(false);
   const [checkPaymentMsg, setCheckPaymentMsg] = useState('');
   const [copiedClientLink, setCopiedClientLink] = useState(false);
+  const [copiedImpactLink, setCopiedImpactLink] = useState(false);
 
   const [sunoPrompt, setSunoPrompt] = useState('');
 
@@ -238,6 +239,16 @@ export default function OrderDetailsAdmin() {
     navigator.clipboard.writeText(url);
     setCopiedClientLink(true);
     setTimeout(() => setCopiedClientLink(false), 3000);
+  };
+
+  // Link de "pague conforme o impacto emocional" (ver /pagar) — pra mandar manualmente por
+  // WhatsApp depois de terminar a música do cliente. Separado do link de entrega normal.
+  const handleCopyImpactLink = () => {
+    if (typeof window === 'undefined') return;
+    const url = `${window.location.origin}/pagar?orderId=${orderId}`;
+    navigator.clipboard.writeText(url);
+    setCopiedImpactLink(true);
+    setTimeout(() => setCopiedImpactLink(false), 3000);
   };
 
   const handleDownload = async (url, filename) => {
@@ -456,6 +467,14 @@ export default function OrderDetailsAdmin() {
                 )}
                 <button type="button" onClick={handleCopyClientLink} style={{ ...styles.quickActionBtn, background: '#e2e8f0', color: '#0f172a' }}>
                   {copiedClientLink ? '✅ Link copiado!' : '🔗 Copiar página do cliente'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCopyImpactLink}
+                  title="Link avulso 'pague conforme o impacto emocional' — R$9,99 mínimo, vídeo de brinde a partir de R$16,89"
+                  style={{ ...styles.quickActionBtn, background: '#e2e8f0', color: '#0f172a' }}
+                >
+                  {copiedImpactLink ? '✅ Link copiado!' : '💜 Copiar link de impacto (/pagar)'}
                 </button>
                 <a
                   href={`/entrega?orderId=${orderId}`}

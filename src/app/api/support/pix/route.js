@@ -23,6 +23,10 @@ export async function POST(req) {
   try {
     const body = await req.json().catch(() => ({}));
     const amount = Number(body?.amount);
+    // /pagar sem orderId (música feita fora da plataforma, pedido do dono do estúdio 02/09/2026)
+    // usa a MESMA rota mas com a chave PRINCIPAL do estúdio (telefone, a de pixStatic.js), não a
+    // de doação de /apoie — é venda de produto de verdade, não gorjeta avulsa.
+    const useMainKey = Boolean(body?.useMainKey);
 
     if (!Number.isFinite(amount) || amount < MIN_AMOUNT || amount > MAX_AMOUNT) {
       return NextResponse.json(
@@ -35,7 +39,9 @@ export async function POST(req) {
     // 12.999999 quebraria o campo 54 (valor) do payload EMV.
     const roundedAmount = Math.round(amount * 100) / 100;
 
-    const { txid, pixCopiaECola } = generateStaticPixPayload(roundedAmount, 'APOIE', SUPPORT_PIX_KEY);
+    const { txid, pixCopiaECola } = useMainKey
+      ? generateStaticPixPayload(roundedAmount, 'IMPACTO')
+      : generateStaticPixPayload(roundedAmount, 'APOIE', SUPPORT_PIX_KEY);
 
     return NextResponse.json({ txid, pixCopiaECola, amount: roundedAmount });
   } catch (error) {
