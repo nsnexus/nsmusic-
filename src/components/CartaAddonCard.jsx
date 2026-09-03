@@ -7,7 +7,7 @@ import PixQrCode from './PixQrCode';
 const MAX_PIX_ATTEMPTS = 3;
 const PIX_POLLING_MAX_ATTEMPTS = 150; // ~10min a cada 4s, mesmo limite dos outros add-ons
 
-// Add-on "Carta Virtual" (R$ 5,99) — mesmo padrão de pagamento do playback e do vídeo, em
+// Add-on "Carta Virtual" (R$ 3,99) — mesmo padrão de pagamento do playback e do vídeo, em
 // componente próprio pra não engordar entrega/page.jsx (já acima do limite de 400 linhas, ver
 // .claude/rules/frontend.md).
 //
@@ -159,7 +159,7 @@ export default function CartaAddonCard({ orderId, order }) {
               className="btn btn-primary"
               style={{ width: '100%', padding: '11px', borderRadius: '8px', fontWeight: 'bold', border: 'none', cursor: 'pointer' }}
             >
-              {pixCopied ? '✅ Código PIX Copiado!' : '📋 Copiar Código PIX (R$ 5,99)'}
+              {pixCopied ? '✅ Código PIX Copiado!' : '📋 Copiar Código PIX (R$ 3,99)'}
             </button>
             {pollingTimedOut && (
               <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '10px' }}>
@@ -176,7 +176,7 @@ export default function CartaAddonCard({ orderId, order }) {
             <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '14px', lineHeight: '1.45' }}>
               Uma carta escrita a partir da <strong>mesma história</strong> que você contou pra música —
               com envelope que abre, foto e sua assinatura. Você pode editar cada palavra antes de
-              enviar. Por <strong style={{ color: 'var(--success)' }}>R$ 5,99</strong>.
+              enviar. Por <strong style={{ color: 'var(--success)' }}>R$ 3,99</strong>.
             </p>
             {pixError && (
               <p style={{ fontSize: '0.8rem', color: 'var(--error, #ef4444)', marginBottom: '10px' }}>{pixError}</p>
@@ -188,7 +188,7 @@ export default function CartaAddonCard({ orderId, order }) {
               className="btn btn-primary"
               style={{ padding: '10px 20px', fontSize: '0.88rem', fontWeight: 'bold', border: 'none', cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.7 : 1 }}
             >
-              {loading ? 'Gerando cobrança...' : 'Quero a Carta — R$ 5,99'}
+              {loading ? 'Gerando cobrança...' : 'Quero a Carta — R$ 3,99'}
             </button>
           </div>
         )}

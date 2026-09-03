@@ -95,9 +95,11 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
       const isVideoOnly = sku === 'video_addon';
       const isPlaybackOnly = sku === 'playback_addon';
       const isCartaOnly = sku === 'carta_addon';
+      const isRetroOnly = sku === 'retrospectiva_addon';
       const dedupKey = isVideoOnly ? 'videoPaymentId'
         : isPlaybackOnly ? 'playbackPaymentId'
         : isCartaOnly ? 'cartaPaymentId'
+        : isRetroOnly ? 'retrospectivaPaymentId'
         : 'paymentId';
 
       // Idempotência: mesmo paymentId já aplicado antes (webhook e polling correndo em paralelo).
@@ -119,6 +121,11 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
           updates.playbackAddonPaid = true;
           updates.playbackPaymentId = String(paymentId);
           updates.playbackPaidAt = nowIso;
+        } else if (isRetroOnly) {
+          updates.hasRetrospectivaAccess = true;
+          updates.retrospectivaAddonPaid = true;
+          updates.retrospectivaPaymentId = String(paymentId);
+          updates.retrospectivaPaidAt = nowIso;
         } else if (isCartaOnly) {
           updates.hasCartaAccess = true;
           updates.cartaAddonPaid = true;
@@ -148,7 +155,7 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
 
         await updateDoc(orderRef, updates);
 
-        txResult = { applied: true, sku, isVideoOnly, isPlaybackOnly, isCartaOnly, orderData };
+        txResult = { applied: true, sku, isVideoOnly, isPlaybackOnly, isCartaOnly, isRetroOnly, orderData };
       }
     }
   } catch (err) {
@@ -160,7 +167,7 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
   // aconteceu acima). WhatsApp só pra pagamento da música; Purchase da Meta pros dois casos (a venda
   // do add-on isolado é receita real, tem que contar também — ver src/lib/metaCapi.js).
   if (txResult.applied) {
-    if (!txResult.isVideoOnly && !txResult.isPlaybackOnly && !txResult.isCartaOnly) {
+    if (!txResult.isVideoOnly && !txResult.isPlaybackOnly && !txResult.isCartaOnly && !txResult.isRetroOnly) {
       await notifyPaymentApproved(orderRef, txResult.orderData);
     }
 
@@ -250,8 +257,8 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
     // ANTES de qualquer updateDoc acontecer, e cada uma disparava seu próprio evento de Purchase pra
     // Meta — a escrita em si é idempotente (resultado final correto), mas o efeito colateral não era
     // (achado real em produção: 2 vendas genuínas geraram 15 eventos de Compra em ~5h, 19-20/08/2026).
-    const sentField = txResult.isVideoOnly ? 'metaVideoPurchaseSent' : txResult.isPlaybackOnly ? 'metaPlaybackPurchaseSent' : txResult.isCartaOnly ? 'metaCartaPurchaseSent' : 'metaPurchaseSent';
-    const sendingField = txResult.isVideoOnly ? 'metaVideoPurchaseSending' : txResult.isPlaybackOnly ? 'metaPlaybackPurchaseSending' : txResult.isCartaOnly ? 'metaCartaPurchaseSending' : 'metaPurchaseSending';
+    const sentField = txResult.isVideoOnly ? 'metaVideoPurchaseSent' : txResult.isPlaybackOnly ? 'metaPlaybackPurchaseSent' : txResult.isCartaOnly ? 'metaCartaPurchaseSent' : txResult.isRetroOnly ? 'metaRetroPurchaseSent' : 'metaPurchaseSent';
+    const sendingField = txResult.isVideoOnly ? 'metaVideoPurchaseSending' : txResult.isPlaybackOnly ? 'metaPlaybackPurchaseSending' : txResult.isCartaOnly ? 'metaCartaPurchaseSending' : txResult.isRetroOnly ? 'metaRetroPurchaseSending' : 'metaPurchaseSending';
     try {
       let shouldSend = false;
       const freshSnap = await getDoc(orderRef);
@@ -276,7 +283,8 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
         const contentName = txResult.isVideoOnly
           ? 'Vídeo Homenagem (Add-on)'
           : txResult.isPlaybackOnly ? 'Playback Instrumental (Add-on)'
-          : txResult.isCartaOnly ? 'Carta Virtual (Add-on)' : 'Música Homenagem Personalizada';
+          : txResult.isCartaOnly ? 'Carta Virtual (Add-on)'
+          : txResult.isRetroOnly ? 'Retrospectiva (Add-on)' : 'Música Homenagem Personalizada';
         const sendResult = await sendMetaPurchaseEvent({
           orderId,
           value,
@@ -378,6 +386,10 @@ async function revokeApproval(orderRef, paymentId, status) {
     } else if (String(orderData.cartaPaymentId || '') === String(paymentId)) {
       updates.hasCartaAccess = false;
       updates.cartaAddonPaid = false;
+      revoked = true;
+    } else if (String(orderData.retrospectivaPaymentId || '') === String(paymentId)) {
+      updates.hasRetrospectivaAccess = false;
+      updates.retrospectivaAddonPaid = false;
       revoked = true;
     } else if (String(orderData.paymentId || '') === String(paymentId)) {
       updates.paymentStatus = 'AGUARDANDO_PAGAMENTO';

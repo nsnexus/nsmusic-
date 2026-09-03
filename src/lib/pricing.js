@@ -7,12 +7,17 @@
 //   - combo: música + vídeo, comprados juntos
 //   - video_addon: só o add-on de vídeo, para quem já pagou a música separadamente
 
+// Preços dos add-ons definidos pelo dono do estúdio em 03/09/2026: carta 3,99 e retrospectiva 9,99.
+// O vídeo foi mantido em 6,90 de propósito — subir pra 6,99 obrigaria a mexer no `combo`
+// (9,99 + vídeo), que é o funil principal: sem isso a tela do wizard somaria um valor e a cobrança
+// sairia outro.
 export const SKU_PRICES = {
   audio_only: 9.99,
   combo: 16.89,
   video_addon: 6.90,
   playback_addon: 4.99,
-  carta_addon: 5.99,
+  carta_addon: 3.99,
+  retrospectiva_addon: 9.99,
   recovery_combo_24h: 9.99,
   recovery_combo_48h: 6.99,
 };

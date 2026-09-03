@@ -10,11 +10,13 @@ import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage
 import { db, auth, storage } from '@/lib/firebase';
 import { primeAudioContext } from '@/lib/audioContext';
 import { AUDIO_CACHE_VERSION } from '@/lib/audioCacheVersion';
-import VideoOfferModal from '@/components/VideoOfferModal';
+import ExtrasOfferModal from '@/components/ExtrasOfferModal';
 import PixQrCode from '@/components/PixQrCode';
 import PlaybackAddonCard from '@/components/PlaybackAddonCard';
 import CartaAddonCard from '@/components/CartaAddonCard';
+import RetrospectivaAddonCard from '@/components/RetrospectivaAddonCard';
 import { requestPixCharge } from '@/lib/pixCheckout';
+import { getPriceForSku } from '@/lib/pricing';
 import { styles } from './entregaStyles';
 
 function EntregaContent() {
@@ -1398,7 +1400,13 @@ function EntregaContent() {
                     matéria-prima do texto (pedido sem story nenhuma não tem carta possível, ver
                     src/lib/carta.js). */}
                 {isPaid && (order?.story || order?.importantMoments) && (
-                  <CartaAddonCard orderId={orderId} order={order} />
+                  <div id="card-carta"><CartaAddonCard orderId={orderId} order={order} /></div>
+                )}
+
+                {/* Add-on de Retrospectiva — página pública compartilhável com a música tocando
+                    de fundo, linha do tempo, contador ao vivo e quiz (ver /retrospectiva). */}
+                {isPaid && (
+                  <div id="card-retrospectiva"><RetrospectivaAddonCard orderId={orderId} order={order} /></div>
                 )}
 
                 {!isPaid && (
@@ -1411,7 +1419,7 @@ function EntregaContent() {
                       </h3>
                       <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
                         {promo === '48h' ? (
-                          <>Pague apenas <strong style={{ color: 'var(--success)', fontSize: '1.1rem' }}>R$ 6,99</strong> para liberar as 2 versões completas e <strong>ganhe o Vídeo Homenagem de brinde!</strong></>
+                          <>Pague apenas <strong style={{ color: 'var(--success)', fontSize: '1.1rem' }}>R$ 6,90</strong> para liberar as 2 versões completas e <strong>ganhe o Vídeo Homenagem de brinde!</strong></>
                         ) : promo === '24h' ? (
                           <>Pague apenas <strong style={{ color: 'var(--success)', fontSize: '1.1rem' }}>R$ 9,99</strong> para liberar as 2 versões completas e <strong>ganhe o Vídeo Homenagem de brinde!</strong></>
                         ) : (
@@ -1621,30 +1629,43 @@ function EntregaContent() {
             </div>
           </div>
 
-          {/* Modal Pop-up de Oferta do Vídeo Homenagem (R$ 6,90) */}
-          <VideoOfferModal
+          {/* Pop-up de extras: vídeo, retrospectiva e carta na mesma interrupção (substituiu o
+              VideoOfferModal, que oferecia só o vídeo — decisão do dono do estúdio, 03/09/2026). */}
+          <ExtrasOfferModal
             isOpen={showVideoModal}
             honoreeName={order?.honoreeName || 'alguém especial'}
+            jaTemVideo={Boolean(hasVideoAccess || order?.hasVideoAccess)}
             onClose={() => {
               setShowVideoModal(false);
               if (typeof window !== 'undefined' && orderId) {
                 sessionStorage.setItem(`video_modal_dismissed_${orderId}`, 'true');
               }
             }}
-            onSelectVideoOption={(wantsVideo) => {
+            onSelect={(sku) => {
               setShowVideoModal(false);
               if (typeof window !== 'undefined' && orderId) {
                 sessionStorage.setItem(`video_modal_dismissed_${orderId}`, 'true');
               }
-              if (wantsVideo) {
+
+              if (sku === 'video_addon') {
+                // Antes de pagar a música, o vídeo entra como combo (um pagamento só, mais barato
+                // pro cliente que os dois avulsos) — mesma regra que já existia aqui.
                 if (isPaid) {
                   setSelectedPackage('video_addon');
                   setPendingVideoPix(true);
-                  handleGeneratePix(6.90, true);
+                  handleGeneratePix(getPriceForSku('video_addon'), true);
                 } else {
                   setSelectedPackage('combo');
-                  handleGeneratePix(16.89);
+                  handleGeneratePix(getPriceForSku('combo'));
                 }
+                return;
+              }
+
+              // Retrospectiva e carta são add-ons pós-pagamento: os cards deles abaixo cuidam da
+              // cobrança. Rolar até lá é mais honesto do que abrir uma segunda cobrança por cima.
+              const alvo = sku === 'retrospectiva_addon' ? 'card-retrospectiva' : 'card-carta';
+              if (typeof document !== 'undefined') {
+                document.getElementById(alvo)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
               }
             }}
           />

@@ -162,6 +162,12 @@ async function cleanupStalePhotos(env, { dryRun }) {
     const photos = Array.isArray(data.slideshowImages) ? data.slideshowImages.filter((u) => typeof u === 'string') : [];
     if (photos.length === 0) continue;
 
+    // Retrospectiva paga EXIBE essas fotos para sempre, numa página pública compartilhável (ver
+    // /retrospectiva). Diferente do vídeo — que consome as fotos uma vez e gera um MP4 — aqui elas
+    // são o produto. Apagar quebraria a página de um cliente que pagou, então esses pedidos nunca
+    // entram nesta limpeza.
+    if (data.hasRetrospectivaAccess || data.retrospectivaAddonPaid) continue;
+
     // Sem timestamp legível no nome (pedido bem antigo, formato mudou), trata como antiga — mesma
     // postura conservadora de isOlderThan em api/orders/reconcile: preferir limpar a acumular pra
     // sempre um caso que não deveria existir no fluxo atual.

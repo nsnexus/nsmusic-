@@ -321,7 +321,7 @@ export default function AdminDashboard() {
   const AUDIO_PRICE = getPriceForSku('audio_only'); // 9.99, preço base sem variação por pedido
   const VIDEO_PRICE = getPriceForSku('video_addon'); // 6.90
   const PLAYBACK_PRICE = getPriceForSku('playback_addon'); // 4.99
-  const CARTA_PRICE = getPriceForSku('carta_addon'); // 5.99
+  const CARTA_PRICE = getPriceForSku('carta_addon'); // 3.99
 
   // Reconstrói o que o pedido tem CONFIRMADO por produto (música / vídeo / playback), a partir dos
   // flags que applyPaymentApproval grava por aprovação — nunca de `expectedAmount`, que é

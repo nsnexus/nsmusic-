@@ -9,6 +9,8 @@ describe('getPriceForSku', () => {
     expect(getPriceForSku('combo')).toBe(16.89);
     expect(getPriceForSku('video_addon')).toBe(6.90);
     expect(getPriceForSku('playback_addon')).toBe(4.99);
+    expect(getPriceForSku('carta_addon')).toBe(3.99);
+    expect(getPriceForSku('retrospectiva_addon')).toBe(9.99);
   });
 
   it('retorna null para SKU desconhecido (nunca inventa um preço)', () => {
@@ -18,7 +20,7 @@ describe('getPriceForSku', () => {
   });
 
   it('não é influenciável por um valor arbitrário — só existe o que está no catálogo', () => {
-    expect(Object.keys(SKU_PRICES)).toEqual(['audio_only', 'combo', 'video_addon', 'playback_addon', 'carta_addon', 'recovery_combo_24h', 'recovery_combo_48h']);
+    expect(Object.keys(SKU_PRICES)).toEqual(['audio_only', 'combo', 'video_addon', 'playback_addon', 'carta_addon', 'retrospectiva_addon', 'recovery_combo_24h', 'recovery_combo_48h']);
   });
 });
 
