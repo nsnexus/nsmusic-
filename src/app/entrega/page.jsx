@@ -17,6 +17,7 @@ import PlaybackAddonCard from '@/components/PlaybackAddonCard';
 import CartaAddonCard from '@/components/CartaAddonCard';
 import RetrospectivaAddonCard from '@/components/RetrospectivaAddonCard';
 import { requestPixCharge } from '@/lib/pixCheckout';
+import { compressImage } from '@/lib/imageCompress';
 import { getPriceForSku } from '@/lib/pricing';
 import { styles } from './entregaStyles';
 
@@ -1053,8 +1054,31 @@ function EntregaContent() {
                               // em vez de baixar.
                               const videoExt = order.videoUrl.split('?')[0].split('.').pop().toLowerCase();
                               const ext = videoExt === 'webm' ? 'webm' : 'mp4';
+                              const nomeArquivo = `Homenagem_${order?.honoreeName || 'Video'}.${ext}`;
                               const proxiedUrl = `/api/image-proxy?url=${encodeURIComponent(order.videoUrl)}`;
-                              handleDownload(proxiedUrl, `Homenagem_${order?.honoreeName || 'Video'}.${ext}`);
+
+                              // O proxy roda no Edge e não aguenta arquivo muito grande (achado
+                              // 03/09/2026: um vídeo de 136 MB estourava o limite de memória do
+                              // Worker, a rota devolvia JSON de erro e o navegador salvava esse
+                              // JSON — o cliente recebia um ".json" em vez do vídeo). Conferir
+                              // ANTES com HEAD: se o proxy não conseguir servir, manda o link
+                              // direto do Storage, que ao menos abre o vídeo pra salvar na mão.
+                              (async () => {
+                                let proxyOk = false;
+                                try {
+                                  const teste = await fetch(proxiedUrl, { method: 'HEAD' });
+                                  proxyOk = teste.ok && !(teste.headers.get('content-type') || '').includes('application/json');
+                                } catch (e) {
+                                  proxyOk = false;
+                                }
+
+                                if (proxyOk) {
+                                  handleDownload(proxiedUrl, nomeArquivo);
+                                } else {
+                                  console.warn('[entrega] Proxy não conseguiu servir o vídeo; abrindo o arquivo direto.');
+                                  window.open(order.videoUrl, '_blank', 'noopener');
+                                }
+                              })();
                             }}
                             className="btn btn-primary"
                             style={{ flex: 1, padding: '10px', fontSize: '0.88rem', textAlign: 'center', border: 'none', cursor: 'pointer', minWidth: '160px' }}
@@ -1292,8 +1316,14 @@ function EntregaContent() {
                                       for (let i = 0; i < newPhotoFiles.length; i++) {
                                         const file = newPhotoFiles[i];
                                         setUploadProgressMsg(`Enviando foto ${i + 1} de ${newPhotoFiles.length}...`);
-                                        const fileRef = ref(storage, `orders/${orderId}/photos/${Date.now()}_${i}_${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`);
-                                        await uploadBytes(fileRef, file);
+                                        // Comprime antes de subir: upload muito mais rápido no 4G,
+                                        // menos memória durante a renderização do vídeo e menos
+                                        // Storage (as fotos agora ficam guardadas pra Retrospectiva).
+                                        // Nunca falha o upload por causa disso — em erro devolve o
+                                        // arquivo original (ver src/lib/imageCompress.js).
+                                        const arquivo = await compressImage(file);
+                                        const fileRef = ref(storage, `orders/${orderId}/photos/${Date.now()}_${i}_${arquivo.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`);
+                                        await uploadBytes(fileRef, arquivo);
                                         const url = await getDownloadURL(fileRef);
                                         finalUrls.push(url);
                                       }

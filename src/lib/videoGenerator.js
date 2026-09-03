@@ -276,7 +276,10 @@ export async function createSlideshowVideo(orderId, imageUrls, audioUrl, orderDa
       throw new Error('Não foi possível preparar o áudio do vídeo. Tente novamente pelo Chrome.');
     }
 
-    const canvasStream = canvas.captureStream(24); // 24 FPS — suficiente para pan/zoom lento, mais leve que 30
+    // 15 FPS: slideshow é foto parada com pan/zoom lento, não tem movimento que justifique 24.
+    // Menos quadros = menos bytes, e é o único controle de tamanho que o navegador NÃO ignora
+    // (ver o bloco do MediaRecorder abaixo — achado 03/09/2026).
+    const canvasStream = canvas.captureStream(15);
     const combinedStream = new MediaStream([
       ...canvasStream.getVideoTracks(),
       ...audioTracks
@@ -295,9 +298,20 @@ export async function createSlideshowVideo(orderId, imageUrls, audioUrl, orderDa
     // dentro — o WhatsApp valida o container e recusava como "formato inválido".
     const fileExtension = mimeType.startsWith('video/mp4') ? 'mp4' : 'webm';
 
+    // ACHADO 03/09/2026: um vídeo gerado com ESTA configuração de 900 kbps saiu com 136 MB (~6 Mbps
+    // reais) — ou seja, o navegador IGNOROU `videoBitsPerSecond`. Isso acontece principalmente no
+    // caminho `video/mp4;codecs=h264`, onde várias implementações usam um bitrate próprio.
+    // Consequências reais: download quebrado (o arquivo nem passava pelo proxy, ver
+    // api/image-proxy), upload lento no celular do cliente e conta de Storage inflada.
+    //
+    // Por isso agora: `bitsPerSecond` junto de `videoBitsPerSecond` (navegadores que ignoram um
+    // costumam respeitar o outro), áudio limitado, e sobretudo 15 FPS no captureStream acima — a
+    // taxa de quadros é o controle que nenhum navegador ignora.
     const mediaRecorder = new MediaRecorder(combinedStream, {
       mimeType,
-      videoBitsPerSecond: 900000 // ~900 kbps — reduzido de 1.5 Mbps; slideshow de fotos não precisa de bitrate alto
+      videoBitsPerSecond: 900000,  // ~900 kbps
+      audioBitsPerSecond: 128000,  // 128 kbps já é bom para música
+      bitsPerSecond: 1028000,      // total (vídeo + áudio), para quem ignora os dois campos acima
     });
 
     const chunks = [];
