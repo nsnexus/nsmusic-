@@ -81,8 +81,9 @@ function Slide({ item, proximo, ativo, honoreeName, customerName }) {
         <p style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.6)', fontWeight: '700', letterSpacing: '0.05em', textTransform: 'uppercase', margin: '0 0 8px' }}>
           {proximo.nome}
         </p>
-        <div style={{ fontSize: `${alturaGrande * 0.72}px`, lineHeight: 1, filter: 'drop-shadow(0 0 24px rgba(255,255,255,0.35))' }}>
-          {proximo.emoji}
+        <div style={{ width: `${alturaGrande}px`, height: `${alturaGrande}px`, margin: '0 auto', filter: 'drop-shadow(0 0 24px rgba(255,255,255,0.35))' }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={proximo.imagem} alt={proximo.nome} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
         </div>
         <p style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.75)', margin: '10px 0 0' }}>{proximo.medida}</p>
         {ehFinal && (honoreeName || customerName) && (
@@ -94,7 +95,10 @@ function Slide({ item, proximo, ativo, honoreeName, customerName }) {
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '14px', opacity: 0.85 }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: `${alturaPequeno * 0.72}px`, lineHeight: 1 }}>{item.emoji}</div>
+          <div style={{ width: `${alturaPequeno}px`, height: `${alturaPequeno}px`, margin: '0 auto' }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={item.imagem} alt={item.nome} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+          </div>
           <p style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.55)', margin: '4px 0 0' }}>{item.nome}</p>
         </div>
       </div>

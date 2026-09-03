@@ -61,6 +61,27 @@ function formatarDataBr(iso) {
   return `${dia}/${mes}/${ano}`;
 }
 
+const MESES_ABREV = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+const MESES_EXTENSO = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+
+// Legenda em caps ("DEZ 2025") acima da data — mesmo formato do projeto de referência (tl-d).
+function formatarMesAno(iso) {
+  if (!iso) return '';
+  const [ano, mes] = iso.split('-');
+  const i = Number(mes) - 1;
+  if (!ano || !MESES_ABREV[i]) return '';
+  return `${MESES_ABREV[i]} ${ano}`.toUpperCase();
+}
+
+// Data por extenso ("12 de dezembro de 2025") — mesmo formato do projeto de referência (tl-c).
+function formatarDataExtenso(iso) {
+  if (!iso) return '';
+  const [ano, mes, dia] = iso.split('-');
+  const i = Number(mes) - 1;
+  if (!ano || !dia || !MESES_EXTENSO[i]) return '';
+  return `${Number(dia)} de ${MESES_EXTENSO[i]} de ${ano}`;
+}
+
 function RetrospectivaContent() {
   const searchParams = useSearchParams();
   const orderId = searchParams.get('orderId') || searchParams.get('id') || '';
@@ -207,58 +228,80 @@ function RetrospectivaContent() {
         </div>
       )}
 
-      {/* Linha do tempo — fotos em estilo Polaroid (moldura branca, leve inclinação, "pin"),
-          pedido 03/09/2026 pra ficar no clima do projeto de referência: quem compra Retrospectiva
-          é sempre casal fazendo declaração de amor, então o visual pende pro romântico/coração. */}
+      {/* Linha do tempo — réplica fiel do projeto de referência (Capivarinha Love, projeto do próprio
+          dono do estúdio, autorizado a reusar o design direto, 03/09/2026): fio central com marcador
+          de coração, foto Polaroid alternando de lado a cada momento, legenda em Grand Hotel (cursiva)
+          colada na própria foto, data em caixa alta do lado oposto. Seção com fundo escuro próprio
+          (igual ao original) — contraste de propósito com o resto da página, que é clara. */}
       {momentos.length > 0 && (
-        <div style={{ maxWidth: '560px', margin: '0 auto 34px', padding: '0 20px' }}>
-          <h2 style={estilos.secaoTitulo}>Nossa linha do tempo 💕</h2>
-          <div style={{ position: 'relative', paddingLeft: '22px', borderLeft: '2px solid rgba(190, 24, 93, 0.28)' }}>
-            {momentos.map((m, i) => (
-              <div key={`${m.titulo}-${i}`} style={{ position: 'relative', marginBottom: '26px' }}>
-                <span style={{ position: 'absolute', left: '-31px', top: '2px', fontSize: '1.15rem', lineHeight: 1 }}>💗</span>
-                <div className="glass-card" style={{ padding: '16px', borderRadius: '14px', background: 'rgba(255,241,246,0.85)' }}>
-                  {m.data && (
-                    <p style={{ fontSize: '0.75rem', color: '#be185d', fontWeight: '700', margin: '0 0 4px' }}>{formatarDataBr(m.data)}</p>
-                  )}
-                  {m.titulo && (
-                    <p style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--text-primary)', margin: '0 0 6px', fontFamily: 'var(--font-family-title)' }}>{m.titulo}</p>
-                  )}
-                  {m.texto && (
-                    <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.6 }}>{m.texto}</p>
-                  )}
-                  {m.fotoUrl && (
-                    <div
+        <div style={{ background: '#120A0F', padding: '40px 0 44px', margin: '0 0 34px' }}>
+          <div style={{ maxWidth: '640px', margin: '0 auto', padding: '0 20px' }}>
+            <p style={{ fontSize: '0.72rem', fontWeight: '800', letterSpacing: '0.08em', textTransform: 'uppercase', color: '#FF7FAB', textAlign: 'center', margin: '0 0 6px' }}>
+              Linha do tempo
+            </p>
+            <h2 style={{ fontFamily: 'var(--font-family-title)', fontSize: '1.3rem', color: '#fff', textAlign: 'center', margin: '0 0 34px' }}>
+              A jornada de vocês
+            </h2>
+            <div style={{ position: 'relative' }}>
+              <div
+                aria-hidden="true"
+                style={{
+                  position: 'absolute', left: '50%', top: 0, bottom: 0, width: '2px', transform: 'translateX(-50%)',
+                  background: 'linear-gradient(180deg, rgba(227,43,109,0.15), #E32B6D 12%, #E32B6D 88%, rgba(227,43,109,0.15))',
+                }}
+              />
+              {momentos.map((m, i) => {
+                const invertido = i % 2 === 1;
+                return (
+                  <div key={`${m.titulo}-${i}`} style={{ position: 'relative', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', alignItems: 'center', marginBottom: '30px' }}>
+                    <span
+                      aria-hidden="true"
                       style={{
-                        background: '#fff',
-                        padding: '10px 10px 30px',
-                        borderRadius: '3px',
-                        boxShadow: '0 10px 22px rgba(131, 24, 67, 0.22)',
-                        transform: `rotate(${ROTACOES_POLAROID[i % ROTACOES_POLAROID.length]}deg)`,
-                        marginTop: '14px',
-                        maxWidth: '220px',
-                        marginLeft: 'auto',
-                        marginRight: 'auto',
-                        position: 'relative',
+                        position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)',
+                        width: '17px', height: '17px', borderRadius: '50%', background: '#E32B6D', border: '3px solid #120A0F',
+                        boxShadow: '0 0 0 4px rgba(227,43,109,0.22)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        color: '#fff', fontSize: '9px', lineHeight: 1, zIndex: 3,
                       }}
                     >
-                      <span style={{ position: 'absolute', top: '-11px', left: '50%', transform: 'translateX(-50%)', fontSize: '1.25rem' }} aria-hidden="true">📌</span>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={m.fotoUrl}
-                        alt={m.titulo || 'Momento'}
-                        style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: '2px', display: 'block' }}
-                      />
-                      {m.titulo && (
-                        <p style={{ fontFamily: 'cursive', textAlign: 'center', margin: '8px 0 0', color: '#831843', fontSize: '0.82rem' }}>
-                          {m.titulo} ♥
+                      ♥
+                    </span>
+
+                    <div style={{ gridColumn: invertido ? 2 : 1, gridRow: 1 }}>
+                      {m.fotoUrl && (
+                        <div style={{ background: '#FFFDF9', padding: '9px 9px 0', borderRadius: '3px', boxShadow: '0 12px 30px rgba(0,0,0,0.45)', transform: `rotate(${invertido ? 2.2 : -2.2}deg)` }}>
+                          <div style={{ width: '100%', aspectRatio: '1', overflow: 'hidden', background: '#EDE3E6' }}>
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={m.fotoUrl} alt={m.titulo || 'Momento'} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                          </div>
+                          <p style={{ fontFamily: "'Grand Hotel', cursive", fontSize: '1rem', color: '#4A3A40', lineHeight: 1.25, textAlign: 'center', padding: '8px 5px 11px', minHeight: '2.4em', margin: 0 }}>
+                            {m.titulo || 'nós dois'}
+                          </p>
+                        </div>
+                      )}
+                      {!m.fotoUrl && m.titulo && (
+                        <p style={{ fontFamily: "'Grand Hotel', cursive", fontSize: '1.4rem', color: '#FF7FAB', textAlign: invertido ? 'left' : 'right', margin: 0 }}>
+                          {m.titulo}
                         </p>
                       )}
                     </div>
-                  )}
-                </div>
-              </div>
-            ))}
+
+                    <div style={{ gridColumn: invertido ? 1 : 2, gridRow: 1, textAlign: invertido ? 'right' : 'left' }}>
+                      {m.data && (
+                        <div style={{ fontSize: '0.74rem', fontWeight: '800', letterSpacing: '0.1em', textTransform: 'uppercase', color: '#E32B6D', marginBottom: '6px' }}>
+                          {formatarMesAno(m.data)}
+                        </div>
+                      )}
+                      {m.data && (
+                        <div style={{ fontSize: '0.93rem', color: '#E6D6DD', lineHeight: 1.6 }}>{formatarDataExtenso(m.data)}</div>
+                      )}
+                      {m.texto && (
+                        <div style={{ fontSize: '0.82rem', color: '#B99BA8', lineHeight: 1.6, marginTop: '8px' }}>{m.texto}</div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}
@@ -311,7 +354,8 @@ function RetrospectivaContent() {
             textAlign: 'left',
           }}
         >
-          <span style={{ fontSize: '2.2rem' }}>💜</span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/medidor/coracao.webp" alt="" style={{ width: '46px', height: '46px', objectFit: 'contain', flexShrink: 0 }} />
           <span style={{ flex: 1 }}>
             <span style={{ display: 'block', fontWeight: '800', fontSize: '1rem', color: '#581c87', fontFamily: 'var(--font-family-title)' }}>
               Vamos medir o tamanho do nosso amor?
