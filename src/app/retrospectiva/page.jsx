@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { AUDIO_CACHE_VERSION } from '@/lib/audioCacheVersion';
+import MedidorAmor from '@/components/MedidorAmor';
 
 // Página PÚBLICA da Retrospectiva (add-on, ver src/lib/pricing.js:retrospectiva_addon) — é o link
 // que o cliente manda pra família. Diferente do Vídeo Homenagem, aqui nada é renderizado: abre na
@@ -66,6 +67,7 @@ function RetrospectivaContent() {
   const [tocando, setTocando] = useState(false);
   const [agora, setAgora] = useState(() => new Date());
   const [respostas, setRespostas] = useState({});
+  const [medidorAberto, setMedidorAberto] = useState(false);
   const audioRef = useRef(null);
 
   useEffect(() => {
@@ -247,6 +249,45 @@ function RetrospectivaContent() {
             ))}
           </div>
         </div>
+      )}
+
+      {/* Medidor de Amor — bônus fixo de toda retrospectiva, sem precisar de configuração
+          (réplica do conceito do projeto de referência, achado/pedido 03/09/2026). */}
+      <div style={{ maxWidth: '560px', margin: '0 auto 34px', padding: '0 20px' }}>
+        <button
+          type="button"
+          onClick={() => setMedidorAberto(true)}
+          style={{
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '14px',
+            padding: '18px',
+            borderRadius: '18px',
+            border: '1px solid rgba(168, 85, 247, 0.3)',
+            background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.14) 0%, rgba(59, 130, 246, 0.12) 100%)',
+            cursor: 'pointer',
+            textAlign: 'left',
+          }}
+        >
+          <span style={{ fontSize: '2.2rem' }}>💜</span>
+          <span style={{ flex: 1 }}>
+            <span style={{ display: 'block', fontWeight: '800', fontSize: '1rem', color: '#581c87', fontFamily: 'var(--font-family-title)' }}>
+              Vamos medir o tamanho do nosso amor?
+            </span>
+            <span style={{ display: 'block', fontSize: '0.8rem', color: '#7c3aed', marginTop: '2px' }}>
+              Do T-Rex ao Sol, uma coisa maior que a outra — até chegar na maior de todas ✨
+            </span>
+          </span>
+        </button>
+      </div>
+
+      {medidorAberto && (
+        <MedidorAmor
+          honoreeName={honoree}
+          customerName={order.customerName}
+          onClose={() => setMedidorAberto(false)}
+        />
       )}
 
       {/* Quiz */}

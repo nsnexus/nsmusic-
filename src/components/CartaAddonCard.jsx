@@ -241,13 +241,29 @@ export default function CartaAddonCard({ orderId, order }) {
           aria-label="Abrir a carta"
         >
           <div style={{ fontSize: '2.6rem', lineHeight: 1 }}>✉️</div>
-          <div style={{ marginTop: '10px', fontFamily: 'var(--font-family-title)', fontSize: '1rem', color: '#9d174d' }}>
+          {/* Lacre de cera — círculo com sombra e brilho, como um selo de verdade. */}
+          <div
+            style={{
+              width: '38px',
+              height: '38px',
+              margin: '-19px auto 0',
+              borderRadius: '50%',
+              background: 'radial-gradient(circle at 35% 30%, #f472b6, #9d174d)',
+              boxShadow: '0 3px 8px rgba(157, 23, 77, 0.5), inset 0 1px 2px rgba(255,255,255,0.4)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              position: 'relative',
+              zIndex: 1,
+            }}
+            aria-hidden="true"
+          >
+            <span style={{ fontSize: '0.95rem', filter: 'drop-shadow(0 1px 1px rgba(0,0,0,0.25))' }}>💗</span>
+          </div>
+          <div style={{ marginTop: '14px', fontFamily: 'var(--font-family-title)', fontSize: '1rem', color: '#9d174d' }}>
             {honoree ? `Uma carta para ${honoree}` : 'Sua carta chegou'}
           </div>
-          <div style={{ marginTop: '6px', fontSize: '0.8rem', color: '#be185d' }}>toque para abrir 💗</div>
-          <div style={{ marginTop: '14px', display: 'inline-block', padding: '3px 12px', borderRadius: '999px', background: '#be185d', color: '#fff', fontSize: '0.7rem', fontWeight: '700', letterSpacing: '0.04em' }}>
-            LACRADA
-          </div>
+          <div style={{ marginTop: '6px', fontSize: '0.8rem', color: '#be185d' }}>toque no lacre para abrir</div>
         </button>
       ) : (
         <div>
