@@ -9,6 +9,12 @@ service firebase.storage {
     match /orders/{orderId}/photos/{fileName} {
       allow read, write: if true;
     }
+    // Fotos próprias da Retrospectiva (add-on, ver RetrospectivaAddonCard.jsx) — mesmo padrão de
+    // .../photos/ acima: cliente ainda anônimo no momento do upload, sem essa regra caía na
+    // catch-all (exige auth) e o upload falhava silencioso (storage/unauthorized), achado 03/09/2026.
+    match /orders/{orderId}/retrospectiva/{fileName} {
+      allow read, write: if true;
+    }
     // Rules do Storage só casam segmento inteiro de path — "video_homenagem.{ext}" não é sintaxe
     // válida (wildcard não pode ser parte de um segmento). Em vez disso, casa qualquer nome de
     // arquivo direto em orders/{orderId}/ e restringe pelo prefixo esperado (ver videoGenerator.js:345).
