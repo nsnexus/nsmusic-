@@ -18,6 +18,10 @@ import MedidorAmor from '@/components/MedidorAmor';
 // SEGURANÇA: só exibe quando o add-on está pago (hasRetrospectivaAccess). O conteúdo é público por
 // natureza (é pra ser compartilhado), mas nunca expõe dado de pagamento nem contato do cliente.
 
+// Inclinações alternadas pras fotos em moldura Polaroid — dá o efeito "coladas à mão", não uma
+// grade perfeitamente alinhada (visual pedido pra ficar romântico, não corporativo).
+const ROTACOES_POLAROID = [-4, 3, -2.5, 4, -3, 2];
+
 function diffDesde(dataInicio) {
   if (!dataInicio) return null;
   const inicio = new Date(`${dataInicio}T00:00:00`);
@@ -203,17 +207,19 @@ function RetrospectivaContent() {
         </div>
       )}
 
-      {/* Linha do tempo */}
+      {/* Linha do tempo — fotos em estilo Polaroid (moldura branca, leve inclinação, "pin"),
+          pedido 03/09/2026 pra ficar no clima do projeto de referência: quem compra Retrospectiva
+          é sempre casal fazendo declaração de amor, então o visual pende pro romântico/coração. */}
       {momentos.length > 0 && (
         <div style={{ maxWidth: '560px', margin: '0 auto 34px', padding: '0 20px' }}>
-          <h2 style={estilos.secaoTitulo}>Nossa linha do tempo</h2>
-          <div style={{ position: 'relative', paddingLeft: '22px', borderLeft: '2px solid rgba(126, 34, 206, 0.25)' }}>
+          <h2 style={estilos.secaoTitulo}>Nossa linha do tempo 💕</h2>
+          <div style={{ position: 'relative', paddingLeft: '22px', borderLeft: '2px solid rgba(190, 24, 93, 0.28)' }}>
             {momentos.map((m, i) => (
-              <div key={`${m.titulo}-${i}`} style={{ position: 'relative', marginBottom: '22px' }}>
-                <span style={{ position: 'absolute', left: '-29px', top: '4px', width: '14px', height: '14px', borderRadius: '50%', background: '#a855f7', border: '3px solid #fff', boxShadow: '0 2px 6px rgba(0,0,0,0.15)' }} />
-                <div className="glass-card" style={{ padding: '16px', borderRadius: '14px', background: 'rgba(255,255,255,0.8)' }}>
+              <div key={`${m.titulo}-${i}`} style={{ position: 'relative', marginBottom: '26px' }}>
+                <span style={{ position: 'absolute', left: '-31px', top: '2px', fontSize: '1.15rem', lineHeight: 1 }}>💗</span>
+                <div className="glass-card" style={{ padding: '16px', borderRadius: '14px', background: 'rgba(255,241,246,0.85)' }}>
                   {m.data && (
-                    <p style={{ fontSize: '0.75rem', color: '#a855f7', fontWeight: '700', margin: '0 0 4px' }}>{formatarDataBr(m.data)}</p>
+                    <p style={{ fontSize: '0.75rem', color: '#be185d', fontWeight: '700', margin: '0 0 4px' }}>{formatarDataBr(m.data)}</p>
                   )}
                   {m.titulo && (
                     <p style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--text-primary)', margin: '0 0 6px', fontFamily: 'var(--font-family-title)' }}>{m.titulo}</p>
@@ -222,8 +228,33 @@ function RetrospectivaContent() {
                     <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.6 }}>{m.texto}</p>
                   )}
                   {m.fotoUrl && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={m.fotoUrl} alt={m.titulo || 'Momento'} style={{ width: '100%', borderRadius: '10px', marginTop: '10px', display: 'block' }} />
+                    <div
+                      style={{
+                        background: '#fff',
+                        padding: '10px 10px 30px',
+                        borderRadius: '3px',
+                        boxShadow: '0 10px 22px rgba(131, 24, 67, 0.22)',
+                        transform: `rotate(${ROTACOES_POLAROID[i % ROTACOES_POLAROID.length]}deg)`,
+                        marginTop: '14px',
+                        maxWidth: '220px',
+                        marginLeft: 'auto',
+                        marginRight: 'auto',
+                        position: 'relative',
+                      }}
+                    >
+                      <span style={{ position: 'absolute', top: '-11px', left: '50%', transform: 'translateX(-50%)', fontSize: '1.25rem' }} aria-hidden="true">📌</span>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={m.fotoUrl}
+                        alt={m.titulo || 'Momento'}
+                        style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: '2px', display: 'block' }}
+                      />
+                      {m.titulo && (
+                        <p style={{ fontFamily: 'cursive', textAlign: 'center', margin: '8px 0 0', color: '#831843', fontSize: '0.82rem' }}>
+                          {m.titulo} ♥
+                        </p>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
@@ -232,20 +263,30 @@ function RetrospectivaContent() {
         </div>
       )}
 
-      {/* Álbum de fotos */}
+      {/* Álbum de fotos — também em molduras Polaroid, mesma linha romântica da linha do tempo. */}
       {fotos.length > 0 && (
         <div style={{ maxWidth: '560px', margin: '0 auto 34px', padding: '0 20px' }}>
-          <h2 style={estilos.secaoTitulo}>Nossas fotos</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '10px' }}>
+          <h2 style={estilos.secaoTitulo}>Nossas fotos 📸</h2>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '18px 14px' }}>
             {fotos.map((url, i) => (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
+              <div
                 key={url}
-                src={url}
-                alt={`Foto ${i + 1}`}
-                loading="lazy"
-                style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-              />
+                style={{
+                  background: '#fff',
+                  padding: '8px 8px 22px',
+                  borderRadius: '3px',
+                  boxShadow: '0 8px 18px rgba(131, 24, 67, 0.2)',
+                  transform: `rotate(${ROTACOES_POLAROID[i % ROTACOES_POLAROID.length]}deg)`,
+                }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={url}
+                  alt={`Foto ${i + 1}`}
+                  loading="lazy"
+                  style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: '2px', display: 'block' }}
+                />
+              </div>
             ))}
           </div>
         </div>
