@@ -15,6 +15,10 @@ import WizardSteps from './WizardSteps';
 import PixQrCode from '@/components/PixQrCode';
 import { requestPixCharge } from '@/lib/pixCheckout';
 
+// Espera antes de mostrar o convite "receber a música no WhatsApp" na tela de geração: aparecendo
+// de imediato, o cliente clicava e saía da tela antes de ver a música ficar pronta ali mesmo.
+const WHATSAPP_CTA_DELAY_MS = 30000;
+
 // Códigos de área (DDD) válidos no Brasil, segundo o plano de numeração da ANATEL.
 const VALID_BRAZIL_DDDS = new Set([
   '11', '12', '13', '14', '15', '16', '17', '18', '19',
@@ -392,6 +396,7 @@ export default function CriarMusica() {
 
   // Passos de carregamento dinâmico no estúdio de produção musical (Step 10)
   const [audioStepIdx, setAudioStepIdx] = useState(0);
+  const [showWhatsappCta, setShowWhatsappCta] = useState(false);
   const studioAudioPhrases = [
     "🎸 Compondo arranjos de instrumentos e base harmônica em estúdio...",
     "🎤 Gravando vocais e ajustando afinação e interpretação...",
@@ -407,6 +412,17 @@ export default function CriarMusica() {
       }, 4000);
     }
     return () => clearInterval(interval);
+  }, [formData.sunoStatus]);
+
+  // O convite de receber pelo WhatsApp só aparece depois de WHATSAPP_CTA_DELAY_MS na tela de
+  // geração (pedido do dono do estúdio, 03/09/2026): aparecendo de cara, o cliente clicava e saía
+  // antes mesmo de ver a música ficar pronta ali. Timer com cleanup obrigatório (frontend.md) —
+  // sem ele, sair da etapa antes dos 30s deixaria o setTimeout vivo depois da desmontagem.
+  useEffect(() => {
+    if (formData.sunoStatus === 'generated') return;
+    setShowWhatsappCta(false);
+    const t = setTimeout(() => setShowWhatsappCta(true), WHATSAPP_CTA_DELAY_MS);
+    return () => clearTimeout(t);
   }, [formData.sunoStatus]);
 
   // Valor promocional dinâmico: R$ 9,99 (só música) ou R$ 16,89 (música + vídeo)
@@ -1296,8 +1312,10 @@ export default function CriarMusica() {
                   Isso leva cerca de 2 minutos. Aguarde enquanto nosso estúdio sintetiza os vocalistas e a base instrumental.
                 </p>
 
-                {/* Botão de recebimento direto no WhatsApp com proteção anti-ban */}
-                <div style={{ marginTop: '24px', padding: '20px', background: 'rgba(37, 211, 102, 0.08)', border: '1px solid rgba(37, 211, 102, 0.3)', borderRadius: '16px', textAlign: 'center' }}>
+                {/* Botão de recebimento direto no WhatsApp com proteção anti-ban. Só aparece
+                    depois de WHATSAPP_CTA_DELAY_MS — ver o useEffect que controla showWhatsappCta. */}
+                {showWhatsappCta && (
+                <div style={{ marginTop: '24px', padding: '20px', background: 'rgba(37, 211, 102, 0.08)', border: '1px solid rgba(37, 211, 102, 0.3)', borderRadius: '16px', textAlign: 'center', animation: 'fadeIn 0.5s ease' }}>
                   <p style={{ fontSize: '0.95rem', color: '#10b981', margin: '0 0 10px 0', lineHeight: '1.5', fontWeight: '600' }}>
                     💡 <strong>Não precisa ficar esperando nesta tela!</strong>
                   </p>
@@ -1329,6 +1347,7 @@ export default function CriarMusica() {
                     <span>💬 Receber Música no meu WhatsApp</span>
                   </a>
                 </div>
+                )}
                 {formData.sunoStatus === 'error' && (
                   <div style={{ color: 'var(--danger)', marginTop: '16px', background: 'rgba(239, 68, 68, 0.1)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
                     <p style={{ fontWeight: 'bold', fontSize: '1rem' }}>Ocorreu um imprevisto na renderização automática.</p>
