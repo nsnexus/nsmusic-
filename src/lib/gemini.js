@@ -141,18 +141,22 @@ export async function runJsonCompletion(systemPrompt, userPrompt, env = {}) {
           'Authorization': `Bearer ${openAiKey}`,
         },
         body: JSON.stringify({
-          // gpt-4o (não o mini) só nesta função — é a conversa AO VIVO com o cliente no WhatsApp,
-          // onde o tom decide a venda. Com gpt-4o-mini a persona saía visivelmente de call center
-          // ("Que fofo!", "Ótima escolha!"), empilhava 3 perguntas por mensagem e ignorava a regra
-          // de quando parar de perguntar (teste real 03/09/2026, ver histórico da sessão). A
-          // composição da letra (runGeminiWithFailover, acima) segue no mini: lá o volume de texto
-          // é maior e a diferença de qualidade não se paga.
-          model: 'gpt-4o',
+          // gpt-5.6-luna só nesta função — é a conversa AO VIVO com o cliente no WhatsApp, onde o
+          // tom decide a venda. Comparado em teste real (03/09/2026, mesma conversa simulada nos
+          // três): gpt-4o-mini saía de call center ("Que fofo!", "Ótima escolha!"), empilhava 3
+          // perguntas por mensagem e nunca fechava; gpt-4o melhorou mas ainda escorregava no
+          // elogio genérico; luna citou o detalhe concreto do cliente ("criou vocês cinco vendendo
+          // picolé na praia") e fechou sozinha — e ainda custa uma fração do 4o.
+          //
+          // ATENÇÃO: a família gpt-5 NÃO aceita `temperature` diferente do padrão — mandar 0.8
+          // devolve 400 (`unsupported_value`) e derruba a conversa inteira pro fallback do Gemini.
+          // Por isso o parâmetro não é enviado aqui. A composição da letra (runGeminiWithFailover,
+          // acima) segue no gpt-4o-mini: trocar lá é mudança de produto, avaliar em separado.
+          model: 'gpt-5.6-luna',
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt },
           ],
-          temperature: 0.8,
           response_format: { type: 'json_object' },
         }),
         signal: AbortSignal.timeout(20000),
