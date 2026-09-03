@@ -47,6 +47,7 @@ function PagarContent() {
   const [customAmount, setCustomAmount] = useState('');
   const [approved, setApproved] = useState(false);
   const [pollingTimedOut, setPollingTimedOut] = useState(false);
+  const [pixCopied, setPixCopied] = useState(false);
 
   // Estado do pedido ao vivo — mesmo padrão de /entrega, pra refletir aprovação assim que o
   // webhook/polling do servidor gravar, mesmo sem depender só do polling local abaixo. Só roda no
@@ -219,11 +220,21 @@ function PagarContent() {
       <div style={{ maxWidth: '480px', width: '100%' }}>
         <div style={{ textAlign: 'center', marginBottom: '22px' }}>
           <div style={{ fontSize: '2.2rem', marginBottom: '8px' }}>🎶</div>
-          <h1 style={titleStyle}>{standalone ? `Sua música tá pronta, ${honoreeName}!` : `A música de ${honoreeName} tá pronta!`}</h1>
+          <h1 style={titleStyle}>{standalone ? 'O NS Music agradece pela preferência! 💜' : `A música de ${honoreeName} tá pronta!`}</h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: '1.5' }}>
-            Se essa homenagem te emocionou, pague o quanto achar justo — o mínimo já libera sua
-            música. A partir de <strong>R$ {VIDEO_THRESHOLD.toFixed(2).replace('.', ',')}</strong> você
-            ganha o <strong>Vídeo Homenagem</strong> de brinde! 🎬
+            {standalone ? (
+              <>
+                Se essa homenagem te emocionou, contribua com o quanto achar justo pelo trabalho —
+                o mínimo é o valor da música. A partir de <strong>R$ {VIDEO_THRESHOLD.toFixed(2).replace('.', ',')}</strong> você
+                também ganha o <strong>Vídeo Homenagem</strong> de brinde, é só falar comigo depois de pagar! 🎬
+              </>
+            ) : (
+              <>
+                Se essa homenagem te emocionou, pague o quanto achar justo — o mínimo já libera sua
+                música. A partir de <strong>R$ {VIDEO_THRESHOLD.toFixed(2).replace('.', ',')}</strong> você
+                ganha o <strong>Vídeo Homenagem</strong> de brinde! 🎬
+              </>
+            )}
           </p>
         </div>
 
@@ -313,6 +324,18 @@ function PagarContent() {
                   style={{ width: '100%', height: '64px', background: '#FFFFFF', color: '#0f172a', border: '1.5px solid var(--border-color)', borderRadius: '8px', padding: '10px', fontSize: '0.72rem', fontFamily: 'monospace', resize: 'none', boxSizing: 'border-box' }}
                 />
               </div>
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(pixInfo.qrCode);
+                  setPixCopied(true);
+                  setTimeout(() => setPixCopied(false), 3000);
+                }}
+                className="btn btn-primary"
+                style={{ width: '100%', padding: '12px', borderRadius: '10px', fontWeight: 'bold', border: 'none', cursor: 'pointer', marginBottom: '12px' }}
+              >
+                {pixCopied ? '✅ Código PIX Copiado!' : '📋 Copiar Código PIX'}
+              </button>
               {standalone ? (
                 <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: '1.4' }}>
                   Depois de pagar, me manda um print aqui no WhatsApp que eu confirmo e já te
