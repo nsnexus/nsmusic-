@@ -490,18 +490,24 @@ export async function POST(req) {
           if (freshSnap.exists()) freshData = freshSnap.data();
         } catch (e) {}
 
-        // Se NÃO passou ID explícito (caiu aqui só porque o telefone bateu com um pedido existente)
-        // E o cliente JÁ foi notificado antes (já recebeu o link da prévia ou pagamento),
-        // NÃO reenvia o template completo repetidamente para qualquer mensagem comum (dúvidas, "oi", "não gostei", etc.).
+        // Se foi só um "ok"/"obrigado"/emoji (isShortAckMessage) sem ID explícito e o cliente JÁ foi
+        // notificado antes, não reenvia o template completo — não precisa.
+        //
+        // ACHADO 02/09/2026: por 8 dias (commit 1661f5c, 25/08) esta checagem silenciava QUALQUER
+        // mensagem nessas condições, não só as curtas — `isShortAck` era calculado e nunca usado na
+        // condição. Resultado: cliente perguntando de verdade "cadê minha música?", "já ficou
+        // pronta?" etc. depois de já ter recebido o link uma vez (o caso comum, já que o pagamento
+        // dispara esse link automaticamente) não recebia resposta nenhuma — só as mensagens 100%
+        // automáticas (aprovação de pagamento) continuavam saindo. Restaurado o gate por isShortAck.
         const alreadyNotified = Boolean(
           freshData.whatsappSent ||
           freshData.paymentWhatsappSent ||
           freshData.readyTemplateSent
         );
 
-        if (!isExplicitId && alreadyNotified) {
-          console.log(`[WhatsApp Webhook] Cliente já possui o link do pedido #${matchedOrderId}. Mensagem "${messageText}" não reenvia template de música pronta.`);
-          return NextResponse.json({ success: true, ignored: 'already_notified_silence' }, { status: 200 });
+        if (isShortAck && !isExplicitId && alreadyNotified) {
+          console.log(`[WhatsApp Webhook] Confirmação curta ("${messageText}") e pedido #${matchedOrderId} já notificado. Silêncio.`);
+          return NextResponse.json({ success: true, ignored: 'already_notified_short_ack_silence' }, { status: 200 });
         }
 
         // Mesmo COM ID explícito: não repete um template recém-enviado (ver
