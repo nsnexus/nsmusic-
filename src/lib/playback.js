@@ -61,7 +61,14 @@ export async function requestPlaybackGeneration({ orderId, sunoTaskId, audioId }
 
       if (response.ok && (!data.code || data.code === 200)) break;
 
-      if (!isTransientKieFailure(response.status, data.code)) break;
+      // 422 tratado como transitório SÓ AQUI (não em isTransientKieFailure, compartilhado com a
+      // geração de música — lá um 422 costuma ser payload/conteúdo rejeitado de verdade, retentar
+      // seria desperdiçar crédito). Nesta rota, um pedido pago (wI7Z7ro5a6jJfKCZpBRe, 03/09/2026)
+      // recebeu 422 na primeira tentativa e a MESMA chamada, idêntica, funcionou minutos depois —
+      // sinal de instabilidade momentânea do lado da Kie.ai nesse endpoint específico, não payload
+      // inválido. Sem retry aqui, o cliente ficava com o pagamento aprovado e o produto nunca gerado.
+      const ehTransitorio = isTransientKieFailure(response.status, data.code) || response.status === 422;
+      if (!ehTransitorio) break;
       console.warn(`[playback] Erro transitório da Kie.ai (tentativa ${attempt}/${maxKieAttempts}):`, response.status, data.code);
     } catch (fetchErr) {
       console.warn(`[playback] Falha de rede ao chamar Kie.ai (tentativa ${attempt}/${maxKieAttempts}):`, fetchErr.message);
