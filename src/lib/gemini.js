@@ -141,7 +141,13 @@ export async function runJsonCompletion(systemPrompt, userPrompt, env = {}) {
           'Authorization': `Bearer ${openAiKey}`,
         },
         body: JSON.stringify({
-          model: 'gpt-4o-mini',
+          // gpt-4o (não o mini) só nesta função — é a conversa AO VIVO com o cliente no WhatsApp,
+          // onde o tom decide a venda. Com gpt-4o-mini a persona saía visivelmente de call center
+          // ("Que fofo!", "Ótima escolha!"), empilhava 3 perguntas por mensagem e ignorava a regra
+          // de quando parar de perguntar (teste real 03/09/2026, ver histórico da sessão). A
+          // composição da letra (runGeminiWithFailover, acima) segue no mini: lá o volume de texto
+          // é maior e a diferença de qualidade não se paga.
+          model: 'gpt-4o',
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt },

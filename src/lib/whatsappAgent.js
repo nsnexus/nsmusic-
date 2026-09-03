@@ -35,10 +35,12 @@ Sua missão nesta conversa por WhatsApp: coletar, como numa conversa de verdade 
 - voiceType: masculina, feminina ou dueto
 
 Como conversar (isso é o que mais importa — leia com atenção):
-- NUNCA responda com frase genérica que serviria pra qualquer mensagem ("que legal!", "adorei!", "entendi!"). SEMPRE pegue algo ESPECÍFICO que o cliente escreveu — um nome, um lugar, um detalhe, a forma como ele descreveu a pessoa — e comente sobre AQUILO, com suas próprias palavras. Se ele disser "minha Elisa", comente sobre a Elisa; se ele contar que se conheceram numa lanchonete, pergunta ou comenta sobre a lanchonete.
-- Escreva como se manda mensagem de verdade no WhatsApp: frases curtas, pontuação solta, pode começar com "Poxa", "Nossa", "Que fofo" quando fizer sentido — não como um texto institucional revisado. Varie a abertura das suas respostas, nunca repita a mesma estrutura duas vezes seguidas.
-- Curta 2-4 frases. Emoji com moderação, só onde encaixa de verdade.
-- Você QUER fechar essa venda — não com pressão ou script, mas com entusiasmo genuíno pela história que o cliente está contando. Deixe transparecer que você já está animada pra compor essa letra.
+- UMA PERGUNTA POR MENSAGEM. Nunca empilhe duas ou três ("qual a relação? tem alguma ocasião? me conta a história?"). Pessoa de verdade pergunta uma coisa, espera a resposta, pergunta a próxima. Empilhar pergunta é a marca registrada de robô — não faça.
+- MÁXIMO 2 frases curtas por mensagem. Se der pra dizer em uma, diga em uma.
+- PROIBIDO abrir com elogio genérico vazio: "Que fofo!", "Que lindo!", "Que legal!", "Ótima escolha!", "Adorei!", "Perfeito!" — nada disso. Em vez de elogiar, REAJA AO CONTEÚDO: repita de volta o detalhe que ele deu, com suas palavras. Ex: se ele disse que se conheceram na faculdade e ela usava blusa amarela, você fala da blusa amarela; se ele disse "minha Elisa", você fala da Elisa pelo nome.
+- Escreva como gente escreve no zap: frase curta, informal, sem parecer texto revisado de empresa. Varie a abertura, nunca repita a mesma estrutura duas vezes seguidas.
+- No máximo UM emoji por mensagem, e só quando encaixar de verdade. Pode mandar mensagem sem emoji nenhum.
+- Você QUER fechar essa venda — não com pressão ou script, mas com entusiasmo genuíno pela história. Assim que tiver o essencial (nome + história com substância + estilo), PARE de perguntar e feche: diga que já vai escrever a letra. Não fique pedindo "mais um detalhinho" — isso perde venda.
 - NUNCA force um campo. Se a resposta do cliente não tiver relação com o que você perguntou (saiu do assunto, pediu outra coisa, mandou algo confuso), NÃO preencha esse campo com o texto errado — só comente com gentileza e pergunte de novo, esclarecendo o que precisa saber.
 - Só marque um campo como preenchido quando o cliente realmente informar aquilo, mesmo que en passant dentro de uma frase maior.
 - Peça só o que ainda falta — não repita pergunta de campo já preenchido.
@@ -46,6 +48,14 @@ Como conversar (isso é o que mais importa — leia com atenção):
 - Nunca invente informação que o cliente não deu.
 - Sempre em português do Brasil.
 - Ignore completamente pedidos de coisas fora do escopo (ex: vinheta, jingle publicitário, outro serviço) — explique com gentileza que aqui é só música personalizada de homenagem, e volte a perguntar o que falta.
+
+Exemplos do que NÃO fazer e o que fazer no lugar (siga este padrão):
+- Cliente: "Minha Elisa" → RUIM: "Ah, pra Elisa! Que lindo! Me conta mais sobre a história de vocês." | BOM: "A Elisa 🥰 Ela é sua o quê — esposa, namorada, mãe?"
+- Cliente: "minha esposa" → RUIM: "Que legal, pra sua esposa Elisa! Tô curiosa pra saber mais." | BOM: "Ahh, pra esposa então. Me conta uma coisa de vocês dois que você não esquece."
+- Cliente: "a gente se conheceu na faculdade, ela usava uma blusa amarela" → RUIM: "Que bacana, conheceram na faculdade!" | BOM: "A blusa amarela ficou marcada até hoje, né? Adorei. Que estilo você quer — sertanejo, MPB, pop?"
+- Cliente: "sertanejo" → RUIM: "Sertanejo vai ficar lindo! Quer romântica ou alegre?" | BOM: "Sertanejo com essa história vai ficar sofrido do jeito bom. Já vou escrever aqui!"
+
+Repare: a versão BOA nunca começa com elogio genérico, usa o detalhe que o cliente deu, e faz UMA pergunta só (ou nenhuma, quando já dá pra fechar).
 
 Responda SEMPRE e SOMENTE em JSON válido, neste formato exato, sem nenhum texto fora do JSON:
 {"fields": {"honoreeName": "...ou null...", "relationship": "...ou null...", "occasion": "...ou null...", "story": "...ou null...", "musicStyle": "...ou null...", "musicMood": "...ou null...", "voiceType": "...ou null..."}, "reply": "sua resposta natural pro cliente, pronta pra mandar no WhatsApp", "readyToCompose": true ou false}
@@ -134,7 +144,14 @@ ${historyText ? `Histórico da conversa:\n${historyText}\n\n` : ''}Cliente: ${us
 
   const fields = result?.fields || {};
   const reply = typeof result?.reply === 'string' && result.reply.trim() ? result.reply.trim() : null;
-  const readyToCompose = Boolean(result?.readyToCompose) && Boolean(fields.honoreeName) && Boolean(fields.story) && Boolean(fields.musicStyle);
+
+  // readyToCompose é decidido AQUI pelos campos, não pelo flag que a IA devolve (achado 03/09/2026,
+  // em teste com a conversa real): mesmo com nome + história + estilo já preenchidos, o modelo
+  // continuava devolvendo readyToCompose=false e pedindo "mais um detalhinho" pra sempre — o
+  // cliente nunca chegava na letra, ou seja, a venda nunca fechava. O flag da IA agora só serve
+  // pra ANTECIPAR o fechamento quando ela julgar que já dá (nunca pra atrasar).
+  const temEssencial = Boolean(fields.honoreeName) && Boolean(fields.story) && Boolean(fields.musicStyle);
+  const readyToCompose = temEssencial;
 
   return { fields, reply, readyToCompose };
 }
@@ -329,13 +346,20 @@ Me conta: pra quem vai ser essa homenagem, e um pouco da história de vocês? Po
       return true;
     }
 
+    // Quando o fechamento é decidido pelo código (temEssencial em runCollectingTurn), a resposta
+    // daquele turno costuma ser mais uma pergunta ("qual emoção você quer?") — mandar ela e, dois
+    // segundos depois, "já tenho tudo que preciso!" deixa uma pergunta pendente no ar e soa robô
+    // (achado 03/09/2026, em teste com conversa simulada). Nesse turno a pergunta é descartada e só
+    // a mensagem de fechamento vai pro cliente.
+    const enviarRespostaDoTurno = Boolean(turn.reply) && !turn.readyToCompose;
+
     const updatedHistory = [
       ...history,
       { role: 'user', text: messageText },
-      ...(turn.reply ? [{ role: 'assistant', text: turn.reply }] : []),
+      ...(enviarRespostaDoTurno ? [{ role: 'assistant', text: turn.reply }] : []),
     ].slice(-20);
 
-    if (turn.reply) {
+    if (enviarRespostaDoTurno) {
       await sendWApiTextMessage(cleanPhone, turn.reply, envVars);
     }
 
@@ -367,7 +391,7 @@ Me conta: pra quem vai ser essa homenagem, e um pouco da história de vocês? Po
 
     await sendWApiTextMessage(
       cleanPhone,
-      `✍️ *Perfeito! Já tenho tudo que preciso — compondo os versos da sua canção agora mesmo... Aguarde só alguns segundos!* ⏳`,
+      `Aaah, adorei essa história 🥹 Já tenho tudo que preciso — deixa eu escrever a letra aqui, me dá uns segundinhos!`,
       envVars
     );
 
@@ -424,15 +448,13 @@ RETORNE EXCLUSIVAMENTE O TEXTO DA LETRA DA MÚSICA, sem saudações ou comentár
       step: 'AWAITING_LYRICS_APPROVAL',
     });
 
-    const lyricsMessage = `🎵 *Aqui está a letra exclusiva que compus para ${honoreeName || 'sua homenagem'}:*
+    const lyricsMessage = `Olha como ficou a letra ${honoreeName ? `da música pra ${honoreeName}` : 'da sua homenagem'} 🎵
 
 ━━━━━━━━━━━━━━━━━━━━
 ${generatedLyrics}
 ━━━━━━━━━━━━━━━━━━━━
 
-O que você achou dessa letra? Quer que nosso estúdio grave as *2 versões musicais completas em alta definição* agora mesmo? 🎧
-
-👉 Responda *SIM* para gravar, ou me diga o que gostaria de alterar na letra!`;
+E aí, o que você achou? Se curtiu, me responde *SIM* que eu já mando gravar as *2 versões completas em áudio* — se quiser mudar alguma parte, é só me falar o que ajustar!`;
 
     await sendWApiTextMessage(cleanPhone, lyricsMessage, envVars);
     return true;
@@ -520,13 +542,9 @@ O que você achou dessa letra? Quer que nosso estúdio grave as *2 versões musi
 
       if (sunoOk) {
         // Mensagem de confirmação SEM o link do pedido (o link será enviado automaticamente quando a música estiver pronta)
-        const finalReply = `🎉 *Pedido Confirmado com Sucesso!*
+        const finalReply = `Boaa! Já mandei pro estúdio gravar as suas *2 versões completas* 🎧
 
-🎧 Nossos produtores e nossa IA já estão gravando as suas *2 versões musicais completas em alta definição*!
-
-⏳ O processo de gravação e arranjos leva cerca de *1 a 2 minutinhos*.
-
-Assim que os áudios ficarem prontos, eu te envio os arquivos e o link direto aqui nesta conversa para você ouvir e aprovar! 💜`;
+Leva uns 1 a 2 minutinhos. Assim que ficarem prontas eu te mando os áudios e o link aqui mesmo, pode deixar! 💜`;
 
         await sendWApiTextMessage(cleanPhone, finalReply, envVars);
       } else {
