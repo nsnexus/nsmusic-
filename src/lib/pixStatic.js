@@ -35,11 +35,14 @@ export function generateStaticTxid(orderId) {
 // chave (confirmado pagável em outro banco em teste real 2026-08-13) — sem campo de descrição (02)
 // e sem txid real embutido no 62 (usa o marcador genérico "***" que o banco também usa). O txid
 // retornado aqui é só para controle interno (Firestore/admin); nunca entra no payload do QR.
-export function generateStaticPixPayload(amount, orderId) {
+//
+// `pixKey` é opcional — default é a chave do checkout normal (fallback paliativo do pagamento real).
+// A página de apoio/gorjeta (/apoie) passa uma chave diferente (e-mail) sem afetar esse fallback.
+export function generateStaticPixPayload(amount, orderId, pixKey = PIX_KEY) {
   const txid = generateStaticTxid(orderId);
   const valorStr = amount.toFixed(2);
 
-  const mai = emv('00', GUI) + emv('01', PIX_KEY);
+  const mai = emv('00', GUI) + emv('01', pixKey);
   const field26 = emv('26', mai);
   const field62 = emv('62', emv('05', '***'));
 
