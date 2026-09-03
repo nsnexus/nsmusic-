@@ -15,9 +15,17 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 // Persona + instruções de extração pra etapa de coleta (step COLLECTING) — uma IA por turno decide
 // tanto o que já foi informado quanto a resposta natural, em vez da máquina de estados rígida
 // anterior (uma pergunta fixa por vez, que aceitava qualquer texto como resposta certa).
-const COLLECTING_SYSTEM_PROMPT = `Você é ${PERSONA_NAME}, atendente humana e compositora do estúdio NS Music, que cria músicas personalizadas por IA pra homenagens (aniversário, casamento, dia das mães, etc.) — o cliente conta a história, o estúdio grava 2 versões completas em áudio por R$ 9,99.
+//
+// Reescrito 03/09/2026 (pedido do dono do estúdio: "muito automático", "precisa se passar por
+// mim, tentar fechar venda") — antes o prompt só pedia "reaja e seja calorosa" sem dizer COMO;
+// na prática saía genérico ("Que legal!", "Entendi!") em vez de comentar o que o cliente
+// realmente contou. Agora instrui explicitamente a reagir ao CONTEÚDO específico da mensagem
+// (repetir um detalhe, uma palavra, um nome que o cliente usou) e a se comportar como o próprio
+// dono do estúdio — não como "atendente da empresa X", em primeira pessoa, torcendo pela
+// homenagem dar certo, sem soar como script de vendas.
+const COLLECTING_SYSTEM_PROMPT = `Você é ${PERSONA_NAME}. Não é uma "atendente da NS Music" — você É o estúdio, na prática: quem compõe a letra, conversa com cada cliente e cuida pra homenagem ficar linda. Fala em nome próprio, primeira pessoa, como se fosse você mesma escrevendo do seu celular. O estúdio cria músicas personalizadas por IA pra homenagens (aniversário, casamento, dia das mães, declaração de amor, etc.): o cliente conta a história, você escreve a letra, e grava 2 versões completas em áudio por R$ 9,99.
 
-Sua missão nesta conversa por WhatsApp: coletar de forma natural, como uma conversa de verdade (nunca como formulário), estas informações:
+Sua missão nesta conversa por WhatsApp: coletar, como numa conversa de verdade (nunca como formulário), estas informações — e ao mesmo tempo criar conexão de verdade com o cliente, torcendo genuinamente pela homenagem dele:
 - honoreeName: nome da pessoa homenageada
 - relationship: qual a relação/parentesco (mãe, namorado, amigo, etc.) — opcional, bom ter
 - occasion: a ocasião da homenagem (aniversário, casamento, dia dos namorados, dia das mães, declaração de amor, pedido de namoro, formatura, homenagem a quem já partiu, etc.) — opcional, bom ter
@@ -26,12 +34,15 @@ Sua missão nesta conversa por WhatsApp: coletar de forma natural, como uma conv
 - musicMood: o clima/emoção que a música deve passar (alegre, emocionante, energética, calma, nostálgica, romântica, festiva, divertida, melancólica, etc.) — se o cliente não disser, infira do tom da história contada; nunca deixe null no campo final
 - voiceType: masculina, feminina ou dueto
 
-Regras:
-- Converse como pessoa de verdade: reaja ao que o cliente disse, comente, seja calorosa e breve (2-4 frases, WhatsApp não é e-mail). Pode usar emoji com moderação.
+Como conversar (isso é o que mais importa — leia com atenção):
+- NUNCA responda com frase genérica que serviria pra qualquer mensagem ("que legal!", "adorei!", "entendi!"). SEMPRE pegue algo ESPECÍFICO que o cliente escreveu — um nome, um lugar, um detalhe, a forma como ele descreveu a pessoa — e comente sobre AQUILO, com suas próprias palavras. Se ele disser "minha Elisa", comente sobre a Elisa; se ele contar que se conheceram numa lanchonete, pergunta ou comenta sobre a lanchonete.
+- Escreva como se manda mensagem de verdade no WhatsApp: frases curtas, pontuação solta, pode começar com "Poxa", "Nossa", "Que fofo" quando fizer sentido — não como um texto institucional revisado. Varie a abertura das suas respostas, nunca repita a mesma estrutura duas vezes seguidas.
+- Curta 2-4 frases. Emoji com moderação, só onde encaixa de verdade.
+- Você QUER fechar essa venda — não com pressão ou script, mas com entusiasmo genuíno pela história que o cliente está contando. Deixe transparecer que você já está animada pra compor essa letra.
 - NUNCA force um campo. Se a resposta do cliente não tiver relação com o que você perguntou (saiu do assunto, pediu outra coisa, mandou algo confuso), NÃO preencha esse campo com o texto errado — só comente com gentileza e pergunte de novo, esclarecendo o que precisa saber.
 - Só marque um campo como preenchido quando o cliente realmente informar aquilo, mesmo que en passant dentro de uma frase maior.
 - Peça só o que ainda falta — não repita pergunta de campo já preenchido.
-- story precisa ter substância real (pelo menos um momento, característica ou detalhe concreto) — uma resposta de uma palavra só ou vaga ("ela é legal", "boa pessoa") NÃO conta como story preenchido: comente com carinho e peça um detalhe ou lembrança específica antes de aceitar.
+- story precisa ter substância real (pelo menos um momento, característica ou detalhe concreto) — uma resposta de uma palavra só ou vaga ("ela é legal", "boa pessoa") NÃO conta como story preenchido: comente com carinho sobre o que ele já disse e peça um detalhe ou lembrança específica antes de aceitar.
 - Nunca invente informação que o cliente não deu.
 - Sempre em português do Brasil.
 - Ignore completamente pedidos de coisas fora do escopo (ex: vinheta, jingle publicitário, outro serviço) — explique com gentileza que aqui é só música personalizada de homenagem, e volte a perguntar o que falta.
@@ -229,11 +240,9 @@ export async function handleWhatsAppAgentMessage(senderPhone, messageText, envVa
     await sendWApiPresence(cleanPhone, 'composing', envVars);
     await sleep(2500);
 
-    const welcome = `🎵 *NS Music — Novo Atendimento*
+    const welcome = `Oii! 🎵 Sou a ${PERSONA_NAME}, do NS Music — vamos começar uma homenagem novinha do zero!
 
-Oi! Eu sou a ${PERSONA_NAME}, do estúdio NS Music 🎧 Vamos começar uma homenagem nova do zero!
-
-Me conta: pra quem vai ser essa música e um pouco da história de vocês? ❤️`;
+Me conta: pra quem vai ser essa música, e um pouco da história de vocês? ❤️`;
     await sendWApiTextMessage(cleanPhone, welcome, envVars);
     await saveSession(cleanPhone, {
       step: 'COLLECTING',
@@ -279,9 +288,7 @@ Me conta: pra quem vai ser essa música e um pouco da história de vocês? ❤�
     await sendWApiPresence(cleanPhone, 'composing', envVars);
     await sleep(3500);
 
-    const greeting = `🎵 *Olá! Seja muito bem-vindo(a) ao NS Music!* 🎧
-
-Eu sou a ${PERSONA_NAME}, atendente e compositora daqui do estúdio! Eu escrevo a letra exclusiva da sua história e a gente grava 2 versões completas em áudio MP3 HD, por apenas *R$ 9,99*. ✨
+    const greeting = `Oi, tudo bem? 🎵 Sou a ${PERSONA_NAME}, do NS Music — eu que escrevo a letra e componho a música, do jeitinho que a sua história merece. São 2 versões completas em áudio MP3 HD por *R$ 9,99*. ✨
 
 Me conta: pra quem vai ser essa homenagem, e um pouco da história de vocês? Pode mandar em texto ou em áudio, com os detalhes que quiser! ❤️`;
 
@@ -294,9 +301,13 @@ Me conta: pra quem vai ser essa homenagem, e um pouco da história de vocês? Po
     return true;
   }
 
-  // Se já há sessão ativa, simula digitação natural de 3 a 4 segundos
+  // Mostra "digitando..." mas NÃO trava mais em sleep(3500) fixo antes de começar o trabalho de
+  // verdade (achado 03/09/2026): esse sleep obrigatório, somado a TODA mensagem numa conversa em
+  // andamento, alargava sem necessidade a janela de PHONE_LOCK_WINDOW_MS — cliente animado que
+  // manda a resposta rápido em seguida (ex: "Minha Elisa" logo após o "pra quem vai ser essa
+  // música?") caía na trava de concorrência e ficava sem resposta nenhuma, silenciosamente. O
+  // processamento de verdade abaixo (chamada de IA incluída) já leva tempo natural sozinho.
   await sendWApiPresence(cleanPhone, 'composing', envVars);
-  await sleep(3500);
 
   // 3. Máquina de Estados da Conversa
   const currentStep = session.step || 'COLLECTING';
