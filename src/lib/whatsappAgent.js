@@ -253,20 +253,21 @@ Me conta: pra quem vai ser essa música e um pouco da história de vocês? ❤�
     return false;
   }
 
-  // Se não tem sessão ativa, verifica se a mensagem é um gatilho de início de atendimento
+  // Se não tem sessão ativa, verifica se a mensagem é um gatilho de início de atendimento.
+  //
+  // ACHADO 03/09/2026: a lista de substrings fixos ("fazer uma música", "quero uma música" etc.)
+  // não pega frases naturais com uma palavra a mais no meio — "quero fazer uma NOVA música" não
+  // contém "fazer uma música" como substring (por causa do "nova" inserido), então a mensagem mais
+  // óbvia possível pra pedir uma música nova caía direto no silêncio (`return false`, nem log).
+  // Trocado pela mesma ideia num regex tolerante a palavras no meio (até 20 caracteres), que cobre
+  // "quero/gostaria/fazer/criar ... música/musica" em qualquer ordem de frase plausível.
   const isTriggerMessage =
     textLower.includes('site da nsmusic') ||
     textLower.includes('vim pelo site') ||
-    textLower.includes('criar musica') ||
-    textLower.includes('criar música') ||
-    textLower.includes('fazer uma musica') ||
-    textLower.includes('fazer uma música') ||
-    textLower.includes('quero uma musica') ||
-    textLower.includes('quero uma música') ||
-    textLower.includes('quero fazer uma música') ||
     textLower.includes('informações') ||
     textLower.includes('como funciona') ||
-    textLower.includes('quanto custa');
+    textLower.includes('quanto custa') ||
+    /(criar|fazer|quero|queria|gostaria|preciso).{0,20}(musica|música)/.test(textLower);
 
   if (!session) {
     if (!isTriggerMessage) {
