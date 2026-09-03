@@ -1,5 +1,20 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
+// Modelo da COMPOSIÇÃO DA LETRA (o produto em si — site e agente do WhatsApp usam este caminho).
+//
+// Trocado de gpt-4o-mini para gpt-5.6-luna em 03/09/2026, depois de clientes reclamarem da letra.
+// Comparados lado a lado com a MESMA história real (pai que criou 5 filhos vendendo picolé):
+//   - gpt-4o-mini: erro de concordância no refrão ("no dia que eu me formou", repetido no refrão
+//     final), rimas forçadas ("destreza/beleza") e um fato INVENTADO que não estava na história
+//     ("seis anos de ausência");
+//   - gpt-5.6-luna: português correto e aproveitou os detalhes reais que o cliente deu (as 5h da
+//     manhã, Salinas, a mala amarrada com corda, as 8 horas de ônibus, o choro escondido).
+//
+// ATENÇÃO: a família gpt-5 rejeita `temperature` diferente do padrão com HTTP 400
+// (`unsupported_value`). Se voltar a enviar o parâmetro, TODA composição cai no fallback do Gemini
+// sem ninguém perceber. Por isso o envio é condicional aqui e em runJsonCompletion.
+const LYRICS_MODEL = 'gpt-5.6-luna';
+
 /**
  * Executes a prompt using OpenAI (ChatGPT gpt-4o-mini) as PRIMARY engine, 
  * with automatic failover to Gemini and fallback models.
@@ -22,7 +37,7 @@ export async function runGeminiWithFailover(prompt) {
     const maxOpenAiAttempts = 3;
     for (let attempt = 1; attempt <= maxOpenAiAttempts; attempt++) {
       try {
-        console.log(`Iniciando composição via OpenAI ChatGPT (gpt-4o-mini), tentativa ${attempt}/${maxOpenAiAttempts}...`);
+        console.log(`Iniciando composição via OpenAI (${LYRICS_MODEL}), tentativa ${attempt}/${maxOpenAiAttempts}...`);
         const openAiRes = await fetch("https://api.openai.com/v1/chat/completions", {
           method: "POST",
           headers: {
@@ -30,7 +45,7 @@ export async function runGeminiWithFailover(prompt) {
             "Authorization": `Bearer ${openAiKey.trim()}`
           },
           body: JSON.stringify({
-            model: "gpt-4o-mini",
+            model: LYRICS_MODEL,
             messages: [
               {
                 role: "system",
@@ -38,7 +53,8 @@ export async function runGeminiWithFailover(prompt) {
               },
               { role: "user", content: prompt }
             ],
-            temperature: 0.7
+            // gpt-5 não aceita temperature customizada (400) — ver comentário em LYRICS_MODEL.
+            ...(LYRICS_MODEL.startsWith('gpt-5') ? {} : { temperature: 0.7 })
           }),
           signal: AbortSignal.timeout(30000)
         });
