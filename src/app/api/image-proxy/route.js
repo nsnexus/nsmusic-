@@ -57,11 +57,27 @@ export async function GET(req) {
       headers['Content-Disposition'] = `attachment; filename="${safeName}"`;
     }
 
-    // STREAMING, não arrayBuffer (achado 03/09/2026): o `await res.arrayBuffer()` daqui carregava o
-    // arquivo INTEIRO na memória do Edge Runtime antes de responder. Com imagem passava; com o
-    // Vídeo Homenagem (dezenas de MB) estourava, a rota caía no catch e devolvia o JSON de erro —
-    // que o navegador salvava com o nome pedido, e o cliente recebia um arquivo terminado em
-    // ".json" em vez do vídeo. Repassar o corpo direto não acumula nada na memória.
+    // HÍBRIDO (achado 03/09/2026, segunda rodada): o streaming puro que substituiu o
+    // `arrayBuffer()` (pro Vídeo Homenagem de 136 MB não estourar os 128 MB do Worker) criou um
+    // problema novo — um cliente recebeu o vídeo com 46s em vez dos ~2min da música, porque o
+    // slideshow usa este MESMO proxy como fallback pra baixar o ÁUDIO (ver
+    // src/lib/videoGenerator.js:fetchAudioBytes), e repassar `res.body` direto arrisca entregar a
+    // resposta cortada se a conexão de origem escorregar no meio — sem erro nenhum, o
+    // decodeAudioData decodifica os bytes que chegaram e produz um áudio mais curto que o real.
+    //
+    // Pra arquivo pequeno/médio (o caso comum: capa, áudio, foto), `arrayBuffer()` garante o
+    // arquivo COMPLETO antes de responder — não tem como entregar parte de um MP3 de 5 MB. Só o
+    // Vídeo Homenagem (dezenas de MB, sem Content-Length às vezes) precisa do streaming.
+    const tamanhoConhecido = Number(contentLength) || 0;
+    const ARQUIVO_GRANDE_BYTES = 15 * 1024 * 1024; // 15 MB — acima da faixa de áudio/imagem normal
+
+    if (tamanhoConhecido > 0 && tamanhoConhecido <= ARQUIVO_GRANDE_BYTES) {
+      const buffer = await res.arrayBuffer();
+      return new NextResponse(buffer, { status: 200, headers });
+    }
+
+    // Sem Content-Length ou arquivo grande: streaming, mesmo com o risco de corte residual —
+    // melhor que travar no limite de memória do Worker.
     return new NextResponse(res.body, { status: 200, headers });
   } catch (error) {
     console.error("Erro no image-proxy:", error);
