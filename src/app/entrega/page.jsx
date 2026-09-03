@@ -11,6 +11,7 @@ import { db, auth, storage } from '@/lib/firebase';
 import { primeAudioContext } from '@/lib/audioContext';
 import { AUDIO_CACHE_VERSION } from '@/lib/audioCacheVersion';
 import ExtrasOfferModal from '@/components/ExtrasOfferModal';
+import ExtrasVitrine from '@/components/ExtrasVitrine';
 import PixQrCode from '@/components/PixQrCode';
 import PlaybackAddonCard from '@/components/PlaybackAddonCard';
 import CartaAddonCard from '@/components/CartaAddonCard';
@@ -1616,6 +1617,11 @@ function EntregaContent() {
                     )}
                   </div>
                 )}
+
+                {/* Vitrine dos extras enquanto o cliente decide o pagamento da música. Sem botão de
+                    compra de propósito — ver o comentário em ExtrasVitrine.jsx (add-on isolado não
+                    aprova a música, então comprar aqui deixaria o cliente sem o produto principal). */}
+                {!isPaid && <ExtrasVitrine />}
               </div>
 
               {/* Lyrics Side */}
