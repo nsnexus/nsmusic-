@@ -94,7 +94,11 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
 
       const isVideoOnly = sku === 'video_addon';
       const isPlaybackOnly = sku === 'playback_addon';
-      const dedupKey = isVideoOnly ? 'videoPaymentId' : isPlaybackOnly ? 'playbackPaymentId' : 'paymentId';
+      const isCartaOnly = sku === 'carta_addon';
+      const dedupKey = isVideoOnly ? 'videoPaymentId'
+        : isPlaybackOnly ? 'playbackPaymentId'
+        : isCartaOnly ? 'cartaPaymentId'
+        : 'paymentId';
 
       // Idempotência: mesmo paymentId já aplicado antes (webhook e polling correndo em paralelo).
       if (String(orderData[dedupKey] || '') === String(paymentId)) {
@@ -115,6 +119,11 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
           updates.playbackAddonPaid = true;
           updates.playbackPaymentId = String(paymentId);
           updates.playbackPaidAt = nowIso;
+        } else if (isCartaOnly) {
+          updates.hasCartaAccess = true;
+          updates.cartaAddonPaid = true;
+          updates.cartaPaymentId = String(paymentId);
+          updates.cartaPaidAt = nowIso;
         } else {
           // C-09: paymentStatus só é escrito neste ramo — os add-ons isolados nunca o alteram.
           updates.paymentStatus = 'PAGAMENTO_APROVADO';
@@ -139,7 +148,7 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
 
         await updateDoc(orderRef, updates);
 
-        txResult = { applied: true, sku, isVideoOnly, isPlaybackOnly, orderData };
+        txResult = { applied: true, sku, isVideoOnly, isPlaybackOnly, isCartaOnly, orderData };
       }
     }
   } catch (err) {
@@ -151,7 +160,7 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
   // aconteceu acima). WhatsApp só pra pagamento da música; Purchase da Meta pros dois casos (a venda
   // do add-on isolado é receita real, tem que contar também — ver src/lib/metaCapi.js).
   if (txResult.applied) {
-    if (!txResult.isVideoOnly && !txResult.isPlaybackOnly) {
+    if (!txResult.isVideoOnly && !txResult.isPlaybackOnly && !txResult.isCartaOnly) {
       await notifyPaymentApproved(orderRef, txResult.orderData);
     }
 
@@ -198,14 +207,51 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
       }
     }
 
+    // Carta Virtual: mesma reserva sequencial do playback, pelo mesmo motivo (webhook e polling do
+    // pagamento podem chegar juntos e gerar duas vezes). Diferente do playback, aqui não há tarefa
+    // assíncrona externa — o texto sai na própria chamada, então já grava pronto. Se falhar, o
+    // cliente ainda pode gerar pelo botão em /entrega (api/carta/generate), então não é perda.
+    if (txResult.isCartaOnly) {
+      try {
+        let shouldGenerate = false;
+        const freshSnap = await getDoc(orderRef);
+        if (freshSnap.exists()) {
+          const freshData = freshSnap.data();
+          if (!freshData.cartaTexto && !freshData.cartaGenerating) {
+            await updateDoc(orderRef, { cartaGenerating: true });
+            shouldGenerate = true;
+          }
+        }
+
+        if (shouldGenerate) {
+          const { generateCartaText } = await import('./carta.js');
+          const resultado = await generateCartaText(txResult.orderData || {});
+          if (resultado.ok) {
+            await updateDoc(orderRef, {
+              cartaTexto: resultado.texto,
+              cartaStatus: 'READY',
+              cartaGeneratedAt: new Date().toISOString(),
+              cartaGenerating: false,
+            });
+          } else {
+            console.warn(`[payments] Carta paga mas não gerada — pedido ${orderId}:`, resultado.error);
+            await updateDoc(orderRef, { cartaGenerating: false, cartaStatus: 'FAILED' });
+          }
+        }
+      } catch (err) {
+        console.warn('[payments] Erro ao gerar a carta:', err.message);
+        await updateDoc(orderRef, { cartaGenerating: false }).catch(() => {});
+      }
+    }
+
     // Reserva com o mesmo padrão do WhatsApp (getDoc fresco + updateDoc antes de enviar) — sem isso,
     // chamadas concorrentes de applyPaymentApproval (webhook + polling + os dois crons de
     // reconciliação, que hoje rodam em paralelo) podiam todas passar pela checagem de idempotência
     // ANTES de qualquer updateDoc acontecer, e cada uma disparava seu próprio evento de Purchase pra
     // Meta — a escrita em si é idempotente (resultado final correto), mas o efeito colateral não era
     // (achado real em produção: 2 vendas genuínas geraram 15 eventos de Compra em ~5h, 19-20/08/2026).
-    const sentField = txResult.isVideoOnly ? 'metaVideoPurchaseSent' : txResult.isPlaybackOnly ? 'metaPlaybackPurchaseSent' : 'metaPurchaseSent';
-    const sendingField = txResult.isVideoOnly ? 'metaVideoPurchaseSending' : txResult.isPlaybackOnly ? 'metaPlaybackPurchaseSending' : 'metaPurchaseSending';
+    const sentField = txResult.isVideoOnly ? 'metaVideoPurchaseSent' : txResult.isPlaybackOnly ? 'metaPlaybackPurchaseSent' : txResult.isCartaOnly ? 'metaCartaPurchaseSent' : 'metaPurchaseSent';
+    const sendingField = txResult.isVideoOnly ? 'metaVideoPurchaseSending' : txResult.isPlaybackOnly ? 'metaPlaybackPurchaseSending' : txResult.isCartaOnly ? 'metaCartaPurchaseSending' : 'metaPurchaseSending';
     try {
       let shouldSend = false;
       const freshSnap = await getDoc(orderRef);
@@ -229,7 +275,8 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
           || Number(txResult.orderData?.expectedAmount);
         const contentName = txResult.isVideoOnly
           ? 'Vídeo Homenagem (Add-on)'
-          : txResult.isPlaybackOnly ? 'Playback Instrumental (Add-on)' : 'Música Homenagem Personalizada';
+          : txResult.isPlaybackOnly ? 'Playback Instrumental (Add-on)'
+          : txResult.isCartaOnly ? 'Carta Virtual (Add-on)' : 'Música Homenagem Personalizada';
         const sendResult = await sendMetaPurchaseEvent({
           orderId,
           value,
@@ -327,6 +374,10 @@ async function revokeApproval(orderRef, paymentId, status) {
     } else if (String(orderData.playbackPaymentId || '') === String(paymentId)) {
       updates.hasPlaybackAccess = false;
       updates.playbackAddonPaid = false;
+      revoked = true;
+    } else if (String(orderData.cartaPaymentId || '') === String(paymentId)) {
+      updates.hasCartaAccess = false;
+      updates.cartaAddonPaid = false;
       revoked = true;
     } else if (String(orderData.paymentId || '') === String(paymentId)) {
       updates.paymentStatus = 'AGUARDANDO_PAGAMENTO';

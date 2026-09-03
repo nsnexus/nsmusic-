@@ -109,6 +109,39 @@ describe('applyPaymentApproval', () => {
     expect(store['order2d'].hasVideoAccess).toBe(true);
   });
 
+  it('C-09: carta_addon isolado NUNCA escreve paymentStatus, só hasCartaAccess', async () => {
+    store['orderCarta'] = { paymentIntentSku: 'carta_addon', paymentStatus: 'AGUARDANDO_PAGAMENTO', cartaPaymentId: null, story: 'história real' };
+
+    const result = await applyPaymentApproval('orderCarta', 'c1', { status: 'approved', transaction_amount: 5.99 });
+
+    expect(result.applied).toBe(true);
+    expect(store['orderCarta'].paymentStatus).toBe('AGUARDANDO_PAGAMENTO'); // inalterado
+    expect(store['orderCarta'].hasCartaAccess).toBe(true);
+    expect(store['orderCarta'].cartaAddonPaid).toBe(true);
+    expect(store['orderCarta'].cartaPaymentId).toBe('c1');
+  });
+
+  it('carta_addon não concede vídeo nem playback por tabela', async () => {
+    store['orderCarta2'] = { paymentIntentSku: 'carta_addon', story: 'história real' };
+
+    await applyPaymentApproval('orderCarta2', 'c2', { status: 'approved', transaction_amount: 5.99 });
+
+    expect(store['orderCarta2'].hasVideoAccess).toBeUndefined();
+    expect(store['orderCarta2'].hasPlaybackAccess).toBeUndefined();
+  });
+
+  it('estorno da carta revoga o acesso concedido', async () => {
+    store['orderCarta3'] = { cartaPaymentId: 'c3', hasCartaAccess: true, cartaAddonPaid: true, paymentStatus: 'PAGAMENTO_APROVADO' };
+
+    const result = await applyPaymentApproval('orderCarta3', 'c3', { status: 'refunded' });
+
+    expect(result.revoked).toBe(true);
+    expect(store['orderCarta3'].hasCartaAccess).toBe(false);
+    expect(store['orderCarta3'].cartaAddonPaid).toBe(false);
+    // A música continua paga — o estorno foi só do add-on.
+    expect(store['orderCarta3'].paymentStatus).toBe('PAGAMENTO_APROVADO');
+  });
+
   it('C-09: video_addon isolado NUNCA escreve paymentStatus, só hasVideoAccess', async () => {
     store['order3'] = { paymentIntentSku: 'video_addon', paymentStatus: 'AGUARDANDO_PAGAMENTO', videoPaymentId: null };
 

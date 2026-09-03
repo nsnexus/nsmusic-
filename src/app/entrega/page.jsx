@@ -13,6 +13,7 @@ import { AUDIO_CACHE_VERSION } from '@/lib/audioCacheVersion';
 import VideoOfferModal from '@/components/VideoOfferModal';
 import PixQrCode from '@/components/PixQrCode';
 import PlaybackAddonCard from '@/components/PlaybackAddonCard';
+import CartaAddonCard from '@/components/CartaAddonCard';
 import { requestPixCharge } from '@/lib/pixCheckout';
 import { styles } from './entregaStyles';
 
@@ -1391,6 +1392,13 @@ function EntregaContent() {
                     gravados na geração (pedidos anteriores a este recurso não têm esses campos). */}
                 {isPaid && order?.audioIds?.length > 0 && order?.sunoTaskId && (
                   <PlaybackAddonCard orderId={orderId} order={order} />
+                )}
+
+                {/* Add-on de Carta Virtual — precisa da história que o cliente contou, que é a
+                    matéria-prima do texto (pedido sem story nenhuma não tem carta possível, ver
+                    src/lib/carta.js). */}
+                {isPaid && (order?.story || order?.importantMoments) && (
+                  <CartaAddonCard orderId={orderId} order={order} />
                 )}
 
                 {!isPaid && (

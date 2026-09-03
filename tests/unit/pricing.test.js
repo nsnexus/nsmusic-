@@ -18,7 +18,7 @@ describe('getPriceForSku', () => {
   });
 
   it('não é influenciável por um valor arbitrário — só existe o que está no catálogo', () => {
-    expect(Object.keys(SKU_PRICES)).toEqual(['audio_only', 'combo', 'video_addon', 'playback_addon', 'recovery_combo_24h', 'recovery_combo_48h']);
+    expect(Object.keys(SKU_PRICES)).toEqual(['audio_only', 'combo', 'video_addon', 'playback_addon', 'carta_addon', 'recovery_combo_24h', 'recovery_combo_48h']);
   });
 });
 
@@ -53,5 +53,10 @@ describe('skuApprovesMusic', () => {
 
   it('impacto (preço variável, /pagar) também aprova a música — piso é o preço da música', () => {
     expect(skuApprovesMusic('impacto')).toBe(true);
+  });
+
+  it('carta_addon isolado NUNCA aprova a música nem concede vídeo (C-09)', () => {
+    expect(skuApprovesMusic('carta_addon')).toBe(false);
+    expect(skuGrantsVideoAccess('carta_addon')).toBe(false);
   });
 });

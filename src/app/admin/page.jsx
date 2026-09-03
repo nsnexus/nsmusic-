@@ -321,6 +321,7 @@ export default function AdminDashboard() {
   const AUDIO_PRICE = getPriceForSku('audio_only'); // 9.99, preço base sem variação por pedido
   const VIDEO_PRICE = getPriceForSku('video_addon'); // 6.90
   const PLAYBACK_PRICE = getPriceForSku('playback_addon'); // 4.99
+  const CARTA_PRICE = getPriceForSku('carta_addon'); // 5.99
 
   // Reconstrói o que o pedido tem CONFIRMADO por produto (música / vídeo / playback), a partir dos
   // flags que applyPaymentApproval grava por aprovação — nunca de `expectedAmount`, que é
@@ -363,6 +364,12 @@ export default function AdminDashboard() {
       let playbackAmount = parseAmount(amountByTxid[o.playbackPaymentId], null);
       if (playbackAmount === null || playbackAmount === 0) playbackAmount = PLAYBACK_PRICE;
       items.push({ label: '🎧 Playback (add-on)', amount: playbackAmount });
+    }
+
+    if (o.cartaAddonPaid && o.cartaPaymentId) {
+      let cartaAmount = parseAmount(amountByTxid[o.cartaPaymentId], null);
+      if (cartaAmount === null || cartaAmount === 0) cartaAmount = CARTA_PRICE;
+      items.push({ label: '💌 Carta (add-on)', amount: cartaAmount });
     }
 
     const total = items.reduce((sum, item) => sum + item.amount, 0);

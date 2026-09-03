@@ -12,6 +12,7 @@ export const SKU_PRICES = {
   combo: 16.89,
   video_addon: 6.90,
   playback_addon: 4.99,
+  carta_addon: 5.99,
   recovery_combo_24h: 9.99,
   recovery_combo_48h: 6.99,
 };
