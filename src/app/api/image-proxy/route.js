@@ -20,9 +20,11 @@ export async function GET(req) {
       return NextResponse.json({ error: 'Domínio de origem não permitido para este proxy.' }, { status: 400 });
     }
 
-    const res = await fetch(imageUrl, { signal: AbortSignal.timeout(15000) });
+    // 30s, não 15s: o mesmo proxy serve o Vídeo Homenagem, que é ordens de grandeza maior que uma
+    // capa e não cabia na janela pensada para imagem.
+    const res = await fetch(imageUrl, { signal: AbortSignal.timeout(30000) });
     if (!res.ok) {
-      return NextResponse.json({ error: `Falha ao buscar imagem: HTTP ${res.status}` }, { status: res.status });
+      return NextResponse.json({ error: `Falha ao buscar arquivo: HTTP ${res.status}` }, { status: res.status });
     }
 
     const contentType = res.headers.get('content-type') || 'application/octet-stream';
@@ -31,13 +33,20 @@ export async function GET(req) {
       return NextResponse.json({ error: 'Tipo de conteúdo da origem não permitido.' }, { status: 502 });
     }
 
-    const blob = await res.arrayBuffer();
+    if (!res.body) {
+      return NextResponse.json({ error: 'Origem respondeu sem conteúdo.' }, { status: 502 });
+    }
 
     const headers = {
       'Content-Type': contentType,
       'Access-Control-Allow-Origin': '*',
       'Cache-Control': 'public, max-age=86400'
     };
+
+    // Repassa o tamanho quando a origem informa — é o que dá barra de progresso no download em vez
+    // de "tamanho desconhecido".
+    const contentLength = res.headers.get('content-length');
+    if (contentLength) headers['Content-Length'] = contentLength;
 
     // ?download=<nome> faz o navegador BAIXAR em vez de abrir/tocar — mesmo contrato do
     // /api/audio/proxy. É por aqui que passa o download do vídeo homenagem.
@@ -48,7 +57,12 @@ export async function GET(req) {
       headers['Content-Disposition'] = `attachment; filename="${safeName}"`;
     }
 
-    return new NextResponse(blob, { status: 200, headers });
+    // STREAMING, não arrayBuffer (achado 03/09/2026): o `await res.arrayBuffer()` daqui carregava o
+    // arquivo INTEIRO na memória do Edge Runtime antes de responder. Com imagem passava; com o
+    // Vídeo Homenagem (dezenas de MB) estourava, a rota caía no catch e devolvia o JSON de erro —
+    // que o navegador salvava com o nome pedido, e o cliente recebia um arquivo terminado em
+    // ".json" em vez do vídeo. Repassar o corpo direto não acumula nada na memória.
+    return new NextResponse(res.body, { status: 200, headers });
   } catch (error) {
     console.error("Erro no image-proxy:", error);
     return NextResponse.json({ error: error.message || 'Erro interno no proxy' }, { status: 500 });
