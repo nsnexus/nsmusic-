@@ -23,6 +23,30 @@ export default function PlaybackAddonCard({ orderId, order }) {
   const [unlocked, setUnlocked] = useState(false);
   const [pollingTimedOut, setPollingTimedOut] = useState(false);
   const [pixCopied, setPixCopied] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const [retryError, setRetryError] = useState('');
+
+  const handleRetry = async () => {
+    if (!orderId) return;
+    setRetrying(true);
+    setRetryError('');
+    try {
+      const res = await fetch('/api/playback/retry', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setRetryError(data.error || 'Não foi possível tentar de novo agora.');
+      }
+      // Sucesso não precisa de estado local: o onSnapshot da página pai atualiza `order.playbackStatus`
+      // pra PROCESSING assim que a rota grava no Firestore.
+    } catch (e) {
+      setRetryError('Erro de conexão. Tente novamente.');
+    }
+    setRetrying(false);
+  };
 
   const hasAccess = unlocked || order?.hasPlaybackAccess || order?.playbackAddonPaid;
 
@@ -164,17 +188,31 @@ export default function PlaybackAddonCard({ orderId, order }) {
             Não conseguimos gerar seu playback agora 😕
           </p>
           <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '14px' }}>
-            Seu pagamento está confirmado — fale com a gente pelo WhatsApp que resolvemos na hora.
+            Seu pagamento está confirmado. Pode tentar gerar de novo, ou falar com a gente pelo WhatsApp.
           </p>
-          <a
-            href={`https://wa.me/559491081351?text=${encodeURIComponent(`Olá! Paguei o Playback (Instrumental) do pedido #${orderId} mas não recebi o arquivo.`)}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn btn-secondary"
-            style={{ padding: '8px 14px', fontSize: '0.8rem', textDecoration: 'none' }}
-          >
-            💬 Chamar no WhatsApp
-          </a>
+          {retryError && (
+            <p style={{ fontSize: '0.78rem', color: 'var(--error, #ef4444)', marginBottom: '10px' }}>{retryError}</p>
+          )}
+          <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={handleRetry}
+              disabled={retrying}
+              className="btn btn-primary"
+              style={{ padding: '8px 14px', fontSize: '0.8rem', fontWeight: 'bold', border: 'none', cursor: retrying ? 'default' : 'pointer', opacity: retrying ? 0.7 : 1 }}
+            >
+              {retrying ? 'Tentando...' : '🔁 Tentar gerar novamente'}
+            </button>
+            <a
+              href={`https://wa.me/559491081351?text=${encodeURIComponent(`Olá! Paguei o Playback (Instrumental) do pedido #${orderId} mas não recebi o arquivo.`)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-secondary"
+              style={{ padding: '8px 14px', fontSize: '0.8rem', textDecoration: 'none' }}
+            >
+              💬 Chamar no WhatsApp
+            </a>
+          </div>
         </>
       ) : (
         <>

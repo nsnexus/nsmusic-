@@ -693,3 +693,10 @@ label {
   flex-shrink: 0;
   color: #C084FC;
 }
+
+/* Flutuação suave da figura grande no Medidor de Amor — mesma animação do projeto de referência
+   (`mdfloat`), dá vida ao slide em vez da imagem ficar estática. */
+@keyframes medidorFlutua {
+  0%, 100% { transform: translateY(0) rotate(-0.6deg); }
+  50% { transform: translateY(-12px) rotate(0.6deg); }
+}

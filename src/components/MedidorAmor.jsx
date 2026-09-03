@@ -65,52 +65,66 @@ function ProgressoBarra({ ativo, concluido, duracaoMs }) {
   );
 }
 
-function Slide({ item, proximo, ativo, honoreeName, customerName }) {
+function Slide({ item, proximo, ativo, honoreeName, customerName, alturaGrande }) {
   const alvo = calcularVezesMaior(item.metros, proximo.metros);
   const valorAnimado = useContagem(alvo, ativo);
   const ehFinal = proximo.chave === 'coracao';
 
-  // O item pequeno encolhe na proporção real (com um piso, pra nunca sumir de vez da tela).
+  // O item pequeno encolhe na proporção real (com um piso, pra nunca sumir de vez da tela) — mesma
+  // fórmula do projeto de referência (`altP`). `alturaGrande` vem do componente pai, calculado a
+  // partir da altura real da tela (até 320px / 38vh) — fixo em 150px ficava minúsculo demais
+  // (achado/pedido 03/09/2026, segunda rodada: "olha o tamanho disso").
   const razao = proximo.metros / item.metros;
-  const alturaGrande = 150;
-  const alturaPequeno = Math.max(28, Math.min(alturaGrande * 0.55, alturaGrande / razao));
+  const alturaPequeno = Math.max(24, Math.min(alturaGrande * 0.55, alturaGrande / razao));
+  const larguraGrande = Math.round(alturaGrande * (proximo.proporcao || 1));
+  const larguraPequena = Math.round(alturaPequeno * (item.proporcao || 1));
 
   return (
     <div style={{ position: 'absolute', inset: 0, display: ativo ? 'flex' : 'none', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px', textAlign: 'center' }}>
-      <div style={{ marginBottom: '28px' }}>
-        <p style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.6)', fontWeight: '700', letterSpacing: '0.05em', textTransform: 'uppercase', margin: '0 0 8px' }}>
+      <div style={{ marginBottom: '20px' }}>
+        <p style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.65)', fontWeight: '700', letterSpacing: '0.06em', textTransform: 'uppercase', margin: '0 0 10px' }}>
           {proximo.nome}
         </p>
-        <div style={{ width: `${alturaGrande}px`, height: `${alturaGrande}px`, margin: '0 auto', filter: 'drop-shadow(0 0 24px rgba(255,255,255,0.35))' }}>
+        <div
+          style={{
+            width: `${larguraGrande}px`,
+            height: `${alturaGrande}px`,
+            margin: '0 auto',
+            filter: ehFinal
+              ? 'drop-shadow(0 0 44px rgba(255,60,120,0.75))'
+              : 'drop-shadow(0 18px 34px rgba(0,0,0,0.5)) drop-shadow(0 0 26px rgba(255,255,255,0.3))',
+            animation: ativo ? 'medidorFlutua 6s ease-in-out infinite' : 'none',
+          }}
+        >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={proximo.imagem} alt={proximo.nome} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
         </div>
-        <p style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.75)', margin: '10px 0 0' }}>{proximo.medida}</p>
+        <p style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.78)', margin: '12px 0 0', maxWidth: '20rem' }}>{proximo.medida}</p>
         {ehFinal && (honoreeName || customerName) && (
-          <p style={{ marginTop: '16px', fontFamily: 'cursive', fontSize: '1.3rem', color: '#fff' }}>
+          <p style={{ marginTop: '18px', fontFamily: "'Grand Hotel', cursive", fontSize: '1.6rem', color: '#fff', textShadow: '0 0 26px rgba(255,127,171,0.7)' }}>
             {customerName}{customerName && honoreeName ? ' & ' : ''}{honoreeName}
           </p>
         )}
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '14px', opacity: 0.85 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', opacity: 0.85, marginTop: '4px' }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ width: `${alturaPequeno}px`, height: `${alturaPequeno}px`, margin: '0 auto' }}>
+          <div style={{ width: `${larguraPequena}px`, height: `${alturaPequeno}px`, margin: '0 auto' }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={item.imagem} alt={item.nome} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
           </div>
-          <p style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.55)', margin: '4px 0 0' }}>{item.nome}</p>
+          <p style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.55)', margin: '5px 0 0' }}>{item.nome}</p>
         </div>
       </div>
 
       <div style={{ marginTop: '22px' }}>
         {alvo === null ? (
-          <p style={{ fontSize: '1.6rem', fontWeight: '800', color: '#fff' }}>∞ <span style={{ fontSize: '0.85rem', fontWeight: '600', opacity: 0.75 }}>não dá pra medir</span></p>
+          <span style={estilos.pill}>∞ <span style={{ fontSize: '0.85rem', fontWeight: '600', opacity: 0.8, marginLeft: '4px' }}>não dá pra medir</span></span>
         ) : (
-          <p style={{ fontSize: '1.6rem', fontWeight: '800', color: '#fff' }}>
+          <span style={estilos.pill}>
             {formatarVezes(alvo >= 100 ? Math.round(valorAnimado) : Math.round(valorAnimado * 10) / 10)}
-            <span style={{ fontSize: '0.85rem', fontWeight: '600', opacity: 0.75, marginLeft: '6px' }}>vezes maior</span>
-          </p>
+            <span style={{ fontSize: '0.72rem', fontWeight: '700', opacity: 0.85, marginLeft: '6px' }}>vezes maior</span>
+          </span>
         )}
       </div>
     </div>
@@ -120,6 +134,13 @@ function Slide({ item, proximo, ativo, honoreeName, customerName }) {
 export default function MedidorAmor({ honoreeName, customerName, onClose }) {
   const [indice, setIndice] = useState(0);
   const [pausado, setPausado] = useState(false);
+  // Altura do item grande — até 320px ou 38% da tela, igual ao projeto de referência (`ALT_G`).
+  // Calculado uma vez, na abertura; não precisa reagir a resize (modal fica aberto pouco tempo).
+  const [alturaGrande, setAlturaGrande] = useState(280);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    setAlturaGrande(Math.min(Math.round(window.innerHeight * 0.38), 320));
+  }, []);
   const totalSlides = MEDIDOR_ITENS.length - 1;
   const ehUltimo = indice === totalSlides - 1;
   const mostraCosmos = indice >= 2; // a partir da transição pra Lua, o fundo vira espaço
@@ -225,6 +246,7 @@ export default function MedidorAmor({ honoreeName, customerName, onClose }) {
             ativo={i === indice}
             honoreeName={honoreeName}
             customerName={customerName}
+            alturaGrande={alturaGrande}
           />
         ))}
       </div>
@@ -237,3 +259,20 @@ export default function MedidorAmor({ honoreeName, customerName, onClose }) {
     </div>
   );
 }
+
+// Selo dourado "X vezes maior" — mesmo estilo do projeto de referência (`.md-vezes`).
+const estilos = {
+  pill: {
+    display: 'inline-flex',
+    alignItems: 'baseline',
+    gap: '5px',
+    padding: '0.55rem 1rem',
+    borderRadius: '100px',
+    background: 'rgba(232, 180, 74, 0.13)',
+    border: '1px solid rgba(232, 180, 74, 0.42)',
+    fontFamily: 'var(--font-family-title)',
+    fontSize: '1.25rem',
+    fontWeight: '800',
+    color: '#E8B44A',
+  },
+};

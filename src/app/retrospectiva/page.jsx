@@ -336,35 +336,46 @@ function RetrospectivaContent() {
       )}
 
       {/* Medidor de Amor — bônus fixo de toda retrospectiva, sem precisar de configuração
-          (réplica do conceito do projeto de referência, achado/pedido 03/09/2026). */}
-      <div style={{ maxWidth: '560px', margin: '0 auto 34px', padding: '0 20px' }}>
-        <button
-          type="button"
-          onClick={() => setMedidorAberto(true)}
-          style={{
-            width: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '14px',
-            padding: '18px',
-            borderRadius: '18px',
-            border: '1px solid rgba(168, 85, 247, 0.3)',
-            background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.14) 0%, rgba(59, 130, 246, 0.12) 100%)',
-            cursor: 'pointer',
-            textAlign: 'left',
-          }}
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/medidor/coracao.webp" alt="" style={{ width: '46px', height: '46px', objectFit: 'contain', flexShrink: 0 }} />
-          <span style={{ flex: 1 }}>
-            <span style={{ display: 'block', fontWeight: '800', fontSize: '1rem', color: '#581c87', fontFamily: 'var(--font-family-title)' }}>
-              Vamos medir o tamanho do nosso amor?
+          (réplica do conceito do projeto de referência). Cartão escuro/rosa igual ao resto da
+          página desde o ajuste 03/09/2026 — antes ficava lilás claro, destoando da timeline. */}
+      <div style={{ background: '#120A0F', padding: '30px 0' }}>
+        <div style={{ maxWidth: '560px', margin: '0 auto', padding: '0 20px' }}>
+          <button
+            type="button"
+            onClick={() => setMedidorAberto(true)}
+            style={{
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '16px',
+              padding: '18px',
+              borderRadius: '18px',
+              border: '1px solid rgba(255,255,255,0.09)',
+              background: 'linear-gradient(160deg, #2A1620, #1A0D14)',
+              cursor: 'pointer',
+              textAlign: 'left',
+            }}
+          >
+            <span
+              aria-hidden="true"
+              style={{
+                width: '42px', height: '42px', borderRadius: '50%', background: '#E32B6D', flexShrink: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', color: '#fff',
+                boxShadow: '0 0 0 4px rgba(227,43,109,0.18)',
+              }}
+            >
+              ♥
             </span>
-            <span style={{ display: 'block', fontSize: '0.8rem', color: '#7c3aed', marginTop: '2px' }}>
-              Do T-Rex ao Sol, uma coisa maior que a outra — até chegar na maior de todas ✨
+            <span style={{ flex: 1 }}>
+              <span style={{ display: 'block', fontWeight: '700', fontSize: '1rem', color: '#fff', fontFamily: 'var(--font-family-title)' }}>
+                Vamos medir o tamanho do nosso amor?
+              </span>
+              <span style={{ display: 'block', fontSize: '0.8rem', color: '#C6A9B6', marginTop: '3px', lineHeight: 1.5 }}>
+                Do T-Rex ao Sol, uma coisa maior que a outra — até chegar na maior de todas
+              </span>
             </span>
-          </span>
-        </button>
+          </button>
+        </div>
       </div>
 
       {medidorAberto && (
