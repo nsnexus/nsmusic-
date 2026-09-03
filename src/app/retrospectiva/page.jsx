@@ -134,7 +134,11 @@ function RetrospectivaContent() {
   const retro = order.retrospectiva || {};
   const honoree = order.honoreeName || '';
   const titulo = retro.titulo || (honoree ? `Nossa história com ${honoree}` : 'Nossa história');
-  const fotos = Array.isArray(order.slideshowImages) ? order.slideshowImages : [];
+  // Fotos do Vídeo Homenagem (quem comprou) + fotos enviadas na própria retrospectiva (quem não
+  // comprou vídeo antes só tinha fotos aqui se tivesse usado o vídeo — corrigido 03/09/2026).
+  const fotosDoVideo = Array.isArray(order.slideshowImages) ? order.slideshowImages : [];
+  const fotosProprias = Array.isArray(retro.fotos) ? retro.fotos : [];
+  const fotos = [...fotosDoVideo, ...fotosProprias];
   const momentos = Array.isArray(retro.momentos) ? retro.momentos : [];
   const quiz = Array.isArray(retro.quiz) ? retro.quiz : [];
   const contador = retro.dataInicio ? diffDesde(retro.dataInicio) : null;

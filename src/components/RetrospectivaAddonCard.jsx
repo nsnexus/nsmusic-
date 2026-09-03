@@ -1,13 +1,17 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { storage } from '@/lib/firebase';
 import { requestPixCharge } from '@/lib/pixCheckout';
+import { compressImage } from '@/lib/imageCompress';
 import PixQrCode from './PixQrCode';
 
 const MAX_PIX_ATTEMPTS = 3;
 const PIX_POLLING_MAX_ATTEMPTS = 150; // ~10min a cada 4s, mesmo limite dos outros add-ons
 const MAX_MOMENTOS = 20;
 const MAX_QUIZ = 10;
+const MAX_FOTOS = 20;
 
 // Add-on "Retrospectiva" (R$ 9,99) — venda + editor do conteúdo. A página pública que o cliente
 // compartilha é /retrospectiva?orderId=X.
@@ -32,8 +36,16 @@ export default function RetrospectivaAddonCard({ orderId, order }) {
   const [msg, setMsg] = useState('');
   const [linkCopiado, setLinkCopiado] = useState(false);
 
+  const [fotosProprias, setFotosProprias] = useState([]);
+  const [enviandoFotos, setEnviandoFotos] = useState(false);
+  const [erroFotos, setErroFotos] = useState('');
+
   const hasAccess = unlocked || order?.hasRetrospectivaAccess || order?.retrospectivaAddonPaid;
-  const fotos = Array.isArray(order?.slideshowImages) ? order.slideshowImages : [];
+  // Fotos do Vídeo Homenagem (quem comprou o vídeo já tem fotos prontas, reaproveita) SOMADAS às
+  // fotos enviadas na própria retrospectiva — quem NÃO comprou vídeo não tinha foto nenhuma pra
+  // usar aqui antes disso (achado 03/09/2026, relatado pelo dono do estúdio).
+  const fotosDoVideo = Array.isArray(order?.slideshowImages) ? order.slideshowImages : [];
+  const fotos = [...fotosDoVideo, ...fotosProprias];
 
   // Carrega o que já foi salvo (o `order` vem ao vivo do onSnapshot da página pai).
   useEffect(() => {
@@ -44,7 +56,52 @@ export default function RetrospectivaAddonCard({ orderId, order }) {
     setDataInicio((atual) => atual || r.dataInicio || '');
     setMomentos((atual) => (atual.length ? atual : (r.momentos || [])));
     setQuiz((atual) => (atual.length ? atual : (r.quiz || [])));
+    setFotosProprias((atual) => (atual.length ? atual : (r.fotos || [])));
   }, [order?.retrospectiva]);
+
+  const handleUploadFotos = async (e) => {
+    const arquivos = Array.from(e.target.files || []);
+    e.target.value = ''; // permite reenviar o mesmo arquivo depois, se remover e quiser recolocar
+    if (arquivos.length === 0 || !orderId) return;
+
+    const espacoRestante = MAX_FOTOS - fotos.length;
+    if (espacoRestante <= 0) {
+      setErroFotos(`Máximo de ${MAX_FOTOS} fotos.`);
+      return;
+    }
+
+    setEnviandoFotos(true);
+    setErroFotos('');
+    try {
+      const selecionados = arquivos.slice(0, espacoRestante);
+      const novasUrls = [];
+      for (let i = 0; i < selecionados.length; i++) {
+        // Comprime antes de subir (upload mais rápido, menos Storage — ver imageCompress.js).
+        const arquivo = await compressImage(selecionados[i]);
+        const fileRef = ref(storage, `orders/${orderId}/retrospectiva/${Date.now()}_${i}_${arquivo.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`);
+        await uploadBytes(fileRef, arquivo);
+        novasUrls.push(await getDownloadURL(fileRef));
+      }
+      // Salva junto (não separado) para o cliente nunca perder o upload se fechar a aba antes de
+      // clicar em "Salvar retrospectiva" mais abaixo.
+      const listaFinal = [...fotosProprias, ...novasUrls];
+      setFotosProprias(listaFinal);
+      const res = await fetch('/api/retrospectiva/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId, retrospectiva: { titulo, contadorLabel, dataInicio, momentos, quiz, fotos: listaFinal } }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setErroFotos(data.error || 'Fotos enviadas, mas não foi possível salvar agora. Tente "Salvar retrospectiva" abaixo.');
+      }
+    } catch (err) {
+      console.warn('[RetrospectivaAddonCard] Erro ao enviar fotos:', err?.message);
+      setErroFotos('Não foi possível enviar as fotos agora. Tente de novo.');
+    } finally {
+      setEnviandoFotos(false);
+    }
+  };
 
   const handleGeneratePix = async () => {
     if (!orderId) return;
@@ -99,7 +156,7 @@ export default function RetrospectivaAddonCard({ orderId, order }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           orderId,
-          retrospectiva: { titulo, contadorLabel, dataInicio, momentos, quiz },
+          retrospectiva: { titulo, contadorLabel, dataInicio, momentos, quiz, fotos: fotosProprias },
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -212,6 +269,36 @@ export default function RetrospectivaAddonCard({ orderId, order }) {
           <input id="retro-data" type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} style={estilos.input} />
         </div>
       </div>
+
+      {/* Fotos da retrospectiva — próprias, não dependem de ter comprado o Vídeo Homenagem. */}
+      <p style={estilos.secao}>Fotos ({fotos.length}/{MAX_FOTOS})</p>
+      {fotos.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '10px' }}>
+          {fotos.map((url, i) => (
+            <div key={url} style={{ position: 'relative', width: '64px', height: '64px' }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={url} alt={`Foto ${i + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px' }} />
+              {i >= fotosDoVideo.length && (
+                <button
+                  type="button"
+                  onClick={() => setFotosProprias((lista) => lista.filter((u) => u !== url))}
+                  title="Remover foto"
+                  style={{ position: 'absolute', top: '-6px', right: '-6px', width: '20px', height: '20px', borderRadius: '50%', border: 'none', background: 'var(--error, #ef4444)', color: '#fff', fontSize: '0.7rem', cursor: 'pointer', lineHeight: 1 }}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      {fotos.length < MAX_FOTOS && (
+        <label className="btn btn-secondary" style={{ ...estilos.adicionar, display: 'block', textAlign: 'center', cursor: enviandoFotos ? 'default' : 'pointer', opacity: enviandoFotos ? 0.7 : 1, marginBottom: '4px' }}>
+          {enviandoFotos ? 'Enviando...' : '+ Adicionar fotos'}
+          <input type="file" accept="image/*" multiple onChange={handleUploadFotos} disabled={enviandoFotos} style={{ display: 'none' }} />
+        </label>
+      )}
+      {erroFotos && <p style={{ fontSize: '0.78rem', color: 'var(--error, #ef4444)', margin: '6px 0 0' }}>{erroFotos}</p>}
 
       {/* Linha do tempo */}
       <p style={estilos.secao}>Linha do tempo</p>

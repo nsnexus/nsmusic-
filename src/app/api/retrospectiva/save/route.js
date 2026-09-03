@@ -17,6 +17,7 @@ const MAX_MOMENTOS = 20;
 const MAX_QUIZ = 10;
 const MAX_TEXTO = 400;
 const MAX_TITULO = 120;
+const MAX_FOTOS = 20;
 
 function limparTexto(valor, max) {
   return String(valor ?? '').trim().slice(0, max);
@@ -54,11 +55,18 @@ export async function POST(req) {
 
     const momentos = Array.isArray(retrospectiva.momentos) ? retrospectiva.momentos : [];
     const quiz = Array.isArray(retrospectiva.quiz) ? retrospectiva.quiz : [];
+    // Fotos PRÓPRIAS da retrospectiva — independentes das fotos do Vídeo Homenagem
+    // (order.slideshowImages). Sem isso, quem não comprou o vídeo não tinha NENHUMA foto pra
+    // colocar na retrospectiva (achado 03/09/2026, relatado pelo dono do estúdio). O upload em si
+    // acontece no navegador (Firebase Storage, ver RetrospectivaAddonCard.jsx); aqui só persiste a
+    // lista de URLs já enviadas.
+    const fotos = Array.isArray(retrospectiva.fotos) ? retrospectiva.fotos : [];
 
     const limpa = {
       titulo: limparTexto(retrospectiva.titulo, MAX_TITULO),
       contadorLabel: limparTexto(retrospectiva.contadorLabel, 60),
       dataInicio: limparData(retrospectiva.dataInicio),
+      fotos: fotos.slice(0, MAX_FOTOS).filter((u) => typeof u === 'string' && u.startsWith('https://firebasestorage.googleapis.com/')).map((u) => u.slice(0, 600)),
       momentos: momentos.slice(0, MAX_MOMENTOS).map((m) => ({
         data: limparData(m?.data),
         titulo: limparTexto(m?.titulo, MAX_TITULO),
