@@ -14,13 +14,16 @@ const DEFAULT_ATTEMPTS = 3;
  * Pede uma cobrança PIX ao servidor, insistindo algumas vezes antes de desistir.
  *
  * Nunca lança: devolve sempre um resultado, para o chamador decidir o que mostrar. O valor a cobrar
- * NUNCA vai no corpo — o servidor decide a partir do `sku` (ver src/lib/pricing.js e C-05).
+ * NUNCA vai no corpo — o servidor decide a partir do `sku` (ver src/lib/pricing.js e C-05) — com
+ * uma única exceção deliberada: `amount` só é aceito quando `sku === 'impacto'` (página /pagar,
+ * "pague conforme o impacto emocional"); o servidor valida um piso mínimo mesmo assim, nunca confia
+ * cegamente no valor. Para qualquer outro SKU, `amount` é ignorado por quem chama esta função.
  *
- * @param {{orderId: string, sku: string, isSecondaryPayment?: boolean}} params
+ * @param {{orderId: string, sku: string, isSecondaryPayment?: boolean, amount?: number}} params
  * @param {{attempts?: number, onRetry?: (tentativa: number) => void}} [options]
  * @returns {Promise<{ok: true, data: object} | {ok: false, error: string}>}
  */
-export async function requestPixCharge({ orderId, sku, isSecondaryPayment = false }, options = {}) {
+export async function requestPixCharge({ orderId, sku, isSecondaryPayment = false, amount }, options = {}) {
   const attempts = options.attempts ?? DEFAULT_ATTEMPTS;
   let ultimoErro = 'Não foi possível gerar o código PIX agora.';
 
@@ -29,7 +32,7 @@ export async function requestPixCharge({ orderId, sku, isSecondaryPayment = fals
       const res = await fetch('/api/payments/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId, sku, isSecondaryPayment }),
+        body: JSON.stringify({ orderId, sku, isSecondaryPayment, amount }),
       });
 
       if (res.ok) {

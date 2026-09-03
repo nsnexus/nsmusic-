@@ -29,6 +29,11 @@ export function skuGrantsVideoAccess(sku) {
 
 // Um SKU "aprova a música" quando confirma o pagamento principal (paymentStatus). O video_addon
 // isolado NUNCA deve alterar paymentStatus (ver C-09 no AUDIT_REPORT.md).
+//
+// 'impacto' é o único SKU com preço VARIÁVEL (ver /api/payments/create e /pagar) — "pague conforme
+// o impacto emocional", nunca abaixo do preço da música (piso validado no servidor, nunca aceito
+// do corpo da requisição). Aprova a música como qualquer pagamento do produto principal; o vídeo é
+// concedido à parte, por FAIXA de valor pago (ver src/lib/payments.js), não por este SKU sozinho.
 export function skuApprovesMusic(sku) {
-  return sku === 'audio_only' || sku === 'combo' || sku === 'recovery_combo_24h' || sku === 'recovery_combo_48h';
+  return sku === 'audio_only' || sku === 'combo' || sku === 'recovery_combo_24h' || sku === 'recovery_combo_48h' || sku === 'impacto';
 }

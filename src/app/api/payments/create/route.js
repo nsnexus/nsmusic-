@@ -9,6 +9,10 @@ import { createPagBankPixCharge } from '@/lib/pagbank';
 
 export const runtime = 'edge';
 
+// Teto de sanidade só pro SKU 'impacto' (preço variável) — nunca regra de negócio, só proteção
+// contra erro de digitação (ex: cliente digitando 999999 sem querer).
+const IMPACTO_MAX_AMOUNT = 1000;
+
 export async function POST(req) {
   try {
     let env = {};
@@ -18,7 +22,7 @@ export async function POST(req) {
     } catch (e) {}
 
     const body = await req.json();
-    const { orderId, sku: rawSku, isSecondaryPayment } = body;
+    const { orderId, sku: rawSku, isSecondaryPayment, amount: rawAmount } = body;
 
     if (!orderId) {
       return NextResponse.json({ error: 'orderId é obrigatório.' }, { status: 400 });
@@ -29,9 +33,29 @@ export async function POST(req) {
     const sku = rawSku || (isSecondaryPayment ? 'video_addon' : 'audio_only');
 
     // O valor NUNCA vem do corpo da requisição — só do catálogo do servidor (ver C-05 no AUDIT_REPORT.md).
-    const amount = getPriceForSku(sku);
-    if (amount === null) {
-      return NextResponse.json({ error: `SKU de produto inválido: ${sku}` }, { status: 400 });
+    //
+    // ÚNICA EXCEÇÃO deliberada: 'impacto' (página /pagar, "pague conforme o impacto emocional",
+    // pedido do dono do estúdio 02/09/2026). Preço variável, mas com PISO no preço da música — o
+    // cliente nunca consegue mandar um valor abaixo disso, e o teto é só sanidade contra erro de
+    // digitação, nunca uma regra de negócio.
+    let amount;
+    if (sku === 'impacto') {
+      const floor = getPriceForSku('audio_only');
+      const requested = Number(rawAmount);
+      if (!Number.isFinite(requested)) {
+        amount = floor;
+      } else if (requested < floor) {
+        return NextResponse.json({ error: `O valor mínimo é R$ ${floor.toFixed(2)}.` }, { status: 400 });
+      } else if (requested > IMPACTO_MAX_AMOUNT) {
+        return NextResponse.json({ error: `Valor muito alto. Máximo R$ ${IMPACTO_MAX_AMOUNT.toFixed(2)}.` }, { status: 400 });
+      } else {
+        amount = Math.round(requested * 100) / 100;
+      }
+    } else {
+      amount = getPriceForSku(sku);
+      if (amount === null) {
+        return NextResponse.json({ error: `SKU de produto inválido: ${sku}` }, { status: 400 });
+      }
     }
 
     const orderRef = doc(db, 'orders', orderId);

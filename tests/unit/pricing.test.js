@@ -50,4 +50,8 @@ describe('skuApprovesMusic', () => {
   it('playback_addon isolado NUNCA aprova a música — mesma regra do video_addon (C-09)', () => {
     expect(skuApprovesMusic('playback_addon')).toBe(false);
   });
+
+  it('impacto (preço variável, /pagar) também aprova a música — piso é o preço da música', () => {
+    expect(skuApprovesMusic('impacto')).toBe(true);
+  });
 });

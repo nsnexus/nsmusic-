@@ -120,7 +120,17 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
           updates.paymentStatus = 'PAGAMENTO_APROVADO';
           updates.paymentId = String(paymentId);
           updates.paidAt = nowIso;
-          if (skuGrantsVideoAccess(sku)) {
+
+          // 'impacto' ("pague conforme o impacto emocional", ver /pagar e /api/payments/create) tem
+          // preço variável — o vídeo é liberado por FAIXA do valor realmente pago na Efí (nunca do
+          // que o cliente alegou pedir), a partir do mesmo preço do combo normal (getPriceForSku),
+          // pra não existir um segundo número "quase igual" flutuando pelo sistema. -0.01 é a mesma
+          // tolerância usada em toda comparação monetária do projeto (nunca ===, ver payments.md).
+          const paidAmount = Number(payment.transaction_amount) || 0;
+          const comboPrice = getPriceForSku('combo');
+          const grantsVideoByImpactAmount = sku === 'impacto' && comboPrice !== null && paidAmount >= comboPrice - 0.01;
+
+          if (skuGrantsVideoAccess(sku) || grantsVideoByImpactAmount) {
             updates.hasVideoAccess = true;
             updates.videoAddonPaid = true;
             updates.videoPaidAt = nowIso;

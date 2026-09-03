@@ -78,6 +78,37 @@ describe('applyPaymentApproval', () => {
     expect(store['order2'].videoAddonPaid).toBe(true);
   });
 
+  it('impacto abaixo do preço do combo: aprova música mas NÃO concede vídeo', async () => {
+    store['order2b'] = { paymentIntentSku: 'impacto', paymentId: null };
+
+    const result = await applyPaymentApproval('order2b', '222b', { status: 'approved', transaction_amount: 9.99 });
+
+    expect(result.applied).toBe(true);
+    expect(store['order2b'].paymentStatus).toBe('PAGAMENTO_APROVADO');
+    expect(store['order2b'].hasVideoAccess).toBeUndefined();
+    expect(store['order2b'].videoAddonPaid).toBeUndefined();
+  });
+
+  it('impacto no preço do combo ou acima: aprova música E concede vídeo (pela faixa do valor real pago)', async () => {
+    store['order2c'] = { paymentIntentSku: 'impacto', paymentId: null };
+
+    const result = await applyPaymentApproval('order2c', '222c', { status: 'approved', transaction_amount: 25 });
+
+    expect(result.applied).toBe(true);
+    expect(store['order2c'].paymentStatus).toBe('PAGAMENTO_APROVADO');
+    expect(store['order2c'].hasVideoAccess).toBe(true);
+    expect(store['order2c'].videoAddonPaid).toBe(true);
+  });
+
+  it('impacto exatamente no preço do combo (16.89): concede vídeo mesmo com arredondamento de ponto flutuante', async () => {
+    store['order2d'] = { paymentIntentSku: 'impacto', paymentId: null };
+
+    const result = await applyPaymentApproval('order2d', '222d', { status: 'approved', transaction_amount: 16.89 });
+
+    expect(result.applied).toBe(true);
+    expect(store['order2d'].hasVideoAccess).toBe(true);
+  });
+
   it('C-09: video_addon isolado NUNCA escreve paymentStatus, só hasVideoAccess', async () => {
     store['order3'] = { paymentIntentSku: 'video_addon', paymentStatus: 'AGUARDANDO_PAGAMENTO', videoPaymentId: null };
 
