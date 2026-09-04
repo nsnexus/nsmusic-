@@ -30,6 +30,15 @@ service firebase.storage {
       allow read, write: if true;
     }
 
+    // Imagens de fundo dos modelos de Carta (painel admin, ver src/app/admin/cartas/page.jsx) —
+    // pedido 04/09/2026. Leitura pública (a carta é exibida pro cliente final, anônimo), escrita só
+    // autenticado (mesmo padrão da regra catch-all abaixo — o painel exige login antes de mostrar a
+    // tela, ver auth.currentUser.email em admin/cartas/page.jsx).
+    match /cartaTemas/{temaId}/{fileName} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
     // Mantém o resto seguro
     match /{allPaths=**} {
       allow read, write: if request.auth != null;

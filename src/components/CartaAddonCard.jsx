@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { requestPixCharge } from '@/lib/pixCheckout';
 import { buildAudioProxySrc } from '@/lib/audioProxy';
+import CartaCartao from './CartaCartao';
 import PixQrCode from './PixQrCode';
 
 const MAX_PIX_ATTEMPTS = 3;
@@ -298,54 +299,26 @@ export default function CartaAddonCard({ orderId, order }) {
         </button>
       ) : (
         <div>
-          <div
-            style={{
-              background: '#fffdf7',
-              border: '1px solid #f1e6cf',
-              borderRadius: '12px',
-              padding: '22px 20px',
-              boxShadow: 'inset 0 0 40px rgba(180, 150, 90, 0.08)',
-            }}
-          >
-            {order?.coverUrl && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={order.coverUrl}
-                alt={honoree ? `Foto de ${honoree}` : 'Foto da homenagem'}
-                style={{
-                  width: '116px',
-                  height: '116px',
-                  objectFit: 'cover',
-                  float: 'right',
-                  marginLeft: '14px',
-                  marginBottom: '10px',
-                  border: '6px solid #fff',
-                  boxShadow: '0 6px 16px rgba(0,0,0,0.18)',
-                  transform: 'rotate(3deg)',
-                  borderRadius: '2px',
-                }}
-              />
-            )}
-
-            {editando ? (
+          {editando ? (
+            <div
+              style={{
+                background: '#fffdf7',
+                border: '1px solid #f1e6cf',
+                borderRadius: '12px',
+                padding: '22px 20px',
+                boxShadow: 'inset 0 0 40px rgba(180, 150, 90, 0.08)',
+              }}
+            >
               <textarea
                 value={rascunho}
                 onChange={(e) => setRascunho(e.target.value)}
                 rows={12}
                 style={{ width: '100%', border: '1.5px solid var(--border-color)', borderRadius: '8px', padding: '12px', fontSize: '0.9rem', lineHeight: '1.7', color: '#3f3a2f', background: '#fff', resize: 'vertical', boxSizing: 'border-box' }}
               />
-            ) : (
-              <p style={{ whiteSpace: 'pre-wrap', fontSize: '0.95rem', lineHeight: '1.85', color: '#3f3a2f', margin: 0 }}>
-                {texto}
-              </p>
-            )}
-
-            {!editando && remetente && (
-              <p style={{ clear: 'both', marginTop: '18px', textAlign: 'right', fontFamily: 'cursive', fontSize: '1.25rem', color: '#8a6d3b' }}>
-                {remetente}
-              </p>
-            )}
-          </div>
+            </div>
+          ) : (
+            <CartaCartao order={order} texto={texto} remetente={remetente} honoree={honoree} />
+          )}
 
           {erroTexto && <p style={{ fontSize: '0.8rem', color: 'var(--error, #ef4444)', marginTop: '10px' }}>{erroTexto}</p>}
 

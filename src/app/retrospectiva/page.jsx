@@ -366,21 +366,28 @@ function RetrospectivaContent() {
                 }}
               />
               {momentos.map((m, i) => (
-                <div key={`${m.titulo}-${i}`} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '26px' }}>
+                <div key={`${m.titulo}-${i}`} style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '34px' }}>
                   <span
                     aria-hidden="true"
                     style={{
-                      position: 'absolute', left: '-24px', top: '50%', transform: 'translateY(-50%)',
+                      position: 'absolute', left: '-24px', top: '10px',
                       width: '13px', height: '13px', borderRadius: '50%', background: '#c084fc',
                       border: '2px solid #1a0b26', boxShadow: '0 0 14px rgba(192,132,252,0.9)', zIndex: 2,
                     }}
                   />
 
                   {m.fotoUrl && (
-                    <div style={{ flexShrink: 0, width: '120px', height: '96px', borderRadius: '12px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.14)', boxShadow: '0 10px 24px rgba(0,0,0,0.5)' }}>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={m.fotoUrl} alt={m.titulo || 'Momento'} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                    </div>
+                    // Sem objectFit/crop de propósito (pedido 04/09/2026: "se o cliente mandou
+                    // deitada mostra ela deitada, se mandou em pé mostra em pé") — só um teto de
+                    // altura pra não estourar a tela numa foto muito vertical; a largura acompanha
+                    // a proporção real da imagem sozinha.
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={m.fotoUrl}
+                      alt={m.titulo || 'Momento'}
+                      loading="lazy"
+                      style={{ display: 'block', width: 'auto', height: 'auto', maxWidth: '100%', maxHeight: '380px', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.14)', boxShadow: '0 14px 32px rgba(0,0,0,0.5)' }}
+                    />
                   )}
 
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -396,15 +403,13 @@ function RetrospectivaContent() {
                     )}
                     {m.titulo && (
                       <p style={{ fontFamily: 'var(--font-family-gala)', fontSize: '1.1rem', fontWeight: '700', color: '#fff', margin: '0 0 3px', lineHeight: 1.3 }}>
-                        {m.titulo}
+                        {m.titulo} <span aria-hidden="true" style={{ fontSize: '0.9rem', opacity: 0.9 }}>💗</span>
                       </p>
                     )}
                     {m.texto && (
                       <p style={{ fontSize: '0.85rem', color: '#c4b5d4', lineHeight: 1.55, margin: 0 }}>{m.texto}</p>
                     )}
                   </div>
-
-                  <span aria-hidden="true" style={{ flexShrink: 0, fontSize: '1.2rem', opacity: 0.9 }}>💗</span>
                 </div>
               ))}
             </div>

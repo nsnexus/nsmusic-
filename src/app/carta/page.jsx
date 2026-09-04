@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { buildAudioProxySrc } from '@/lib/audioProxy';
+import CartaCartao from '@/components/CartaCartao';
 
 // Página PÚBLICA da Carta Virtual (add-on, ver src/lib/pricing.js:carta_addon) — link próprio que o
 // cliente compartilha com o homenageado, separado da página da música/vídeo (/homenagem) e da
@@ -151,32 +152,7 @@ function CartaContent() {
         </button>
       ) : (
         <div style={{ width: '100%', maxWidth: '480px' }}>
-          <div
-            style={{
-              background: '#fffdf7',
-              border: '1px solid #f1e6cf',
-              borderRadius: '20px',
-              padding: '32px 26px',
-              boxShadow: '0 20px 50px rgba(0,0,0,0.12), inset 0 0 40px rgba(180, 150, 90, 0.08)',
-            }}
-          >
-            {order.coverUrl && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={order.coverUrl}
-                alt={honoree ? `Foto de ${honoree}` : 'Foto da homenagem'}
-                style={{ width: '120px', height: '120px', objectFit: 'cover', float: 'right', marginLeft: '16px', marginBottom: '12px', border: '6px solid #fff', boxShadow: '0 6px 16px rgba(0,0,0,0.2)', transform: 'rotate(3deg)', borderRadius: '2px' }}
-              />
-            )}
-            <p style={{ whiteSpace: 'pre-wrap', fontSize: '1rem', lineHeight: '1.9', color: '#3f3a2f', margin: 0 }}>
-              {texto}
-            </p>
-            {remetente && (
-              <p style={{ clear: 'both', marginTop: '22px', textAlign: 'right', fontFamily: 'cursive', fontSize: '1.35rem', color: '#8a6d3b' }}>
-                {remetente}
-              </p>
-            )}
-          </div>
+          <CartaCartao order={order} texto={texto} remetente={remetente} honoree={honoree} />
 
           {audioSrc && (
             <div style={{ textAlign: 'center', marginTop: '18px' }}>

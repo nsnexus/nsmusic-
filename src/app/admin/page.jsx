@@ -721,6 +721,9 @@ export default function AdminDashboard() {
               <Link href="/admin/dashboard" style={{ ...styles.tabBtn, backgroundColor: '#e2e8f0', color: '#334155', textDecoration: 'none', display: 'inline-block' }}>
                 📊 Dashboard
               </Link>
+              <Link href="/admin/cartas" style={{ ...styles.tabBtn, backgroundColor: '#e2e8f0', color: '#334155', textDecoration: 'none', display: 'inline-block' }}>
+                💌 Temas da Carta
+              </Link>
             </div>
           </div>
 

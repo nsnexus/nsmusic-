@@ -9,6 +9,7 @@
 // e regerável pelo próprio cliente em /entrega (ver api/carta/generate).
 
 import { runGeminiWithFailover } from './gemini.js';
+import { escolherModeloCarta } from './cartaModelo.js';
 
 // Limite defensivo: a carta é exibida inteira na tela e cabe num cartão — texto gigante quebraria o
 // layout do envelope e nunca foi a intenção do produto.
@@ -17,28 +18,10 @@ const MAX_CARTA_CHARS = 2200;
 // Modelos de carta (pedido 04/09/2026): Romântica, Aniversário, Homenagem e Padrão, cada um com
 // versão masculina/feminina/neutra — 4 categorias x 3 gêneros, escolhidos automaticamente a partir
 // do que o cliente já respondeu no wizard (occasion + relationship/recipientType). Nenhuma pergunta
-// nova: a matéria-prima pra escolher o modelo já existe no pedido.
-
-// occasion (ver src/app/criar/wizardOptions.js) -> categoria da carta.
-const CATEGORIA_POR_OCASIAO = {
-  'Dia dos Namorados': 'romantica',
-  'Declaração de Amor': 'romantica',
-  'Pedido de Namoro': 'romantica',
-  'Aniversário de Namoro': 'romantica',
-  'Aniv. de Casamento': 'romantica',
-  'Aniversário': 'aniversario',
-  'Homenagem': 'homenagem',
-  'Dia das Mães': 'homenagem',
-};
-const CATEGORIA_PADRAO = 'padrao';
-
-// recipientType/relationship -> gênero de quem recebe a carta. Ambíguos (Chefe, Eu mesmo, Outro)
-// ficam de fora do mapa de propósito e caem no fallback neutro.
-const GENERO_POR_RELACAO = {
-  Namorada: 'feminino', Esposa: 'feminino', Mãe: 'feminino', Vó: 'feminino', Filha: 'feminino', Amiga: 'feminino',
-  Namorado: 'masculino', Marido: 'masculino', Pai: 'masculino', Vô: 'masculino', Filho: 'masculino', Amigo: 'masculino',
-};
-const GENERO_PADRAO = 'neutro';
+// nova: a matéria-prima pra escolher o modelo já existe no pedido. A escolha em si (categoria e
+// gênero) mora em src/lib/cartaModelo.js — módulo próprio, sem import de gemini.js, porque também
+// é usado no CLIENTE (CartaAddonCard, /carta, painel admin) pra saber qual imagem de fundo mostrar.
+export { escolherModeloCarta };
 
 // Instruções de TOM por categoria — o que muda entre os modelos não é o texto pronto, é a direção
 // que a IA recebe (achado: 4 prompts totalmente separados divergiam e ficavam difíceis de manter;
@@ -67,15 +50,6 @@ const GENERO_INSTRUCAO = {
   feminino: 'Ao se referir a quem recebe a carta com adjetivos ou substantivos que variam por gênero, use a forma FEMININA (ex: "querida", "uma mãe incrível", "amada").',
   neutro: 'Evite adjetivos ou substantivos flexionados por gênero ao se referir a quem recebe a carta (nada de "querido"/"querida", "amado"/"amada") — não há como saber o gênero certo aqui. Use o nome da pessoa ou "você" em frases que não exigem concordância de gênero.',
 };
-
-// Deriva categoria + gênero a partir do pedido — função própria pra ficar testável sem precisar
-// chamar a IA (ver tests/unit/carta.test.js).
-export function escolherModeloCarta(order = {}) {
-  const categoria = CATEGORIA_POR_OCASIAO[order.occasion] || CATEGORIA_PADRAO;
-  const relacao = order.relationship || order.recipientType || '';
-  const genero = GENERO_POR_RELACAO[relacao] || GENERO_PADRAO;
-  return { categoria, genero };
-}
 
 export function buildCartaPrompt(order = {}) {
   const remetente = order.customerName || '';
