@@ -90,6 +90,9 @@ function EntregaContent() {
 
   // Pop-up e Preço do Vídeo Homenagem
   const [showVideoModal, setShowVideoModal] = useState(false);
+  // Abas dos produtos depois de pago (pedido 04/09/2026) — antes tudo ficava empilhado numa rolagem
+  // só; 'musica' cobre também o Playback (instrumental), por ser derivado da mesma faixa.
+  const [abaProduto, setAbaProduto] = useState('musica');
   const [selectedPackage, setSelectedPackage] = useState('audio_only'); // 'audio_only', 'combo' (16.89), 'video_addon' (6.90)
   const [hasVideoAccessState, setHasVideoAccessState] = useState(false);
 
@@ -783,10 +786,32 @@ function EntregaContent() {
       {/* Main content */}
       <main style={{ flex: 1, padding: '40px 0' }}>
         <div className="container" style={{ maxWidth: '1000px' }}>
-          
+
+          {/* Abas dos produtos — só depois de pago (antes só existe a música/prévia, um produto só). */}
+          {isPaid && (
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
+              {[
+                { id: 'musica', label: '🎵 Música' },
+                { id: 'retrospectiva', label: '📖 Retrospectiva' },
+                { id: 'carta', label: '💌 Carta' },
+              ].map((aba) => (
+                <button
+                  key={aba.id}
+                  type="button"
+                  onClick={() => setAbaProduto(aba.id)}
+                  className={abaProduto === aba.id ? 'btn btn-primary' : 'btn btn-secondary'}
+                  style={{ padding: '9px 18px', fontSize: '0.88rem', fontWeight: '700', border: 'none', cursor: 'pointer' }}
+                >
+                  {aba.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {(!isPaid || abaProduto === 'musica') && (
           <div style={styles.deliveryCard} className="glass-card">
             <div className="responsive-grid-2">
-              
+
               {/* Media Player & Downloads */}
               <div style={styles.mediaSide}>
                 <div style={styles.coverWrapper}>
@@ -1432,19 +1457,6 @@ function EntregaContent() {
                   <PlaybackAddonCard orderId={orderId} order={order} />
                 )}
 
-                {/* Add-on de Carta Virtual — precisa da história que o cliente contou, que é a
-                    matéria-prima do texto (pedido sem story nenhuma não tem carta possível, ver
-                    src/lib/carta.js). */}
-                {isPaid && (order?.story || order?.importantMoments) && (
-                  <div id="card-carta"><CartaAddonCard orderId={orderId} order={order} /></div>
-                )}
-
-                {/* Add-on de Retrospectiva — página pública compartilhável com a música tocando
-                    de fundo, linha do tempo, contador ao vivo e quiz (ver /retrospectiva). */}
-                {isPaid && (
-                  <div id="card-retrospectiva"><RetrospectivaAddonCard orderId={orderId} order={order} /></div>
-                )}
-
                 {!isPaid && (
                   /* SE PENDENTE: Bloco de Pagamento PIX Instantâneo */
                   <div className="glass-card" style={{ padding: '24px', borderRadius: '16px', background: 'linear-gradient(135deg, rgba(5, 150, 105, 0.08) 0%, rgba(16, 185, 129, 0.12) 100%)', border: '1.5px solid rgba(16, 185, 129, 0.3)' }}>
@@ -1669,6 +1681,20 @@ function EntregaContent() {
 
             </div>
           </div>
+          )}
+
+          {/* Aba Retrospectiva — add-on isolado da música, tem sua própria página compartilhável
+              (/retrospectiva). id preservado pro scroll do pop-up de extras em pedidos antigos que
+              ainda apontem pra cá. */}
+          {isPaid && abaProduto === 'retrospectiva' && (
+            <div id="card-retrospectiva"><RetrospectivaAddonCard orderId={orderId} order={order} /></div>
+          )}
+
+          {/* Aba Carta — precisa da história que o cliente contou, matéria-prima do texto (pedido
+              sem story nenhuma não tem carta possível, ver src/lib/carta.js). */}
+          {isPaid && abaProduto === 'carta' && (order?.story || order?.importantMoments) && (
+            <div id="card-carta"><CartaAddonCard orderId={orderId} order={order} /></div>
+          )}
 
           {/* Pop-up de extras: vídeo, retrospectiva e carta na mesma interrupção (substituiu o
               VideoOfferModal, que oferecia só o vídeo — decisão do dono do estúdio, 03/09/2026).
@@ -1721,13 +1747,10 @@ function EntregaContent() {
                 return;
               }
 
-              // Retrospectiva e carta pós-pagamento são add-ons cujo card já existe na tela (isPaid)
-              // — os cards cuidam da própria cobrança. Rolar até lá é mais honesto que abrir uma
-              // segunda cobrança por cima.
-              const alvo = sku === 'retrospectiva_addon' ? 'card-retrospectiva' : 'card-carta';
-              if (typeof document !== 'undefined') {
-                document.getElementById(alvo)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-              }
+              // Retrospectiva e carta pós-pagamento são add-ons cujo card mora na aba própria dele
+              // (ver abaProduto) — os cards cuidam da própria cobrança. Trocar de aba é mais honesto
+              // que abrir uma segunda cobrança por cima.
+              setAbaProduto(sku === 'retrospectiva_addon' ? 'retrospectiva' : 'carta');
             }}
           />
 
