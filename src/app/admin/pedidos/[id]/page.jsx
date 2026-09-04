@@ -101,7 +101,12 @@ export default function OrderDetailsAdmin() {
           setVideoUrl(data.videoFile || data.videoUrl || '');
           setQrCodeUrl(data.qrCodeFile || data.qrCodeUrl || '');
           setLyrics(data.lyrics || '');
-          setSunoPrompt(data.sunoPrompt || '');
+          // Achado 04/09/2026: `value={sunoPrompt || getSunoStylePrompt()}` no input fazia o campo
+          // "voltar pro que estava" sempre que ficava vazio no meio de uma edição (selecionar tudo e
+          // apagar, por exemplo) — sem valor, o `||` recalculava o texto padrão na hora e reaparecia
+          // ali, mesmo o campo ainda estando focado. Corrigido inicializando já com o valor final
+          // (nunca string vazia) e o input passou a usar só o estado, sem fallback em tempo real.
+          setSunoPrompt(data.sunoPrompt || `${data.musicStyle || 'acoustic folk'}, ${data.voiceType || 'female'} vocals, ${data.emotion || 'emotional'}, acoustic guitar, warm, high quality production`);
         } else {
           setOrder({
             orderNumber: orderId,
@@ -796,9 +801,9 @@ export default function OrderDetailsAdmin() {
                 
                 <div style={{ marginBottom: '16px' }}>
                   <label style={styles.label}>Prompt de Estilo (Tags)</label>
-                  <input 
+                  <input
                     type="text"
-                    value={sunoPrompt || getSunoStylePrompt()}
+                    value={sunoPrompt}
                     onChange={(e) => setSunoPrompt(e.target.value)}
                     style={styles.input}
                   />
