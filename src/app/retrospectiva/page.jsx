@@ -61,6 +61,58 @@ function formatarDataBr(iso) {
   return `${dia}/${mes}/${ano}`;
 }
 
+// Tempo DECORRIDO de verdade desde a data de início (dias totais + horas/min/seg corridos), pras
+// caixas DIAS/HORAS/MIN/SEG do mockup. Diferente de `diffDesde`, que quebra em anos/meses/dias —
+// e diferente do relógio de parede, que era o que estava sendo exibido antes por engano.
+function tempoDecorrido(dataInicio, agora) {
+  const vazio = { totalDias: 0, horas: 0, minutos: 0, segundos: 0 };
+  if (!dataInicio) return vazio;
+  const inicio = new Date(`${dataInicio}T00:00:00`);
+  if (Number.isNaN(inicio.getTime())) return vazio;
+  const ms = agora.getTime() - inicio.getTime();
+  if (ms < 0) return vazio;
+  const segundosTotais = Math.floor(ms / 1000);
+  return {
+    totalDias: Math.floor(segundosTotais / 86400),
+    horas: Math.floor((segundosTotais % 86400) / 3600),
+    minutos: Math.floor((segundosTotais % 3600) / 60),
+    segundos: segundosTotais % 60,
+  };
+}
+
+// Corações/estrelas flutuando no fundo — decoração do mockup, puramente visual.
+function CoracoesFlutuando() {
+  const enfeites = [
+    { s: '💗', top: '6%', left: '8%', size: '1.6rem', op: 0.55 },
+    { s: '💗', top: '18%', right: '10%', size: '2.1rem', op: 0.4 },
+    { s: '🩷', top: '42%', left: '4%', size: '1.2rem', op: 0.5 },
+    { s: '💜', top: '58%', right: '6%', size: '1.5rem', op: 0.45 },
+    { s: '✨', top: '30%', left: '18%', size: '0.9rem', op: 0.6 },
+    { s: '✨', top: '70%', right: '20%', size: '0.9rem', op: 0.5 },
+    { s: '💗', top: '80%', left: '12%', size: '1.3rem', op: 0.35 },
+  ];
+  return (
+    <div aria-hidden="true" style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+      {enfeites.map((e, i) => (
+        <span key={i} style={{ position: 'absolute', top: e.top, left: e.left, right: e.right, fontSize: e.size, opacity: e.op }}>
+          {e.s}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+// Divisor "—— ♥ ——" usado entre título e subtítulo em várias seções do mockup.
+function DivisorCoracao({ cor = 'rgba(255,255,255,0.45)', coracao = '#f9a8d4' }) {
+  return (
+    <div aria-hidden="true" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', margin: '10px 0 14px' }}>
+      <span style={{ height: '1px', width: '64px', background: `linear-gradient(90deg, transparent, ${cor})` }} />
+      <span style={{ color: coracao, fontSize: '0.95rem' }}>♥</span>
+      <span style={{ height: '1px', width: '64px', background: `linear-gradient(90deg, ${cor}, transparent)` }} />
+    </div>
+  );
+}
+
 const MESES_ABREV = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const MESES_EXTENSO = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 
@@ -169,135 +221,172 @@ function RetrospectivaContent() {
   const momentos = Array.isArray(retro.momentos) ? retro.momentos : [];
   const quiz = Array.isArray(retro.quiz) ? retro.quiz : [];
   const contador = retro.dataInicio ? diffDesde(retro.dataInicio) : null;
+  const decorrido = tempoDecorrido(retro.dataInicio, agora);
 
   const audioSrc = buildAudioProxySrc(order.audioFiles?.[0] || order.audioUrl || '');
 
   return (
-    <div style={{ minHeight: '100vh', background: 'linear-gradient(180deg, #faf5ff 0%, #fff1f2 100%)' }}>
-      {/* Capa */}
-      <div style={{ padding: '56px 20px 36px', textAlign: 'center' }}>
-        {order.coverUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={order.coverUrl}
-            alt={honoree ? `Foto de ${honoree}` : 'Foto da homenagem'}
-            style={{ width: '128px', height: '128px', objectFit: 'cover', borderRadius: '50%', border: '5px solid #fff', boxShadow: '0 10px 30px rgba(0,0,0,0.15)', marginBottom: '18px' }}
-          />
-        )}
-        <h1 style={{ fontFamily: 'var(--font-family-title)', fontSize: '1.75rem', color: '#581c87', margin: '0 0 10px', lineHeight: 1.25 }}>
-          {titulo}
-        </h1>
+    <div style={{ minHeight: '100vh', background: 'linear-gradient(180deg, #2b1145 0%, #5b2a72 32%, #b06a9e 62%, #f3d9ea 100%)' }}>
+      {/* Capa — visual do mockup aprovado 04/09/2026: céu cósmico, foto em círculo com anel de
+          brilho, título em serifa com gradiente e corações flutuando no fundo. */}
+      <div style={{ position: 'relative', padding: '56px 20px 40px', textAlign: 'center', overflow: 'hidden' }}>
+        <CoracoesFlutuando />
 
-        {audioSrc && (
-          <>
-            {/* Tocar exige um toque do usuário: navegador de celular bloqueia áudio automático. */}
-            <audio ref={audioRef} src={audioSrc} loop onEnded={() => setTocando(false)} />
-            <button
-              type="button"
-              onClick={togglePlay}
-              className="btn btn-primary"
-              style={{ marginTop: '8px', padding: '12px 24px', borderRadius: '999px', border: 'none', fontWeight: 'bold', cursor: 'pointer' }}
-            >
-              {tocando ? '⏸ Pausar a música' : '▶️ Tocar nossa música'}
-            </button>
-          </>
-        )}
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          {order.coverUrl && (
+            <div style={{ position: 'relative', width: '150px', margin: '0 auto 26px' }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={order.coverUrl}
+                alt={honoree ? `Foto de ${honoree}` : 'Foto da homenagem'}
+                style={{ width: '150px', height: '150px', objectFit: 'cover', borderRadius: '50%', border: '2px solid rgba(255,255,255,0.85)', boxShadow: '0 0 0 8px rgba(255,255,255,0.08), 0 0 44px rgba(236,72,153,0.5)', display: 'block' }}
+              />
+              <span style={{ position: 'absolute', bottom: '-12px', left: '50%', transform: 'translateX(-50%)', fontSize: '1.5rem', filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.4))' }} aria-hidden="true">🤍</span>
+            </div>
+          )}
+
+          <h1 style={estilos.tituloSerif}>{titulo}</h1>
+          <DivisorCoracao />
+
+          <p style={{ fontSize: '0.98rem', color: 'rgba(255,255,255,0.85)', margin: '0 0 22px' }}>
+            Cada detalhe, cada momento, cada nós.
+          </p>
+
+          {audioSrc && (
+            <>
+              {/* Tocar exige um toque do usuário: navegador de celular bloqueia áudio automático. */}
+              <audio ref={audioRef} src={audioSrc} loop onEnded={() => setTocando(false)} />
+              <button
+                type="button"
+                onClick={togglePlay}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: '10px',
+                  padding: '13px 30px', borderRadius: '999px', border: 'none', cursor: 'pointer',
+                  background: 'linear-gradient(90deg, #7c3aed 0%, #ec4899 100%)',
+                  color: '#fff', fontWeight: '700', fontSize: '1rem',
+                  boxShadow: '0 10px 30px rgba(236,72,153,0.45)',
+                }}
+              >
+                <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '26px', height: '26px', borderRadius: '50%', background: 'rgba(255,255,255,0.22)', fontSize: '0.75rem' }}>
+                  {tocando ? '⏸' : '▶'}
+                </span>
+                {tocando ? 'Pausar nossa música' : 'Tocar nossa música'}
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
-      {/* Contador ao vivo */}
+      {/* Contador ao vivo — cartão claro com as caixas de DIAS/HORAS/MIN/SEG do mockup. */}
       {contador && (
-        <div style={{ maxWidth: '560px', margin: '0 auto 34px', padding: '0 20px' }}>
-          <div className="glass-card" style={{ padding: '22px', borderRadius: '16px', textAlign: 'center', background: 'rgba(255,255,255,0.75)' }}>
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '0 0 10px', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-              {retro.contadorLabel || 'Juntos há'}
+        <div style={{ maxWidth: '560px', margin: '0 auto 40px', padding: '0 20px' }}>
+          <div style={{ padding: '26px 22px', borderRadius: '20px', textAlign: 'center', background: 'rgba(255,255,255,0.92)', boxShadow: '0 20px 50px rgba(43,17,69,0.25)' }}>
+            <p style={{ fontSize: '0.8rem', color: '#9333ea', margin: '0 0 10px', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: '700' }}>
+              <span style={{ color: '#f472b6' }}>♥</span>&nbsp; {retro.contadorLabel || 'Juntos há'} &nbsp;<span style={{ color: '#f472b6' }}>♥</span>
             </p>
-            <p style={{ fontSize: '1.5rem', fontWeight: '800', color: '#7e22ce', margin: 0, fontFamily: 'var(--font-family-title)' }}>
+            <p style={{ fontFamily: "'Playfair Display', var(--font-family-title)", fontSize: '2rem', fontWeight: '700', color: '#6b21a8', margin: 0, lineHeight: 1.2 }}>
               {contador.anos > 0 && `${contador.anos} ${contador.anos === 1 ? 'ano' : 'anos'}, `}
               {contador.meses} {contador.meses === 1 ? 'mês' : 'meses'} e {contador.dias} {contador.dias === 1 ? 'dia' : 'dias'}
             </p>
-            <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', margin: '6px 0 0' }}>
-              {String(agora.getHours()).padStart(2, '0')}:{String(agora.getMinutes()).padStart(2, '0')}:{String(agora.getSeconds()).padStart(2, '0')} — e contando 💜
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', margin: '14px 0 12px' }} aria-hidden="true">
+              <span style={{ height: '1px', width: '70px', background: 'linear-gradient(90deg, transparent, #e9d5ff)' }} />
+              <span style={{ color: '#f472b6', fontSize: '0.9rem' }}>♥</span>
+              <span style={{ height: '1px', width: '70px', background: 'linear-gradient(90deg, #e9d5ff, transparent)' }} />
+            </div>
+
+            <p style={{ fontFamily: "'Playfair Display', var(--font-family-title)", fontSize: '1.05rem', color: '#4c1d95', margin: '0 0 16px' }}>
+              {String(decorrido.horas).padStart(2, '0')}:{String(decorrido.minutos).padStart(2, '0')}:{String(decorrido.segundos).padStart(2, '0')} — e contando 💜
             </p>
-            <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '8px 0 0' }}>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+              {[
+                { valor: decorrido.totalDias, label: 'DIAS' },
+                { valor: decorrido.horas, label: 'HORAS' },
+                { valor: decorrido.minutos, label: 'MIN' },
+                { valor: decorrido.segundos, label: 'SEG' },
+              ].map((cx) => (
+                <div key={cx.label} style={{ background: '#faf5ff', border: '1px solid #f3e8ff', borderRadius: '12px', padding: '10px 4px' }}>
+                  <div style={{ fontFamily: "'Playfair Display', var(--font-family-title)", fontSize: '1.45rem', fontWeight: '700', color: '#9333ea', lineHeight: 1.1 }}>
+                    {cx.label === 'DIAS' ? cx.valor : String(cx.valor).padStart(2, '0')}
+                  </div>
+                  <div style={{ fontSize: '0.62rem', color: '#a78bfa', letterSpacing: '0.1em', fontWeight: '700', marginTop: '2px' }}>{cx.label}</div>
+                </div>
+              ))}
+            </div>
+
+            <p style={{ fontSize: '0.75rem', color: '#a78bfa', margin: '12px 0 0' }}>
               desde {formatarDataBr(retro.dataInicio)}
             </p>
           </div>
         </div>
       )}
 
-      {/* Linha do tempo — réplica fiel do projeto de referência (Capivarinha Love, projeto do próprio
-          dono do estúdio, autorizado a reusar o design direto, 03/09/2026): fio central com marcador
-          de coração, foto Polaroid alternando de lado a cada momento, legenda em Grand Hotel (cursiva)
-          colada na própria foto, data em caixa alta do lado oposto. Seção com fundo escuro próprio
-          (igual ao original) — contraste de propósito com o resto da página, que é clara. */}
+      {/* Linha do tempo — layout do mockup aprovado (04/09/2026): fundo escuro, fio roxo brilhante
+          à esquerda com marcadores acesos, foto em card arredondado e, ao lado, o DIA em número
+          grande rosa + mês/ano, título em serifa e a descrição do momento. */}
       {momentos.length > 0 && (
-        <div style={{ background: '#120A0F', padding: '40px 0 44px', margin: '0 0 34px' }}>
+        <div style={{ background: 'linear-gradient(180deg, #1a0b26 0%, #150a1f 100%)', padding: '46px 0 50px', margin: '0 0 0' }}>
           <div style={{ maxWidth: '640px', margin: '0 auto', padding: '0 20px' }}>
-            <p style={{ fontSize: '0.72rem', fontWeight: '800', letterSpacing: '0.08em', textTransform: 'uppercase', color: '#FF7FAB', textAlign: 'center', margin: '0 0 6px' }}>
-              Linha do tempo
+            <p style={{ fontSize: '0.72rem', fontWeight: '800', letterSpacing: '0.16em', textTransform: 'uppercase', color: '#f9a8d4', textAlign: 'center', margin: '0 0 4px' }}>
+              <span style={{ opacity: 0.7 }}>♥</span>&nbsp; Linha do tempo &nbsp;<span style={{ opacity: 0.7 }}>♥</span>
             </p>
-            <h2 style={{ fontFamily: 'var(--font-family-title)', fontSize: '1.3rem', color: '#fff', textAlign: 'center', margin: '0 0 34px' }}>
+            <h2 style={{ fontFamily: "'Playfair Display', var(--font-family-title)", fontSize: '1.9rem', fontWeight: '700', color: '#fff', textAlign: 'center', margin: '0 0 6px' }}>
               A jornada de vocês
             </h2>
-            <div style={{ position: 'relative' }}>
+            <DivisorCoracao cor="rgba(236,72,153,0.35)" />
+
+            <div style={{ position: 'relative', paddingLeft: '18px', marginTop: '26px' }}>
               <div
                 aria-hidden="true"
                 style={{
-                  position: 'absolute', left: '50%', top: 0, bottom: 0, width: '2px', transform: 'translateX(-50%)',
-                  background: 'linear-gradient(180deg, rgba(227,43,109,0.15), #E32B6D 12%, #E32B6D 88%, rgba(227,43,109,0.15))',
+                  position: 'absolute', left: '0', top: '8px', bottom: '8px', width: '2px',
+                  background: 'linear-gradient(180deg, rgba(168,85,247,0.1), #a855f7 10%, #a855f7 90%, rgba(168,85,247,0.1))',
+                  boxShadow: '0 0 12px rgba(168,85,247,0.6)',
                 }}
               />
-              {momentos.map((m, i) => {
-                const invertido = i % 2 === 1;
-                return (
-                  <div key={`${m.titulo}-${i}`} style={{ position: 'relative', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', alignItems: 'center', marginBottom: '30px' }}>
-                    <span
-                      aria-hidden="true"
-                      style={{
-                        position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)',
-                        width: '17px', height: '17px', borderRadius: '50%', background: '#E32B6D', border: '3px solid #120A0F',
-                        boxShadow: '0 0 0 4px rgba(227,43,109,0.22)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        color: '#fff', fontSize: '9px', lineHeight: 1, zIndex: 3,
-                      }}
-                    >
-                      ♥
-                    </span>
+              {momentos.map((m, i) => (
+                <div key={`${m.titulo}-${i}`} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '26px' }}>
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      position: 'absolute', left: '-24px', top: '50%', transform: 'translateY(-50%)',
+                      width: '13px', height: '13px', borderRadius: '50%', background: '#c084fc',
+                      border: '2px solid #1a0b26', boxShadow: '0 0 14px rgba(192,132,252,0.9)', zIndex: 2,
+                    }}
+                  />
 
-                    <div style={{ gridColumn: invertido ? 2 : 1, gridRow: 1 }}>
-                      {m.fotoUrl && (
-                        <div style={{ background: '#FFFDF9', padding: '9px 9px 0', borderRadius: '3px', boxShadow: '0 12px 30px rgba(0,0,0,0.45)', transform: `rotate(${invertido ? 2.2 : -2.2}deg)` }}>
-                          <div style={{ width: '100%', aspectRatio: '1', overflow: 'hidden', background: '#EDE3E6' }}>
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={m.fotoUrl} alt={m.titulo || 'Momento'} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                          </div>
-                          <p style={{ fontFamily: "'Grand Hotel', cursive", fontSize: '1rem', color: '#4A3A40', lineHeight: 1.25, textAlign: 'center', padding: '8px 5px 11px', minHeight: '2.4em', margin: 0 }}>
-                            {m.titulo || 'nós dois'}
-                          </p>
-                        </div>
-                      )}
-                      {!m.fotoUrl && m.titulo && (
-                        <p style={{ fontFamily: "'Grand Hotel', cursive", fontSize: '1.4rem', color: '#FF7FAB', textAlign: invertido ? 'left' : 'right', margin: 0 }}>
-                          {m.titulo}
-                        </p>
-                      )}
+                  {m.fotoUrl && (
+                    <div style={{ flexShrink: 0, width: '120px', height: '96px', borderRadius: '12px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.14)', boxShadow: '0 10px 24px rgba(0,0,0,0.5)' }}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={m.fotoUrl} alt={m.titulo || 'Momento'} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                     </div>
+                  )}
 
-                    <div style={{ gridColumn: invertido ? 1 : 2, gridRow: 1, textAlign: invertido ? 'right' : 'left' }}>
-                      {m.data && (
-                        <div style={{ fontSize: '0.74rem', fontWeight: '800', letterSpacing: '0.1em', textTransform: 'uppercase', color: '#E32B6D', marginBottom: '6px' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    {m.data && (
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '3px' }}>
+                        <span style={{ fontFamily: "'Playfair Display', var(--font-family-title)", fontSize: '1.5rem', fontWeight: '700', color: '#f472b6', lineHeight: 1 }}>
+                          {m.data.split('-')[2]}
+                        </span>
+                        <span style={{ fontSize: '0.7rem', fontWeight: '800', letterSpacing: '0.1em', color: '#c084fc' }}>
                           {formatarMesAno(m.data)}
-                        </div>
-                      )}
-                      {m.data && (
-                        <div style={{ fontSize: '0.93rem', color: '#E6D6DD', lineHeight: 1.6 }}>{formatarDataExtenso(m.data)}</div>
-                      )}
-                      {m.texto && (
-                        <div style={{ fontSize: '0.82rem', color: '#B99BA8', lineHeight: 1.6, marginTop: '8px' }}>{m.texto}</div>
-                      )}
-                    </div>
+                        </span>
+                      </div>
+                    )}
+                    {m.titulo && (
+                      <p style={{ fontFamily: "'Playfair Display', var(--font-family-title)", fontSize: '1.1rem', fontWeight: '700', color: '#fff', margin: '0 0 3px', lineHeight: 1.3 }}>
+                        {m.titulo}
+                      </p>
+                    )}
+                    {m.texto && (
+                      <p style={{ fontSize: '0.85rem', color: '#c4b5d4', lineHeight: 1.55, margin: 0 }}>{m.texto}</p>
+                    )}
                   </div>
-                );
-              })}
+
+                  <span aria-hidden="true" style={{ flexShrink: 0, fontSize: '1.2rem', opacity: 0.9 }}>💗</span>
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -305,29 +394,52 @@ function RetrospectivaContent() {
 
       {/* Álbum de fotos — também em molduras Polaroid, mesma linha romântica da linha do tempo. */}
       {fotos.length > 0 && (
-        <div style={{ maxWidth: '560px', margin: '0 auto 34px', padding: '0 20px' }}>
-          <h2 style={estilos.secaoTitulo}>Nossas fotos 📸</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '18px 14px' }}>
-            {fotos.map((url, i) => (
-              <div
-                key={url}
-                style={{
-                  background: '#fff',
-                  padding: '8px 8px 22px',
-                  borderRadius: '3px',
-                  boxShadow: '0 8px 18px rgba(131, 24, 67, 0.2)',
-                  transform: `rotate(${ROTACOES_POLAROID[i % ROTACOES_POLAROID.length]}deg)`,
-                }}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={url}
-                  alt={`Foto ${i + 1}`}
-                  loading="lazy"
-                  style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: '2px', display: 'block' }}
-                />
-              </div>
-            ))}
+        <div style={{ position: 'relative', background: 'linear-gradient(160deg, #e9d5ff 0%, #f5d0fe 45%, #fbcfe8 100%)', padding: '44px 0 52px', overflow: 'hidden' }}>
+          <CoracoesFlutuando />
+          <div style={{ position: 'relative', zIndex: 1, maxWidth: '620px', margin: '0 auto', padding: '0 20px' }}>
+            <h2
+              style={{
+                ...estilos.tituloSerif,
+                fontSize: '2.2rem',
+                textAlign: 'center',
+                background: 'linear-gradient(100deg, #6d28d9 0%, #a21caf 55%, #db2777 100%)',
+                WebkitBackgroundClip: 'text',
+                backgroundClip: 'text',
+                textShadow: 'none',
+              }}
+            >
+              Nossas fotos 📸
+            </h2>
+            <DivisorCoracao cor="rgba(147,51,234,0.35)" coracao="#c026d3" />
+            <p style={{ textAlign: 'center', fontSize: '0.92rem', color: '#6b21a8', margin: '0 0 26px' }}>
+              Alguns cliques que guardam nossos melhores momentos.
+            </p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '22px 16px' }}>
+              {fotos.map((url, i) => (
+                <div
+                  key={url}
+                  style={{
+                    background: '#fff',
+                    padding: '10px 10px 30px',
+                    borderRadius: '4px',
+                    boxShadow: '0 14px 30px rgba(88, 28, 135, 0.28)',
+                    transform: `rotate(${ROTACOES_POLAROID[i % ROTACOES_POLAROID.length]}deg)`,
+                  }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={url}
+                    alt={`Foto ${i + 1}`}
+                    loading="lazy"
+                    style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: '2px', display: 'block' }}
+                  />
+                  <p style={{ fontFamily: "'Grand Hotel', cursive", fontSize: '1.05rem', color: '#7e22ce', textAlign: 'center', margin: '8px 0 0' }}>
+                    nós dois <span style={{ color: '#f472b6' }}>♥</span>
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
@@ -432,6 +544,19 @@ function RetrospectivaContent() {
 const estilos = {
   centro: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' },
   secaoTitulo: { fontFamily: 'var(--font-family-title)', fontSize: '1.1rem', color: '#581c87', marginBottom: '14px', textAlign: 'center' },
+  // Título grande em serifa com gradiente — assinatura visual do mockup aprovado (04/09/2026).
+  tituloSerif: {
+    fontFamily: "'Playfair Display', var(--font-family-title)",
+    fontSize: '2.6rem',
+    fontWeight: '700',
+    lineHeight: 1.1,
+    margin: '0 0 2px',
+    background: 'linear-gradient(100deg, #c4b5fd 0%, #f0abfc 55%, #f9a8d4 100%)',
+    WebkitBackgroundClip: 'text',
+    backgroundClip: 'text',
+    color: 'transparent',
+    textShadow: '0 4px 30px rgba(236,72,153,0.25)',
+  },
 };
 
 export default function RetrospectivaPage() {

@@ -80,10 +80,24 @@ function Slide({ item, proximo, ativo, honoreeName, customerName, alturaGrande }
   const larguraPequena = Math.round(alturaPequeno * (item.proporcao || 1));
 
   return (
-    <div style={{ position: 'absolute', inset: 0, display: ativo ? 'flex' : 'none', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px', textAlign: 'center' }}>
+    // `paddingTop` reserva a faixa do cabeçalho fixo: sem ele a figura grande subia por cima da
+    // pergunta, que fica ancorada no topo (achado no teste visual, 04/09/2026).
+    <div style={{ position: 'absolute', inset: 0, display: ativo ? 'flex' : 'none', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '150px 24px 60px', textAlign: 'center' }}>
+      {/* Cabeçalho fixo do mockup (04/09/2026) — a pergunta acompanha todos os slides. */}
+      <div style={{ position: 'absolute', top: '54px', left: 0, right: 0, padding: '0 20px' }}>
+        <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.5rem', fontWeight: '700', color: '#fff', margin: 0, lineHeight: 1.25 }}>
+          Vamos medir<br /><span style={{ color: '#f9a8d4' }}>o tamanho do nosso amor?</span>
+        </h2>
+        <div aria-hidden="true" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', marginTop: '10px' }}>
+          <span style={{ height: '1px', width: '54px', background: 'linear-gradient(90deg, transparent, rgba(249,168,212,0.5))' }} />
+          <span style={{ color: '#f9a8d4', fontSize: '0.85rem' }}>♥</span>
+          <span style={{ height: '1px', width: '54px', background: 'linear-gradient(90deg, rgba(249,168,212,0.5), transparent)' }} />
+        </div>
+      </div>
+
       <div style={{ marginBottom: '20px' }}>
-        <p style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.65)', fontWeight: '700', letterSpacing: '0.06em', textTransform: 'uppercase', margin: '0 0 10px' }}>
-          {proximo.nome}
+        <p style={{ fontFamily: "'Playfair Display', serif", fontSize: '1rem', color: '#e9d5ff', fontWeight: '700', letterSpacing: '0.14em', textTransform: 'uppercase', margin: '0 0 10px' }}>
+          <span style={{ color: '#f9a8d4', opacity: 0.8 }}>— ♥ </span>{proximo.nome}<span style={{ color: '#f9a8d4', opacity: 0.8 }}> ♥ —</span>
         </p>
         <div
           style={{
@@ -99,7 +113,25 @@ function Slide({ item, proximo, ativo, honoreeName, customerName, alturaGrande }
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={proximo.imagem} alt={proximo.nome} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
         </div>
-        <p style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.78)', margin: '12px 0 0', maxWidth: '20rem' }}>{proximo.medida}</p>
+        {/* Medida em serifa roxa com setas decorativas, como no mockup — a primeira parte
+            (número + unidade) ganha destaque; o resto vira legenda embaixo. */}
+        {(() => {
+          const [destaque, ...resto] = String(proximo.medida).split(' — ');
+          return (
+            <>
+              <p style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.35rem', fontWeight: '700', color: '#d8b4fe', margin: '14px 0 0' }}>
+                <span style={{ color: '#c084fc', opacity: 0.65, fontSize: '0.85rem' }}>❯❯&nbsp;&nbsp;</span>
+                {destaque}
+                <span style={{ color: '#c084fc', opacity: 0.65, fontSize: '0.85rem' }}>&nbsp;&nbsp;❮❮</span>
+              </p>
+              {resto.length > 0 && (
+                <p style={{ fontFamily: "'Playfair Display', serif", fontSize: '0.92rem', color: 'rgba(255,255,255,0.82)', margin: '4px auto 0', maxWidth: '20rem' }}>
+                  {resto.join(' — ')}
+                </p>
+              )}
+            </>
+          );
+        })()}
         {ehFinal && (honoreeName || customerName) && (
           <p style={{ marginTop: '18px', fontFamily: "'Grand Hotel', cursive", fontSize: '1.6rem', color: '#fff', textShadow: '0 0 26px rgba(255,127,171,0.7)' }}>
             {customerName}{customerName && honoreeName ? ' & ' : ''}{honoreeName}
@@ -113,20 +145,27 @@ function Slide({ item, proximo, ativo, honoreeName, customerName, alturaGrande }
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={item.imagem} alt={item.nome} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
           </div>
-          <p style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.55)', margin: '5px 0 0' }}>{item.nome}</p>
+          <p style={{ fontFamily: "'Playfair Display', serif", fontSize: '0.85rem', color: 'rgba(255,255,255,0.7)', margin: '6px 0 0' }}>
+            <span style={{ color: '#f9a8d4', opacity: 0.7 }}>— ♥ </span>{item.nome}<span style={{ color: '#f9a8d4', opacity: 0.7 }}> ♥ —</span>
+          </p>
         </div>
       </div>
 
-      <div style={{ marginTop: '22px' }}>
+      <div style={{ marginTop: '24px', position: 'relative' }}>
+        <span aria-hidden="true" style={{ position: 'absolute', top: '-11px', left: '50%', transform: 'translateX(-50%)', fontSize: '0.95rem' }}>💛</span>
         {alvo === null ? (
           <span style={estilos.pill}>∞ <span style={{ fontSize: '0.85rem', fontWeight: '600', opacity: 0.8, marginLeft: '4px' }}>não dá pra medir</span></span>
         ) : (
           <span style={estilos.pill}>
             {formatarVezes(alvo >= 100 ? Math.round(valorAnimado) : Math.round(valorAnimado * 10) / 10)}
-            <span style={{ fontSize: '0.72rem', fontWeight: '700', opacity: 0.85, marginLeft: '6px' }}>vezes maior</span>
+            <span style={{ fontSize: '0.9rem', fontWeight: '700', opacity: 0.9, marginLeft: '7px' }}>× maior</span>
           </span>
         )}
       </div>
+
+      <p style={{ position: 'absolute', bottom: '30px', left: 0, right: 0, textAlign: 'center', fontFamily: "'Playfair Display', serif", fontSize: '0.85rem', color: 'rgba(255,255,255,0.5)' }}>
+        👆 <span style={{ opacity: 0.7 }}>—</span> Toque para continuar <span style={{ opacity: 0.7 }}>—</span>
+      </p>
     </div>
   );
 }
@@ -139,7 +178,9 @@ export default function MedidorAmor({ honoreeName, customerName, onClose }) {
   const [alturaGrande, setAlturaGrande] = useState(280);
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    setAlturaGrande(Math.min(Math.round(window.innerHeight * 0.38), 320));
+    // 0.30 (não 0.38): o cabeçalho fixo com a pergunta passou a ocupar a faixa de cima, então a
+    // figura grande precisa caber no que sobra sem empurrar o selo pra fora da tela.
+    setAlturaGrande(Math.min(Math.round(window.innerHeight * 0.30), 300));
   }, []);
   const totalSlides = MEDIDOR_ITENS.length - 1;
   const ehUltimo = indice === totalSlides - 1;
@@ -251,8 +292,10 @@ export default function MedidorAmor({ honoreeName, customerName, onClose }) {
         ))}
       </div>
 
+      {/* No último slide o rodapé do Slide já diz "Toque para continuar" — aqui a mensagem muda
+          pra deixar claro que o próximo toque fecha. */}
       {ehUltimo && (
-        <p style={{ position: 'absolute', bottom: '20px', left: 0, right: 0, textAlign: 'center', fontSize: '0.72rem', color: 'rgba(255,255,255,0.5)', zIndex: 3 }}>
+        <p style={{ position: 'absolute', bottom: '8px', left: 0, right: 0, textAlign: 'center', fontFamily: "'Playfair Display', serif", fontSize: '0.75rem', color: 'rgba(255,255,255,0.45)', zIndex: 3 }}>
           toque pra fechar
         </p>
       )}
@@ -266,13 +309,15 @@ const estilos = {
     display: 'inline-flex',
     alignItems: 'baseline',
     gap: '5px',
-    padding: '0.55rem 1rem',
+    padding: '0.7rem 2rem',
     borderRadius: '100px',
-    background: 'rgba(232, 180, 74, 0.13)',
-    border: '1px solid rgba(232, 180, 74, 0.42)',
-    fontFamily: 'var(--font-family-title)',
-    fontSize: '1.25rem',
-    fontWeight: '800',
-    color: '#E8B44A',
+    background: 'radial-gradient(ellipse at 50% 50%, rgba(232,180,74,0.18), rgba(232,180,74,0.06))',
+    border: '1.5px solid rgba(232, 180, 74, 0.6)',
+    fontFamily: "'Playfair Display', serif",
+    fontSize: '1.9rem',
+    fontWeight: '700',
+    color: '#F2C97A',
+    boxShadow: '0 0 26px rgba(232,180,74,0.35), inset 0 0 20px rgba(232,180,74,0.12)',
+    textShadow: '0 0 18px rgba(232,180,74,0.5)',
   },
 };
