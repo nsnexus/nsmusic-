@@ -6,6 +6,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { buildAudioProxySrc } from '@/lib/audioProxy';
 import MedidorAmor from '@/components/MedidorAmor';
+import ReelsViewer from '@/components/ReelsViewer';
 
 // Página PÚBLICA da Retrospectiva (add-on, ver src/lib/pricing.js:retrospectiva_addon) — é o link
 // que o cliente manda pra família. Diferente do Vídeo Homenagem, aqui nada é renderizado: abre na
@@ -145,6 +146,8 @@ function RetrospectivaContent() {
   const [agora, setAgora] = useState(() => new Date());
   const [respostas, setRespostas] = useState({});
   const [medidorAberto, setMedidorAberto] = useState(false);
+  const [reelsAberto, setReelsAberto] = useState(false);
+  const [reelsIndex, setReelsIndex] = useState(0);
   const audioRef = useRef(null);
 
   useEffect(() => {
@@ -552,20 +555,63 @@ function RetrospectivaContent() {
               Nossas fotos 📸
             </h2>
             <DivisorCoracao cor="rgba(147,51,234,0.35)" coracao="#c026d3" />
-            <p style={{ textAlign: 'center', fontSize: '0.92rem', color: '#6b21a8', margin: '0 0 26px' }}>
+            <p style={{ textAlign: 'center', fontSize: '0.92rem', color: '#6b21a8', margin: '0 0 18px' }}>
               Alguns cliques que guardam nossos melhores momentos.
             </p>
+
+            {/* Botão de destaque para abrir as fotos no Modo Reels / Stories */}
+            <div style={{ textAlign: 'center', marginBottom: '28px' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setReelsIndex(0);
+                  setReelsAberto(true);
+                }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '9px',
+                  padding: '12px 28px',
+                  borderRadius: '999px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  background: 'linear-gradient(90deg, #7c3aed 0%, #ec4899 100%)',
+                  color: '#fff',
+                  fontWeight: '700',
+                  fontSize: '0.95rem',
+                  boxShadow: '0 8px 26px rgba(236,72,153,0.38)',
+                  transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+                }}
+              >
+                <span>✨</span> Ver no Modo Reels / Stories <span>▶</span>
+              </button>
+            </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '22px 16px' }}>
               {fotos.map((url, i) => (
                 <div
                   key={url}
+                  onClick={() => {
+                    setReelsIndex(i);
+                    setReelsAberto(true);
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      setReelsIndex(i);
+                      setReelsAberto(true);
+                    }
+                  }}
+                  aria-label={`Ver foto ${i + 1} no modo Reels`}
                   style={{
                     background: '#fff',
                     padding: '10px 10px 30px',
                     borderRadius: '4px',
                     boxShadow: '0 14px 30px rgba(88, 28, 135, 0.28)',
                     transform: `rotate(${ROTACOES_POLAROID[i % ROTACOES_POLAROID.length]}deg)`,
+                    cursor: 'pointer',
+                    transition: 'transform 0.2s ease, box-shadow 0.2s ease',
                   }}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -664,6 +710,15 @@ function RetrospectivaContent() {
           honoreeName={honoree}
           customerName={order.customerName}
           onClose={() => setMedidorAberto(false)}
+        />
+      )}
+
+      {reelsAberto && (
+        <ReelsViewer
+          fotos={fotos}
+          indiceInicial={reelsIndex}
+          onClose={() => setReelsAberto(false)}
+          titulo={honoree ? `Nossas Fotos com ${honoree}` : 'Nossas Fotos'}
         />
       )}
 
