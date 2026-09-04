@@ -404,7 +404,12 @@ function EntregaContent() {
     }
   };
 
-  const handleGeneratePix = async (customAmount = null, isSecondary = false) => {
+  // `explicitSku` substitui o antigo `customAmount` (achado 04/09/2026: comparar o valor em dinheiro
+  // com 16.89 pra "adivinhar" que era o SKU `combo` já era frágil, e quebrava de vez ao adicionar
+  // combo_carta/combo_retrospectiva — dois SKUs novos não tinham como cair nesse `if` de valor
+  // fixo). Quem chama agora diz o SKU direto; sem ele, cai no comportamento de sempre
+  // (promoção de recuperação, ou audio_only).
+  const handleGeneratePix = async (explicitSku = null, isSecondary = false) => {
     if (!order) return;
     if (isSecondary) setPendingVideoPix(true);
     else {
@@ -415,10 +420,10 @@ function EntregaContent() {
     // O valor a cobrar é decidido pelo servidor a partir do SKU (ver src/lib/pricing.js e C-05 no
     // AUDIT_REPORT.md) — o cliente só informa QUAL produto está comprando, nunca o preço.
     let sku;
-    if (isSecondary) sku = 'video_addon';
+    if (explicitSku) sku = explicitSku;
+    else if (isSecondary) sku = 'video_addon';
     else if (promo === '48h') sku = 'recovery_combo_48h';
     else if (promo === '24h') sku = 'recovery_combo_24h';
-    else if (typeof customAmount === 'number' && customAmount === 16.89) sku = 'combo';
     else sku = 'audio_only';
 
     // A retentativa vive em src/lib/pixCheckout.js, compartilhada com o checkout de /criar.
@@ -1028,7 +1033,7 @@ function EntregaContent() {
                           onClick={() => {
                             setSelectedPackage('video_addon');
                             setPendingVideoPix(true);
-                            handleGeneratePix(6.90, true);
+                            handleGeneratePix('video_addon', true);
                           }}
                           className="btn btn-primary"
                           style={{ padding: '12px 20px', fontSize: '0.92rem', fontWeight: 'bold', background: 'linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%)', border: 'none', cursor: 'pointer', opacity: pendingVideoPix ? 0.6 : 1 }}
@@ -1666,11 +1671,19 @@ function EntregaContent() {
           </div>
 
           {/* Pop-up de extras: vídeo, retrospectiva e carta na mesma interrupção (substituiu o
-              VideoOfferModal, que oferecia só o vídeo — decisão do dono do estúdio, 03/09/2026). */}
+              VideoOfferModal, que oferecia só o vídeo — decisão do dono do estúdio, 03/09/2026).
+              Virou seletor de PACOTE de verdade em 04/09/2026 — achado: antes de pagar, clicar em
+              retrospectiva/carta só tentava rolar até um card que nem existia ainda (só aparece com
+              isPaid), então "clicava e nada acontecia". Agora, se ainda não pagou, cada opção gera
+              o combo certo na hora (preço muda de verdade); se já pagou, some do pop-up (jaTem*) e,
+              nos raros casos em que ainda aparecer, cai no card do add-on já visível. */}
           <ExtrasOfferModal
             isOpen={showVideoModal}
             honoreeName={order?.honoreeName || 'alguém especial'}
+            isPaid={isPaid}
             jaTemVideo={Boolean(hasVideoAccess || order?.hasVideoAccess)}
+            jaTemCarta={Boolean(order?.hasCartaAccess || order?.cartaAddonPaid)}
+            jaTemRetrospectiva={Boolean(order?.hasRetrospectivaAccess || order?.retrospectivaAddonPaid)}
             onClose={() => {
               setShowVideoModal(false);
               if (typeof window !== 'undefined' && orderId) {
@@ -1683,22 +1696,34 @@ function EntregaContent() {
                 sessionStorage.setItem(`video_modal_dismissed_${orderId}`, 'true');
               }
 
-              if (sku === 'video_addon') {
-                // Antes de pagar a música, o vídeo entra como combo (um pagamento só, mais barato
-                // pro cliente que os dois avulsos) — mesma regra que já existia aqui.
-                if (isPaid) {
-                  setSelectedPackage('video_addon');
-                  setPendingVideoPix(true);
-                  handleGeneratePix(getPriceForSku('video_addon'), true);
-                } else {
-                  setSelectedPackage('combo');
-                  handleGeneratePix(getPriceForSku('combo'));
-                }
+              // 'audio_only' = "só a música", a escolha explícita de não levar nenhum extra — segue
+              // o fluxo padrão (que já está rodando por baixo do pop-up) sem gerar nada novo.
+              if (sku === 'audio_only') return;
+
+              const combosPreDePagamento = {
+                video_addon: 'combo',
+                carta_addon: 'combo_carta',
+                retrospectiva_addon: 'combo_retrospectiva',
+              };
+
+              if (!isPaid) {
+                // Antes de pagar a música, o extra entra como combo (um pagamento só, mais barato
+                // pro cliente que os dois avulsos) — mesma regra que já existia só pro vídeo.
+                setSelectedPackage(combosPreDePagamento[sku] || 'audio_only');
+                handleGeneratePix(combosPreDePagamento[sku]);
                 return;
               }
 
-              // Retrospectiva e carta são add-ons pós-pagamento: os cards deles abaixo cuidam da
-              // cobrança. Rolar até lá é mais honesto do que abrir uma segunda cobrança por cima.
+              if (sku === 'video_addon') {
+                setSelectedPackage('video_addon');
+                setPendingVideoPix(true);
+                handleGeneratePix('video_addon', true);
+                return;
+              }
+
+              // Retrospectiva e carta pós-pagamento são add-ons cujo card já existe na tela (isPaid)
+              // — os cards cuidam da própria cobrança. Rolar até lá é mais honesto que abrir uma
+              // segunda cobrança por cima.
               const alvo = sku === 'retrospectiva_addon' ? 'card-retrospectiva' : 'card-carta';
               if (typeof document !== 'undefined') {
                 document.getElementById(alvo)?.scrollIntoView({ behavior: 'smooth', block: 'center' });

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getPriceForSku, skuGrantsVideoAccess, skuApprovesMusic, SKU_PRICES } from '@/lib/pricing';
+import { getPriceForSku, skuGrantsVideoAccess, skuGrantsCartaAccess, skuGrantsRetrospectivaAccess, skuApprovesMusic, SKU_PRICES } from '@/lib/pricing';
 
 // Catálogo único de preços no servidor (ver C-05 no AUDIT_REPORT.md).
 
@@ -11,6 +11,8 @@ describe('getPriceForSku', () => {
     expect(getPriceForSku('playback_addon')).toBe(4.99);
     expect(getPriceForSku('carta_addon')).toBe(3.99);
     expect(getPriceForSku('retrospectiva_addon')).toBe(9.99);
+    expect(getPriceForSku('combo_carta')).toBe(13.98);
+    expect(getPriceForSku('combo_retrospectiva')).toBe(19.98);
   });
 
   it('retorna null para SKU desconhecido (nunca inventa um preço)', () => {
@@ -20,7 +22,22 @@ describe('getPriceForSku', () => {
   });
 
   it('não é influenciável por um valor arbitrário — só existe o que está no catálogo', () => {
-    expect(Object.keys(SKU_PRICES)).toEqual(['audio_only', 'combo', 'video_addon', 'playback_addon', 'carta_addon', 'retrospectiva_addon', 'recovery_combo_24h', 'recovery_combo_48h']);
+    expect(Object.keys(SKU_PRICES)).toEqual(['audio_only', 'combo', 'video_addon', 'playback_addon', 'carta_addon', 'retrospectiva_addon', 'combo_carta', 'combo_retrospectiva', 'recovery_combo_24h', 'recovery_combo_48h']);
+  });
+});
+
+describe('skuGrantsCartaAccess / skuGrantsRetrospectivaAccess', () => {
+  it('combo_carta concede carta; combo_retrospectiva concede retrospectiva; nunca cruzado', () => {
+    expect(skuGrantsCartaAccess('combo_carta')).toBe(true);
+    expect(skuGrantsCartaAccess('combo_retrospectiva')).toBe(false);
+    expect(skuGrantsRetrospectivaAccess('combo_retrospectiva')).toBe(true);
+    expect(skuGrantsRetrospectivaAccess('combo_carta')).toBe(false);
+  });
+
+  it('add-ons isolados e audio_only não concedem nenhum dos dois', () => {
+    expect(skuGrantsCartaAccess('carta_addon')).toBe(false);
+    expect(skuGrantsRetrospectivaAccess('retrospectiva_addon')).toBe(false);
+    expect(skuGrantsCartaAccess('audio_only')).toBe(false);
   });
 });
 
@@ -43,6 +60,11 @@ describe('skuApprovesMusic', () => {
   it('audio_only e combo aprovam a música (paymentStatus)', () => {
     expect(skuApprovesMusic('audio_only')).toBe(true);
     expect(skuApprovesMusic('combo')).toBe(true);
+  });
+
+  it('combo_carta e combo_retrospectiva também aprovam a música — são combo, não add-on isolado', () => {
+    expect(skuApprovesMusic('combo_carta')).toBe(true);
+    expect(skuApprovesMusic('combo_retrospectiva')).toBe(true);
   });
 
   it('video_addon isolado NUNCA aprova a música — ver C-09 no AUDIT_REPORT.md', () => {

@@ -13,7 +13,7 @@
 
 import { doc, getDoc, updateDoc } from 'firebase/firestore/lite';
 import { dbEdge as db } from './firebase-edge';
-import { skuApprovesMusic, skuGrantsVideoAccess, getPriceForSku } from './pricing';
+import { skuApprovesMusic, skuGrantsVideoAccess, skuGrantsCartaAccess, skuGrantsRetrospectivaAccess, getPriceForSku } from './pricing';
 import { resolveDeliveryUrl } from './whatsappTemplates';
 import { sendMetaPurchaseEvent } from './metaCapi';
 import { requestPlaybackGeneration } from './playback';
@@ -151,11 +151,25 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
             updates.videoAddonPaid = true;
             updates.videoPaidAt = nowIso;
           }
+
+          // Combos música+carta e música+retrospectiva (pop-up de extras dinâmico, 04/09/2026) —
+          // mesmo padrão do vídeo acima: aprovam a música E liberam o add-on na mesma transação.
+          if (skuGrantsCartaAccess(sku)) {
+            updates.hasCartaAccess = true;
+            updates.cartaAddonPaid = true;
+            updates.cartaPaidAt = nowIso;
+          }
+          if (skuGrantsRetrospectivaAccess(sku)) {
+            updates.hasRetrospectivaAccess = true;
+            updates.retrospectivaAddonPaid = true;
+            updates.retrospectivaPaidAt = nowIso;
+          }
         }
 
         await updateDoc(orderRef, updates);
 
-        txResult = { applied: true, sku, isVideoOnly, isPlaybackOnly, isCartaOnly, isRetroOnly, orderData };
+        const grantedCartaViaCombo = skuGrantsCartaAccess(sku);
+        txResult = { applied: true, sku, isVideoOnly, isPlaybackOnly, isCartaOnly, isRetroOnly, grantedCartaViaCombo, orderData };
       }
     }
   } catch (err) {
@@ -234,7 +248,7 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
     // pagamento podem chegar juntos e gerar duas vezes). Diferente do playback, aqui não há tarefa
     // assíncrona externa — o texto sai na própria chamada, então já grava pronto. Se falhar, o
     // cliente ainda pode gerar pelo botão em /entrega (api/carta/generate), então não é perda.
-    if (txResult.isCartaOnly) {
+    if (txResult.isCartaOnly || txResult.grantedCartaViaCombo) {
       try {
         let shouldGenerate = false;
         const freshSnap = await getDoc(orderRef);
@@ -410,6 +424,26 @@ async function revokeApproval(orderRef, paymentId, status) {
     } else if (String(orderData.paymentId || '') === String(paymentId)) {
       updates.paymentStatus = 'AGUARDANDO_PAGAMENTO';
       revoked = true;
+
+      // Achado 04/09/2026, ao adicionar combo_carta/combo_retrospectiva: combo (música+vídeo) já
+      // tinha esse mesmo buraco — o vídeo é concedido nesta MESMA transação (não grava
+      // videoPaymentId, só o `combo`/carta/retrospectiva fazem isso pros add-ons ISOLADOS), então um
+      // estorno nunca revogava o acesso já dado junto. Resolve o SKU da cobrança do mesmo jeito que
+      // a aprovação faz, pra saber o que foi concedido junto e desfazer tudo.
+      const skuByTxid = orderData.paymentIntentSkuByTxid || {};
+      const skuDaCobranca = skuByTxid[String(paymentId)] || orderData.paymentIntentSku || '';
+      if (skuGrantsVideoAccess(skuDaCobranca)) {
+        updates.hasVideoAccess = false;
+        updates.videoAddonPaid = false;
+      }
+      if (skuGrantsCartaAccess(skuDaCobranca)) {
+        updates.hasCartaAccess = false;
+        updates.cartaAddonPaid = false;
+      }
+      if (skuGrantsRetrospectivaAccess(skuDaCobranca)) {
+        updates.hasRetrospectivaAccess = false;
+        updates.retrospectivaAddonPaid = false;
+      }
     }
 
     if (revoked) await updateDoc(orderRef, updates);

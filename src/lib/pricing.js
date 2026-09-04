@@ -18,6 +18,10 @@ export const SKU_PRICES = {
   playback_addon: 4.99,
   carta_addon: 3.99,
   retrospectiva_addon: 9.99,
+  // Combos música+carta e música+retrospectiva (pop-up de extras dinâmico, pedido 04/09/2026) —
+  // mesma regra do `combo` (música+vídeo): soma simples dos dois preços, sem desconto.
+  combo_carta: 13.98,
+  combo_retrospectiva: 19.98,
   recovery_combo_24h: 9.99,
   recovery_combo_48h: 6.99,
 };
@@ -33,6 +37,15 @@ export function skuGrantsVideoAccess(sku) {
   return sku === 'combo' || sku === 'video_addon' || sku === 'recovery_combo_24h' || sku === 'recovery_combo_48h';
 }
 
+// Mesma ideia de skuGrantsVideoAccess, para os combos música+carta e música+retrospectiva.
+export function skuGrantsCartaAccess(sku) {
+  return sku === 'combo_carta';
+}
+
+export function skuGrantsRetrospectivaAccess(sku) {
+  return sku === 'combo_retrospectiva';
+}
+
 // Um SKU "aprova a música" quando confirma o pagamento principal (paymentStatus). O video_addon
 // isolado NUNCA deve alterar paymentStatus (ver C-09 no AUDIT_REPORT.md).
 //
@@ -41,5 +54,6 @@ export function skuGrantsVideoAccess(sku) {
 // do corpo da requisição). Aprova a música como qualquer pagamento do produto principal; o vídeo é
 // concedido à parte, por FAIXA de valor pago (ver src/lib/payments.js), não por este SKU sozinho.
 export function skuApprovesMusic(sku) {
-  return sku === 'audio_only' || sku === 'combo' || sku === 'recovery_combo_24h' || sku === 'recovery_combo_48h' || sku === 'impacto';
+  return sku === 'audio_only' || sku === 'combo' || sku === 'combo_carta' || sku === 'combo_retrospectiva'
+    || sku === 'recovery_combo_24h' || sku === 'recovery_combo_48h' || sku === 'impacto';
 }

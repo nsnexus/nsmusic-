@@ -4,22 +4,43 @@ import { getPriceForSku } from '@/lib/pricing';
 
 // Pop-up de oferta dos extras, exibido na página de entrega logo depois da música ficar pronta.
 //
-// Substitui o VideoOfferModal (que oferecia só o vídeo) por decisão do dono do estúdio em
-// 03/09/2026: a mesma interrupção agora apresenta os três produtos de uma vez — vídeo, carta e
-// retrospectiva. Interromper o cliente uma vez com três opções vende mais que interromper uma vez
-// com uma só, e evita ter que criar um segundo pop-up pra cada produto novo.
+// Vira seletor de PACOTE de verdade (04/09/2026, achado: "clico e nada acontece, o valor não
+// altera" — antes de pagar, escolher retrospectiva/carta só tentava rolar até um card que nem
+// existia ainda, porque esses cards só aparecem depois de pago). Agora:
+//   - antes de pagar (isPaid=false): cada opção mostra o preço do COMBO (música + aquele extra) e,
+//     ao clicar, já gera o PIX daquele combo — dinâmico de verdade, preço muda na hora;
+//   - depois de pago (isPaid=true): mostra o preço do add-on avulso;
+//   - quem já comprou um extra some da lista sozinho (jaTem*) — não faz sentido oferecer de novo.
 //
 // Este componente NÃO cobra nada: ele só devolve a escolha (onSelect) pra página de entrega, que já
-// sabe criar a cobrança de cada SKU. Preço sempre do catálogo do servidor (getPriceForSku), nunca
-// escrito à mão aqui — número solto em texto foi exatamente o que deu divergência entre tela e
-// cobrança em outros pontos do projeto.
-const formatarPreco = (sku) => {
-  const preco = getPriceForSku(sku);
-  return preco === null ? '' : `R$ ${preco.toFixed(2).replace('.', ',')}`;
+// sabe criar a cobrança certa. Preço sempre do catálogo do servidor (getPriceForSku), nunca escrito
+// à mão aqui — número solto em texto foi exatamente o que deu divergência entre tela e cobrança em
+// outros pontos do projeto.
+const COMBO_SKU_POR_EXTRA = {
+  video_addon: 'combo',
+  carta_addon: 'combo_carta',
+  retrospectiva_addon: 'combo_retrospectiva',
 };
 
-export default function ExtrasOfferModal({ isOpen, onClose, onSelect, honoreeName = 'alguém especial', jaTemVideo = false }) {
+export default function ExtrasOfferModal({
+  isOpen,
+  onClose,
+  onSelect,
+  honoreeName = 'alguém especial',
+  isPaid = false,
+  jaTemVideo = false,
+  jaTemCarta = false,
+  jaTemRetrospectiva = false,
+}) {
   if (!isOpen) return null;
+
+  // Preço exibido: combo (música + extra) antes de pagar, add-on avulso depois — é literalmente o
+  // que vai ser cobrado em cada caso, nunca um número "quase certo".
+  const precoExibido = (sku) => {
+    const skuReal = !isPaid && COMBO_SKU_POR_EXTRA[sku] ? COMBO_SKU_POR_EXTRA[sku] : sku;
+    const preco = getPriceForSku(skuReal);
+    return preco === null ? '' : `R$ ${preco.toFixed(2).replace('.', ',')}`;
+  };
 
   const opcoes = [
     !jaTemVideo && {
@@ -29,7 +50,7 @@ export default function ExtrasOfferModal({ isOpen, onClose, onSelect, honoreeNam
       desc: `Um clipe com 10 a 20 fotos de ${honoreeName} sincronizadas com a sua música.`,
       cor: '#ec4899',
     },
-    {
+    !jaTemRetrospectiva && {
       sku: 'retrospectiva_addon',
       icone: '📖',
       titulo: 'Retrospectiva',
@@ -37,7 +58,7 @@ export default function ExtrasOfferModal({ isOpen, onClose, onSelect, honoreeNam
       cor: '#a855f7',
       destaque: true,
     },
-    {
+    !jaTemCarta && {
       sku: 'carta_addon',
       icone: '💌',
       titulo: 'Carta Virtual',
@@ -78,15 +99,45 @@ export default function ExtrasOfferModal({ isOpen, onClose, onSelect, honoreeNam
         <div style={{ textAlign: 'center', marginBottom: '18px' }}>
           <div style={{ fontSize: '1.9rem', marginBottom: '4px' }}>✨</div>
           <h3 style={{ fontFamily: 'var(--font-family-title)', fontSize: '1.2rem', color: 'var(--text-primary)', margin: '0 0 6px' }}>
-            Quer deixar essa homenagem ainda maior?
+            {isPaid ? 'Quer deixar essa homenagem ainda maior?' : 'Escolha o seu pacote'}
           </h3>
           <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.45 }}>
-            A música já está pronta. Esses extras usam a <strong>mesma história</strong> que você
-            contou — é só escolher.
+            {isPaid
+              ? <>A música já está pronta. Esses extras usam a <strong>mesma história</strong> que você contou — é só escolher.</>
+              : 'Pode levar só a música, ou já incluir um extra no mesmo pagamento — sai mais barato que comprar separado depois.'}
           </p>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {!isPaid && (
+            <button
+              type="button"
+              onClick={() => onSelect('audio_only')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                textAlign: 'left',
+                padding: '14px',
+                borderRadius: '14px',
+                border: '1.5px solid var(--border-color)',
+                background: 'var(--bg-primary)',
+                cursor: 'pointer',
+                width: '100%',
+              }}
+            >
+              <span style={{ fontSize: '1.6rem', lineHeight: 1 }}>🎵</span>
+              <span style={{ flex: 1 }}>
+                <span style={{ display: 'block', fontWeight: '700', fontSize: '0.95rem', color: 'var(--text-primary)' }}>
+                  Só a música
+                </span>
+                <span style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                  {precoExibido('audio_only')}
+                </span>
+              </span>
+            </button>
+          )}
+
           {opcoes.map((opcao) => (
             <button
               key={opcao.sku}
@@ -114,13 +165,13 @@ export default function ExtrasOfferModal({ isOpen, onClose, onSelect, honoreeNam
               <span style={{ fontSize: '1.6rem', lineHeight: 1 }}>{opcao.icone}</span>
               <span style={{ flex: 1 }}>
                 <span style={{ display: 'block', fontWeight: '700', fontSize: '0.95rem', color: 'var(--text-primary)', marginBottom: '2px' }}>
-                  {opcao.titulo}
+                  {isPaid ? opcao.titulo : `Música + ${opcao.titulo}`}
                 </span>
                 <span style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.4, marginBottom: '6px' }}>
                   {opcao.desc}
                 </span>
                 <span style={{ display: 'inline-block', fontWeight: '800', fontSize: '0.95rem', color: opcao.cor }}>
-                  {formatarPreco(opcao.sku)}
+                  {precoExibido(opcao.sku)}
                 </span>
               </span>
             </button>

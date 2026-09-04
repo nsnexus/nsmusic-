@@ -197,6 +197,54 @@ describe('applyPaymentApproval', () => {
     expect(store['order7'].paymentStatus).toBe('AGUARDANDO_PAGAMENTO');
   });
 
+  it('combo_carta aprovado: escreve paymentStatus E concede hasCartaAccess (mesma transação)', async () => {
+    store['orderComboCarta'] = { paymentIntentSku: 'combo_carta', paymentId: null, story: 'uma história qualquer' };
+    const result = await applyPaymentApproval('orderComboCarta', 'ccc1', { status: 'approved', transaction_amount: 13.98 });
+    expect(result.applied).toBe(true);
+    expect(store['orderComboCarta'].paymentStatus).toBe('PAGAMENTO_APROVADO');
+    expect(store['orderComboCarta'].hasCartaAccess).toBe(true);
+    expect(store['orderComboCarta'].cartaAddonPaid).toBe(true);
+  });
+
+  it('combo_retrospectiva aprovado: escreve paymentStatus E concede hasRetrospectivaAccess, sem tocar carta/vídeo', async () => {
+    store['orderComboRetro'] = { paymentIntentSku: 'combo_retrospectiva', paymentId: null };
+    const result = await applyPaymentApproval('orderComboRetro', 'crr1', { status: 'approved', transaction_amount: 19.98 });
+    expect(result.applied).toBe(true);
+    expect(store['orderComboRetro'].paymentStatus).toBe('PAGAMENTO_APROVADO');
+    expect(store['orderComboRetro'].hasRetrospectivaAccess).toBe(true);
+    expect(store['orderComboRetro'].hasCartaAccess).toBeUndefined();
+    expect(store['orderComboRetro'].hasVideoAccess).toBeUndefined();
+  });
+
+  it('achado 04/09/2026: estorno do combo (música+vídeo) também revoga hasVideoAccess, não só paymentStatus', async () => {
+    store['orderComboEstorno'] = {
+      paymentStatus: 'PAGAMENTO_APROVADO',
+      paymentId: 'combo1',
+      hasVideoAccess: true,
+      videoAddonPaid: true,
+      paymentIntentSkuByTxid: { combo1: 'combo' },
+    };
+    const result = await applyPaymentApproval('orderComboEstorno', 'combo1', { status: 'refunded' });
+    expect(result.applied).toBe(true);
+    expect(store['orderComboEstorno'].paymentStatus).toBe('AGUARDANDO_PAGAMENTO');
+    expect(store['orderComboEstorno'].hasVideoAccess).toBe(false);
+    expect(store['orderComboEstorno'].videoAddonPaid).toBe(false);
+  });
+
+  it('estorno do combo_carta revoga hasCartaAccess junto com o paymentStatus', async () => {
+    store['orderComboCartaEstorno'] = {
+      paymentStatus: 'PAGAMENTO_APROVADO',
+      paymentId: 'combocarta1',
+      hasCartaAccess: true,
+      cartaAddonPaid: true,
+      paymentIntentSkuByTxid: { combocarta1: 'combo_carta' },
+    };
+    const result = await applyPaymentApproval('orderComboCartaEstorno', 'combocarta1', { status: 'cancelled' });
+    expect(result.applied).toBe(true);
+    expect(store['orderComboCartaEstorno'].hasCartaAccess).toBe(false);
+    expect(store['orderComboCartaEstorno'].cartaAddonPaid).toBe(false);
+  });
+
   it('cancelamento do vídeo revoga hasVideoAccess/videoAddonPaid', async () => {
     store['order8'] = { hasVideoAccess: true, videoAddonPaid: true, videoPaymentId: '888' };
     const result = await applyPaymentApproval('order8', '888', { status: 'cancelled' });
