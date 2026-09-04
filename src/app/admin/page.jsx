@@ -7,6 +7,7 @@ import { collection, query, orderBy, onSnapshot, limit as fbLimit, doc, setDoc, 
 import { auth, db } from '@/lib/firebase';
 import { getPriceForSku } from '@/lib/pricing';
 import { buildSunoPayload } from '@/lib/sunoPayload';
+import VendasPorDiaTable from '@/components/VendasPorDiaTable';
 import { formatToWhatsAppNumber } from '@/lib/whatsappTemplates';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -810,6 +811,10 @@ export default function AdminDashboard() {
                   <h2 style={{ ...styles.metricValue, color: '#dc2626' }}>R$ {getGastoGeracaoMusicas().toFixed(2).replace('.', ',')}</h2>
                 </div>
               </div>
+
+              {/* Quantidade vendida por produto, por dia do mês (pedido 04/09/2026) — consulta
+                  própria, independente do filtro "hoje" da lista de pedidos abaixo. */}
+              <VendasPorDiaTable />
 
               {/* Filtros e Barra de Ações em Massa */}
               <div style={{ marginTop: '32px' }}>
