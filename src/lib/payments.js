@@ -201,7 +201,12 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
 
         if (shouldGenerate) {
           const sunoTaskId = txResult.orderData?.sunoTaskId;
-          const audioId = txResult.orderData?.audioIds?.[0];
+          // Faixa escolhida pelo cliente antes de pagar (ver /api/playback/choose-track) — só aceita
+          // se for uma das faixas realmente geradas pra este pedido; sem escolha válida, cai na 0
+          // (comportamento anterior a 04/09/2026).
+          const audioIds = txResult.orderData?.audioIds || [];
+          const escolhida = txResult.orderData?.playbackChosenAudioId;
+          const audioId = (escolhida && audioIds.includes(escolhida)) ? escolhida : audioIds[0];
           if (sunoTaskId && audioId) {
             const genResult = await requestPlaybackGeneration({ orderId, sunoTaskId, audioId }, env);
             await updateDoc(orderRef, {

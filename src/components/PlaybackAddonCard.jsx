@@ -26,6 +26,16 @@ export default function PlaybackAddonCard({ orderId, order }) {
   const [retrying, setRetrying] = useState(false);
   const [retryError, setRetryError] = useState('');
 
+  // Faixa escolhida pelo cliente — achado 04/09/2026: a separação vocal da Kie.ai pode falhar numa
+  // faixa específica mesmo com a música tocando normal, sem alternativa antes disso. `audioIds` só
+  // tem mais de 1 item em pedidos gerados depois desse recurso existir (ver docs/audit e o plano do
+  // add-on) — pedidos antigos simplesmente não mostram o seletor e usam a faixa 0 direto.
+  const faixas = Array.isArray(order?.audioIds) ? order.audioIds : [];
+  const arquivosFaixas = Array.isArray(order?.audioFiles) ? order.audioFiles : [];
+  const temEscolha = faixas.length > 1;
+  const [faixaEscolhida, setFaixaEscolhida] = useState(0);
+  const [faixaRetry, setFaixaRetry] = useState(0);
+
   const handleRetry = async () => {
     if (!orderId) return;
     setRetrying(true);
@@ -34,7 +44,7 @@ export default function PlaybackAddonCard({ orderId, order }) {
       const res = await fetch('/api/playback/retry', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId }),
+        body: JSON.stringify({ orderId, audioId: faixas[faixaRetry] || undefined }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -54,6 +64,20 @@ export default function PlaybackAddonCard({ orderId, order }) {
     if (!orderId) return;
     setPixError('');
     setLoading(true);
+
+    // Salva a faixa escolhida ANTES de cobrar — se falhar, segue mesmo assim (o servidor cai pra
+    // faixa 0 por padrão, nunca bloqueia o pagamento por causa disso).
+    if (temEscolha && faixas[faixaEscolhida]) {
+      try {
+        await fetch('/api/playback/choose-track', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderId, audioId: faixas[faixaEscolhida] }),
+        });
+      } catch (e) {
+        console.warn('[PlaybackAddonCard] Falha ao salvar faixa escolhida:', e?.message);
+      }
+    }
 
     const resultado = await requestPixCharge(
       { orderId, sku: 'playback_addon', isSecondaryPayment: true },
@@ -145,6 +169,34 @@ export default function PlaybackAddonCard({ orderId, order }) {
             <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '14px', lineHeight: '1.4' }}>
               A versão da sua música sem voz, pronta pra cantar junto — por apenas <strong style={{ color: 'var(--success)' }}>R$ 4,99</strong>.
             </p>
+            {temEscolha && (
+              <div style={{ marginBottom: '14px', textAlign: 'left' }}>
+                <p style={{ fontSize: '0.8rem', fontWeight: '700', marginBottom: '8px', textAlign: 'center' }}>
+                  Qual das 2 versões você quer transformar em playback?
+                </p>
+                {faixas.map((id, i) => (
+                  <label
+                    key={id}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', borderRadius: '8px',
+                      border: `1.5px solid ${faixaEscolhida === i ? 'var(--primary)' : 'var(--border-color)'}`,
+                      marginBottom: '8px', cursor: 'pointer',
+                    }}
+                  >
+                    <input
+                      type="radio"
+                      name="playback-faixa"
+                      checked={faixaEscolhida === i}
+                      onChange={() => setFaixaEscolhida(i)}
+                    />
+                    <span style={{ fontSize: '0.82rem', fontWeight: '600', minWidth: '58px' }}>Faixa {i + 1}</span>
+                    {arquivosFaixas[i] && (
+                      <audio controls src={arquivosFaixas[i]} style={{ flex: 1, height: '32px' }} />
+                    )}
+                  </label>
+                ))}
+              </div>
+            )}
             {pixError && (
               <p style={{ fontSize: '0.8rem', color: 'var(--error, #ef4444)', marginBottom: '10px' }}>{pixError}</p>
             )}
@@ -190,6 +242,34 @@ export default function PlaybackAddonCard({ orderId, order }) {
           <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '14px' }}>
             Seu pagamento está confirmado. Pode tentar gerar de novo, ou falar com a gente pelo WhatsApp.
           </p>
+          {temEscolha && (
+            <div style={{ marginBottom: '14px', textAlign: 'left' }}>
+              <p style={{ fontSize: '0.78rem', fontWeight: '700', marginBottom: '8px', textAlign: 'center' }}>
+                Tentar com qual faixa?
+              </p>
+              {faixas.map((id, i) => (
+                <label
+                  key={id}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '10px', padding: '6px 10px', borderRadius: '8px',
+                    border: `1.5px solid ${faixaRetry === i ? 'var(--primary)' : 'var(--border-color)'}`,
+                    marginBottom: '6px', cursor: 'pointer',
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="playback-faixa-retry"
+                    checked={faixaRetry === i}
+                    onChange={() => setFaixaRetry(i)}
+                  />
+                  <span style={{ fontSize: '0.78rem', fontWeight: '600', minWidth: '52px' }}>Faixa {i + 1}</span>
+                  {arquivosFaixas[i] && (
+                    <audio controls src={arquivosFaixas[i]} style={{ flex: 1, height: '30px' }} />
+                  )}
+                </label>
+              ))}
+            </div>
+          )}
           {retryError && (
             <p style={{ fontSize: '0.78rem', color: 'var(--error, #ef4444)', marginBottom: '10px' }}>{retryError}</p>
           )}

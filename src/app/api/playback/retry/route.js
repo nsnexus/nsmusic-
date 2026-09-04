@@ -48,7 +48,16 @@ export async function POST(req) {
     }
 
     const sunoTaskId = order.sunoTaskId;
-    const audioId = order.audioIds?.[0];
+    // Faixa a usar: se o cliente mandou uma (achado 04/09/2026 — separação vocal pode falhar numa
+    // faixa específica mesmo com a música tocando normal, daí a opção de tentar a outra), só aceita
+    // se for uma das REALMENTE geradas pra este pedido. Sem escolha explícita, cai na preferência
+    // salva antes do pagamento (`playbackChosenAudioId`, ver /api/playback/choose-track) e por
+    // último na faixa 0, mesmo comportamento de antes.
+    const audioIdEscolhido = String(body?.audioId || '').trim();
+    const faixaValida = (id) => Array.isArray(order.audioIds) && order.audioIds.includes(id);
+    const audioId = faixaValida(audioIdEscolhido) ? audioIdEscolhido
+      : faixaValida(order.playbackChosenAudioId) ? order.playbackChosenAudioId
+      : order.audioIds?.[0];
     if (!sunoTaskId || !audioId) {
       return NextResponse.json({ error: 'Pedido sem referência da faixa original — não é possível gerar' }, { status: 400 });
     }
