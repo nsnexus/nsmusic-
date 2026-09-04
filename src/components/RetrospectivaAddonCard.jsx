@@ -228,13 +228,24 @@ export default function RetrospectivaAddonCard({ orderId, order }) {
               quiz. É um <strong>link pra mandar pra família</strong> — abre na hora, em qualquer
               celular. Por <strong style={{ color: 'var(--success)' }}>R$ 9,99</strong>.
             </p>
+
+            {/* Imagem demonstrativa de como funciona a Retrospectiva */}
+            <div style={{ margin: '16px auto 20px', maxWidth: '440px', borderRadius: '14px', overflow: 'hidden', boxShadow: '0 12px 30px rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.1)' }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/como-funciona-retrospectiva.jpg"
+                alt="Como funciona a sua Retrospectiva"
+                style={{ width: '100%', height: 'auto', display: 'block' }}
+              />
+            </div>
+
             {pixError && <p style={{ fontSize: '0.8rem', color: 'var(--error, #ef4444)', marginBottom: '10px' }}>{pixError}</p>}
             <button
               type="button"
               onClick={handleGeneratePix}
               disabled={loading}
               className="btn btn-primary"
-              style={{ padding: '10px 20px', fontSize: '0.88rem', fontWeight: 'bold', border: 'none', cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.7 : 1 }}
+              style={{ padding: '12px 28px', fontSize: '0.95rem', fontWeight: 'bold', border: 'none', cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.7 : 1 }}
             >
               {loading ? 'Gerando cobrança...' : 'Quero a Retrospectiva — R$ 9,99'}
             </button>

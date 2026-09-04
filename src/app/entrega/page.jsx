@@ -1656,15 +1656,70 @@ function EntregaContent() {
                 {!isPaid && <ExtrasVitrine />}
               </div>
 
-              {/* Lyrics Side */}
-              <div
-                style={isPaid ? { ...styles.lyricsSide, backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)', boxShadow: 'none' } : styles.lyricsSide}
-                className="glass-card"
-              >
-                <h3 style={{ fontSize: '1.25rem', marginBottom: '20px', fontFamily: isPaid ? 'var(--font-family-gala)' : 'var(--font-family-title)', color: isPaid ? '#f472b6' : 'var(--primary)' }}>
-                  Letra Oficial 📜
-                </h3>
-                <pre style={isPaid ? { ...styles.lyricsText, color: '#e2e8f0' } : styles.lyricsText}>{order.lyrics || 'Letra ainda não gerada para esta composição.'}</pre>
+              {/* Lyrics Side + Banner Retrospectiva */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <div
+                  style={isPaid ? { ...styles.lyricsSide, backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)', boxShadow: 'none' } : styles.lyricsSide}
+                  className="glass-card"
+                >
+                  <h3 style={{ fontSize: '1.25rem', marginBottom: '20px', fontFamily: isPaid ? 'var(--font-family-gala)' : 'var(--font-family-title)', color: isPaid ? '#f472b6' : 'var(--primary)' }}>
+                    Letra Oficial 📜
+                  </h3>
+                  <pre style={isPaid ? { ...styles.lyricsText, color: '#e2e8f0' } : styles.lyricsText}>{order.lyrics || 'Letra ainda não gerada para esta composição.'}</pre>
+                </div>
+
+                {/* Banner interativo da Retrospectiva — ao clicar leva pra aba Retrospectiva */}
+                <div
+                  onClick={() => {
+                    setAbaProduto('retrospectiva');
+                    if (typeof window !== 'undefined') {
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      setAbaProduto('retrospectiva');
+                      if (typeof window !== 'undefined') {
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }
+                    }
+                  }}
+                  className="glass-card"
+                  style={{
+                    cursor: 'pointer',
+                    padding: '16px',
+                    borderRadius: '16px',
+                    border: '1px solid rgba(236, 72, 153, 0.35)',
+                    background: 'linear-gradient(135deg, rgba(88, 28, 135, 0.25) 0%, rgba(236, 72, 153, 0.15) 100%)',
+                    textAlign: 'center',
+                    boxShadow: '0 10px 30px rgba(0,0,0,0.3)',
+                    transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                  }}
+                  aria-label="Ir para a aba da Retrospectiva"
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '10px' }}>
+                    <span style={{ fontSize: '1.2rem' }}>📖</span>
+                    <span style={{ fontFamily: 'var(--font-family-gala)', fontWeight: '700', fontSize: '1rem', color: '#f472b6', letterSpacing: '0.03em' }}>
+                      Conheça a sua Retrospectiva
+                    </span>
+                    <span style={{ color: '#f472b6', fontSize: '0.9rem' }}>➔</span>
+                  </div>
+
+                  <div style={{ borderRadius: '12px', overflow: 'hidden', boxShadow: '0 8px 24px rgba(0,0,0,0.4)', margin: '0 auto' }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src="/como-funciona-retrospectiva.jpg"
+                      alt="Como funciona a sua Retrospectiva — Toque para acessar"
+                      style={{ width: '100%', height: 'auto', display: 'block' }}
+                    />
+                  </div>
+
+                  <p style={{ margin: '12px 0 4px', fontSize: '0.85rem', color: '#fff', fontWeight: '600' }}>
+                    ✨ Toque aqui para ver e montar a sua Retrospectiva
+                  </p>
+                </div>
               </div>
 
             </div>
