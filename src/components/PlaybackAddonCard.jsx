@@ -125,15 +125,15 @@ export default function PlaybackAddonCard({ orderId, order }) {
 
   if (!hasAccess) {
     return (
-      <div className="glass-card" style={{ padding: '20px', borderRadius: '16px', background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%, rgba(236, 72, 153, 0.08) 100%)', border: '1.5px solid rgba(139, 92, 246, 0.25)', marginTop: '16px' }}>
+      <div className="glass-card" style={{ padding: '20px', borderRadius: '16px', background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(236, 72, 153, 0.15) 100%)', border: '1.5px solid rgba(139, 92, 246, 0.35)', marginTop: '16px', color: '#ffffff' }}>
         {pixInfo.paymentId ? (
           <div style={{ textAlign: 'center' }}>
-            <p style={{ fontSize: '0.9rem', fontWeight: '700', marginBottom: '10px' }}>
+            <p style={{ fontSize: '0.95rem', fontWeight: '700', marginBottom: '10px', color: '#ffffff' }}>
               Escaneie pra liberar o Playback (Instrumental)
             </p>
             <PixQrCode payload={pixInfo.qrCode} size={180} label="QR Code para pagamento do Playback via PIX" />
             <div style={{ margin: '12px 0 10px', textAlign: 'left' }}>
-              <label htmlFor="pix-copia-cola-playback" style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
+              <label htmlFor="pix-copia-cola-playback" style={{ fontSize: '0.8rem', color: '#cbd5e1', display: 'block', marginBottom: '6px' }}>
                 Ou use o código PIX Copia e Cola:
               </label>
               <textarea
@@ -156,7 +156,7 @@ export default function PlaybackAddonCard({ orderId, order }) {
               {pixCopied ? '✅ Código PIX Copiado!' : '📋 Copiar Código PIX (R$ 4,99)'}
             </button>
             {pollingTimedOut && (
-              <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '10px' }}>
+              <p style={{ fontSize: '0.8rem', color: '#cbd5e1', marginTop: '10px' }}>
                 Ainda não identificamos o pagamento. Se já pagou, aguarde mais um instante — a confirmação
                 pode demorar um pouco.
               </p>
@@ -164,15 +164,15 @@ export default function PlaybackAddonCard({ orderId, order }) {
           </div>
         ) : (
           <div style={{ textAlign: 'center' }}>
-            <h4 style={{ fontSize: '1rem', marginBottom: '6px', fontFamily: 'var(--font-family-title)' }}>
+            <h4 style={{ fontSize: '1.05rem', marginBottom: '6px', fontFamily: 'var(--font-family-title)', color: '#ffffff' }}>
               🎧 Gerar Playback (Instrumental)
             </h4>
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '14px', lineHeight: '1.4' }}>
-              A versão da sua música sem voz, pronta pra cantar junto — por apenas <strong style={{ color: 'var(--success)' }}>R$ 4,99</strong>.
+            <p style={{ fontSize: '0.85rem', color: '#cbd5e1', marginBottom: '14px', lineHeight: '1.4' }}>
+              A versão da sua música sem voz, pronta pra cantar junto — por apenas <strong style={{ color: '#34d399' }}>R$ 4,99</strong>.
             </p>
             {temEscolha && (
               <div style={{ marginBottom: '14px', textAlign: 'left' }}>
-                <p style={{ fontSize: '0.8rem', fontWeight: '700', marginBottom: '8px', textAlign: 'center' }}>
+                <p style={{ fontSize: '0.85rem', fontWeight: '700', marginBottom: '8px', textAlign: 'center', color: '#ffffff' }}>
                   Qual das 2 versões você quer transformar em playback?
                 </p>
                 {faixas.map((id, i) => (
@@ -180,7 +180,8 @@ export default function PlaybackAddonCard({ orderId, order }) {
                     key={id}
                     style={{
                       display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', borderRadius: '8px',
-                      border: `1.5px solid ${faixaEscolhida === i ? 'var(--primary)' : 'var(--border-color)'}`,
+                      border: `1.5px solid ${faixaEscolhida === i ? 'var(--secondary)' : 'rgba(255,255,255,0.18)'}`,
+                      backgroundColor: faixaEscolhida === i ? 'rgba(236, 72, 153, 0.18)' : 'rgba(0,0,0,0.3)',
                       marginBottom: '8px', cursor: 'pointer',
                     }}
                   >
@@ -190,7 +191,7 @@ export default function PlaybackAddonCard({ orderId, order }) {
                       checked={faixaEscolhida === i}
                       onChange={() => setFaixaEscolhida(i)}
                     />
-                    <span style={{ fontSize: '0.82rem', fontWeight: '600', minWidth: '58px' }}>Faixa {i + 1}</span>
+                    <span style={{ fontSize: '0.85rem', fontWeight: '600', minWidth: '58px', color: '#ffffff' }}>Faixa {i + 1}</span>
                     {arquivosFaixas[i] && (
                       <audio controls src={buildAudioProxySrc(arquivosFaixas[i])} style={{ flex: 1, height: '32px' }} />
                     )}
@@ -219,10 +220,10 @@ export default function PlaybackAddonCard({ orderId, order }) {
   const status = order?.playbackStatus;
 
   return (
-    <div className="glass-card" style={{ padding: '20px', borderRadius: '16px', background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%, rgba(236, 72, 153, 0.08) 100%)', border: '1.5px solid rgba(139, 92, 246, 0.25)', marginTop: '16px', textAlign: 'center' }}>
+    <div className="glass-card" style={{ padding: '20px', borderRadius: '16px', background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(236, 72, 153, 0.15) 100%)', border: '1.5px solid rgba(139, 92, 246, 0.35)', marginTop: '16px', textAlign: 'center', color: '#ffffff' }}>
       {status === 'READY' && order?.playbackUrl ? (
         <>
-          <h4 style={{ fontSize: '1rem', marginBottom: '10px', fontFamily: 'var(--font-family-title)' }}>
+          <h4 style={{ fontSize: '1.05rem', marginBottom: '10px', fontFamily: 'var(--font-family-title)', color: '#ffffff' }}>
             🎧 Seu Playback está pronto!
           </h4>
           <audio controls src={buildAudioProxySrc(order.playbackUrl)} style={{ width: '100%', marginBottom: '10px' }} />
@@ -237,15 +238,15 @@ export default function PlaybackAddonCard({ orderId, order }) {
         </>
       ) : status === 'FAILED' ? (
         <>
-          <p style={{ fontSize: '0.9rem', fontWeight: '700', marginBottom: '8px' }}>
+          <p style={{ fontSize: '0.95rem', fontWeight: '700', marginBottom: '8px', color: '#ffffff' }}>
             Não conseguimos gerar seu playback agora 😕
           </p>
-          <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '14px' }}>
+          <p style={{ fontSize: '0.85rem', color: '#cbd5e1', marginBottom: '14px' }}>
             Seu pagamento está confirmado. Pode tentar gerar de novo, ou falar com a gente pelo WhatsApp.
           </p>
           {temEscolha && (
             <div style={{ marginBottom: '14px', textAlign: 'left' }}>
-              <p style={{ fontSize: '0.78rem', fontWeight: '700', marginBottom: '8px', textAlign: 'center' }}>
+              <p style={{ fontSize: '0.85rem', fontWeight: '700', marginBottom: '8px', textAlign: 'center', color: '#ffffff' }}>
                 Tentar com qual faixa?
               </p>
               {faixas.map((id, i) => (
@@ -253,7 +254,8 @@ export default function PlaybackAddonCard({ orderId, order }) {
                   key={id}
                   style={{
                     display: 'flex', alignItems: 'center', gap: '10px', padding: '6px 10px', borderRadius: '8px',
-                    border: `1.5px solid ${faixaRetry === i ? 'var(--primary)' : 'var(--border-color)'}`,
+                    border: `1.5px solid ${faixaRetry === i ? 'var(--secondary)' : 'rgba(255,255,255,0.18)'}`,
+                    backgroundColor: faixaRetry === i ? 'rgba(236, 72, 153, 0.18)' : 'rgba(0,0,0,0.3)',
                     marginBottom: '6px', cursor: 'pointer',
                   }}
                 >
@@ -263,7 +265,7 @@ export default function PlaybackAddonCard({ orderId, order }) {
                     checked={faixaRetry === i}
                     onChange={() => setFaixaRetry(i)}
                   />
-                  <span style={{ fontSize: '0.78rem', fontWeight: '600', minWidth: '52px' }}>Faixa {i + 1}</span>
+                  <span style={{ fontSize: '0.85rem', fontWeight: '600', minWidth: '52px', color: '#ffffff' }}>Faixa {i + 1}</span>
                   {arquivosFaixas[i] && (
                     <audio controls src={buildAudioProxySrc(arquivosFaixas[i])} style={{ flex: 1, height: '30px' }} />
                   )}
@@ -297,8 +299,8 @@ export default function PlaybackAddonCard({ orderId, order }) {
         </>
       ) : (
         <>
-          <div style={{ width: '36px', height: '36px', border: '3px solid var(--border-color)', borderTopColor: 'var(--primary)', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 10px' }} />
-          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+          <div style={{ width: '36px', height: '36px', border: '3px solid rgba(255,255,255,0.2)', borderTopColor: 'var(--secondary)', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 10px' }} />
+          <p style={{ fontSize: '0.85rem', color: '#cbd5e1' }}>
             Gerando seu playback instrumental — já aparece por aqui assim que estiver pronto.
           </p>
         </>

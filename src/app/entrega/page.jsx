@@ -1056,28 +1056,28 @@ function EntregaContent() {
 
                 {/* SEÇÃO VÍDEO HOMENAGEM (10 A 20 FOTOS) */}
                 {isPaid && (
-                  <div className="glass-card" style={{ padding: '24px', borderRadius: '16px', marginTop: '20px', border: '1.5px solid rgba(236, 72, 153, 0.3)', background: 'linear-gradient(135deg, rgba(236, 72, 153, 0.06) 0%, rgba(168, 85, 247, 0.08) 100%)' }}>
+                  <div className="glass-card" style={{ padding: '24px', borderRadius: '16px', marginTop: '20px', border: '1.5px solid rgba(236, 72, 153, 0.35)', background: 'linear-gradient(135deg, rgba(236, 72, 153, 0.12) 0%, rgba(168, 85, 247, 0.12) 100%)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
                       <span style={{ fontSize: '1.8rem' }}>🎬</span>
                       <div>
-                        <h4 style={{ fontSize: '1.1rem', fontWeight: '800', margin: 0, fontFamily: 'var(--font-family-title)', color: 'var(--text-primary)' }}>
+                        <h4 style={{ fontSize: '1.1rem', fontWeight: '800', margin: 0, fontFamily: 'var(--font-family-title)', color: '#ffffff' }}>
                           Vídeo Homenagem com Suas Fotos (MP4)
                         </h4>
-                        <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0 }}>
+                        <p style={{ fontSize: '0.85rem', color: '#cbd5e1', margin: 0 }}>
                           {hasVideoAccess || order?.hasVideoAccess ? 'Envie entre 10 e 20 fotos para gerar um vídeo especial sincronizado com a música!' : 'Adicione o Vídeo Homenagem ao seu pedido por apenas +R$ 6,90!'}
                         </p>
                       </div>
                     </div>
 
                     {(!hasVideoAccess && !order?.hasVideoAccess) && (pendingVideoPix || videoPixInfo.qrCode) ? (
-                      <div style={{ marginTop: '14px', backgroundColor: 'rgba(0,0,0,0.3)', padding: '20px', borderRadius: '12px', textAlign: 'center' }}>
+                      <div style={{ marginTop: '14px', backgroundColor: 'rgba(0,0,0,0.45)', border: '1px solid rgba(255,255,255,0.12)', padding: '20px', borderRadius: '12px', textAlign: 'center' }}>
                         <p style={{ fontSize: '0.95rem', fontWeight: 'bold', color: '#10b981', marginBottom: '12px' }}>
                           ⚡ Pague R$ 6,90 via PIX para liberar o Vídeo Homenagem
                         </p>
                         {!videoPixInfo.qrCode ? (
                           <div style={{ padding: '20px 0' }}>
                             <div style={styles.spinner} />
-                            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '8px' }}>Gerando PIX com aprovação instantânea...</p>
+                            <p style={{ fontSize: '0.85rem', color: '#cbd5e1', marginTop: '8px' }}>Gerando PIX com aprovação instantânea...</p>
                           </div>
                         ) : (
                           <>
@@ -1089,7 +1089,7 @@ function EntregaContent() {
                               />
                             </div>
                             <div style={{ marginBottom: '10px', textAlign: 'left' }}>
-                              <label htmlFor="pix-copia-cola-video" style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
+                              <label htmlFor="pix-copia-cola-video" style={{ fontSize: '0.8rem', color: '#cbd5e1', display: 'block', marginBottom: '6px' }}>
                                 Ou use o código PIX Copia e Cola:
                               </label>
                               <textarea
@@ -1121,9 +1121,9 @@ function EntregaContent() {
                         )}
                       </div>
                     ) : !hasVideoAccess && !order?.hasVideoAccess && !order?.videoUrl ? (
-                      <div style={{ marginTop: '14px', backgroundColor: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '12px', textAlign: 'center' }}>
-                        <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '12px' }}>
-                          Crie um filme inesquecível com 10 a 20 fotos de <strong>{order?.honoreeName || 'alguém especial'}</strong> sincronizadas com a música!
+                      <div style={{ marginTop: '14px', backgroundColor: 'rgba(0,0,0,0.45)', border: '1px solid rgba(255,255,255,0.12)', padding: '16px', borderRadius: '12px', textAlign: 'center' }}>
+                        <p style={{ fontSize: '0.92rem', color: '#e2e8f0', marginBottom: '12px', lineHeight: '1.5' }}>
+                          Crie um filme inesquecível com 10 a 20 fotos de <strong style={{ color: '#ffffff' }}>{order?.honoreeName || 'alguém especial'}</strong> sincronizadas com a música!
                         </p>
                         <button
                           type="button"
@@ -1204,20 +1204,19 @@ function EntregaContent() {
                         {isUploadingPhotos ? (
                           <div style={{ textAlign: 'center', padding: '24px 14px', backgroundColor: 'rgba(0,0,0,0.25)', borderRadius: '12px' }}>
                             <div style={styles.spinner} />
-                            <p style={{ fontSize: '1rem', fontWeight: 'bold', marginTop: '14px', color: 'var(--primary)' }}>
+                            <p style={{ fontSize: '1rem', fontWeight: 'bold', marginTop: '14px', color: '#ffffff' }}>
                               {uploadProgressMsg || 'Processando e gerando seu vídeo slideshow MP4...'}
                             </p>
-                            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: '6px' }}>
+                            <p style={{ fontSize: '0.82rem', color: '#cbd5e1', marginTop: '6px' }}>
                               ⚡ Gravação em andamento. Mantenha esta aba aberta por alguns segundos enquanto renderizamos em HD!
                             </p>
                           </div>
                         ) : (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                            {/* Grade de fotos já enviadas / selecionadas */}
                             {(existingPhotos.length > 0 || newPhotoFiles.length > 0) && (
                               <div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                                  <span style={{ fontSize: '0.88rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>
+                                  <span style={{ fontSize: '0.88rem', fontWeight: 'bold', color: '#ffffff' }}>
                                     📸 Fotos Selecionadas: {existingPhotos.length + newPhotoFiles.length} de 20
                                   </span>
                                   <span style={{ fontSize: '0.78rem', color: (existingPhotos.length + newPhotoFiles.length < 10 || existingPhotos.length + newPhotoFiles.length > 20) ? 'var(--warning)' : 'var(--success)' }}>
@@ -1226,7 +1225,6 @@ function EntregaContent() {
                                 </div>
 
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(75px, 1fr))', gap: '8px', maxHeight: '220px', overflowY: 'auto', padding: '6px', backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)' }}>
-                                  {/* Fotos remotas salvas no Firestore */}
                                   {existingPhotos.map((url, idx) => (
                                     <div key={`existing-${idx}`} style={{ position: 'relative', width: '100%', height: '75px', borderRadius: '8px', overflow: 'hidden', border: '1px solid rgba(236, 72, 153, 0.4)' }}>
                                       <img src={url} alt={`Foto ${idx + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -1250,7 +1248,6 @@ function EntregaContent() {
                                     </div>
                                   ))}
 
-                                  {/* Novas fotos locais pendentes de upload */}
                                   {newPhotoFiles.map((file, idx) => {
                                     const previewUrl = URL.createObjectURL(file);
                                     return (
@@ -1273,29 +1270,24 @@ function EntregaContent() {
                               </div>
                             )}
 
-                            {/* Botão de Selecionar / Adicionar Mais Fotos */}
                             {(existingPhotos.length + newPhotoFiles.length < 20) && (
                               <label 
                                 style={{ 
                                   display: 'flex', 
-                                  flexDirection: 'column', 
                                   alignItems: 'center', 
                                   justifyContent: 'center', 
-                                  padding: (existingPhotos.length > 0 || newPhotoFiles.length > 0) ? '12px' : '20px', 
-                                  border: '2px dashed rgba(236, 72, 153, 0.4)', 
-                                  borderRadius: '12px', 
-                                  backgroundColor: 'rgba(0,0,0,0.2)', 
-                                  cursor: 'pointer',
-                                  transition: 'all 0.2s'
+                                  gap: '8px', 
+                                  padding: '12px', 
+                                  backgroundColor: 'rgba(59, 130, 246, 0.1)', 
+                                  border: '1.5px dashed #3b82f6', 
+                                  borderRadius: '10px', 
+                                  cursor: 'pointer', 
+                                  color: '#60a5fa', 
+                                  fontWeight: 'bold', 
+                                  fontSize: '0.85rem' 
                                 }}
                               >
-                                <span style={{ fontSize: (existingPhotos.length > 0 || newPhotoFiles.length > 0) ? '1.4rem' : '2rem', marginBottom: '4px' }}>📸</span>
-                                <span style={{ fontSize: '0.9rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>
-                                  {(existingPhotos.length > 0 || newPhotoFiles.length > 0) ? '+ Adicionar Mais Fotos' : 'Clique aqui para escolher 10 a 20 fotos'}
-                                </span>
-                                <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                                  {(existingPhotos.length > 0 || newPhotoFiles.length > 0) ? `Faltam ${Math.max(0, 10 - (existingPhotos.length + newPhotoFiles.length))} foto(s) para o mínimo` : '(Mínimo 10 fotos | Máximo 20 fotos)'}
-                                </span>
+                                <span>➕ Adicionar Fotos ({20 - (existingPhotos.length + newPhotoFiles.length)} vagas restantes)</span>
                                 <input 
                                   type="file" 
                                   multiple 
@@ -1321,10 +1313,9 @@ function EntregaContent() {
                               </p>
                             )}
 
-                            {/* Seletor da Versão de Áudio (caso o pedido tenha mais de 1 versão) */}
                             {secondAudioUrl && (
                               <div style={{ backgroundColor: 'rgba(0,0,0,0.25)', padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)' }}>
-                                <p style={{ fontSize: '0.85rem', fontWeight: 'bold', margin: '0 0 8px 0', color: 'var(--text-primary)' }}>
+                                <p style={{ fontSize: '0.85rem', fontWeight: 'bold', margin: '0 0 8px 0', color: '#ffffff' }}>
                                   🎵 Escolha qual versão da música tocar no vídeo:
                                 </p>
                                 <div style={{ display: 'flex', gap: '8px' }}>
@@ -1337,7 +1328,7 @@ function EntregaContent() {
                                       borderRadius: '8px',
                                       border: selectedVideoTrack === 'v1' ? '2px solid var(--primary)' : '1px solid var(--border-color)',
                                       backgroundColor: selectedVideoTrack === 'v1' ? 'rgba(236, 72, 153, 0.18)' : 'rgba(0,0,0,0.2)',
-                                      color: selectedVideoTrack === 'v1' ? '#fff' : 'var(--text-secondary)',
+                                      color: selectedVideoTrack === 'v1' ? '#fff' : '#cbd5e1',
                                       fontWeight: 'bold',
                                       fontSize: '0.82rem',
                                       cursor: 'pointer'
@@ -1355,7 +1346,7 @@ function EntregaContent() {
                                       borderRadius: '8px',
                                       border: selectedVideoTrack === 'v2' ? '2px solid var(--secondary)' : '1px solid var(--border-color)',
                                       backgroundColor: selectedVideoTrack === 'v2' ? 'rgba(168, 85, 247, 0.18)' : 'rgba(0,0,0,0.2)',
-                                      color: selectedVideoTrack === 'v2' ? '#fff' : 'var(--text-secondary)',
+                                      color: selectedVideoTrack === 'v2' ? '#fff' : '#cbd5e1',
                                       fontWeight: 'bold',
                                       fontSize: '0.82rem',
                                       cursor: 'pointer'
