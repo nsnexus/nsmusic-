@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { requestPixCharge } from '@/lib/pixCheckout';
+import { buildAudioProxySrc } from '@/lib/audioProxy';
 import PixQrCode from './PixQrCode';
 
 const MAX_PIX_ATTEMPTS = 3;
@@ -191,7 +192,7 @@ export default function PlaybackAddonCard({ orderId, order }) {
                     />
                     <span style={{ fontSize: '0.82rem', fontWeight: '600', minWidth: '58px' }}>Faixa {i + 1}</span>
                     {arquivosFaixas[i] && (
-                      <audio controls src={arquivosFaixas[i]} style={{ flex: 1, height: '32px' }} />
+                      <audio controls src={buildAudioProxySrc(arquivosFaixas[i])} style={{ flex: 1, height: '32px' }} />
                     )}
                   </label>
                 ))}
@@ -224,9 +225,9 @@ export default function PlaybackAddonCard({ orderId, order }) {
           <h4 style={{ fontSize: '1rem', marginBottom: '10px', fontFamily: 'var(--font-family-title)' }}>
             🎧 Seu Playback está pronto!
           </h4>
-          <audio controls src={order.playbackUrl} style={{ width: '100%', marginBottom: '10px' }} />
+          <audio controls src={buildAudioProxySrc(order.playbackUrl)} style={{ width: '100%', marginBottom: '10px' }} />
           <a
-            href={order.playbackUrl}
+            href={`/api/audio/proxy?url=${encodeURIComponent(order.playbackUrl)}&download=${encodeURIComponent(`playback-${order?.orderNumber || orderId}.mp3`)}`}
             download={`playback-${order?.orderNumber || orderId}.mp3`}
             className="btn btn-secondary"
             style={{ padding: '8px 14px', fontSize: '0.8rem', textDecoration: 'none' }}
@@ -264,7 +265,7 @@ export default function PlaybackAddonCard({ orderId, order }) {
                   />
                   <span style={{ fontSize: '0.78rem', fontWeight: '600', minWidth: '52px' }}>Faixa {i + 1}</span>
                   {arquivosFaixas[i] && (
-                    <audio controls src={arquivosFaixas[i]} style={{ flex: 1, height: '30px' }} />
+                    <audio controls src={buildAudioProxySrc(arquivosFaixas[i])} style={{ flex: 1, height: '30px' }} />
                   )}
                 </label>
               ))}

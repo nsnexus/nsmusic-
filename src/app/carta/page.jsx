@@ -4,7 +4,7 @@ import { Suspense, useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { AUDIO_CACHE_VERSION } from '@/lib/audioCacheVersion';
+import { buildAudioProxySrc } from '@/lib/audioProxy';
 
 // Página PÚBLICA da Carta Virtual (add-on, ver src/lib/pricing.js:carta_addon) — link próprio que o
 // cliente compartilha com o homenageado, separado da página da música/vídeo (/homenagem) e da
@@ -80,10 +80,7 @@ function CartaContent() {
   const texto = order.cartaTexto || '';
 
   // Faixa escolhida no editor (ver CartaAddonCard) — sem escolha salva, cai na faixa 0.
-  const audioBruto = order.cartaMusicaUrl || order.audioFiles?.[0] || order.audioUrl || '';
-  const audioSrc = audioBruto
-    ? (audioBruto.startsWith('/api/') ? audioBruto : `/api/audio/proxy?url=${encodeURIComponent(audioBruto)}&v=${AUDIO_CACHE_VERSION}`)
-    : '';
+  const audioSrc = buildAudioProxySrc(order.cartaMusicaUrl || order.audioFiles?.[0] || order.audioUrl || '');
 
   // Um único toque abre o envelope E já dispara a música — navegador de celular exige gesto do
   // usuário pra tocar áudio, então isso é o mais perto de "abre e já toca sozinho" que dá pra

@@ -8,6 +8,10 @@ const ALLOWED_HOSTS = [
   // domínio (confirmado em 2026-08-02: sem ele na allowlist, o proxy rejeitava a única URL de áudio
   // realmente presente na resposta, quebrando a prévia/entrega para todo pedido).
   'tempfile.aiquickdraw.com',
+  // `instrumental_url` do add-on de Playback (vocal-removal) vem deste domínio irmão, sem o prefixo
+  // "temp" (confirmado na doc oficial da Kie.ai, 04/09/2026) — sem ele aqui, o player do playback
+  // pronto ficaria mudo do mesmo jeito que os previews de faixa ficavam antes desta correção.
+  'file.aiquickdraw.com',
   'cdn1.suno.ai',
   'cdn2.suno.ai',
   'audiopipe.suno.ai',

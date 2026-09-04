@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { requestPixCharge } from '@/lib/pixCheckout';
+import { buildAudioProxySrc } from '@/lib/audioProxy';
 import PixQrCode from './PixQrCode';
 
 const MAX_PIX_ATTEMPTS = 3;
@@ -369,7 +370,7 @@ export default function CartaAddonCard({ orderId, order }) {
                     onChange={() => handleEscolherMusica(url)}
                   />
                   <span style={{ fontSize: '0.78rem', fontWeight: '600', minWidth: '52px' }}>Faixa {i + 1}</span>
-                  <audio controls src={url} style={{ flex: 1, height: '30px' }} />
+                  <audio controls src={buildAudioProxySrc(url)} style={{ flex: 1, height: '30px' }} />
                 </label>
               ))}
               {salvandoMusica && <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Salvando...</p>}

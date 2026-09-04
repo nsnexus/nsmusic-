@@ -4,7 +4,7 @@ import { Suspense, useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { AUDIO_CACHE_VERSION } from '@/lib/audioCacheVersion';
+import { buildAudioProxySrc } from '@/lib/audioProxy';
 import MedidorAmor from '@/components/MedidorAmor';
 
 // Página PÚBLICA da Retrospectiva (add-on, ver src/lib/pricing.js:retrospectiva_addon) — é o link
@@ -170,10 +170,7 @@ function RetrospectivaContent() {
   const quiz = Array.isArray(retro.quiz) ? retro.quiz : [];
   const contador = retro.dataInicio ? diffDesde(retro.dataInicio) : null;
 
-  const audioBruto = order.audioFiles?.[0] || order.audioUrl || '';
-  const audioSrc = audioBruto
-    ? (audioBruto.startsWith('/api/') ? audioBruto : `/api/audio/proxy?url=${encodeURIComponent(audioBruto)}&v=${AUDIO_CACHE_VERSION}`)
-    : '';
+  const audioSrc = buildAudioProxySrc(order.audioFiles?.[0] || order.audioUrl || '');
 
   return (
     <div style={{ minHeight: '100vh', background: 'linear-gradient(180deg, #faf5ff 0%, #fff1f2 100%)' }}>
