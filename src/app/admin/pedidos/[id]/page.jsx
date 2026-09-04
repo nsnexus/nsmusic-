@@ -29,6 +29,11 @@ export default function OrderDetailsAdmin() {
   const [qrCodeUrl, setQrCodeUrl] = useState('');
   const [paymentStatus, setPaymentStatus] = useState('PENDENTE');
   const [hasVideoAccess, setHasVideoAccess] = useState(false);
+  // Liberação manual dos outros add-ons (cortesia/suporte) — mesmo padrão do vídeo, pedido
+  // 04/09/2026: só dava pra liberar vídeo pelo painel, faltava playback/carta/retrospectiva.
+  const [hasPlaybackAccess, setHasPlaybackAccess] = useState(false);
+  const [hasCartaAccess, setHasCartaAccess] = useState(false);
+  const [hasRetrospectivaAccess, setHasRetrospectivaAccess] = useState(false);
   const [notifying, setNotifying] = useState(false);
   const [notifyMsg, setNotifyMsg] = useState('');
   const [checkingPayment, setCheckingPayment] = useState(false);
@@ -87,6 +92,9 @@ export default function OrderDetailsAdmin() {
           setProductionStatus(data.productionStatus || 'LETRA_APROVADA');
           setPaymentStatus(data.paymentStatus || 'PENDENTE');
           setHasVideoAccess(Boolean(data.hasVideoAccess || data.videoAddonPaid));
+          setHasPlaybackAccess(Boolean(data.hasPlaybackAccess || data.playbackAddonPaid));
+          setHasCartaAccess(Boolean(data.hasCartaAccess || data.cartaAddonPaid));
+          setHasRetrospectivaAccess(Boolean(data.hasRetrospectivaAccess || data.retrospectivaAddonPaid));
           setAudioUrl(data.audioFiles?.[0] || data.audioUrl || '');
           setAudioUrl2(data.audioFiles?.[1] || '');
           setWavUrl(data.wavFiles?.[0] || data.wavUrl || '');
@@ -129,6 +137,12 @@ export default function OrderDetailsAdmin() {
         paymentStatus,
         hasVideoAccess,
         videoAddonPaid: hasVideoAccess,
+        hasPlaybackAccess,
+        playbackAddonPaid: hasPlaybackAccess,
+        hasCartaAccess,
+        cartaAddonPaid: hasCartaAccess,
+        hasRetrospectivaAccess,
+        retrospectivaAddonPaid: hasRetrospectivaAccess,
         lyrics,
         audioUrl,
         audioFiles: [audioUrl, audioUrl2].filter(Boolean),
@@ -146,6 +160,12 @@ export default function OrderDetailsAdmin() {
         paymentStatus,
         hasVideoAccess,
         videoAddonPaid: hasVideoAccess,
+        hasPlaybackAccess,
+        playbackAddonPaid: hasPlaybackAccess,
+        hasCartaAccess,
+        cartaAddonPaid: hasCartaAccess,
+        hasRetrospectivaAccess,
+        retrospectivaAddonPaid: hasRetrospectivaAccess,
         lyrics,
         audioUrl,
         audioFiles: [audioUrl, audioUrl2].filter(Boolean),
@@ -218,6 +238,9 @@ export default function OrderDetailsAdmin() {
           setOrder(freshData);
           setPaymentStatus(freshData.paymentStatus || 'PENDENTE');
           setHasVideoAccess(Boolean(freshData.hasVideoAccess || freshData.videoAddonPaid));
+          setHasPlaybackAccess(Boolean(freshData.hasPlaybackAccess || freshData.playbackAddonPaid));
+          setHasCartaAccess(Boolean(freshData.hasCartaAccess || freshData.cartaAddonPaid));
+          setHasRetrospectivaAccess(Boolean(freshData.hasRetrospectivaAccess || freshData.retrospectivaAddonPaid));
         }
         setCheckPaymentMsg('✅ Pagamento confirmado na Efí e aprovado agora!');
       } else if (data.status === 'pending') {
@@ -329,13 +352,24 @@ export default function OrderDetailsAdmin() {
     setPollingStatus('Enviando solicitação ao Suno API...');
     setGeneratedTracks([]);
 
+    // Achado 04/09/2026: o Prompt de Estilo só era gravado no pedido pelo botão "Salvar Alterações",
+    // separado deste. Quem editava aqui e clicava direto em "Gerar Áudio" via essa edição pra gerar,
+    // mas ela nunca chegava a persistir — ao recarregar a página, o campo voltava pro valor antigo
+    // ("eu mexo e ele volta pro que estava"). Grava o valor realmente usado ANTES de chamar a Suno.
+    const tagsFinal = sunoPrompt || getSunoStylePrompt();
+    try {
+      await updateDoc(doc(db, 'orders', orderId), { sunoPrompt: tagsFinal, updatedAt: new Date().toISOString() });
+    } catch (err) {
+      console.warn('Falha ao salvar o prompt de estilo antes de gerar:', err.message);
+    }
+
     try {
       const response = await fetch('/api/suno/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           prompt: lyrics,
-          tags: sunoPrompt || getSunoStylePrompt(),
+          tags: tagsFinal,
           orderId
         })
       });
@@ -561,6 +595,54 @@ export default function OrderDetailsAdmin() {
                     <p style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '4px' }}>
                       Marca e clica em &quot;Salvar&quot; para o cliente poder enviar as fotos e gerar
                       o vídeo sem precisar pagar o add-on (cortesia/liberação manual).
+                    </p>
+                  </div>
+
+                  <div style={styles.formGroup}>
+                    <label style={{ ...styles.label, display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={hasPlaybackAccess}
+                        onChange={(e) => setHasPlaybackAccess(e.target.checked)}
+                        style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                      />
+                      Liberar Playback (Instrumental) 🎧
+                    </label>
+                    <p style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '4px' }}>
+                      Libera o acesso; a geração em si o cliente dispara pelo card de Playback em
+                      /entrega (ou pelo botão &quot;Tentar gerar novamente&quot; se precisar).
+                    </p>
+                  </div>
+
+                  <div style={styles.formGroup}>
+                    <label style={{ ...styles.label, display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={hasCartaAccess}
+                        onChange={(e) => setHasCartaAccess(e.target.checked)}
+                        style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                      />
+                      Liberar Carta Virtual 💌
+                    </label>
+                    <p style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '4px' }}>
+                      Libera o acesso; se ainda não tiver texto, o cliente gera pelo card de Carta em
+                      /entrega (botão aparece sozinho quando falta o texto).
+                    </p>
+                  </div>
+
+                  <div style={styles.formGroup}>
+                    <label style={{ ...styles.label, display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={hasRetrospectivaAccess}
+                        onChange={(e) => setHasRetrospectivaAccess(e.target.checked)}
+                        style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                      />
+                      Liberar Retrospectiva 📖
+                    </label>
+                    <p style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '4px' }}>
+                      Libera o acesso; o cliente monta o conteúdo (fotos, linha do tempo, quiz) pelo
+                      card de Retrospectiva em /entrega.
                     </p>
                   </div>
 
