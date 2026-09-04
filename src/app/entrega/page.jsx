@@ -174,6 +174,8 @@ function EntregaContent() {
   // servidor no caminho) sem o pedido ter `hasVideoAccess`/`videoAddonPaid` gravado (auditoria de
   // fechamento, 2026-08-02). Pagamento legítimo do combo já grava esses campos via applyPaymentApproval.
   const hasVideoAccess = hasVideoAccessState || order?.hasVideoAccess || order?.videoAddonPaid || order?.videoUrl;
+  const jaTemRetrospectiva = Boolean(order?.hasRetrospectivaAccess || order?.retrospectivaAddonPaid);
+  const jaTemCarta = Boolean(order?.hasCartaAccess || order?.cartaAddonPaid);
 
   // Exibe o pop-up de oferta do vídeo automaticamente ao carregar a tela de entrega
   useEffect(() => {
@@ -1668,58 +1670,115 @@ function EntregaContent() {
                   <pre style={isPaid ? { ...styles.lyricsText, color: '#e2e8f0' } : styles.lyricsText}>{order.lyrics || 'Letra ainda não gerada para esta composição.'}</pre>
                 </div>
 
-                {/* Banner interativo da Retrospectiva — ao clicar leva pra aba Retrospectiva */}
-                <div
-                  onClick={() => {
-                    setAbaProduto('retrospectiva');
-                    if (typeof window !== 'undefined') {
-                      window.scrollTo({ top: 0, behavior: 'smooth' });
-                    }
-                  }}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
+                {/* Banner interativo da Retrospectiva — só aparece se o cliente AINDA NÃO comprou */}
+                {!jaTemRetrospectiva && (
+                  <div
+                    onClick={() => {
                       setAbaProduto('retrospectiva');
                       if (typeof window !== 'undefined') {
                         window.scrollTo({ top: 0, behavior: 'smooth' });
                       }
-                    }
-                  }}
-                  className="glass-card"
-                  style={{
-                    cursor: 'pointer',
-                    padding: '16px',
-                    borderRadius: '16px',
-                    border: '1px solid rgba(236, 72, 153, 0.35)',
-                    background: 'linear-gradient(135deg, rgba(88, 28, 135, 0.25) 0%, rgba(236, 72, 153, 0.15) 100%)',
-                    textAlign: 'center',
-                    boxShadow: '0 10px 30px rgba(0,0,0,0.3)',
-                    transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-                  }}
-                  aria-label="Ir para a aba da Retrospectiva"
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '10px' }}>
-                    <span style={{ fontSize: '1.2rem' }}>📖</span>
-                    <span style={{ fontFamily: 'var(--font-family-gala)', fontWeight: '700', fontSize: '1rem', color: '#f472b6', letterSpacing: '0.03em' }}>
-                      Conheça a sua Retrospectiva
-                    </span>
-                    <span style={{ color: '#f472b6', fontSize: '0.9rem' }}>➔</span>
-                  </div>
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        setAbaProduto('retrospectiva');
+                        if (typeof window !== 'undefined') {
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }
+                      }
+                    }}
+                    className="glass-card"
+                    style={{
+                      cursor: 'pointer',
+                      padding: '16px',
+                      borderRadius: '16px',
+                      border: '1px solid rgba(236, 72, 153, 0.35)',
+                      background: 'linear-gradient(135deg, rgba(88, 28, 135, 0.25) 0%, rgba(236, 72, 153, 0.15) 100%)',
+                      textAlign: 'center',
+                      boxShadow: '0 10px 30px rgba(0,0,0,0.3)',
+                      transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                    }}
+                    aria-label="Ir para a aba da Retrospectiva"
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '10px' }}>
+                      <span style={{ fontSize: '1.2rem' }}>📖</span>
+                      <span style={{ fontFamily: 'var(--font-family-gala)', fontWeight: '700', fontSize: '1rem', color: '#f472b6', letterSpacing: '0.03em' }}>
+                        Conheça a sua Retrospectiva
+                      </span>
+                      <span style={{ color: '#f472b6', fontSize: '0.9rem' }}>➔</span>
+                    </div>
 
-                  <div style={{ borderRadius: '12px', overflow: 'hidden', boxShadow: '0 8px 24px rgba(0,0,0,0.4)', margin: '0 auto' }}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src="/como-funciona-retrospectiva.jpg"
-                      alt="Como funciona a sua Retrospectiva — Toque para acessar"
-                      style={{ width: '100%', height: 'auto', display: 'block' }}
-                    />
-                  </div>
+                    <div style={{ borderRadius: '12px', overflow: 'hidden', boxShadow: '0 8px 24px rgba(0,0,0,0.4)', margin: '0 auto' }}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src="/como-funciona-retrospectiva.jpg"
+                        alt="Como funciona a sua Retrospectiva — Toque para acessar"
+                        style={{ width: '100%', height: 'auto', display: 'block' }}
+                      />
+                    </div>
 
-                  <p style={{ margin: '12px 0 4px', fontSize: '0.85rem', color: '#fff', fontWeight: '600' }}>
-                    ✨ Toque aqui para ver e montar a sua Retrospectiva
-                  </p>
-                </div>
+                    <p style={{ margin: '12px 0 4px', fontSize: '0.85rem', color: '#fff', fontWeight: '600' }}>
+                      ✨ Toque aqui para ver e montar a sua Retrospectiva
+                    </p>
+                  </div>
+                )}
+
+                {/* Banner interativo da Cartinha — só aparece se o cliente AINDA NÃO comprou */}
+                {!jaTemCarta && (
+                  <div
+                    onClick={() => {
+                      setAbaProduto('carta');
+                      if (typeof window !== 'undefined') {
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        setAbaProduto('carta');
+                        if (typeof window !== 'undefined') {
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }
+                      }
+                    }}
+                    className="glass-card"
+                    style={{
+                      cursor: 'pointer',
+                      padding: '16px',
+                      borderRadius: '16px',
+                      border: '1px solid rgba(236, 72, 153, 0.35)',
+                      background: 'linear-gradient(135deg, rgba(88, 28, 135, 0.25) 0%, rgba(236, 72, 153, 0.15) 100%)',
+                      textAlign: 'center',
+                      boxShadow: '0 10px 30px rgba(0,0,0,0.3)',
+                      transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                    }}
+                    aria-label="Ir para a aba da Cartinha Virtual"
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '10px' }}>
+                      <span style={{ fontSize: '1.2rem' }}>💌</span>
+                      <span style={{ fontFamily: 'var(--font-family-gala)', fontWeight: '700', fontSize: '1rem', color: '#f472b6', letterSpacing: '0.03em' }}>
+                        Conheça a sua Cartinha Virtual
+                      </span>
+                      <span style={{ color: '#f472b6', fontSize: '0.9rem' }}>➔</span>
+                    </div>
+
+                    <div style={{ borderRadius: '12px', overflow: 'hidden', boxShadow: '0 8px 24px rgba(0,0,0,0.4)', margin: '0 auto' }}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src="/como-funciona-cartinha.jpg"
+                        alt="Como funciona a sua Cartinha Virtual — Toque para acessar"
+                        style={{ width: '100%', height: 'auto', display: 'block' }}
+                      />
+                    </div>
+
+                    <p style={{ margin: '12px 0 4px', fontSize: '0.85rem', color: '#fff', fontWeight: '600' }}>
+                      ✨ Toque aqui para ver e criar a sua Cartinha
+                    </p>
+                  </div>
+                )}
               </div>
 
             </div>
@@ -1733,9 +1792,8 @@ function EntregaContent() {
             <div id="card-retrospectiva"><RetrospectivaAddonCard orderId={orderId} order={order} /></div>
           )}
 
-          {/* Aba Carta — precisa da história que o cliente contou, matéria-prima do texto (pedido
-              sem story nenhuma não tem carta possível, ver src/lib/carta.js). */}
-          {isPaid && abaProduto === 'carta' && (order?.story || order?.importantMoments) && (
+          {/* Aba Carta — add-on com envelope animado e música */}
+          {isPaid && abaProduto === 'carta' && (
             <div id="card-carta"><CartaAddonCard orderId={orderId} order={order} /></div>
           )}
 
@@ -1751,8 +1809,8 @@ function EntregaContent() {
             honoreeName={order?.honoreeName || 'alguém especial'}
             isPaid={isPaid}
             jaTemVideo={Boolean(hasVideoAccess || order?.hasVideoAccess)}
-            jaTemCarta={Boolean(order?.hasCartaAccess || order?.cartaAddonPaid)}
-            jaTemRetrospectiva={Boolean(order?.hasRetrospectivaAccess || order?.retrospectivaAddonPaid)}
+            jaTemCarta={jaTemCarta}
+            jaTemRetrospectiva={jaTemRetrospectiva}
             onClose={() => {
               setShowVideoModal(false);
               if (typeof window !== 'undefined' && orderId) {
