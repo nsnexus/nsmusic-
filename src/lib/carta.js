@@ -14,6 +14,69 @@ import { runGeminiWithFailover } from './gemini.js';
 // layout do envelope e nunca foi a intenção do produto.
 const MAX_CARTA_CHARS = 2200;
 
+// Modelos de carta (pedido 04/09/2026): Romântica, Aniversário, Homenagem e Padrão, cada um com
+// versão masculina/feminina/neutra — 4 categorias x 3 gêneros, escolhidos automaticamente a partir
+// do que o cliente já respondeu no wizard (occasion + relationship/recipientType). Nenhuma pergunta
+// nova: a matéria-prima pra escolher o modelo já existe no pedido.
+
+// occasion (ver src/app/criar/wizardOptions.js) -> categoria da carta.
+const CATEGORIA_POR_OCASIAO = {
+  'Dia dos Namorados': 'romantica',
+  'Declaração de Amor': 'romantica',
+  'Pedido de Namoro': 'romantica',
+  'Aniversário de Namoro': 'romantica',
+  'Aniv. de Casamento': 'romantica',
+  'Aniversário': 'aniversario',
+  'Homenagem': 'homenagem',
+  'Dia das Mães': 'homenagem',
+};
+const CATEGORIA_PADRAO = 'padrao';
+
+// recipientType/relationship -> gênero de quem recebe a carta. Ambíguos (Chefe, Eu mesmo, Outro)
+// ficam de fora do mapa de propósito e caem no fallback neutro.
+const GENERO_POR_RELACAO = {
+  Namorada: 'feminino', Esposa: 'feminino', Mãe: 'feminino', Vó: 'feminino', Filha: 'feminino', Amiga: 'feminino',
+  Namorado: 'masculino', Marido: 'masculino', Pai: 'masculino', Vô: 'masculino', Filho: 'masculino', Amigo: 'masculino',
+};
+const GENERO_PADRAO = 'neutro';
+
+// Instruções de TOM por categoria — o que muda entre os modelos não é o texto pronto, é a direção
+// que a IA recebe (achado: 4 prompts totalmente separados divergiam e ficavam difíceis de manter;
+// um prompt base + bloco de tom por categoria mantém a mesma qualidade com 1/4 do código).
+const TOM_POR_CATEGORIA = {
+  romantica: `Tom: carta de amor. Fale do que essa pessoa desperta, da certeza de tê-la por perto, do
+que você sente quando pensa nela. Pode ser mais poético e intenso que os outros modelos, mas sem
+clichê de cartão de banca de jornal ("você é meu tudo", "te amo mais que tudo nesse mundo").
+Saudação de abertura carinhosa e íntima (ex: "Meu amor,", "Minha vida,").`,
+  aniversario: `Tom: carta de aniversário. Celebre quem essa pessoa é e o que ela já construiu até
+aqui, e desejе algo real pro ano que começa — não um "parabéns" genérico, mas um desejo que só faz
+sentido pra ELA, a partir da história contada. Alegre, mas sem exagero de festa.`,
+  homenagem: `Tom: carta de homenagem. Reconhecimento e gratidão por quem essa pessoa é e pelo que
+ela representa na vida de quem escreve. Sereno, sincero, sem pressa. Se a história sugerir que é uma
+homenagem a alguém que já partiu, escreva com saudade e serenidade — nunca com festa.`,
+  padrao: `Tom: carta afetuosa, sem ocasião específica pra celebrar — só o desejo de dizer, com
+palavras, o que normalmente não se diz. Direto e caloroso, apoiado inteiramente nos detalhes reais
+contados abaixo.`,
+};
+
+// Instruções de GÊNERO — evita a IA "chutar" errado quando o pedido tem detalhes concretos que
+// pedem concordância (ex: "você é um pai incrível" vs "você é uma mãe incrível"). Neutro pede pra
+// simplesmente evitar esse tipo de adjetivo flexionado, em vez de arriscar o gênero errado.
+const GENERO_INSTRUCAO = {
+  masculino: 'Ao se referir a quem recebe a carta com adjetivos ou substantivos que variam por gênero, use a forma MASCULINA (ex: "querido", "um pai incrível", "amado").',
+  feminino: 'Ao se referir a quem recebe a carta com adjetivos ou substantivos que variam por gênero, use a forma FEMININA (ex: "querida", "uma mãe incrível", "amada").',
+  neutro: 'Evite adjetivos ou substantivos flexionados por gênero ao se referir a quem recebe a carta (nada de "querido"/"querida", "amado"/"amada") — não há como saber o gênero certo aqui. Use o nome da pessoa ou "você" em frases que não exigem concordância de gênero.',
+};
+
+// Deriva categoria + gênero a partir do pedido — função própria pra ficar testável sem precisar
+// chamar a IA (ver tests/unit/carta.test.js).
+export function escolherModeloCarta(order = {}) {
+  const categoria = CATEGORIA_POR_OCASIAO[order.occasion] || CATEGORIA_PADRAO;
+  const relacao = order.relationship || order.recipientType || '';
+  const genero = GENERO_POR_RELACAO[relacao] || GENERO_PADRAO;
+  return { categoria, genero };
+}
+
 export function buildCartaPrompt(order = {}) {
   const remetente = order.customerName || '';
   const honoree = order.honoreeName || 'pessoa especial';
@@ -21,10 +84,15 @@ export function buildCartaPrompt(order = {}) {
   const ocasiao = order.occasion || '';
   const historia = order.story || '';
   const momentos = order.importantMoments || '';
+  const { categoria, genero } = escolherModeloCarta(order);
 
   return `Você é um escritor brasileiro que ajuda pessoas comuns a colocar em palavras o que elas sentem, mas não conseguem escrever sozinhas.
 
 Escreva uma CARTA pessoal, na primeira pessoa, como se fosse ${remetente || 'o cliente'} escrevendo com as próprias mãos para ${honoree}.
+
+${TOM_POR_CATEGORIA[categoria]}
+
+${GENERO_INSTRUCAO[genero]}
 
 Dados reais (use-os de verdade, são o coração da carta):
 - Para: ${honoree}
@@ -40,7 +108,6 @@ Regras:
 - Comece com uma saudação natural (ex: "Minha querida vó," / "Pai,").
 - Termine com uma despedida curta e assine exatamente como "${remetente || honoree}".
 - Português do Brasil.
-- Se a ocasião for despedida/homenagem a quem já partiu, escreva com serenidade e saudade — nunca com festa.
 
 RETORNE EXCLUSIVAMENTE O TEXTO DA CARTA. Sem título, sem aspas, sem comentário, sem explicação — o texto vai direto pra tela do cliente.`;
 }
