@@ -33,6 +33,36 @@ export default function CartaAddonCard({ orderId, order }) {
   const texto = order?.cartaTexto || '';
   const remetente = order?.customerName || '';
   const honoree = order?.honoreeName || '';
+  const linkPublico = typeof window !== 'undefined' ? `${window.location.origin}/carta?orderId=${orderId}` : '';
+  const [linkCopiado, setLinkCopiado] = useState(false);
+
+  // Qual música toca sozinha quando alguém abre a página pública da carta (pedido 04/09/2026) — só
+  // mostra escolha quando tem mais de uma faixa gerada; com uma só, não tem o que escolher.
+  const faixasMusica = [order?.audioUrl, ...(Array.isArray(order?.audioFiles) ? order.audioFiles : [])].filter(Boolean);
+  const faixasUnicas = [...new Set(faixasMusica)];
+  const [musicaEscolhida, setMusicaEscolhida] = useState('');
+  const [salvandoMusica, setSalvandoMusica] = useState(false);
+
+  useEffect(() => {
+    if (order?.cartaMusicaUrl) setMusicaEscolhida(order.cartaMusicaUrl);
+    else if (faixasUnicas[0]) setMusicaEscolhida(faixasUnicas[0]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [order?.cartaMusicaUrl, faixasUnicas[0]]);
+
+  const handleEscolherMusica = async (url) => {
+    setMusicaEscolhida(url);
+    setSalvandoMusica(true);
+    try {
+      await fetch('/api/carta/choose-music', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId, audioUrl: url }),
+      });
+    } catch (e) {
+      console.warn('[CartaAddonCard] Falha ao salvar música escolhida:', e?.message);
+    }
+    setSalvandoMusica(false);
+  };
 
   const handleGeneratePix = async () => {
     if (!orderId) return;
@@ -317,6 +347,54 @@ export default function CartaAddonCard({ orderId, order }) {
           </div>
 
           {erroTexto && <p style={{ fontSize: '0.8rem', color: 'var(--error, #ef4444)', marginTop: '10px' }}>{erroTexto}</p>}
+
+          {faixasUnicas.length > 1 && (
+            <div style={{ marginTop: '14px', textAlign: 'left' }}>
+              <p style={{ fontSize: '0.78rem', fontWeight: '700', marginBottom: '8px' }}>
+                Música que toca sozinha quando abrir a carta:
+              </p>
+              {faixasUnicas.map((url, i) => (
+                <label
+                  key={url}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '10px', padding: '6px 10px', borderRadius: '8px',
+                    border: `1.5px solid ${musicaEscolhida === url ? 'var(--primary)' : 'var(--border-color)'}`,
+                    marginBottom: '6px', cursor: 'pointer',
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="carta-musica"
+                    checked={musicaEscolhida === url}
+                    onChange={() => handleEscolherMusica(url)}
+                  />
+                  <span style={{ fontSize: '0.78rem', fontWeight: '600', minWidth: '52px' }}>Faixa {i + 1}</span>
+                  <audio controls src={url} style={{ flex: 1, height: '30px' }} />
+                </label>
+              ))}
+              {salvandoMusica && <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Salvando...</p>}
+            </div>
+          )}
+
+          {linkPublico && (
+            <div style={{ display: 'flex', gap: '8px', marginTop: '14px', flexWrap: 'wrap' }}>
+              <a href={linkPublico} target="_blank" rel="noopener noreferrer" className="btn btn-secondary" style={{ flex: 1, padding: '10px', fontSize: '0.82rem', textDecoration: 'none', textAlign: 'center' }}>
+                👀 Ver página da carta
+              </a>
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(linkPublico);
+                  setLinkCopiado(true);
+                  setTimeout(() => setLinkCopiado(false), 3000);
+                }}
+                className="btn btn-secondary"
+                style={{ padding: '10px 14px', fontSize: '0.82rem', cursor: 'pointer' }}
+              >
+                {linkCopiado ? '✅ Link copiado!' : '🔗 Copiar link'}
+              </button>
+            </div>
+          )}
 
           <div style={{ display: 'flex', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
             {editando ? (

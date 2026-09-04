@@ -222,40 +222,29 @@ function HomenagemContent() {
           )}
         </div>
 
-        {/* CARTA VIRTUAL — precisa aparecer aqui, é a página que o cliente compartilha de verdade
-            pra entregar a homenagem (achado 03/09/2026, relatado pelo dono do estúdio: a carta
-            existia só na tela de gerenciamento, sem jeito nenhum de o cliente mostrar pro
-            homenageado). Só quando paga (isPaid) e o texto já foi gerado. */}
+        {/* CARTA VIRTUAL — link pra página própria (/carta), separada desta (achado 04/09/2026: cada
+            add-on precisa da sua própria página compartilhável — música/vídeo aqui, carta com
+            música própria tocando sozinha em /carta, histórico em /retrospectiva). */}
         {isPaid && order.hasCartaAccess && order.cartaTexto && (
-          <div
-            style={{
-              marginTop: '32px',
-              backgroundColor: '#fffdf7',
-              border: '1px solid #f1e6cf',
-              borderRadius: '24px',
-              padding: '28px 24px',
-              boxShadow: '0 20px 40px rgba(0,0,0,0.35), inset 0 0 40px rgba(180, 150, 90, 0.08)',
-            }}
-          >
-            <p style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#b45309', margin: '0 0 16px', textAlign: 'center', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-              💌 Uma carta pra você
-            </p>
-            {order.coverUrl && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={order.coverUrl}
-                alt={`Foto de ${honoreeName}`}
-                style={{ width: '108px', height: '108px', objectFit: 'cover', float: 'right', marginLeft: '14px', marginBottom: '10px', border: '6px solid #fff', boxShadow: '0 6px 16px rgba(0,0,0,0.25)', transform: 'rotate(3deg)', borderRadius: '2px' }}
-              />
-            )}
-            <p style={{ whiteSpace: 'pre-wrap', fontSize: '1rem', lineHeight: '1.85', color: '#3f3a2f', margin: 0 }}>
-              {order.cartaTexto}
-            </p>
-            {customerName && (
-              <p style={{ clear: 'both', marginTop: '20px', textAlign: 'right', fontFamily: 'cursive', fontSize: '1.3rem', color: '#8a6d3b' }}>
-                {customerName}
-              </p>
-            )}
+          <div style={{ marginTop: '32px', textAlign: 'center' }}>
+            <a
+              href={`/carta?orderId=${orderId}`}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '14px 24px',
+                background: 'linear-gradient(135deg, #f472b6 0%, #9d174d 100%)',
+                color: '#ffffff',
+                fontWeight: 'bold',
+                fontSize: '0.95rem',
+                borderRadius: '12px',
+                textDecoration: 'none',
+                boxShadow: '0 4px 14px rgba(157, 23, 77, 0.4)',
+              }}
+            >
+              💌 Ver sua Carta
+            </a>
           </div>
         )}
 
