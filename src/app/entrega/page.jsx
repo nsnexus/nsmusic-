@@ -809,30 +809,96 @@ function EntregaContent() {
           )}
 
           {(!isPaid || abaProduto === 'musica') && (
-          <div style={styles.deliveryCard} className="glass-card">
-            <div className="responsive-grid-2">
+          <div
+            style={isPaid ? {
+              ...styles.deliveryCard,
+              backgroundColor: '#0c0616',
+              border: '1px solid rgba(236, 72, 153, 0.22)',
+              boxShadow: '0 24px 60px rgba(0,0,0,0.55)',
+              position: 'relative',
+              overflow: 'hidden',
+            } : styles.deliveryCard}
+            className="glass-card"
+          >
+            {/* Clima "homenagem" (achado 04/09/2026, pedido pra bater com o visual de /homenagem):
+                brilho radial + corações flutuando de fundo, só quando pago — a prévia continua no
+                tema claro de sempre, sem mexer no funil de pagamento. */}
+            {isPaid && (
+              <>
+                <div aria-hidden="true" style={{ position: 'absolute', top: '-20%', left: '50%', transform: 'translateX(-50%)', width: '140%', height: '360px', background: 'radial-gradient(circle, rgba(236,72,153,0.16) 0%, rgba(168,85,247,0.1) 50%, transparent 72%)', pointerEvents: 'none' }} />
+                {['💗', '✨', '🎵', '💜', '⭐'].map((s, i) => (
+                  <span
+                    key={i}
+                    aria-hidden="true"
+                    style={{
+                      position: 'absolute',
+                      top: `${8 + i * 19}%`,
+                      left: i % 2 === 0 ? `${4 + i * 3}%` : undefined,
+                      right: i % 2 === 1 ? `${4 + i * 2}%` : undefined,
+                      fontSize: '1.1rem',
+                      opacity: 0.35,
+                      pointerEvents: 'none',
+                    }}
+                  >
+                    {s}
+                  </span>
+                ))}
+              </>
+            )}
+
+            <div className="responsive-grid-2" style={isPaid ? { position: 'relative', zIndex: 1 } : undefined}>
 
               {/* Media Player & Downloads */}
               <div style={styles.mediaSide}>
-                <div style={styles.coverWrapper}>
-                  <img src={coverUrl} alt="Capa da música" style={styles.coverImg} />
-                  <div style={styles.coverOverlay}>
-                    {/* color precisa ser explícito aqui: a regra global h1-h6 (globals.css) sempre
-                        vence sobre a cor herdada do coverOverlay, deixando o título ilegível em cima
-                        da foto escura (relato do usuário, 2026-08-02). */}
-                    <h2 style={{ fontFamily: 'var(--font-family-title)', fontSize: '1.4rem', color: '#FFFFFF' }}>
-                      Melodia para {order?.honoreeName}
+                {isPaid && (
+                  <div style={{ textAlign: 'center', padding: '4px 0 2px' }}>
+                    <h2 style={{ fontFamily: "'Playfair Display', var(--font-family-title)", fontWeight: '800', fontSize: '1.5rem', color: '#fff', margin: '0 0 4px', lineHeight: 1.25 }}>
+                      Uma Homenagem para <span className="hero-sublinhado" style={{ color: '#f472b6' }}>
+                        {order?.honoreeName}
+                        <svg viewBox="0 0 300 14" preserveAspectRatio="none" aria-hidden="true">
+                          <defs>
+                            <linearGradient id="tracoEntrega" x1="0" y1="0" x2="1" y2="0">
+                              <stop offset="0%" stopColor="#f472b6" />
+                              <stop offset="100%" stopColor="#a855f7" />
+                            </linearGradient>
+                          </defs>
+                          <path d="M4 10 C 70 3, 150 2, 296 6" fill="none" stroke="url(#tracoEntrega)" strokeWidth="6" strokeLinecap="round" />
+                        </svg>
+                      </span>
                     </h2>
-                    <p style={{ fontSize: '0.85rem', opacity: 0.8, color: '#FFFFFF' }}>Uma homenagem de {order?.customerName}</p>
+                    <p style={{ fontSize: '0.88rem', color: '#cbd5e1', margin: 0 }}>
+                      De <strong style={{ color: '#fff' }}>{order?.customerName}</strong> com todo carinho e amor ❤️
+                    </p>
                   </div>
+                )}
+                <div style={isPaid ? { ...styles.coverWrapper, boxShadow: '0 16px 40px rgba(236,72,153,0.22)', border: '1.5px solid rgba(255,255,255,0.12)' } : styles.coverWrapper}>
+                  <img src={coverUrl} alt="Capa da música" style={styles.coverImg} />
+                  {!isPaid && (
+                    <div style={styles.coverOverlay}>
+                      {/* color precisa ser explícito aqui: a regra global h1-h6 (globals.css) sempre
+                          vence sobre a cor herdada do coverOverlay, deixando o título ilegível em cima
+                          da foto escura (relato do usuário, 2026-08-02). */}
+                      <h2 style={{ fontFamily: 'var(--font-family-title)', fontSize: '1.4rem', color: '#FFFFFF' }}>
+                        Melodia para {order?.honoreeName}
+                      </h2>
+                      <p style={{ fontSize: '0.85rem', opacity: 0.8, color: '#FFFFFF' }}>Uma homenagem de {order?.customerName}</p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Audio Player 1 (Prévia de 60s se pendente, Completo se pago) */}
                 {primaryAudioUrl && (
-                  <div style={styles.audioPlayerContainer} className="glass-card">
-                    <h4 style={{ fontSize: '0.95rem', marginBottom: '8px', fontWeight: '700', color: 'var(--primary)' }}>
-                      {isPaid ? '🎧 Versão Principal (Versão 1)' : '🎧 Prévia (Versão 1 — 60 segundos)'}
-                    </h4>
+                  <div style={isPaid ? { ...styles.audioPlayerContainer, backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', backdropFilter: 'blur(6px)' } : styles.audioPlayerContainer} className="glass-card">
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <h4 style={{ fontSize: '0.95rem', margin: 0, fontWeight: '700', color: isPaid ? '#f1f5f9' : 'var(--primary)' }}>
+                        {isPaid ? '🎧 Versão 1' : '🎧 Prévia (Versão 1 — 60 segundos)'}
+                      </h4>
+                      {isPaid && (
+                        <span style={{ fontSize: '0.7rem', color: '#f472b6', backgroundColor: 'rgba(236,72,153,0.12)', padding: '3px 9px', borderRadius: '10px', border: '1px solid rgba(236,72,153,0.3)', fontWeight: '700' }}>
+                          Estúdio NSMusic
+                        </span>
+                      )}
+                    </div>
                     {!isPaid && (
                       <p style={{ fontSize: '0.78rem', color: 'var(--warning)', marginBottom: '8px', fontWeight: '600' }}>
                         🔒 Modo Degustação: Áudio limitado aos primeiros 60 segundos.
@@ -889,10 +955,17 @@ function EntregaContent() {
 
                 {/* Audio Player 2 */}
                 {secondAudioUrl && (
-                  <div style={styles.audioPlayerContainer} className="glass-card">
-                    <h4 style={{ fontSize: '0.95rem', marginBottom: '8px', fontWeight: '700', color: 'var(--secondary)' }}>
-                      {isPaid ? '🎧 Versão Alternativa (Versão 2 Bônus)' : '🎧 Prévia (Versão 2 — 60 segundos Bônus)'}
-                    </h4>
+                  <div style={isPaid ? { ...styles.audioPlayerContainer, backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', backdropFilter: 'blur(6px)' } : styles.audioPlayerContainer} className="glass-card">
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <h4 style={{ fontSize: '0.95rem', margin: 0, fontWeight: '700', color: isPaid ? '#f1f5f9' : 'var(--secondary)' }}>
+                        {isPaid ? '🎧 Versão 2' : '🎧 Prévia (Versão 2 — 60 segundos Bônus)'}
+                      </h4>
+                      {isPaid && (
+                        <span style={{ fontSize: '0.7rem', color: '#c084fc', backgroundColor: 'rgba(168,85,247,0.12)', padding: '3px 9px', borderRadius: '10px', border: '1px solid rgba(168,85,247,0.3)', fontWeight: '700' }}>
+                          Estúdio NSMusic
+                        </span>
+                      )}
+                    </div>
                     {!isPaid && (
                       <p style={{ fontSize: '0.78rem', color: 'var(--warning)', marginBottom: '8px', fontWeight: '600' }}>
                         🔒 Modo Degustação: Áudio limitado aos primeiros 60 segundos.
@@ -936,8 +1009,8 @@ function EntregaContent() {
                       <div style={{ ...styles.downloadGrid, marginTop: '16px' }}>
                         <button
                           onClick={() => handleDownload(secondAudioUrl, `Musica_V2_${order?.honoreeName || 'Homenagem'}.mp3`)}
-                          className="btn btn-secondary" 
-                          style={{ ...styles.downloadBtn, border: 'none', cursor: 'pointer' }}
+                          className="btn"
+                          style={{ ...styles.downloadBtn, border: '1.5px solid rgba(255,255,255,0.25)', background: 'rgba(255,255,255,0.08)', color: '#fff', cursor: 'pointer' }}
                         >
                           ⬇ Baixar MP3 (V2 Bônus)
                         </button>
@@ -1672,11 +1745,14 @@ function EntregaContent() {
               </div>
 
               {/* Lyrics Side */}
-              <div style={styles.lyricsSide} className="glass-card">
-                <h3 style={{ fontSize: '1.25rem', marginBottom: '20px', fontFamily: 'var(--font-family-title)', color: 'var(--primary)' }}>
+              <div
+                style={isPaid ? { ...styles.lyricsSide, backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)', boxShadow: 'none' } : styles.lyricsSide}
+                className="glass-card"
+              >
+                <h3 style={{ fontSize: '1.25rem', marginBottom: '20px', fontFamily: isPaid ? "'Playfair Display', var(--font-family-title)" : 'var(--font-family-title)', color: isPaid ? '#f472b6' : 'var(--primary)' }}>
                   Letra Oficial 📜
                 </h3>
-                <pre style={styles.lyricsText}>{order.lyrics || 'Letra ainda não gerada para esta composição.'}</pre>
+                <pre style={isPaid ? { ...styles.lyricsText, color: '#e2e8f0' } : styles.lyricsText}>{order.lyrics || 'Letra ainda não gerada para esta composição.'}</pre>
               </div>
 
             </div>

@@ -137,9 +137,21 @@ function HomenagemContent() {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               <div style={{ textAlign: 'center', padding: '16px 0' }}>
-                <div style={{ width: '70px', height: '70px', background: 'linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px auto', boxShadow: '0 8px 24px rgba(236, 72, 153, 0.3)' }}>
-                  <span style={{ fontSize: '2rem' }}>🎵</span>
-                </div>
+                {/* Capa personalizada do pedido — antes só existia o ícone genérico de nota musical
+                    aqui, e a foto que o cliente escolheu não aparecia em lugar nenhum desta página
+                    (achado 04/09/2026). Sem capa, mantém o ícone de sempre. */}
+                {order.coverUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={order.coverUrl}
+                    alt={`Capa da homenagem para ${honoreeName}`}
+                    style={{ width: '132px', height: '132px', objectFit: 'cover', borderRadius: '50%', margin: '0 auto 14px auto', display: 'block', border: '3px solid rgba(236, 72, 153, 0.55)', boxShadow: '0 0 32px rgba(236, 72, 153, 0.45), 0 8px 24px rgba(0,0,0,0.5)' }}
+                  />
+                ) : (
+                  <div style={{ width: '70px', height: '70px', background: 'linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px auto', boxShadow: '0 8px 24px rgba(236, 72, 153, 0.3)' }}>
+                    <span style={{ fontSize: '2rem' }}>🎵</span>
+                  </div>
+                )}
                 <h3 style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#ffffff', margin: '0 0 4px 0' }}>Música Personalizada Exclusiva</h3>
                 <p style={{ fontSize: '0.85rem', color: '#94a3b8', margin: 0 }}>Estilo: {songStyle}</p>
               </div>
