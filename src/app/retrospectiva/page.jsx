@@ -227,10 +227,28 @@ function RetrospectivaContent() {
 
   return (
     <div style={{ minHeight: '100vh', background: 'linear-gradient(180deg, #2b1145 0%, #5b2a72 32%, #b06a9e 62%, #f3d9ea 100%)' }}>
-      {/* Capa — visual do mockup aprovado 04/09/2026: céu cósmico, foto em círculo com anel de
-          brilho, título em serifa com gradiente e corações flutuando no fundo. */}
-      <div style={{ position: 'relative', padding: '56px 20px 40px', textAlign: 'center', overflow: 'hidden' }}>
-        <CoracoesFlutuando />
+      {/* Capa — vídeo de fundo em loop (public/hero/retrospectiva.mp4, enviado pelo dono do estúdio
+          em 04/09/2026 pra substituir o degradê). Os corações decorativos saíram daqui: o vídeo já
+          dá o movimento, e eles competiam com a imagem. `muted` + `playsInline` são obrigatórios —
+          sem os dois o autoplay é bloqueado no celular. */}
+      <div style={{ position: 'relative', padding: '56px 20px 64px', textAlign: 'center', overflow: 'hidden' }}>
+        <video
+          src="/hero/retrospectiva.mp4"
+          autoPlay
+          muted
+          loop
+          playsInline
+          aria-hidden="true"
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }}
+        />
+        {/* Véu escuro por cima: sem ele o texto branco some nos quadros mais claros do vídeo. */}
+        <div
+          aria-hidden="true"
+          style={{
+            position: 'absolute', inset: 0, pointerEvents: 'none',
+            background: 'linear-gradient(180deg, rgba(20,8,32,0.55) 0%, rgba(20,8,32,0.35) 45%, rgba(43,17,69,0.75) 100%)',
+          }}
+        />
 
         <div style={{ position: 'relative', zIndex: 1 }}>
           {order.coverUrl && (
@@ -274,12 +292,12 @@ function RetrospectivaContent() {
               </button>
             </>
           )}
-        </div>
-      </div>
 
-      {/* Contador ao vivo — cartão claro com as caixas de DIAS/HORAS/MIN/SEG do mockup. */}
+      {/* Contador ao vivo — cartão claro com as caixas de DIAS/HORAS/MIN/SEG do mockup. Fica DENTRO
+          da capa, por cima do vídeo (achado 04/09/2026: como irmão logo abaixo, o vídeo terminava
+          numa linha reta atrás do card e a capa parecia cortada no meio). */}
       {contador && (
-        <div style={{ maxWidth: '560px', margin: '0 auto 40px', padding: '0 20px' }}>
+        <div style={{ maxWidth: '560px', margin: '30px auto 0', padding: '0 20px' }}>
           <div style={{ padding: '26px 22px', borderRadius: '20px', textAlign: 'center', background: 'rgba(255,255,255,0.92)', boxShadow: '0 20px 50px rgba(43,17,69,0.25)' }}>
             <p style={{ fontSize: '0.8rem', color: '#9333ea', margin: '0 0 10px', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: '700' }}>
               <span style={{ color: '#f472b6' }}>♥</span>&nbsp; {retro.contadorLabel || 'Juntos há'} &nbsp;<span style={{ color: '#f472b6' }}>♥</span>
@@ -321,6 +339,8 @@ function RetrospectivaContent() {
           </div>
         </div>
       )}
+        </div>
+      </div>
 
       {/* Linha do tempo — layout do mockup aprovado (04/09/2026): fundo escuro, fio roxo brilhante
           à esquerda com marcadores acesos, foto em card arredondado e, ao lado, o DIA em número
