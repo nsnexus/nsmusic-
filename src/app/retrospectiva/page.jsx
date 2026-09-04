@@ -284,7 +284,7 @@ function RetrospectivaContent() {
             <p style={{ fontSize: '0.8rem', color: '#9333ea', margin: '0 0 10px', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: '700' }}>
               <span style={{ color: '#f472b6' }}>♥</span>&nbsp; {retro.contadorLabel || 'Juntos há'} &nbsp;<span style={{ color: '#f472b6' }}>♥</span>
             </p>
-            <p style={{ fontFamily: "'Playfair Display', var(--font-family-title)", fontSize: '2rem', fontWeight: '700', color: '#6b21a8', margin: 0, lineHeight: 1.2 }}>
+            <p style={{ fontFamily: 'var(--font-family-gala)', fontSize: '2rem', fontWeight: '700', color: '#6b21a8', margin: 0, lineHeight: 1.2 }}>
               {contador.anos > 0 && `${contador.anos} ${contador.anos === 1 ? 'ano' : 'anos'}, `}
               {contador.meses} {contador.meses === 1 ? 'mês' : 'meses'} e {contador.dias} {contador.dias === 1 ? 'dia' : 'dias'}
             </p>
@@ -295,7 +295,7 @@ function RetrospectivaContent() {
               <span style={{ height: '1px', width: '70px', background: 'linear-gradient(90deg, #e9d5ff, transparent)' }} />
             </div>
 
-            <p style={{ fontFamily: "'Playfair Display', var(--font-family-title)", fontSize: '1.05rem', color: '#4c1d95', margin: '0 0 16px' }}>
+            <p style={{ fontFamily: 'var(--font-family-gala)', fontSize: '1.05rem', color: '#4c1d95', margin: '0 0 16px' }}>
               {String(decorrido.horas).padStart(2, '0')}:{String(decorrido.minutos).padStart(2, '0')}:{String(decorrido.segundos).padStart(2, '0')} — e contando 💜
             </p>
 
@@ -307,7 +307,7 @@ function RetrospectivaContent() {
                 { valor: decorrido.segundos, label: 'SEG' },
               ].map((cx) => (
                 <div key={cx.label} style={{ background: '#faf5ff', border: '1px solid #f3e8ff', borderRadius: '12px', padding: '10px 4px' }}>
-                  <div style={{ fontFamily: "'Playfair Display', var(--font-family-title)", fontSize: '1.45rem', fontWeight: '700', color: '#9333ea', lineHeight: 1.1 }}>
+                  <div style={{ fontFamily: 'var(--font-family-gala)', fontSize: '1.45rem', fontWeight: '700', color: '#9333ea', lineHeight: 1.1 }}>
                     {cx.label === 'DIAS' ? cx.valor : String(cx.valor).padStart(2, '0')}
                   </div>
                   <div style={{ fontSize: '0.62rem', color: '#a78bfa', letterSpacing: '0.1em', fontWeight: '700', marginTop: '2px' }}>{cx.label}</div>
@@ -331,7 +331,7 @@ function RetrospectivaContent() {
             <p style={{ fontSize: '0.72rem', fontWeight: '800', letterSpacing: '0.16em', textTransform: 'uppercase', color: '#f9a8d4', textAlign: 'center', margin: '0 0 4px' }}>
               <span style={{ opacity: 0.7 }}>♥</span>&nbsp; Linha do tempo &nbsp;<span style={{ opacity: 0.7 }}>♥</span>
             </p>
-            <h2 style={{ fontFamily: "'Playfair Display', var(--font-family-title)", fontSize: '1.9rem', fontWeight: '700', color: '#fff', textAlign: 'center', margin: '0 0 6px' }}>
+            <h2 style={{ fontFamily: 'var(--font-family-gala)', fontSize: '1.9rem', fontWeight: '700', color: '#fff', textAlign: 'center', margin: '0 0 6px' }}>
               A jornada de vocês
             </h2>
             <DivisorCoracao cor="rgba(236,72,153,0.35)" />
@@ -366,7 +366,7 @@ function RetrospectivaContent() {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     {m.data && (
                       <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '3px' }}>
-                        <span style={{ fontFamily: "'Playfair Display', var(--font-family-title)", fontSize: '1.5rem', fontWeight: '700', color: '#f472b6', lineHeight: 1 }}>
+                        <span style={{ fontFamily: 'var(--font-family-gala)', fontSize: '1.5rem', fontWeight: '700', color: '#f472b6', lineHeight: 1 }}>
                           {m.data.split('-')[2]}
                         </span>
                         <span style={{ fontSize: '0.7rem', fontWeight: '800', letterSpacing: '0.1em', color: '#c084fc' }}>
@@ -375,7 +375,7 @@ function RetrospectivaContent() {
                       </div>
                     )}
                     {m.titulo && (
-                      <p style={{ fontFamily: "'Playfair Display', var(--font-family-title)", fontSize: '1.1rem', fontWeight: '700', color: '#fff', margin: '0 0 3px', lineHeight: 1.3 }}>
+                      <p style={{ fontFamily: 'var(--font-family-gala)', fontSize: '1.1rem', fontWeight: '700', color: '#fff', margin: '0 0 3px', lineHeight: 1.3 }}>
                         {m.titulo}
                       </p>
                     )}
@@ -444,44 +444,75 @@ function RetrospectivaContent() {
         </div>
       )}
 
-      {/* Medidor de Amor — bônus fixo de toda retrospectiva, sem precisar de configuração
-          (réplica do conceito do projeto de referência). Cartão escuro/rosa igual ao resto da
-          página desde o ajuste 03/09/2026 — antes ficava lilás claro, destoando da timeline. */}
-      <div style={{ background: '#120A0F', padding: '30px 0' }}>
-        <div style={{ maxWidth: '560px', margin: '0 auto', padding: '0 20px' }}>
+      {/* Medidor de Amor — bônus fixo de toda retrospectiva, sem precisar de configuração.
+          Cartão redesenhado 04/09/2026 pra acompanhar o padrão do resto da página: fundo cósmico,
+          prévia das figuras do medidor, título em Cinzel e selo dourado de chamada. */}
+      <div style={{ position: 'relative', background: 'radial-gradient(ellipse at 50% 0%, #3b1259 0%, #1a0a26 60%, #150a1f 100%)', padding: '46px 0 52px', overflow: 'hidden' }}>
+        <CoracoesFlutuando />
+        <div style={{ position: 'relative', zIndex: 1, maxWidth: '560px', margin: '0 auto', padding: '0 20px' }}>
           <button
             type="button"
             onClick={() => setMedidorAberto(true)}
             style={{
               width: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '16px',
-              padding: '18px',
-              borderRadius: '18px',
-              border: '1px solid rgba(255,255,255,0.09)',
-              background: 'linear-gradient(160deg, #2A1620, #1A0D14)',
+              padding: '30px 22px 26px',
+              borderRadius: '22px',
+              border: '1px solid rgba(232,180,74,0.28)',
+              background: 'linear-gradient(165deg, rgba(88,28,135,0.55) 0%, rgba(26,10,38,0.9) 100%)',
+              boxShadow: '0 24px 60px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06)',
               cursor: 'pointer',
-              textAlign: 'left',
+              textAlign: 'center',
             }}
           >
+            {/* Prévia das figuras, em escala crescente — conta a história do medidor num relance. */}
+            <span aria-hidden="true" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: '10px', marginBottom: '18px' }}>
+              {[
+                { src: '/medidor/trex.webp', h: 26 },
+                { src: '/medidor/baleia.webp', h: 38 },
+                { src: '/medidor/lua.webp', h: 52 },
+                { src: '/medidor/coracao.webp', h: 66 },
+              ].map((f) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  key={f.src}
+                  src={f.src}
+                  alt=""
+                  style={{
+                    height: `${f.h}px`, width: 'auto', objectFit: 'contain',
+                    filter: f.src.includes('coracao')
+                      ? 'drop-shadow(0 0 16px rgba(255,60,120,0.75))'
+                      : 'drop-shadow(0 6px 12px rgba(0,0,0,0.6))',
+                  }}
+                />
+              ))}
+            </span>
+
+            <span style={{ display: 'block', fontFamily: 'var(--font-family-gala)', fontWeight: '700', fontSize: '1.25rem', color: '#fff', lineHeight: 1.3 }}>
+              Vamos medir o tamanho<br /><span style={{ color: '#f9a8d4' }}>do nosso amor?</span>
+            </span>
+
+            <span aria-hidden="true" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', margin: '12px 0' }}>
+              <span style={{ height: '1px', width: '54px', background: 'linear-gradient(90deg, transparent, rgba(249,168,212,0.45))' }} />
+              <span style={{ color: '#f9a8d4', fontSize: '0.85rem' }}>♥</span>
+              <span style={{ height: '1px', width: '54px', background: 'linear-gradient(90deg, rgba(249,168,212,0.45), transparent)' }} />
+            </span>
+
+            <span style={{ display: 'block', fontSize: '0.86rem', color: '#c4b5d4', lineHeight: 1.55, maxWidth: '22rem', margin: '0 auto 20px' }}>
+              Do T-Rex ao Sol, uma coisa maior que a outra — até chegar na maior de todas.
+            </span>
+
             <span
-              aria-hidden="true"
               style={{
-                width: '42px', height: '42px', borderRadius: '50%', background: '#E32B6D', flexShrink: 0,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', color: '#fff',
-                boxShadow: '0 0 0 4px rgba(227,43,109,0.18)',
+                display: 'inline-flex', alignItems: 'center', gap: '9px',
+                padding: '11px 26px', borderRadius: '999px',
+                background: 'radial-gradient(ellipse at 50% 50%, rgba(232,180,74,0.2), rgba(232,180,74,0.07))',
+                border: '1.5px solid rgba(232,180,74,0.55)',
+                boxShadow: '0 0 24px rgba(232,180,74,0.28)',
+                fontFamily: 'var(--font-family-gala)', fontWeight: '700', fontSize: '0.95rem',
+                color: '#F2C97A', letterSpacing: '0.04em',
               }}
             >
-              ♥
-            </span>
-            <span style={{ flex: 1 }}>
-              <span style={{ display: 'block', fontWeight: '700', fontSize: '1rem', color: '#fff', fontFamily: 'var(--font-family-title)' }}>
-                Vamos medir o tamanho do nosso amor?
-              </span>
-              <span style={{ display: 'block', fontSize: '0.8rem', color: '#C6A9B6', marginTop: '3px', lineHeight: 1.5 }}>
-                Do T-Rex ao Sol, uma coisa maior que a outra — até chegar na maior de todas
-              </span>
+              ✨ Começar a medir
             </span>
           </button>
         </div>
@@ -546,7 +577,7 @@ const estilos = {
   secaoTitulo: { fontFamily: 'var(--font-family-title)', fontSize: '1.1rem', color: '#581c87', marginBottom: '14px', textAlign: 'center' },
   // Título grande em serifa com gradiente — assinatura visual do mockup aprovado (04/09/2026).
   tituloSerif: {
-    fontFamily: "'Playfair Display', var(--font-family-title)",
+    fontFamily: 'var(--font-family-gala)',
     fontSize: '2.6rem',
     fontWeight: '700',
     lineHeight: 1.1,

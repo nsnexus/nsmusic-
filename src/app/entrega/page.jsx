@@ -852,7 +852,7 @@ function EntregaContent() {
               <div style={styles.mediaSide}>
                 {isPaid && (
                   <div style={{ textAlign: 'center', padding: '4px 0 2px' }}>
-                    <h2 style={{ fontFamily: "'Playfair Display', var(--font-family-title)", fontWeight: '800', fontSize: '1.5rem', color: '#fff', margin: '0 0 4px', lineHeight: 1.25 }}>
+                    <h2 style={{ fontFamily: 'var(--font-family-gala)', fontWeight: '800', fontSize: '1.5rem', color: '#fff', margin: '0 0 4px', lineHeight: 1.25 }}>
                       Uma Homenagem para <span className="hero-sublinhado" style={{ color: '#f472b6' }}>
                         {order?.honoreeName}
                         <svg viewBox="0 0 300 14" preserveAspectRatio="none" aria-hidden="true">
@@ -1749,7 +1749,7 @@ function EntregaContent() {
                 style={isPaid ? { ...styles.lyricsSide, backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)', boxShadow: 'none' } : styles.lyricsSide}
                 className="glass-card"
               >
-                <h3 style={{ fontSize: '1.25rem', marginBottom: '20px', fontFamily: isPaid ? "'Playfair Display', var(--font-family-title)" : 'var(--font-family-title)', color: isPaid ? '#f472b6' : 'var(--primary)' }}>
+                <h3 style={{ fontSize: '1.25rem', marginBottom: '20px', fontFamily: isPaid ? 'var(--font-family-gala)' : 'var(--font-family-title)', color: isPaid ? '#f472b6' : 'var(--primary)' }}>
                   Letra Oficial 📜
                 </h3>
                 <pre style={isPaid ? { ...styles.lyricsText, color: '#e2e8f0' } : styles.lyricsText}>{order.lyrics || 'Letra ainda não gerada para esta composição.'}</pre>

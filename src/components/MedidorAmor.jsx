@@ -85,7 +85,7 @@ function Slide({ item, proximo, ativo, honoreeName, customerName, alturaGrande }
     <div style={{ position: 'absolute', inset: 0, display: ativo ? 'flex' : 'none', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '150px 24px 60px', textAlign: 'center' }}>
       {/* Cabeçalho fixo do mockup (04/09/2026) — a pergunta acompanha todos os slides. */}
       <div style={{ position: 'absolute', top: '54px', left: 0, right: 0, padding: '0 20px' }}>
-        <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.5rem', fontWeight: '700', color: '#fff', margin: 0, lineHeight: 1.25 }}>
+        <h2 style={{ fontFamily: 'var(--font-family-gala)', fontSize: '1.5rem', fontWeight: '700', color: '#fff', margin: 0, lineHeight: 1.25 }}>
           Vamos medir<br /><span style={{ color: '#f9a8d4' }}>o tamanho do nosso amor?</span>
         </h2>
         <div aria-hidden="true" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', marginTop: '10px' }}>
@@ -96,7 +96,7 @@ function Slide({ item, proximo, ativo, honoreeName, customerName, alturaGrande }
       </div>
 
       <div style={{ marginBottom: '20px' }}>
-        <p style={{ fontFamily: "'Playfair Display', serif", fontSize: '1rem', color: '#e9d5ff', fontWeight: '700', letterSpacing: '0.14em', textTransform: 'uppercase', margin: '0 0 10px' }}>
+        <p style={{ fontFamily: 'var(--font-family-gala)', fontSize: '1rem', color: '#e9d5ff', fontWeight: '700', letterSpacing: '0.14em', textTransform: 'uppercase', margin: '0 0 10px' }}>
           <span style={{ color: '#f9a8d4', opacity: 0.8 }}>— ♥ </span>{proximo.nome}<span style={{ color: '#f9a8d4', opacity: 0.8 }}> ♥ —</span>
         </p>
         <div
@@ -119,13 +119,13 @@ function Slide({ item, proximo, ativo, honoreeName, customerName, alturaGrande }
           const [destaque, ...resto] = String(proximo.medida).split(' — ');
           return (
             <>
-              <p style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.35rem', fontWeight: '700', color: '#d8b4fe', margin: '14px 0 0' }}>
+              <p style={{ fontFamily: 'var(--font-family-gala)', fontSize: '1.35rem', fontWeight: '700', color: '#d8b4fe', margin: '14px 0 0' }}>
                 <span style={{ color: '#c084fc', opacity: 0.65, fontSize: '0.85rem' }}>❯❯&nbsp;&nbsp;</span>
                 {destaque}
                 <span style={{ color: '#c084fc', opacity: 0.65, fontSize: '0.85rem' }}>&nbsp;&nbsp;❮❮</span>
               </p>
               {resto.length > 0 && (
-                <p style={{ fontFamily: "'Playfair Display', serif", fontSize: '0.92rem', color: 'rgba(255,255,255,0.82)', margin: '4px auto 0', maxWidth: '20rem' }}>
+                <p style={{ fontFamily: 'var(--font-family-gala)', fontSize: '0.92rem', color: 'rgba(255,255,255,0.82)', margin: '4px auto 0', maxWidth: '20rem' }}>
                   {resto.join(' — ')}
                 </p>
               )}
@@ -145,7 +145,7 @@ function Slide({ item, proximo, ativo, honoreeName, customerName, alturaGrande }
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={item.imagem} alt={item.nome} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
           </div>
-          <p style={{ fontFamily: "'Playfair Display', serif", fontSize: '0.85rem', color: 'rgba(255,255,255,0.7)', margin: '6px 0 0' }}>
+          <p style={{ fontFamily: 'var(--font-family-gala)', fontSize: '0.85rem', color: 'rgba(255,255,255,0.7)', margin: '6px 0 0' }}>
             <span style={{ color: '#f9a8d4', opacity: 0.7 }}>— ♥ </span>{item.nome}<span style={{ color: '#f9a8d4', opacity: 0.7 }}> ♥ —</span>
           </p>
         </div>
@@ -163,7 +163,7 @@ function Slide({ item, proximo, ativo, honoreeName, customerName, alturaGrande }
         )}
       </div>
 
-      <p style={{ position: 'absolute', bottom: '30px', left: 0, right: 0, textAlign: 'center', fontFamily: "'Playfair Display', serif", fontSize: '0.85rem', color: 'rgba(255,255,255,0.5)' }}>
+      <p style={{ position: 'absolute', bottom: '30px', left: 0, right: 0, textAlign: 'center', fontFamily: 'var(--font-family-gala)', fontSize: '0.85rem', color: 'rgba(255,255,255,0.5)' }}>
         👆 <span style={{ opacity: 0.7 }}>—</span> Toque para continuar <span style={{ opacity: 0.7 }}>—</span>
       </p>
     </div>
@@ -295,7 +295,7 @@ export default function MedidorAmor({ honoreeName, customerName, onClose }) {
       {/* No último slide o rodapé do Slide já diz "Toque para continuar" — aqui a mensagem muda
           pra deixar claro que o próximo toque fecha. */}
       {ehUltimo && (
-        <p style={{ position: 'absolute', bottom: '8px', left: 0, right: 0, textAlign: 'center', fontFamily: "'Playfair Display', serif", fontSize: '0.75rem', color: 'rgba(255,255,255,0.45)', zIndex: 3 }}>
+        <p style={{ position: 'absolute', bottom: '8px', left: 0, right: 0, textAlign: 'center', fontFamily: 'var(--font-family-gala)', fontSize: '0.75rem', color: 'rgba(255,255,255,0.45)', zIndex: 3 }}>
           toque pra fechar
         </p>
       )}
@@ -313,7 +313,7 @@ const estilos = {
     borderRadius: '100px',
     background: 'radial-gradient(ellipse at 50% 50%, rgba(232,180,74,0.18), rgba(232,180,74,0.06))',
     border: '1.5px solid rgba(232, 180, 74, 0.6)',
-    fontFamily: "'Playfair Display', serif",
+    fontFamily: 'var(--font-family-gala)',
     fontSize: '1.9rem',
     fontWeight: '700',
     color: '#F2C97A',

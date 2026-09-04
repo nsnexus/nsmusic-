@@ -1,4 +1,11 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800;900&family=Work+Sans:wght@400;500;600;700;800&family=Grand+Hotel&family=Playfair+Display:ital,wght@0,700;0,900;1,600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800;900&family=Work+Sans:wght@400;500;600;700;800&family=Grand+Hotel&family=Playfair+Display:ital,wght@0,700;0,900;1,600&family=Cinzel:wght@500;600;700;800&display=swap');
+
+/* Fonte de destaque das páginas de presente (retrospectiva, carta, medidor e a aba Música de
+   /entrega) — Cinzel, serifa romana com ar de convite, escolhida pelo dono do estúdio em
+   04/09/2026 no lugar da Playfair ("muito sem graça"). Sempre com fallback serif real. */
+:root {
+  --font-family-gala: 'Cinzel', 'Playfair Display', Georgia, serif;
+}
 
 :root {
   /* Paleta alinhada à logo (pedido do usuário, 2026-08-02): azul → roxo → rosa, ecoando o
