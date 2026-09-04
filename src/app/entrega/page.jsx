@@ -5,9 +5,8 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useSearchParams } from 'next/navigation';
 import { doc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
-import { createUserWithEmailAndPassword, onAuthStateChanged } from 'firebase/auth';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
-import { db, auth, storage } from '@/lib/firebase';
+import { db, storage } from '@/lib/firebase';
 import { primeAudioContext } from '@/lib/audioContext';
 import { AUDIO_CACHE_VERSION } from '@/lib/audioCacheVersion';
 import ExtrasOfferModal from '@/components/ExtrasOfferModal';
@@ -28,19 +27,6 @@ function EntregaContent() {
 
   const [loading, setLoading] = useState(true);
   const [order, setOrder] = useState(null);
-  const [currentUser, setCurrentUser] = useState(null);
-  const [rating, setRating] = useState(0);
-  const [reviewSubmitted, setReviewSubmitted] = useState(false);
-  const [reviewSubmitting, setReviewSubmitting] = useState(false);
-  const [reviewError, setReviewError] = useState('');
-  const [reviewText, setReviewText] = useState('');
-
-  // Estados de Cadastro de Conta
-  const [accountEmail, setAccountEmail] = useState('');
-  const [accountPassword, setAccountPassword] = useState('');
-  const [accountCreated, setAccountCreated] = useState(false);
-  const [accountError, setAccountError] = useState('');
-  const [isCreatingAccount, setIsCreatingAccount] = useState(false);
   const [copied, setCopied] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -208,12 +194,6 @@ function EntregaContent() {
   // cada reabertura sem o registro local disparava um Purchase novo. Resultado real (14-19/08/2026):
   // 25 vendas confirmadas no banco, 42 contadas no Pixel. Ver metaCapi.js para o motivo completo.
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (usr) => {
-      setCurrentUser(usr);
-    });
-    return () => unsubscribe();
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -236,9 +216,6 @@ function EntregaContent() {
         if (!cancelled && docSnap.exists()) {
           const data = docSnap.data();
           setOrder(data);
-          if (data && data.customerEmail) {
-            setAccountEmail(data.customerEmail);
-          }
 
           // Se o pedido ainda consta como pendente no Firebase, consulta imediatamente a Efí
           if (data && data.paymentStatus !== 'PAGAMENTO_APROVADO' && data.paymentStatus !== 'PAGO') {
@@ -275,62 +252,6 @@ function EntregaContent() {
     return () => { cancelled = true; clearTimeout(failsafe); };
   }, [orderId]);
 
-  const handleCreateAccount = async (e) => {
-    e.preventDefault();
-    if (!order || !order.customerEmail) return;
-    if (accountPassword.length < 6) {
-      setAccountError("A senha deve ter pelo menos 6 caracteres.");
-      return;
-    }
-    setIsCreatingAccount(true);
-    setAccountError('');
-    try {
-      const userCred = await createUserWithEmailAndPassword(auth, accountEmail, accountPassword);
-      const user = userCred.user;
-      
-      // Vincula a ordem ao ID do novo usuário no Firestore e atualiza e-mail
-      if (orderId) {
-        await updateDoc(doc(db, 'orders', orderId), {
-          userId: user.uid,
-          customerEmail: accountEmail,
-          updatedAt: new Date().toISOString()
-        }).catch(e => console.warn(e));
-      }
-      setAccountCreated(true);
-    } catch (err) {
-      console.error(err);
-      if (err.code === 'auth/email-already-in-use') {
-        setAccountError("Este e-mail já possui uma conta. Faça login no topo para acessar!");
-      } else {
-        setAccountError(err.message || "Erro ao criar conta. Tente novamente.");
-      }
-    } finally {
-      setIsCreatingAccount(false);
-    }
-  };
-
-  const handleReviewSubmit = async (e) => {
-    e.preventDefault();
-    if (rating === 0 || !orderId) return;
-
-    setReviewSubmitting(true);
-    setReviewError('');
-    try {
-      // A UI só mostra sucesso depois que a escrita realmente aconteceu (ver M-11/frontend.md:
-      // "se a escrita no banco falhou, a UI não pode exibir sucesso").
-      await updateDoc(doc(db, 'orders', orderId), {
-        reviewRating: rating,
-        reviewText: reviewText.trim(),
-        reviewSubmittedAt: new Date().toISOString(),
-      });
-      setReviewSubmitted(true);
-    } catch (err) {
-      console.error('Erro ao salvar avaliação:', err);
-      setReviewError('Não foi possível enviar sua avaliação agora. Tente novamente em instantes.');
-    } finally {
-      setReviewSubmitting(false);
-    }
-  };
 
   // Acrescenta ?download=<nome> à URL do proxy: é o que faz o servidor mandar Content-Disposition e
   // o navegador BAIXAR em vez de tocar (ver src/app/api/audio/proxy/route.js).
@@ -1821,144 +1742,7 @@ function EntregaContent() {
             }}
           />
 
-          {/* Gerenciamento de Conta */}
-          {isPaid && (
-            (currentUser && (order.userId === currentUser.uid || order.customerEmail === currentUser.email)) ? (
-              <div className="glass-card" style={{ padding: '24px 28px', marginBottom: '32px', border: '1px solid rgba(52, 211, 153, 0.3)', background: 'rgba(52, 211, 153, 0.05)', borderRadius: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
-                <div>
-                  <span style={{ background: 'rgba(52, 211, 153, 0.2)', color: '#34d399', padding: '4px 12px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 'bold' }}>
-                    ✅ CONTA CONECTADA
-                  </span>
-                  <h3 style={{ fontSize: '1.2rem', fontWeight: '800', marginTop: '6px' }}>Músicas vinculadas à sua conta ({currentUser.email})</h3>
-                  <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                    Este pedido foi salvo automaticamente no seu perfil e está disponível na sua biblioteca.
-                  </p>
-                </div>
-                <Link href="/minhas-musicas" className="btn btn-primary" style={{ padding: '10px 20px', fontSize: '0.88rem' }}>
-                  🎵 Ver Minhas Músicas
-                </Link>
-              </div>
-            ) : (!currentUser ? (
-              <div className="glass-card" style={{ padding: '28px', marginBottom: '32px', border: '1px solid rgba(124, 58, 237, 0.3)', background: 'linear-gradient(135deg, rgba(124, 58, 237, 0.08) 0%, rgba(236, 72, 153, 0.08) 100%)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
-                  <div style={{ flex: 1, minWidth: '280px' }}>
-                    <span style={{ background: 'rgba(124, 58, 237, 0.2)', color: 'var(--secondary)', padding: '4px 12px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 'bold' }}>
-                      🔐 SUA CONTA NSMUSIC
-                    </span>
-                    <h3 style={{ fontSize: '1.3rem', fontWeight: '800', marginTop: '8px' }}>Crie sua senha para salvar suas músicas</h3>
-                    <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                      Crie uma senha para acessar <strong>{order?.customerEmail || 'sua conta'}</strong> e veja todas as suas músicas no painel <strong>Minhas Músicas</strong> sempre que quiser!
-                    </p>
-                  </div>
 
-                  {accountCreated ? (
-                    <div style={{ background: 'rgba(52, 211, 153, 0.15)', border: '1px solid rgba(52, 211, 153, 0.3)', padding: '16px 20px', borderRadius: '12px', color: '#34d399', textAlign: 'center' }}>
-                      <span style={{ fontSize: '1.2rem', fontWeight: 'bold', display: 'block' }}>✅ Conta Criada e Músicas Salvas!</span>
-                      <Link href="/minhas-musicas" className="btn btn-primary" style={{ marginTop: '10px', display: 'inline-block', padding: '8px 18px', fontSize: '0.88rem' }}>
-                        🎵 Acessar Minhas Músicas
-                      </Link>
-                    </div>
-                  ) : (
-                    <form onSubmit={handleCreateAccount} style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-                      <input 
-                        type="email" 
-                        placeholder="Seu e-mail de acesso"
-                        required
-                        value={accountEmail}
-                        onChange={(e) => setAccountEmail(e.target.value)}
-                        style={{ padding: '12px 16px', borderRadius: '8px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontSize: '0.9rem', width: '220px' }}
-                      />
-                      <input 
-                        type="password" 
-                        placeholder="Senha segura (mín 6 dígitos)"
-                        required
-                        minLength={6}
-                        value={accountPassword}
-                        onChange={(e) => setAccountPassword(e.target.value)}
-                        style={{ padding: '12px 16px', borderRadius: '8px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontSize: '0.9rem', width: '220px' }}
-                      />
-                      <button 
-                        type="submit" 
-                        disabled={isCreatingAccount}
-                        className="btn btn-primary"
-                        style={{ padding: '12px 20px', fontSize: '0.9rem' }}
-                      >
-                        {isCreatingAccount ? '⏳ Salvando...' : '💾 Salvar Conta & Músicas'}
-                      </button>
-                      {accountError && (
-                        <span style={{ color: '#fca5a5', fontSize: '0.8rem', width: '100%', display: 'block' }}>{accountError}</span>
-                      )}
-                    </form>
-                  )}
-                </div>
-              </div>
-            ) : null)
-          )}
-
-          {/* Feedback Form */}
-          {isPaid && (
-            <div style={styles.feedbackCard} className="glass-card">
-              <h3 style={{ fontSize: '1.25rem', marginBottom: '12px', fontFamily: 'var(--font-family-title)' }}>O que achou do resultado?</h3>
-              
-              {reviewSubmitted ? (
-                <div style={styles.reviewSuccess}>
-                  <span style={{ fontSize: '2rem' }}>💖</span>
-                  <h4 style={{ marginTop: '12px' }}>Obrigado pela sua avaliação!</h4>
-                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '4px' }}>
-                    Seu depoimento nos ajuda a fazer as composições ficarem cada vez melhores.
-                  </p>
-                </div>
-              ) : (
-                <form onSubmit={handleReviewSubmit} style={styles.reviewForm}>
-                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '16px' }}>
-                    Sua opinião é fundamental para a nossa equipe e para novos clientes!
-                  </p>
-
-                  <div style={styles.starsContainer} role="radiogroup" aria-label="Avaliação de 1 a 5 estrelas">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <button
-                        key={star}
-                        type="button"
-                        onClick={() => setRating(star)}
-                        aria-label={`Avaliar com ${star} ${star === 1 ? 'estrela' : 'estrelas'}`}
-                        aria-pressed={rating >= star}
-                        style={{
-                          ...styles.starBtn,
-                          color: rating >= star ? 'var(--warning)' : 'var(--text-muted)'
-                        }}
-                      >
-                        ★
-                      </button>
-                    ))}
-                  </div>
-
-                  <label htmlFor="reviewText" style={{ position: 'absolute', width: '1px', height: '1px', overflow: 'hidden', clip: 'rect(0,0,0,0)' }}>
-                    Comentário sobre a música (opcional)
-                  </label>
-                  <textarea
-                    id="reviewText"
-                    value={reviewText}
-                    onChange={(e) => setReviewText(e.target.value)}
-                    placeholder="Escreva como foi a reação de quem ouviu ou o que você achou das versões..."
-                    style={styles.reviewTextarea}
-                  />
-
-                  {reviewError && (
-                    <p style={{ color: 'var(--danger, #dc2626)', fontSize: '0.85rem', marginBottom: '8px' }}>{reviewError}</p>
-                  )}
-
-                  <button
-                    type="submit"
-                    disabled={rating === 0 || reviewSubmitting}
-                    className="btn btn-primary"
-                    style={{ alignSelf: 'flex-start', padding: '12px 24px', fontSize: '0.9rem', opacity: reviewSubmitting ? 0.7 : 1 }}
-                  >
-                    {reviewSubmitting ? 'Enviando...' : 'Enviar Avaliação'}
-                  </button>
-                </form>
-              )}
-            </div>
-          )}
 
         </div>
       </main>
