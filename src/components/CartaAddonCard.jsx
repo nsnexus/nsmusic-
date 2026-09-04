@@ -35,7 +35,7 @@ export default function CartaAddonCard({ orderId, order }) {
   const texto = order?.cartaTexto || '';
   const remetente = order?.customerName || '';
   const honoree = order?.honoreeName || '';
-  const linkPublico = typeof window !== 'undefined' ? `${window.location.origin}/carta?orderId=${orderId}` : '';
+  const linkPublico = typeof window !== 'undefined' ? `${window.location.origin}/c/${orderId}` : '';
   const [linkCopiado, setLinkCopiado] = useState(false);
 
   // Qual música toca sozinha quando alguém abre a página pública da carta (pedido 04/09/2026) — só

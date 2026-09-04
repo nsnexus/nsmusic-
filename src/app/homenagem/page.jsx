@@ -240,7 +240,7 @@ function HomenagemContent() {
         {isPaid && order.hasCartaAccess && order.cartaTexto && (
           <div style={{ marginTop: '32px', textAlign: 'center' }}>
             <a
-              href={`/carta?orderId=${orderId}`}
+              href={`/c/${orderId}`}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',

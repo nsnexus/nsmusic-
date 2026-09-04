@@ -2,6 +2,7 @@ import Script from 'next/script';
 import './globals.css';
 
 export const metadata = {
+  metadataBase: new URL('https://nsmusic.nsnexus.com.br'),
   title: 'NSMusic — Músicas Personalizadas com IA',
   description: 'Dê vida às suas histórias em formato de canções personalizadas criadas com Inteligência Artificial.',
   icons: {
