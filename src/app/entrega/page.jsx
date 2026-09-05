@@ -724,8 +724,8 @@ function EntregaContent() {
             <div className="entrega-tabs" role="tablist">
               {[
                 { id: 'musica', label: '🎵 Música' },
-                { id: 'retrospectiva', label: '📖 Retrospectiva' },
-                { id: 'carta', label: '💌 Carta' },
+                { id: 'retrospectiva', label: '📖 Retrospectiva', hasBadge: true },
+                { id: 'carta', label: '💌 Carta', hasBadge: true },
               ].map((aba) => (
                 <button
                   key={aba.id}
@@ -740,6 +740,12 @@ function EntregaContent() {
                   }}
                 >
                   {aba.label}
+                  {aba.hasBadge && abaProduto !== aba.id && (
+                    <span className="entrega-tab-badge" title="Novidade disponível">
+                      <span className="entrega-tab-ping" />
+                      <span className="entrega-tab-dot" />
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
@@ -1456,13 +1462,66 @@ function EntregaContent() {
                         Envie o link exclusivo ou salve o QR Code para compartilhar essa linda homenagem diretamente com quem você ama!
                       </p>
                       <div className="entrega-qr-buttons">
-                        <button onClick={handleCopyLink} className="btn btn-primary" style={{ padding: '9px 14px', fontSize: '0.82rem', border: 'none', cursor: 'pointer', flex: '1 1 120px' }}>
+                        <button
+                          type="button"
+                          onClick={handleCopyLink}
+                          className="btn btn-primary"
+                          style={{
+                            padding: '8px 16px',
+                            fontSize: '0.82rem',
+                            fontWeight: '700',
+                            border: 'none',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            borderRadius: '8px',
+                            minHeight: '36px',
+                          }}
+                        >
                           {copied ? '✅ Link Copiado!' : '🔗 Copiar Link'}
                         </button>
-                        <a href={`/homenagem?orderId=${orderId}`} target="_blank" rel="noopener noreferrer" className="btn btn-secondary" style={{ padding: '9px 14px', fontSize: '0.82rem', textDecoration: 'none', textAlign: 'center', flex: '1 1 140px', color: '#ffffff', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.08)' }}>
+                        <a
+                          href={`/homenagem?orderId=${orderId}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn btn-secondary"
+                          style={{
+                            padding: '8px 14px',
+                            fontSize: '0.82rem',
+                            fontWeight: '600',
+                            textDecoration: 'none',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            color: '#ffffff',
+                            border: '1px solid rgba(255,255,255,0.2)',
+                            background: 'rgba(255,255,255,0.08)',
+                            borderRadius: '8px',
+                            minHeight: '36px',
+                          }}
+                        >
                           👁 Página do Homenageado
                         </a>
-                        <a href={qrCodeUrl} download={`qrcode-${order?.orderNumber}.png`} className="btn btn-secondary" style={{ padding: '9px 14px', fontSize: '0.82rem', textDecoration: 'none', textAlign: 'center', flex: '1 1 120px', color: '#ffffff', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.08)' }}>
+                        <a
+                          href={qrCodeUrl}
+                          download={`qrcode-${order?.orderNumber}.png`}
+                          className="btn btn-secondary"
+                          style={{
+                            padding: '8px 14px',
+                            fontSize: '0.82rem',
+                            fontWeight: '600',
+                            textDecoration: 'none',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            color: '#ffffff',
+                            border: '1px solid rgba(255,255,255,0.2)',
+                            background: 'rgba(255,255,255,0.08)',
+                            borderRadius: '8px',
+                            minHeight: '36px',
+                          }}
+                        >
                           💾 Salvar QR Code
                         </a>
                       </div>
