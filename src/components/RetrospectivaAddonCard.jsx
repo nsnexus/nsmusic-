@@ -270,7 +270,7 @@ export default function RetrospectivaAddonCard({ orderId, order }) {
       <label htmlFor="retro-titulo" style={estilos.label}>Título da página</label>
       <input id="retro-titulo" type="text" value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Ex: Nossa história" style={estilos.input} />
 
-      <div style={{ display: 'flex', gap: '8px' }}>
+      <div className="entrega-form-row">
         <div style={{ flex: 1 }}>
           <label htmlFor="retro-label" style={estilos.label}>Texto do contador</label>
           <input id="retro-label" type="text" value={contadorLabel} onChange={(e) => setContadorLabel(e.target.value)} placeholder="Juntos há" style={estilos.input} />
@@ -315,12 +315,12 @@ export default function RetrospectivaAddonCard({ orderId, order }) {
       <p style={estilos.secao}>Linha do tempo</p>
       {momentos.map((m, i) => (
         <div key={i} style={estilos.bloco}>
-          <div style={{ display: 'flex', gap: '8px' }}>
+          <div className="entrega-form-row" style={{ marginBottom: '8px' }}>
             <input
               type="date"
               value={m.data || ''}
               onChange={(e) => setMomentos((lista) => lista.map((x, xi) => xi === i ? { ...x, data: e.target.value } : x))}
-              style={{ ...estilos.input, flex: '0 0 44%' }}
+              style={{ ...estilos.input, flex: '1 1 130px', marginBottom: 0 }}
               aria-label={`Data do momento ${i + 1}`}
             />
             <input
@@ -328,7 +328,7 @@ export default function RetrospectivaAddonCard({ orderId, order }) {
               value={m.titulo || ''}
               onChange={(e) => setMomentos((lista) => lista.map((x, xi) => xi === i ? { ...x, titulo: e.target.value } : x))}
               placeholder="Título do momento"
-              style={{ ...estilos.input, flex: 1 }}
+              style={{ ...estilos.input, flex: '2 1 170px', marginBottom: 0 }}
               aria-label={`Título do momento ${i + 1}`}
             />
           </div>

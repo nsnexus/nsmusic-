@@ -707,3 +707,286 @@ label {
   0%, 100% { transform: translateY(0) rotate(-0.6deg); }
   50% { transform: translateY(-12px) rotate(0.6deg); }
 }
+
+/* ============================================================
+   PÁGINA DE ENTREGA (/entrega) — RESPONSIVIDADE
+   Classes para garantir adaptação perfeita em celulares de qualquer
+   resolução (320px a 430px) até telas largas desktop.
+   ============================================================ */
+
+.entrega-main {
+  flex: 1;
+  padding: 20px 0;
+}
+
+@media (min-width: 768px) {
+  .entrega-main {
+    padding: 40px 0;
+  }
+}
+
+.entrega-container {
+  max-width: 1060px;
+  margin: 0 auto;
+  padding: 0 12px;
+  width: 100%;
+}
+
+@media (min-width: 640px) {
+  .entrega-container {
+    padding: 0 20px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .entrega-container {
+    padding: 0 24px;
+  }
+}
+
+/* Header compacto e adaptável */
+.entrega-header-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+@media (min-width: 768px) {
+  .entrega-header-container {
+    padding: 12px 24px;
+  }
+}
+
+.entrega-header-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.entrega-status-badge {
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 5px 12px;
+  border-radius: 100px;
+  border: 1px solid;
+  white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+  .entrega-status-badge {
+    font-size: 0.74rem;
+    padding: 4px 10px;
+    width: 100%;
+    text-align: center;
+  }
+}
+
+/* Card principal da entrega */
+.entrega-card {
+  padding: 16px 14px;
+  margin-bottom: 24px;
+  background-color: #FFFFFF;
+  border-radius: var(--border-radius-md);
+  box-shadow: var(--card-shadow);
+  border: 1px solid var(--border-color);
+}
+
+@media (min-width: 640px) {
+  .entrega-card {
+    padding: 24px 20px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .entrega-card {
+    padding: 28px;
+    margin-bottom: 28px;
+  }
+}
+
+/* Abas de produtos no estilo Segmented Control */
+.entrega-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 18px;
+  width: 100%;
+  background: rgba(0, 0, 0, 0.04);
+  padding: 4px;
+  border-radius: 12px;
+}
+
+.entrega-tab-btn {
+  flex: 1;
+  padding: 8px 12px;
+  font-size: 0.84rem;
+  font-weight: 700;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  text-align: center;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+@media (min-width: 640px) {
+  .entrega-tabs {
+    gap: 8px;
+    padding: 6px;
+    border-radius: 14px;
+  }
+  .entrega-tab-btn {
+    padding: 9px 18px;
+    font-size: 0.88rem;
+  }
+}
+
+/* Grid de 2 colunas com reordenação inteligente */
+.entrega-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+}
+
+@media (min-width: 860px) {
+  .entrega-grid {
+    grid-template-columns: 1.15fr 0.85fr;
+    gap: 28px;
+    align-items: start;
+  }
+  
+  .entrega-grid-col-1-top {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .entrega-grid-col-2-top {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .entrega-grid-col-1-bottom {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  .entrega-grid-col-2-bottom {
+    grid-column: 2;
+    grid-row: 2;
+  }
+}
+
+/* Card de QR Code / Compartilhamento */
+.entrega-qr-card {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: center;
+  text-align: center;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-md);
+}
+
+.entrega-qr-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  margin-top: 14px;
+}
+
+@media (min-width: 640px) {
+  .entrega-qr-card {
+    flex-direction: row;
+    text-align: left;
+    padding: 18px;
+  }
+  .entrega-qr-buttons {
+    flex-direction: row;
+    flex-wrap: wrap;
+    width: auto;
+  }
+}
+
+/* Card do WhatsApp de suporte */
+.entrega-whatsapp-card {
+  padding: 14px 16px;
+  border-radius: 16px;
+  margin-top: 16px;
+  border: 1px solid rgba(37, 211, 102, 0.3);
+  background: rgba(37, 211, 102, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.entrega-whatsapp-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 18px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
+  color: #ffffff;
+  text-decoration: none;
+  box-shadow: 0 3px 12px rgba(37, 211, 102, 0.25);
+  width: 100%;
+}
+
+@media (min-width: 640px) {
+  .entrega-whatsapp-card {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+  }
+  .entrega-whatsapp-btn {
+    width: auto;
+    white-space: nowrap;
+  }
+}
+
+/* Card de Letra Oficial */
+.entrega-lyrics-card {
+  padding: 18px 16px;
+  max-height: 480px;
+  overflow-y: auto;
+  border-radius: var(--border-radius-md);
+  border: 1.5px solid var(--border-color);
+  background-color: #FFFFFF;
+  box-shadow: var(--card-shadow);
+}
+
+@media (min-width: 640px) {
+  .entrega-lyrics-card {
+    padding: 24px 20px;
+    max-height: 580px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .entrega-lyrics-card {
+    padding: 28px;
+    max-height: 640px;
+  }
+}
+
+/* Responsividade de formulários em add-ons */
+.entrega-form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+@media (min-width: 540px) {
+  .entrega-form-row {
+    flex-direction: row;
+  }
+}

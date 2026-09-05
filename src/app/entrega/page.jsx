@@ -681,21 +681,21 @@ function EntregaContent() {
     <div style={styles.wrapper}>
       {/* Header */}
       <header style={styles.header} className="glass-panel">
-        <div style={styles.headerContainer}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+        <div className="entrega-header-container">
+          <div className="entrega-header-nav">
             <Link href="/" style={{ display: 'flex', alignItems: 'center' }}>
-              <Image src="/logo.png" alt="NSMusic" width={40} height={40} style={{ height: '40px', width: 'auto' }} priority />
+              <Image src="/logo.png" alt="NSMusic" width={36} height={36} style={{ height: '36px', width: 'auto' }} priority />
             </Link>
-            <Link href="/criar" className="btn btn-primary" style={{ padding: '6px 12px', fontSize: '0.82rem', display: 'inline-flex', alignItems: 'center', gap: '4px', textDecoration: 'none' }}>
-              ✨ Criar Nova Música
+            <Link href="/criar" className="btn btn-primary" style={{ padding: '6px 12px', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '4px', textDecoration: 'none', minHeight: '36px' }}>
+              ✨ Nova Música
             </Link>
-            <Link href="/minhas-musicas" className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '0.82rem', display: 'inline-flex', alignItems: 'center', gap: '4px', textDecoration: 'none' }}>
+            <Link href="/minhas-musicas" className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '4px', textDecoration: 'none', minHeight: '36px' }}>
               🎵 Minhas Músicas
             </Link>
           </div>
           <span 
+            className="entrega-status-badge"
             style={{
-              ...styles.statusBadge,
               color: isPaid ? 'var(--success)' : 'var(--warning)',
               borderColor: isPaid ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.2)',
               backgroundColor: isPaid ? 'rgba(16, 185, 129, 0.05)' : 'rgba(245, 158, 11, 0.05)'
@@ -707,12 +707,12 @@ function EntregaContent() {
       </header>
 
       {/* Main content */}
-      <main style={{ flex: 1, padding: '40px 0' }}>
-        <div className="container" style={{ maxWidth: '1000px' }}>
+      <main className="entrega-main">
+        <div className="entrega-container">
 
           {/* Abas dos produtos — só depois de pago (antes só existe a música/prévia, um produto só). */}
           {isPaid && (
-            <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
+            <div className="entrega-tabs" role="tablist">
               {[
                 { id: 'musica', label: '🎵 Música' },
                 { id: 'retrospectiva', label: '📖 Retrospectiva' },
@@ -721,9 +721,14 @@ function EntregaContent() {
                 <button
                   key={aba.id}
                   type="button"
+                  role="tab"
+                  aria-selected={abaProduto === aba.id}
                   onClick={() => setAbaProduto(aba.id)}
-                  className={abaProduto === aba.id ? 'btn btn-primary' : 'btn btn-secondary'}
-                  style={{ padding: '9px 18px', fontSize: '0.88rem', fontWeight: '700', border: 'none', cursor: 'pointer' }}
+                  className={`entrega-tab-btn ${abaProduto === aba.id ? 'btn-primary' : 'btn-secondary'}`}
+                  style={{
+                    boxShadow: abaProduto === aba.id ? '0 2px 8px rgba(79,70,229,0.3)' : 'none',
+                    border: 'none',
+                  }}
                 >
                   {aba.label}
                 </button>
@@ -741,7 +746,7 @@ function EntregaContent() {
               position: 'relative',
               overflow: 'hidden',
             } : styles.deliveryCard}
-            className="glass-card"
+            className="entrega-card glass-card"
           >
             {/* Clima "homenagem" (achado 04/09/2026, pedido pra bater com o visual de /homenagem):
                 brilho radial + corações flutuando de fundo, só quando pago — a prévia continua no
@@ -769,10 +774,10 @@ function EntregaContent() {
               </>
             )}
 
-            <div className="responsive-grid-2" style={isPaid ? { position: 'relative', zIndex: 1 } : undefined}>
+            <div className="entrega-grid" style={isPaid ? { position: 'relative', zIndex: 1 } : undefined}>
 
-              {/* Media Player & Downloads */}
-              <div style={styles.mediaSide}>
+              {/* SLOT 1 (Desktop: Col 1 Top / Mobile: Item 1): Capa, Players & WhatsApp */}
+              <div className="entrega-grid-col-1-top" style={styles.mediaSide}>
                 {isPaid && (
                   <div style={{ textAlign: 'center', padding: '4px 0 2px' }}>
                     <h2 style={{ fontFamily: 'var(--font-family-gala)', fontWeight: '800', fontSize: '1.5rem', color: '#fff', margin: '0 0 4px', lineHeight: 1.25 }}>
@@ -944,8 +949,8 @@ function EntregaContent() {
 
                 {/* Card: Não gostou do resultado? Chame no WhatsApp */}
                 {!isPaid && (
-                  <div className="glass-card" style={{ padding: '16px 20px', borderRadius: '16px', marginTop: '16px', border: '1px solid rgba(37, 211, 102, 0.3)', background: 'rgba(37, 211, 102, 0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
-                    <div style={{ flex: 1, minWidth: '220px' }}>
+                  <div className="entrega-whatsapp-card glass-card">
+                    <div style={{ flex: 1 }}>
                       <h5 style={{ fontSize: '0.96rem', fontWeight: '700', color: '#10b981', margin: '0 0 4px 0' }}>
                         🤔 Não gostou do resultado da música?
                       </h5>
@@ -957,25 +962,29 @@ function EntregaContent() {
                       href={`https://wa.me/559491081351?text=${encodeURIComponent(`Olá! Ouvi a prévia do pedido #${orderId || ''} (${order?.honoreeName || 'música personalizada'}) e gostaria de ajuda para fazer do meu jeito.`)}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        padding: '10px 18px',
-                        fontSize: '0.88rem',
-                        fontWeight: '700',
-                        borderRadius: '10px',
-                        background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)',
-                        color: '#ffffff',
-                        textDecoration: 'none',
-                        boxShadow: '0 3px 12px rgba(37, 211, 102, 0.25)',
-                        whiteSpace: 'nowrap',
-                      }}
+                      className="entrega-whatsapp-btn"
                     >
                       <span>Falar no WhatsApp 📲</span>
                     </a>
                   </div>
                 )}
+              </div>
+
+              {/* SLOT 2 (Desktop: Col 2 Top / Mobile: Item 2): Letra Oficial da Música */}
+              <div className="entrega-grid-col-2-top" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <div
+                  style={isPaid ? { ...styles.lyricsSide, backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)', boxShadow: 'none' } : styles.lyricsSide}
+                  className="entrega-lyrics-card glass-card"
+                >
+                  <h3 style={{ fontSize: '1.25rem', marginBottom: '16px', fontFamily: isPaid ? 'var(--font-family-gala)' : 'var(--font-family-title)', color: isPaid ? '#f472b6' : 'var(--primary)' }}>
+                    Letra Oficial 📜
+                  </h3>
+                  <pre style={isPaid ? { ...styles.lyricsText, color: '#e2e8f0' } : styles.lyricsText}>{order.lyrics || 'Letra ainda não gerada para esta composição.'}</pre>
+                </div>
+              </div>
+
+              {/* SLOT 3 (Desktop: Col 1 Bottom / Mobile: Item 3): Checkout PIX ou Vídeo/QR/Playback */}
+              <div className="entrega-grid-col-1-bottom" style={styles.mediaSide}>
 
                 {/* SEÇÃO VÍDEO HOMENAGEM (10 A 20 FOTOS) */}
                 {isPaid && (
@@ -1416,20 +1425,20 @@ function EntregaContent() {
 
                 {/* SE PAGO: QR Code section */}
                 {isPaid ? (
-                  <div style={styles.qrCard} className="glass-card">
-                    <div style={{ flex: 1 }}>
+                  <div className="entrega-qr-card glass-card">
+                    <div style={{ flex: 1, width: '100%' }}>
                       <h4 style={{ fontSize: '1rem', marginBottom: '8px', fontFamily: 'var(--font-family-title)' }}>Compartilhar Homenagem 🎁</h4>
                       <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
                         Envie o link exclusivo ou salve o QR Code para compartilhar essa linda homenagem diretamente com quem você ama!
                       </p>
-                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '16px' }}>
-                        <button onClick={handleCopyLink} className="btn btn-primary" style={{ padding: '8px 14px', fontSize: '0.8rem', border: 'none', cursor: 'pointer' }}>
+                      <div className="entrega-qr-buttons">
+                        <button onClick={handleCopyLink} className="btn btn-primary" style={{ padding: '9px 14px', fontSize: '0.82rem', border: 'none', cursor: 'pointer', flex: 1 }}>
                           {copied ? '✅ Link Copiado!' : '🔗 Copiar Link'}
                         </button>
-                        <a href={`/homenagem?orderId=${orderId}`} target="_blank" rel="noopener noreferrer" className="btn btn-secondary" style={{ padding: '8px 14px', fontSize: '0.8rem', textDecoration: 'none', textAlign: 'center' }}>
+                        <a href={`/homenagem?orderId=${orderId}`} target="_blank" rel="noopener noreferrer" className="btn btn-secondary" style={{ padding: '9px 14px', fontSize: '0.82rem', textDecoration: 'none', textAlign: 'center', flex: 1 }}>
                           👁 Página do Homenageado
                         </a>
-                        <a href={qrCodeUrl} download={`qrcode-${order?.orderNumber}.png`} className="btn btn-secondary" style={{ padding: '8px 14px', fontSize: '0.8rem', textDecoration: 'none', textAlign: 'center' }}>
+                        <a href={qrCodeUrl} download={`qrcode-${order?.orderNumber}.png`} className="btn btn-secondary" style={{ padding: '9px 14px', fontSize: '0.82rem', textDecoration: 'none', textAlign: 'center', flex: 1 }}>
                           💾 Salvar QR Code
                         </a>
                       </div>
@@ -1652,23 +1661,14 @@ function EntregaContent() {
                   </div>
                 )}
 
+              </div>
+
+              {/* SLOT 4 (Desktop: Col 2 Bottom / Mobile: Item 4): ExtrasVitrine e Banners */}
+              <div className="entrega-grid-col-2-bottom" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                 {/* Vitrine dos extras enquanto o cliente decide o pagamento da música. Sem botão de
                     compra de propósito — ver o comentário em ExtrasVitrine.jsx (add-on isolado não
                     aprova a música, então comprar aqui deixaria o cliente sem o produto principal). */}
                 {!isPaid && <ExtrasVitrine />}
-              </div>
-
-              {/* Lyrics Side + Banner Retrospectiva */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                <div
-                  style={isPaid ? { ...styles.lyricsSide, backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)', boxShadow: 'none' } : styles.lyricsSide}
-                  className="glass-card"
-                >
-                  <h3 style={{ fontSize: '1.25rem', marginBottom: '20px', fontFamily: isPaid ? 'var(--font-family-gala)' : 'var(--font-family-title)', color: isPaid ? '#f472b6' : 'var(--primary)' }}>
-                    Letra Oficial 📜
-                  </h3>
-                  <pre style={isPaid ? { ...styles.lyricsText, color: '#e2e8f0' } : styles.lyricsText}>{order.lyrics || 'Letra ainda não gerada para esta composição.'}</pre>
-                </div>
 
                 {/* Banner interativo da Retrospectiva — só aparece se o cliente AINDA NÃO comprou */}
                 {!jaTemRetrospectiva && (
