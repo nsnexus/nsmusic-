@@ -678,9 +678,18 @@ function EntregaContent() {
   const coverUrl = order?.coverUrl || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=600&auto=format&fit=crop';
 
   return (
-    <div style={styles.wrapper}>
+    <div style={isPaid ? { ...styles.wrapper, backgroundColor: '#07030d' } : styles.wrapper}>
       {/* Header */}
-      <header style={styles.header} className="glass-panel">
+      <header
+        style={{
+          ...styles.header,
+          ...(isPaid ? {
+            backgroundColor: 'rgba(12, 6, 22, 0.96)',
+            borderBottom: '1px solid rgba(236, 72, 153, 0.25)',
+          } : {})
+        }}
+        className={`glass-panel ${isPaid ? 'entrega-header-dark' : ''}`}
+      >
         <div className="entrega-header-container">
           <div className="entrega-header-nav">
             <Link href="/" style={{ display: 'flex', alignItems: 'center' }}>
@@ -973,7 +982,13 @@ function EntregaContent() {
               {/* SLOT 2 (Desktop: Col 2 Top / Mobile: Item 2): Letra Oficial da Música */}
               <div className="entrega-grid-col-2-top" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                 <div
-                  style={isPaid ? { ...styles.lyricsSide, backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)', boxShadow: 'none' } : styles.lyricsSide}
+                  style={isPaid ? {
+                    ...styles.lyricsSide,
+                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                    background: 'linear-gradient(180deg, rgba(236, 72, 153, 0.08) 0%, rgba(168, 85, 247, 0.04) 100%)',
+                    border: '1.5px solid rgba(236, 72, 153, 0.3)',
+                    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.35)',
+                  } : styles.lyricsSide}
                   className="entrega-lyrics-card glass-card"
                 >
                   <h3 style={{ fontSize: '1.25rem', marginBottom: '16px', fontFamily: isPaid ? 'var(--font-family-gala)' : 'var(--font-family-title)', color: isPaid ? '#f472b6' : 'var(--primary)' }}>
@@ -1116,7 +1131,7 @@ function EntregaContent() {
                               })();
                             }}
                             className="btn btn-primary"
-                            style={{ flex: 1, padding: '10px', fontSize: '0.88rem', textAlign: 'center', border: 'none', cursor: 'pointer', minWidth: '160px' }}
+                            style={{ flex: '1 1 130px', padding: '10px 14px', fontSize: '0.88rem', textAlign: 'center', border: 'none', cursor: 'pointer', minWidth: '130px', boxSizing: 'border-box' }}
                           >
                             ⬇ Baixar Vídeo HD
                           </button>
@@ -1125,7 +1140,7 @@ function EntregaContent() {
                             target="_blank" 
                             rel="noopener noreferrer" 
                             className="btn btn-secondary" 
-                            style={{ flex: 1, padding: '10px', fontSize: '0.88rem', textAlign: 'center', textDecoration: 'none', minWidth: '160px' }}
+                            style={{ flex: '1 1 130px', padding: '10px 14px', fontSize: '0.88rem', textAlign: 'center', textDecoration: 'none', minWidth: '130px', boxSizing: 'border-box', color: '#ffffff', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.08)' }}
                           >
                             ✨ Ver Página do Homenageado
                           </a>
@@ -1425,25 +1440,34 @@ function EntregaContent() {
 
                 {/* SE PAGO: QR Code section */}
                 {isPaid ? (
-                  <div className="entrega-qr-card glass-card">
-                    <div style={{ flex: 1, width: '100%' }}>
-                      <h4 style={{ fontSize: '1rem', marginBottom: '8px', fontFamily: 'var(--font-family-title)' }}>Compartilhar Homenagem 🎁</h4>
-                      <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
+                  <div
+                    className="entrega-qr-card glass-card"
+                    style={{
+                      backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                      background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.07) 0%, rgba(255, 255, 255, 0.02) 100%)',
+                      border: '1.5px solid rgba(236, 72, 153, 0.3)',
+                      boxShadow: '0 8px 24px rgba(0, 0, 0, 0.35)',
+                      color: '#ffffff',
+                    }}
+                  >
+                    <div style={{ flex: 1, width: '100%', minWidth: 0 }}>
+                      <h4 style={{ fontSize: '1.05rem', marginBottom: '8px', fontFamily: 'var(--font-family-title)', color: '#ffffff' }}>Compartilhar Homenagem 🎁</h4>
+                      <p style={{ fontSize: '0.85rem', color: '#cbd5e1', lineHeight: '1.4' }}>
                         Envie o link exclusivo ou salve o QR Code para compartilhar essa linda homenagem diretamente com quem você ama!
                       </p>
                       <div className="entrega-qr-buttons">
-                        <button onClick={handleCopyLink} className="btn btn-primary" style={{ padding: '9px 14px', fontSize: '0.82rem', border: 'none', cursor: 'pointer', flex: 1 }}>
+                        <button onClick={handleCopyLink} className="btn btn-primary" style={{ padding: '9px 14px', fontSize: '0.82rem', border: 'none', cursor: 'pointer', flex: '1 1 120px' }}>
                           {copied ? '✅ Link Copiado!' : '🔗 Copiar Link'}
                         </button>
-                        <a href={`/homenagem?orderId=${orderId}`} target="_blank" rel="noopener noreferrer" className="btn btn-secondary" style={{ padding: '9px 14px', fontSize: '0.82rem', textDecoration: 'none', textAlign: 'center', flex: 1 }}>
+                        <a href={`/homenagem?orderId=${orderId}`} target="_blank" rel="noopener noreferrer" className="btn btn-secondary" style={{ padding: '9px 14px', fontSize: '0.82rem', textDecoration: 'none', textAlign: 'center', flex: '1 1 140px', color: '#ffffff', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.08)' }}>
                           👁 Página do Homenageado
                         </a>
-                        <a href={qrCodeUrl} download={`qrcode-${order?.orderNumber}.png`} className="btn btn-secondary" style={{ padding: '9px 14px', fontSize: '0.82rem', textDecoration: 'none', textAlign: 'center', flex: 1 }}>
+                        <a href={qrCodeUrl} download={`qrcode-${order?.orderNumber}.png`} className="btn btn-secondary" style={{ padding: '9px 14px', fontSize: '0.82rem', textDecoration: 'none', textAlign: 'center', flex: '1 1 120px', color: '#ffffff', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.08)' }}>
                           💾 Salvar QR Code
                         </a>
                       </div>
                     </div>
-                    <img src={qrCodeUrl} alt="QR Code" style={styles.qrImg} />
+                    <img src={qrCodeUrl} alt="QR Code" style={{ ...styles.qrImg, backgroundColor: '#ffffff', padding: '6px', borderRadius: '10px' }} />
                   </div>
                 ) : null}
 
@@ -1699,6 +1723,9 @@ function EntregaContent() {
                       textAlign: 'center',
                       boxShadow: '0 10px 30px rgba(0,0,0,0.3)',
                       transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                      boxSizing: 'border-box',
+                      width: '100%',
+                      maxWidth: '100%',
                     }}
                     aria-label="Ir para a aba da Retrospectiva"
                   >
@@ -1710,12 +1737,12 @@ function EntregaContent() {
                       <span style={{ color: '#f472b6', fontSize: '0.9rem' }}>➔</span>
                     </div>
 
-                    <div style={{ borderRadius: '12px', overflow: 'hidden', boxShadow: '0 8px 24px rgba(0,0,0,0.4)', margin: '0 auto' }}>
+                    <div style={{ borderRadius: '12px', overflow: 'hidden', boxShadow: '0 8px 24px rgba(0,0,0,0.4)', margin: '0 auto', maxWidth: '100%' }}>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src="/como-funciona-retrospectiva.jpg"
                         alt="Como funciona a sua Retrospectiva — Toque para acessar"
-                        style={{ width: '100%', height: 'auto', display: 'block' }}
+                        style={{ width: '100%', maxWidth: '100%', height: 'auto', display: 'block' }}
                       />
                     </div>
 
@@ -1754,6 +1781,9 @@ function EntregaContent() {
                       textAlign: 'center',
                       boxShadow: '0 10px 30px rgba(0,0,0,0.3)',
                       transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                      boxSizing: 'border-box',
+                      width: '100%',
+                      maxWidth: '100%',
                     }}
                     aria-label="Ir para a aba da Cartinha Virtual"
                   >
@@ -1765,12 +1795,12 @@ function EntregaContent() {
                       <span style={{ color: '#f472b6', fontSize: '0.9rem' }}>➔</span>
                     </div>
 
-                    <div style={{ borderRadius: '12px', overflow: 'hidden', boxShadow: '0 8px 24px rgba(0,0,0,0.4)', margin: '0 auto' }}>
+                    <div style={{ borderRadius: '12px', overflow: 'hidden', boxShadow: '0 8px 24px rgba(0,0,0,0.4)', margin: '0 auto', maxWidth: '100%' }}>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src="/como-funciona-cartinha.jpg"
                         alt="Como funciona a sua Cartinha Virtual — Toque para acessar"
-                        style={{ width: '100%', height: 'auto', display: 'block' }}
+                        style={{ width: '100%', maxWidth: '100%', height: 'auto', display: 'block' }}
                       />
                     </div>
 

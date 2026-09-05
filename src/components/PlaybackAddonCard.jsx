@@ -125,7 +125,7 @@ export default function PlaybackAddonCard({ orderId, order }) {
 
   if (!hasAccess) {
     return (
-      <div className="glass-card" style={{ padding: '20px', borderRadius: '16px', background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(236, 72, 153, 0.15) 100%)', border: '1.5px solid rgba(139, 92, 246, 0.35)', marginTop: '16px', color: '#ffffff' }}>
+      <div className="glass-card" style={{ padding: '20px', borderRadius: '16px', background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(236, 72, 153, 0.15) 100%)', border: '1.5px solid rgba(139, 92, 246, 0.35)', marginTop: '16px', color: '#ffffff', boxSizing: 'border-box', width: '100%', maxWidth: '100%', overflow: 'hidden' }}>
         {pixInfo.paymentId ? (
           <div style={{ textAlign: 'center' }}>
             <p style={{ fontSize: '0.95rem', fontWeight: '700', marginBottom: '10px', color: '#ffffff' }}>
@@ -179,21 +179,30 @@ export default function PlaybackAddonCard({ orderId, order }) {
                   <label
                     key={id}
                     style={{
-                      display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', borderRadius: '8px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '8px',
+                      padding: '10px 12px',
+                      borderRadius: '8px',
                       border: `1.5px solid ${faixaEscolhida === i ? 'var(--secondary)' : 'rgba(255,255,255,0.18)'}`,
                       backgroundColor: faixaEscolhida === i ? 'rgba(236, 72, 153, 0.18)' : 'rgba(0,0,0,0.3)',
-                      marginBottom: '8px', cursor: 'pointer',
+                      marginBottom: '8px',
+                      cursor: 'pointer',
+                      boxSizing: 'border-box',
+                      width: '100%',
                     }}
                   >
-                    <input
-                      type="radio"
-                      name="playback-faixa"
-                      checked={faixaEscolhida === i}
-                      onChange={() => setFaixaEscolhida(i)}
-                    />
-                    <span style={{ fontSize: '0.85rem', fontWeight: '600', minWidth: '58px', color: '#ffffff' }}>Faixa {i + 1}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <input
+                        type="radio"
+                        name="playback-faixa"
+                        checked={faixaEscolhida === i}
+                        onChange={() => setFaixaEscolhida(i)}
+                      />
+                      <span style={{ fontSize: '0.88rem', fontWeight: '600', color: '#ffffff' }}>Faixa {i + 1}</span>
+                    </div>
                     {arquivosFaixas[i] && (
-                      <audio controls src={buildAudioProxySrc(arquivosFaixas[i])} style={{ flex: 1, height: '32px' }} />
+                      <audio controls src={buildAudioProxySrc(arquivosFaixas[i])} style={{ width: '100%', maxWidth: '100%', height: '36px' }} />
                     )}
                   </label>
                 ))}
@@ -220,7 +229,7 @@ export default function PlaybackAddonCard({ orderId, order }) {
   const status = order?.playbackStatus;
 
   return (
-    <div className="glass-card" style={{ padding: '20px', borderRadius: '16px', background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(236, 72, 153, 0.15) 100%)', border: '1.5px solid rgba(139, 92, 246, 0.35)', marginTop: '16px', textAlign: 'center', color: '#ffffff' }}>
+    <div className="glass-card" style={{ padding: '20px', borderRadius: '16px', background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(236, 72, 153, 0.15) 100%)', border: '1.5px solid rgba(139, 92, 246, 0.35)', marginTop: '16px', textAlign: 'center', color: '#ffffff', boxSizing: 'border-box', width: '100%', maxWidth: '100%', overflow: 'hidden' }}>
       {status === 'READY' && order?.playbackUrl ? (
         <>
           <h4 style={{ fontSize: '1.05rem', marginBottom: '10px', fontFamily: 'var(--font-family-title)', color: '#ffffff' }}>

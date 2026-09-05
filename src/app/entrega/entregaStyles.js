@@ -6,6 +6,10 @@ export const styles = {
     display: 'flex',
     flexDirection: 'column',
     backgroundColor: 'var(--bg-primary)',
+    overflowX: 'hidden',
+    width: '100%',
+    maxWidth: '100vw',
+    boxSizing: 'border-box',
   },
   header: {
     position: 'sticky',
