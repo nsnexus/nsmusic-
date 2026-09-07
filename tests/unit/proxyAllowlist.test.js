@@ -7,6 +7,10 @@ import { isAllowedMediaHost, isAllowedMediaUrl } from '@/lib/proxyAllowlist';
 describe('isAllowedMediaHost', () => {
   it('aceita os domínios da allowlist', () => {
     expect(isAllowedMediaHost('musicfile.kie.ai')).toBe(true);
+    // Achado 04/09/2026: a Kie.ai passou a servir `audioUrl`/prévia por este domínio na maioria dos
+    // pedidos — sem ele aqui, a prévia quebrava pra quase todo cliente novo (checado ao vivo: 134 de
+    // 134 URLs recentes vinham deste domínio).
+    expect(isAllowedMediaHost('audiostream.kie.ai')).toBe(true);
     expect(isAllowedMediaHost('cdn1.suno.ai')).toBe(true);
     expect(isAllowedMediaHost('cdn2.suno.ai')).toBe(true);
     expect(isAllowedMediaHost('audiopipe.suno.ai')).toBe(true);

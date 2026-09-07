@@ -4,6 +4,10 @@
 
 const ALLOWED_HOSTS = [
   'musicfile.kie.ai',
+  // Domínio novo que a Kie.ai passou a usar pra `audioUrl`/prévia em parte dos pedidos (relatado
+  // pelo dono do estúdio, 04/09/2026: "muitos clientes reclamando que não consegue ouvir a prévia" —
+  // o proxy rejeitava com 400 por não estar na lista, quebrando a prévia pro cliente).
+  'audiostream.kie.ai',
   // A Kie.ai também serve o campo `audioUrl`/`sourceAudioUrl` da resposta de geração a partir deste
   // domínio (confirmado em 2026-08-02: sem ele na allowlist, o proxy rejeitava a única URL de áudio
   // realmente presente na resposta, quebrando a prévia/entrega para todo pedido).
