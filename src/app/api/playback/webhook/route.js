@@ -39,7 +39,17 @@ export async function POST(req) {
     }
 
     const data = await req.json();
-    const instrumentalUrl = data?.data?.vocal_separation_info?.instrumental_url || '';
+    // Achado 07/09/2026: a doc oficial promete `data.vocal_separation_info.instrumental_url`
+    // (snake_case), mas a Kie.ai vem mandando `data.response.instrumentalUrl` (camelCase — mesmo
+    // shape do endpoint "get vocal separation details" da API deles). Um cliente pagou, a separação
+    // rodou certo do lado da Kie.ai (2 faixas geradas, confirmado no painel deles), mas só o formato
+    // snake_case era reconhecido — o pedido caía em FAILED com o áudio pronto, e cada "tentar de
+    // novo" do cliente cobrava crédito de novo à toa. Aceita os dois formatos.
+    const instrumentalUrl =
+      data?.data?.vocal_separation_info?.instrumental_url ||
+      data?.data?.response?.instrumentalUrl ||
+      data?.data?.instrumentalUrl ||
+      '';
     const orderRef = doc(db, 'orders', orderId);
 
     if (data?.code === 200 && instrumentalUrl) {
@@ -53,7 +63,9 @@ export async function POST(req) {
       return NextResponse.json({ success: true }, { status: 200 });
     }
 
-    console.error('[Webhook playback] Callback sem instrumental_url válido:', data?.code, data?.msg);
+    // Log do shape bruto (sem PII, é só a resposta da Kie.ai) — se aparecer uma TERCEIRA variante de
+    // formato, dá pra corrigir rápido sem depender de reproduzir o pagamento de novo.
+    console.error('[Webhook playback] Callback sem instrumental_url válido:', data?.code, data?.msg, JSON.stringify(data)?.slice(0, 500));
     await updateDoc(orderRef, {
       playbackStatus: 'FAILED',
       playbackError: `kie_callback_${data?.code || 'invalid'}`,
