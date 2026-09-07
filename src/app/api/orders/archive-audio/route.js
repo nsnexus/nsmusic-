@@ -3,6 +3,7 @@ import { getRequestContext } from '@cloudflare/next-on-pages';
 import { collection, query, where, limit, getDocs, doc, updateDoc } from 'firebase/firestore/lite';
 import { dbEdge as db } from '@/lib/firebase-edge';
 import { requireAdmin } from '@/lib/auth';
+import { isOurStorage, archiveAudioFiles } from '@/lib/audioArchive';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
@@ -18,18 +19,15 @@ export const dynamic = 'force-dynamic';
 // Só pedido PAGO é arquivado: prévia não convertida é a maior parte do volume e não justifica o
 // custo de armazenamento (~5 MB por faixa). Quem pagou tem direito a voltar e baixar meses depois.
 //
-// Como roda: uma vez por hora pelo cron do Worker (ver workers/efi-proxy), em lotes pequenos. Não é
-// disparado dentro do fluxo de pagamento de propósito — copiar dezenas de MB é lento e não pode
-// atrasar (nem arriscar derrubar) a confirmação da compra.
+// Achado 04/09/2026: desde este commit, o arquivamento também acontece NA HORA da aprovação do
+// pagamento (ver src/lib/payments.js) — o cron aqui virou REDE DE SEGURANÇA, não o caminho
+// principal. Existe pra pegar pedidos cujo arquivamento imediato falhou (origem instável no
+// momento exato do pagamento) e pedidos antigos, de antes dessa mudança. A lógica de cópia em si
+// mora em src/lib/audioArchive.js, compartilhada entre os dois caminhos.
 
 // Lote pequeno: cada faixa é uma transferência de vários MB atravessando o Worker, e o Edge Runtime
 // tem teto de CPU e de subrequests por requisição.
 const MAX_ORDERS_PER_RUN = 5;
-
-// Acima disso, não tenta arquivar: é sinal de resposta de erro (HTML/XML) em vez de áudio, ou de um
-// arquivo grande demais para o Worker copiar com segurança.
-const MIN_AUDIO_BYTES = 100 * 1024;      // 100 KB — abaixo disso não é música
-const MAX_AUDIO_BYTES = 25 * 1024 * 1024; // 25 MB
 
 function readEnv(env, name) {
   return String((env && env[name]) || process.env[name] || '').trim();
@@ -52,56 +50,6 @@ function isPaidOrder(order) {
     order?.paymentStatus === 'PAGO' ||
     order?.paidAt
   );
-}
-
-function isOurStorage(url) {
-  return typeof url === 'string' && url.includes('firebasestorage.googleapis.com');
-}
-
-/**
- * Copia uma URL externa para o nosso Storage e devolve a URL pública.
- *
- * Usa a REST API do Firebase Storage: o SDK `firebase/storage` não tem build `lite` e importá-lo
- * numa rota Edge quebra o build do Cloudflare (.claude/rules/backend.md). O corpo é repassado como
- * ArrayBuffer porque o upload precisa do tamanho conhecido — 5 MB cabe folgado no limite de memória
- * do Worker, e o teto de MAX_AUDIO_BYTES protege contra um arquivo inesperadamente grande.
- */
-async function copyToStorage(sourceUrl, destPath, bucket) {
-  const res = await fetch(sourceUrl, {
-    headers: { 'User-Agent': 'Mozilla/5.0', Accept: 'audio/mpeg, audio/*, */*' },
-    signal: AbortSignal.timeout(45000),
-  });
-
-  if (!res.ok) return { ok: false, reason: `origem_http_${res.status}` };
-
-  const contentType = res.headers.get('content-type') || '';
-  // A CDN já devolveu HTML/XML de erro com status 200 (incidente 28/08/2026) — sem esta checagem,
-  // arquivaríamos uma página de erro achando que era a música.
-  if (contentType.includes('text/') || contentType.includes('xml')) {
-    return { ok: false, reason: `origem_nao_audio_${contentType.split(';')[0]}` };
-  }
-
-  const buffer = await res.arrayBuffer();
-  if (buffer.byteLength < MIN_AUDIO_BYTES) return { ok: false, reason: `origem_muito_pequena_${buffer.byteLength}b` };
-  if (buffer.byteLength > MAX_AUDIO_BYTES) return { ok: false, reason: `origem_muito_grande_${buffer.byteLength}b` };
-
-  const uploadUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket}/o?uploadType=media&name=${encodeURIComponent(destPath)}`;
-  const upload = await fetch(uploadUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'audio/mpeg' },
-    body: buffer,
-    signal: AbortSignal.timeout(60000),
-  });
-
-  if (!upload.ok) {
-    const detail = await upload.text().catch(() => '');
-    return { ok: false, reason: `upload_http_${upload.status}`, detail: detail.slice(0, 200) };
-  }
-
-  const meta = await upload.json().catch(() => null);
-  const token = meta?.downloadTokens;
-  const publicUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodeURIComponent(destPath)}?alt=media${token ? `&token=${token}` : ''}`;
-  return { ok: true, url: publicUrl, bytes: buffer.byteLength };
 }
 
 async function runArchive(env, { dryRun }) {
@@ -152,31 +100,9 @@ async function runArchive(env, { dryRun }) {
   }
 
   for (const c of candidates.slice(0, MAX_ORDERS_PER_RUN)) {
-    const archived = [];
-    let anyFailure = false;
-
-    for (let i = 0; i < c.files.length; i++) {
-      const source = c.files[i];
-      // URL que já é nossa é preservada como está — não faz sentido recopiar.
-      if (isOurStorage(source)) {
-        archived.push(source);
-        continue;
-      }
-
-      const destPath = `audios/${c.id}/versao-${i + 1}.mp3`;
-      const copy = await copyToStorage(source, destPath, bucket);
-
-      if (copy.ok) {
-        archived.push(copy.url);
-        result.filesCopied++;
-        result.bytesCopied += copy.bytes;
-      } else {
-        anyFailure = true;
-        console.warn(`[archive-audio] Falha ao arquivar faixa ${i + 1} do pedido ${c.id}: ${copy.reason}`);
-        // Mantém a URL antiga: enquanto a origem não some, ela ainda é o único caminho para o áudio.
-        archived.push(source);
-      }
-    }
+    const { files: archived, anyFailure, filesCopied, bytesCopied } = await archiveAudioFiles(c.id, c.files, bucket);
+    result.filesCopied += filesCopied;
+    result.bytesCopied += bytesCopied;
 
     try {
       const updates = {

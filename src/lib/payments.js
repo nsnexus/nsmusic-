@@ -194,6 +194,53 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
       } catch (err) {
         console.warn('[payments] Falha ao somar venda no contador da home:', err.message);
       }
+
+      // Arquiva o áudio no NOSSO Storage assim que a música é aprovada (achado 04/09/2026: o cron
+      // horário que fazia isso nunca rodou de verdade em produção — 0 de 43 pedidos pagos recentes
+      // tinham audioArchivedAt. Em vez de só depender de destravar o cron, o arquivamento acontece
+      // aqui também, na hora — o cron em api/orders/archive-audio vira rede de segurança pros casos
+      // em que este bloco falhar). Mesma reserva sequencial usada pro playback/CAPI logo abaixo,
+      // pra não copiar duas vezes se webhook e polling chegarem juntos.
+      try {
+        let deveArquivar = false;
+        let filesParaArquivar = [];
+        const freshSnap = await getDoc(orderRef);
+        if (freshSnap.exists()) {
+          const freshData = freshSnap.data();
+          filesParaArquivar = Array.isArray(freshData.audioFiles) && freshData.audioFiles.length
+            ? freshData.audioFiles
+            : [freshData.audioUrl].filter(Boolean);
+          if (filesParaArquivar.length > 0 && !freshData.audioArchivedAt && !freshData.audioArchiving) {
+            await updateDoc(orderRef, { audioArchiving: true });
+            deveArquivar = true;
+          }
+        }
+
+        if (deveArquivar) {
+          const bucket = env?.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
+          if (bucket) {
+            const files = filesParaArquivar;
+            const { archiveAudioFiles } = await import('./audioArchive.js');
+            const { files: archived, anyFailure } = await archiveAudioFiles(orderId, files, bucket);
+
+            const nowIso = new Date().toISOString();
+            await updateDoc(orderRef, {
+              audioFiles: archived,
+              audioUrl: archived[0],
+              audioArchiving: false,
+              ...(anyFailure
+                ? { audioArchiveFailedAt: nowIso }
+                : { audioArchivedAt: nowIso, audioArchiveFailedAt: null }),
+            });
+          } else {
+            console.warn('[payments] NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET não configurada — áudio não arquivado.');
+            await updateDoc(orderRef, { audioArchiving: false }).catch(() => {});
+          }
+        }
+      } catch (err) {
+        console.warn('[payments] Falha ao arquivar áudio no Storage:', err.message);
+        await updateDoc(orderRef, { audioArchiving: false }).catch(() => {});
+      }
     }
 
     // Playback (instrumental) é gerado automaticamente assim que o pagamento do add-on é aprovado —
