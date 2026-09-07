@@ -29,6 +29,11 @@ describe('escolherModeloCarta', () => {
     expect(escolherModeloCarta({ recipientType: 'Marido' }).genero).toBe('masculino');
   });
 
+  it('Irmã/Irmão (achado 04/09/2026: faltava no wizard) são reconhecidos', () => {
+    expect(escolherModeloCarta({ relationship: 'Irmã' }).genero).toBe('feminino');
+    expect(escolherModeloCarta({ relationship: 'Irmão' }).genero).toBe('masculino');
+  });
+
   it('relação ambígua (Chefe, Eu mesmo, Outro) ou ausente cai em neutro', () => {
     expect(escolherModeloCarta({ relationship: 'Chefe' }).genero).toBe('neutro');
     expect(escolherModeloCarta({ relationship: 'Eu mesmo' }).genero).toBe('neutro');

@@ -11,6 +11,9 @@ export const recipients = [
   { id: 'Vô', label: 'Vô', icon: '👴' },
   { id: 'Filha', label: 'Filha', icon: '👧' },
   { id: 'Filho', label: 'Filho', icon: '👦' },
+  // Faltava — relação bem comum, achado 04/09/2026 ao revisar as opções do wizard.
+  { id: 'Irmã', label: 'Irmã', icon: '👭' },
+  { id: 'Irmão', label: 'Irmão', icon: '👬' },
   { id: 'Amiga', label: 'Amiga', icon: '💛' },
   { id: 'Amigo', label: 'Amigo', icon: '🤝' },
   { id: 'Chefe', label: 'Chefe', icon: '💼' },
