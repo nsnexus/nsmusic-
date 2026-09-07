@@ -217,11 +217,16 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
         }
 
         if (deveArquivar) {
-          const bucket = env?.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
-          if (bucket) {
+          // R2 primeiro (env.nsmusic_media, binding do projeto Pages — só existe no runtime real da
+          // Cloudflare, nunca em process.env); Firebase Storage é fallback se o binding faltar.
+          const r2Bucket = env?.nsmusic_media;
+          const r2PublicUrl = env?.R2_PUBLIC_URL || process.env.R2_PUBLIC_URL;
+          const firebaseBucket = env?.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
+
+          if ((r2Bucket && r2PublicUrl) || firebaseBucket) {
             const files = filesParaArquivar;
             const { archiveAudioFiles } = await import('./audioArchive.js');
-            const { files: archived, anyFailure } = await archiveAudioFiles(orderId, files, bucket);
+            const { files: archived, anyFailure } = await archiveAudioFiles(orderId, files, { r2Bucket, r2PublicUrl, firebaseBucket });
 
             const nowIso = new Date().toISOString();
             await updateDoc(orderRef, {
@@ -233,7 +238,7 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
                 : { audioArchivedAt: nowIso, audioArchiveFailedAt: null }),
             });
           } else {
-            console.warn('[payments] NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET não configurada — áudio não arquivado.');
+            console.warn('[payments] Nem R2 (nsmusic_media) nem NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET configurados — áudio não arquivado.');
             await updateDoc(orderRef, { audioArchiving: false }).catch(() => {});
           }
         }

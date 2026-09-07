@@ -53,10 +53,16 @@ function isPaidOrder(order) {
 }
 
 async function runArchive(env, { dryRun }) {
-  const bucket = readEnv(env, 'NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET');
+  // R2 (binding nsmusic_media) primeiro, Firebase Storage como fallback — mesmo critério de
+  // src/lib/payments.js, pra não arquivar num destino diferente dependendo de qual caminho rodou.
+  const r2Bucket = env?.nsmusic_media;
+  const r2PublicUrl = readEnv(env, 'R2_PUBLIC_URL');
+  const firebaseBucket = readEnv(env, 'NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET');
   const result = { dryRun, scanned: 0, pending: 0, archived: 0, filesCopied: 0, failed: 0, bytesCopied: 0, samples: [] };
 
-  if (!bucket) return { ...result, error: 'NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET não configurado.' };
+  if (!(r2Bucket && r2PublicUrl) && !firebaseBucket) {
+    return { ...result, error: 'Nem R2 (nsmusic_media/R2_PUBLIC_URL) nem NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET configurados.' };
+  }
 
   let snap;
   try {
@@ -100,7 +106,7 @@ async function runArchive(env, { dryRun }) {
   }
 
   for (const c of candidates.slice(0, MAX_ORDERS_PER_RUN)) {
-    const { files: archived, anyFailure, filesCopied, bytesCopied } = await archiveAudioFiles(c.id, c.files, bucket);
+    const { files: archived, anyFailure, filesCopied, bytesCopied } = await archiveAudioFiles(c.id, c.files, { r2Bucket, r2PublicUrl, firebaseBucket });
     result.filesCopied += filesCopied;
     result.bytesCopied += bytesCopied;
 
