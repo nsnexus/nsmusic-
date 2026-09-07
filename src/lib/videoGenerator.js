@@ -493,12 +493,34 @@ export async function createSlideshowVideo(orderId, imageUrls, audioUrl, orderDa
       console.warn('[VideoGen] Vídeo gerado com sucesso, mas o usuário trocou de aba durante a gravação. O áudio pode estar dessincronizado.');
     }
 
-    // 5. Upload do vídeo para o Firebase Storage — extensão e Content-Type batendo com o container
-    // real gravado (ver comentário acima sobre fileExtension), para o arquivo baixado/compartilhado
-    // ser reconhecido corretamente pelo WhatsApp e outros apps.
-    const storageRef = ref(storage, `orders/${orderId}/video_homenagem.${fileExtension}`);
-    await uploadBytes(storageRef, videoBlob, { contentType: mimeType });
-    const videoUrl = await getDownloadURL(storageRef);
+    // 5. Upload do vídeo — R2 primeiro (07/09/2026: egress zero, vídeo é o maior arquivo do produto),
+    // com fallback pro Firebase Storage direto do navegador se a rota falhar (binding ausente,
+    // instabilidade momentânea, etc.) — nunca bloqueia a entrega por causa do destino de storage.
+    // Extensão e Content-Type batem com o container real gravado (ver fileExtension acima), para o
+    // arquivo baixado/compartilhado ser reconhecido corretamente pelo WhatsApp e outros apps.
+    let videoUrl = null;
+    try {
+      const uploadRes = await fetch(`/api/video/upload?orderId=${encodeURIComponent(orderId)}&ext=${fileExtension}`, {
+        method: 'POST',
+        headers: { 'Content-Type': mimeType },
+        body: videoBlob,
+        signal: AbortSignal.timeout(120000),
+      });
+      if (uploadRes.ok) {
+        const data = await uploadRes.json();
+        videoUrl = data?.url || null;
+      } else {
+        console.warn(`[VideoGen] Upload R2 respondeu HTTP ${uploadRes.status} — caindo pro Firebase Storage.`);
+      }
+    } catch (err) {
+      console.warn('[VideoGen] Falha ao enviar vídeo pro R2 — caindo pro Firebase Storage:', err?.message);
+    }
+
+    if (!videoUrl) {
+      const storageRef = ref(storage, `orders/${orderId}/video_homenagem.${fileExtension}`);
+      await uploadBytes(storageRef, videoBlob, { contentType: mimeType });
+      videoUrl = await getDownloadURL(storageRef);
+    }
 
     // 6. Atualiza o pedido com a URL do vídeo concluído
     await updateDoc(orderRef, {
