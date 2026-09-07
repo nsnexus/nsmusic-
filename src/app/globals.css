@@ -945,6 +945,19 @@ label {
   box-sizing: border-box;
 }
 
+/* Só no mobile (abaixo do breakpoint de 2 colunas, ver @media 860px): reordena visualmente sem
+   mover o JSX de lugar (o bloco de checkout PIX tem 700+ linhas, mover geraria risco alto de erro).
+   Pedido 04/09/2026: "muitos clientes com dificuldade pra pagar" — a letra aparecia entre a prévia
+   e o PIX, empurrando o pagamento pra baixo da rolagem. Ordem nova: capa/prévia → PIX/checkout →
+   letra → extras. Desktop nem entra aqui: usa grid-column/grid-row explícito (media 860px abaixo),
+   que já ignora a ordem do DOM. */
+@media (max-width: 859px) {
+  .entrega-grid-col-1-top { order: 1; }    /* Capa, players, prévia */
+  .entrega-grid-col-1-bottom { order: 2; } /* Checkout PIX / Vídeo / QR / Playback */
+  .entrega-grid-col-2-top { order: 3; }    /* Letra Oficial */
+  .entrega-grid-col-2-bottom { order: 4; } /* Vitrine de extras e banners */
+}
+
 @media (min-width: 860px) {
   .entrega-grid {
     grid-template-columns: 1.15fr 0.85fr;
