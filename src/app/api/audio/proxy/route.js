@@ -91,11 +91,16 @@ export async function GET(req) {
     }
 
     let audioResponse = null;
-    let audioStream = null;
+    let audioBuffer = null;
     // Diagnóstico opcional (?debug=1) — nunca aparece na resposta normal. Útil pra ver, de fora,
     // qual candidato falhou e por quê, sem depender do log do Workers.
     const debugMode = searchParams.get('debug') === '1';
     const attempts = [];
+
+    // Acima disso faz streaming em vez de bufferizar (áudio nunca chega perto disso — uma música de
+    // alguns minutos em MP3 fica entre 3 e 8 MB; o teto só existe pra não estourar a memória do
+    // Worker se algum candidato devolver algo fora do esperado).
+    const TAMANHO_MAX_BUFFER = 20 * 1024 * 1024;
 
     for (const targetUrl of candidates) {
       try {
@@ -118,44 +123,46 @@ export async function GET(req) {
           }
 
           if (contentType.includes('audio') || contentType.includes('octet-stream') || targetUrl.endsWith('.mp3')) {
-            // INCIDENTE 28/08/2026: o musicfile.kie.ai passou a responder 200 + Content-Type
-            // audio/mp3 + Transfer-Encoding chunked, mas com o corpo VAZIO — sem Content-Length, a
-            // checagem acima não pegava nada e o proxy repassava 0 byte ao cliente. O <audio> do
-            // navegador só falhava depois, com DEMUXER_ERROR_COULD_NOT_OPEN, e a tela ficava presa
-            // em "Preparando sua prévia...". Por isso lemos o PRIMEIRO chunk antes de aceitar a
-            // fonte: resposta que não entrega byte nenhum é descartada e o laço segue pro próximo
-            // candidato (o tempfile.aiquickdraw.com, que serve a mesma faixa íntegra).
-            const reader = res.body.getReader();
-            const first = await reader.read();
-
-            if (first.done || !first.value || first.value.byteLength === 0) {
-              if (debugMode) attempts.push({ url: targetUrl, status: res.status, skipped: 'corpo vazio (0 bytes no primeiro chunk)' });
-              try { await reader.cancel(); } catch (e) {}
+            // Achado 04/09/2026: o esquema anterior só conferia se o PRIMEIRO chunk não vinha vazio
+            // (resolvia o incidente de 28/08, corpo totalmente vazio) — mas nunca verificava se o
+            // corpo TERMINAVA de verdade. Se a conexão de origem cortasse no meio (arquivo ainda
+            // sendo processado do lado da Kie.ai), o Worker repassava só o pedaço recebido, sem erro
+            // nenhum: o <audio> tocava um trecho e parava ("não toca tudo"), e o MESMO arquivo curto
+            // enviado como áudio pelo WhatsApp saía mudo (o app tenta recodificar pra Opus e falha
+            // num MP3 truncado — como documento, sem recodificar, tocava normal).
+            //
+            // Agora bufferiza a resposta inteira (arrayBuffer espera o corpo completo — se a conexão
+            // cair no meio, REJEITA em vez de devolver parcial) e, quando a origem informou
+            // Content-Length, confere que o tamanho batido é exatamente esse. Corpo maior que
+            // TAMANHO_MAX_BUFFER (nunca deveria acontecer com áudio de verdade) descarta esse
+            // candidato e segue pro próximo da lista, sem tentar bufferizar algo grande demais.
+            if (contentLength > TAMANHO_MAX_BUFFER) {
+              if (debugMode) attempts.push({ url: targetUrl, status: res.status, skipped: `maior que o teto de buffer (${contentLength} bytes)` });
               continue;
             }
 
-            // Reconstrói o stream a partir do chunk já lido — nunca bufferiza o arquivo inteiro na
-            // memória do Worker (áudio de ~5 MB), só o primeiro pedaço.
-            audioStream = new ReadableStream({
-              start(controller) {
-                controller.enqueue(first.value);
-              },
-              async pull(controller) {
-                try {
-                  const { done, value } = await reader.read();
-                  if (done) controller.close();
-                  else controller.enqueue(value);
-                } catch (err) {
-                  controller.error(err);
-                }
-              },
-              cancel(reason) {
-                try { reader.cancel(reason); } catch (e) {}
-              },
-            });
+            let buf;
+            try {
+              buf = await res.arrayBuffer();
+            } catch (err) {
+              if (debugMode) attempts.push({ url: targetUrl, error: `conexão cortada no meio do download: ${err?.message || 'erro desconhecido'}` });
+              continue;
+            }
 
+            if (!buf || buf.byteLength === 0) {
+              if (debugMode) attempts.push({ url: targetUrl, status: res.status, skipped: 'corpo vazio' });
+              continue;
+            }
+
+            if (contentLength > 0 && buf.byteLength !== contentLength) {
+              console.warn(`[Audio Proxy] Arquivo truncado de ${targetUrl}: recebido ${buf.byteLength} de ${contentLength} bytes esperados.`);
+              if (debugMode) attempts.push({ url: targetUrl, status: res.status, skipped: `truncado: ${buf.byteLength}/${contentLength} bytes` });
+              continue;
+            }
+
+            audioBuffer = buf;
             audioResponse = res;
-            if (debugMode) attempts.push({ url: targetUrl, status: res.status, used: true, firstChunkBytes: first.value.byteLength });
+            if (debugMode) attempts.push({ url: targetUrl, status: res.status, used: true, bytes: buf.byteLength });
             break;
           }
 
@@ -170,7 +177,7 @@ export async function GET(req) {
       }
     }
 
-    if (!audioResponse || !audioStream) {
+    if (!audioResponse || !audioBuffer) {
       return NextResponse.json(
         debugMode
           ? { error: 'Não foi possível carregar o áudio de nenhuma fonte', attempts }
@@ -201,14 +208,11 @@ export async function GET(req) {
       headers.set('Content-Disposition', `attachment; filename="${safeName}"`);
     }
 
-    const contentLength = audioResponse.headers.get('content-length');
-    if (contentLength && parseInt(contentLength, 10) > 0) {
-      headers.set('Content-Length', contentLength);
-    }
+    // Do buffer de verdade, não do header da origem — já bufferizamos o corpo inteiro acima, então
+    // isso é o tamanho real entregue (mais confiável que confiar de novo num header).
+    headers.set('Content-Length', String(audioBuffer.byteLength));
 
-    // audioStream, não audioResponse.body: o corpo original já foi parcialmente consumido na
-    // verificação do primeiro chunk (ver acima) — audioStream reemite esse chunk e segue com o resto.
-    return new Response(audioStream, {
+    return new Response(audioBuffer, {
       status: 200,
       headers
     });
