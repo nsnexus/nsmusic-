@@ -15,6 +15,9 @@ describe('isAllowedMediaHost', () => {
     expect(isAllowedMediaHost('cdn2.suno.ai')).toBe(true);
     expect(isAllowedMediaHost('audiopipe.suno.ai')).toBe(true);
     expect(isAllowedMediaHost('firebasestorage.googleapis.com')).toBe(true);
+    // Achado 07/09/2026: sem o bucket R2 na allowlist, todo player/download quebrava pra qualquer
+    // música já arquivada — o próprio /api/audio/proxy rejeitava o nosso próprio storage.
+    expect(isAllowedMediaHost('pub-e90fb1c45fb048ee8e1136c9ee7a1463.r2.dev')).toBe(true);
   });
 
   it('rejeita domínios fora da allowlist', () => {

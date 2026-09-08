@@ -20,6 +20,13 @@ const ALLOWED_HOSTS = [
   'cdn2.suno.ai',
   'audiopipe.suno.ai',
   'firebasestorage.googleapis.com',
+  // Bucket R2 (nsmusic-media) onde áudio/vídeo pago é arquivado desde 07/09/2026 (ver
+  // src/lib/audioArchive.js). BUG CRÍTICO achado no mesmo dia: sem esta entrada, todo player/download
+  // do site quebrava para QUALQUER música já arquivada — buildAudioProxySrc sempre envelopa a URL no
+  // nosso /api/audio/proxy, que rejeitava o domínio por não estar na lista (cliente via "link nada a
+  // ver"/arquivo não carregava). Se um domínio customizado for configurado pro bucket no futuro,
+  // adicionar aqui também.
+  'pub-e90fb1c45fb048ee8e1136c9ee7a1463.r2.dev',
 ];
 
 export function isAllowedMediaHost(hostname) {
