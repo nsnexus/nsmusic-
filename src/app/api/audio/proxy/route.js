@@ -1,15 +1,59 @@
 import { NextResponse } from 'next/server';
+import { getRequestContext } from '@cloudflare/next-on-pages';
 import { isAllowedMediaUrl } from '@/lib/proxyAllowlist';
 
 export const runtime = 'edge';
 
 export async function GET(req) {
   try {
+    let env = {};
+    try {
+      const ctx = getRequestContext();
+      if (ctx?.env) env = ctx.env;
+    } catch (e) {}
+
     const { searchParams } = new URL(req.url);
     const rawUrl = searchParams.get('url');
 
     if (!rawUrl) {
       return NextResponse.json({ error: 'URL do áudio é obrigatória' }, { status: 400 });
+    }
+
+    // ACHADO CRÍTICO 07/09/2026: um Worker Cloudflare não consegue dar fetch() numa URL pública
+    // *.r2.dev do PRÓPRIO bucket dele — a borda da Cloudflare devolve "error code: 502" genérico
+    // ANTES de chegar no nosso código (não é um erro que o try/catch abaixo consegue pegar). Todo
+    // player/download de música já arquivada em R2 quebrava por causa disso — mesmo com a URL na
+    // allowlist. A saída é nunca dar fetch() nessa URL: ler o objeto direto do binding
+    // (env.nsmusic_media), que não passa pela rede pública nenhuma.
+    const r2PublicUrl = String(env?.R2_PUBLIC_URL || process.env.R2_PUBLIC_URL || '').replace(/\/+$/, '');
+    if (r2PublicUrl && env?.nsmusic_media && rawUrl.startsWith(`${r2PublicUrl}/`)) {
+      const objectKey = rawUrl.slice(r2PublicUrl.length + 1).split('?')[0];
+      try {
+        const obj = await env.nsmusic_media.get(objectKey);
+        if (obj) {
+          const buffer = await obj.arrayBuffer();
+          const headers = new Headers();
+          headers.set('Content-Type', obj.httpMetadata?.contentType || 'audio/mpeg');
+          headers.set('Cache-Control', 'public, max-age=86400, must-revalidate');
+          headers.set('Access-Control-Allow-Origin', '*');
+          headers.set('Accept-Ranges', 'bytes');
+          headers.set('Content-Length', String(buffer.byteLength));
+
+          const downloadNameR2 = searchParams.get('download');
+          if (downloadNameR2) {
+            const safeNameR2 = downloadNameR2.replace(/[^\w.\- ]/g, '_').slice(0, 120) || 'musica.mp3';
+            headers.set('Content-Disposition', `attachment; filename="${safeNameR2}"`);
+          }
+
+          return new Response(buffer, { status: 200, headers });
+        }
+        console.warn(`[Audio Proxy] Objeto não encontrado no R2 pra key: ${objectKey}`);
+      } catch (err) {
+        console.warn('[Audio Proxy] Falha ao ler do binding R2, caindo pro fetch tradicional:', err?.message);
+      }
+      // Se chegou aqui, o binding falhou ou o objeto não existe — segue pro fluxo normal abaixo como
+      // último recurso (vai falhar do mesmo jeito no fetch(), mas ao menos devolve o erro JSON usual
+      // em vez do 502 cru da borda).
     }
 
     // Aceita um parâmetro `id` explícito com o UUID do áudio (enviado pelo frontend)
