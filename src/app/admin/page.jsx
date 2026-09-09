@@ -1100,6 +1100,15 @@ export default function AdminDashboard() {
                                       </span>
                                     ) : null;
                                   })()}
+                                  {/* Achado 09/09/2026: mostra de relance se o cliente já deu play na
+                                      prévia (ver src/lib/previewTracking.js) — ajuda a separar "não
+                                      gostou" de "nunca conseguiu ouvir" sem abrir o pedido. */}
+                                  <span
+                                    title={o.previewListenedAt ? `Ouviu a prévia em ${new Date(o.previewListenedAt).toLocaleString('pt-BR')}` : 'Ainda não deu play na prévia'}
+                                    style={{ fontSize: '0.85rem', opacity: o.previewListenedAt ? 1 : 0.25 }}
+                                  >
+                                    🎧
+                                  </span>
                                 </div>
                               </td>
                               <td style={{ ...styles.td, fontWeight: '700' }}>

@@ -493,6 +493,14 @@ export default function OrderDetailsAdmin() {
               <p style={{ color: '#475569', fontSize: '0.95rem', marginTop: '4px', fontWeight: '500' }}>
                 Cliente: <strong style={{ color: '#0f172a' }}>{order.customerName}</strong> ({order.customerEmail || 'Sem e-mail'}) • <strong style={{ color: '#2563eb' }}>{order.customerPhone || 'Sem telefone'}</strong>
               </p>
+              {/* Achado 09/09/2026: pedido do dono do estúdio pra saber se o cliente realmente ouviu
+                  a prévia (ver src/lib/previewTracking.js) — ajuda a separar "não gostou" de "nunca
+                  conseguiu carregar o áudio". */}
+              <p style={{ fontSize: '0.85rem', marginTop: '4px', fontWeight: '600', color: order.previewListenedAt ? '#16a34a' : '#94a3b8' }}>
+                {order.previewListenedAt
+                  ? `🎧 Ouviu a prévia em ${new Date(order.previewListenedAt).toLocaleString('pt-BR')}`
+                  : '🔇 Ainda não deu play na prévia'}
+              </p>
               <div style={{ display: 'flex', gap: '8px', marginTop: '10px', flexWrap: 'wrap' }}>
                 {order.customerPhone && (
                   <a

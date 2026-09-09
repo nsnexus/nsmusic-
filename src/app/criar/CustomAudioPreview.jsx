@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { markPreviewListened } from '@/lib/previewTracking';
 
 // Player de prévia de 60s usado na tela de geração de áudio — extraído de page.jsx (M-20 no
 // AUDIT_REPORT.md). Componente autocontido: só depende das props recebidas.
-export default function CustomAudioPreview({ src, label, badge, isBonus }) {
+export default function CustomAudioPreview({ src, label, badge, isBonus, orderId }) {
   const audioRef = useRef(null);
   const retryTimerRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -98,7 +99,7 @@ export default function CustomAudioPreview({ src, label, badge, isBonus }) {
             onError={handleError}
             onEnded={() => setIsPlaying(false)}
             onPause={() => setIsPlaying(false)}
-            onPlay={() => setIsPlaying(true)}
+            onPlay={() => { setIsPlaying(true); markPreviewListened(orderId); }}
             controlsList="nodownload noplaybackrate"
             onContextMenu={(e) => e.preventDefault()}
             style={{ display: 'none' }}

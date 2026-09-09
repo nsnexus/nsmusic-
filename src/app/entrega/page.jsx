@@ -18,6 +18,7 @@ import RetrospectivaAddonCard from '@/components/RetrospectivaAddonCard';
 import { requestPixCharge } from '@/lib/pixCheckout';
 import { compressImage } from '@/lib/imageCompress';
 import { getPriceForSku } from '@/lib/pricing';
+import { markPreviewListened } from '@/lib/previewTracking';
 import { styles } from './entregaStyles';
 
 function EntregaContent() {
@@ -890,6 +891,7 @@ function EntregaContent() {
                       onTimeUpdate={handleAudioTimeUpdate}
                       onCanPlay={() => handleAudioReady('primary')}
                       onError={() => handleAudioError('primary')}
+                      onPlay={() => markPreviewListened(orderId)}
                       style={{ ...styles.audioTag, display: audioReadyState.primary === 'ready' ? 'block' : 'none' }}
                       src={primaryAudioUrl}
                     >
@@ -967,6 +969,7 @@ function EntregaContent() {
                       onTimeUpdate={handleAudioTimeUpdate}
                       onCanPlay={() => handleAudioReady('second')}
                       onError={() => handleAudioError('second')}
+                      onPlay={() => markPreviewListened(orderId)}
                       style={{ ...styles.audioTag, display: audioReadyState.second === 'ready' ? 'block' : 'none' }}
                       src={secondAudioUrl}
                     >

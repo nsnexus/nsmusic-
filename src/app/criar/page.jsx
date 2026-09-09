@@ -1434,20 +1434,22 @@ export default function CriarMusica() {
                   </div>
 
                   {/* Versão 1 Preview Card */}
-                  <CustomAudioPreview 
+                  <CustomAudioPreview
                     src={getAudioUrl(formData.sunoTracks[0])}
                     label={`Música ${formData.honoreeName || 'Personalizada'} (Arranjo 1)`}
                     badge={`VERSÃO 1 - ESTILO ${formData.musicStyle?.toUpperCase() || 'PRINCIPAL'}`}
                     isBonus={false}
+                    orderId={orderId}
                   />
 
                   {/* Versão 2 Preview Card */}
                   {formData.sunoTracks[1] && (
-                    <CustomAudioPreview 
+                    <CustomAudioPreview
                       src={getAudioUrl(formData.sunoTracks[1])}
                       label={`Versão ${formData.honoreeName || 'Personalizada'} (Arranjo 2)`}
                       badge="VERSÃO 2 - ARRANJO ALTERNATIVO BÔNUS"
                       isBonus={true}
+                      orderId={orderId}
                     />
                   )}
 
