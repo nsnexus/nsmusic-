@@ -854,9 +854,23 @@ function EntregaContent() {
                             <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '10px' }}>
                               Não conseguimos carregar o áudio agora. Isso costuma resolver em instantes.
                             </p>
-                            <button type="button" onClick={() => handleAudioRetryClick('primary')} className="btn btn-secondary" style={{ padding: '10px 20px', fontSize: '0.85rem' }}>
-                              Tentar novamente
-                            </button>
+                            {/* Achado 09/09/2026: sem um link de WhatsApp bem aqui, do lado do botão,
+                                o cliente via essa mensagem, achava que tinha dado falha de vez e
+                                fechava a aba — o card de WhatsApp mais abaixo na página passava batido. */}
+                            <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                              <button type="button" onClick={() => handleAudioRetryClick('primary')} className="btn btn-secondary" style={{ padding: '10px 20px', fontSize: '0.85rem' }}>
+                                Tentar novamente
+                              </button>
+                              <a
+                                href={`https://wa.me/559491081351?text=${encodeURIComponent(`Olá! Não consigo carregar a prévia do pedido #${orderId || ''} (${order?.honoreeName || 'música personalizada'}).`)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="entrega-whatsapp-btn"
+                                style={{ padding: '10px 20px', fontSize: '0.85rem' }}
+                              >
+                                Falar no WhatsApp 📲
+                              </a>
+                            </div>
                           </>
                         ) : (
                           <>
@@ -921,9 +935,20 @@ function EntregaContent() {
                             <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '10px' }}>
                               Não conseguimos carregar o áudio agora. Isso costuma resolver em instantes.
                             </p>
-                            <button type="button" onClick={() => handleAudioRetryClick('second')} className="btn btn-secondary" style={{ padding: '10px 20px', fontSize: '0.85rem' }}>
-                              Tentar novamente
-                            </button>
+                            <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                              <button type="button" onClick={() => handleAudioRetryClick('second')} className="btn btn-secondary" style={{ padding: '10px 20px', fontSize: '0.85rem' }}>
+                                Tentar novamente
+                              </button>
+                              <a
+                                href={`https://wa.me/559491081351?text=${encodeURIComponent(`Olá! Não consigo carregar a prévia do pedido #${orderId || ''} (${order?.honoreeName || 'música personalizada'}).`)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="entrega-whatsapp-btn"
+                                style={{ padding: '10px 20px', fontSize: '0.85rem' }}
+                              >
+                                Falar no WhatsApp 📲
+                              </a>
+                            </div>
                           </>
                         ) : (
                           <>

@@ -355,7 +355,12 @@ export default function CriarMusica() {
   // resposta inteiro (res.blob()) de propósito — o proxy manda Cache-Control immutable, mas sem ler
   // o body o navegador não termina de baixar/cachear o arquivo, e o player de /entrega baixava tudo
   // de novo do zero (era o "parece que tá baixando" antes de tocar).
-  const waitForAudioReady = async (rawUrl, maxAttempts = 6, delayMs = 2000) => {
+  // Achado 09/09/2026: 6 tentativas x 2s (12s no total) não bastava pra CDN da Kie.ai propagar de
+  // verdade em boa parte das gerações — o cliente era redirecionado assim mesmo (ver chamador
+  // abaixo, que agora RESPEITA o retorno desta função em vez de ignorá-lo), caía numa prévia que
+  // ainda não carregava em /entrega, achava que tinha dado falha e fechava a aba sem nem clicar no
+  // WhatsApp. Mais tentativas e mais espaçadas dão à CDN uma chance real de terminar de propagar.
+  const waitForAudioReady = async (rawUrl, maxAttempts = 10, delayMs = 3000) => {
     if (!rawUrl) return false;
     const proxiedUrl = `/api/audio/proxy?url=${encodeURIComponent(rawUrl)}&v=${AUDIO_CACHE_VERSION}`;
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -1092,16 +1097,24 @@ export default function CriarMusica() {
                 body: JSON.stringify({ orderId: targetOrder })
               }).catch(e => console.warn("Erro ao notificar WhatsApp:", e));
 
-              // sunoStatus fica em 'generating' (tela de loading) até aqui de propósito — só vira
-              // 'generated' (tela de prévia com os players, mais abaixo) se não der pra redirecionar.
-              // A Kie.ai às vezes reporta "pronto" antes do arquivo terminar de propagar na CDN
-              // deles — redirecionar na hora podia levar a uma prévia que não tocava. Confirma que o
-              // áudio já responde e já está em cache do navegador antes de mandar o cliente pra lá;
-              // se não conseguir confirmar a tempo, redireciona mesmo assim (o player em /entrega
-              // também tenta recarregar sozinho).
+              // sunoStatus fica em 'generating' (tela de loading, com o CTA de WhatsApp já visível)
+              // até aqui de propósito — só vira 'generated' (tela de prévia com os players, mais
+              // abaixo) se não der pra redirecionar. A Kie.ai às vezes reporta "pronto" antes do
+              // arquivo terminar de propagar na CDN deles.
+              //
+              // Achado 09/09/2026: antes disso o redirecionamento acontecia SEMPRE, mesmo quando
+              // waitForAudioReady nunca confirmava o áudio — o cliente caía numa /entrega com o
+              // player travado em "Preparando sua prévia...", achava que tinha dado falha e fechava
+              // a aba sem clicar no WhatsApp. Agora só redireciona quando o áudio já respondeu de
+              // verdade; sem confirmação, fica na tela in-page (mesmo fallback já usado quando não
+              // há orderId, com os players tocando pelo proxy e o card de WhatsApp logo abaixo).
               updateField('sunoProgress', 'Finalizando e conferindo o áudio...');
-              await waitForAudioReady(primaryAudio);
-              window.location.href = `/entrega?orderId=${targetOrder}`;
+              const audioConfirmado = await waitForAudioReady(primaryAudio);
+              if (audioConfirmado) {
+                window.location.href = `/entrega?orderId=${targetOrder}`;
+              } else {
+                updateField('sunoStatus', 'generated');
+              }
             } else {
               // Sem orderId não tem pra onde redirecionar — cai na tela de prévia in-page como
               // fallback, senão o cliente fica travado numa tela de loading que nunca sai do lugar.
