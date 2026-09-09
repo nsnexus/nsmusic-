@@ -209,6 +209,30 @@ Qualquer dúvida, estamos por aqui! 💜`;
 };
 
 /**
+ * Achado 09/09/2026, pedido do dono do estúdio: cliente gera a música, some da tela (fecha a aba, cai
+ * a conexão, etc.) sem nunca dar play — não ouve a prévia nem manda mensagem pedindo ajuda, e o
+ * pedido morre aí. Esse lembrete avisa que a música já está pronta e manda o link direto. Ver
+ * src/app/api/cron/recover/route.js (bloco "lembrete de prévia não ouvida") pra quem dispara e com
+ * qual filtro — usa previewListenedAt (src/lib/previewTracking.js) pra nunca mandar pra quem já ouviu.
+ */
+export const sendPreviewNudgeTemplate = async (phone, { customerName, honoreeName, deliveryUrl }, env = {}) => {
+  const name = customerName || 'Cliente';
+  const honoree = honoreeName || 'alguém especial';
+  const url = deliveryUrl || 'https://nsmusic.nsnexus.com.br';
+
+  const message = `Olá, ${name}! 👋
+
+Percebemos que sua música personalizada para *${honoree}* já ficou pronta, mas você ainda não conseguiu ouvir a prévia — às vezes a página demora alguns segundos pra carregar. 🎶
+
+👉 *Clique aqui e ouça agora:*
+${url}
+
+Qualquer dificuldade, é só me chamar por aqui! 💜`;
+
+  return await sendWApiTextMessage(phone, message, env);
+};
+
+/**
  * Envia texto livre
  */
 export const sendFreeTextReply = async (phone, message, env = {}) => {
