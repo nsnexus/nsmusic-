@@ -1879,7 +1879,7 @@ export default function CriarMusica() {
                       {/* Botão desabilitado sem explicação lê como travamento. Diz o motivo. */}
                       {isUploadingCover
                         ? '⏳ Enviando foto...'
-                        : (step === 8 ? 'Criar Música →' : 'Continuar →')}
+                        : (step === 8 ? 'Criar Letra →' : 'Continuar →')}
                     </button>
                   ) : (
                     step === 9 && (
@@ -1895,7 +1895,7 @@ export default function CriarMusica() {
                           color: (isNextDisabled() || isSubmitting) ? 'var(--text-muted)' : '#FFFFFF'
                         }}
                       >
-                        Aprovar Letra →
+                        Criar Música →
                       </button>
                     )
                   )}
