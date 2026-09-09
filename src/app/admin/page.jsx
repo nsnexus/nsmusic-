@@ -9,6 +9,7 @@ import { getPriceForSku } from '@/lib/pricing';
 import { buildSunoPayload } from '@/lib/sunoPayload';
 import VendasPorDiaTable from '@/components/VendasPorDiaTable';
 import { formatToWhatsAppNumber } from '@/lib/whatsappTemplates';
+import { hasPreviewTrackingData } from '@/lib/previewTracking';
 import Link from 'next/link';
 import Image from 'next/image';
 
@@ -1103,12 +1104,16 @@ export default function AdminDashboard() {
                                   {/* Achado 09/09/2026: mostra de relance se o cliente já deu play na
                                       prévia (ver src/lib/previewTracking.js) — ajuda a separar "não
                                       gostou" de "nunca conseguiu ouvir" sem abrir o pedido. */}
-                                  <span
-                                    title={o.previewListenedAt ? `Ouviu a prévia em ${new Date(o.previewListenedAt).toLocaleString('pt-BR')}` : 'Ainda não deu play na prévia'}
-                                    style={{ fontSize: '0.85rem', opacity: o.previewListenedAt ? 1 : 0.25 }}
-                                  >
-                                    🎧
-                                  </span>
+                                  {/* Pedido de antes do rastreamento (09/09/2026) não tem esse dado —
+                                      mostrar apagado (não "não ouviu") seria enganoso, então some. */}
+                                  {(o.previewListenedAt || hasPreviewTrackingData(o)) && (
+                                    <span
+                                      title={o.previewListenedAt ? `Ouviu a prévia em ${new Date(o.previewListenedAt).toLocaleString('pt-BR')}` : 'Ainda não deu play na prévia'}
+                                      style={{ fontSize: '0.85rem', opacity: o.previewListenedAt ? 1 : 0.25 }}
+                                    >
+                                      🎧
+                                    </span>
+                                  )}
                                 </div>
                               </td>
                               <td style={{ ...styles.td, fontWeight: '700' }}>

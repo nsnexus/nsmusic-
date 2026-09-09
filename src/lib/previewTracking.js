@@ -13,6 +13,17 @@ import { db } from '@/lib/firebase';
 // antes de escrever.
 const jaMarcadoNestaVisita = new Set();
 
+// Ativado em 09/09/2026 (deploy do commit que introduziu previewListenedAt) — pedido explícito do
+// dono: pedido criado ANTES disso nunca teve a chance de gravar o campo, então mostrar "não ouviu"
+// pra ele seria enganoso (o cliente pode muito bem ter ouvido e até pago). Telas do admin devem
+// tratar esses pedidos como "sem dado", nunca como "não ouviu".
+export const PREVIEW_TRACKING_ENABLED_AFTER = new Date('2026-09-09T13:30:00.000Z').getTime();
+
+export function hasPreviewTrackingData(order) {
+  if (!order?.createdAt) return false;
+  return new Date(order.createdAt).getTime() >= PREVIEW_TRACKING_ENABLED_AFTER;
+}
+
 export function markPreviewListened(orderId) {
   if (!orderId || jaMarcadoNestaVisita.has(orderId)) return;
   jaMarcadoNestaVisita.add(orderId);

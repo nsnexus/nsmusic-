@@ -8,6 +8,7 @@ import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { formatToWhatsAppNumber } from '@/lib/whatsappTemplates';
 import { AUDIO_CACHE_VERSION } from '@/lib/audioCacheVersion';
+import { hasPreviewTrackingData } from '@/lib/previewTracking';
 import Link from 'next/link';
 import Image from 'next/image';
 
@@ -499,7 +500,9 @@ export default function OrderDetailsAdmin() {
               <p style={{ fontSize: '0.85rem', marginTop: '4px', fontWeight: '600', color: order.previewListenedAt ? '#16a34a' : '#94a3b8' }}>
                 {order.previewListenedAt
                   ? `🎧 Ouviu a prévia em ${new Date(order.previewListenedAt).toLocaleString('pt-BR')}`
-                  : '🔇 Ainda não deu play na prévia'}
+                  : hasPreviewTrackingData(order)
+                    ? '🔇 Ainda não deu play na prévia'
+                    : '— Pedido de antes do rastreamento de prévia (09/09/2026), sem esse dado'}
               </p>
               <div style={{ display: 'flex', gap: '8px', marginTop: '10px', flexWrap: 'wrap' }}>
                 {order.customerPhone && (
