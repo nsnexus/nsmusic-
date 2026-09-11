@@ -68,6 +68,51 @@ function EntregaContent() {
   const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
   const [uploadProgressMsg, setUploadProgressMsg] = useState('');
 
+  // Edição da foto de capa — pedido 11/09/2026 ("cliente poder editar a foto de capa dele").
+  const [isUploadingCover, setIsUploadingCover] = useState(false);
+  const [coverUploadError, setCoverUploadError] = useState('');
+  const coverInputRef = useRef(null);
+
+  const handleCoverChange = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // permite escolher o MESMO arquivo de novo depois (ex: tentar de novo após erro)
+    if (!file || !orderId) return;
+
+    if (!file.type?.startsWith('image/')) {
+      setCoverUploadError('Escolha um arquivo de imagem.');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setCoverUploadError('A imagem é muito grande. Escolha uma de até 10MB.');
+      return;
+    }
+
+    setCoverUploadError('');
+    setIsUploadingCover(true);
+    try {
+      // Mesmo tratamento de imagem já usado pra fotos da retrospectiva/vídeo — nunca falha o upload
+      // por causa disso, devolve o arquivo original se a compressão der errado (ver imageCompress.js).
+      const arquivo = await compressImage(file);
+      const safeName = arquivo.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+      // orders/{orderId}/photos/ já é liberado pra escrita anônima no storage.rules — reaproveita o
+      // mesmo prefixo em vez de pedir uma regra nova.
+      const fileRef = ref(storage, `orders/${orderId}/photos/capa_${Date.now()}_${safeName}`);
+      await uploadBytes(fileRef, arquivo);
+      const url = await getDownloadURL(fileRef);
+      await updateDoc(doc(db, 'orders', orderId), {
+        coverUrl: url,
+        updatedAt: new Date().toISOString(),
+      });
+      // Sem setOrder manual aqui: o onSnapshot da página já atualiza `order.coverUrl` sozinho assim
+      // que a escrita acima confirma no Firestore.
+    } catch (err) {
+      console.error('[entrega] Falha ao trocar a foto de capa:', err?.message);
+      setCoverUploadError('Não foi possível trocar a foto agora. Tente novamente.');
+    } finally {
+      setIsUploadingCover(false);
+    }
+  };
+
   // Sincroniza fotos salvas do pedido no Firestore quando carregado
   useEffect(() => {
     if (order?.slideshowImages && Array.isArray(order.slideshowImages)) {
@@ -817,6 +862,42 @@ function EntregaContent() {
                 )}
                 <div style={isPaid ? { ...styles.coverWrapper, boxShadow: '0 16px 40px rgba(236,72,153,0.22)', border: '1.5px solid rgba(255,255,255,0.12)' } : styles.coverWrapper}>
                   <img src={coverUrl} alt="Capa da música" style={styles.coverImg} />
+
+                  <input
+                    ref={coverInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleCoverChange}
+                    style={{ display: 'none' }}
+                    aria-label="Trocar foto de capa"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => coverInputRef.current?.click()}
+                    disabled={isUploadingCover}
+                    title="Trocar foto de capa"
+                    style={{
+                      position: 'absolute',
+                      top: '10px',
+                      right: '10px',
+                      padding: '7px 12px',
+                      fontSize: '0.78rem',
+                      fontWeight: '700',
+                      borderRadius: '999px',
+                      border: 'none',
+                      background: 'rgba(15, 23, 42, 0.72)',
+                      color: '#fff',
+                      cursor: isUploadingCover ? 'default' : 'pointer',
+                      opacity: isUploadingCover ? 0.7 : 1,
+                      backdropFilter: 'blur(4px)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                    }}
+                  >
+                    {isUploadingCover ? '⏳ Enviando...' : '✏️ Trocar capa'}
+                  </button>
+
                   {!isPaid && (
                     <div style={styles.coverOverlay}>
                       {/* color precisa ser explícito aqui: a regra global h1-h6 (globals.css) sempre
@@ -829,6 +910,9 @@ function EntregaContent() {
                     </div>
                   )}
                 </div>
+                {coverUploadError && (
+                  <p style={{ fontSize: '0.8rem', color: 'var(--error, #ef4444)', textAlign: 'center', margin: '-8px 0 0' }}>{coverUploadError}</p>
+                )}
 
                 {/* Audio Player 1 (Prévia de 60s se pendente, Completo se pago) */}
                 {primaryAudioUrl && (
