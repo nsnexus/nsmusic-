@@ -108,7 +108,9 @@ export default function VendasPorDiaTable() {
 
   const hoje = new Date();
   const ehMesAtual = hoje.getFullYear() === ano && hoje.getMonth() === mesNum - 1;
-  const linhasVisiveis = ehMesAtual ? porDia.filter((l) => l.dia <= hoje.getDate()) : porDia;
+  // Mais recente primeiro (pedido 11/09/2026) — dia de hoje/último dia do mês no topo, sem precisar
+  // rolar até o fim da tabela pra ver a venda mais recente.
+  const linhasVisiveis = (ehMesAtual ? porDia.filter((l) => l.dia <= hoje.getDate()) : porDia).slice().reverse();
 
   return (
     <div style={{ marginTop: '32px', background: '#fff', borderRadius: '14px', border: '1px solid #e2e8f0', padding: '20px' }}>
@@ -130,17 +132,20 @@ export default function VendasPorDiaTable() {
       ) : erro ? (
         <p style={{ color: '#dc2626', fontSize: '0.9rem' }}>{erro}</p>
       ) : (
-        <div style={{ overflowX: 'auto' }}>
+        /* maxHeight + overflowY: rolagem vertical própria (pedido 11/09/2026) — sem isso a tabela
+           cresce uma linha por dia do mês e estica a página inteira até o fim do mês. Cabeçalho
+           sticky pra continuar visível rolando. */
+        <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: '420px' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
             <thead>
               <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
-                <th style={{ textAlign: 'left', padding: '8px 10px', color: '#475569', fontWeight: '700' }}>Dia</th>
+                <th style={{ position: 'sticky', top: 0, background: '#fff', textAlign: 'left', padding: '8px 10px', color: '#475569', fontWeight: '700' }}>Dia</th>
                 {PRODUTOS.map((p) => (
-                  <th key={p.chave} style={{ textAlign: 'right', padding: '8px 10px', color: '#475569', fontWeight: '700', whiteSpace: 'nowrap' }}>
+                  <th key={p.chave} style={{ position: 'sticky', top: 0, background: '#fff', textAlign: 'right', padding: '8px 10px', color: '#475569', fontWeight: '700', whiteSpace: 'nowrap' }}>
                     {p.label}
                   </th>
                 ))}
-                <th style={{ textAlign: 'right', padding: '8px 10px', color: '#475569', fontWeight: '800' }}>Total</th>
+                <th style={{ position: 'sticky', top: 0, background: '#fff', textAlign: 'right', padding: '8px 10px', color: '#475569', fontWeight: '800' }}>Total</th>
               </tr>
             </thead>
             <tbody>
