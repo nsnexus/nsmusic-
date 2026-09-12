@@ -8,6 +8,7 @@ import { auth, db } from '@/lib/firebase';
 import { getPriceForSku } from '@/lib/pricing';
 import { buildSunoPayload } from '@/lib/sunoPayload';
 import VendasPorDiaTable from '@/components/VendasPorDiaTable';
+import FaturamentoCards from '@/components/FaturamentoCards';
 import { formatToWhatsAppNumber } from '@/lib/whatsappTemplates';
 import { hasPreviewTrackingData } from '@/lib/previewTracking';
 import Link from 'next/link';
@@ -296,13 +297,9 @@ export default function AdminDashboard() {
     return counts;
   }, [orders]);
 
-  // Faturamento respeita o filtro de data (quando definido), mas não as abas de status/tipo — os
-  // cartões de topo mostram sempre "quanto entrou no período", independente de qual lista o admin
-  // está navegando no momento.
-  const getOrdersInDateRange = () => {
-    // Filtro de data já aconteceu na query do Firestore — orders já é o período certo.
-    return orders;
-  };
+  // Os cards de faturamento/vendas/pedidos do topo viraram um componente próprio (pedido 12/09/2026:
+  // "os valores não estão batendo" com a tabela Vendas por dia) — ver src/components/FaturamentoCards.jsx
+  // pro porquê de precisar de consulta independente desta lista paginada.
 
   const parseAmount = (val, fallback = null) => {
     if (val === undefined || val === null || val === '') return fallback;
@@ -378,79 +375,10 @@ export default function AdminDashboard() {
     return { items, total };
   };
 
-  // Divide o valor pago entre os dois cards abaixo em vez de jogar tudo em "Músicas": um combo
-  // (música + vídeo comprados juntos, sku 'combo', R$16,89) tem o vídeo embutido no mesmo
-  // expectedAmount — sem separar, "Vídeos" ficava zerado para todo combo vendido, mesmo quando
-  // eram "várias vendas de vídeo" de verdade (achado do admin em 2026-08-12).
-  const getFaturamentoMusicas = () => {
-    return getOrdersInDateRange()
-      .filter(o => o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'PAGO')
-      .reduce((sum, o) => {
-        // Vídeo cobrado numa intenção de pagamento SEPARADA (videoPaymentId): expectedAmount reflete
-        // a cobrança mais recente do pedido (a do vídeo, sobrescrita depois da música em
-        // /api/payments/create), não a da música — usar o valor base evita contar o preço do vídeo
-        // como se fosse música.
-        if (o.videoPaymentId) return sum + AUDIO_PRICE;
-
-        let val = parseAmount(o.expectedAmount, null);
-        if (val === null) val = parseAmount(o.total, null);
-
-        // Fallback: se o pedido está pago mas não tem valor salvo (ou está como 0), assume o valor base.
-        if (val === null || val === 0) val = AUDIO_PRICE;
-
-        // Combo: conta só a parte da música aqui — a diferença vai para getFaturamentoVideos.
-        return sum + (val > AUDIO_PRICE ? AUDIO_PRICE : val);
-      }, 0);
-  };
-
-  const getFaturamentoVideos = () => {
-    // Add-on vendido SEPARADAMENTE (videoPaymentId só existe nesse caso — ver src/lib/payments.js).
-    const standalone = getOrdersInDateRange()
-      .filter(o => o.videoAddonPaid && o.videoPaymentId)
-      .reduce((sum) => sum + VIDEO_PRICE, 0);
-
-    // Vídeo vendido junto com a música no MESMO checkout (combo): a parte do valor pago que excede
-    // o preço da música sozinha. Exclui pedidos com videoPaymentId próprio para não contar duas
-    // vezes o mesmo vídeo comprado depois, em separado.
-    const comboPortion = getOrdersInDateRange()
-      .filter(o => (o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'PAGO') && !o.videoPaymentId)
-      .reduce((sum, o) => {
-        let val = parseAmount(o.expectedAmount, null);
-        if (val === null) val = parseAmount(o.total, null);
-        if (val === null) return sum;
-        const excess = val - AUDIO_PRICE;
-        return sum + (excess > 0 ? excess : 0);
-      }, 0);
-
-    return standalone + comboPortion;
-  };
-
-  const getFaturamentoTotal = () => {
-    return getFaturamentoMusicas() + getFaturamentoVideos();
-  };
-
-  // "Pedidos" conta TODO pedido criado (inclusive quem nunca pagou — abandonou no meio do wizard ou
-  // nunca chegou a gerar PIX). Venda é outra coisa: pagamento de música aprovado OU add-on de vídeo
-  // liberado, o que vier primeiro (um pedido não conta duas vezes se vendeu os dois).
-  const getVendasCount = () => {
-    return getOrdersInDateRange().filter(o =>
-      o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'PAGO' || o.videoAddonPaid
-    ).length;
-  };
-
-  // Custo por chamada aceita pela Kie.ai — não por pedido: um pedido retentado (manual ou pela
-  // retentativa automática, ver src/lib/suno.js) custa uma vez por tentativa, nunca só uma vez no
-  // total. sunoGenerationCount conta exatamente essas chamadas (ver requestSunoGeneration).
-  // Pedidos de antes desse campo existir não têm o contador — para não subestimar o gasto real
-  // desses pedidos antigos, qualquer um que tenha ao menos chegado a solicitar geração
-  // (sunoRequestedAt) conta como 1, o mínimo que com certeza aconteceu.
-  const KIE_COST_PER_GENERATION = 0.30;
-  const getGastoGeracaoMusicas = () => {
-    return getOrdersInDateRange().reduce((sum, o) => {
-      const count = Number(o.sunoGenerationCount) || (o.sunoRequestedAt ? 1 : 0);
-      return sum + count * KIE_COST_PER_GENERATION;
-    }, 0);
-  };
+  // getFaturamentoMusicas/Videos/Total, getVendasCount e getGastoGeracaoMusicas viraram
+  // FaturamentoCards.jsx (pedido 12/09/2026) — a lógica de valor combo/vídeo separado e o custo por
+  // geração da Kie.ai continuam do mesmo jeito lá, só a fonte dos pedidos mudou (consulta própria por
+  // data de PAGAMENTO em vez de reaproveitar esta lista, filtrada por data de CRIAÇÃO).
 
   // Pedidos com a letra pronta cujo pedido à Kie.ai nunca foi confirmado (EM_PRODUCAO é o estado
   // inicial genérico; LETRA_CRIADA é gravado quando a letra fica pronta — ver criar/page.jsx). Sem
@@ -788,33 +716,9 @@ export default function AdminDashboard() {
                 </button>
               </div>
 
-              {/* Cards de Métricas em Tema Claro */}
-              <div style={styles.metricsGrid}>
-                <div style={styles.metricCard}>
-                  <span style={styles.metricLabel}>Total (Músicas + Vídeos)</span>
-                  <h2 style={{ ...styles.metricValue, color: '#059669' }}>R$ {getFaturamentoTotal().toFixed(2).replace('.', ',')}</h2>
-                </div>
-                <div style={styles.metricCard}>
-                  <span style={styles.metricLabel}>Músicas (R$ 9,99)</span>
-                  <h2 style={{ ...styles.metricValue, color: '#0f172a' }}>R$ {getFaturamentoMusicas().toFixed(2).replace('.', ',')}</h2>
-                </div>
-                <div style={styles.metricCard}>
-                  <span style={styles.metricLabel}>Vídeos (R$ 6,90)</span>
-                  <h2 style={{ ...styles.metricValue, color: '#7c3aed' }}>R$ {getFaturamentoVideos().toFixed(2).replace('.', ',')}</h2>
-                </div>
-                <div style={styles.metricCard}>
-                  <span style={styles.metricLabel}>Pedidos</span>
-                  <h2 style={{ ...styles.metricValue, color: '#d97706' }}>{getOrdersInDateRange().length}</h2>
-                </div>
-                <div style={styles.metricCard}>
-                  <span style={styles.metricLabel}>Vendas (pagas)</span>
-                  <h2 style={{ ...styles.metricValue, color: '#059669' }}>{getVendasCount()}</h2>
-                </div>
-                <div style={styles.metricCard}>
-                  <span style={styles.metricLabel}>Gasto em Geração (Kie.ai)</span>
-                  <h2 style={{ ...styles.metricValue, color: '#dc2626' }}>R$ {getGastoGeracaoMusicas().toFixed(2).replace('.', ',')}</h2>
-                </div>
-              </div>
+              {/* Cards de faturamento/vendas/pedidos do período — pedido 12/09/2026, ver comentário
+                  em src/components/FaturamentoCards.jsx pro porquê de ser consulta própria. */}
+              <FaturamentoCards dateFrom={dateFrom} dateTo={dateTo} />
 
               {/* Quantidade vendida por produto, por dia do mês (pedido 04/09/2026) — consulta
                   própria, independente do filtro "hoje" da lista de pedidos abaixo. */}

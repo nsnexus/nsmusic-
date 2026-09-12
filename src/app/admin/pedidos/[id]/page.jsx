@@ -9,6 +9,7 @@ import { auth, db } from '@/lib/firebase';
 import { formatToWhatsAppNumber } from '@/lib/whatsappTemplates';
 import { AUDIO_CACHE_VERSION } from '@/lib/audioCacheVersion';
 import { hasPreviewTrackingData } from '@/lib/previewTracking';
+import { buildSunoPayload } from '@/lib/sunoPayload';
 import Link from 'next/link';
 import Image from 'next/image';
 
@@ -107,7 +108,13 @@ export default function OrderDetailsAdmin() {
           // apagar, por exemplo) — sem valor, o `||` recalculava o texto padrão na hora e reaparecia
           // ali, mesmo o campo ainda estando focado. Corrigido inicializando já com o valor final
           // (nunca string vazia) e o input passou a usar só o estado, sem fallback em tempo real.
-          setSunoPrompt(data.sunoPrompt || `${data.musicStyle || 'acoustic folk'}, ${data.voiceType || 'female'} vocals, ${data.emotion || 'emotional'}, acoustic guitar, warm, high quality production`);
+          // Achado 12/09/2026 (dono do estúdio: "o prompt de estilo tá muito simples"): este fallback
+          // era uma fórmula própria, bem mais pobre que buildSunoPayload (usada por /criar) — sempre
+          // cravava "acoustic guitar" mesmo pra Funk/Trap/Eletrônica, e lia `data.emotion`, campo que
+          // não existe no pedido (o real é `musicMood`), então "emotional" saía fixo sempre. Unificado
+          // com a MESMA função usada na geração normal do cliente, pra nunca divergir (ver topo de
+          // src/lib/sunoPayload.js).
+          setSunoPrompt(data.sunoPrompt || buildSunoPayload(data).tags);
         } else {
           setOrder({
             orderNumber: orderId,
@@ -341,12 +348,7 @@ export default function OrderDetailsAdmin() {
     }
   };
 
-  const getSunoStylePrompt = () => {
-    const style = order?.musicStyle || 'acoustic folk';
-    const voice = order?.voiceType || 'female';
-    const emotion = order?.emotion || 'emotional';
-    return `${style}, ${voice} vocals, ${emotion}, acoustic guitar, warm, high quality production`;
-  };
+  const getSunoStylePrompt = () => buildSunoPayload(order || {}).tags;
 
   const handleGenerateSuno = async () => {
     if (!lyrics.trim()) {
