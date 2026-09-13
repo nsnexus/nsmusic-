@@ -9,6 +9,8 @@ import { getPriceForSku } from '@/lib/pricing';
 import { buildSunoPayload } from '@/lib/sunoPayload';
 import VendasPorDiaTable from '@/components/VendasPorDiaTable';
 import FaturamentoCards from '@/components/FaturamentoCards';
+import VendasPorHoraHeatmap from '@/components/VendasPorHoraHeatmap';
+import VendasPorEstadoMapa from '@/components/VendasPorEstadoMapa';
 import { formatToWhatsAppNumber } from '@/lib/whatsappTemplates';
 import { hasPreviewTrackingData } from '@/lib/previewTracking';
 import Link from 'next/link';
@@ -723,6 +725,8 @@ export default function AdminDashboard() {
               {/* Quantidade vendida por produto, por dia do mês (pedido 04/09/2026) — consulta
                   própria, independente do filtro "hoje" da lista de pedidos abaixo. */}
               <VendasPorDiaTable />
+              <VendasPorHoraHeatmap />
+              <VendasPorEstadoMapa />
 
               {/* Filtros e Barra de Ações em Massa */}
               <div style={{ marginTop: '32px' }}>

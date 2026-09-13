@@ -1,25 +1,18 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { useState } from 'react';
+import { usePedidosDoMes, paraData } from '@/lib/usePedidosDoMes';
+import { getPriceForSku } from '@/lib/pricing';
 
 // Tabela "vendas por dia" do dashboard admin (pedido 04/09/2026) — quantidade vendida por produto,
-// por dia do mês, com total no fim. Consulta própria (não reaproveita o `orders` já carregado na
-// tela, que por padrão só cobre "hoje" — ver comentário de `dateFrom` em admin/page.jsx) pra sempre
-// mostrar o mês inteiro sem depender do filtro de data da lista de pedidos.
+// por dia do mês, com total no fim. Ver src/lib/usePedidosDoMes.js pro porquê da consulta própria.
 //
 // Contagem por PRODUTO usa o campo `*PaidAt` de cada um (gravado por src/lib/payments.js na mesma
 // transação que concede o acesso, tanto pra add-on isolado quanto pra combo — ver skuGrants*Access)
 // — assim um vídeo/carta/retrospectiva vendido junto da música no mesmo checkout (combo) conta no
 // dia certo sem precisar de lógica separada pra "veio de combo ou avulso".
-
-function paraData(valor) {
-  if (!valor) return null;
-  if (typeof valor?.toDate === 'function') return valor.toDate();
-  const d = new Date(valor);
-  return Number.isNaN(d.getTime()) ? null : d;
-}
+//
+// Pedido 12/09/2026: + Faturamento, Gerações e Taxa de conversão por dia.
 
 function mesAtualStr() {
   const d = new Date();
@@ -27,61 +20,25 @@ function mesAtualStr() {
 }
 
 const PRODUTOS = [
-  { chave: 'musicas', label: '🎵 Músicas', icone: '🎵' },
-  { chave: 'videos', label: '🎬 Vídeos', icone: '🎬' },
-  { chave: 'playbacks', label: '🎧 Playback', icone: '🎧' },
-  { chave: 'cartas', label: '💌 Cartas', icone: '💌' },
-  { chave: 'retrospectivas', label: '📖 Retrospectivas', icone: '📖' },
+  { chave: 'musicas', label: '🎵 Músicas', sku: 'audio_only' },
+  { chave: 'videos', label: '🎬 Vídeos', sku: 'video_addon' },
+  { chave: 'playbacks', label: '🎧 Playback', sku: 'playback_addon' },
+  { chave: 'cartas', label: '💌 Cartas', sku: 'carta_addon' },
+  { chave: 'retrospectivas', label: '📖 Retrospectivas', sku: 'retrospectiva_addon' },
 ];
 
 export default function VendasPorDiaTable() {
   const [mes, setMes] = useState(mesAtualStr);
-  const [pedidos, setPedidos] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [erro, setErro] = useState('');
-
-  useEffect(() => {
-    let ativo = true;
-    (async () => {
-      setLoading(true);
-      setErro('');
-      try {
-        const [ano, mesNum] = mes.split('-').map(Number);
-        const inicio = new Date(ano, mesNum - 1, 1, 0, 0, 0, 0).toISOString();
-        const fim = new Date(ano, mesNum, 1, 0, 0, 0, 0).toISOString();
-
-        const q = query(
-          collection(db, 'orders'),
-          where('createdAt', '>=', inicio),
-          where('createdAt', '<', fim),
-          orderBy('createdAt'),
-          limit(2000)
-        );
-        const snap = await getDocs(q);
-        if (!ativo) return;
-        // Mesma exclusão da listagem principal (admin/page.jsx) — configs/sessões não são pedidos.
-        const validos = snap.docs
-          .map((d) => ({ id: d.id, ...d.data() }))
-          .filter((o) => !o.deletedAt && !o.id.startsWith('config_') && !o.id.startsWith('session_')
-            && o.productionStatus !== 'CONFIG' && o.productionStatus !== 'RASCUNHO');
-        setPedidos(validos);
-      } catch (e) {
-        console.error('[VendasPorDiaTable] Erro ao buscar pedidos do mês:', e.message);
-        if (ativo) setErro('Não foi possível carregar as vendas deste mês.');
-      } finally {
-        if (ativo) setLoading(false);
-      }
-    })();
-    return () => { ativo = false; };
-  }, [mes]);
+  const { pedidos, loading, erro } = usePedidosDoMes(mes);
 
   const [ano, mesNum] = mes.split('-').map(Number);
   const diasNoMes = new Date(ano, mesNum, 0).getDate();
 
-  // Uma linha por dia do mês, zerada — preenchida abaixo com o que foi vendido em cada uma.
+  // Uma linha por dia do mês, zerada — preenchida abaixo com o que foi vendido/gerado/criado em cada uma.
   const porDia = Array.from({ length: diasNoMes }, (_, i) => ({
     dia: i + 1,
     musicas: 0, videos: 0, playbacks: 0, cartas: 0, retrospectivas: 0,
+    geracoes: 0, pedidosCriados: 0, pedidosPagos: 0,
   }));
 
   const somar = (campo, dataVal) => {
@@ -99,18 +56,46 @@ export default function VendasPorDiaTable() {
     if (o.hasPlaybackAccess || o.playbackAddonPaid) somar('playbacks', o.playbackPaidAt);
     if (o.hasCartaAccess || o.cartaAddonPaid) somar('cartas', o.cartaPaidAt);
     if (o.hasRetrospectivaAccess || o.retrospectivaAddonPaid) somar('retrospectivas', o.retrospectivaPaidAt);
+
+    // Gerações e conversão são por data de CRIAÇÃO do pedido, não de pagamento — a chamada à Kie.ai
+    // acontece na criação, e "taxa de conversão do dia" aqui significa "desse pedidos criados NESTE
+    // dia, quantos % já converteram em venda (não importa quando pagaram)" — cohort por criação, não
+    // por pagamento (misturar as duas datas daria um número sem significado real).
+    const dCriacao = paraData(o.createdAt);
+    if (dCriacao && dCriacao.getFullYear() === ano && dCriacao.getMonth() === mesNum - 1) {
+      const linha = porDia[dCriacao.getDate() - 1];
+      if (linha) {
+        const count = Number(o.sunoGenerationCount) || (o.sunoRequestedAt ? 1 : 0);
+        linha.geracoes += count;
+        linha.pedidosCriados += 1;
+        if (musicaPaga || o.videoAddonPaid) linha.pedidosPagos += 1;
+      }
+    }
   }
+
+  const KIE_COST_PER_GENERATION = 0.30;
+  const precoPorProduto = Object.fromEntries(PRODUTOS.map((p) => [p.chave, getPriceForSku(p.sku)]));
+
+  const faturamentoDia = (linha) => PRODUTOS.reduce((s, p) => s + linha[p.chave] * precoPorProduto[p.chave], 0);
+  const conversaoDia = (linha) => (linha.pedidosCriados > 0 ? (linha.pedidosPagos / linha.pedidosCriados) * 100 : null);
 
   const totais = porDia.reduce((acc, linha) => {
     for (const { chave } of PRODUTOS) acc[chave] += linha[chave];
+    acc.geracoes += linha.geracoes;
+    acc.pedidosCriados += linha.pedidosCriados;
+    acc.pedidosPagos += linha.pedidosPagos;
+    acc.faturamento += faturamentoDia(linha);
+    acc.gasto += linha.geracoes * KIE_COST_PER_GENERATION;
     return acc;
-  }, { musicas: 0, videos: 0, playbacks: 0, cartas: 0, retrospectivas: 0 });
+  }, { musicas: 0, videos: 0, playbacks: 0, cartas: 0, retrospectivas: 0, geracoes: 0, pedidosCriados: 0, pedidosPagos: 0, faturamento: 0, gasto: 0 });
 
   const hoje = new Date();
   const ehMesAtual = hoje.getFullYear() === ano && hoje.getMonth() === mesNum - 1;
   // Mais recente primeiro (pedido 11/09/2026) — dia de hoje/último dia do mês no topo, sem precisar
   // rolar até o fim da tabela pra ver a venda mais recente.
   const linhasVisiveis = (ehMesAtual ? porDia.filter((l) => l.dia <= hoje.getDate()) : porDia).slice().reverse();
+
+  const fmtMoeda = (v) => `R$ ${v.toFixed(2).replace('.', ',')}`;
 
   return (
     <div style={{ marginTop: '32px', background: '#fff', borderRadius: '14px', border: '1px solid #e2e8f0', padding: '20px' }}>
@@ -146,11 +131,19 @@ export default function VendasPorDiaTable() {
                   </th>
                 ))}
                 <th style={{ position: 'sticky', top: 0, background: '#fff', textAlign: 'right', padding: '8px 10px', color: '#475569', fontWeight: '800' }}>Total</th>
+                <th style={{ position: 'sticky', top: 0, background: '#fff', textAlign: 'right', padding: '8px 10px', color: '#059669', fontWeight: '700', whiteSpace: 'nowrap' }}>Faturado</th>
+                <th style={{ position: 'sticky', top: 0, background: '#fff', textAlign: 'right', padding: '8px 10px', color: '#475569', fontWeight: '700', whiteSpace: 'nowrap' }} title="Chamadas aceitas pela Kie.ai nesse dia, por data de CRIAÇÃO do pedido (não de pagamento)">
+                  Gerações
+                </th>
+                <th style={{ position: 'sticky', top: 0, background: '#fff', textAlign: 'right', padding: '8px 10px', color: '#475569', fontWeight: '700', whiteSpace: 'nowrap' }} title="% dos pedidos CRIADOS nesse dia que já converteram em venda (música ou vídeo), não importa quando pagaram">
+                  Conversão
+                </th>
               </tr>
             </thead>
             <tbody>
               {linhasVisiveis.map((linha) => {
                 const totalDia = PRODUTOS.reduce((s, p) => s + linha[p.chave], 0);
+                const conv = conversaoDia(linha);
                 return (
                   <tr key={linha.dia} style={{ borderBottom: '1px solid #f1f5f9' }}>
                     <td style={{ padding: '7px 10px', color: '#0f172a', fontWeight: '600' }}>{String(linha.dia).padStart(2, '0')}</td>
@@ -161,6 +154,15 @@ export default function VendasPorDiaTable() {
                     ))}
                     <td style={{ textAlign: 'right', padding: '7px 10px', fontWeight: '700', color: totalDia ? '#059669' : '#cbd5e1' }}>
                       {totalDia || '—'}
+                    </td>
+                    <td style={{ textAlign: 'right', padding: '7px 10px', fontWeight: '600', color: '#059669' }}>
+                      {fmtMoeda(faturamentoDia(linha))}
+                    </td>
+                    <td style={{ textAlign: 'right', padding: '7px 10px', color: linha.geracoes ? '#0f172a' : '#cbd5e1' }}>
+                      {linha.geracoes || '—'}
+                    </td>
+                    <td style={{ textAlign: 'right', padding: '7px 10px', color: conv === null ? '#cbd5e1' : '#0f172a' }}>
+                      {conv === null ? '—' : `${conv.toFixed(0)}%`}
                     </td>
                   </tr>
                 );
@@ -175,7 +177,16 @@ export default function VendasPorDiaTable() {
                   </td>
                 ))}
                 <td style={{ textAlign: 'right', padding: '9px 10px', fontWeight: '800', color: '#059669' }}>
-                  {Object.values(totais).reduce((a, b) => a + b, 0)}
+                  {Object.values({ musicas: totais.musicas, videos: totais.videos, playbacks: totais.playbacks, cartas: totais.cartas, retrospectivas: totais.retrospectivas }).reduce((a, b) => a + b, 0)}
+                </td>
+                <td style={{ textAlign: 'right', padding: '9px 10px', fontWeight: '800', color: '#059669' }}>
+                  {fmtMoeda(totais.faturamento)}
+                </td>
+                <td style={{ textAlign: 'right', padding: '9px 10px', fontWeight: '800', color: '#0f172a' }}>
+                  {totais.geracoes}
+                </td>
+                <td style={{ textAlign: 'right', padding: '9px 10px', fontWeight: '800', color: '#0f172a' }}>
+                  {totais.pedidosCriados > 0 ? `${((totais.pedidosPagos / totais.pedidosCriados) * 100).toFixed(0)}%` : '—'}
                 </td>
               </tr>
             </tfoot>
