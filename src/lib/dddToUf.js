@@ -46,38 +46,6 @@ export function ufFromPhone(phone) {
   return DDD_TO_UF[ddd] || null;
 }
 
-// Ordem/posição de cada UF num cartograma em grade (linhas/colunas) que aproxima o formato do mapa
-// do Brasil sem precisar de path SVG geográfico de verdade — técnica comum de "tile grid map".
-export const UF_GRID = [
-  { uf: 'RR', row: 0, col: 2 },
-  { uf: 'AP', row: 0, col: 4 },
-  { uf: 'AM', row: 1, col: 1 },
-  { uf: 'PA', row: 1, col: 3 },
-  { uf: 'MA', row: 1, col: 5 },
-  { uf: 'CE', row: 1, col: 6 },
-  { uf: 'RN', row: 1, col: 7 },
-  { uf: 'AC', row: 2, col: 0 },
-  { uf: 'RO', row: 2, col: 1 },
-  { uf: 'TO', row: 2, col: 3 },
-  { uf: 'PI', row: 2, col: 4 },
-  { uf: 'PB', row: 2, col: 6 },
-  { uf: 'PE', row: 2, col: 7 },
-  { uf: 'MT', row: 3, col: 2 },
-  { uf: 'BA', row: 3, col: 4 },
-  { uf: 'AL', row: 3, col: 7 },
-  { uf: 'SE', row: 3, col: 6 },
-  { uf: 'GO', row: 4, col: 3 },
-  { uf: 'DF', row: 4, col: 4 },
-  { uf: 'MG', row: 4, col: 5 },
-  { uf: 'ES', row: 4, col: 6 },
-  { uf: 'MS', row: 5, col: 2 },
-  { uf: 'SP', row: 5, col: 4 },
-  { uf: 'RJ', row: 5, col: 6 },
-  { uf: 'PR', row: 6, col: 3 },
-  { uf: 'SC', row: 7, col: 3 },
-  { uf: 'RS', row: 8, col: 3 },
-];
-
 export const UF_NOME = {
   AC: 'Acre', AL: 'Alagoas', AP: 'Amapá', AM: 'Amazonas', BA: 'Bahia', CE: 'Ceará',
   DF: 'Distrito Federal', ES: 'Espírito Santo', GO: 'Goiás', MA: 'Maranhão', MT: 'Mato Grosso',

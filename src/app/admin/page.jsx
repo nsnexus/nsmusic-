@@ -7,10 +7,7 @@ import { collection, query, orderBy, onSnapshot, limit as fbLimit, doc, setDoc, 
 import { auth, db } from '@/lib/firebase';
 import { getPriceForSku } from '@/lib/pricing';
 import { buildSunoPayload } from '@/lib/sunoPayload';
-import VendasPorDiaTable from '@/components/VendasPorDiaTable';
 import FaturamentoCards from '@/components/FaturamentoCards';
-import VendasPorHoraHeatmap from '@/components/VendasPorHoraHeatmap';
-import VendasPorEstadoMapa from '@/components/VendasPorEstadoMapa';
 import { formatToWhatsAppNumber } from '@/lib/whatsappTemplates';
 import { hasPreviewTrackingData } from '@/lib/previewTracking';
 import Link from 'next/link';
@@ -722,11 +719,9 @@ export default function AdminDashboard() {
                   em src/components/FaturamentoCards.jsx pro porquê de ser consulta própria. */}
               <FaturamentoCards dateFrom={dateFrom} dateTo={dateTo} />
 
-              {/* Quantidade vendida por produto, por dia do mês (pedido 04/09/2026) — consulta
-                  própria, independente do filtro "hoje" da lista de pedidos abaixo. */}
-              <VendasPorDiaTable />
-              <VendasPorHoraHeatmap />
-              <VendasPorEstadoMapa />
+              {/* Tabela por dia, mapa de calor por horário e mapa por estado moraram aqui até
+                  12/09/2026 — pedido do dono pra ficarem em /admin/dashboard junto do resto da
+                  análise (esta página é pra navegar PEDIDOS, não pra ser o painel de métricas). */}
 
               {/* Filtros e Barra de Ações em Massa */}
               <div style={{ marginTop: '32px' }}>

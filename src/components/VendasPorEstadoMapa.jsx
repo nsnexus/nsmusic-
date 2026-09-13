@@ -2,14 +2,15 @@
 
 import { useState, useMemo } from 'react';
 import { usePedidosDoMes } from '@/lib/usePedidosDoMes';
-import { ufFromPhone, UF_GRID, UF_NOME } from '@/lib/dddToUf';
-import { sequentialBlue, textoSobreSequencial } from '@/lib/sequentialColor';
+import { ufFromPhone, UF_NOME } from '@/lib/dddToUf';
+import { BR_UF_SHAPES, BR_VIEWBOX } from '@/lib/brUfShapes';
+import { sequentialBlue } from '@/lib/sequentialColor';
 
-// "Mapa do Brasil" por estado (pedido 12/09/2026) — cartograma em grade (tile grid map): cada UF vira
-// um quadrado numa posição que aproxima sua posição geográfica real, sem precisar de um SVG com o
-// contorno exato do país. Não existe campo de endereço/estado no pedido — o estado é INFERIDO pelo
-// DDD do telefone (ver src/lib/dddToUf.js), uma aproximação: quem mudou de estado e manteve o número
-// antigo conta pro estado errado. Aceitável pra visão geral, não pra decisão fina por região.
+// Mapa do Brasil por estado (pedido 12/09/2026) — contorno real dos estados (ver
+// src/lib/brUfShapes.js), colorido por volume de venda. Não existe campo de endereço/estado no
+// pedido — o estado é INFERIDO pelo DDD do telefone (ver src/lib/dddToUf.js), uma aproximação: quem
+// mudou de estado e manteve o número antigo conta pro estado errado. Aceitável pra visão geral, não
+// pra decisão fina por região.
 
 function mesAtualStr() {
   const d = new Date();
@@ -42,8 +43,7 @@ export default function VendasPorEstadoMapa() {
   }, [pedidos]);
 
   const pico = Math.max(1, ...Object.values(porEstado));
-  const nCols = Math.max(...UF_GRID.map((c) => c.col)) + 1;
-  const nRows = Math.max(...UF_GRID.map((c) => c.row)) + 1;
+  const ranking = Object.entries(porEstado).sort((a, b) => b[1] - a[1]).slice(0, 5);
 
   return (
     <div style={{ marginTop: '24px', background: '#fff', borderRadius: '14px', border: '1px solid #e2e8f0', padding: '20px' }}>
@@ -67,54 +67,53 @@ export default function VendasPorEstadoMapa() {
       ) : totalVendas === 0 ? (
         <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Nenhuma venda neste mês ainda.</p>
       ) : (
-        <>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: `repeat(${nCols}, minmax(34px, 44px))`,
-              gridTemplateRows: `repeat(${nRows}, 34px)`,
-              gap: '2px',
-              overflowX: 'auto',
-            }}
-          >
-            {UF_GRID.map(({ uf, row, col }) => {
+        <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+          <svg viewBox={BR_VIEWBOX} style={{ width: '100%', maxWidth: '380px', height: 'auto', flexShrink: 0 }}>
+            {BR_UF_SHAPES.map(({ uf, tag, points, d }) => {
               const total = porEstado[uf] || 0;
               const t = total / pico;
+              const props = {
+                key: uf,
+                onMouseEnter: () => setHover(uf),
+                onMouseLeave: () => setHover(null),
+                fill: sequentialBlue(t),
+                stroke: hover === uf ? '#0f172a' : '#ffffff',
+                strokeWidth: hover === uf ? 1.5 : 0.75,
+                style: { cursor: 'default' },
+              };
               return (
-                <div
-                  key={uf}
-                  onMouseEnter={() => setHover(uf)}
-                  onMouseLeave={() => setHover(null)}
-                  title={`${UF_NOME[uf]}: ${total} venda${total === 1 ? '' : 's'}`}
-                  style={{
-                    gridRow: row + 1,
-                    gridColumn: col + 1,
-                    borderRadius: '4px',
-                    background: sequentialBlue(t),
-                    border: '1px solid #e2e8f0',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '0.68rem',
-                    fontWeight: '800',
-                    color: textoSobreSequencial(t),
-                    cursor: 'default',
-                    outline: hover === uf ? '2px solid #0f172a' : 'none',
-                    outlineOffset: '1px',
-                  }}
-                >
-                  {uf}
-                </div>
+                <g key={uf}>
+                  {tag === 'polygon'
+                    ? <polygon {...props} points={points} />
+                    : <path {...props} d={d} />}
+                  <title>{`${UF_NOME[uf]}: ${total} venda${total === 1 ? '' : 's'}`}</title>
+                </g>
               );
             })}
-          </div>
+          </svg>
 
-          <p style={{ marginTop: '14px', fontSize: '0.78rem', color: '#64748b' }}>
-            {hover
-              ? `${UF_NOME[hover]}: ${porEstado[hover] || 0} venda${(porEstado[hover] || 0) === 1 ? '' : 's'} no mês`
-              : `Estado inferido pelo DDD do telefone — aproximado. ${semEstado > 0 ? `${semEstado} venda${semEstado === 1 ? '' : 's'} sem estado identificável.` : ''}`}
-          </p>
-        </>
+          <div style={{ flex: 1, minWidth: '180px' }}>
+            <p style={{ fontSize: '0.78rem', color: '#64748b', margin: '0 0 10px' }}>
+              {hover
+                ? <strong style={{ color: '#0f172a' }}>{UF_NOME[hover]}: {porEstado[hover] || 0} venda{(porEstado[hover] || 0) === 1 ? '' : 's'}</strong>
+                : 'Passe o mouse sobre um estado pra ver o total.'}
+            </p>
+            <p style={{ fontSize: '0.75rem', fontWeight: '700', color: '#475569', margin: '0 0 6px' }}>Top 5 estados</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              {ranking.map(([uf, total]) => (
+                <div key={uf} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem' }}>
+                  <span style={{ width: '10px', height: '10px', borderRadius: '2px', background: sequentialBlue(total / pico), flexShrink: 0 }} />
+                  <span style={{ color: '#0f172a', fontWeight: '600', minWidth: '28px' }}>{uf}</span>
+                  <span style={{ color: '#64748b' }}>{total}</span>
+                </div>
+              ))}
+            </div>
+            <p style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '12px' }}>
+              Estado inferido pelo DDD do telefone — aproximado.
+              {semEstado > 0 ? ` ${semEstado} venda${semEstado === 1 ? '' : 's'} sem estado identificável.` : ''}
+            </p>
+          </div>
+        </div>
       )}
     </div>
   );
