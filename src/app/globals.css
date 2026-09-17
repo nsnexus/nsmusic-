@@ -1104,3 +1104,13 @@ label {
     flex-direction: row;
   }
 }
+
+/* Barra do robô de WhatsApp no admin (pedido 17/09/2026: "pega a tela quase toda no celular") —
+   no mobile some a descrição (é só contexto, o título + botão já bastam) e encolhe ícone/botão. */
+@media (max-width: 640px) {
+  .admin-agent-bar { padding: 10px 14px; }
+  .admin-agent-icon { font-size: 1.15rem !important; }
+  .admin-agent-title { font-size: 0.85rem !important; }
+  .admin-agent-desc { display: none; }
+  .admin-agent-btn { padding: 7px 14px !important; font-size: 0.8rem !important; width: 100%; }
+}

@@ -1,8 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import { requestPixCharge } from '@/lib/pixCheckout';
 import { buildAudioProxySrc } from '@/lib/audioProxy';
+import { cartaTemaId, CARTA_TEMA_SLOTS } from '@/lib/cartaModelo';
 import CartaCartao from './CartaCartao';
 import PixQrCode from './PixQrCode';
 
@@ -64,6 +67,45 @@ export default function CartaAddonCard({ orderId, order }) {
       console.warn('[CartaAddonCard] Falha ao salvar música escolhida:', e?.message);
     }
     setSalvandoMusica(false);
+  };
+
+  // Tema visual da carta (pedido 17/09/2026: "cliente poder alterar o tema da cartinha") — busca as
+  // imagens configuradas no painel admin pra mostrar como miniatura de cada uma das 7 opções. Some
+  // sozinho se o admin ainda não configurou nenhuma (nada pra escolher visualmente).
+  const [temasDisponiveis, setTemasDisponiveis] = useState(null); // null = carregando
+  const [salvandoTema, setSalvandoTema] = useState(false);
+  const temaAtual = order?.cartaTemaEscolhido || cartaTemaId(order || {});
+
+  useEffect(() => {
+    let ativo = true;
+    (async () => {
+      try {
+        const snap = await getDocs(collection(db, 'cartaTemas'));
+        if (!ativo) return;
+        const porId = {};
+        snap.forEach((d) => { porId[d.id] = d.data(); });
+        setTemasDisponiveis(CARTA_TEMA_SLOTS.map((slot) => ({ ...slot, imagemUrl: porId[slot.id]?.imagemUrl || null })));
+      } catch (e) {
+        if (ativo) setTemasDisponiveis([]);
+      }
+    })();
+    return () => { ativo = false; };
+  }, []);
+
+  const handleEscolherTema = async (temaId) => {
+    if (temaId === temaAtual) return;
+    setSalvandoTema(true);
+    try {
+      await fetch('/api/carta/choose-theme', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId, temaId }),
+      });
+      // cartaTemaEscolhido chega pelo onSnapshot do pai — não precisa setar estado local.
+    } catch (e) {
+      console.warn('[CartaAddonCard] Falha ao salvar tema escolhido:', e?.message);
+    }
+    setSalvandoTema(false);
   };
 
   const handleGeneratePix = async () => {
@@ -332,6 +374,47 @@ export default function CartaAddonCard({ orderId, order }) {
           )}
 
           {erroTexto && <p style={{ fontSize: '0.8rem', color: 'var(--error, #ef4444)', marginTop: '10px' }}>{erroTexto}</p>}
+
+          {Array.isArray(temasDisponiveis) && temasDisponiveis.some((t) => t.imagemUrl) && (
+            <div style={{ marginTop: '14px', textAlign: 'left' }}>
+              <p style={{ fontSize: '0.78rem', fontWeight: '700', marginBottom: '8px' }}>
+                Tema da carta:
+              </p>
+              <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
+                {temasDisponiveis.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => handleEscolherTema(t.id)}
+                    disabled={salvandoTema}
+                    title={t.label}
+                    style={{
+                      flexShrink: 0,
+                      width: '56px',
+                      height: '74px',
+                      borderRadius: '8px',
+                      border: `2px solid ${temaAtual === t.id ? 'var(--primary)' : 'var(--border-color)'}`,
+                      padding: 0,
+                      overflow: 'hidden',
+                      cursor: salvandoTema ? 'default' : 'pointer',
+                      background: t.imagemUrl ? `url(${t.imagemUrl}) center/cover` : 'rgba(0,0,0,0.15)',
+                      position: 'relative',
+                      opacity: salvandoTema ? 0.6 : 1,
+                    }}
+                    aria-label={`Usar tema ${t.label}`}
+                    aria-pressed={temaAtual === t.id}
+                  >
+                    {!t.imagemUrl && (
+                      <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', color: 'var(--text-muted)', textAlign: 'center', padding: '2px' }}>
+                        sem imagem
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+              {salvandoTema && <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '4px' }}>Salvando...</p>}
+            </div>
+          )}
 
           {faixasUnicas.length > 1 && (
             <div style={{ marginTop: '14px', textAlign: 'left' }}>

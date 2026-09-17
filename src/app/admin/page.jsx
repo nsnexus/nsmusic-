@@ -668,27 +668,27 @@ export default function AdminDashboard() {
           {activeTab === 'ORDERS' ? (
             <div>
               {/* Barra de Controle Master do Agente WhatsApp */}
-              <div style={{
+              <div className="admin-agent-bar" style={{
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                padding: '14px 20px',
+                padding: '10px 16px',
                 borderRadius: '12px',
                 background: agentEnabled ? 'rgba(16, 185, 129, 0.08)' : 'rgba(239, 68, 68, 0.08)',
                 border: agentEnabled ? '1.5px solid #10b981' : '1.5px solid #ef4444',
                 marginBottom: '24px',
                 flexWrap: 'wrap',
-                gap: '12px',
+                gap: '10px',
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <span style={{ fontSize: '1.6rem' }}>{agentEnabled ? '🤖' : '🛑'}</span>
-                  <div>
-                    <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: '800', color: agentEnabled ? '#047857' : '#b91c1c' }}>
-                      Robô de Atendimento IA no WhatsApp: {agentEnabled ? 'ATIVADO' : 'DESATIVADO (Atendimento 100% Humano)'}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                  <span className="admin-agent-icon" style={{ fontSize: '1.3rem', flexShrink: 0 }}>{agentEnabled ? '🤖' : '🛑'}</span>
+                  <div style={{ minWidth: 0 }}>
+                    <h4 className="admin-agent-title" style={{ margin: 0, fontSize: '0.92rem', fontWeight: '800', color: agentEnabled ? '#047857' : '#b91c1c' }}>
+                      Robô WhatsApp: {agentEnabled ? 'ATIVADO' : 'DESATIVADO (Atendimento 100% Humano)'}
                     </h4>
-                    <p style={{ margin: '2px 0 0 0', fontSize: '0.84rem', color: '#475569' }}>
+                    <p className="admin-agent-desc" style={{ margin: '2px 0 0 0', fontSize: '0.8rem', color: '#475569' }}>
                       {agentEnabled
-                        ? 'A IA está conversando com clientes no WhatsApp. Se quiser assumir o WhatsApp sem interferência do robô, desative aqui.'
+                        ? 'A IA está conversando com clientes no WhatsApp. Se quiser assumir sem interferência, desative aqui.'
                         : 'A IA está 100% em silêncio no WhatsApp. Você pode conversar livremente com os clientes.'}
                     </p>
                   </div>
@@ -696,11 +696,12 @@ export default function AdminDashboard() {
 
                 <button
                   type="button"
+                  className="admin-agent-btn"
                   onClick={handleToggleAgent}
                   disabled={togglingAgent}
                   style={{
-                    padding: '10px 22px',
-                    fontSize: '0.9rem',
+                    padding: '8px 16px',
+                    fontSize: '0.82rem',
                     fontWeight: '800',
                     borderRadius: '8px',
                     backgroundColor: agentEnabled ? '#ef4444' : '#10b981',
@@ -709,9 +710,11 @@ export default function AdminDashboard() {
                     cursor: 'pointer',
                     boxShadow: agentEnabled ? '0 4px 12px rgba(239, 68, 68, 0.3)' : '0 4px 12px rgba(16, 185, 129, 0.3)',
                     transition: 'all 0.2s ease',
+                    flexShrink: 0,
+                    whiteSpace: 'nowrap',
                   }}
                 >
-                  {togglingAgent ? 'Salvando...' : (agentEnabled ? '🛑 Desativar Robô Agora' : '✅ Ativar Robô Agora')}
+                  {togglingAgent ? 'Salvando...' : (agentEnabled ? '🛑 Desativar' : '✅ Ativar')}
                 </button>
               </div>
 

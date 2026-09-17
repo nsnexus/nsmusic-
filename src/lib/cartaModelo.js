@@ -37,7 +37,15 @@ export function escolherModeloCarta(order = {}) {
 // modelos ao todo, não 8: Romântica + Aniversário/Homenagem/Padrão em M e F). Gênero neutro (relação
 // ambígua, ex: "Chefe") usa a variante masculina só pro visual — o TEXTO da carta já trata o neutro
 // à parte (ver GENERO_INSTRUCAO em src/lib/carta.js), essa escolha aqui não afeta o texto.
+//
+// Achado 17/09/2026: cliente pode trocar o tema manualmente (ver CartaAddonCard.jsx +
+// api/carta/choose-theme) — `cartaTemaEscolhido`, gravado no pedido, tem prioridade sobre a escolha
+// automática. Só aceita um id que exista de fato em CARTA_TEMA_SLOTS (defesa contra um valor salvo
+// à mão/corrompido no Firestore apontar pra um tema que não existe).
 export function cartaTemaId(order = {}) {
+  if (order.cartaTemaEscolhido && CARTA_TEMA_SLOTS.some((s) => s.id === order.cartaTemaEscolhido)) {
+    return order.cartaTemaEscolhido;
+  }
   const { categoria, genero } = escolherModeloCarta(order);
   if (categoria === 'romantica') return 'romantica';
   const generoVisual = genero === 'neutro' ? 'masculino' : genero;
