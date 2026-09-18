@@ -26,7 +26,10 @@ certificate_id = "c8facf26-086e-455e-8faa-52c9a456be18"
 
 [[mtls_certificates]]
 binding = "EFI_MTLS_CERT_PRODUCTION"
-certificate_id = "5bba60d5-7047-4e5b-9607-3641b86a1c35"
+# Trocado 18/09/2026 — migração pra conta PJ nova da Efí (certificado com serial positivo, 4ª
+# tentativa: as 3 anteriores saíram negativas, ver histórico do commit). Client ID/Secret/chave Pix
+# também trocados nas env vars do Pages nesse mesmo dia.
+certificate_id = "6a830ea4-1a02-474a-8cf5-1679888e72a1"
 
 # Dois agendamentos (handler `scheduled` em src/worker.js, que distingue pelo event.cron). Moram
 # aqui e não no app porque Cloudflare Pages não suporta cron trigger — só Workers suportam, a mesma
