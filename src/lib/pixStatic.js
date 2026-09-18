@@ -3,11 +3,10 @@
 // Efí (EFI_PIX_KEY) — assim o dinheiro do fallback cai na mesma conta das cobranças normais, em vez
 // de ficar dividido entre PF e PJ.
 const PIX_KEY = '68471413000198';
-// Nome e cidade batem com o que está registrado de verdade na chave (confirmado com um Pix Copia e
-// Cola real gerado pelo banco do dono da chave) — não é o nome fantasia da empresa. A maioria dos
-// apps de banco ignora esses dois campos e busca o nome real no DICT pela chave, mas alinhar evita
-// qualquer app mais rígido que compare o texto do QR.
-const MERCHANT_NAME = 'NARCISO H F SANTOS';
+// Trocado 18/09/2026 junto com a chave (era 'NARCISO H F SANTOS', da pessoa física). A maioria dos
+// apps de banco ignora esses dois campos e busca o nome real no DICT pela chave — o que aparece pro
+// pagador é a razão social ligada ao CNPJ, não este texto.
+const MERCHANT_NAME = 'NS MUSIC';
 const MERCHANT_CITY = 'PARAUAPEBAS';
 const GUI = 'br.gov.bcb.pix';
 
