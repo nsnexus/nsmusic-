@@ -99,6 +99,13 @@ async function main() {
       headers: {
         Authorization: `Bearer ${tokenData.access_token}`,
         'Content-Type': 'application/json',
+        // Sem este header a Efí recusa com "A autenticação de TLS mútuo não está configurada na URL
+        // informada" (HTTP 400, achado 18/09/2026): por padrão ela exige que a URL do webhook também
+        // apresente certificado mTLS. Nossa URL é uma rota comum do app em Cloudflare Pages, que não
+        // tem como fazer isso — a autenticação do webhook é feita pelo `?secret=` na query
+        // (EFI_WEBHOOK_SECRET) e, principalmente, reconsultando a cobrança na API da Efí antes de
+        // aprovar qualquer pagamento (ver src/app/api/webhooks/efi/route.js).
+        'x-skip-mtls-checking': 'true',
       },
     },
     { webhookUrl }
