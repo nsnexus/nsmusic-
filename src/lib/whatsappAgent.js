@@ -1,7 +1,7 @@
 import { doc, getDoc, setDoc, deleteDoc, addDoc, collection } from 'firebase/firestore/lite';
 import { dbEdge as db } from './firebase-edge.js';
 import { runGeminiWithFailover, runJsonCompletion } from './gemini.js';
-import { sendWApiTextMessage, sendWApiPresence, resolveDeliveryUrl, cleanWhatsAppId } from './whatsapp.js';
+import { sendWApiTextMessage, sendWApiPresence, resolveDeliveryUrl, resolveCriarUrl, cleanWhatsAppId } from './whatsapp.js';
 import { requestSunoGeneration } from './suno.js';
 import { generateUniqueOrderNumber } from './orderNumber.js';
 import { buildSunoPayload } from './sunoPayload.js';
@@ -41,6 +41,9 @@ Como conversar (isso é o que mais importa — leia com atenção):
 - Escreva como gente escreve no zap: frase curta, informal, sem parecer texto revisado de empresa. Varie a abertura, nunca repita a mesma estrutura duas vezes seguidas.
 - No máximo UM emoji por mensagem, e só quando encaixar de verdade. Pode mandar mensagem sem emoji nenhum.
 - Você QUER fechar essa venda — não com pressão ou script, mas com entusiasmo genuíno pela história. Assim que tiver o essencial (nome + história com substância + estilo), PARE de perguntar e feche: diga que já vai escrever a letra. Não fique pedindo "mais um detalhinho" — isso perde venda.
+- A PRIMEIRA mensagem do cliente já faz parte da conversa. Responda ao que ela disse; nunca mande uma saudação genérica que repete uma pergunta já respondida nela. Se ela já trouxer nome, história ou estilo, aproveite esses dados e siga do ponto em que a conversa realmente está.
+- Quando cliente perguntar preço, prazo ou como funciona, responda primeiro de forma curta e natural. Depois retome apenas uma pergunta que ainda ajude a criar a homenagem. Não desvie da pergunta para um roteiro.
+- Se cliente corrigir um dado anterior, aceite a correção sem discutir nem repetir a informação antiga. Se ele mudar de assunto, responda ao assunto em uma frase e volte com uma única pergunta útil.
 - NUNCA force um campo. Se a resposta do cliente não tiver relação com o que você perguntou (saiu do assunto, pediu outra coisa, mandou algo confuso), NÃO preencha esse campo com o texto errado — só comente com gentileza e pergunte de novo, esclarecendo o que precisa saber.
 - Só marque um campo como preenchido quando o cliente realmente informar aquilo, mesmo que en passant dentro de uma frase maior.
 - Peça só o que ainda falta — não repita pergunta de campo já preenchido.
@@ -142,7 +145,12 @@ ${historyText ? `Histórico da conversa:\n${historyText}\n\n` : ''}Cliente: ${us
 
   const result = await runJsonCompletion(COLLECTING_SYSTEM_PROMPT, userPrompt, envVars);
 
-  const fields = result?.fields || {};
+  const returnedFields = result?.fields || {};
+  // Modelo recebe os campos já conhecidos, mas uma resposta parcialmente inválida ainda pode omitir
+  // um deles. Preservar o dado salvo evita que a conversa volte para uma pergunta já respondida.
+  const fields = Object.fromEntries(
+    Object.keys(knownFields).map((key) => [key, returnedFields[key] || knownFields[key]])
+  );
   const reply = typeof result?.reply === 'string' && result.reply.trim() ? result.reply.trim() : null;
 
   // readyToCompose é decidido AQUI pelos campos, não pelo flag que a IA devolve (achado 03/09/2026,
@@ -257,9 +265,16 @@ export async function handleWhatsAppAgentMessage(senderPhone, messageText, envVa
     await sendWApiPresence(cleanPhone, 'composing', envVars);
     await sleep(2500);
 
+    // Link do wizard já com cache/rascunho limpo (pedido 18/09/2026) — quem já usou o site antes pode
+    // ter um rascunho antigo salvo no navegador; sem isso, abrir /criar de novo podia restaurar o
+    // pedido/letra anterior em vez de começar do zero. Oferecido como alternativa ao chat: o cliente
+    // pode continuar contando a história aqui mesmo, ou preencher direto no site.
     const welcome = `Oii! 🎵 Sou a ${PERSONA_NAME}, do NS Music — vamos começar uma homenagem novinha do zero!
 
-Me conta: pra quem vai ser essa música, e um pouco da história de vocês? ❤️`;
+Se preferir, já pode preencher direto por aqui, com tudo limpinho pra começar do zero:
+${resolveCriarUrl()}
+
+Ou me conta agora mesmo: pra quem vai ser essa música, e um pouco da história de vocês? ❤️`;
     await sendWApiTextMessage(cleanPhone, welcome, envVars);
     await saveSession(cleanPhone, {
       step: 'COLLECTING',
@@ -271,7 +286,7 @@ Me conta: pra quem vai ser essa música, e um pouco da história de vocês? ❤�
   }
 
   // 4. Carrega sessão atual
-  const session = await loadSession(cleanPhone);
+  let session = await loadSession(cleanPhone);
 
   // Se o atendimento foi assumido por um atendente humano, a IA permanece 100% em silêncio
   if (session?.humanTakeover === true) {
@@ -301,21 +316,15 @@ Me conta: pra quem vai ser essa música, e um pouco da história de vocês? ❤�
       return false;
     }
 
-    // Mostra "digitando..." e aguarda tempo natural (3.5s) para dar tempo de mensagens adicionais
-    await sendWApiPresence(cleanPhone, 'composing', envVars);
-    await sleep(3500);
-
-    const greeting = `Oi, tudo bem? 🎵 Sou a ${PERSONA_NAME}, do NS Music — eu que escrevo a letra e componho a música, do jeitinho que a sua história merece. São 2 versões completas em áudio MP3 HD por *R$ 9,99*. ✨
-
-Me conta: pra quem vai ser essa homenagem, e um pouco da história de vocês? Pode mandar em texto ou em áudio, com os detalhes que quiser! ❤️`;
-
-    await sendWApiTextMessage(cleanPhone, greeting, envVars);
-    await saveSession(cleanPhone, {
+    // A mensagem que iniciou o atendimento costuma já conter dados valiosos ("quero uma música
+    // pra minha mãe Maria, em sertanejo"). A saudação fixa antiga ignorava isso e perguntava tudo
+    // de novo, o comportamento mais percebido como robótico. Cria a sessão e processa a própria
+    // primeira mensagem pelo mesmo turno conversacional das seguintes.
+    session = {
       step: 'COLLECTING',
-      chatHistory: [{ role: 'assistant', text: greeting }],
+      chatHistory: [],
       startedAt: new Date().toISOString(),
-    });
-    return true;
+    };
   }
 
   // Mostra "digitando..." mas NÃO trava mais em sleep(3500) fixo antes de começar o trabalho de

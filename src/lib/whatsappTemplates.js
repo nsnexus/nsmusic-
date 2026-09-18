@@ -14,6 +14,15 @@ export function resolveDeliveryUrl(orderId) {
   return `${resolveSiteBaseUrl()}/entrega?orderId=${orderId}`;
 }
 
+// Link do wizard já com `?new=1` — /criar já sabe limpar o rascunho salvo no localStorage do
+// navegador quando essa query chega (ver src/app/criar/page.jsx, useEffect de restauração). Pedido
+// 18/09/2026: cliente que manda "novo pedido" de novo no WhatsApp às vezes reabre o wizard com o
+// RASCUNHO ANTIGO restaurado (outro pedido, outra letra, step avançado) em vez de começar do zero —
+// esse link força o começo limpo sem o cliente precisar saber o que é "limpar cache".
+export function resolveCriarUrl() {
+  return `${resolveSiteBaseUrl()}/criar?new=1`;
+}
+
 // AUDIT_VERSION=2, achado 31/08/2026: o link de áudio mandado direto no WhatsApp (pagamento
 // aprovado / "cadê minha música") era a URL CRUA da CDN da Kie.ai/tempfile — o próprio arquivo mp3
 // externo, sem passar pelo nosso /api/audio/proxy. No navegador do celular isso geralmente nem toca
