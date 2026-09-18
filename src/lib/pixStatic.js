@@ -1,4 +1,8 @@
-﻿const PIX_KEY = '+5594991064043';
+﻿// Trocado 18/09/2026 (migração pra conta PJ): era a chave pessoa física do dono
+// ('+5594991064043'). Agora aponta pro CNPJ da empresa, a MESMA chave usada nas cobranças reais da
+// Efí (EFI_PIX_KEY) — assim o dinheiro do fallback cai na mesma conta das cobranças normais, em vez
+// de ficar dividido entre PF e PJ.
+const PIX_KEY = '68471413000198';
 // Nome e cidade batem com o que está registrado de verdade na chave (confirmado com um Pix Copia e
 // Cola real gerado pelo banco do dono da chave) — não é o nome fantasia da empresa. A maioria dos
 // apps de banco ignora esses dois campos e busca o nome real no DICT pela chave, mas alinhar evita

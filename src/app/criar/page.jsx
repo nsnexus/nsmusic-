@@ -419,6 +419,27 @@ export default function CriarMusica() {
     return () => clearInterval(interval);
   }, [formData.sunoStatus]);
 
+  // Barra de progresso da tela de geração (pedido 18/09/2026: "acho que retém mais o cliente") — não
+  // existe progresso real vindo da Suno (só sabemos "pronto" ou "ainda não"), então é uma estimativa
+  // que se aproxima de 95% ao longo de ~2min (a duração típica, ver texto da tela) e nunca chega a
+  // 100% sozinha — só quando sunoStatus vira 'generated' de verdade, o que já tira o cliente desta
+  // tela (redireciona pra /entrega). Sem isso o cliente ficaria vendo "100%" parado, esperando ainda.
+  const [audioProgressPct, setAudioProgressPct] = useState(0);
+  useEffect(() => {
+    if (formData.sunoStatus !== 'generating') {
+      setAudioProgressPct(0);
+      return;
+    }
+    const inicio = Date.now();
+    const interval = setInterval(() => {
+      const elapsedSec = (Date.now() - inicio) / 1000;
+      // Curva assintótica: sobe rápido no início, desacelera perto do teto — nunca ultrapassa 95%.
+      const pct = 95 * (1 - Math.exp(-elapsedSec / 60));
+      setAudioProgressPct(pct);
+    }, 500);
+    return () => clearInterval(interval);
+  }, [formData.sunoStatus]);
+
   // O convite de receber pelo WhatsApp só aparece depois de WHATSAPP_CTA_DELAY_MS na tela de
   // geração (pedido do dono do estúdio, 03/09/2026): aparecendo de cara, o cliente clicava e saía
   // antes mesmo de ver a música ficar pronta ali. Timer com cleanup obrigatório (frontend.md) —
@@ -1321,7 +1342,32 @@ export default function CriarMusica() {
                 <p style={{ color: 'var(--secondary)', fontSize: '1.05rem', fontWeight: '600', marginTop: '14px', minHeight: '32px' }}>
                   {studioAudioPhrases[audioStepIdx]}
                 </p>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '16px' }}>
+
+                <div style={{ marginTop: '18px' }}>
+                  <div
+                    role="progressbar"
+                    aria-valuenow={Math.round(audioProgressPct)}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-label="Progresso da produção da música"
+                    style={{ width: '100%', height: '10px', borderRadius: '999px', background: 'var(--bg-tertiary)', overflow: 'hidden' }}
+                  >
+                    <div
+                      style={{
+                        width: `${audioProgressPct}%`,
+                        height: '100%',
+                        borderRadius: '999px',
+                        background: 'linear-gradient(90deg, var(--primary) 0%, var(--secondary) 100%)',
+                        transition: 'width 0.5s ease',
+                      }}
+                    />
+                  </div>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.78rem', marginTop: '6px', fontWeight: '600' }}>
+                    {Math.round(audioProgressPct)}%
+                  </p>
+                </div>
+
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '10px' }}>
                   Isso leva cerca de 2 minutos. Aguarde enquanto nosso estúdio sintetiza os vocalistas e a base instrumental.
                 </p>
 
