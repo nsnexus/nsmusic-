@@ -5,7 +5,6 @@ import { dbEdge as db } from '@/lib/firebase-edge';
 import { getPriceForSku } from '@/lib/pricing';
 import { generateStaticPixPayload } from '@/lib/pixStatic';
 import { createPixCharge } from '@/lib/efi';
-import { createPagBankPixCharge } from '@/lib/pagbank';
 
 export const runtime = 'edge';
 
@@ -68,27 +67,19 @@ export async function POST(req) {
     let provider = 'static';
 
     const existingOrderData = orderSnap.data();
-    const customerName = existingOrderData.customerName || 'Cliente';
-    const customerEmail = existingOrderData.customerEmail || 'contato@nsnexus.com.br';
 
     try {
       // 1. Prioridade 1: Efí (Pix puro, sem exigência de CPF)
       charge = await createPixCharge({ orderId, amount, description: `Pedido NS Music ${orderId}` }, env);
       provider = 'efi';
     } catch (errEfi) {
-      console.warn('[api/payments/create] Efí falhou, tentando PagBank:', errEfi.message);
-
-      try {
-        // 2. Prioridade 2: PagBank (Usa CNPJ fixo)
-        charge = await createPagBankPixCharge(orderId, amount, customerName, customerEmail, env);
-        provider = 'pagbank';
-      } catch (errPagBank) {
-        console.warn('[api/payments/create] PagBank falhou, caindo para PIX Estático:', errPagBank.message);
-
-        // 3. Prioridade 3: Fallback Paliativo (Estático manual)
-        charge = generateStaticPixPayload(amount, orderId);
-        provider = 'static';
-      }
+      // 2. Fallback Paliativo (PIX estático + comprovante manual). O PagBank era o degrau
+      // intermediário aqui, mas PAGBANK_TOKEN nunca chegou a ser configurado em produção —
+      // toda tentativa falhava e só atrasava a resposta ao cliente (achado 18/09/2026, junto
+      // com a descoberta de que a própria Efí estava bloqueada por WAF há mais de um mês).
+      console.warn('[api/payments/create] Efí falhou, caindo para PIX Estático:', errEfi.message);
+      charge = generateStaticPixPayload(amount, orderId);
+      provider = 'static';
     }
 
     // Persiste a intenção de cobrança no pedido: é o que a aprovação (webhook/status) usa depois para

@@ -1,3 +1,14 @@
+# ⚠️ APOSENTADO PARA O RELAY DA EFÍ (18/09/2026) — continua deployado SÓ pelos cron triggers do fim
+# deste arquivo (reconcile, recover, cleanup, archive-audio), que não têm nada a ver com mTLS.
+#
+# A Efí fica atrás de Cloudflare e o WAF dela responde HTTP 403 a todo tráfego vindo da faixa de IP
+# dos Workers — bloqueio identificado em 14/08/2026 e confirmado de novo em 18/09/2026 (Ray ID
+# a3d369f23da0cabe). Não depende do certificado: nem chega a autenticar. Resultado: durante mais de
+# um mês TODA cobrança caiu no fallback estático (PIX manual + comprovante).
+#
+# O relay de mTLS agora roda no Fly.io (workers/efi-proxy-fly/, app `efi-proxy-fly`), fora dessa
+# faixa de IP — validado em produção com /oauth/token 200 e PUT /v2/cob/:txid 201. É a URL do Fly
+# que está em EFI_PROXY_URL no Cloudflare Pages. Ver docs/EFI_SETUP.md.
 name = "nsmusic-efi-proxy"
 main = "src/worker.js"
 compatibility_date = "2024-11-01"

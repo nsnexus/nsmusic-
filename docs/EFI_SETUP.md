@@ -2,7 +2,7 @@
 
 > Este documento cobre só os passos que precisam ser feitos **fora do código**, nas contas Efí e
 > Cloudflare do projeto. O código já está pronto (`src/lib/efi.js`, `api/payments/create`,
-> `api/payments/status`, `api/webhooks/efi`, `workers/efi-proxy/`) e só funciona depois destes passos
+> `api/payments/status`, `api/webhooks/efi`, `workers/efi-proxy-fly/`) e só funciona depois destes passos
 > serem concluídos.
 >
 > Contexto: a migração para a Efí substituiu o bypass manual de PIX (BR Code estático + validação
@@ -21,12 +21,27 @@ Functions, mTLS certificate binding, e configuração via `wrangler.toml` para P
 opção em nenhum lugar) e na prática: a modal "Add a resource binding" de um projeto Pages não mostra
 "mTLS Certificate" entre as opções.
 
-Por isso a arquitetura é: um **Worker Cloudflare dedicado** (`workers/efi-proxy/`), que existe só
-para deter o certificado e fazer a chamada mTLS até a Efí. O app Next.js (que continua em Cloudflare
-Pages, sem migração) fala com esse Worker por HTTPS simples, autenticado por um segredo
-compartilhado (`EFI_PROXY_SECRET`). Ver o comentário de topo de `src/lib/efi.js` e
-`workers/efi-proxy/src/worker.js` para o desenho completo (allowlist fechada de path/método, sem
-aceitar host do chamador — elimina SSRF por construção).
+Por isso existe um **relay dedicado**: um serviço mínimo que detém o certificado e faz a chamada
+mTLS até a Efí. O app Next.js (que continua em Cloudflare Pages) fala com esse relay por HTTPS
+simples, autenticado por um segredo compartilhado (`EFI_PROXY_SECRET`). O relay nunca aceita host/URL
+do chamador — só um enum `env` (sandbox/production) + path + método validados contra uma allowlist
+fechada, o que elimina SSRF por construção.
+
+### ⚠️ O relay roda no Fly.io, não mais num Worker Cloudflare (desde 18/09/2026)
+
+A primeira versão do relay era um Worker Cloudflare (`workers/efi-proxy/`). **Isso não funciona
+mais**: a Efí também fica atrás de Cloudflare e o WAF dela responde **HTTP 403 a todo tráfego vindo
+da faixa de IP dos Workers**. O bloqueio apareceu em 14/08/2026 e foi confirmado de novo em
+18/09/2026 (Ray ID `a3d369f23da0cabe`) — não depende do certificado nem das credenciais, a chamada
+nem chega a autenticar.
+
+Enquanto ninguém percebeu, **toda cobrança caiu no fallback estático por mais de um mês** (PIX manual
+do dono + comprovante enviado pelo cliente, ver `src/lib/pixStatic.js`).
+
+O relay atual é `workers/efi-proxy-fly/` (Fly.io, app `efi-proxy-fly`, hostname
+`efi-proxy-fly.fly.dev`), fora dessa faixa de IP. Mesmo desenho de segurança do Worker original.
+O Worker antigo continua deployado **apenas** pelos cron triggers dele (reconcile, recover, cleanup,
+archive-audio), que não usam mTLS.
 
 ## Passo a passo
 
@@ -45,49 +60,48 @@ openssl pkcs12 -in certificado.p12 -clcerts -nokeys -out cert.pem
 openssl pkcs12 -in certificado.p12 -nocerts -nodes -out key.pem
 ```
 
-### 3. Subir o certificado e fazer o deploy do Worker de mTLS
-Tudo isso é feito com o Wrangler CLI (já é devDependency do projeto — `npx wrangler`), a partir da
-raiz do repositório:
+### 3. Subir o certificado e fazer o deploy do relay de mTLS (Fly.io)
 
-Sandbox e produção são certificados diferentes na Efí, e o Worker mantém os dois bindings
-simultaneamente (`EFI_MTLS_CERT_SANDBOX` e `EFI_MTLS_CERT_PRODUCTION` em
-`workers/efi-proxy/wrangler.toml`) — o código escolhe qual usar por requisição, com base no `env`
-mandado pelo app. Repita os passos abaixo uma vez para cada ambiente.
+O relay vive em `workers/efi-proxy-fly/` (o nome da pasta ficou por herança; não é mais um Worker).
+Certificado e chave vão como **secret em base64**, um par por ambiente — o `server.js` escolhe qual
+usar por requisição, com base no `env` mandado pelo app.
 
 ```bash
-# 1. Sobe o certificado na conta Cloudflare e devolve um certificate_id
-npx wrangler mtls-certificate upload --cert cert.pem --key key.pem --name efi-pix-sandbox
-#   (para produção: --name efi-pix-production)
+cd workers/efi-proxy-fly
 
-# 2. Cole o certificate_id retornado acima em workers/efi-proxy/wrangler.toml, no binding certo
-#    (EFI_MTLS_CERT_SANDBOX ou EFI_MTLS_CERT_PRODUCTION, dentro de [[mtls_certificates]])
-
-# 3. Gere um segredo aleatório e configure no Worker (nunca no wrangler.toml)
+# 1. Segredo compartilhado com o app (gere uma vez e use o MESMO valor no Pages, passo 4)
 openssl rand -hex 32
-npx wrangler secret put EFI_PROXY_SECRET --config workers/efi-proxy/wrangler.toml
-#    (cole o valor gerado quando solicitado)
 
-# 4. Deploy do Worker
-npm run deploy:efi-proxy
+fly secrets set \
+  EFI_PROXY_SECRET="<valor gerado acima>" \
+  RECONCILE_SECRET="<mesmo valor do Cloudflare Pages>" \
+  APP_URL="https://nsmusic.nsnexus.com.br" \
+  EFI_PRODUCTION_CERT_B64="$(base64 -w0 ../../cert.pem)" \
+  EFI_PRODUCTION_KEY_B64="$(base64 -w0 ../../key.pem)" \
+  -a efi-proxy-fly
+
+# 2. Deploy (o fly.toml já está no repositório)
+fly deploy -a efi-proxy-fly
 ```
 
-Por padrão o comando de deploy imprime a URL pública do Worker no formato
-`https://nsmusic-efi-proxy.SEU_SUBDOMINIO.workers.dev`. **Não use essa URL compartilhada** —
-testes em 2026-08-02 mostraram instabilidade intermitente nela (respostas 500 sem exceção nem log
-algum do lado do Worker, aparentemente alguma política de rate-limit/anti-abuso do subdomínio
-`workers.dev`, que é compartilhado entre todos os clientes Cloudflare). Configure um domínio próprio
-no `wrangler.toml` do Worker (`workers/efi-proxy/wrangler.toml`), usando uma zona que já esteja na
-mesma conta Cloudflare:
+Para sandbox, os mesmos passos com `EFI_SANDBOX_CERT_B64` / `EFI_SANDBOX_KEY_B64`.
 
-```toml
-routes = [
-  { pattern = "efi-proxy.SEU_DOMINIO.com.br", custom_domain = true }
-]
+`fly secrets set` já reinicia as máquinas sozinho — não precisa de deploy extra depois de trocar um
+certificado. A URL pública (`https://efi-proxy-fly.fly.dev`) é o que vai em `EFI_PROXY_URL`.
+
+Para validar sem criar cobrança de verdade, chame só o `/oauth/token` pelo relay:
+
+```bash
+BASIC=$(printf "%s:%s" "$EFI_CLIENT_ID" "$EFI_CLIENT_SECRET" | base64 -w0)
+curl -s -X POST "https://efi-proxy-fly.fly.dev/relay" \
+  -H "Content-Type: application/json" \
+  -H "X-Efi-Proxy-Secret: $EFI_PROXY_SECRET" \
+  -d "{\"env\":\"production\",\"path\":\"/oauth/token\",\"method\":\"POST\",\"headers\":{\"Authorization\":\"Basic $BASIC\",\"Content-Type\":\"application/json\"},\"body\":\"{\\\"grant_type\\\":\\\"client_credentials\\\"}\"}"
 ```
 
-Rode `npm run deploy:efi-proxy` de novo depois de adicionar isso — o Wrangler cria o domínio
-customizado automaticamente (registro DNS incluído) e desativa o `workers.dev` na mesma passada.
-É essa URL de domínio próprio (`https://efi-proxy.SEU_DOMINIO.com.br`) que vai em `EFI_PROXY_URL`.
+Resposta esperada: HTTP 200 com `access_token` e os escopos da aplicação. Um HTML de
+"Attention Required! | Cloudflare" com HTTP 403 significa que a chamada saiu de uma faixa de IP
+bloqueada pelo WAF da Efí — foi exatamente o que aposentou o Worker Cloudflare.
 
 ### 4. Cadastrar as variáveis de ambiente do projeto Cloudflare **Pages**
 | Variável | Valor |
@@ -96,8 +110,8 @@ customizado automaticamente (registro DNS incluído) e desativa o `workers.dev` 
 | `EFI_CLIENT_SECRET` | Client Secret gerado no passo 1 |
 | `EFI_PIX_KEY` | Chave Pix cadastrada no passo 1 |
 | `EFI_ENV` | `sandbox` (depois `production`, só após validar tudo) |
-| `EFI_PROXY_URL` | URL do Worker, obtida no passo 3.4 |
-| `EFI_PROXY_SECRET` | O MESMO valor gerado e configurado no Worker no passo 3.3 |
+| `EFI_PROXY_URL` | URL pública do relay no Fly (`https://efi-proxy-fly.fly.dev`) |
+| `EFI_PROXY_SECRET` | O MESMO valor configurado no relay (passo 3) |
 | `EFI_WEBHOOK_SECRET` | String aleatória gerada por vocês (ex: `openssl rand -hex 24`) |
 
 Essas variáveis vão no dashboard do projeto Pages (Settings → Environment variables) — nenhuma delas
@@ -121,7 +135,16 @@ Se aparecer `(Negative)`, gere outro certificado antes de tentar o upload.
 
 ### 5. Registrar o webhook
 A chamada de registro (`PUT /v2/webhook/:chave`) também exige mTLS, então é feita por um script
-local com o certificado no disco — não passa pelo Worker nem por uma rota do app:
+local com o certificado no disco — não passa pelo relay nem por uma rota do app.
+
+O script manda o header `x-skip-mtls-checking: true`. Sem ele a Efí recusa com
+`{"nome":"webhook_invalido","mensagem":"A autenticação de TLS mútuo não está configurada na URL
+informada"}` (HTTP 400): por padrão ela exige que a **URL de retorno** também apresente certificado
+cliente quando ela chamar de volta, e uma rota comum em Cloudflare Pages não faz isso. Isso não
+enfraquece o nosso lado — continuamos apresentando o certificado em toda chamada que fazemos. A
+autenticação do webhook é o `?secret=` (`EFI_WEBHOOK_SECRET`) e, principalmente, a reconsulta
+obrigatória da cobrança na API da Efí antes de aprovar qualquer pagamento (ver
+`src/app/api/webhooks/efi/route.js`).
 ```bash
 EFI_CLIENT_ID=... EFI_CLIENT_SECRET=... EFI_PIX_KEY=... EFI_ENV=sandbox \
 EFI_CERT_PATH=./cert.pem EFI_KEY_PATH=./key.pem \
@@ -189,6 +212,21 @@ mockando o `fetch` global (`tests/unit/efi.test.js`) e os bindings `EFI_MTLS_CER
 ambientes. Variáveis de produção (`EFI_CLIENT_ID`, `EFI_CLIENT_SECRET`, `EFI_ENV=production`) já
 configuradas no projeto Pages; `EFI_PIX_KEY` é a mesma chave (EVP) usada em sandbox e produção,
 cadastrada uma vez na conta.
+
+**Migração para conta PJ + volta do Pix automático, 2026-09-18**: conta PJ nova na Efí (CNPJ
+`68471413000198` como chave Pix), aplicação criada com os escopos `cob.read`, `cob.write`,
+`webhook.read` e `webhook.write`. Relay movido do Worker Cloudflare para o Fly.io por causa do
+bloqueio de WAF descrito no topo. Validado em produção: `/oauth/token` HTTP 200 e
+`PUT /v2/cob/:txid` HTTP 201 com QR real. Webhook registrado e confirmado por
+`GET /v2/webhook/:chave`. `EFI_WEBHOOK_SECRET` passou a existir (antes não havia nenhum, e o
+webhook aceitava chamada sem autenticação).
+
+O certificado da Efí precisou ser gerado **4 vezes** até sair um com serial number positivo — ver a
+pegadinha logo acima.
+
+**PagBank removido em 2026-09-18**: era o degrau intermediário da cadeia de fallback
+(`Efí → PagBank → Pix estático`), mas `PAGBANK_TOKEN` nunca chegou a ser configurado em produção —
+toda tentativa falhava e só atrasava a resposta ao cliente. A cadeia agora é `Efí → Pix estático`.
 
 ## Fora de escopo desta migração
 

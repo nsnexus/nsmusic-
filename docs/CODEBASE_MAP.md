@@ -29,7 +29,8 @@ PIX (R$ 9,99) para liberar os MP3 completos. Add-on de vídeo slideshow por + R$
 | `public/` | Áudios de demo, capas, logo |
 | `tests/unit/` | Testes Vitest — utilitários puros e módulos com Firestore/fetch mockados |
 | `scripts/` | Scripts operacionais manuais (migração de dados, custom claim de admin) — nunca rodam automaticamente |
-| `workers/efi-proxy/` | Worker Cloudflare separado (deploy próprio via `npm run deploy:efi-proxy`), só para o hop mTLS até a Efí — Cloudflare Pages não suporta binding de certificado mTLS (ver `docs/EFI_SETUP.md`) |
+| `workers/efi-proxy-fly/` | Relay de mTLS até a Efí, no Fly.io (app `efi-proxy-fly`) — Cloudflare Pages não suporta binding de certificado mTLS, e o WAF da Efí bloqueia a faixa de IP dos Workers (ver `docs/EFI_SETUP.md`) |
+| `workers/efi-proxy/` | Worker Cloudflare (deploy via `npm run deploy:efi-proxy`). **Aposentado como relay da Efí em 18/09/2026** (bloqueio de WAF); segue deployado só pelos cron triggers: reconcile, recover, cleanup, archive-audio |
 | `.agents/` | Rulebook legado do projeto (`AGENTS.md`) — ainda é fonte de intenção original |
 | `.claude/rules/` | Regras por área (tem precedência sobre `.agents/` em caso de conflito) |
 
@@ -206,7 +207,7 @@ aberta, ou o próprio cron) acaba vendo o resultado da nova sem precisar saber q
 | Kie.ai (Suno) | `api/suno/*` | `KIE_API_KEY`, `KIE_WEBHOOK_SECRET` |
 | OpenAI | `src/lib/gemini.js` | `OPENAI_API_KEY` |
 | Google Gemini | `src/lib/gemini.js` | `GEMINI_API_KEYS` (lista separada por vírgula) |
-| Efí (API Pix) | `src/lib/efi.js`, `api/payments/*`, `api/webhooks/efi`, `workers/efi-proxy/` | `EFI_CLIENT_ID`, `EFI_CLIENT_SECRET`, `EFI_PIX_KEY`, `EFI_ENV`, `EFI_WEBHOOK_SECRET`, `EFI_PROXY_URL`, `EFI_PROXY_SECRET` (mTLS fica no Worker `efi-proxy`, não num binding do Pages — ver `docs/EFI_SETUP.md`) |
+| Efí (API Pix) | `src/lib/efi.js`, `api/payments/*`, `api/webhooks/efi`, `workers/efi-proxy-fly/` | `EFI_CLIENT_ID`, `EFI_CLIENT_SECRET`, `EFI_PIX_KEY`, `EFI_ENV`, `EFI_WEBHOOK_SECRET`, `EFI_PROXY_URL`, `EFI_PROXY_SECRET` (o certificado mTLS fica no relay do Fly, não num binding do Pages — ver `docs/EFI_SETUP.md`) |
 | WhatsApp Business Platform (API Oficial da Meta) | `src/lib/whatsapp.js` (`graph.facebook.com`) | `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_WEBHOOK_VERIFY_TOKEN`. Provedor não oficial (W-API) removido do projeto após bloqueios de conta. |
 | Firebase | `src/lib/firebase.js`, `firebase-edge.js` | `NEXT_PUBLIC_FIREBASE_*` |
 | Admin (allowlist interina) | `src/lib/auth.js` | `ADMIN_EMAILS` |
