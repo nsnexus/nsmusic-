@@ -117,6 +117,14 @@ bloqueada pelo WAF da Efí — foi exatamente o que aposentou o Worker Cloudflar
 Essas variáveis vão no dashboard do projeto Pages (Settings → Environment variables) — nenhuma delas
 é um binding, são env vars normais. Repetir para os ambientes Production e Preview.
 
+> ⚠️ **Secret novo no Pages só vale a partir do próximo deploy** (achado 20/09/2026). Tanto pelo
+> dashboard quanto por `npx wrangler pages secret put`, o valor fica guardado mas o deployment que
+> já está no ar continua lendo o valor antigo. Isso é especialmente traiçoeiro nos segredos
+> compartilhados com o Worker (`RECONCILE_SECRET`, `CLEANUP_SECRET`, `EFI_PROXY_SECRET`): rotacionar
+> só de um lado deixa os dois dessincronizados em silêncio — o cron passa a receber 401 e para de
+> funcionar sem erro visível em lugar nenhum. Depois de trocar qualquer um deles, **faça um deploy**
+> (qualquer push para `master`) e confirme chamando a rota na mão.
+
 ### Pegadinha conhecida: certificado com serial number negativo
 
 Em 2026-08-02, um certificado gerado pela Efí foi **rejeitado pela Cloudflare** no passo de upload
