@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
-import { collection, query, where, limit, getDocs, deleteDoc } from 'firebase/firestore/lite';
+import { collection, query, where, orderBy, limit, getDocs, deleteDoc } from 'firebase/firestore/lite';
 import { dbEdge as db } from '@/lib/firebase-edge';
 import { updateTaskResult, extractAudioTracks } from '@/lib/db';
 import { applyPaymentApproval } from '@/lib/payments';
@@ -219,14 +219,62 @@ async function checkAndApplyCharge(orderId, txid, env, result) {
   }
 }
 
+// ACHADO 20/09/2026 (4 pagamentos confirmados na Efí e nunca computados, um deles preso há 34h):
+// esta varredura buscava `where(paymentStatus == AGUARDANDO_PAGAMENTO)` com `limit(10)` e SEM
+// `orderBy`. Como a base tem ~140 pedidos nesse estado a qualquer momento (a maioria é gente que
+// gerou o QR e nunca pagou, o que é normal), o Firestore devolvia sempre a MESMA fatia arbitrária de
+// 10 — e quem pagou de verdade, se não caísse nela, nunca seria verificado. O cron rodava, gastava
+// as consultas e não achava nada: uma rede de segurança que nunca pegava ninguém.
+//
+// Correção em duas frentes:
+//   1. `orderBy('updatedAt', 'desc')` — quem mexeu no checkout por último é quem tem mais chance de
+//      ter acabado de pagar, e a janela anda com o tempo em vez de ficar travada.
+//   2. Passada dedicada a quem copiou o código Pix (`pixCopiedAt`, ver api/payments/pix-copied):
+//      é o sinal de intenção mais forte que temos, então esses são verificados primeiro e sempre.
 async function reconcilePendingPayments(env) {
-  const result = { checked: 0, approved: 0, stillPending: 0 };
+  const result = { checked: 0, approved: 0, stillPending: 0, viaPixCopiado: 0 };
+  const jaVerificados = new Set();
 
+  const verificar = async (orderDoc) => {
+    if (jaVerificados.has(orderDoc.id)) return;
+    jaVerificados.add(orderDoc.id);
+
+    const orderData = orderDoc.data();
+    const txid = orderData.paymentIntentId;
+    // Sem cobrança gerada não há nada a confirmar — o cliente nem chegou no checkout.
+    if (!txid) return;
+    if (!isOlderThan(orderData.updatedAt, MIN_AGE_MINUTES)) return;
+
+    result.checked++;
+    await checkAndApplyCharge(orderDoc.id, txid, env, result);
+  };
+
+  // 1ª passada: quem copiou o código Pix (intenção declarada de pagar).
+  try {
+    const snapCopiado = await getDocs(query(
+      collection(db, 'orders'),
+      where('paymentStatus', '==', 'AGUARDANDO_PAGAMENTO'),
+      orderBy('pixCopiedAt', 'desc'),
+      limit(MAX_PAYMENT_ORDERS)
+    ));
+    for (const orderDoc of snapCopiado.docs) {
+      const antes = result.checked;
+      await verificar(orderDoc);
+      if (result.checked > antes) result.viaPixCopiado++;
+    }
+  } catch (err) {
+    // Índice composto ainda não criado no Firestore, por exemplo — não pode derrubar a 2ª passada.
+    console.warn('[reconcile] Passada por pixCopiedAt indisponível:', err.message);
+    result.pixCopiadoError = describeFirestoreError(err);
+  }
+
+  // 2ª passada: os mais recentemente atualizados, independente de terem copiado o código.
   let snap;
   try {
     snap = await getDocs(query(
       collection(db, 'orders'),
       where('paymentStatus', '==', 'AGUARDANDO_PAGAMENTO'),
+      orderBy('updatedAt', 'desc'),
       limit(MAX_PAYMENT_ORDERS)
     ));
   } catch (err) {
@@ -236,14 +284,7 @@ async function reconcilePendingPayments(env) {
   }
 
   for (const orderDoc of snap.docs) {
-    const orderData = orderDoc.data();
-    const txid = orderData.paymentIntentId;
-    // Sem cobrança gerada não há nada a confirmar — o cliente nem chegou no checkout.
-    if (!txid) continue;
-    if (!isOlderThan(orderData.updatedAt, MIN_AGE_MINUTES)) continue;
-
-    result.checked++;
-    await checkAndApplyCharge(orderDoc.id, txid, env, result);
+    await verificar(orderDoc);
   }
 
   return result;

@@ -1,5 +1,9 @@
 {
   "storage": {
     "rules": "storage.rules"
+  },
+  "firestore": {
+    "_comment": "Só os índices são versionados/publicados por aqui. As RULES do Firestore são editadas direto no console (o firestore.rules deste repositório é um rascunho nunca publicado — ver o cabeçalho do próprio arquivo), então não são declaradas aqui de propósito: um deploy acidental delas derrubaria o acesso anônimo de que o app depende.",
+    "indexes": "firestore.indexes.json"
   }
 }

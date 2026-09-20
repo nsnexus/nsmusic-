@@ -1,5 +1,24 @@
 {
-  "_comment": "M-05 no docs/audit/AUDIT_REPORT.md: versiona os índices do Firestore, antes ausentes do repositório. As queries atuais do projeto (orders.customerPhone, orders.customerEmail, orders.userId, suno_tasks.orderId) são todas igualdade de campo único ou orderBy de campo único — o Firestore cria índices de campo único automaticamente, sem precisar de entrada aqui. Este arquivo existe para declarar índices COMPOSTOS (mais de um campo em where/orderBy na mesma query) assim que alguma query passar a precisar de um — hoje nenhuma precisa. Ao adicionar uma nova query com where+orderBy combinando campos diferentes, declare o índice composto correspondente aqui antes do deploy, ou o Firestore vai rejeitar a query em produção com um link para criar o índice manualmente.",
-  "indexes": [],
+  "_comment": "M-05 no docs/audit/AUDIT_REPORT.md: versiona os índices do Firestore. Índices de campo único o Firestore cria sozinho; aqui ficam só os COMPOSTOS (where + orderBy em campos diferentes na mesma query). Ao adicionar uma query assim, declare o índice aqui ANTES do deploy — sem ele o Firestore rejeita a query em produção (erro 'failed-precondition' com um link para criar o índice manualmente). Publicar com: npx firebase deploy --only firestore:indexes --project nsmusic-74c4e",
+  "indexes": [
+    {
+      "_comment": "api/orders/reconcile:reconcilePendingPayments — varredura de segurança dos pagamentos presos, ordenada pelos últimos atualizados. Sem orderBy a query devolvia sempre a mesma fatia de 10 entre ~140 pedidos aguardando, e quem pagou de verdade nunca era verificado (achado 20/09/2026).",
+      "collectionGroup": "orders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "paymentStatus", "order": "ASCENDING" },
+        { "fieldPath": "updatedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "_comment": "api/orders/reconcile:reconcilePendingPayments — passada prioritária por quem copiou o código Pix (api/payments/pix-copied), o sinal mais forte de intenção de pagamento.",
+      "collectionGroup": "orders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "paymentStatus", "order": "ASCENDING" },
+        { "fieldPath": "pixCopiedAt", "order": "DESCENDING" }
+      ]
+    }
+  ],
   "fieldOverrides": []
 }

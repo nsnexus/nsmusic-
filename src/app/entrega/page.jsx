@@ -41,6 +41,11 @@ function EntregaContent() {
   const [pixError, setPixError] = useState('');
   const [pixCopied, setPixCopied] = useState(false);
   const [isPaidState, setIsPaidState] = useState(false);
+  // Conferência manual de pagamento (pedido 20/09/2026). O polling automático só roda enquanto a
+  // aba está aberta; quem paga pelo app do banco e volta depois ficava sem nenhuma forma de
+  // destravar sozinho — eram 4 pagamentos presos por dia, alguns por mais de um dia.
+  const [checandoPagamento, setChecandoPagamento] = useState(false);
+  const [checagemMsg, setChecagemMsg] = useState('');
   // Verificação automática de comprovante por IA (provisória — ver src/lib/receiptVerification.js).
   // 'idle' | 'uploading' | 'failed' — some depois de aprovado, pois a UI já muda pra "pago" via
   // onSnapshot assim que applyPaymentApproval grava o pedido.
@@ -332,6 +337,42 @@ function EntregaContent() {
   // src/lib/receiptVerification.js). Se a IA não conseguir validar por qualquer motivo, o estado
   // volta a 'idle' e o botão manual de WhatsApp (já renderizado ao lado) continua disponível — nunca
   // trava o cliente sem saída.
+  // Carimba a intenção de pagar (ver api/payments/pix-copied) — nunca bloqueia a cópia em si: se a
+  // rota falhar, o cliente já copiou o código do mesmo jeito.
+  const marcarPixCopiado = (targetOrderId) => {
+    if (!targetOrderId) return;
+    fetch('/api/payments/pix-copied', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orderId: targetOrderId }),
+    }).catch((e) => console.warn('[entrega] Falha ao marcar Pix copiado:', e?.message));
+  };
+
+  // "Já paguei" — consulta a Efí na hora em vez de esperar o polling/webhook. Mesma rota que o
+  // polling automático usa, então toda a validação de segurança continua no servidor (o txid tem
+  // que pertencer a este pedido e estar CONCLUIDA na Efí — ver api/payments/status).
+  const handleCheckPayment = async () => {
+    const txid = pixInfo.paymentId || order?.paymentIntentId;
+    if (!orderId || !txid || checandoPagamento) return;
+
+    setChecandoPagamento(true);
+    setChecagemMsg('');
+    try {
+      const res = await fetch(`/api/payments/status?orderId=${orderId}&paymentId=${txid}`);
+      const data = await res.json().catch(() => ({}));
+      if (data.status === 'approved' || data.status === 'PAGO' || data.status === 'PAGAMENTO_APROVADO') {
+        setIsPaidState(true);
+        setChecagemMsg('✅ Pagamento confirmado! Liberando tudo...');
+      } else {
+        setChecagemMsg('Ainda não identificamos esse pagamento. Se você acabou de pagar, aguarde alguns segundos e tente de novo.');
+      }
+    } catch (e) {
+      setChecagemMsg('Não foi possível verificar agora. Tente novamente em instantes.');
+    } finally {
+      setChecandoPagamento(false);
+    }
+  };
+
   const handleReceiptUpload = async (file) => {
     if (!file || !orderId) return;
     setReceiptStatus('uploading');
@@ -1737,16 +1778,17 @@ function EntregaContent() {
                               </div>
                             )}
 
-                            <div style={{ display: 'flex', gap: '10px', width: '100%' }}>
+                            <div style={{ display: 'flex', gap: '10px', width: '100%', flexWrap: 'wrap' }}>
                               <button
                                 type="button"
                                 onClick={() => {
                                   navigator.clipboard.writeText(pixInfo.qrCode);
                                   setPixCopied(true);
+                                  marcarPixCopiado(orderId);
                                   setTimeout(() => setPixCopied(false), 3000);
                                 }}
                                 style={{
-                                  flex: 1,
+                                  flex: '1 1 140px',
                                   padding: '14px',
                                   borderRadius: '10px',
                                   border: 'none',
@@ -1760,7 +1802,37 @@ function EntregaContent() {
                               >
                                 {pixCopied ? '✅ Copiado!' : '📋 Copiar PIX'}
                               </button>
+
+                              {/* Só aparece depois que o cliente copiou o código: antes disso não há
+                                  pagamento nenhum pra conferir, e o botão só geraria dúvida. */}
+                              {pixCopied && (
+                                <button
+                                  type="button"
+                                  onClick={handleCheckPayment}
+                                  disabled={checandoPagamento}
+                                  style={{
+                                    flex: '1 1 140px',
+                                    padding: '14px',
+                                    borderRadius: '10px',
+                                    border: '1.5px solid var(--primary)',
+                                    background: 'transparent',
+                                    color: 'var(--primary)',
+                                    fontWeight: 'bold',
+                                    fontSize: '0.95rem',
+                                    cursor: checandoPagamento ? 'default' : 'pointer',
+                                    opacity: checandoPagamento ? 0.65 : 1,
+                                  }}
+                                >
+                                  {checandoPagamento ? 'Verificando...' : '🔄 Já paguei'}
+                                </button>
+                              )}
                             </div>
+
+                            {checagemMsg && (
+                              <p style={{ fontSize: '0.82rem', color: checagemMsg.startsWith('✅') ? 'var(--success)' : 'var(--text-muted)', margin: '4px 0 0', textAlign: 'center', lineHeight: 1.4 }}>
+                                {checagemMsg}
+                              </p>
+                            )}
 
                             {pixInfo.provider === 'static' && (
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
