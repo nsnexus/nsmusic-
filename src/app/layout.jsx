@@ -1,19 +1,57 @@
 import Script from 'next/script';
 import './globals.css';
+import { organizationJsonLd, serviceJsonLd, faqJsonLd, howToJsonLd } from '@/lib/structuredData';
+
+// Descrição única, usada em todo lugar (meta, OpenGraph, Twitter) — pedido 20/09/2026 ("deixar o
+// site otimizado para leitura de IA"). Diz O QUE é, PARA QUEM serve, QUANTO custa e EM QUANTO
+// TEMPO fica pronto: é essa frase que um assistente cita quando alguém pergunta por música
+// personalizada de presente, então ela precisa responder sozinha, sem depender do resto da página.
+const DESCRICAO =
+  'Transforme sua história em música. A IA escreve a letra e compõe 2 versões completas em MP3 HD '
+  + 'em cerca de 3 minutos, a partir de R$ 9,99. Presente para aniversário, Dia das Mães, '
+  + 'declaração de amor e homenagens.';
+
+const TITULO = 'NS Music — Música Personalizada com IA a partir da Sua História';
 
 export const metadata = {
   metadataBase: new URL('https://nsmusic.nsnexus.com.br'),
-  title: 'NSMusic — Músicas Personalizadas com IA',
-  description: 'Dê vida às suas histórias em formato de canções personalizadas criadas com Inteligência Artificial.',
+  title: {
+    default: TITULO,
+    template: '%s · NS Music',
+  },
+  description: DESCRICAO,
+  applicationName: 'NS Music',
+  keywords: [
+    'música personalizada', 'música com IA', 'presente personalizado', 'homenagem em música',
+    'música de aniversário', 'declaração de amor em música', 'canção personalizada',
+  ],
+  authors: [{ name: 'NS Music' }],
+  creator: 'NS Music',
+  publisher: 'NS Music',
+  alternates: { canonical: '/' },
+  category: 'music',
   icons: {
     icon: '/logo.png',
     shortcut: '/logo.png',
     apple: '/logo.png',
   },
   openGraph: {
-    title: 'NSMusic — Músicas Personalizadas com IA',
-    description: 'Dê vida às suas histórias em formato de canções personalizadas criadas com Inteligência Artificial.',
+    title: TITULO,
+    description: DESCRICAO,
     type: 'website',
+    locale: 'pt_BR',
+    siteName: 'NS Music',
+    url: 'https://nsmusic.nsnexus.com.br',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: TITULO,
+    description: DESCRICAO,
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: { index: true, follow: true, 'max-image-preview': 'large', 'max-snippet': -1 },
   },
 };
 
@@ -52,6 +90,22 @@ export default function RootLayout({ children }) {
         </Script>
       </head>
       <body>
+        {/* Dados estruturados (Schema.org). Ficam no layout, não na home, porque descrevem o
+            negócio inteiro — quem somos, o que vendemos, por quanto e em quanto tempo. É o que
+            permite a um buscador ou assistente responder sobre o NS Music com preço e prazo
+            corretos em vez de adivinhar pelo texto da página. Ver src/lib/structuredData.js. */}
+        <script
+          type="application/ld+json"
+          // eslint-disable-next-line react/no-danger
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify([
+              organizationJsonLd(),
+              serviceJsonLd(),
+              faqJsonLd(),
+              howToJsonLd(),
+            ]),
+          }}
+        />
         {children}
       </body>
     </html>

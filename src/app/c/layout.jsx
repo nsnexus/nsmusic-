@@ -1,4 +1,7 @@
+// noindex: a carta é de um cliente específico. O preview rico abaixo continua valendo — o
+// WhatsApp lê as tags og: independentemente de robots, então o link compartilhado segue bonito.
 export const metadata = {
+  robots: { index: false, follow: false },
   title: '💌 Você recebeu uma Carta Especial...',
   description: 'Toque para abrir e ler esta homenagem feita especialmente com muito carinho para você.',
   openGraph: {

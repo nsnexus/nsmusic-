@@ -1,0 +1,75 @@
+# NS Music
+
+> Estúdio brasileiro que cria músicas personalizadas com inteligência artificial a partir da
+> história que o cliente conta. O pedido é feito inteiramente pelo site, sem cadastro obrigatório,
+> e a música fica pronta em poucos minutos. Pagamento por Pix.
+
+NS Music transforma uma história pessoal em canção: o cliente descreve para quem é a homenagem, a
+ocasião e o que marcou essa relação, escolhe estilo musical, clima e tipo de voz, e recebe **duas
+versões completas** da música em MP3 HD — arranjos diferentes sobre a mesma letra.
+
+Serve para presente de aniversário, Dia das Mães, declaração de amor, pedido de namoro, bodas,
+homenagem a quem já partiu, formatura, chá revelação e afins.
+
+## Como funciona
+
+1. **Conte a história** — para quem é, a ocasião, os momentos marcantes, nomes e frases que não
+   podem faltar. Escolha o estilo (sertanejo, pop, gospel, MPB, rock, forró, samba, trap, reggae,
+   lo-fi, funk, eletrônica, piseiro, axé, jazz, infantil), o clima e a voz (masculina, feminina ou
+   dueto).
+2. **Revise a letra** — a IA escreve a letra a partir da história e o cliente aprova ou pede ajuste
+   antes de gerar o áudio.
+3. **Receba os áudios** — geração em cerca de 2 a 3 minutos. O cliente ouve a prévia de 60 segundos
+   e libera o download completo após o pagamento. O link também chega no WhatsApp.
+
+## Produtos e preços
+
+| Produto | Preço | O que é |
+|---|---|---|
+| Música personalizada | R$ 9,99 | 2 versões completas em MP3 HD, com letra exclusiva |
+| Vídeo Homenagem | R$ 6,90 | Slideshow vertical com 10 a 20 fotos sincronizadas com a música |
+| Música + Vídeo | R$ 16,89 | Os dois juntos |
+| Carta Virtual | R$ 3,99 | Carta escrita a partir da mesma história, com envelope que abre e página própria para compartilhar |
+| Playback (instrumental) | R$ 4,99 | A mesma música sem voz, para cantar junto |
+| Retrospectiva | R$ 9,99 | Página com linha do tempo de fotos, contador de tempo juntos e a música tocando |
+
+Pagamento via Pix (à vista). Sem assinatura e sem mensalidade.
+
+## Perguntas frequentes
+
+**Como é feita a criação da música?**
+O cliente insere os detalhes da história e escolhe o estilo. A inteligência artificial escreve a
+letra e compõe os arranjos vocais e instrumentais em qualidade de estúdio.
+
+**Recebo 2 versões da minha música?**
+Sim. No pacote de R$ 9,99 são duas versões completas, com arranjos musicais diferentes.
+
+**Quanto tempo leva?**
+A letra e os áudios ficam prontos em cerca de 2 a 3 minutos, direto no site.
+
+**Como recebo a música pronta?**
+Depois do pagamento, o download em MP3 HD fica liberado na página de entrega e no painel "Minhas
+Músicas", sem limite de vezes. O link também é enviado por WhatsApp.
+
+**Preciso criar conta?**
+Não. O pedido é feito sem cadastro obrigatório; criar conta serve para reencontrar as músicas
+depois, no painel "Minhas Músicas".
+
+**A música é minha?**
+Sim, a música é criada exclusivamente para o cliente a partir da história dele. Ver os termos de uso
+para os detalhes.
+
+## Links
+
+- [Página inicial](https://nsmusic.nsnexus.com.br/): o que é, como funciona, exemplos e depoimentos
+- [Criar minha música](https://nsmusic.nsnexus.com.br/criar): o formulário do pedido, do começo ao fim
+- [Termos de uso](https://nsmusic.nsnexus.com.br/termos-de-uso)
+- [Política de privacidade](https://nsmusic.nsnexus.com.br/politica-de-privacidade)
+
+## Observações para quem indexa
+
+As páginas de entrega, carta, homenagem e retrospectiva são pessoais: cada uma mostra o nome, a
+história, as fotos e o áudio de um cliente específico. Elas não devem ser indexadas nem citadas —
+estão bloqueadas em `/robots.txt` por esse motivo.
+
+Contato: WhatsApp +55 94 99106-4043
