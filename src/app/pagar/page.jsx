@@ -47,6 +47,8 @@ function PagarContent() {
   const [customAmount, setCustomAmount] = useState('');
   const [approved, setApproved] = useState(false);
   const [pollingTimedOut, setPollingTimedOut] = useState(false);
+  const [conferindo, setConferindo] = useState(false);
+  const [mensagemConferencia, setMensagemConferencia] = useState('');
   const [pixCopied, setPixCopied] = useState(false);
 
   // Estado do pedido ao vivo — mesmo padrão de /entrega, pra refletir aprovação assim que o
@@ -153,6 +155,41 @@ function PagarContent() {
 
     return () => clearInterval(interval);
   }, [standalone, orderId, pixInfo?.paymentId, isPaid]);
+
+  // Consulta a Efí agora, sem esperar o ciclo do polling. Usada pelo botão "Já paguei" e pela
+  // volta do cliente à aba. Mesma rota do polling, então toda a validação continua no servidor.
+  const conferirPagamento = useCallback(async () => {
+    if (standalone || !orderId || !pixInfo?.paymentId) return;
+    setConferindo(true);
+    setMensagemConferencia('');
+    try {
+      const res = await fetch(`/api/payments/status?orderId=${orderId}&paymentId=${pixInfo.paymentId}`);
+      const data = await res.json().catch(() => ({}));
+      if (data.status === 'approved' || data.status === 'PAGO' || data.status === 'PAGAMENTO_APROVADO') {
+        setApproved(true);
+      } else {
+        setMensagemConferencia('Ainda não identificamos esse pagamento. Se você acabou de pagar, espere alguns segundos e toque de novo.');
+      }
+    } catch (e) {
+      setMensagemConferencia('Não foi possível verificar agora. Tente novamente em instantes.');
+    } finally {
+      setConferindo(false);
+    }
+  }, [standalone, orderId, pixInfo?.paymentId]);
+
+  // Quem paga pelo app do banco sai desta aba e volta. Esse retorno é o melhor momento possível
+  // para conferir: o pagamento acabou de acontecer e o cliente está olhando a tela. Sem isto ele
+  // voltava para um cronômetro que o navegador tinha estrangulado em segundo plano.
+  useEffect(() => {
+    if (standalone || !orderId || !pixInfo?.paymentId || isPaid) return;
+    const aoVoltar = () => { if (document.visibilityState === 'visible') conferirPagamento(); };
+    document.addEventListener('visibilitychange', aoVoltar);
+    window.addEventListener('focus', aoVoltar);
+    return () => {
+      document.removeEventListener('visibilitychange', aoVoltar);
+      window.removeEventListener('focus', aoVoltar);
+    };
+  }, [standalone, orderId, pixInfo?.paymentId, isPaid, conferirPagamento]);
 
   const handlePickAmount = (value) => {
     setCustomAmount('');
@@ -336,6 +373,38 @@ function PagarContent() {
               >
                 {pixCopied ? '✅ Código PIX Copiado!' : '📋 Copiar Código PIX'}
               </button>
+              {/* Conferência sob demanda. O polling acima só vive enquanto esta aba existe, e o
+                  cliente que paga pelo app do banco costuma sair daqui — quando volta, o
+                  cronômetro já morreu e nada mais consulta a Efí por ele. Este botão é a garantia
+                  de que sempre existe um caminho na mão do cliente (pedido 21/09/2026). */}
+              {!standalone && orderId && pixInfo?.paymentId && (
+                <button
+                  type="button"
+                  onClick={conferirPagamento}
+                  disabled={conferindo}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    borderRadius: '10px',
+                    border: '1.5px solid var(--primary)',
+                    background: 'transparent',
+                    color: 'var(--primary)',
+                    fontWeight: 'bold',
+                    marginBottom: '12px',
+                    cursor: conferindo ? 'default' : 'pointer',
+                    opacity: conferindo ? 0.65 : 1,
+                  }}
+                >
+                  {conferindo ? 'Verificando...' : '🔄 Já paguei'}
+                </button>
+              )}
+
+              {mensagemConferencia && (
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '10px', lineHeight: 1.4 }}>
+                  {mensagemConferencia}
+                </p>
+              )}
+
               {standalone ? (
                 <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: '1.4' }}>
                   Depois de pagar, me manda um print aqui no WhatsApp que eu confirmo e já te

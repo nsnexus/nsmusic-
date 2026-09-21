@@ -386,6 +386,28 @@ function EntregaContent() {
     }
   };
 
+  // Reconfere sozinho quando o cliente volta para esta aba.
+  //
+  // É o momento mais provável de existir pagamento novo: quem paga sai daqui para o app do banco
+  // e volta. Enquanto esteve fora, o navegador estrangulou o polling desta página (aba em segundo
+  // plano), então o retorno é justamente quando ninguém está consultando. Um clique a menos para
+  // o cliente, e o caso que mais gerava "paguei e não liberou" (21/09/2026).
+  useEffect(() => {
+    const txid = pixInfo.paymentId || order?.paymentIntentId;
+    if (!orderId || !txid || isPaidState) return;
+
+    const aoVoltar = () => { if (document.visibilityState === 'visible') handleCheckPayment(); };
+    document.addEventListener('visibilitychange', aoVoltar);
+    window.addEventListener('focus', aoVoltar);
+    return () => {
+      document.removeEventListener('visibilitychange', aoVoltar);
+      window.removeEventListener('focus', aoVoltar);
+    };
+    // handleCheckPayment é recriada a cada render e já protege contra chamada concorrente com
+    // `checandoPagamento`; incluí-la aqui só recriaria os listeners a cada render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orderId, pixInfo.paymentId, order?.paymentIntentId, isPaidState]);
+
   const handleReceiptUpload = async (file) => {
     if (!file || !orderId) return;
     setReceiptStatus('uploading');
@@ -1844,9 +1866,14 @@ function EntregaContent() {
                                 {pixCopied ? '✅ Copiado!' : '📋 Copiar PIX'}
                               </button>
 
-                              {/* Só aparece depois que o cliente copiou o código: antes disso não há
-                                  pagamento nenhum pra conferir, e o botão só geraria dúvida. */}
-                              {pixCopied && (
+                              {/* Aparece sempre que existir cobrança em aberto — NÃO só depois de
+                                  copiar o código.
+                                  Até 21/09/2026 a condição era `pixCopied`, e isso escondia o
+                                  botão justamente de quem paga LENDO O QR CODE com a câmera do
+                                  banco: essa pessoa nunca clica em "Copiar PIX", então pagava e
+                                  ficava sem nenhuma forma de pedir a conferência. É o perfil dos
+                                  pagamentos que chegavam e não eram identificados. */}
+                              {(pixInfo.paymentId || order?.paymentIntentId) && (
                                 <button
                                   type="button"
                                   onClick={handleCheckPayment}
