@@ -344,7 +344,7 @@ export default function Home() {
         <div className="container">
           <div style={styles.sectionHeader}>
             <h2 style={styles.sectionTitle}>Como Funciona?</h2>
-            <p style={styles.sectionSubtitle}>Em apenas 3 passos simples você presenteia quem ama com uma canção própria. E você ouve a música inteira antes de decidir.</p>
+            <p style={styles.sectionSubtitle}>Em apenas 3 passos simples você presenteia quem ama com uma canção própria. E você ouve uma prévia da música pronta antes de pagar.</p>
           </div>
 
           <div style={styles.stepsGrid}>
@@ -362,8 +362,8 @@ export default function Home() {
 
             <div style={styles.stepCard} className="glass-card">
               <div style={styles.stepNumber}>3</div>
-              <h3 style={styles.stepTitle}>Ouça Inteira e Decida</h3>
-              <p style={styles.stepText}>Sintetizamos a melodia e as vozes de estúdio. Você ouve as 2 versões <strong>completas, do começo ao fim</strong>, e só paga se gostar. O download em MP3 HD com capa digital é liberado depois.</p>
+              <h3 style={styles.stepTitle}>Ouça a Prévia</h3>
+              <p style={styles.stepText}>Sintetizamos a melodia e as vozes de estúdio. Você ouve a prévia das 2 versões antes de pagar. O Pix de R$ 9,99 libera as músicas completas em MP3 HD com capa digital.</p>
             </div>
           </div>
         </div>
@@ -520,7 +520,7 @@ export default function Home() {
             <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 16px', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '6px' }}>
               {[
                 <><strong>2 músicas completas</strong>, em estilos diferentes</>,
-                <>Você ouve as duas <strong>inteiras antes de pagar</strong></>,
+                <>Prévia das duas <strong>antes de pagar</strong></>,
                 'Download ilimitado em MP3 HD',
                 'Capa digital personalizada',
                 'Alterações ilimitadas na composição',

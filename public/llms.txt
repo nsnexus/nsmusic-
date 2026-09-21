@@ -2,8 +2,8 @@
 
 > Estúdio brasileiro que cria músicas personalizadas com inteligência artificial a partir da
 > história que o cliente conta. O pedido é feito inteiramente pelo site, sem cadastro obrigatório,
-> e a música fica pronta em poucos minutos. **O cliente ouve a música inteira antes de decidir e só
-> paga se gostar.** Pagamento por Pix.
+> e a música fica pronta em poucos minutos. **O cliente ouve uma prévia de 60 segundos antes de
+> decidir.** Pagamento por Pix.
 
 NS Music transforma uma história pessoal em canção: o cliente descreve para quem é a homenagem, a
 ocasião e o que marcou essa relação, escolhe estilo musical, clima e tipo de voz, e recebe **duas
@@ -20,9 +20,8 @@ homenagem a quem já partiu, formatura, chá revelação e afins.
    dueto).
 2. **Revise a letra.** A IA escreve a letra a partir da história e o cliente aprova ou pede ajuste
    antes de gerar o áudio.
-3. **Ouça inteira e decida.** Geração em cerca de 2 a 3 minutos. O cliente ouve as duas versões
-   COMPLETAS, do começo ao fim, sem pagar nada. Só paga se gostar; o pagamento libera o download
-   em MP3 HD. O link também chega no WhatsApp.
+3. **Ouça a prévia e decida.** Geração em cerca de 2 a 3 minutos. O cliente ouve uma prévia de 60 segundos das duas
+   versões sem pagar nada. O pagamento libera as músicas completas em MP3 HD. O link também chega no WhatsApp.
 
 ## Produtos e preços
 
@@ -47,8 +46,8 @@ letra e compõe os arranjos vocais e instrumentais em qualidade de estúdio.
 Sim. No pacote de R$ 9,99 são duas versões completas, com arranjos musicais diferentes.
 
 **Preciso pagar para ouvir?**
-Não. O cliente ouve as duas versões completas, do começo ao fim, sem pagar nada. O pagamento
-libera o download em MP3 HD e os extras (vídeo, carta, retrospectiva).
+Para ouvir uma prévia de 60 segundos das duas versões, não. O pagamento libera as músicas
+completas em MP3 HD e os extras (vídeo, carta, retrospectiva).
 
 **Quanto tempo leva?**
 A letra e os áudios ficam prontos em cerca de 2 a 3 minutos, direto no site.

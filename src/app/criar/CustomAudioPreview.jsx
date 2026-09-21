@@ -31,16 +31,26 @@ export default function CustomAudioPreview({ src, label, badge, isBonus, orderId
     }
   };
 
-  // Toca inteira. O corte em 60s saiu em 21/09/2026 — ver o comentário em
-  // src/app/entrega/page.jsx:handleAudioTimeUpdate. Ouvir é de graça; o que se paga é levar.
+  // Prévia de 60 segundos. Liberamos a música inteira na manhã de 21/09/2026 e revertemos na
+  // mesma tarde: a conversão caiu forte. Ver o comentário em
+  // src/app/entrega/page.jsx:handleAudioTimeUpdate.
   const handleTimeUpdate = () => {
     if (!audioRef.current) return;
-    setCurrentTime(audioRef.current.currentTime);
+    const curr = audioRef.current.currentTime;
+    if (curr >= 60) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 60;
+      setIsPlaying(false);
+      setShowEndedNotice(true);
+    } else if (showEndedNotice) {
+      setShowEndedNotice(false);
+    }
+    setCurrentTime(Math.min(curr, 60));
   };
 
   const handleLoadedMetadata = () => {
     if (!audioRef.current) return;
-    setDuration(audioRef.current.duration || 0);
+    setDuration(Math.min(audioRef.current.duration || 60, 60));
   };
 
   const handleSeek = (e) => {
@@ -137,14 +147,14 @@ export default function CustomAudioPreview({ src, label, badge, isBonus, orderId
               />
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
                 <span>{formatTime(currentTime)}</span>
-                <span>{formatTime(duration)}</span>
+                <span>0:60 (Prévia)</span>
               </div>
             </div>
           </div>
 
           {showEndedNotice && (
             <div style={{ padding: '8px 12px', background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '8px', fontSize: '0.8rem', color: '#fca5a5', fontWeight: 'bold' }}>
-              🎧 Gostou? Avance para liberar o download em MP3 HD das 2 versões.
+              🔒 Prévia de 60s finalizada. Avance para liberar as 2 versões completas em MP3 HD!
             </div>
           )}
         </div>
@@ -155,7 +165,7 @@ export default function CustomAudioPreview({ src, label, badge, isBonus, orderId
       )}
 
       <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-        🎧 Ouça quanto quiser, do começo ao fim. O download em MP3 HD é liberado após o pagamento.
+        🔒 Prévia de 60s. A música completa em MP3 HD é liberada após o pagamento.
       </span>
     </div>
   );

@@ -1246,10 +1246,15 @@ export default function CriarMusica() {
     }, 5000);
   };
 
-  // Time update handler to lock playback of previews to 60 seconds
-  // Toca inteira — ver o comentário equivalente em src/app/entrega/page.jsx. O que é pago é o
-  // artefato (download, vídeo, carta, retrospectiva), não o ato de ouvir.
-  const handleAudioTimeUpdate = () => {};
+  // Corta a prévia em 60 segundos — ver o comentário equivalente em src/app/entrega/page.jsx
+  // (reversão de 21/09/2026: liberar a música inteira antes do pagamento derrubou a conversão).
+  const handleAudioTimeUpdate = (e) => {
+    const audio = e.target;
+    if (audio.currentTime > 60) {
+      audio.pause();
+      audio.currentTime = 60;
+    }
+  };
 
   const nextStep = () => {
     setStep(prev => prev + 1);
@@ -1590,7 +1595,7 @@ export default function CriarMusica() {
             ) : (
               <div>
                 <h1 style={styles.stepTitle}>Sua Música Está Pronta! 🎧</h1>
-                <p style={styles.stepSubtitle}>Ouça as 2 versões completas, geradas em estúdio. As duas estão inclusas pelo valor promocional!</p>
+                <p style={styles.stepSubtitle}>Ouça as prévias de 60 segundos geradas em estúdio. As 2 versões estão inclusas pelo valor promocional!</p>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '680px', margin: '24px auto 0' }}>
                   

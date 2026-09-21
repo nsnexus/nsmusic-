@@ -37,7 +37,7 @@ export const ocasioes = [
     ],
     bullets: [
       'A letra cita nome, apelido, datas e os momentos que você contar.',
-      'Você lê a letra antes do áudio e ouve a música inteira antes de pagar.',
+      'Você lê a letra antes do áudio e ouve a prévia da música antes de pagar.',
       'Duas versões completas, com arranjos diferentes, para escolher qual tocar na festa.',
       'Pronta em cerca de 2 a 3 minutos, dá para fazer no mesmo dia da festa.',
     ],
@@ -80,7 +80,7 @@ export const ocasioes = [
     ],
     bullets: [
       'A letra nasce da sua história, não de um modelo pronto trocando o nome.',
-      'Você ouve as duas versões inteiras antes de decidir, e só paga se gostar.',
+      'Você ouve a prévia das duas versões antes de decidir se leva.',
       'Duas versões completas em MP3 HD, com arranjos diferentes.',
       'Dá para somar um Vídeo Homenagem com as fotos dela, sincronizado com a música.',
     ],
@@ -164,7 +164,7 @@ export const ocasioes = [
     ],
     bullets: [
       'Conte a trajetória, as frases e os gestos: é isso que entra na letra.',
-      'Você revisa a letra antes do áudio e ouve a música pronta antes de pagar.',
+      'Você revisa a letra antes do áudio e ouve a prévia da música antes de pagar.',
       'Duas versões em MP3 HD, para tocar na cerimônia e para guardar.',
       'Dá para somar o Vídeo Homenagem com as fotos, sincronizado com a música.',
     ],
@@ -205,7 +205,7 @@ export const ocasioes = [
     ],
     bullets: [
       'A letra cita os dois nomes, as datas e os fatos que você contar.',
-      'Você ouve as duas versões inteiras antes de pagar.',
+      'Você ouve a prévia das duas versões antes de pagar.',
       'Duas versões com arranjos diferentes: uma para a cerimônia, outra para a festa.',
       'Playback instrumental disponível, se alguém for cantar ao vivo.',
     ],

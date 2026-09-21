@@ -49,7 +49,7 @@ export function serviceJsonLd() {
     provider: { '@type': 'Organization', name: 'NS Music', url: BASE },
     areaServed: 'BR',
     description:
-      'Música composta do zero a partir da história do cliente: letra exclusiva e duas versões completas em MP3 HD, prontas em cerca de 2 a 3 minutos. O cliente ouve as músicas inteiras antes de decidir e só paga se gostar.',
+      'Música composta do zero a partir da história do cliente: letra exclusiva e duas versões completas em MP3 HD, prontas em cerca de 2 a 3 minutos. O cliente ouve uma prévia das músicas antes de decidir se leva.',
     offers: [
       { ...brl('audio_only'), name: 'Música personalizada (2 versões em MP3 HD)' },
       { ...brl('combo'), name: 'Música + Vídeo Homenagem' },
@@ -66,7 +66,7 @@ export function serviceJsonLd() {
 export function faqJsonLd() {
   const perguntas = [
     ['Preciso pagar para ouvir a música?',
-      'Não. Você ouve as duas versões completas, do começo ao fim, antes de decidir, e só paga se gostar. O pagamento libera o download em MP3 HD e os extras.'],
+      'Você ouve uma prévia de 60 segundos das duas versões sem pagar nada. O pagamento por Pix libera as músicas completas em MP3 HD e os extras.'],
     ['Como é feita a criação da música?',
       'Você insere os detalhes da história e escolhe o estilo. Nossa inteligência artificial cria a letra poética e compõe os arranjos vocais e instrumentais de estúdio com alta definição.'],
     ['Recebo 2 versões da minha música?',
@@ -116,7 +116,7 @@ export function howToJsonLd() {
       {
         '@type': 'HowToStep',
         name: 'Receba os áudios em MP3 HD',
-        text: 'Em cerca de 2 a 3 minutos ficam prontas duas versões da música. Você ouve as duas inteiras, do começo ao fim, e só paga se gostar. O download em MP3 HD é liberado após o pagamento por Pix.',
+        text: 'Em cerca de 2 a 3 minutos ficam prontas duas versões da música. Você ouve a prévia das duas antes de pagar. As músicas completas em MP3 HD são liberadas após o pagamento por Pix.',
         url: `${BASE}/criar`,
       },
     ],

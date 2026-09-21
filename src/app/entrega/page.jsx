@@ -692,29 +692,17 @@ function EntregaContent() {
     return () => unsubscribe();
   }, [orderId]);
 
-  // Quem OUVE a música inteira sem ter pago: só quem criou o pedido, neste mesmo navegador.
+  // Prévia de 60 segundos para quem não pagou.
   //
-  // A decisão de 21/09/2026 foi deixar o comprador ouvir tudo antes de pagar — o corte em 60s
-  // interrompia a venda no auge da emoção e fazia gente achar que a geração tinha falhado. Mas
-  // /entrega?orderId=X não pede nada para abrir: sem esta trava, bastava o cliente mandar o
-  // próprio link da entrega para a homenageada e o presente estava entregue de graça (o dono do
-  // estúdio percebeu isso no mesmo dia). A página pública /homenagem já era protegida; esta não.
+  // Na manhã de 21/09/2026 liberamos a música inteira antes do pagamento, com a tese de que o
+  // impacto emocional completo venderia mais. À tarde o dono do estúdio reportou queda forte de
+  // conversão e pediu a volta com urgência: ouvir tudo satisfaz o cliente, e satisfeito ele não
+  // paga. O corte no meio é o que cria a necessidade.
   //
-  // O marcador é o mesmo que o wizard grava ao criar (localStorage nsmusic_generated_orders).
-  // Limite conhecido: é por navegador. Quem cria no celular e abre no computador cai na prévia até
-  // pagar. Fechar isso exigiria um token no link que o WhatsApp manda para o próprio cliente.
-  const [souOCriadorDoPedido, setSouOCriadorDoPedido] = useState(false);
-  useEffect(() => {
-    if (typeof window === 'undefined' || !orderId) return;
-    try {
-      const criados = JSON.parse(localStorage.getItem('nsmusic_generated_orders') || '[]');
-      setSouOCriadorDoPedido(Array.isArray(criados) && criados.includes(orderId));
-    } catch (e) {
-      setSouOCriadorDoPedido(false);
-    }
-  }, [orderId]);
-
-  const podeOuvirInteira = isPaid || souOCriadorDoPedido;
+  // O corte aqui é de produto, não de segurança: o áudio completo continua acessível a quem
+  // inspecionar a rede. O que o pagamento protege de verdade é o download em MP3 HD, o vídeo, a
+  // carta e a retrospectiva.
+  const podeOuvirInteira = isPaid;
 
   const handleAudioTimeUpdate = (e) => {
     if (podeOuvirInteira) return;
@@ -1096,7 +1084,7 @@ function EntregaContent() {
                   <div style={isPaid ? { ...styles.audioPlayerContainer, backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', backdropFilter: 'blur(6px)' } : styles.audioPlayerContainer} className="glass-card">
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
                       <h4 style={{ fontSize: '0.95rem', margin: 0, fontWeight: '700', color: isPaid ? '#f1f5f9' : 'var(--primary)' }}>
-                        🎧 Versão 1
+                        🎧 Prévia (Versão 1)
                       </h4>
                       {isPaid && (
                         <span style={{ fontSize: '0.7rem', color: '#f472b6', backgroundColor: 'rgba(236,72,153,0.12)', padding: '3px 9px', borderRadius: '10px', border: '1px solid rgba(236,72,153,0.3)', fontWeight: '700' }}>
@@ -1106,9 +1094,7 @@ function EntregaContent() {
                     </div>
                     {!isPaid && (
                       <p style={{ fontSize: '0.78rem', color: 'var(--warning)', marginBottom: '8px', fontWeight: '600' }}>
-                        {podeOuvirInteira
-                          ? `🎧 Ouça à vontade. O download em MP3 HD é liberado após o pagamento.`
-                          : `🎧 Prévia de 60 segundos. Peça a quem fez esta homenagem para liberar a música completa.`}
+                        `🔒 Prévia de 60 segundos. O pagamento libera as 2 versões completas em MP3 HD.`
                       </p>
                     )}
                     {audioReadyState.primary !== 'ready' && (
@@ -1208,7 +1194,7 @@ function EntregaContent() {
                   <div style={isPaid ? { ...styles.audioPlayerContainer, backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', backdropFilter: 'blur(6px)' } : styles.audioPlayerContainer} className="glass-card">
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
                       <h4 style={{ fontSize: '0.95rem', margin: 0, fontWeight: '700', color: isPaid ? '#f1f5f9' : 'var(--secondary)' }}>
-                        🎧 Versão 2
+                        🎧 Prévia (Versão 2)
                       </h4>
                       {isPaid && (
                         <span style={{ fontSize: '0.7rem', color: '#c084fc', backgroundColor: 'rgba(168,85,247,0.12)', padding: '3px 9px', borderRadius: '10px', border: '1px solid rgba(168,85,247,0.3)', fontWeight: '700' }}>
@@ -1218,9 +1204,7 @@ function EntregaContent() {
                     </div>
                     {!isPaid && (
                       <p style={{ fontSize: '0.78rem', color: 'var(--warning)', marginBottom: '8px', fontWeight: '600' }}>
-                        {podeOuvirInteira
-                          ? `🎧 Ouça à vontade. O download em MP3 HD é liberado após o pagamento.`
-                          : `🎧 Prévia de 60 segundos. Peça a quem fez esta homenagem para liberar a música completa.`}
+                        `🔒 Prévia de 60 segundos. O pagamento libera as 2 versões completas em MP3 HD.`
                       </p>
                     )}
                     {audioReadyState.second !== 'ready' && (
@@ -1863,7 +1847,7 @@ function EntregaContent() {
                     <div style={{ textAlign: 'center', marginBottom: '16px' }}>
                       <span style={{ fontSize: '2rem' }}>⚡</span>
                       <h3 style={{ fontSize: '1.25rem', fontWeight: '800', marginTop: '6px', color: 'var(--text-primary)' }}>
-                        {promo ? '🎁 Oferta Especial Liberada!' : 'Você ouviu. Agora é sua.'}
+                        {promo ? '🎁 Oferta Especial Liberada!' : 'Libere as músicas completas em MP3 HD'}
                       </h3>
                       {/* O valor sai do MESMO catálogo que o servidor usa para cobrar
                           (src/lib/pricing.js), a partir do pacote escolhido. Até 21/09/2026 este
@@ -1882,9 +1866,9 @@ function EntregaContent() {
                           </>
                         ) : (
                           <>
-                            Você ouviu <strong>as duas versões inteiras</strong> antes de pagar nada.
-                            Agora diga quanto ela valeu: o mínimo já libera o download em MP3 HD, e{' '}
-                            <strong>cada faixa acima disso vem com um extra de brinde</strong>.
+                            Você ouviu a prévia. O pagamento libera <strong>as 2 versões completas</strong>,
+                            sem corte, em MP3 HD. E{' '}
+                            <strong>cada faixa acima do mínimo vem com um extra de brinde</strong>.
                           </>
                         )}
                       </p>

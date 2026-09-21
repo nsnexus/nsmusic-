@@ -263,13 +263,13 @@ function PagarContent() {
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: '1.5' }}>
             {standalone ? (
               <>
-                Você ouviu a homenagem inteira antes de pagar nada. Agora diga quanto ela valeu:
+                Você ouviu a prévia da homenagem. Agora diga quanto ela vale:
                 o mínimo é o preço da música, e <strong>cada faixa acima disso já vem com um extra
                 de brinde</strong>. É só me chamar depois de pagar! 💜
               </>
             ) : (
               <>
-                Você ouviu a música inteira antes de pagar nada. Agora diga quanto ela valeu:
+                Você ouviu a prévia da música. Agora diga quanto ela vale:
                 o mínimo já libera tudo o que você ouviu, e <strong>cada faixa acima disso vem com
                 um extra de brinde</strong>.
               </>

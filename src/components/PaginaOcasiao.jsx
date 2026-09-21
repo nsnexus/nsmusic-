@@ -89,7 +89,7 @@ export default function PaginaOcasiao({ ocasiao }) {
             Criar minha música por R$ {preco('audio_only')}
           </Link>
           <p style={s.microcopy}>
-            Ouça inteira antes de pagar · 2 versões em MP3 HD · pronta em ~3 min · Pix · sem cadastro
+            Ouça a prévia antes de pagar · 2 versões em MP3 HD · pronta em ~3 min · Pix · sem cadastro
           </p>
         </section>
 
@@ -114,9 +114,9 @@ export default function PaginaOcasiao({ ocasiao }) {
               que você contou. Você lê, ajusta e só então aprova.
             </li>
             <li style={s.passo}>
-              <strong>Ouça inteira e decida.</strong> Duas versões completas em MP3 HD em cerca de
-              2 a 3 minutos. Você ouve as duas do começo ao fim e só paga se gostar. O pagamento
-              por Pix libera o download.
+              <strong>Ouça a prévia e decida.</strong> Duas versões completas em MP3 HD em cerca de
+              2 a 3 minutos. Você ouve a prévia das duas antes de pagar. O Pix libera as
+              músicas completas para download.
             </li>
           </ol>
         </section>
@@ -172,7 +172,7 @@ export default function PaginaOcasiao({ ocasiao }) {
         <section className="container" style={s.secaoCta}>
           <h2 style={s.h2}>Pronto para criar?</h2>
           <p style={s.paragrafo}>
-            Você escreve a história, lê a letra antes de gerar e ouve a música inteira antes de pagar.
+            Você escreve a história, lê a letra antes de gerar e ouve a prévia da música antes de pagar.
           </p>
           <Link href={linkCriar} className="btn btn-primary" style={s.ctaGrande}>
             Criar minha música por R$ {preco('audio_only')}
