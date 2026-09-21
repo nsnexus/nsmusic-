@@ -4,6 +4,8 @@ import Link from 'next/link';
 import HeroVideoBackground from '@/components/HeroVideoBackground';
 import Image from 'next/image';
 import { Sparkles, Gift, Headphones, Star, Clock, ShieldCheck, Music, Flame, Check, ChevronDown, Heart } from 'lucide-react';
+import { faqJsonLd, howToJsonLd } from '@/lib/structuredData';
+import { ocasioes } from '@/lib/ocasioes';
 
 // Milhar com ponto, padrão brasileiro (1924 -> 1.924).
 const formatarNumero = (n) => Number(n || 0).toLocaleString('pt-BR');
@@ -166,6 +168,14 @@ export default function Home() {
 
   return (
     <div style={styles.wrapper}>
+      {/* FAQ e passo a passo em Schema.org. Ficam aqui, não no layout raiz: as páginas de ocasião
+          publicam o FAQPage delas, e dois FAQPage no mesmo documento invalidam os dois. */}
+      <script
+        type="application/ld+json"
+        // eslint-disable-next-line react/no-danger
+        dangerouslySetInnerHTML={{ __html: JSON.stringify([faqJsonLd(), howToJsonLd()]) }}
+      />
+
       {/* Header / Navbar */}
       <header style={styles.header} className="glass-panel header-dark">
         <div style={styles.headerContainer}>
@@ -601,6 +611,33 @@ export default function Home() {
               </div>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* Ocasiões. Além de ajudar quem chegou indeciso, é o caminho por onde o buscador descobre
+          as páginas de ocasião — página sem link de dentro do site custa muito mais para indexar. */}
+      <section className="container" style={{ padding: '30px 0 10px' }}>
+        <h2 style={{ fontSize: '1.1rem', fontWeight: '800', marginBottom: '12px' }}>
+          Música personalizada por ocasião
+        </h2>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+          {ocasioes.map((o) => (
+            <Link
+              key={o.slug}
+              href={`/${o.slug}`}
+              style={{
+                padding: '9px 15px',
+                borderRadius: '999px',
+                fontSize: '0.88rem',
+                fontWeight: '600',
+                border: '1px solid var(--border-color)',
+                color: 'var(--text-secondary)',
+                textDecoration: 'none',
+              }}
+            >
+              {o.titulo.replace(' Personalizada com IA', '').replace(' com IA', '')}
+            </Link>
+          ))}
         </div>
       </section>
 

@@ -1,6 +1,6 @@
 import Script from 'next/script';
 import './globals.css';
-import { organizationJsonLd, serviceJsonLd, faqJsonLd, howToJsonLd } from '@/lib/structuredData';
+import { organizationJsonLd, serviceJsonLd } from '@/lib/structuredData';
 
 // Descrição única, usada em todo lugar (meta, OpenGraph, Twitter) — pedido 20/09/2026 ("deixar o
 // site otimizado para leitura de IA"). Diz O QUE é, PARA QUEM serve, QUANTO custa e EM QUANTO
@@ -90,20 +90,15 @@ export default function RootLayout({ children }) {
         </Script>
       </head>
       <body>
-        {/* Dados estruturados (Schema.org). Ficam no layout, não na home, porque descrevem o
-            negócio inteiro — quem somos, o que vendemos, por quanto e em quanto tempo. É o que
-            permite a um buscador ou assistente responder sobre o NS Music com preço e prazo
-            corretos em vez de adivinhar pelo texto da página. Ver src/lib/structuredData.js. */}
+        {/* Dados estruturados do negócio inteiro — quem somos e o que vendemos, por quanto. Ficam
+            no layout porque valem para toda página. O FAQPage e o HowTo NÃO ficam aqui: cada
+            página tem o seu (home em page.jsx, ocasiões em PaginaOcasiao.jsx), e dois FAQPage no
+            mesmo documento fazem o Google descartar os dois. Ver src/lib/structuredData.js. */}
         <script
           type="application/ld+json"
           // eslint-disable-next-line react/no-danger
           dangerouslySetInnerHTML={{
-            __html: JSON.stringify([
-              organizationJsonLd(),
-              serviceJsonLd(),
-              faqJsonLd(),
-              howToJsonLd(),
-            ]),
+            __html: JSON.stringify([organizationJsonLd(), serviceJsonLd()]),
           }}
         />
         {children}

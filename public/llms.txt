@@ -63,6 +63,11 @@ para os detalhes.
 
 - [Página inicial](https://nsmusic.nsnexus.com.br/): o que é, como funciona, exemplos e depoimentos
 - [Criar minha música](https://nsmusic.nsnexus.com.br/criar): o formulário do pedido, do começo ao fim
+- [Música de aniversário](https://nsmusic.nsnexus.com.br/musica-de-aniversario)
+- [Música para o Dia das Mães](https://nsmusic.nsnexus.com.br/musica-para-dia-das-maes)
+- [Música de declaração de amor](https://nsmusic.nsnexus.com.br/musica-para-declaracao-de-amor)
+- [Música de homenagem](https://nsmusic.nsnexus.com.br/musica-de-homenagem)
+- [Música para casamento e bodas](https://nsmusic.nsnexus.com.br/musica-para-casamento)
 - [Termos de uso](https://nsmusic.nsnexus.com.br/termos-de-uso)
 - [Política de privacidade](https://nsmusic.nsnexus.com.br/politica-de-privacidade)
 

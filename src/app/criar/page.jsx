@@ -10,6 +10,7 @@ import { AUDIO_CACHE_VERSION } from '@/lib/audioCacheVersion';
 import { buildSunoPayload } from '@/lib/sunoPayload';
 import { pushAdvancedMatching } from '@/lib/metaPixel';
 import { styles } from './wizardStyles';
+import { occasions } from './wizardOptions';
 import CustomAudioPreview from './CustomAudioPreview';
 import WizardSteps from './WizardSteps';
 import PixQrCode from '@/components/PixQrCode';
@@ -255,9 +256,17 @@ export default function CriarMusica() {
         const urlParams = new URLSearchParams(window.location.search);
         const resetParam = urlParams.get('reset') || urlParams.get('new');
 
+        // ?ocasiao= vem das páginas de ocasião (/musica-de-aniversario e irmãs, ver
+        // src/lib/ocasioes.js): quem chegou por "música de aniversário" não deveria ter que
+        // responder de novo qual é a ocasião. Só aceita valor que existe no catálogo do wizard —
+        // query string é entrada do usuário, não configuração.
+        const ocasiaoParam = urlParams.get('ocasiao');
+        const ocasiaoValida = occasions.some((o) => o.id === ocasiaoParam) ? ocasiaoParam : '';
+
         if (resetParam === 'true' || resetParam === '1') {
           localStorage.removeItem('nsmusic_order_draft');
           window.history.replaceState({}, document.title, window.location.pathname);
+          if (ocasiaoValida) setFormData((prev) => ({ ...prev, occasion: ocasiaoValida }));
           setIsRestored(true);
           return;
         }
@@ -265,7 +274,17 @@ export default function CriarMusica() {
         const saved = localStorage.getItem('nsmusic_order_draft');
         if (saved) {
           const parsed = JSON.parse(saved);
-          if (parsed.formData) setFormData(parsed.formData);
+          // Rascunho existente manda: quem já escolheu a ocasião não tem a escolha trocada por um
+          // link. O parâmetro só preenche o que ainda está vazio.
+          if (parsed.formData) {
+            setFormData(
+              ocasiaoValida && !parsed.formData.occasion
+                ? { ...parsed.formData, occasion: ocasiaoValida }
+                : parsed.formData,
+            );
+          } else if (ocasiaoValida) {
+            setFormData((prev) => ({ ...prev, occasion: ocasiaoValida }));
+          }
           if (parsed.orderId) setOrderId(parsed.orderId);
           if (parsed.taskId) setTaskId(parsed.taskId);
           if (parsed.step) setStep(parsed.step >= 11 ? 11 : parsed.step);
@@ -279,6 +298,8 @@ export default function CriarMusica() {
           } else if (currentOrderId && parsed.formData?.sunoStatus !== 'generated' && parsed.step >= 9) {
             checkOrderStatusInFirestore(currentOrderId, savedTaskId);
           }
+        } else if (ocasiaoValida) {
+          setFormData((prev) => ({ ...prev, occasion: ocasiaoValida }));
         }
       } catch (e) {
         console.warn("Erro ao restaurar rascunho:", e);
