@@ -237,12 +237,13 @@ function EntregaContent() {
   // que o banco pede faz o cliente desistir, então os dois têm que sair do mesmo catálogo.
   // Valor escolhido na escada de impacto — é o que vira a cobrança.
   //
-  // Começa `null` de propósito (pedido do dono do estúdio em 21/09/2026): antes a tela abria com o
-  // mínimo de R$ 9,99 já marcado e com o Pix desse valor gerado sozinho, o que transformava a
-  // escada inteira em decoração — o cliente só pagava o que já estava pronto na tela. Sem faixa
-  // marcada, escolher vira um ato do cliente, e a faixa em destaque é a referência.
-  const [valorEscolhido, setValorEscolhido] = useState(null);
-  const [valorDigitado, setValorDigitado] = useState('');
+  // Começa no mínimo (só a música), com o Pix desse valor gerado sozinho: ninguém precisa clicar
+  // para conseguir pagar. Tentamos abrir sem faixa marcada em 21/09/2026 e o dono do estúdio
+  // pediu a volta no mesmo dia — um clique a mais entre chegar na tela e ver o QR custa venda.
+  // Quem puxa para cima agora é o selo MAIS ESCOLHIDO na faixa de R$ 16,89, não a ausência de
+  // escolha (ver faixasDeImpacto em src/lib/pricing.js).
+  const [valorEscolhido, setValorEscolhido] = useState(() => getPriceForSku('audio_only'));
+  const [valorDigitado, setValorDigitado] = useState(() => String(getPriceForSku('audio_only')));
 
   const escolherFaixa = (valor) => {
     setValorEscolhido(valor);
@@ -563,14 +564,11 @@ function EntregaContent() {
   // pixInfo.qrCode ainda vazio, o efeito disparava de novo na hora e o cliente via o mesmo erro
   // repetidamente, sem nunca conseguir pagar. Com a trava, a falha para o ciclo e a retomada passa a
   // ser explícita, pelo botão "Tentar novamente" (que limpa pixError).
-  // Fora da promoção, a geração espera o cliente escolher a faixa (`valorEscolhido`): gerar o Pix
-  // do mínimo sozinho entregava a resposta pronta e ninguém subia de faixa. Na promoção o preço é
-  // fixo e não existe escada, então lá continua automático.
   useEffect(() => {
-    if (order && !isPaid && !pixInfo.qrCode && !pixLoading && !pixError && (promo || valorEscolhido !== null)) {
+    if (order && !isPaid && !pixInfo.qrCode && !pixLoading && !pixError) {
       handleGeneratePix();
     }
-  }, [order, isPaid, pixInfo.qrCode, pixLoading, pixError, promo, valorEscolhido]);
+  }, [order, isPaid, pixInfo.qrCode, pixLoading, pixError]);
 
   // Polling em tempo real para confirmação de pagamento PIX (Áudio Principal) com fallback Firestore
   useEffect(() => {
@@ -2154,10 +2152,6 @@ function EntregaContent() {
                             )}
                           </div>
 
-                        ) : !promo && valorEscolhido === null ? (
-                          <p style={{ width: '100%', textAlign: 'center', fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0 }}>
-                            ⬆️ Escolha acima quanto a homenagem vale e o PIX aparece aqui na hora.
-                          </p>
                         ) : (
                           <button
                             type="button"

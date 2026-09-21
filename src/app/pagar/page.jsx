@@ -284,9 +284,10 @@ function PagarContent() {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '7px', marginBottom: '14px' }}>
             {FAIXAS.map((faixa) => {
-              // Sem o `?? MIN_PRICE`: o fallback deixava a faixa mínima marcada antes de o cliente
-              // escolher qualquer coisa, e faixa marcada é faixa escolhida (pedido de 21/09/2026).
-              const ativa = typeof pixInfo?.amount === 'number' && Math.abs(pixInfo.amount - faixa.valor) < 0.01;
+              // O `?? MIN_PRICE` deixa a faixa mínima marcada enquanto o cliente não escolhe: é o
+              // piso que ele paga de qualquer jeito, e tela sem nada marcado parece formulário
+              // incompleto. Quem puxa para cima é o selo de destaque, não a ausência de marcação.
+              const ativa = Math.abs((pixInfo?.amount ?? MIN_PRICE) - faixa.valor) < 0.01;
               const destacada = Boolean(faixa.destaque) && !ativa;
               return (
                 <button
