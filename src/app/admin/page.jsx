@@ -64,6 +64,11 @@ export default function AdminDashboard() {
   // Número de WhatsApp do suporte, editável aqui em vez de hardcoded no código (pedido 21/09/2026:
   // o número principal foi suspenso e o dono vai alternar de volta em dois dias — trocar isso não
   // pode exigir deploy). Ver src/lib/configSite.js.
+  // Diagnóstico do webhook da Efí — a via instantânea de confirmação de pagamento. Ver
+  // src/app/api/admin/efi-webhook/route.js.
+  const [webhookEfi, setWebhookEfi] = useState(null);
+  const [checandoWebhook, setChecandoWebhook] = useState(false);
+
   const [numeroSuporte, setNumeroSuporte] = useState('');
   const [salvandoNumero, setSalvandoNumero] = useState(false);
   const [msgNumero, setMsgNumero] = useState('');
@@ -410,6 +415,23 @@ export default function AdminDashboard() {
     });
   }, []);
 
+  const handleCheckWebhookEfi = async () => {
+    setChecandoWebhook(true);
+    setWebhookEfi(null);
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      const res = await fetch('/api/admin/efi-webhook', {
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      setWebhookEfi(res.ok ? data : { erro: data.error || 'Falha ao consultar.' });
+    } catch (err) {
+      setWebhookEfi({ erro: 'Falha de conexão ao consultar a Efí.' });
+    } finally {
+      setChecandoWebhook(false);
+    }
+  };
+
   const handleSalvarNumeroSuporte = async () => {
     const normalizado = normalizarNumeroWhatsapp(numeroSuporte);
     if (!normalizado) {
@@ -687,6 +709,57 @@ export default function AdminDashboard() {
               {/* Cards de faturamento/vendas/pedidos do período — pedido 12/09/2026, ver comentário
                   em src/components/FaturamentoCards.jsx pro porquê de ser consulta própria. */}
               <FaturamentoCards dateFrom={dateFrom} dateTo={dateTo} />
+
+              {/* Webhook da Efí: a via INSTANTÂNEA de confirmação de pagamento. Se ele não
+                  estiver registrado, o cliente só é liberado pelo polling (aba aberta) ou pela
+                  reconciliação agendada, que leva até 5 minutos — e quem paga pelo app do banco e
+                  não volta ao site fica esperando. */}
+              <div style={{
+                marginTop: '16px',
+                padding: '12px 16px',
+                borderRadius: '12px',
+                background: '#f8fafc',
+                border: '1px solid #e2e8f0',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                flexWrap: 'wrap',
+              }}>
+                <span style={{ fontSize: '0.82rem', fontWeight: '700', color: '#334155' }}>
+                  🔔 Webhook da Efí
+                </span>
+                <button
+                  type="button"
+                  onClick={handleCheckWebhookEfi}
+                  disabled={checandoWebhook}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    background: '#fff',
+                    color: '#334155',
+                    fontWeight: '700',
+                    fontSize: '0.85rem',
+                    cursor: checandoWebhook ? 'default' : 'pointer',
+                  }}
+                >
+                  {checandoWebhook ? 'Consultando...' : 'Conferir na Efí'}
+                </button>
+
+                {webhookEfi && (
+                  <span style={{
+                    flexBasis: '100%',
+                    fontSize: '0.82rem',
+                    lineHeight: 1.5,
+                    color: webhookEfi.erro || webhookEfi.registrado === false ? '#dc2626'
+                      : webhookEfi.apontaParaODominioAtual ? '#059669' : '#b45309',
+                  }}>
+                    {webhookEfi.erro
+                      ? webhookEfi.erro
+                      : `${webhookEfi.registrado ? `${webhookEfi.host}${webhookEfi.caminho}` : 'NÃO REGISTRADO'} — ${webhookEfi.diagnostico}`}
+                  </span>
+                )}
+              </div>
 
               {/* Número de WhatsApp do suporte. Editável aqui de propósito: é para onde TODOS os
                   botões "Falar no WhatsApp" do site mandam o cliente, e trocar isso no código

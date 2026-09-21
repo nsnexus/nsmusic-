@@ -218,3 +218,40 @@ export async function getChargeStatus(txid, env) {
 
   return res.json();
 }
+
+/**
+ * Consulta (somente leitura) o webhook registrado na chave Pix.
+ *
+ * Existe para responder sem adivinhação a pergunta que apareceu em 21/09/2026, quando pagamentos
+ * de clientes deixaram de ser identificados: a Efí está mesmo configurada para nos avisar? Sem
+ * isto, a única forma de saber era abrir o painel da Efí à mão, e o segredo do relay não é
+ * legível depois de configurado.
+ *
+ * Devolve `null` quando não há webhook registrado (HTTP 404 da Efí) — que é justamente o achado
+ * que explicaria tudo.
+ */
+export async function getRegisteredWebhook(env) {
+  const chave = readEnvValue(env, 'EFI_PIX_KEY');
+  if (!chave) throw new Error('EFI_PIX_KEY não configurada.');
+
+  const accessToken = await getAccessToken(env);
+  const relayFetch = getRelayFetch(env);
+
+  const res = await fetchWithRetry(
+    `${getBaseUrl(env)}/v2/webhook/${chave}`,
+    {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      signal: AbortSignal.timeout(10000),
+    },
+    2,
+    relayFetch
+  );
+
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    throw new Error(`Falha ao consultar webhook na Efí (HTTP ${res.status}): ${errText.slice(0, 200)}`);
+  }
+
+  return res.json();
+}

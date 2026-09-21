@@ -22,6 +22,12 @@ const PATH_RULES = [
   { method: 'PUT', pattern: new RegExp(`^/v2/cob/${TXID_PATTERN}$`) },
   { method: 'GET', pattern: new RegExp(`^/v2/cob/${TXID_PATTERN}$`) },
   { method: 'GET', pattern: /^\/v2\/loc\/\d+\/qrcode$/ },
+  // Consulta (somente leitura) do webhook registrado na chave Pix. Serve para responder, sem
+  // adivinhação, se a Efí está mesmo configurada para nos avisar quando um Pix cai — a pergunta
+  // que apareceu em 21/09/2026 quando pagamentos deixaram de ser identificados. Só GET: registrar
+  // ou apagar webhook continua fora da allowlist, e é feito pelo script dedicado
+  // (scripts/register-efi-webhook.mjs), nunca por uma rota do site.
+  { method: 'GET', pattern: /^\/v2\/webhook\/[0-9A-Za-z.@+-]{1,80}$/ },
 ];
 
 const FORWARDED_HEADER_NAMES = ['authorization', 'content-type'];
