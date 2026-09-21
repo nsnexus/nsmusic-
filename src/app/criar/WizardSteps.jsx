@@ -442,16 +442,11 @@ export default function WizardSteps({
               </span>
             </div>
 
-            <div style={{ marginBottom: '20px' }}>
-              <label style={styles.wizardLabel}>E-mail (opcional)</label>
-              <input
-                type="email"
-                value={formData.customerEmail}
-                onChange={(e) => updateField('customerEmail', e.target.value)}
-                placeholder="seuemail@exemplo.com"
-                style={styles.wizardInput}
-              />
-            </div>
+            {/* O campo de e-mail (opcional) foi removido daqui em 21/09/2026 — menos uma coisa
+                entre o cliente e o botão. O CAMPO `customerEmail` CONTINUA EXISTINDO no pedido e
+                em todo o resto do código de propósito: pedidos antigos têm e-mail gravado, e
+                /minhas-musicas ainda encontra a música do cliente por ele quando a pessoa entra
+                com a conta Google. Só deixou de ser pedido no formulário. */}
 
             <div style={styles.infoAlert} className="glass-card">
               <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
