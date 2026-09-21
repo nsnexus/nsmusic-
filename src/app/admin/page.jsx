@@ -61,8 +61,6 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('ORDERS'); // 'ORDERS', 'STUCK'
 
   // Reprocessamento de pedidos travados antes da Suno (letra pronta mas geração nunca confirmada).
-  const [reconciling, setReconciling] = useState(false);
-  const [reconcileResult, setReconcileResult] = useState(null);
   // Varredura de conferência de pagamentos (pedido 20/09/2026) — ver handleAuditPayments.
   const [auditing, setAuditing] = useState(false);
   const [auditResult, setAuditResult] = useState(null);
@@ -385,45 +383,12 @@ export default function AdminDashboard() {
   // geração da Kie.ai continuam do mesmo jeito lá, só a fonte dos pedidos mudou (consulta própria por
   // data de PAGAMENTO em vez de reaproveitar esta lista, filtrada por data de CRIAÇÃO).
 
-  // Pedidos com a letra pronta cujo pedido à Kie.ai nunca foi confirmado (EM_PRODUCAO é o estado
-  // inicial genérico; LETRA_CRIADA é gravado quando a letra fica pronta — ver criar/page.jsx). Sem
-  // audioUrl significa que a geração de fato não chegou a completar.
-  const getStuckGenerationCandidates = () => orders.filter(o =>
-    !o.deletedAt &&
-    (o.productionStatus === 'EM_PRODUCAO' || o.productionStatus === 'LETRA_CRIADA') &&
-    (o.lyrics || '').trim().length > 0 &&
-    !o.audioUrl
-  );
 
 
   // Reconciliação no servidor: varre pedidos presos em GERANDO_AUDIO e pagamentos ainda em
   // AGUARDANDO_PAGAMENTO, confirmando cada um direto na Kie.ai e na Efí. Existe porque a via normal
   // (webhook + polling do navegador do cliente) morre junto com a aba do cliente — ver o comentário
   // de topo de src/app/api/orders/reconcile/route.js.
-  const handleReconcile = async () => {
-    if (!confirm('Verificar agora, direto na Kie.ai e na Efí, os pedidos presos em geração e os pagamentos pendentes?')) return;
-
-    setReconciling(true);
-    setReconcileResult(null);
-    try {
-      const idToken = await auth.currentUser?.getIdToken();
-      const res = await fetch('/api/orders/reconcile', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok) {
-        // A listagem é um onSnapshot vivo — os pedidos corrigidos aparecem sozinhos, sem recarregar.
-        setReconcileResult(data);
-      } else {
-        setReconcileResult({ error: data.error || 'Falha ao reconciliar os pedidos.' });
-      }
-    } catch (e) {
-      setReconcileResult({ error: 'Falha de conexão ao reconciliar os pedidos.' });
-    } finally {
-      setReconciling(false);
-    }
-  };
 
   // Varredura de conferência de pagamentos (pedido 20/09/2026): cruza as cobranças geradas com o
   // status REAL na Efí e mostra as que foram pagas e não liberaram nada. Duas etapas de propósito —
@@ -600,7 +565,7 @@ export default function AdminDashboard() {
                   color: activeTab === 'STUCK' ? '#ffffff' : '#334155',
                 }}
               >
-                🔧 Travados ({getStuckGenerationCandidates().length})
+                💰 Conferir Pagamentos
               </button>
               <Link href="/admin/dashboard" style={{ ...styles.tabBtn, backgroundColor: '#e2e8f0', color: '#334155', textDecoration: 'none', display: 'inline-block' }}>
                 📊 Dashboard
@@ -1088,88 +1053,21 @@ export default function AdminDashboard() {
               </div>
             </div>
           ) : (
-            // Pedidos travados — letra pronta mas a geração na Kie.ai nunca foi confirmada (ver
-            // sunoError/productionStatus, gravados em api/suno/generate/route.js).
+            // Conferência de pagamento. Esta aba já teve mutirões de reenvio (música presa e
+            // WhatsApp de "música pronta"), removidos em 20/09/2026 por serem de incidentes
+            // encerrados ou falso positivo — sobrou o que é útil no dia a dia.
             <div style={{ maxWidth: '900px', margin: '0 auto' }}>
-              <h2 style={{ fontSize: '1.5rem', fontWeight: '800', color: '#0f172a', marginBottom: '8px' }}>Pedidos Travados na Geração</h2>
+              <h2 style={{ fontSize: '1.5rem', fontWeight: '800', color: '#0f172a', marginBottom: '8px' }}>Conferência de Pagamentos</h2>
               <p style={{ color: '#64748b', fontSize: '0.9rem', marginBottom: '24px' }}>
-                Letra pronta, mas a geração de música nunca chegou a completar. Revise e reenvie para a Kie.ai.
+                Pergunta à Efí quais cobranças foram realmente pagas e não liberaram o produto.
               </p>
 
-              {/* Reconciliação: primeiro passo antes de reenviar qualquer coisa para a Kie.ai.
-                  Boa parte dos pedidos "travados" na verdade já tem a música pronta lá e/ou o
-                  pagamento confirmado na Efí — o que faltou foi alguém no servidor perguntar, já
-                  que o polling morre quando o cliente fecha a aba. Reenviar sem checar antes
-                  gastaria crédito à toa e geraria uma segunda música. */}
-              <div className="glass-card" style={{ padding: '20px', borderRadius: '14px', backgroundColor: '#ffffff', border: '1px solid #e2e8f0', marginBottom: '20px' }}>
-                <h3 style={{ fontSize: '1rem', fontWeight: '800', color: '#0f172a', marginBottom: '6px' }}>
-                  1. Recuperar música presa
-                </h3>
-                <p style={{ color: '#64748b', fontSize: '0.85rem', marginBottom: '14px' }}>
-                  Consulta a Kie.ai direto do servidor: recupera música que já ficou pronta lá e
-                  nunca chegou ao pedido, e reenvia (até 3 vezes) o que a Kie.ai reportou como falha
-                  real. Age direto, sem pedir confirmação — <strong>cada reenvio consome um crédito
-                  de geração</strong>. De quebra também libera pagamento confirmado que ficou preso,
-                  mas para conferir pagamento com calma use o card 2 abaixo.
-                </p>
-                <button
-                  type="button"
-                  onClick={handleReconcile}
-                  disabled={reconciling}
-                  className="btn btn-primary"
-                  style={{ padding: '11px 20px', fontSize: '0.9rem', fontWeight: '700', opacity: reconciling ? 0.6 : 1, cursor: reconciling ? 'wait' : 'pointer' }}
-                >
-                  {reconciling ? '⏳ Verificando...' : '🔄 Recuperar música presa na Kie.ai'}
-                </button>
-
-                {reconcileResult && (() => {
-                  // Erro pode vir em quatro lugares: na rota inteira, ou em cada uma das três fases
-                  // (elas falham de forma independente). Sem mostrar todos, uma consulta recusada
-                  // pelo Firestore aparecia como "0 verificados", indistinguível de base limpa.
-                  const phaseErrors = [
-                    reconcileResult.audio?.error ? `Música: ${reconcileResult.audio.error}` : null,
-                    reconcileResult.payments?.error ? `Pagamento: ${reconcileResult.payments.error}` : null,
-                    reconcileResult.videoAddon?.error ? `Add-on de vídeo: ${reconcileResult.videoAddon.error}` : null,
-                  ].filter(Boolean);
-                  const hasError = !!reconcileResult.error || phaseErrors.length > 0;
-
-                  return (
-                    <div style={{ marginTop: '14px', padding: '12px 16px', backgroundColor: hasError ? '#fee2e2' : '#d1fae5', border: `1px solid ${hasError ? '#ef4444' : '#10b981'}`, borderRadius: '8px', color: hasError ? '#991b1b' : '#065f46', fontWeight: '600', fontSize: '0.85rem' }}>
-                      {reconcileResult.error ? reconcileResult.error : (
-                        <>
-                          Música: {reconcileResult.audio?.checked || 0} verificado(s) —{' '}
-                          {reconcileResult.audio?.completed || 0} recuperado(s),{' '}
-                          {reconcileResult.audio?.retried || 0} reenviado(s) automaticamente,{' '}
-                          {reconcileResult.audio?.stillProcessing || 0} ainda em produção,{' '}
-                          {reconcileResult.audio?.failed || 0} com falha.
-                          <br />
-                          Pagamento: {reconcileResult.payments?.checked || 0} verificado(s) —{' '}
-                          {reconcileResult.payments?.approved || 0} liberado(s),{' '}
-                          {reconcileResult.payments?.stillPending || 0} ainda pendente(s).
-                          <br />
-                          Add-on de vídeo avulso: {reconcileResult.videoAddon?.checked || 0} verificado(s) —{' '}
-                          {reconcileResult.videoAddon?.approved || 0} liberado(s),{' '}
-                          {reconcileResult.videoAddon?.stillPending || 0} ainda pendente(s).
-                          {phaseErrors.length > 0 && (
-                            <>
-                              <br /><br />
-                              Falhas: {phaseErrors.join(' · ')}
-                            </>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  );
-                })()}
-              </div>
-
-              {/* Varredura de conferência de pagamentos (pedido 20/09/2026). Diferente do botão
-                  acima, que age direto: aqui o admin primeiro VÊ a lista do que a Efí diz que foi
+              {/* Duas etapas de propósito: o admin primeiro VÊ a lista do que a Efí diz que foi
                   pago e não liberou, e só então decide confirmar. Cobre também add-on avulso, que
                   nunca mexe em paymentStatus e some de qualquer conferência que só olhe esse campo. */}
               <div className="glass-card" style={{ padding: '20px', borderRadius: '14px', backgroundColor: '#ffffff', border: '1px solid #e2e8f0', marginBottom: '20px' }}>
                 <h3 style={{ fontSize: '1rem', fontWeight: '800', color: '#0f172a', marginBottom: '6px' }}>
-                  2. Conferir pagamentos contra a Efí
+                  Conferir pagamentos contra a Efí
                 </h3>
                 <p style={{ color: '#64748b', fontSize: '0.85rem', marginBottom: '14px' }}>
                   Pergunta à Efí, cobrança por cobrança, quais foram realmente pagas e não liberaram
