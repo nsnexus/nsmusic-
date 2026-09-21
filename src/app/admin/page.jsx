@@ -66,6 +66,11 @@ export default function AdminDashboard() {
   const [retryResult, setRetryResult] = useState(null);
   const [reconciling, setReconciling] = useState(false);
   const [reconcileResult, setReconcileResult] = useState(null);
+  // Varredura de conferência de pagamentos (pedido 20/09/2026) — ver handleAuditPayments.
+  const [auditing, setAuditing] = useState(false);
+  const [auditResult, setAuditResult] = useState(null);
+  const [auditDias, setAuditDias] = useState(7);
+  const [auditSoCopiaram, setAuditSoCopiaram] = useState(false);
 
   // Reenvio manual do WhatsApp "música pronta" (incidente 14-19/08/2026 — ver src/lib/db.js:notifyMusicReady).
   const [whatsappDeselected, setWhatsappDeselected] = useState(new Set());
@@ -227,6 +232,13 @@ export default function AdminDashboard() {
       result = result.filter(o => !o.videoAddonPaid);
     } else if (purchaseTypeTab === 'VIDEO') {
       result = result.filter(o => o.videoAddonPaid);
+    } else if (purchaseTypeTab === 'PIX_COPIADO') {
+      // Copiou o código e ainda não consta pago — é exatamente o perfil dos pagamentos que ficaram
+      // sem computar (achado 20/09/2026). Serve pra conferir na mão e pra medir quanta gente copia
+      // o Pix e desiste.
+      result = result.filter(o =>
+        o.pixCopiedAt && o.paymentStatus !== 'PAGAMENTO_APROVADO' && o.paymentStatus !== 'PAGO'
+      );
     }
 
     // Filtro de data já aconteceu na query do Firestore (where() em createdAt) — orders só chega
@@ -450,6 +462,33 @@ export default function AdminDashboard() {
       setReconcileResult({ error: 'Falha de conexão ao reconciliar os pedidos.' });
     } finally {
       setReconciling(false);
+    }
+  };
+
+  // Varredura de conferência de pagamentos (pedido 20/09/2026): cruza as cobranças geradas com o
+  // status REAL na Efí e mostra as que foram pagas e não liberaram nada. Duas etapas de propósito —
+  // primeiro o relatório (GET, não muda nada), e só depois de ver a lista é que o admin confirma
+  // (POST). Ver src/app/api/orders/audit-payments/route.js.
+  const handleAuditPayments = async (aplicar = false) => {
+    if (aplicar && !confirm('Confirmar e liberar TODOS os pagamentos encontrados nesta varredura?')) return;
+
+    setAuditing(true);
+    if (!aplicar) setAuditResult(null);
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      const params = new URLSearchParams({ dias: String(auditDias) });
+      if (auditSoCopiaram) params.set('pixCopiado', 'true');
+
+      const res = await fetch(`/api/orders/audit-payments?${params}`, {
+        method: aplicar ? 'POST' : 'GET',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      setAuditResult(res.ok ? data : { error: data.error || 'Falha na varredura.' });
+    } catch (e) {
+      setAuditResult({ error: 'Falha de conexão na varredura.' });
+    } finally {
+      setAuditing(false);
     }
   };
 
@@ -734,6 +773,9 @@ export default function AdminDashboard() {
                     { id: 'ALL', label: 'Todas as vendas' },
                     { id: 'MUSIC', label: '🎵 Vendas de música' },
                     { id: 'VIDEO', label: '🎬 Vendas de vídeo' },
+                    // Copiou o código Pix e não consta como pago: é onde mora um pagamento não
+                    // computado, se houver (pedido 20/09/2026).
+                    { id: 'PIX_COPIADO', label: '📋 Copiou PIX e não pagou' },
                   ].map(tab => (
                     <button
                       key={tab.id}
@@ -1020,6 +1062,19 @@ export default function AdminDashboard() {
                                       🎧
                                     </span>
                                   )}
+                                  {/* Copiou o código Pix = intenção declarada de pagar (pedido
+                                      20/09/2026). Quem copiou e não consta como pago é o primeiro
+                                      lugar pra procurar pagamento não computado. Só aparece quando
+                                      houve a cópia: um ícone apagado em pedido antigo (de antes
+                                      deste rastreio) seria lido como "não copiou", que é falso. */}
+                                  {o.pixCopiedAt && (
+                                    <span
+                                      title={`Copiou o código Pix em ${new Date(o.pixCopiedAt).toLocaleString('pt-BR')}`}
+                                      style={{ fontSize: '0.85rem' }}
+                                    >
+                                      📋
+                                    </span>
+                                  )}
                                 </div>
                               </td>
                               <td style={{ ...styles.td, fontWeight: '700' }}>
@@ -1190,6 +1245,99 @@ export default function AdminDashboard() {
                     </div>
                   );
                 })()}
+              </div>
+
+              {/* Varredura de conferência de pagamentos (pedido 20/09/2026). Diferente do botão
+                  acima, que age direto: aqui o admin primeiro VÊ a lista do que a Efí diz que foi
+                  pago e não liberou, e só então decide confirmar. Cobre também add-on avulso, que
+                  nunca mexe em paymentStatus e some de qualquer conferência que só olhe esse campo. */}
+              <div className="glass-card" style={{ padding: '20px', borderRadius: '14px', backgroundColor: '#ffffff', border: '1px solid #e2e8f0', marginBottom: '20px' }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: '800', color: '#0f172a', marginBottom: '6px' }}>
+                  2. Conferir pagamentos contra a Efí
+                </h3>
+                <p style={{ color: '#64748b', fontSize: '0.85rem', marginBottom: '14px' }}>
+                  Pergunta à Efí, cobrança por cobrança, quais foram realmente pagas e não liberaram
+                  o produto — música ou add-on. A conferência não altera nada; depois de ver a lista
+                  você decide se confirma.
+                </p>
+
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '14px' }}>
+                  <label style={{ fontSize: '0.85rem', color: '#334155', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    Período:
+                    <select
+                      value={auditDias}
+                      onChange={(e) => setAuditDias(Number(e.target.value))}
+                      style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
+                    >
+                      <option value={1}>24 horas</option>
+                      <option value={3}>3 dias</option>
+                      <option value={7}>7 dias</option>
+                      <option value={15}>15 dias</option>
+                      <option value={30}>30 dias</option>
+                    </select>
+                  </label>
+
+                  <label style={{ fontSize: '0.85rem', color: '#334155', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={auditSoCopiaram} onChange={(e) => setAuditSoCopiaram(e.target.checked)} />
+                    📋 Só quem copiou o PIX
+                  </label>
+
+                  <button
+                    type="button"
+                    onClick={() => handleAuditPayments(false)}
+                    disabled={auditing}
+                    className="btn btn-primary"
+                    style={{ padding: '11px 20px', fontSize: '0.9rem', fontWeight: '700', opacity: auditing ? 0.6 : 1, cursor: auditing ? 'wait' : 'pointer' }}
+                  >
+                    {auditing ? '⏳ Conferindo...' : '🔎 Conferir pagamentos'}
+                  </button>
+                </div>
+
+                {auditResult && (
+                  auditResult.error ? (
+                    <div style={{ padding: '12px 16px', backgroundColor: '#fee2e2', border: '1px solid #ef4444', borderRadius: '8px', color: '#991b1b', fontWeight: '600', fontSize: '0.85rem' }}>
+                      {auditResult.error}
+                    </div>
+                  ) : (
+                    <div style={{ padding: '12px 16px', backgroundColor: auditResult.pagosNaoLiberados > 0 ? '#fef3c7' : '#d1fae5', border: `1px solid ${auditResult.pagosNaoLiberados > 0 ? '#f59e0b' : '#10b981'}`, borderRadius: '8px', color: auditResult.pagosNaoLiberados > 0 ? '#92400e' : '#065f46', fontSize: '0.85rem' }}>
+                      <strong>
+                        {auditResult.verificados} cobrança(s) conferida(s) em {auditResult.dias} dia(s) —{' '}
+                        {auditResult.pagosNaoLiberados} paga(s) e não liberada(s)
+                        {auditResult.pagosNaoLiberados > 0 ? ` (R$ ${auditResult.valorTotal.toFixed(2).replace('.', ',')})` : ''}.
+                      </strong>
+                      {auditResult.naoVerificados > 0 && (
+                        <div style={{ marginTop: '4px', fontWeight: '500' }}>
+                          {auditResult.naoVerificados} ficaram fora do limite desta execução — rode de novo para conferir o restante.
+                        </div>
+                      )}
+
+                      {auditResult.itens?.length > 0 && (
+                        <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          {auditResult.itens.map((it) => (
+                            <div key={it.txid} style={{ padding: '8px 10px', background: '#ffffff', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem', color: '#0f172a' }}>
+                              <strong>{it.orderNumber || it.orderId}</strong> · {it.customerName || 'Cliente'} · {it.customerPhone || 'sem telefone'}
+                              <br />
+                              {it.tipo === 'addon' ? `Add-on (${it.sku})` : 'Música'} · R$ {Number(it.valor || 0).toFixed(2).replace('.', ',')} · pago em {it.pagoEm ? new Date(it.pagoEm).toLocaleString('pt-BR') : '—'}
+                              {it.aprovado && <span style={{ color: '#059669', fontWeight: '700' }}> · ✅ liberado agora</span>}
+                              {it.erroAprovacao && <span style={{ color: '#b91c1c', fontWeight: '700' }}> · ❌ falhou ao liberar</span>}
+                            </div>
+                          ))}
+
+                          {!auditResult.aplicado && (
+                            <button
+                              type="button"
+                              onClick={() => handleAuditPayments(true)}
+                              disabled={auditing}
+                              style={{ marginTop: '6px', padding: '11px 20px', fontSize: '0.88rem', fontWeight: '800', borderRadius: '8px', border: 'none', background: '#059669', color: '#fff', cursor: auditing ? 'wait' : 'pointer' }}
+                            >
+                              ✅ Confirmar e liberar {auditResult.pagosNaoLiberados} pagamento(s)
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                )}
               </div>
 
               {retryResult && (
