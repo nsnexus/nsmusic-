@@ -987,6 +987,40 @@ function EntregaContent() {
                     </p>
                   </div>
                 )}
+                {/* Aviso de pendência no topo, com atalho para o pagamento.
+                    Quem chega por /minhas-musicas ou pelo link do WhatsApp cai direto na capa e na
+                    letra, e o bloco do Pix fica bem mais abaixo — dava para navegar a página
+                    inteira sem perceber que faltava pagar (pedido 21/09/2026). */}
+                {!isPaid && (
+                  <a
+                    href="#pagamento"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      padding: '12px 14px',
+                      marginBottom: '14px',
+                      borderRadius: '12px',
+                      background: 'rgba(245, 158, 11, 0.12)',
+                      border: '1px solid rgba(245, 158, 11, 0.4)',
+                      textDecoration: 'none',
+                      flexWrap: 'wrap',
+                    }}
+                  >
+                    <span style={{ fontSize: '1.2rem' }}>🔒</span>
+                    <span style={{ flex: 1, minWidth: '170px', fontSize: '0.84rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                      <strong style={{ color: 'var(--text-primary)' }}>Pagamento pendente.</strong>{' '}
+                      Libere o download em MP3 HD{jaTemRetrospectiva || jaTemCarta ? '' : ' e a página de presente'}.
+                    </span>
+                    <span
+                      className="btn btn-primary"
+                      style={{ padding: '8px 16px', fontSize: '0.85rem', whiteSpace: 'nowrap' }}
+                    >
+                      Pagar R$ {precoDoPacoteAtual.toFixed(2).replace('.', ',')}
+                    </span>
+                  </a>
+                )}
+
                 <div style={isPaid ? { ...styles.coverWrapper, boxShadow: '0 16px 40px rgba(236,72,153,0.22)', border: '1.5px solid rgba(255,255,255,0.12)' } : styles.coverWrapper}>
                   <img src={coverUrl} alt="Capa da música" style={styles.coverImg} />
 
@@ -1056,7 +1090,9 @@ function EntregaContent() {
                     </div>
                     {!isPaid && (
                       <p style={{ fontSize: '0.78rem', color: 'var(--warning)', marginBottom: '8px', fontWeight: '600' }}>
-                        🎧 Ouça à vontade. O download em MP3 HD é liberado após o pagamento.
+                        {podeOuvirInteira
+                          ? `🎧 Ouça à vontade. O download em MP3 HD é liberado após o pagamento.`
+                          : `🎧 Prévia de 60 segundos. Peça a quem fez esta homenagem para liberar a música completa.`}
                       </p>
                     )}
                     {audioReadyState.primary !== 'ready' && (
@@ -1166,7 +1202,9 @@ function EntregaContent() {
                     </div>
                     {!isPaid && (
                       <p style={{ fontSize: '0.78rem', color: 'var(--warning)', marginBottom: '8px', fontWeight: '600' }}>
-                        🎧 Ouça à vontade. O download em MP3 HD é liberado após o pagamento.
+                        {podeOuvirInteira
+                          ? `🎧 Ouça à vontade. O download em MP3 HD é liberado após o pagamento.`
+                          : `🎧 Prévia de 60 segundos. Peça a quem fez esta homenagem para liberar a música completa.`}
                       </p>
                     )}
                     {audioReadyState.second !== 'ready' && (
@@ -1805,7 +1843,7 @@ function EntregaContent() {
 
                 {!isPaid && (
                   /* SE PENDENTE: Bloco de Pagamento PIX Instantâneo */
-                  <div className="glass-card" style={{ padding: '24px', borderRadius: '16px', background: 'linear-gradient(135deg, rgba(5, 150, 105, 0.08) 0%, rgba(16, 185, 129, 0.12) 100%)', border: '1.5px solid rgba(16, 185, 129, 0.3)' }}>
+                  <div id="pagamento" className="glass-card" style={{ padding: '24px', borderRadius: '16px', background: 'linear-gradient(135deg, rgba(5, 150, 105, 0.08) 0%, rgba(16, 185, 129, 0.12) 100%)', border: '1.5px solid rgba(16, 185, 129, 0.3)', scrollMarginTop: '80px' }}>
                     <div style={{ textAlign: 'center', marginBottom: '16px' }}>
                       <span style={{ fontSize: '2rem' }}>⚡</span>
                       <h3 style={{ fontSize: '1.25rem', fontWeight: '800', marginTop: '6px', color: 'var(--text-primary)' }}>

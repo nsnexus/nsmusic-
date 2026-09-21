@@ -9,6 +9,27 @@ import { auth, db } from '@/lib/firebase';
 import { AUDIO_CACHE_VERSION } from '@/lib/audioCacheVersion';
 import { getFriendlyAuthErrorMessage } from '@/lib/authErrors';
 
+// Marca estes pedidos como "meus" neste navegador.
+//
+// A página de entrega libera a audição INTEGRAL antes do pagamento só para quem criou o pedido
+// (localStorage nsmusic_generated_orders) — é o que impede o cliente de mandar o próprio link da
+// entrega para a homenageada e entregar o presente de graça. Quem reencontra a própria música
+// aqui, buscando pelo telefone do pedido, é dono na mesma medida: sem isto, o cliente que criou
+// no celular e abriu no computador ouvia 60 segundos da música que ele mesmo encomendou (relatado
+// em 21/09/2026).
+function marcarPedidosComoMeus(pedidos) {
+  if (typeof window === 'undefined' || !Array.isArray(pedidos) || pedidos.length === 0) return;
+  try {
+    const atuais = JSON.parse(localStorage.getItem('nsmusic_generated_orders') || '[]');
+    const lista = Array.isArray(atuais) ? atuais : [];
+    let mudou = false;
+    for (const pedido of pedidos) {
+      if (pedido?.id && !lista.includes(pedido.id)) { lista.push(pedido.id); mudou = true; }
+    }
+    if (mudou) localStorage.setItem('nsmusic_generated_orders', JSON.stringify(lista));
+  } catch (e) { /* navegador sem localStorage: o cliente só perde a audição integral */ }
+}
+
 export default function MinhasMusicasPage() {
   const [user, setUser] = useState(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
@@ -57,7 +78,9 @@ export default function MinhasMusicasPage() {
           snapUser.docs.forEach(doc => { if (!doc.data().deletedAt) map.set(doc.id, { id: doc.id, ...doc.data() }); });
           snapEmail.docs.forEach(doc => { if (!doc.data().deletedAt) map.set(doc.id, { id: doc.id, ...doc.data() }); });
 
-          setOrders(Array.from(map.values()));
+          const encontrados = Array.from(map.values());
+          marcarPedidosComoMeus(encontrados);
+          setOrders(encontrados);
           setHasSearched(true);
         } catch (err) {
           console.error("Erro ao carregar músicas do usuário:", err);
@@ -101,7 +124,9 @@ export default function MinhasMusicasPage() {
 
         const q = query(ordersRef, where('customerPhone', '==', formattedPhone));
         const snap = await getDocs(q).catch(() => ({ docs: [] }));
-        setOrders(snap.docs.filter(d => !d.data().deletedAt).map(d => ({ id: d.id, ...d.data() })));
+        const encontrados = snap.docs.filter(d => !d.data().deletedAt).map(d => ({ id: d.id, ...d.data() }));
+        marcarPedidosComoMeus(encontrados);
+        setOrders(encontrados);
       } else {
         const typedEmail = searchEmail.trim();
         const lowerEmail = typedEmail.toLowerCase();
