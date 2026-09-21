@@ -180,14 +180,40 @@ export async function GET(req) {
     // Worker se algum candidato devolver algo fora do esperado).
     const TAMANHO_MAX_BUFFER = 20 * 1024 * 1024;
 
-    for (const targetUrl of candidates) {
+    // ORÇAMENTO DE TEMPO — corrige o 502 cru da borda (21/09/2026: "link de download que manda
+    // para o WhatsApp do cliente tá dando isso aqui", com Bad Gateway e "Host Error").
+    //
+    // A lista de candidatos chega a ~8 URLs e cada tentativa tinha timeout de 15s. Quando a URL
+    // original expira (musicfile.kie.ai é CloudFront assinado) ou a CDN não responde, o laço
+    // percorre tudo em sequência: 8 × 15s passa de dois minutos, muito além do tempo que a
+    // plataforma dá para a requisição. O Worker é morto ANTES de conseguir responder, e a borda
+    // devolve "error code: 502" em texto cru — nem o nosso JSON de erro chegava ao cliente.
+    //
+    // Agora o conjunto de tentativas tem teto. Estourado o orçamento, para de tentar e devolve o
+    // erro tratado, que é o que permite à tela mostrar recado e botão de suporte.
+    const ORCAMENTO_TOTAL_MS = 20000;
+    const TIMEOUT_POR_TENTATIVA_MS = 8000;
+    const inicio = Date.now();
+
+    // Candidatos repetidos acontecem (a mesma URL pode ser derivada por dois caminhos) e cada
+    // repetição custa uma tentativa inteira do orçamento.
+    const candidatosUnicos = [...new Set(candidates)];
+
+    for (const targetUrl of candidatosUnicos) {
+      const restante = ORCAMENTO_TOTAL_MS - (Date.now() - inicio);
+      if (restante <= 500) {
+        console.warn(`[Audio Proxy] Orçamento de tempo esgotado após ${candidatosUnicos.indexOf(targetUrl)} tentativas.`);
+        if (debugMode) attempts.push({ url: targetUrl, skipped: 'orçamento de tempo esgotado' });
+        break;
+      }
+
       try {
         const res = await fetch(targetUrl, {
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Accept': 'audio/mpeg, audio/*, */*'
           },
-          signal: AbortSignal.timeout(15000)
+          signal: AbortSignal.timeout(Math.min(TIMEOUT_POR_TENTATIVA_MS, restante))
         });
 
         if (res.ok && res.body) {
