@@ -4,7 +4,7 @@ import { Suspense, useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { getPriceForSku } from '@/lib/pricing';
+import { getPriceForSku, faixasDeImpacto } from '@/lib/pricing';
 import { requestPixCharge } from '@/lib/pixCheckout';
 import PixQrCode from '@/components/PixQrCode';
 
@@ -26,8 +26,10 @@ import PixQrCode from '@/components/PixQrCode';
 //    estúdio (não a de doação). `?nome=` personaliza o texto; sem confirmação automática, a
 //    página pede que o cliente avise no WhatsApp depois de pagar.
 const MIN_PRICE = getPriceForSku('audio_only');
-const VIDEO_THRESHOLD = getPriceForSku('combo');
-const SUGGESTED_AMOUNTS = [MIN_PRICE, VIDEO_THRESHOLD, 25, 50].filter((v, i, arr) => arr.indexOf(v) === i);
+// As faixas vêm do mesmo lugar que o servidor usa para conceder o brinde (src/lib/pricing.js).
+// Até 21/09/2026 esta tela sugeria 25 e 50 anunciando só o vídeo — valores que não liberavam nada
+// além do que 16,89 já liberava, e que escondiam a Carta e a Retrospectiva.
+const FAIXAS = faixasDeImpacto();
 
 const PIX_POLLING_MAX_ATTEMPTS = 150; // ~10min a cada 4s, mesmo limite usado no add-on de playback
 
@@ -261,15 +263,15 @@ function PagarContent() {
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: '1.5' }}>
             {standalone ? (
               <>
-                Se essa homenagem te emocionou, contribua com o quanto achar justo pelo trabalho.
-                o mínimo é o valor da música. A partir de <strong>R$ {VIDEO_THRESHOLD.toFixed(2).replace('.', ',')}</strong> você
-                também ganha o <strong>Vídeo Homenagem</strong> de brinde, é só falar comigo depois de pagar! 🎬
+                Você ouviu a homenagem inteira antes de pagar nada. Agora diga quanto ela valeu:
+                o mínimo é o preço da música, e <strong>cada faixa acima disso já vem com um extra
+                de brinde</strong>. É só me chamar depois de pagar! 💜
               </>
             ) : (
               <>
-                Se essa homenagem te emocionou, pague o quanto achar justo. O mínimo já libera sua
-                música. A partir de <strong>R$ {VIDEO_THRESHOLD.toFixed(2).replace('.', ',')}</strong> você
-                ganha o <strong>Vídeo Homenagem</strong> de brinde! 🎬
+                Você ouviu a música inteira antes de pagar nada. Agora diga quanto ela valeu:
+                o mínimo já libera tudo o que você ouviu, e <strong>cada faixa acima disso vem com
+                um extra de brinde</strong>.
               </>
             )}
           </p>
@@ -280,31 +282,36 @@ function PagarContent() {
             Quanto você quer pagar?
           </p>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', marginBottom: '14px' }}>
-            {SUGGESTED_AMOUNTS.map((value) => {
-              const active = pixInfo?.amount === value;
-              const unlocksVideo = value >= VIDEO_THRESHOLD;
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '7px', marginBottom: '14px' }}>
+            {FAIXAS.map((faixa) => {
+              const ativa = Math.abs((pixInfo?.amount ?? MIN_PRICE) - faixa.valor) < 0.01;
               return (
                 <button
-                  key={value}
+                  key={faixa.sku}
                   type="button"
-                  onClick={() => handlePickAmount(value)}
+                  onClick={() => handlePickAmount(faixa.valor)}
                   disabled={pixLoading}
                   style={{
-                    padding: '12px 6px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    padding: '11px 12px',
                     borderRadius: '10px',
-                    border: active ? '2px solid var(--primary)' : '1.5px solid var(--border-color)',
-                    background: active ? 'var(--primary-light)' : 'var(--bg-primary)',
-                    color: active ? 'var(--primary)' : 'var(--text-primary)',
-                    fontWeight: '700',
-                    fontSize: '0.88rem',
+                    border: ativa ? '2px solid var(--primary)' : '1.5px solid var(--border-color)',
+                    background: ativa ? 'var(--primary-light)' : 'var(--bg-primary)',
                     cursor: pixLoading ? 'default' : 'pointer',
-                    textAlign: 'center',
+                    textAlign: 'left',
+                    width: '100%',
                   }}
                 >
-                  R$ {value.toFixed(2).replace('.', ',')}
-                  {value === MIN_PRICE && <div style={{ fontSize: '0.65rem', fontWeight: '500', opacity: 0.75 }}>mínimo</div>}
-                  {unlocksVideo && value !== MIN_PRICE && <div style={{ fontSize: '0.65rem', fontWeight: '500', opacity: 0.75 }}>+ vídeo 🎬</div>}
+                  <span style={{ fontWeight: '800', fontSize: '0.95rem', color: ativa ? 'var(--primary)' : 'var(--text-primary)', minWidth: '78px' }}>
+                    R$ {faixa.valor.toFixed(2).replace('.', ',')}
+                  </span>
+                  <span style={{ flex: 1, fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.35 }}>
+                    {faixa.ganha.length === 0
+                      ? 'A música, em MP3 HD'
+                      : <>A música <strong>+ {faixa.ganha.join(' + ')}</strong></>}
+                  </span>
                 </button>
               );
             })}

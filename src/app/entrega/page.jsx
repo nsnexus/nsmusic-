@@ -10,7 +10,6 @@ import { db, storage } from '@/lib/firebase';
 import { primeAudioContext } from '@/lib/audioContext';
 import { AUDIO_CACHE_VERSION } from '@/lib/audioCacheVersion';
 import ExtrasOfferModal from '@/components/ExtrasOfferModal';
-import ExtrasVitrine from '@/components/ExtrasVitrine';
 import PixQrCode from '@/components/PixQrCode';
 import PlaybackAddonCard from '@/components/PlaybackAddonCard';
 import CartaAddonCard from '@/components/CartaAddonCard';
@@ -1863,7 +1862,7 @@ function EntregaContent() {
                     <div style={{ textAlign: 'center', marginBottom: '16px' }}>
                       <span style={{ fontSize: '2rem' }}>⚡</span>
                       <h3 style={{ fontSize: '1.25rem', fontWeight: '800', marginTop: '6px', color: 'var(--text-primary)' }}>
-                        {promo ? '🎁 Oferta Especial Liberada!' : 'Liberar Músicas Completas em MP3 HD'}
+                        {promo ? '🎁 Oferta Especial Liberada!' : 'Você ouviu. Agora é sua.'}
                       </h3>
                       {/* O valor sai do MESMO catálogo que o servidor usa para cobrar
                           (src/lib/pricing.js), a partir do pacote escolhido. Até 21/09/2026 este
@@ -1871,14 +1870,22 @@ function EntregaContent() {
                           R$ 9,99 na tela enquanto o banco pedia R$ 19,98 — relatado pelo dono do
                           estúdio com print. Preço na tela que não bate com o do Pix faz o cliente
                           desistir achando que é golpe. */}
-                      <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                        Pague apenas{' '}
-                        <strong style={{ color: 'var(--success)', fontSize: '1.1rem' }}>
-                          R$ {valorCobrado.toFixed(2).replace('.', ',')}
-                        </strong>{' '}
+                      <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '4px', lineHeight: 1.5 }}>
                         {promo ? (
-                          <>para liberar as 2 versões completas e <strong>ganhe o Vídeo Homenagem de brinde!</strong></>
-                        ) : descricaoDoPacoteAtual}
+                          <>
+                            Pague apenas{' '}
+                            <strong style={{ color: 'var(--success)', fontSize: '1.1rem' }}>
+                              R$ {valorCobrado.toFixed(2).replace('.', ',')}
+                            </strong>{' '}
+                            para liberar as 2 versões completas e <strong>ganhe o Vídeo Homenagem de brinde!</strong>
+                          </>
+                        ) : (
+                          <>
+                            Você ouviu <strong>as duas versões inteiras</strong> antes de pagar nada.
+                            Agora diga quanto ela valeu: o mínimo já libera o download em MP3 HD, e{' '}
+                            <strong>cada faixa acima disso vem com um extra de brinde</strong>.
+                          </>
+                        )}
                       </p>
 
                       {/* Escada "pague o quanto quiser", com brinde por faixa.
@@ -2174,10 +2181,10 @@ function EntregaContent() {
 
               {/* SLOT 4 (Desktop: Col 2 Bottom / Mobile: Item 4): ExtrasVitrine e Banners */}
               <div className="entrega-grid-col-2-bottom" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                {/* Vitrine dos extras enquanto o cliente decide o pagamento da música. Sem botão de
-                    compra de propósito — ver o comentário em ExtrasVitrine.jsx (add-on isolado não
-                    aprova a música, então comprar aqui deixaria o cliente sem o produto principal). */}
-                {!isPaid && <ExtrasVitrine />}
+                {/* A vitrine de extras saiu daqui em 21/09/2026. A escada de impacto, no bloco de
+                    pagamento, já oferece Carta, Vídeo e Retrospectiva como brinde por faixa —
+                    listar os mesmos produtos de novo, com preço avulso, competia com a própria
+                    escada e dava a impressão de que o cliente teria de pagar duas vezes. */}
 
                 {/* Banner interativo da Retrospectiva — só aparece se o cliente AINDA NÃO comprou */}
                 {!jaTemRetrospectiva && (
