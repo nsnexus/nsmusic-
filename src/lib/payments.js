@@ -13,7 +13,7 @@
 
 import { doc, getDoc, updateDoc } from 'firebase/firestore/lite';
 import { dbEdge as db } from './firebase-edge';
-import { skuApprovesMusic, skuGrantsVideoAccess, skuGrantsCartaAccess, skuGrantsRetrospectivaAccess, getPriceForSku } from './pricing';
+import { skuApprovesMusic, skuGrantsVideoAccess, skuGrantsCartaAccess, skuGrantsRetrospectivaAccess, getPriceForSku, brindesPorValorPago } from './pricing';
 import { resolveDeliveryUrl } from './whatsappTemplates';
 import { sendMetaPurchaseEvent } from './metaCapi';
 import { requestPlaybackGeneration } from './playback';
@@ -142,11 +142,15 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
           // que o cliente alegou pedir), a partir do mesmo preço do combo normal (getPriceForSku),
           // pra não existir um segundo número "quase igual" flutuando pelo sistema. -0.01 é a mesma
           // tolerância usada em toda comparação monetária do projeto (nunca ===, ver payments.md).
+          // Escada de brindes do SKU 'impacto' ("pague o quanto quiser"): a faixa é decidida pelo
+          // valor REALMENTE confirmado pela Efí (`transaction_amount`), nunca pelo que o cliente
+          // pediu ao gerar a cobrança. Cumulativa e definida em src/lib/pricing.js. Até 21/09/2026
+          // só o vídeo era concedido assim; carta e retrospectiva entraram na mesma lógica quando
+          // a escada virou a tela de pagamento da entrega.
           const paidAmount = Number(payment.transaction_amount) || 0;
-          const comboPrice = getPriceForSku('combo');
-          const grantsVideoByImpactAmount = sku === 'impacto' && comboPrice !== null && paidAmount >= comboPrice - 0.01;
+          const brindes = sku === 'impacto' ? brindesPorValorPago(paidAmount) : { carta: false, video: false, retrospectiva: false };
 
-          if (skuGrantsVideoAccess(sku) || grantsVideoByImpactAmount) {
+          if (skuGrantsVideoAccess(sku) || brindes.video) {
             updates.hasVideoAccess = true;
             updates.videoAddonPaid = true;
             updates.videoPaidAt = nowIso;
@@ -154,12 +158,12 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
 
           // Combos música+carta e música+retrospectiva (pop-up de extras dinâmico, 04/09/2026) —
           // mesmo padrão do vídeo acima: aprovam a música E liberam o add-on na mesma transação.
-          if (skuGrantsCartaAccess(sku)) {
+          if (skuGrantsCartaAccess(sku) || brindes.carta) {
             updates.hasCartaAccess = true;
             updates.cartaAddonPaid = true;
             updates.cartaPaidAt = nowIso;
           }
-          if (skuGrantsRetrospectivaAccess(sku)) {
+          if (skuGrantsRetrospectivaAccess(sku) || brindes.retrospectiva) {
             updates.hasRetrospectivaAccess = true;
             updates.retrospectivaAddonPaid = true;
             updates.retrospectivaPaidAt = nowIso;

@@ -17,7 +17,7 @@ import CartaAddonCard from '@/components/CartaAddonCard';
 import RetrospectivaAddonCard from '@/components/RetrospectivaAddonCard';
 import { requestPixCharge } from '@/lib/pixCheckout';
 import { compressImage } from '@/lib/imageCompress';
-import { getPriceForSku } from '@/lib/pricing';
+import { getPriceForSku, faixasDeImpacto } from '@/lib/pricing';
 import { markPreviewListened } from '@/lib/previewTracking';
 import { isInAppBrowser } from '@/lib/inAppBrowser';
 import { styles } from './entregaStyles';
@@ -236,6 +236,16 @@ function EntregaContent() {
   // Preço e texto do bloco de pagamento, derivados do pacote escolhido. Aqui é só EXIBIÇÃO — quem
   // cobra é o servidor, a partir do sku (C-05 no AUDIT_REPORT.md). Mas exibir um valor diferente do
   // que o banco pede faz o cliente desistir, então os dois têm que sair do mesmo catálogo.
+  // Valor escolhido na escada de impacto. Começa no mínimo (só a música) e é o que vira a cobrança.
+  const [valorEscolhido, setValorEscolhido] = useState(() => getPriceForSku('audio_only'));
+  const [valorDigitado, setValorDigitado] = useState(() => String(getPriceForSku('audio_only')));
+
+  const escolherFaixa = (valor) => {
+    setValorEscolhido(valor);
+    setValorDigitado(String(valor));
+    handleGeneratePix('impacto', false, valor);
+  };
+
   const skuDoPacoteAtual = promo === '48h' ? 'recovery_combo_48h'
     : promo === '24h' ? 'recovery_combo_24h'
       : selectedPackage;
@@ -247,6 +257,10 @@ function EntregaContent() {
     combo_retrospectiva: 'para liberar as 2 versões completas e a Retrospectiva!',
   };
   const descricaoDoPacoteAtual = DESCRICOES_DE_PACOTE[skuDoPacoteAtual] || DESCRICOES_DE_PACOTE.audio_only;
+
+  // O que o cliente vai pagar de fato: na promoção vale o preço da promoção; fora dela, a faixa
+  // escolhida na escada de impacto. Um número só, para tela e cobrança nunca divergirem.
+  const valorCobrado = promo ? precoDoPacoteAtual : valorEscolhido;
   // hasVideoAccess só pode vir de campos confirmados pelo servidor. `selectedPackage` é estado local
   // do React, setado só por clique do usuário (inclusive antes de qualquer pagamento) — usá-lo aqui
   // liberava o vídeo (renderizado e enviado ao Storage inteiramente pelo cliente, sem checagem de
@@ -473,7 +487,7 @@ function EntregaContent() {
   // combo_carta/combo_retrospectiva — dois SKUs novos não tinham como cair nesse `if` de valor
   // fixo). Quem chama agora diz o SKU direto; sem ele, cai no comportamento de sempre
   // (promoção de recuperação, ou audio_only).
-  const handleGeneratePix = async (explicitSku = null, isSecondary = false) => {
+  const handleGeneratePix = async (explicitSku = null, isSecondary = false, valorImpacto = null) => {
     if (!order) return;
     if (isSecondary) setPendingVideoPix(true);
     else {
@@ -491,8 +505,10 @@ function EntregaContent() {
     else sku = 'audio_only';
 
     // A retentativa vive em src/lib/pixCheckout.js, compartilhada com o checkout de /criar.
+    // `amount` só é lido pelo servidor quando o sku é 'impacto', e mesmo assim validado lá contra
+    // o piso e o teto (api/payments/create). Nenhum outro sku aceita valor vindo do cliente.
     const resultado = await requestPixCharge(
-      { orderId, sku, isSecondaryPayment: isSecondary },
+      { orderId, sku, isSecondaryPayment: isSecondary, amount: valorImpacto ?? undefined },
       { attempts: MAX_PIX_ATTEMPTS }
     );
 
@@ -883,7 +899,7 @@ function EntregaContent() {
               backgroundColor: isPaid ? 'rgba(16, 185, 129, 0.05)' : 'rgba(245, 158, 11, 0.05)'
             }}
           >
-            {isPaid ? '✨ Entrega Liberada' : `⏳ Aguardando Pagamento (R$ ${precoDoPacoteAtual.toFixed(2).replace('.', ',')})`}
+            {isPaid ? '✨ Entrega Liberada' : `⏳ Aguardando Pagamento (R$ ${valorCobrado.toFixed(2).replace('.', ',')})`}
           </span>
         </div>
       </header>
@@ -1016,7 +1032,7 @@ function EntregaContent() {
                       className="btn btn-primary"
                       style={{ padding: '8px 16px', fontSize: '0.85rem', whiteSpace: 'nowrap' }}
                     >
-                      Pagar R$ {precoDoPacoteAtual.toFixed(2).replace('.', ',')}
+                      Pagar R$ {valorCobrado.toFixed(2).replace('.', ',')}
                     </span>
                   </a>
                 )}
@@ -1858,38 +1874,74 @@ function EntregaContent() {
                       <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
                         Pague apenas{' '}
                         <strong style={{ color: 'var(--success)', fontSize: '1.1rem' }}>
-                          R$ {precoDoPacoteAtual.toFixed(2).replace('.', ',')}
+                          R$ {valorCobrado.toFixed(2).replace('.', ',')}
                         </strong>{' '}
                         {promo ? (
                           <>para liberar as 2 versões completas e <strong>ganhe o Vídeo Homenagem de brinde!</strong></>
                         ) : descricaoDoPacoteAtual}
                       </p>
 
-                      {/* Desistir do extra sem precisar de suporte. Quem clica num extra por
-                          engano — ou muda de ideia diante do preço — ficava preso com uma cobrança
-                          maior e sem caminho de volta na tela (pedido 21/09/2026).
-                          Gerar a cobrança nova é seguro: api/payments/create guarda o txid antigo
-                          em previousPaymentIntentIds, e o webhook ainda encontra o pedido se o
-                          cliente acabar pagando a cobrança anterior. */}
-                      {!promo && !pixLoading && skuDoPacoteAtual !== 'audio_only' && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedPackage('audio_only');
-                            handleGeneratePix('audio_only');
-                          }}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            padding: '4px',
-                            color: 'var(--text-muted)',
-                            fontSize: '0.8rem',
-                            textDecoration: 'underline',
-                            cursor: 'pointer',
-                          }}
-                        >
-                          Prefiro só a música, por R$ {getPriceForSku('audio_only').toFixed(2).replace('.', ',')}
-                        </button>
+                      {/* Escada "pague o quanto quiser", com brinde por faixa.
+                          Pedido de 21/09/2026, logo depois de liberarmos a música inteira antes do
+                          pagamento: o cliente decide o valor no auge da emoção, então cada degrau
+                          acima do mínimo entrega um extra a mais. Quem paga a faixa da
+                          Retrospectiva leva Carta e Vídeo junto.
+                          Quem concede é o SERVIDOR, pelo valor confirmado na Efí
+                          (src/lib/pricing.js:brindesPorValorPago) — esta tela só mostra a escada e
+                          pede a cobrança. Trocar de faixa gera cobrança nova, o que é seguro:
+                          api/payments/create guarda o txid antigo em previousPaymentIntentIds e o
+                          webhook ainda encontra o pedido se o cliente pagar a cobrança anterior. */}
+                      {!promo && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '14px', textAlign: 'left' }}>
+                          {faixasDeImpacto().map((faixa) => {
+                            const ativa = Math.abs(valorEscolhido - faixa.valor) < 0.01;
+                            return (
+                              <button
+                                key={faixa.sku}
+                                type="button"
+                                disabled={pixLoading}
+                                onClick={() => escolherFaixa(faixa.valor)}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '10px',
+                                  padding: '10px 12px',
+                                  borderRadius: '10px',
+                                  border: ativa ? '1.5px solid var(--success)' : '1px solid var(--border-color)',
+                                  background: ativa ? 'rgba(16, 185, 129, 0.10)' : 'var(--card-bg)',
+                                  cursor: pixLoading ? 'default' : 'pointer',
+                                  textAlign: 'left',
+                                  width: '100%',
+                                }}
+                              >
+                                <span style={{ fontWeight: '800', fontSize: '0.95rem', color: ativa ? 'var(--success)' : 'var(--text-primary)', minWidth: '78px' }}>
+                                  R$ {faixa.valor.toFixed(2).replace('.', ',')}
+                                </span>
+                                <span style={{ flex: 1, fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.35 }}>
+                                  {faixa.ganha.length === 0
+                                    ? 'As 2 versões em MP3 HD'
+                                    : <>As 2 versões <strong>+ {faixa.ganha.join(' + ')}</strong></>}
+                                </span>
+                              </button>
+                            );
+                          })}
+
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                            Outro valor: R$
+                            <input
+                              type="number"
+                              min={getPriceForSku('audio_only')}
+                              step="0.01"
+                              value={valorDigitado}
+                              onChange={(e) => setValorDigitado(e.target.value)}
+                              onBlur={() => {
+                                const v = Number(String(valorDigitado).replace(',', '.'));
+                                if (Number.isFinite(v) && v >= getPriceForSku('audio_only')) escolherFaixa(v);
+                              }}
+                              style={{ width: '90px', padding: '6px 8px', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '0.85rem' }}
+                            />
+                          </label>
+                        </div>
                       )}
                     </div>
 

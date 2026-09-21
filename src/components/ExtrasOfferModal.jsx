@@ -108,7 +108,7 @@ export default function ExtrasOfferModal({
           <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.45 }}>
             {isPaid
               ? <>A música já está pronta. Esses extras usam a <strong>mesma história</strong> que você contou — é só escolher.</>
-              : 'Leve só a música, ou inclua um extra no mesmo pagamento e pague menos que comprando depois.'}
+              : <>Você escolhe quanto pagar. <strong>Cada faixa a mais já vem com um extra de brinde</strong>, e quem paga a Retrospectiva leva Carta e Vídeo junto.</>}
           </p>
         </div>
 

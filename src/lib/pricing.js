@@ -57,3 +57,45 @@ export function skuApprovesMusic(sku) {
   return sku === 'audio_only' || sku === 'combo' || sku === 'combo_carta' || sku === 'combo_retrospectiva'
     || sku === 'recovery_combo_24h' || sku === 'recovery_combo_48h' || sku === 'impacto';
 }
+
+// Escada de brindes do pagamento por impacto ("pague o quanto quiser", SKU 'impacto').
+//
+// Pedido do dono do estúdio em 21/09/2026, depois de liberarmos a música inteira antes do
+// pagamento: o cliente decide o valor no auge da emoção, então cada faixa acima do mínimo entrega
+// um extra a mais. Cumulativa — quem paga a faixa da Retrospectiva leva Carta e Vídeo junto.
+//
+// Os limiares SÃO os preços dos combos que já existem no catálogo, de propósito: nenhum número
+// novo entra no sistema, e a escada bate exatamente com o que os combos cobram no fluxo normal.
+//
+// O Playback fica FORA da escada por decisão de produto: é um add-on avulso, comprado depois.
+//
+// Quem chama isto é o servidor, com o valor REALMENTE confirmado pela Efí — nunca com o valor que
+// o cliente pediu (ver src/lib/payments.js e C-05 no AUDIT_REPORT.md).
+export function brindesPorValorPago(valorPago) {
+  const valor = Number(valorPago);
+  const vazio = { carta: false, video: false, retrospectiva: false };
+  if (!Number.isFinite(valor)) return vazio;
+
+  // Mesma tolerância monetária usada em todo o projeto: nunca `===`, sempre margem de 1 centavo
+  // (payments.md). Sem ela, R$ 13,979999 por arredondamento de float perderia o brinde.
+  const alcanca = (sku) => {
+    const limiar = getPriceForSku(sku);
+    return limiar !== null && valor >= limiar - 0.01;
+  };
+
+  const retrospectiva = alcanca('combo_retrospectiva');
+  const video = retrospectiva || alcanca('combo');
+  const carta = retrospectiva || video || alcanca('combo_carta');
+
+  return { carta, video, retrospectiva };
+}
+
+// As faixas em ordem, para a tela montar os botões sem repetir os limiares à mão.
+export function faixasDeImpacto() {
+  return [
+    { sku: 'audio_only', valor: getPriceForSku('audio_only'), ganha: [] },
+    { sku: 'combo_carta', valor: getPriceForSku('combo_carta'), ganha: ['Carta Virtual'] },
+    { sku: 'combo', valor: getPriceForSku('combo'), ganha: ['Vídeo Homenagem', 'Carta Virtual'] },
+    { sku: 'combo_retrospectiva', valor: getPriceForSku('combo_retrospectiva'), ganha: ['Retrospectiva', 'Vídeo Homenagem', 'Carta Virtual'] },
+  ].filter((f) => f.valor !== null);
+}
