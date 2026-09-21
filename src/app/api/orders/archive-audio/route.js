@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
-import { collection, query, where, limit, getDocs, doc, updateDoc } from 'firebase/firestore/lite';
+import { collection, query, where, orderBy, limit, getDocs, doc, updateDoc } from 'firebase/firestore/lite';
 import { dbEdge as db } from '@/lib/firebase-edge';
 import { requireAdmin } from '@/lib/auth';
 import { isOurStorage, archiveAudioFiles } from '@/lib/audioArchive';
@@ -66,9 +66,19 @@ async function runArchive(env, { dryRun }) {
 
   let snap;
   try {
+    // orderBy('createdAt','desc') é o que faz esta varredura funcionar.
+    //
+    // Sem ele (até 21/09/2026) a consulta pegava uma fatia ARBITRÁRIA entre ~600 pedidos com
+    // AUDIO_GERADO, e o cron processava sempre os mesmos 5 — todos antigos, com o arquivo já
+    // apagado da CDN da Kie.ai. Resultado real observado: 32 pendentes, 0 arquivados, 5 falhas,
+    // hora após hora, enquanto pedidos pagos RECENTES (arquivo ainda vivo, dentro da janela de
+    // ~14 dias) nunca chegavam a ser tentados e iam morrendo no relógio.
+    //
+    // Do mais novo para o mais velho: primeiro quem ainda dá para salvar.
     snap = await getDocs(query(
       collection(db, 'orders'),
       where('productionStatus', '==', 'AUDIO_GERADO'),
+      orderBy('createdAt', 'desc'),
       limit(MAX_ORDERS_PER_RUN * 20)
     ));
   } catch (err) {

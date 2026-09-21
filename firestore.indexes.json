@@ -6,8 +6,14 @@
       "collectionGroup": "orders",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "paymentStatus", "order": "ASCENDING" },
-        { "fieldPath": "updatedAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "paymentStatus",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "updatedAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
@@ -15,8 +21,29 @@
       "collectionGroup": "orders",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "paymentStatus", "order": "ASCENDING" },
-        { "fieldPath": "pixCopiedAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "paymentStatus",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "pixCopiedAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "_comment": "api/orders/archive-audio — a varredura consultava productionStatus==AUDIO_GERADO com limit e SEM orderBy: devolvia sempre a mesma fatia arbitraria entre ~600 documentos, e o cron ficava retentando os mesmos 5 pedidos antigos (arquivo ja morto na CDN) sem nunca alcancar os recentes, que ainda dava para salvar (achado 21/09/2026). Ordenar por createdAt desc coloca primeiro exatamente quem ainda esta dentro da janela de ~14 dias da Kie.ai.",
+      "collectionGroup": "orders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "productionStatus",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
       ]
     }
   ],
