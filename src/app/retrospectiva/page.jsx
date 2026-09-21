@@ -317,7 +317,7 @@ function RetrospectivaContent() {
             </div>
 
             <p style={{ fontFamily: 'var(--font-family-gala)', fontSize: '1.05rem', color: '#4c1d95', margin: '0 0 16px' }}>
-              {String(decorrido.horas).padStart(2, '0')}:{String(decorrido.minutos).padStart(2, '0')}:{String(decorrido.segundos).padStart(2, '0')} — e contando 💜
+              {String(decorrido.horas).padStart(2, '0')}:{String(decorrido.minutos).padStart(2, '0')}:{String(decorrido.segundos).padStart(2, '0')} e contando 💜
             </p>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
@@ -685,7 +685,7 @@ function RetrospectivaContent() {
             </span>
 
             <span style={{ display: 'block', fontSize: '0.86rem', color: '#c4b5d4', lineHeight: 1.55, maxWidth: '22rem', margin: '0 auto 20px' }}>
-              Do T-Rex ao Sol, uma coisa maior que a outra — até chegar na maior de todas.
+              Do T-Rex ao Sol, uma coisa maior que a outra, até chegar na maior de todas.
             </span>
 
             <span

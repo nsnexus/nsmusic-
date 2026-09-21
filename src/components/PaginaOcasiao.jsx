@@ -89,7 +89,7 @@ export default function PaginaOcasiao({ ocasiao }) {
             Criar minha música por R$ {preco('audio_only')}
           </Link>
           <p style={s.microcopy}>
-            Pronta em cerca de 2 a 3 minutos · 2 versões em MP3 HD · Pix · sem cadastro
+            Ouça inteira antes de pagar · 2 versões em MP3 HD · pronta em ~3 min · Pix · sem cadastro
           </p>
         </section>
 
@@ -114,8 +114,9 @@ export default function PaginaOcasiao({ ocasiao }) {
               que você contou. Você lê, ajusta e só então aprova.
             </li>
             <li style={s.passo}>
-              <strong>Receba os áudios.</strong> Duas versões completas em MP3 HD em cerca de 2 a 3
-              minutos. Ouça a prévia e libere o download após o pagamento por Pix.
+              <strong>Ouça inteira e decida.</strong> Duas versões completas em MP3 HD em cerca de
+              2 a 3 minutos. Você ouve as duas do começo ao fim e só paga se gostar. O pagamento
+              por Pix libera o download.
             </li>
           </ol>
         </section>
@@ -137,19 +138,19 @@ export default function PaginaOcasiao({ ocasiao }) {
           <h2 style={s.h2}>Preços</h2>
           <ul style={s.lista}>
             <li style={s.listaItem}>
-              <strong>Música personalizada — R$ {preco('audio_only')}:</strong> 2 versões completas
+              <strong>Música personalizada, R$ {preco('audio_only')}:</strong> 2 versões completas
               em MP3 HD, com letra exclusiva.
             </li>
             <li style={s.listaItem}>
-              <strong>Vídeo Homenagem — R$ {preco('video_addon')}:</strong> slideshow vertical com 10
+              <strong>Vídeo Homenagem, R$ {preco('video_addon')}:</strong> slideshow vertical com 10
               a 20 fotos sincronizadas com a música.
             </li>
             <li style={s.listaItem}>
-              <strong>Carta Virtual — R$ {preco('carta_addon')}:</strong> carta escrita a partir da
+              <strong>Carta Virtual, R$ {preco('carta_addon')}:</strong> carta escrita a partir da
               mesma história, com página própria para compartilhar.
             </li>
             <li style={s.listaItem}>
-              <strong>Playback — R$ {preco('playback_addon')}:</strong> a mesma música sem voz, para
+              <strong>Playback, R$ {preco('playback_addon')}:</strong> a mesma música sem voz, para
               cantar junto.
             </li>
           </ul>
@@ -171,7 +172,7 @@ export default function PaginaOcasiao({ ocasiao }) {
         <section className="container" style={s.secaoCta}>
           <h2 style={s.h2}>Pronto para criar?</h2>
           <p style={s.paragrafo}>
-            Você escreve a história, lê a letra antes de gerar e ouve a prévia antes de pagar.
+            Você escreve a história, lê a letra antes de gerar e ouve a música inteira antes de pagar.
           </p>
           <Link href={linkCriar} className="btn btn-primary" style={s.ctaGrande}>
             Criar minha música por R$ {preco('audio_only')}
@@ -193,7 +194,7 @@ export default function PaginaOcasiao({ ocasiao }) {
       <footer style={s.footer}>
         <div className="container" style={s.footerContainer}>
           <p style={s.footerTexto}>
-            NS Music — músicas personalizadas criadas com inteligência artificial a partir da sua
+            NS Music. Músicas personalizadas criadas com inteligência artificial a partir da sua
             história.
           </p>
           <div style={s.footerLinks}>

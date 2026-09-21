@@ -261,13 +261,13 @@ function PagarContent() {
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: '1.5' }}>
             {standalone ? (
               <>
-                Se essa homenagem te emocionou, contribua com o quanto achar justo pelo trabalho —
+                Se essa homenagem te emocionou, contribua com o quanto achar justo pelo trabalho.
                 o mínimo é o valor da música. A partir de <strong>R$ {VIDEO_THRESHOLD.toFixed(2).replace('.', ',')}</strong> você
                 também ganha o <strong>Vídeo Homenagem</strong> de brinde, é só falar comigo depois de pagar! 🎬
               </>
             ) : (
               <>
-                Se essa homenagem te emocionou, pague o quanto achar justo — o mínimo já libera sua
+                Se essa homenagem te emocionou, pague o quanto achar justo. O mínimo já libera sua
                 música. A partir de <strong>R$ {VIDEO_THRESHOLD.toFixed(2).replace('.', ',')}</strong> você
                 ganha o <strong>Vídeo Homenagem</strong> de brinde! 🎬
               </>

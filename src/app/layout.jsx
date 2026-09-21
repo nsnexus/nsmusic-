@@ -9,10 +9,10 @@ import { SITE_URL } from '@/lib/siteUrl';
 // personalizada de presente, então ela precisa responder sozinha, sem depender do resto da página.
 const DESCRICAO =
   'Transforme sua história em música. A IA escreve a letra e compõe 2 versões completas em MP3 HD '
-  + 'em cerca de 3 minutos, a partir de R$ 9,99. Presente para aniversário, Dia das Mães, '
-  + 'declaração de amor e homenagens.';
+  + 'em cerca de 3 minutos. Você ouve as músicas inteiras antes de decidir e só paga se gostar, '
+  + 'a partir de R$ 9,99. Presente para aniversário, Dia das Mães, declaração de amor e homenagens.';
 
-const TITULO = 'NS Music — Música Personalizada com IA a partir da Sua História';
+const TITULO = 'NS Music | Música Personalizada com IA a partir da Sua História';
 
 export const metadata = {
   metadataBase: new URL(SITE_URL),

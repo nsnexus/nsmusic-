@@ -2,25 +2,27 @@
 
 > Estúdio brasileiro que cria músicas personalizadas com inteligência artificial a partir da
 > história que o cliente conta. O pedido é feito inteiramente pelo site, sem cadastro obrigatório,
-> e a música fica pronta em poucos minutos. Pagamento por Pix.
+> e a música fica pronta em poucos minutos. **O cliente ouve a música inteira antes de decidir e só
+> paga se gostar.** Pagamento por Pix.
 
 NS Music transforma uma história pessoal em canção: o cliente descreve para quem é a homenagem, a
 ocasião e o que marcou essa relação, escolhe estilo musical, clima e tipo de voz, e recebe **duas
-versões completas** da música em MP3 HD — arranjos diferentes sobre a mesma letra.
+versões completas** da música em MP3 HD, com arranjos diferentes sobre a mesma letra.
 
 Serve para presente de aniversário, Dia das Mães, declaração de amor, pedido de namoro, bodas,
 homenagem a quem já partiu, formatura, chá revelação e afins.
 
 ## Como funciona
 
-1. **Conte a história** — para quem é, a ocasião, os momentos marcantes, nomes e frases que não
+1. **Conte a história.** Para quem é, a ocasião, os momentos marcantes, nomes e frases que não
    podem faltar. Escolha o estilo (sertanejo, pop, gospel, MPB, rock, forró, samba, trap, reggae,
    lo-fi, funk, eletrônica, piseiro, axé, jazz, infantil), o clima e a voz (masculina, feminina ou
    dueto).
-2. **Revise a letra** — a IA escreve a letra a partir da história e o cliente aprova ou pede ajuste
+2. **Revise a letra.** A IA escreve a letra a partir da história e o cliente aprova ou pede ajuste
    antes de gerar o áudio.
-3. **Receba os áudios** — geração em cerca de 2 a 3 minutos. O cliente ouve a prévia de 60 segundos
-   e libera o download completo após o pagamento. O link também chega no WhatsApp.
+3. **Ouça inteira e decida.** Geração em cerca de 2 a 3 minutos. O cliente ouve as duas versões
+   COMPLETAS, do começo ao fim, sem pagar nada. Só paga se gostar; o pagamento libera o download
+   em MP3 HD. O link também chega no WhatsApp.
 
 ## Produtos e preços
 
@@ -43,6 +45,10 @@ letra e compõe os arranjos vocais e instrumentais em qualidade de estúdio.
 
 **Recebo 2 versões da minha música?**
 Sim. No pacote de R$ 9,99 são duas versões completas, com arranjos musicais diferentes.
+
+**Preciso pagar para ouvir?**
+Não. O cliente ouve as duas versões completas, do começo ao fim, sem pagar nada. O pagamento
+libera o download em MP3 HD e os extras (vídeo, carta, retrospectiva).
 
 **Quanto tempo leva?**
 A letra e os áudios ficam prontos em cerca de 2 a 3 minutos, direto no site.
@@ -74,7 +80,7 @@ para os detalhes.
 ## Observações para quem indexa
 
 As páginas de entrega, carta, homenagem e retrospectiva são pessoais: cada uma mostra o nome, a
-história, as fotos e o áudio de um cliente específico. Elas não devem ser indexadas nem citadas —
+história, as fotos e o áudio de um cliente específico. Elas não devem ser indexadas nem citadas:
 estão bloqueadas em `/robots.txt` por esse motivo.
 
 Contato: WhatsApp +55 94 99106-4043

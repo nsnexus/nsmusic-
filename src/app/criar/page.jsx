@@ -1226,14 +1226,9 @@ export default function CriarMusica() {
   };
 
   // Time update handler to lock playback of previews to 60 seconds
-  const handleAudioTimeUpdate = (e, playerIdx) => {
-    const audio = e.target;
-    if (audio.currentTime > 60) {
-      audio.pause();
-      audio.currentTime = 60;
-      alert("🔒 Prévia de 60 segundos finalizada! Efetue o pagamento para liberar a música completa e fazer o download.");
-    }
-  };
+  // Toca inteira — ver o comentário equivalente em src/app/entrega/page.jsx. O que é pago é o
+  // artefato (download, vídeo, carta, retrospectiva), não o ato de ouvir.
+  const handleAudioTimeUpdate = () => {};
 
   const nextStep = () => {
     setStep(prev => prev + 1);
@@ -1478,7 +1473,7 @@ export default function CriarMusica() {
                     </p>
                     <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', marginTop: '6px', lineHeight: '1.55' }}>
                       Na maioria das vezes a música já ficou pronta e só esta tela não atualizou.
-                      Clique em conferir antes de recomeçar — assim você não perde o que já foi feito.
+                      Clique em conferir antes de recomeçar, assim você não perde o que já foi feito.
                     </p>
 
                     <div style={{ display: 'flex', gap: '10px', marginTop: '14px', flexWrap: 'wrap' }}>
@@ -1574,7 +1569,7 @@ export default function CriarMusica() {
             ) : (
               <div>
                 <h1 style={styles.stepTitle}>Sua Música Está Pronta! 🎧</h1>
-                <p style={styles.stepSubtitle}>Ouça as prévias de 60 segundos geradas em estúdio. As 2 versões estão inclusas pelo valor promocional!</p>
+                <p style={styles.stepSubtitle}>Ouça as 2 versões completas, geradas em estúdio. As duas estão inclusas pelo valor promocional!</p>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '680px', margin: '24px auto 0' }}>
                   
@@ -1957,7 +1952,7 @@ export default function CriarMusica() {
                         </button>
 
                         <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '10px', textAlign: 'center' }}>
-                          A liberação é automática assim que o pagamento for confirmado — não precisa enviar comprovante.
+                          A liberação é automática assim que o pagamento for confirmado. Não precisa enviar comprovante.
                         </p>
                       </div>
                     )}

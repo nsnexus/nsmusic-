@@ -344,7 +344,7 @@ export default function Home() {
         <div className="container">
           <div style={styles.sectionHeader}>
             <h2 style={styles.sectionTitle}>Como Funciona?</h2>
-            <p style={styles.sectionSubtitle}>Em apenas 3 passos simples você presenteia quem ama com uma canção própria.</p>
+            <p style={styles.sectionSubtitle}>Em apenas 3 passos simples você presenteia quem ama com uma canção própria. E você ouve a música inteira antes de decidir.</p>
           </div>
 
           <div style={styles.stepsGrid}>
@@ -362,8 +362,8 @@ export default function Home() {
 
             <div style={styles.stepCard} className="glass-card">
               <div style={styles.stepNumber}>3</div>
-              <h3 style={styles.stepTitle}>Receba os Áudios HD</h3>
-              <p style={styles.stepText}>Sintetizamos a melodia e vozes de estúdio. Receba 2 Versões completas em MP3 HD com capa digital.</p>
+              <h3 style={styles.stepTitle}>Ouça Inteira e Decida</h3>
+              <p style={styles.stepText}>Sintetizamos a melodia e as vozes de estúdio. Você ouve as 2 versões <strong>completas, do começo ao fim</strong>, e só paga se gostar. O download em MP3 HD com capa digital é liberado depois.</p>
             </div>
           </div>
         </div>
@@ -484,52 +484,57 @@ export default function Home() {
 
       {/* Offer Banner Section */}
       <section id="oferta" style={styles.section}>
-        <div className="container" style={{ maxWidth: '850px' }}>
-          <div 
-            className="glass-card" 
-            style={{ 
-              padding: '40px 24px', 
-              borderRadius: '24px', 
-              border: '2px solid var(--primary)', 
+        {/* Card compacto. A versão anterior ocupava quase uma tela inteira: título de 2,2rem,
+            preço de 3rem e lista com bastante respiro. Encolhido em 21/09/2026 a pedido do dono
+            ("tá feio e muito grande") — mesmo conteúdo, densidade maior, e o botão passa a caber
+            na tela junto com os benefícios em vez de ficar abaixo da dobra. */}
+        <div className="container" style={{ maxWidth: '560px' }}>
+          <div
+            className="glass-card"
+            style={{
+              padding: '24px 20px',
+              borderRadius: '18px',
+              border: '1.5px solid var(--primary)',
               background: 'linear-gradient(135deg, #EEF0FE 0%, #FDF0F7 100%)',
               textAlign: 'center',
-              boxShadow: '0 20px 40px rgba(79, 70, 229, 0.12)'
+              boxShadow: '0 10px 24px rgba(79, 70, 229, 0.10)',
             }}
           >
-            <span style={{ background: 'var(--primary)', color: '#FFFDF9', padding: '6px 16px', borderRadius: '20px', fontWeight: '800', fontSize: '0.82rem', letterSpacing: '0.5px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-              <Flame size={14} aria-hidden="true" /> OFERTA POR TEMPO LIMITADO
+            <span style={{ background: 'var(--primary)', color: '#FFFDF9', padding: '4px 12px', borderRadius: '20px', fontWeight: '800', fontSize: '0.7rem', letterSpacing: '0.5px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+              <Flame size={12} aria-hidden="true" /> OFERTA POR TEMPO LIMITADO
             </span>
-            
-            <h2 style={{ fontSize: '2.2rem', fontWeight: '900', marginTop: '16px', color: 'var(--text-primary)' }}>
+
+            <h2 style={{ fontSize: '1.3rem', fontWeight: '800', marginTop: '12px', color: 'var(--text-primary)', lineHeight: 1.25 }}>
               Pacote 2 Músicas Completas em Estúdio
             </h2>
-            
-            <div style={{ margin: '18px 0' }}>
-              <span style={{ fontSize: '1.2rem', color: 'var(--text-muted)', textDecoration: 'line-through', marginRight: '12px' }}>
-                De R$ 69,90
+
+            <div style={{ margin: '10px 0 14px', display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '0.95rem', color: 'var(--text-muted)', textDecoration: 'line-through' }}>
+                R$ 69,90
               </span>
-              <span style={{ fontSize: '3rem', fontWeight: '900', color: 'var(--success)' }}>
-                Por R$ 9,99
+              <span style={{ fontSize: '2rem', fontWeight: '900', color: 'var(--success)', lineHeight: 1 }}>
+                R$ 9,99
               </span>
             </div>
 
-            <ul style={{ ...styles.offerList, listStyle: 'none', padding: 0 }}>
+            <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 16px', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '6px' }}>
               {[
-                <><strong>2 músicas completas em estilos diferentes</strong> (versão 1 + versão 2 bônus)</>,
-                'Download ilimitado dos áudios em altíssima qualidade (MP3 HD)',
-                'Capa digital personalizada do álbum',
-                'Alterações gratuitas ilimitadas na composição',
-                'Liberação imediata após confirmação do PIX',
+                <><strong>2 músicas completas</strong>, em estilos diferentes</>,
+                <>Você ouve as duas <strong>inteiras antes de pagar</strong></>,
+                'Download ilimitado em MP3 HD',
+                'Capa digital personalizada',
+                'Alterações ilimitadas na composição',
+                'Liberação imediata após o PIX',
               ].map((text, idx) => (
-                <li key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '8px' }}>
-                  <Check size={18} color="var(--success)" style={{ flexShrink: 0, marginTop: '2px' }} aria-hidden="true" />
+                <li key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '7px', fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                  <Check size={15} color="var(--success)" style={{ flexShrink: 0, marginTop: '3px' }} aria-hidden="true" />
                   <span>{text}</span>
                 </li>
               ))}
             </ul>
 
-            <Link href="/criar" className="btn btn-primary" style={{ fontSize: '1.05rem', padding: '16px 32px', width: '100%', maxWidth: '560px', marginTop: '10px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px', textAlign: 'center', whiteSpace: 'normal' }}>
-              <Gift size={20} style={{ flexShrink: 0 }} aria-hidden="true" /> Garantir minhas 2 músicas por R$ 9,99
+            <Link href="/criar" className="btn btn-primary" style={{ fontSize: '0.95rem', padding: '13px 20px', width: '100%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px', textAlign: 'center', whiteSpace: 'normal' }}>
+              <Gift size={17} style={{ flexShrink: 0 }} aria-hidden="true" /> Criar minha música por R$ 9,99
             </Link>
           </div>
         </div>

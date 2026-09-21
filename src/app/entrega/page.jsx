@@ -676,14 +676,16 @@ function EntregaContent() {
     return () => unsubscribe();
   }, [orderId]);
 
-  const handleAudioTimeUpdate = (e) => {
-    const audio = e.target;
-    if (!isPaid && audio.currentTime > 60) {
-      audio.pause();
-      audio.currentTime = 60;
-      alert("🔒 Prévia de 60 segundos finalizada! Efetue o pagamento de R$ 9,99 abaixo para liberar as versões completas e os downloads em MP3 HD.");
-    }
-  };
+  // A música toca INTEIRA, mesmo antes de pagar (decisão do dono do estúdio, 21/09/2026).
+  //
+  // O corte em 60s que existia aqui era ficção: o arquivo completo já era entregue ao navegador de
+  // qualquer forma (o documento do pedido chega cru do Firestore, com audioUrl dentro), e o player
+  // só fingia parar. Na prática o corte interrompia a venda no momento de maior emoção do cliente,
+  // e fazia parte das pessoas achar que a geração tinha falhado.
+  //
+  // O que continua atrás do pagamento é o ARTEFATO: download dos MP3, vídeo, carta, retrospectiva
+  // e página compartilhável. É isso que o cliente leva embora, e é isso que ele compra.
+  const handleAudioTimeUpdate = () => {};
 
   // Precisa ser calculado aqui (antes dos hooks abaixo, que dependem dele) em vez de depois dos
   // early returns de `loading`/`order` — hooks têm que rodar sempre na mesma ordem em todo render.
@@ -701,8 +703,19 @@ function EntregaContent() {
   // Extrai trackId das faixas do Suno quando disponível (para fallback de CDN no proxy)
   const primaryTrackId = order?.sunoTracks?.[0]?.trackId || '';
   const secondTrackId = order?.sunoTracks?.[1]?.trackId || '';
-  const primaryAudioUrl = formatAudioUrl(order?.audioUrl || (order?.audioFiles && order.audioFiles[0]) || '', primaryTrackId);
-  const secondAudioUrl = formatAudioUrl(order?.audioFiles && order.audioFiles[1] ? order.audioFiles[1] : '', secondTrackId);
+  // Forma opaca do player: manda só o pedido e o índice da faixa, e o servidor resolve qual
+  // arquivo é (ver src/app/api/audio/proxy/route.js:resolveAudioUrlDoPedido). Assim a URL da CDN
+  // não aparece no `src` do <audio> nem na aba Rede do DevTools — pedido 21/09/2026.
+  // `formatAudioUrl` continua existindo para o caminho de download, que precisa da URL explícita.
+  const audioOpaco = (faixa) => (orderId ? `/api/audio/proxy?orderId=${encodeURIComponent(orderId)}&faixa=${faixa}&v=${AUDIO_CACHE_VERSION}` : '');
+  const temPrimeira = Boolean(order?.audioUrl || order?.audioFiles?.[0]);
+  const temSegunda = Boolean(order?.audioFiles?.[1]);
+  const primaryAudioUrl = temPrimeira
+    ? (audioOpaco(0) || formatAudioUrl(order?.audioUrl || order?.audioFiles?.[0] || '', primaryTrackId))
+    : '';
+  const secondAudioUrl = temSegunda
+    ? (audioOpaco(1) || formatAudioUrl(order?.audioFiles?.[1] || '', secondTrackId))
+    : '';
 
   // A URL do áudio às vezes fica pronta no pedido antes do arquivo terminar de propagar na CDN da
   // Kie.ai — e nem sempre isso dispara `onError` no <audio> (às vezes ele só fica "pendurado", sem
@@ -1010,7 +1023,7 @@ function EntregaContent() {
                   <div style={isPaid ? { ...styles.audioPlayerContainer, backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', backdropFilter: 'blur(6px)' } : styles.audioPlayerContainer} className="glass-card">
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
                       <h4 style={{ fontSize: '0.95rem', margin: 0, fontWeight: '700', color: isPaid ? '#f1f5f9' : 'var(--primary)' }}>
-                        {isPaid ? '🎧 Versão 1' : '🎧 Prévia (Versão 1 — 60 segundos)'}
+                        🎧 Versão 1
                       </h4>
                       {isPaid && (
                         <span style={{ fontSize: '0.7rem', color: '#f472b6', backgroundColor: 'rgba(236,72,153,0.12)', padding: '3px 9px', borderRadius: '10px', border: '1px solid rgba(236,72,153,0.3)', fontWeight: '700' }}>
@@ -1020,7 +1033,7 @@ function EntregaContent() {
                     </div>
                     {!isPaid && (
                       <p style={{ fontSize: '0.78rem', color: 'var(--warning)', marginBottom: '8px', fontWeight: '600' }}>
-                        🔒 Modo Degustação: Áudio limitado aos primeiros 60 segundos.
+                        🎧 Ouça à vontade. O download em MP3 HD é liberado após o pagamento.
                       </p>
                     )}
                     {audioReadyState.primary !== 'ready' && (
@@ -1086,7 +1099,7 @@ function EntregaContent() {
                             <p style={{ margin: '4px 0 10px', fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
                               Você está dentro do app (WhatsApp/Instagram), e ele não deixa salvar arquivos.
                               Toque nos <strong>três pontinhos</strong> no canto da tela e escolha
-                              <strong> &quot;Abrir no navegador&quot;</strong> — ou copie o link abaixo e cole no Chrome/Safari.
+                              <strong> &quot;Abrir no navegador&quot;</strong>, ou copie o link abaixo e cole no Chrome/Safari.
                             </p>
                             <button
                               type="button"
@@ -1120,7 +1133,7 @@ function EntregaContent() {
                   <div style={isPaid ? { ...styles.audioPlayerContainer, backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', backdropFilter: 'blur(6px)' } : styles.audioPlayerContainer} className="glass-card">
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
                       <h4 style={{ fontSize: '0.95rem', margin: 0, fontWeight: '700', color: isPaid ? '#f1f5f9' : 'var(--secondary)' }}>
-                        {isPaid ? '🎧 Versão 2' : '🎧 Prévia (Versão 2 — 60 segundos Bônus)'}
+                        🎧 Versão 2
                       </h4>
                       {isPaid && (
                         <span style={{ fontSize: '0.7rem', color: '#c084fc', backgroundColor: 'rgba(168,85,247,0.12)', padding: '3px 9px', borderRadius: '10px', border: '1px solid rgba(168,85,247,0.3)', fontWeight: '700' }}>
@@ -1130,7 +1143,7 @@ function EntregaContent() {
                     </div>
                     {!isPaid && (
                       <p style={{ fontSize: '0.78rem', color: 'var(--warning)', marginBottom: '8px', fontWeight: '600' }}>
-                        🔒 Modo Degustação: Áudio limitado aos primeiros 60 segundos.
+                        🎧 Ouça à vontade. O download em MP3 HD é liberado após o pagamento.
                       </p>
                     )}
                     {audioReadyState.second !== 'ready' && (
@@ -1834,7 +1847,7 @@ function EntregaContent() {
                         </p>
                         <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
                           Sua música está salva e o pedido continua valendo. Tente de novo em alguns
-                          instantes — se continuar, fale com o suporte pelo WhatsApp que a gente
+                          instantes. Se continuar, fale com o suporte pelo WhatsApp que a gente
                           libera manualmente.
                         </p>
                         <button
@@ -2037,7 +2050,7 @@ function EntregaContent() {
                         <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '10px', textAlign: 'center' }}>
                           {pixInfo.provider === 'static'
                             ? 'Anexe o comprovante logo após pagar para liberar na hora.'
-                            : 'A liberação é automática assim que o pagamento for confirmado — não precisa enviar comprovante.'}
+                            : 'A liberação é automática assim que o pagamento for confirmado. Não precisa enviar comprovante.'}
                         </p>
                       </div>
                     )}
@@ -2100,7 +2113,7 @@ function EntregaContent() {
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src="/como-funciona-retrospectiva.jpg"
-                        alt="Como funciona a sua Retrospectiva — Toque para acessar"
+                        alt="Como funciona a sua Retrospectiva. Toque para acessar"
                         style={{ width: '100%', maxWidth: '100%', height: 'auto', display: 'block' }}
                       />
                     </div>
@@ -2158,7 +2171,7 @@ function EntregaContent() {
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src="/como-funciona-cartinha.jpg"
-                        alt="Como funciona a sua Cartinha Virtual — Toque para acessar"
+                        alt="Como funciona a sua Cartinha Virtual. Toque para acessar"
                         style={{ width: '100%', maxWidth: '100%', height: 'auto', display: 'block' }}
                       />
                     </div>

@@ -31,23 +31,16 @@ export default function CustomAudioPreview({ src, label, badge, isBonus, orderId
     }
   };
 
+  // Toca inteira. O corte em 60s saiu em 21/09/2026 — ver o comentário em
+  // src/app/entrega/page.jsx:handleAudioTimeUpdate. Ouvir é de graça; o que se paga é levar.
   const handleTimeUpdate = () => {
     if (!audioRef.current) return;
-    const curr = audioRef.current.currentTime;
-    if (curr >= 60) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 60;
-      setIsPlaying(false);
-      setShowEndedNotice(true);
-    } else {
-      if (showEndedNotice) setShowEndedNotice(false);
-    }
-    setCurrentTime(Math.min(curr, 60));
+    setCurrentTime(audioRef.current.currentTime);
   };
 
   const handleLoadedMetadata = () => {
     if (!audioRef.current) return;
-    setDuration(Math.min(audioRef.current.duration || 60, 60));
+    setDuration(audioRef.current.duration || 0);
   };
 
   const handleSeek = (e) => {
@@ -144,14 +137,14 @@ export default function CustomAudioPreview({ src, label, badge, isBonus, orderId
               />
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
                 <span>{formatTime(currentTime)}</span>
-                <span>0:60 (Prévia Protegida)</span>
+                <span>{formatTime(duration)}</span>
               </div>
             </div>
           </div>
 
           {showEndedNotice && (
             <div style={{ padding: '8px 12px', background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '8px', fontSize: '0.8rem', color: '#fca5a5', fontWeight: 'bold' }}>
-              🔒 Prévia de 60s finalizada. Avance para liberar o download da versão completa MP3 HD!
+              🎧 Gostou? Avance para liberar o download em MP3 HD das 2 versões.
             </div>
           )}
         </div>
@@ -162,7 +155,7 @@ export default function CustomAudioPreview({ src, label, badge, isBonus, orderId
       )}
 
       <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-        🔒 Prévia de 60s. O áudio completo em MP3 HD sem restrições será liberado imediatamente após o pagamento.
+        🎧 Ouça quanto quiser, do começo ao fim. O download em MP3 HD é liberado após o pagamento.
       </span>
     </div>
   );

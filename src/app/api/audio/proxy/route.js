@@ -1,8 +1,27 @@
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
 import { isAllowedMediaUrl } from '@/lib/proxyAllowlist';
+import { doc, getDoc } from 'firebase/firestore/lite';
+import { dbEdge } from '@/lib/firebase-edge';
 
 export const runtime = 'edge';
+
+// Resolve o endereço real do áudio a partir do pedido, para que o cliente nunca precise receber a
+// URL da CDN para tocar a música. `faixa` é o índice em audioFiles (0 = primeira versão).
+async function resolveAudioUrlDoPedido(orderId, faixaRaw) {
+  try {
+    const snap = await getDoc(doc(dbEdge, 'orders', orderId));
+    if (!snap.exists()) return '';
+    const data = snap.data() || {};
+    const arquivos = Array.isArray(data.audioFiles) ? data.audioFiles.filter(Boolean) : [];
+    const indice = Number.parseInt(faixaRaw, 10);
+    if (Number.isFinite(indice) && indice >= 0 && arquivos[indice]) return arquivos[indice];
+    return arquivos[0] || data.audioUrl || '';
+  } catch (err) {
+    console.warn('[Audio Proxy] Falha ao resolver áudio do pedido:', err?.message);
+    return '';
+  }
+}
 
 export async function GET(req) {
   try {
@@ -13,7 +32,22 @@ export async function GET(req) {
     } catch (e) {}
 
     const { searchParams } = new URL(req.url);
-    const rawUrl = searchParams.get('url');
+    let rawUrl = searchParams.get('url');
+
+    // Forma opaca: ?orderId=X&faixa=0, sem expor o endereço da CDN na barra de endereços nem no
+    // DevTools (pedido 21/09/2026, depois de o dono ver a URL original do MP3 no inspetor).
+    // O servidor resolve qual arquivo é, a partir do pedido.
+    //
+    // Honestidade sobre o alcance disto: a página de entrega lê o pedido direto do Firestore no
+    // navegador, então `audioUrl` ainda chega ao cliente por aquele caminho. Isto tira a URL do
+    // lugar ÓBVIO (o player e a aba Rede), não do documento do pedido. Fechar aquilo exigiria a
+    // página parar de ler o pedido cru — mudança bem maior, ainda não feita.
+    if (!rawUrl) {
+      const orderId = searchParams.get('orderId') || '';
+      if (orderId) {
+        rawUrl = await resolveAudioUrlDoPedido(orderId, searchParams.get('faixa'));
+      }
+    }
 
     if (!rawUrl) {
       return NextResponse.json({ error: 'URL do áudio é obrigatória' }, { status: 400 });

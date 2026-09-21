@@ -32,14 +32,14 @@ export const ocasioes = [
       'Parabéns pra você todo mundo canta. Uma música que cita o apelido, a mania, a viagem que '
       + 'vocês fizeram e a frase que só a sua família entende, só existe se alguém escrever. É isso '
       + 'que a NS Music faz: você conta a história de quem faz anos e recebe uma canção sobre ela.',
-      'Serve para aniversário de mãe, pai, esposa, marido, filho, avó, amigo ou chefe — e para os '
+      'Serve para aniversário de mãe, pai, esposa, marido, filho, avó, amigo ou chefe. E para os '
       + 'aniversários redondos, 15, 30, 50, 60 anos, quando o presente precisa ser à altura da data.',
     ],
     bullets: [
       'A letra cita nome, apelido, datas e os momentos que você contar.',
-      'Você lê e ajusta a letra antes de qualquer áudio ser gerado.',
+      'Você lê a letra antes do áudio e ouve a música inteira antes de pagar.',
       'Duas versões completas, com arranjos diferentes, para escolher qual tocar na festa.',
-      'Pronta em cerca de 2 a 3 minutos — dá para fazer no mesmo dia da festa.',
+      'Pronta em cerca de 2 a 3 minutos, dá para fazer no mesmo dia da festa.',
     ],
     estilos: ['Sertanejo', 'Pop', 'Forró / Baião', 'Samba / Pagode', 'Infantil', 'Gospel / Adoração'],
     climaSugerido: 'Festiva, Alegre ou Emocionante',
@@ -50,7 +50,7 @@ export const ocasioes = [
         + 'hora e o link também vai para o seu WhatsApp.'],
       ['A música fala o nome do aniversariante?',
         'Fala. O nome, o apelido e os detalhes que você contar entram na letra, e você lê tudo '
-        + 'antes de gerar o áudio — se algum nome estiver errado, é só ajustar.'],
+        + 'antes de gerar o áudio. Se algum nome estiver errado, é só ajustar.'],
       ['Posso tocar essa música na festa?',
         'Pode. Você recebe os arquivos em MP3 HD e pode baixar quantas vezes quiser, tocar na caixa '
         + 'de som, colocar em vídeo da família ou mandar no grupo.'],
@@ -74,13 +74,13 @@ export const ocasioes = [
     intro: [
       'Flor murcha e chocolate acaba. Uma música que conta o que a sua mãe fez por você, com o nome '
       + 'dela cantado, fica guardada no celular e é reouvida por anos.',
-      'Você escreve o que quiser contar — a comida que ela faz, o sacrifício que ela nunca '
-      + 'comentou, a frase que ela repete desde que você era criança — e a inteligência artificial '
+      'Você escreve o que quiser contar: a comida que ela faz, o sacrifício que ela nunca '
+      + 'comentou, a frase que ela repete desde que você era criança. A inteligência artificial '
       + 'transforma isso em letra e canção.',
     ],
     bullets: [
       'A letra nasce da sua história, não de um modelo pronto trocando o nome.',
-      'Você revisa e corrige a letra antes de gerar o áudio.',
+      'Você ouve as duas versões inteiras antes de decidir, e só paga se gostar.',
       'Duas versões completas em MP3 HD, com arranjos diferentes.',
       'Dá para somar um Vídeo Homenagem com as fotos dela, sincronizado com a música.',
     ],
@@ -88,7 +88,7 @@ export const ocasioes = [
     climaSugerido: 'Emocionante ou Nostálgica',
     faq: [
       ['Como faço para minha mãe ouvir?',
-        'Depois do pagamento você baixa o MP3 e manda para ela como quiser — WhatsApp, story, ou '
+        'Depois do pagamento você baixa o MP3 e manda para ela como quiser: WhatsApp, story, ou '
         + 'tocando na caixa de som no almoço. O link também chega no seu WhatsApp.'],
       ['Posso colocar fotos dela junto?',
         'Pode. O Vídeo Homenagem (R$ 6,90) monta um slideshow vertical com 10 a 20 fotos '
@@ -98,7 +98,7 @@ export const ocasioes = [
         + 'quando estiver do jeito certo.'],
       ['Serve para homenagear uma mãe que já faleceu?',
         'Serve, e é um dos pedidos mais comuns. Escolha o clima Melancólica ou Nostálgica e conte '
-        + 'as lembranças — a letra é escrita como memória, não como despedida.'],
+        + 'as lembranças. A letra é escrita como memória, não como despedida.'],
     ],
   },
   {
@@ -114,7 +114,7 @@ export const ocasioes = [
       'presente para namorada', 'pedido de namoro em música',
     ],
     intro: [
-      'Escrever o que se sente é difícil. Contar o que aconteceu é fácil — e é disso que a música '
+      'Escrever o que se sente é difícil. Contar o que aconteceu é fácil, e é disso que a música '
       + 'precisa: onde vocês se conheceram, o que ela disse, o apelido que só vocês usam, o dia em '
       + 'que quase deu errado.',
       'A partir dessa história a IA escreve a letra e grava a canção. Serve para declaração, pedido '
@@ -131,7 +131,7 @@ export const ocasioes = [
     faq: [
       ['Posso usar como pedido de namoro?',
         'Pode. Escolha a ocasião Pedido de Namoro no formulário e escreva na história o que você '
-        + 'quer pedir — a letra é construída em cima disso.'],
+        + 'quer pedir. A letra é construída em cima disso.'],
       ['Consigo escolher a voz que canta?',
         'Consegue. Voz masculina, feminina ou dueto, e o estilo musical entre 18 opções.'],
       ['Posso mandar a música com uma carta junto?',
@@ -159,12 +159,12 @@ export const ocasioes = [
       + 'e o gesto que a família inteira reconhece, quem ouve entende de quem se trata antes do '
       + 'refrão.',
       'A NS Music é usada para homenagear pai e mãe, avós, professores, profissionais aposentados, '
-      + 'times e igrejas — e também para despedida de quem já partiu, em missa de sétimo dia, '
+      + 'times e igrejas. Também serve para despedida de quem já partiu, em missa de sétimo dia, '
       + 'aniversário de falecimento e vídeo de família.',
     ],
     bullets: [
       'Conte a trajetória, as frases e os gestos: é isso que entra na letra.',
-      'Você revisa a letra antes do áudio — nome errado numa homenagem não tem conserto.',
+      'Você revisa a letra antes do áudio e ouve a música pronta antes de pagar.',
       'Duas versões em MP3 HD, para tocar na cerimônia e para guardar.',
       'Dá para somar o Vídeo Homenagem com as fotos, sincronizado com a música.',
     ],
@@ -175,7 +175,7 @@ export const ocasioes = [
         'Serve, e é um uso frequente. Escolha o clima Melancólica ou Nostálgica e conte as '
         + 'lembranças. A letra é escrita como memória de quem a pessoa foi.'],
       ['Posso tocar na missa ou no velório?',
-        'Pode. Você recebe os arquivos MP3 HD e usa onde quiser — caixa de som, celular, vídeo da '
+        'Pode. Você recebe os arquivos MP3 HD e usa onde quiser: caixa de som, celular, vídeo da '
         + 'família, redes sociais.'],
       ['Consigo juntar as fotos da pessoa?',
         'Consegue. O Vídeo Homenagem (R$ 6,90) monta um slideshow com 10 a 20 fotos no ritmo da '
@@ -201,11 +201,11 @@ export const ocasioes = [
       'A trilha do casamento costuma ser a música de outra pessoa. Aqui a canção conta a história '
       + 'do casal: como se conheceram, quanto tempo esperaram, o que superaram, os nomes dos filhos.',
       'Serve para a cerimônia, para a festa, para a valsa, para a surpresa no jantar e para bodas '
-      + 'de qualquer idade — 1, 10, 25 ou 50 anos de casamento.',
+      + 'de qualquer idade: 1, 10, 25 ou 50 anos de casamento.',
     ],
     bullets: [
       'A letra cita os dois nomes, as datas e os fatos que você contar.',
-      'Você aprova a letra antes de gerar o áudio.',
+      'Você ouve as duas versões inteiras antes de pagar.',
       'Duas versões com arranjos diferentes: uma para a cerimônia, outra para a festa.',
       'Playback instrumental disponível, se alguém for cantar ao vivo.',
     ],

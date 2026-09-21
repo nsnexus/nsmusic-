@@ -27,7 +27,7 @@ export default function WizardSteps({
       return (
         <div>
           <h1 style={styles.stepTitle}>Quem vai RECEBER a música?</h1>
-          <p style={styles.stepSubtitle}>Escolha a pessoa que será homenageada — ao clicar, a tela avança automaticamente!</p>
+          <p style={styles.stepSubtitle}>Escolha a pessoa que será homenageada. Ao clicar, a tela avança automaticamente!</p>
           <div style={styles.gridCards}>
             {recipients.map((item) => (
               <div

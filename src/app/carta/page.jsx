@@ -47,7 +47,7 @@ function CartaContent() {
           if (!data.hasCartaAccess && !data.cartaAddonPaid) {
             setErro('Esta carta ainda não foi liberada.');
           } else if (!data.cartaTexto) {
-            setErro('Esta carta ainda está sendo escrita — volte em instantes.');
+            setErro('Esta carta ainda está sendo escrita. Volte em instantes.');
           } else {
             setOrder(data);
           }

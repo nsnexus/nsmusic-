@@ -156,7 +156,7 @@ export default function ApoiePage() {
           ) : (
             <div style={{ textAlign: 'center' }}>
               <p style={{ fontSize: '0.95rem', fontWeight: '700', color: 'var(--success)', marginBottom: '14px' }}>
-                Chave gerada — R$ {pixInfo.amount.toFixed(2).replace('.', ',')}
+                Chave gerada: R$ {pixInfo.amount.toFixed(2).replace('.', ',')}
               </p>
 
               <div style={{ marginBottom: '14px' }}>
@@ -195,7 +195,7 @@ export default function ApoiePage() {
 
               <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '14px', lineHeight: '1.4' }}>
                 Muito obrigado pelo apoio! 💜 Essa é uma doação direta e não gera nenhum produto ou
-                acesso — é só uma forma de ajudar o estúdio a continuar.
+                acesso. É só uma forma de ajudar o estúdio a continuar.
               </p>
             </div>
           )}
