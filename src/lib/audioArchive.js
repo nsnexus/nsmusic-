@@ -32,11 +32,67 @@ export function isOurStorage(url) {
   );
 }
 
+// Monta as origens a tentar, em ordem, a partir da URL gravada no pedido.
+//
+// ACHADO 21/09/2026, investigando "archived: 0, failed: 5" hora após hora: os pedidos recentes
+// guardam o áudio como `audiostream.kie.ai/stream/<uuid>.mp3`, um endpoint de STREAMING que
+// responde **HTTP 200 com corpo VAZIO** para quem baixa direto (medido: 0 bytes). O arquivador
+// então achava que a origem era pequena demais e desistia — enquanto a MESMA faixa estava
+// inteira em `tempfile.aiquickdraw.com/r/<uuid>.mp3` (medido: 7,4 MB em 2 segundos).
+//
+// O /api/audio/proxy já fazia essa derivação e por isso os players funcionavam; só o arquivamento
+// não sabia, e era justamente ele que precisava salvar o arquivo antes de a Kie.ai apagá-lo.
+export function origensParaArquivar(sourceUrl) {
+  const url = String(sourceUrl || '').trim();
+  if (!url) return [];
+
+  const candidatos = [];
+  const uuid = (url.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i) || [])[1];
+
+  // musicfile.kie.ai guarda o UUID em base64 no path (ver o comentário equivalente no proxy).
+  let uuidDeBase64 = '';
+  if (!uuid && url.includes('musicfile.kie.ai')) {
+    try {
+      const path = new URL(url).pathname.replace(/^\/+/, '').replace(/\.[a-z0-9]+$/i, '');
+      const decodificado = atob(path);
+      if (/^[a-f0-9-]{36}$/i.test(decodificado)) uuidDeBase64 = decodificado;
+    } catch (e) { /* path que não é base64: segue sem derivar */ }
+  }
+
+  const id = uuid || uuidDeBase64;
+  if (id) {
+    // Arquivo direto primeiro. O stream fica por último porque costuma vir vazio.
+    candidatos.push(`https://tempfile.aiquickdraw.com/r/${id}.mp3`);
+    candidatos.push(`https://file.aiquickdraw.com/r/${id}.mp3`);
+  }
+  candidatos.push(url);
+
+  return [...new Set(candidatos)];
+}
+
 async function fetchSourceAudio(sourceUrl) {
-  const res = await fetch(sourceUrl, {
-    headers: { 'User-Agent': 'Mozilla/5.0', Accept: 'audio/mpeg, audio/*, */*' },
-    signal: AbortSignal.timeout(45000),
-  });
+  // Tenta cada origem derivada; só desiste quando todas falharem. Devolve o motivo da ÚLTIMA
+  // tentativa, que é o que aparece no log para investigação.
+  const origens = origensParaArquivar(sourceUrl);
+  let ultimoMotivo = 'sem_origem';
+  for (const origem of origens) {
+    const tentativa = await fetchUmaOrigem(origem);
+    if (tentativa.ok) return tentativa;
+    ultimoMotivo = `${tentativa.reason} (${origens.length} origens tentadas)`;
+  }
+  return { ok: false, reason: ultimoMotivo };
+}
+
+async function fetchUmaOrigem(sourceUrl) {
+  let res;
+  try {
+    res = await fetch(sourceUrl, {
+      headers: { 'User-Agent': 'Mozilla/5.0', Accept: 'audio/mpeg, audio/*, */*' },
+      signal: AbortSignal.timeout(45000),
+    });
+  } catch (err) {
+    return { ok: false, reason: `origem_inacessivel: ${err?.message || 'erro desconhecido'}` };
+  }
 
   if (!res.ok) return { ok: false, reason: `origem_http_${res.status}` };
 
