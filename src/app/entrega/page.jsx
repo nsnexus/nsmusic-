@@ -741,19 +741,20 @@ function EntregaContent() {
   // Extrai trackId das faixas do Suno quando disponível (para fallback de CDN no proxy)
   const primaryTrackId = order?.sunoTracks?.[0]?.trackId || '';
   const secondTrackId = order?.sunoTracks?.[1]?.trackId || '';
-  // Forma opaca do player: manda só o pedido e o índice da faixa, e o servidor resolve qual
-  // arquivo é (ver src/app/api/audio/proxy/route.js:resolveAudioUrlDoPedido). Assim a URL da CDN
-  // não aparece no `src` do <audio> nem na aba Rede do DevTools — pedido 21/09/2026.
-  // `formatAudioUrl` continua existindo para o caminho de download, que precisa da URL explícita.
-  const audioOpaco = (faixa) => (orderId ? `/api/audio/proxy?orderId=${encodeURIComponent(orderId)}&faixa=${faixa}&v=${AUDIO_CACHE_VERSION}` : '');
-  const temPrimeira = Boolean(order?.audioUrl || order?.audioFiles?.[0]);
-  const temSegunda = Boolean(order?.audioFiles?.[1]);
-  const primaryAudioUrl = temPrimeira
-    ? (audioOpaco(0) || formatAudioUrl(order?.audioUrl || order?.audioFiles?.[0] || '', primaryTrackId))
-    : '';
-  const secondAudioUrl = temSegunda
-    ? (audioOpaco(1) || formatAudioUrl(order?.audioFiles?.[1] || '', secondTrackId))
-    : '';
+  // REVERTIDO em 21/09/2026: o player voltou a receber a URL explícita.
+  //
+  // A tentativa de "opacar" a URL (mandar só orderId + índice da faixa e deixar o servidor
+  // resolver) derrubou a reprodução em produção: os dois players ficaram presos em "Preparando sua
+  // prévia..." para clientes que já tinham pago. A resolução no servidor depende de uma leitura do
+  // Firestore dentro da rota Edge, e ela não está devolvendo o pedido — enquanto isso o player não
+  // recebe áudio nenhum.
+  //
+  // Esconder a URL era melhoria de segurança marginal (o documento do pedido chega cru ao
+  // navegador pelo Firestore de qualquer jeito, então a URL continua ao alcance de quem procura).
+  // Não vale trocar reprodução quebrada por isso. Só voltar quando a resolução no servidor
+  // estiver provada contra um pedido real.
+  const primaryAudioUrl = formatAudioUrl(order?.audioUrl || (order?.audioFiles && order.audioFiles[0]) || '', primaryTrackId);
+  const secondAudioUrl = formatAudioUrl(order?.audioFiles && order.audioFiles[1] ? order.audioFiles[1] : '', secondTrackId);
 
   // A URL do áudio às vezes fica pronta no pedido antes do arquivo terminar de propagar na CDN da
   // Kie.ai — e nem sempre isso dispara `onError` no <audio> (às vezes ele só fica "pendurado", sem
