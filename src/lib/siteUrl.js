@@ -9,7 +9,7 @@
 // Pages **só depois** que o domínio novo já estiver respondendo. Ver docs/DOMINIO.md.
 
 // Domínio oficial. É o fallback de tudo e o que aparece em canonical, sitemap e JSON-LD.
-export const DOMINIO_CANONICO = 'https://nsmusic.nsnexus.com.br';
+export const DOMINIO_CANONICO = 'https://nsmusic.ia.br';
 
 // Normaliza e rejeita o que não serve como endereço público: vazio, localhost (build local) e
 // *.pages.dev (URL de preview da Cloudflare, que muda a cada deploy e não é indexável).
