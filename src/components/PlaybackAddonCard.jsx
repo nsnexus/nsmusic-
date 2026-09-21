@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { requestPixCharge } from '@/lib/pixCheckout';
 import { buildAudioProxySrc } from '@/lib/audioProxy';
 import PixQrCode from './PixQrCode';
+import { useWhatsappSuporte, linkWhatsapp } from '@/lib/useWhatsappSuporte';
 
 const MAX_PIX_ATTEMPTS = 3;
 const PIX_POLLING_MAX_ATTEMPTS = 150; // ~10min a cada 4s, mesmo limite do add-on de vídeo
@@ -18,6 +19,8 @@ const PIX_POLLING_MAX_ATTEMPTS = 150; // ~10min a cada 4s, mesmo limite do add-o
 // chegam sozinhos quando o webhook da Kie.ai gravar, sem esse componente precisar escutar nada além
 // do próprio pagamento.
 export default function PlaybackAddonCard({ orderId, order }) {
+  // Número do suporte vem da configuração editável no painel (src/lib/configSite.js), não do código.
+  const whatsappSuporte = useWhatsappSuporte();
   const [pixInfo, setPixInfo] = useState({ qrCode: '', paymentId: '' });
   const [loading, setLoading] = useState(false);
   const [pixError, setPixError] = useState('');
@@ -296,7 +299,7 @@ export default function PlaybackAddonCard({ orderId, order }) {
               {retrying ? 'Tentando...' : '🔁 Tentar gerar novamente'}
             </button>
             <a
-              href={`https://wa.me/559491081351?text=${encodeURIComponent(`Olá! Paguei o Playback (Instrumental) do pedido #${orderId} mas não recebi o arquivo.`)}`}
+              href={`${linkWhatsapp(whatsappSuporte, `Olá! Paguei o Playback (Instrumental) do pedido #${orderId} mas não recebi o arquivo.`)}`}
               target="_blank"
               rel="noopener noreferrer"
               className="btn btn-secondary"

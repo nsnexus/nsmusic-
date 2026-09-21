@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { collection, query, orderBy, onSnapshot, limit as fbLimit, doc, setDoc, where } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
+import { lerConfigSite, normalizarNumeroWhatsapp, WHATSAPP_SUPORTE_PADRAO } from '@/lib/configSite';
 import { getPriceForSku } from '@/lib/pricing';
 import { buildSunoPayload } from '@/lib/sunoPayload';
 import FaturamentoCards from '@/components/FaturamentoCards';
@@ -59,6 +60,13 @@ export default function AdminDashboard() {
   const [deletingOrders, setDeletingOrders] = useState(false);
 
   const [activeTab, setActiveTab] = useState('ORDERS'); // 'ORDERS', 'STUCK'
+
+  // Número de WhatsApp do suporte, editável aqui em vez de hardcoded no código (pedido 21/09/2026:
+  // o número principal foi suspenso e o dono vai alternar de volta em dois dias — trocar isso não
+  // pode exigir deploy). Ver src/lib/configSite.js.
+  const [numeroSuporte, setNumeroSuporte] = useState('');
+  const [salvandoNumero, setSalvandoNumero] = useState(false);
+  const [msgNumero, setMsgNumero] = useState('');
 
   // Reprocessamento de pedidos travados antes da Suno (letra pronta mas geração nunca confirmada).
   // Varredura de conferência de pagamentos (pedido 20/09/2026) — ver handleAuditPayments.
@@ -394,6 +402,43 @@ export default function AdminDashboard() {
   // status REAL na Efí e mostra as que foram pagas e não liberaram nada. Duas etapas de propósito —
   // primeiro o relatório (GET, não muda nada), e só depois de ver a lista é que o admin confirma
   // (POST). Ver src/app/api/orders/audit-payments/route.js.
+  // Carrega o número salvo ao abrir o painel. Se nunca foi salvo, mostra o padrão do código, que
+  // é o que as páginas do cliente estão usando de fato.
+  useEffect(() => {
+    lerConfigSite().then((cfg) => {
+      setNumeroSuporte(cfg?.whatsappSuporte || WHATSAPP_SUPORTE_PADRAO);
+    });
+  }, []);
+
+  const handleSalvarNumeroSuporte = async () => {
+    const normalizado = normalizarNumeroWhatsapp(numeroSuporte);
+    if (!normalizado) {
+      setMsgNumero('Número inválido. Use DDD + número, por exemplo 94991064043.');
+      return;
+    }
+    setSalvandoNumero(true);
+    setMsgNumero('');
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      const res = await fetch('/api/admin/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ whatsappSuporte: normalizado }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMsgNumero(data.error || 'Não foi possível salvar.');
+        return;
+      }
+      setNumeroSuporte(data.whatsappSuporte);
+      setMsgNumero('✅ Salvo. Os botões do site já apontam para este número.');
+    } catch (err) {
+      setMsgNumero('Falha de conexão ao salvar.');
+    } finally {
+      setSalvandoNumero(false);
+    }
+  };
+
   const handleAuditPayments = async (aplicar = false) => {
     if (aplicar && !confirm('Confirmar e liberar TODOS os pagamentos encontrados nesta varredura?')) return;
 
@@ -642,6 +687,62 @@ export default function AdminDashboard() {
               {/* Cards de faturamento/vendas/pedidos do período — pedido 12/09/2026, ver comentário
                   em src/components/FaturamentoCards.jsx pro porquê de ser consulta própria. */}
               <FaturamentoCards dateFrom={dateFrom} dateTo={dateTo} />
+
+              {/* Número de WhatsApp do suporte. Editável aqui de propósito: é para onde TODOS os
+                  botões "Falar no WhatsApp" do site mandam o cliente, e trocar isso no código
+                  exigiria deploy (pedido 21/09/2026, número principal suspenso). */}
+              <div style={{
+                marginTop: '16px',
+                padding: '12px 16px',
+                borderRadius: '12px',
+                background: '#f8fafc',
+                border: '1px solid #e2e8f0',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                flexWrap: 'wrap',
+              }}>
+                <label htmlFor="numeroSuporte" style={{ fontSize: '0.82rem', fontWeight: '700', color: '#334155' }}>
+                  📱 WhatsApp do suporte
+                </label>
+                <input
+                  id="numeroSuporte"
+                  type="tel"
+                  value={numeroSuporte}
+                  onChange={(e) => { setNumeroSuporte(e.target.value); setMsgNumero(''); }}
+                  placeholder="94991064043"
+                  style={{
+                    flex: '1 1 160px',
+                    minWidth: '140px',
+                    padding: '8px 10px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    fontSize: '0.88rem',
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={handleSalvarNumeroSuporte}
+                  disabled={salvandoNumero}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: salvandoNumero ? '#94a3b8' : '#7c3aed',
+                    color: '#fff',
+                    fontWeight: '700',
+                    fontSize: '0.85rem',
+                    cursor: salvandoNumero ? 'default' : 'pointer',
+                  }}
+                >
+                  {salvandoNumero ? 'Salvando...' : 'Salvar'}
+                </button>
+                {msgNumero && (
+                  <span style={{ fontSize: '0.8rem', color: msgNumero.startsWith('✅') ? '#059669' : '#dc2626', flexBasis: '100%' }}>
+                    {msgNumero}
+                  </span>
+                )}
+              </div>
 
               {/* Tabela por dia, mapa de calor por horário e mapa por estado moraram aqui até
                   12/09/2026 — pedido do dono pra ficarem em /admin/dashboard junto do resto da

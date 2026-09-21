@@ -62,6 +62,17 @@ service cloud.firestore {
       );
     }
 
+    match /config/{documento} {
+      // Configuração pública do site (hoje: número de WhatsApp do suporte). Leitura liberada de
+      // propósito — as páginas do cliente precisam dela para montar o botão "Falar no WhatsApp",
+      // e não há nada sensível aqui. Escrita só por admin ou pela rota /api/admin/config.
+      allow read: if true;
+      allow write: if request.auth != null && (
+        request.auth.token.admin == true ||
+        request.auth.token.service == true
+      );
+    }
+
     match /suno_tasks/{taskId} {
       // suno_tasks é estado interno de produção; nenhum cliente precisa ler ou escrever diretamente.
       allow read, write: if request.auth != null && (

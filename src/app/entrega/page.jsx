@@ -21,8 +21,11 @@ import { getPriceForSku } from '@/lib/pricing';
 import { markPreviewListened } from '@/lib/previewTracking';
 import { isInAppBrowser } from '@/lib/inAppBrowser';
 import { styles } from './entregaStyles';
+import { useWhatsappSuporte, linkWhatsapp } from '@/lib/useWhatsappSuporte';
 
 function EntregaContent() {
+  // Número do suporte vem da configuração editável no painel (src/lib/configSite.js), não do código.
+  const whatsappSuporte = useWhatsappSuporte();
   const searchParams = useSearchParams();
   const orderId = searchParams.get('orderId') || searchParams.get('id');
   const promo = searchParams.get('promo');
@@ -998,7 +1001,7 @@ function EntregaContent() {
                                 Tentar novamente
                               </button>
                               <a
-                                href={`https://wa.me/559491081351?text=${encodeURIComponent(`Olá! Não consigo carregar a prévia do pedido #${orderId || ''} (${order?.honoreeName || 'música personalizada'}).`)}`}
+                                href={`${linkWhatsapp(whatsappSuporte, `Olá! Não consigo carregar a prévia do pedido #${orderId || ''} (${order?.honoreeName || 'música personalizada'}).`)}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="entrega-whatsapp-btn"
@@ -1105,7 +1108,7 @@ function EntregaContent() {
                                 Tentar novamente
                               </button>
                               <a
-                                href={`https://wa.me/559491081351?text=${encodeURIComponent(`Olá! Não consigo carregar a prévia do pedido #${orderId || ''} (${order?.honoreeName || 'música personalizada'}).`)}`}
+                                href={`${linkWhatsapp(whatsappSuporte, `Olá! Não consigo carregar a prévia do pedido #${orderId || ''} (${order?.honoreeName || 'música personalizada'}).`)}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="entrega-whatsapp-btn"
@@ -1165,7 +1168,7 @@ function EntregaContent() {
                       </p>
                     </div>
                     <a
-                      href={`https://wa.me/559491081351?text=${encodeURIComponent(`Olá! Ouvi a prévia do pedido #${orderId || ''} (${order?.honoreeName || 'música personalizada'}) e gostaria de ajuda para fazer do meu jeito.`)}`}
+                      href={`${linkWhatsapp(whatsappSuporte, `Olá! Ouvi a prévia do pedido #${orderId || ''} (${order?.honoreeName || 'música personalizada'}) e gostaria de ajuda para fazer do meu jeito.`)}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="entrega-whatsapp-btn"
@@ -1910,7 +1913,7 @@ function EntregaContent() {
 
                                 {receiptStatus === 'failed' && (
                                   <a
-                                    href={`https://wa.me/5594991064043?text=${encodeURIComponent(`Olá! Acabei de pagar o pedido *#${orderId}* (R$ ${order?.totalPrice?.toFixed(2) || '9,99'}). Segue o comprovante:`)}`}
+                                    href={`${linkWhatsapp(whatsappSuporte, `Olá! Acabei de pagar o pedido *#${orderId}* (R$ ${order?.totalPrice?.toFixed(2) || '9,99'}). Segue o comprovante:`)}`}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     style={{

@@ -15,6 +15,7 @@ import CustomAudioPreview from './CustomAudioPreview';
 import WizardSteps from './WizardSteps';
 import PixQrCode from '@/components/PixQrCode';
 import { requestPixCharge } from '@/lib/pixCheckout';
+import { useWhatsappSuporte, linkWhatsapp } from '@/lib/useWhatsappSuporte';
 
 // Espera antes de mostrar o convite "receber a música no WhatsApp" na tela de geração: aparecendo
 // de imediato, o cliente clicava e saía da tela antes de ver a música ficar pronta ali mesmo.
@@ -62,6 +63,8 @@ function BrandLogo() {
 }
 
 export default function CriarMusica() {
+  // Número do suporte vem da configuração editável no painel (src/lib/configSite.js), não do código.
+  const whatsappSuporte = useWhatsappSuporte();
   const [step, setStep] = useState(1);
   const [orderId, setOrderId] = useState('');
   const [taskId, setTaskId] = useState('');
@@ -1356,7 +1359,7 @@ export default function CriarMusica() {
                         💬 <strong>Não gostou do resultado da letra?</strong> Nos chame no WhatsApp que fazemos do seu jeito!
                       </p>
                       <a
-                        href={`https://wa.me/559491081351?text=${encodeURIComponent(`Olá! Gostaria de ajuda para ajustar a letra da minha música para ${formData.honoreeName || 'alguém especial'}.`)}`}
+                        href={`${linkWhatsapp(whatsappSuporte, `Olá! Gostaria de ajuda para ajustar a letra da minha música para ${formData.honoreeName || 'alguém especial'}.`)}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         style={{
@@ -1439,7 +1442,7 @@ export default function CriarMusica() {
                     Toque no botão abaixo para receber a prévia dos seus 2 arranjos diretamente no seu WhatsApp assim que o estúdio finalizar:
                   </p>
                   <a
-                    href={`https://wa.me/559491081351?text=${encodeURIComponent(`Olá! Quero receber a prévia da música do meu pedido ${orderId ? `id=${orderId}` : ''}`)}`}
+                    href={`${linkWhatsapp(whatsappSuporte, `Olá! Quero receber a prévia da música do meu pedido ${orderId ? `id=${orderId}` : ''}`)}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{
@@ -1507,7 +1510,7 @@ export default function CriarMusica() {
                       </button>
 
                       <a
-                        href={`https://wa.me/559491081351?text=${encodeURIComponent(`Olá! Minha música para ${formData.honoreeName || 'alguém especial'}${orderId ? ` (pedido ${orderId})` : ''} travou na tela de produção.`)}`}
+                        href={`${linkWhatsapp(whatsappSuporte, `Olá! Minha música para ${formData.honoreeName || 'alguém especial'}${orderId ? ` (pedido ${orderId})` : ''} travou na tela de produção.`)}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         style={{ padding: '10px 18px', background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)', color: '#fff', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.9rem', textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}
@@ -1620,7 +1623,7 @@ export default function CriarMusica() {
                       </p>
                     </div>
                     <a
-                      href={`https://wa.me/559491081351?text=${encodeURIComponent(`Olá! Ouvi as prévias da música para ${formData.honoreeName || 'alguém especial'}${orderId ? ` (pedido #${orderId})` : ''} e gostaria de ajuda para fazer do meu jeito.`)}`}
+                      href={`${linkWhatsapp(whatsappSuporte, `Olá! Ouvi as prévias da música para ${formData.honoreeName || 'alguém especial'}${orderId ? ` (pedido #${orderId})` : ''} e gostaria de ajuda para fazer do meu jeito.`)}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       style={{
@@ -2111,7 +2114,7 @@ export default function CriarMusica() {
               )}
 
               <a
-                href="https://wa.me/5594991064043?text=Ol%C3%A1%2C%20gostaria%20de%20liberar%20mais%20cria%C3%A7%C3%B5es%20de%20m%C3%BAsicas%20no%20NSMusic!"
+                href={linkWhatsapp(whatsappSuporte, 'Olá, gostaria de liberar mais criações de músicas no NSMusic!')}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="btn btn-secondary"
