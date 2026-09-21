@@ -60,7 +60,13 @@ export default function RootLayout({ children }) {
   return (
     <html lang="pt-BR">
       <head>
+        {/* Verificação de domínio da Meta. A Meta emite um código POR DOMÍNIO, e as duas tags
+            convivem: a primeira é de nsmusic.nsnexus.com.br, a segunda de nsmusic.ia.br
+            (migração de 21/09/2026). Manter as duas enquanto o domínio antigo servir — remover a
+            de cima só quando ele deixar de receber tráfego, senão a verificação dele cai e a
+            atribuição dos anúncios antigos vai junto. */}
         <meta name="facebook-domain-verification" content="qi9uy0hda0fhx97jdp01eathe33ikq" />
+        <meta name="facebook-domain-verification" content="0eo12pnwh2cj9ugkzhpkvrl6tr96wj" />
         <Script
           src="https://www.googletagmanager.com/gtag/js?id=G-W4FMK1K20Y"
           strategy="afterInteractive"
