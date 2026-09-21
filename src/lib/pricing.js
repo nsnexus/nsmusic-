@@ -91,11 +91,15 @@ export function brindesPorValorPago(valorPago) {
 }
 
 // As faixas em ordem, para a tela montar os botões sem repetir os limiares à mão.
+//
+// `destaque` é só rótulo de tela: nunca entra em decisão de preço nem de brinde. O combo
+// música+vídeo é o funil principal do estúdio, e o dono pediu (21/09/2026) que ele apareça como o
+// mais escolhido, em vez de a tela já vir com o mínimo marcado.
 export function faixasDeImpacto() {
   return [
     { sku: 'audio_only', valor: getPriceForSku('audio_only'), ganha: [] },
     { sku: 'combo_carta', valor: getPriceForSku('combo_carta'), ganha: ['Carta Virtual'] },
-    { sku: 'combo', valor: getPriceForSku('combo'), ganha: ['Vídeo Homenagem', 'Carta Virtual'] },
+    { sku: 'combo', valor: getPriceForSku('combo'), ganha: ['Vídeo Homenagem', 'Carta Virtual'], destaque: 'MAIS ESCOLHIDO' },
     { sku: 'combo_retrospectiva', valor: getPriceForSku('combo_retrospectiva'), ganha: ['Retrospectiva', 'Vídeo Homenagem', 'Carta Virtual'] },
   ].filter((f) => f.valor !== null);
 }

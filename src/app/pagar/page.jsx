@@ -284,7 +284,10 @@ function PagarContent() {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '7px', marginBottom: '14px' }}>
             {FAIXAS.map((faixa) => {
-              const ativa = Math.abs((pixInfo?.amount ?? MIN_PRICE) - faixa.valor) < 0.01;
+              // Sem o `?? MIN_PRICE`: o fallback deixava a faixa mínima marcada antes de o cliente
+              // escolher qualquer coisa, e faixa marcada é faixa escolhida (pedido de 21/09/2026).
+              const ativa = typeof pixInfo?.amount === 'number' && Math.abs(pixInfo.amount - faixa.valor) < 0.01;
+              const destacada = Boolean(faixa.destaque) && !ativa;
               return (
                 <button
                   key={faixa.sku}
@@ -297,8 +300,10 @@ function PagarContent() {
                     gap: '10px',
                     padding: '11px 12px',
                     borderRadius: '10px',
-                    border: ativa ? '2px solid var(--primary)' : '1.5px solid var(--border-color)',
-                    background: ativa ? 'var(--primary-light)' : 'var(--bg-primary)',
+                    border: ativa ? '2px solid var(--primary)'
+                      : destacada ? '2px solid var(--secondary)' : '1.5px solid var(--border-color)',
+                    background: ativa ? 'var(--primary-light)'
+                      : destacada ? 'rgba(124, 58, 237, 0.10)' : 'var(--bg-primary)',
                     cursor: pixLoading ? 'default' : 'pointer',
                     textAlign: 'left',
                     width: '100%',
@@ -312,6 +317,11 @@ function PagarContent() {
                       ? 'A música, em MP3 HD'
                       : <>A música <strong>+ {faixa.ganha.join(' + ')}</strong></>}
                   </span>
+                  {faixa.destaque && (
+                    <span style={{ fontSize: '0.62rem', fontWeight: '800', letterSpacing: '0.04em', color: '#fff', background: 'var(--secondary)', padding: '3px 7px', borderRadius: '999px', whiteSpace: 'nowrap' }}>
+                      {faixa.destaque}
+                    </span>
+                  )}
                 </button>
               );
             })}

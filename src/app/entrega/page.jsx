@@ -235,9 +235,14 @@ function EntregaContent() {
   // Preço e texto do bloco de pagamento, derivados do pacote escolhido. Aqui é só EXIBIÇÃO — quem
   // cobra é o servidor, a partir do sku (C-05 no AUDIT_REPORT.md). Mas exibir um valor diferente do
   // que o banco pede faz o cliente desistir, então os dois têm que sair do mesmo catálogo.
-  // Valor escolhido na escada de impacto. Começa no mínimo (só a música) e é o que vira a cobrança.
-  const [valorEscolhido, setValorEscolhido] = useState(() => getPriceForSku('audio_only'));
-  const [valorDigitado, setValorDigitado] = useState(() => String(getPriceForSku('audio_only')));
+  // Valor escolhido na escada de impacto — é o que vira a cobrança.
+  //
+  // Começa `null` de propósito (pedido do dono do estúdio em 21/09/2026): antes a tela abria com o
+  // mínimo de R$ 9,99 já marcado e com o Pix desse valor gerado sozinho, o que transformava a
+  // escada inteira em decoração — o cliente só pagava o que já estava pronto na tela. Sem faixa
+  // marcada, escolher vira um ato do cliente, e a faixa em destaque é a referência.
+  const [valorEscolhido, setValorEscolhido] = useState(null);
+  const [valorDigitado, setValorDigitado] = useState('');
 
   const escolherFaixa = (valor) => {
     setValorEscolhido(valor);
@@ -260,6 +265,10 @@ function EntregaContent() {
   // O que o cliente vai pagar de fato: na promoção vale o preço da promoção; fora dela, a faixa
   // escolhida na escada de impacto. Um número só, para tela e cobrança nunca divergirem.
   const valorCobrado = promo ? precoDoPacoteAtual : valorEscolhido;
+  // Texto do valor para os lugares que falam da cobrança antes de o cliente escolher a faixa.
+  const valorCobradoTexto = typeof valorCobrado === 'number'
+    ? `R$ ${valorCobrado.toFixed(2).replace('.', ',')}`
+    : '';
   // hasVideoAccess só pode vir de campos confirmados pelo servidor. `selectedPackage` é estado local
   // do React, setado só por clique do usuário (inclusive antes de qualquer pagamento) — usá-lo aqui
   // liberava o vídeo (renderizado e enviado ao Storage inteiramente pelo cliente, sem checagem de
@@ -554,11 +563,14 @@ function EntregaContent() {
   // pixInfo.qrCode ainda vazio, o efeito disparava de novo na hora e o cliente via o mesmo erro
   // repetidamente, sem nunca conseguir pagar. Com a trava, a falha para o ciclo e a retomada passa a
   // ser explícita, pelo botão "Tentar novamente" (que limpa pixError).
+  // Fora da promoção, a geração espera o cliente escolher a faixa (`valorEscolhido`): gerar o Pix
+  // do mínimo sozinho entregava a resposta pronta e ninguém subia de faixa. Na promoção o preço é
+  // fixo e não existe escada, então lá continua automático.
   useEffect(() => {
-    if (order && !isPaid && !pixInfo.qrCode && !pixLoading && !pixError) {
+    if (order && !isPaid && !pixInfo.qrCode && !pixLoading && !pixError && (promo || valorEscolhido !== null)) {
       handleGeneratePix();
     }
-  }, [order, isPaid, pixInfo.qrCode, pixLoading, pixError]);
+  }, [order, isPaid, pixInfo.qrCode, pixLoading, pixError, promo, valorEscolhido]);
 
   // Polling em tempo real para confirmação de pagamento PIX (Áudio Principal) com fallback Firestore
   useEffect(() => {
@@ -887,7 +899,7 @@ function EntregaContent() {
               backgroundColor: isPaid ? 'rgba(16, 185, 129, 0.05)' : 'rgba(245, 158, 11, 0.05)'
             }}
           >
-            {isPaid ? '✨ Entrega Liberada' : `⏳ Aguardando Pagamento (R$ ${valorCobrado.toFixed(2).replace('.', ',')})`}
+            {isPaid ? '✨ Entrega Liberada' : `⏳ Aguardando Pagamento${valorCobradoTexto ? ` (${valorCobradoTexto})` : ''}`}
           </span>
         </div>
       </header>
@@ -1020,7 +1032,7 @@ function EntregaContent() {
                       className="btn btn-primary"
                       style={{ padding: '8px 16px', fontSize: '0.85rem', whiteSpace: 'nowrap' }}
                     >
-                      Pagar R$ {valorCobrado.toFixed(2).replace('.', ',')}
+                      {valorCobradoTexto ? `Pagar ${valorCobradoTexto}` : 'Pagar agora'}
                     </span>
                   </a>
                 )}
@@ -1886,7 +1898,8 @@ function EntregaContent() {
                       {!promo && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '14px', textAlign: 'left' }}>
                           {faixasDeImpacto().map((faixa) => {
-                            const ativa = Math.abs(valorEscolhido - faixa.valor) < 0.01;
+                            const ativa = valorEscolhido !== null && Math.abs(valorEscolhido - faixa.valor) < 0.01;
+                            const destacada = Boolean(faixa.destaque) && !ativa;
                             return (
                               <button
                                 key={faixa.sku}
@@ -1899,8 +1912,10 @@ function EntregaContent() {
                                   gap: '10px',
                                   padding: '10px 12px',
                                   borderRadius: '10px',
-                                  border: ativa ? '1.5px solid var(--success)' : '1px solid var(--border-color)',
-                                  background: ativa ? 'rgba(16, 185, 129, 0.10)' : 'var(--card-bg)',
+                                  border: ativa ? '1.5px solid var(--success)'
+                                    : destacada ? '1.5px solid var(--primary)' : '1px solid var(--border-color)',
+                                  background: ativa ? 'rgba(16, 185, 129, 0.10)'
+                                    : destacada ? 'rgba(124, 58, 237, 0.10)' : 'var(--card-bg)',
                                   cursor: pixLoading ? 'default' : 'pointer',
                                   textAlign: 'left',
                                   width: '100%',
@@ -1914,6 +1929,11 @@ function EntregaContent() {
                                     ? 'As 2 versões em MP3 HD'
                                     : <>As 2 versões <strong>+ {faixa.ganha.join(' + ')}</strong></>}
                                 </span>
+                                {faixa.destaque && (
+                                  <span style={{ fontSize: '0.62rem', fontWeight: '800', letterSpacing: '0.04em', color: '#fff', background: 'var(--primary)', padding: '3px 7px', borderRadius: '999px', whiteSpace: 'nowrap' }}>
+                                    {faixa.destaque}
+                                  </span>
+                                )}
                               </button>
                             );
                           })}
@@ -2134,14 +2154,18 @@ function EntregaContent() {
                             )}
                           </div>
 
+                        ) : !promo && valorEscolhido === null ? (
+                          <p style={{ width: '100%', textAlign: 'center', fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0 }}>
+                            ⬆️ Escolha acima quanto a homenagem vale e o PIX aparece aqui na hora.
+                          </p>
                         ) : (
                           <button
                             type="button"
-                            onClick={handleGeneratePix}
+                            onClick={() => handleGeneratePix()}
                             className="btn btn-primary"
                             style={{ width: '100%', padding: '14px', fontSize: '1rem' }}
                           >
-                            💚 Gerar PIX (R$ {promo === '48h' ? '6,99' : '9,99'})
+                            💚 Gerar PIX{valorCobradoTexto ? ` (${valorCobradoTexto})` : ''}
                           </button>
                         )}
 
