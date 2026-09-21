@@ -388,47 +388,63 @@ export async function POST(req) {
       return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
 
-    // Uma fase nunca derruba a outra: se a consulta de música falhar, a de pagamento ainda roda (e
-    // vice-versa). O erro de cada uma volta no próprio bloco, para o admin ver o que aconteceu em
-    // vez de um 500 sem explicação.
-    let audio;
-    try {
-      audio = await reconcileStuckAudio(env);
-    } catch (err) {
-      console.error('[reconcile] Falha inesperada na fase de música:', err.message);
-      audio = { checked: 0, completed: 0, retried: 0, stillProcessing: 0, failed: 0, error: `inesperado: ${describeFirestoreError(err)}` };
+    // `?fase=` divide o trabalho em requisições separadas.
+    //
+    // Achado 21/09/2026, com o cron finalmente rodando: a resposta vinha com
+    // `payments: {error: "consulta_orders: unknown"}` e `videoAddon` igual, SEMPRE nessa ordem,
+    // enquanto as mesmas consultas rodavam sem erro nenhum fora do Edge (testado com o SDK
+    // cliente em Node: 5 de 5 OK, índices corretos). O que diferencia produção é o orçamento de
+    // sub-requisições por requisição: a fase de música roda antes e gasta até 10 pedidos × (Kie.ai
+    // + Firestore), e o que vem depois não consegue mais sair para a rede. Por isso a fase de
+    // pagamento — a que envolve dinheiro do cliente — não pode dividir requisição com ela.
+    //
+    // 'pagamentos' e 'audio' são chamadas separadamente pelo agendador (workers/efi-proxy-fly).
+    // Sem o parâmetro, roda tudo, que é como o botão do painel sempre funcionou.
+    const fase = new URL(req.url).searchParams.get('fase') || 'tudo';
+    const fazPagamentos = fase === 'tudo' || fase === 'pagamentos';
+    const fazAudio = fase === 'tudo' || fase === 'audio';
+
+    const resposta = { fase };
+
+    // Pagamento primeiro, sempre. Se algum orçamento estourar no meio, que estoure no que é
+    // recuperável depois, não no dinheiro que o cliente já pagou.
+    if (fazPagamentos) {
+      try {
+        resposta.payments = await reconcilePendingPayments(env);
+      } catch (err) {
+        console.error('[reconcile] Falha inesperada na fase de pagamento:', err.message);
+        resposta.payments = { checked: 0, approved: 0, stillPending: 0, error: `inesperado: ${describeFirestoreError(err)}` };
+      }
+
+      // Fase própria porque o add-on de vídeo avulso nunca toca paymentStatus (C-09) — teria que
+      // ser encontrado de um jeito diferente de qualquer forma.
+      try {
+        resposta.videoAddon = await reconcilePendingVideoAddons(env);
+      } catch (err) {
+        console.error('[reconcile] Falha inesperada na fase de add-on de vídeo:', err.message);
+        resposta.videoAddon = { checked: 0, approved: 0, stillPending: 0, error: `inesperado: ${describeFirestoreError(err)}` };
+      }
     }
 
-    let payments;
-    try {
-      payments = await reconcilePendingPayments(env);
-    } catch (err) {
-      console.error('[reconcile] Falha inesperada na fase de pagamento:', err.message);
-      payments = { checked: 0, approved: 0, stillPending: 0, error: `inesperado: ${describeFirestoreError(err)}` };
+    if (fazAudio) {
+      try {
+        resposta.audio = await reconcileStuckAudio(env);
+      } catch (err) {
+        console.error('[reconcile] Falha inesperada na fase de música:', err.message);
+        resposta.audio = { checked: 0, completed: 0, retried: 0, stillProcessing: 0, failed: 0, error: `inesperado: ${describeFirestoreError(err)}` };
+      }
+
+      try {
+        resposta.abandonedSessions = await cleanupAbandonedWhatsAppSessions(env);
+      } catch (err) {
+        console.error('[reconcile] Falha inesperada na limpeza de sessões de WhatsApp:', err.message);
+        resposta.abandonedSessions = { checked: 0, deleted: 0, error: `inesperado: ${describeFirestoreError(err)}` };
+      }
     }
 
-    // Fase própria (não dentro de reconcilePendingPayments) porque o add-on de vídeo avulso nunca
-    // toca paymentStatus (C-09) — teria que ser encontrado de um jeito diferente de qualquer forma,
-    // então isolar em outra função e outro try/catch segue o mesmo padrão das outras duas fases.
-    let videoAddon;
-    try {
-      videoAddon = await reconcilePendingVideoAddons(env);
-    } catch (err) {
-      console.error('[reconcile] Falha inesperada na fase de add-on de vídeo:', err.message);
-      videoAddon = { checked: 0, approved: 0, stillPending: 0, error: `inesperado: ${describeFirestoreError(err)}` };
-    }
+    console.log('[reconcile] Resultado:', JSON.stringify(resposta));
 
-    let abandonedSessions;
-    try {
-      abandonedSessions = await cleanupAbandonedWhatsAppSessions(env);
-    } catch (err) {
-      console.error('[reconcile] Falha inesperada na limpeza de sessões de WhatsApp:', err.message);
-      abandonedSessions = { checked: 0, deleted: 0, error: `inesperado: ${describeFirestoreError(err)}` };
-    }
-
-    console.log('[reconcile] Resultado:', JSON.stringify({ audio, payments, videoAddon, abandonedSessions }));
-
-    return NextResponse.json({ audio, payments, videoAddon, abandonedSessions });
+    return NextResponse.json(resposta);
   } catch (error) {
     console.error('[reconcile] Erro geral:', error.message);
     return NextResponse.json({ error: 'Falha ao reconciliar pedidos.' }, { status: 500 });

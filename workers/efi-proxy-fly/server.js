@@ -190,10 +190,15 @@ async function handleRelay(req, res) {
 const TAREFAS = [
   // A mais importante: confere na Efí quem pagou e não foi liberado. Ver
   // src/app/api/orders/reconcile/route.js (lê `x-reconcile-secret`).
-  { nome: 'reconcile', caminho: '/api/orders/reconcile', cabecalho: 'X-Reconcile-Secret', envSegredo: 'RECONCILE_SECRET', minutos: 10 },
+  // Pagamento e música vão em requisições SEPARADAS de propósito: juntas, a fase de música gasta
+  // o orçamento de sub-requisições do Edge e a de pagamento morre com 'unknown' (achado
+  // 21/09/2026 — ver o comentário de ?fase= em src/app/api/orders/reconcile/route.js).
+  // A de pagamento é mais frequente: é a que libera o produto de quem já pagou.
+  { nome: 'reconcile-pagamentos', caminho: '/api/orders/reconcile?fase=pagamentos', cabecalho: 'X-Reconcile-Secret', envSegredo: 'RECONCILE_SECRET', minutos: 5 },
+  { nome: 'reconcile-audio', caminho: '/api/orders/reconcile?fase=audio', cabecalho: 'X-Reconcile-Secret', envSegredo: 'RECONCILE_SECRET', minutos: 15 },
   // Régua de recuperação de carrinho no WhatsApp. Esta usa `Authorization: Bearer`, não um
   // cabeçalho próprio — ver src/app/api/cron/recover/route.js:37.
-  { nome: 'recover', caminho: '/api/cron/recover', cabecalho: 'Authorization', prefixoBearer: true, envSegredo: 'CRON_SECRET', minutos: 15 },
+  { nome: 'recover', caminho: '/api/cron/recover', metodo: 'GET', cabecalho: 'Authorization', prefixoBearer: true, envSegredo: 'CRON_SECRET', minutos: 15 },
   // Arquivamento de áudio pago no R2. Aceita `x-cleanup-secret` ou `x-reconcile-secret`.
   { nome: 'archive-audio', caminho: '/api/orders/archive-audio', cabecalho: 'X-Cleanup-Secret', envSegredo: 'CLEANUP_SECRET', alternativaSegredo: 'RECONCILE_SECRET', minutos: 60 },
   // Limpeza de rascunho antigo, uma vez por dia.
@@ -217,7 +222,7 @@ function agendarTarefas() {
     const rodar = async () => {
       try {
         const res = await fetch(`${appUrl}${tarefa.caminho}`, {
-          method: 'POST',
+          method: tarefa.metodo || 'POST',
           headers: { [tarefa.cabecalho]: tarefa.prefixoBearer ? ('Bearer ' + segredo) : segredo },
           signal: AbortSignal.timeout(60000),
         });
