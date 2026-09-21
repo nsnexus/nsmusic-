@@ -49,6 +49,33 @@ describe('buildSunoPayload', () => {
     expect(payload.tags).toContain('pisadinha do vaqueiro');
   });
 
+  // A Suno recusa a geração inteira quando o prompt tem termo que o filtro dela lê como nome de
+  // artista. Aconteceu de verdade com \"skank\" no reggae (termo técnico da batida no contratempo,
+  // mas também nome de banda brasileira): 21/09/2026, reggae parou de gerar. Se alguém reintroduzir
+  // a palavra por achar que descreve melhor, este teste avisa antes de chegar no cliente.
+  it('não usa termos que o filtro da Suno confunde com nome de artista', () => {
+    const bloqueados = ['skank'];
+    const estilos = [
+      'Romântica', 'Sertanejo', 'Pop', 'Rock', 'MPB / Bossa Nova', 'Gospel / Adoração',
+      'Samba / Pagode', 'Folk Acústico', 'Forró / Baião', 'Trap / Rap', 'Reggae', 'Lo-Fi Chill',
+      'Funk', 'Eletrônica', 'Piseiro', 'Axé', 'Jazz / Blues', 'Infantil',
+    ];
+    for (const estilo of estilos) {
+      const tags = buildSunoPayload({ lyrics: 'x', musicStyle: estilo }).tags.toLowerCase();
+      for (const termo of bloqueados) {
+        expect(tags).not.toContain(termo);
+      }
+    }
+  });
+
+  // O reggae precisa continuar descrevendo a batida no contratempo, só que sem a palavra proibida —
+  // senão a correção vira \"reggae genérico\", que era a reclamação original sobre os prompts.
+  it('mantém a levada característica do reggae', () => {
+    const tags = buildSunoPayload({ lyrics: 'x', musicStyle: 'Reggae' }).tags;
+    expect(tags).toContain('offbeat');
+    expect(tags).toContain('one drop');
+  });
+
   it('não quebra com campos ausentes', () => {
     const payload = buildSunoPayload({});
     expect(payload.prompt).toBe('');

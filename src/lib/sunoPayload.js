@@ -24,7 +24,12 @@ const STYLE_TAGS = {
   'Folk Acústico': 'acoustic folk, fingerpicked guitar, organic warm production, storytelling vocals',
   'Forró / Baião': 'forró, baião, accordion-led, zabumba and triangle, northeastern brazilian, mid-tempo',
   'Trap / Rap': 'brazilian trap, 808 bass, hi-hat rolls, rhythmic flow, modern urban',
-  'Reggae': 'brazilian reggae, offbeat guitar skank, warm bassline, laid-back groove',
+  // NÃO reintroduzir a palavra "skank" aqui. É o termo técnico da batida de guitarra no
+  // contratempo do reggae, mas junto com "brazilian" o filtro da Suno lê como nome de banda
+  // brasileira e RECUSA a geração inteira (relatado pelo dono do estúdio em 21/09/2026: reggae
+  // parou de gerar). "guitar chords on the offbeat" descreve a mesma coisa sem a palavra, e
+  // "one drop" acrescenta a levada de bateria característica.
+  'Reggae': 'brazilian reggae, guitar chords on the offbeat, one drop drum groove, warm rolling bassline, laid-back tempo',
   'Lo-Fi Chill': 'lo-fi chill, mellow keys, soft drums, vinyl warmth, relaxed tempo',
   'Funk': 'brazilian funk, heavy beat, punchy bass, danceable groove',
   'Eletrônica': 'electronic, synth layers, four-on-the-floor beat, modern dance production',
