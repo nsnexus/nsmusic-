@@ -61,9 +61,6 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('ORDERS'); // 'ORDERS', 'STUCK'
 
   // Reprocessamento de pedidos travados antes da Suno (letra pronta mas geração nunca confirmada).
-  const [retryDeselected, setRetryDeselected] = useState(new Set());
-  const [retryingGeneration, setRetryingGeneration] = useState(false);
-  const [retryResult, setRetryResult] = useState(null);
   const [reconciling, setReconciling] = useState(false);
   const [reconcileResult, setReconcileResult] = useState(null);
   // Varredura de conferência de pagamentos (pedido 20/09/2026) — ver handleAuditPayments.
@@ -73,9 +70,6 @@ export default function AdminDashboard() {
   const [auditSoCopiaram, setAuditSoCopiaram] = useState(false);
 
   // Reenvio manual do WhatsApp "música pronta" (incidente 14-19/08/2026 — ver src/lib/db.js:notifyMusicReady).
-  const [whatsappDeselected, setWhatsappDeselected] = useState(new Set());
-  const [sendingWhatsapp, setSendingWhatsapp] = useState(false);
-  const [whatsappSendResult, setWhatsappSendResult] = useState(null);
 
   const router = useRouter();
 
@@ -401,40 +395,6 @@ export default function AdminDashboard() {
     !o.audioUrl
   );
 
-  const toggleRetrySelection = (orderId) => {
-    setRetryDeselected(prev => {
-      const next = new Set(prev);
-      if (next.has(orderId)) next.delete(orderId); else next.add(orderId);
-      return next;
-    });
-  };
-
-  // Reenvia cada pedido selecionado para /api/suno/generate, sequencialmente — em lote e em paralelo
-  // multiplicaria o risco do mesmo erro de limite de taxa da Kie.ai que provavelmente travou os
-  // pedidos em primeiro lugar.
-  const handleRetryStuckGeneration = async (candidates) => {
-    const selected = candidates.filter(o => !retryDeselected.has(o.id));
-    if (selected.length === 0) return;
-    if (!confirm(`Reenviar ${selected.length} pedido(s) para geração de música na Kie.ai agora?`)) return;
-
-    setRetryingGeneration(true);
-    setRetryResult(null);
-    let success = 0, failed = 0;
-    for (const order of selected) {
-      try {
-        const res = await fetch('/api/suno/generate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...buildSunoPayload(order), orderId: order.id })
-        });
-        if (res.ok) success++; else failed++;
-      } catch (e) {
-        failed++;
-      }
-    }
-    setRetryResult({ success, failed, total: selected.length });
-    setRetryingGeneration(false);
-  };
 
   // Reconciliação no servidor: varre pedidos presos em GERANDO_AUDIO e pagamentos ainda em
   // AGUARDANDO_PAGAMENTO, confirmando cada um direto na Kie.ai e na Efí. Existe porque a via normal
@@ -492,50 +452,7 @@ export default function AdminDashboard() {
     }
   };
 
-  // Data do incidente (ver commit 780ab82) — pedidos com música pronta antes disso já foram
-  // notificados normalmente; só o intervalo do bug entra na lista por padrão.
-  const WHATSAPP_INCIDENT_START = new Date('2026-08-14T00:00:00.000Z').getTime();
 
-  const getUnnotifiedCandidates = () => orders.filter(o => {
-    if (o.deletedAt || !o.audioUrl || o.whatsappSent) return false;
-    const created = o.createdAt?.toDate ? o.createdAt.toDate().getTime() : new Date(o.createdAt || 0).getTime();
-    return created >= WHATSAPP_INCIDENT_START;
-  });
-
-  const toggleWhatsappSelection = (orderId) => {
-    setWhatsappDeselected(prev => {
-      const next = new Set(prev);
-      if (next.has(orderId)) next.delete(orderId); else next.add(orderId);
-      return next;
-    });
-  };
-
-  // Sequencial (não Promise.all) — mesmo motivo do reenvio de geração: evita martelar a API da Meta
-  // em paralelo e torna o resultado fácil de acompanhar em tempo real.
-  const handleSendWhatsappBatch = async (candidates) => {
-    const selected = candidates.filter(o => !whatsappDeselected.has(o.id));
-    if (selected.length === 0) return;
-    if (!confirm(`Enviar a notificação de "música pronta" para ${selected.length} cliente(s) agora?`)) return;
-
-    setSendingWhatsapp(true);
-    setWhatsappSendResult(null);
-    let success = 0, failed = 0;
-    const idToken = await auth.currentUser?.getIdToken();
-    for (const order of selected) {
-      try {
-        const res = await fetch('/api/admin/notify-music-ready', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-          body: JSON.stringify({ orderId: order.id }),
-        });
-        if (res.ok) success++; else failed++;
-      } catch (e) {
-        failed++;
-      }
-    }
-    setWhatsappSendResult({ success, failed, total: selected.length });
-    setSendingWhatsapp(false);
-  };
 
   const getStatusBadgeColor = (status) => {
     switch (status) {
@@ -1186,15 +1103,14 @@ export default function AdminDashboard() {
                   gastaria crédito à toa e geraria uma segunda música. */}
               <div className="glass-card" style={{ padding: '20px', borderRadius: '14px', backgroundColor: '#ffffff', border: '1px solid #e2e8f0', marginBottom: '20px' }}>
                 <h3 style={{ fontSize: '1rem', fontWeight: '800', color: '#0f172a', marginBottom: '6px' }}>
-                  1. Verificar na fonte antes de reenviar
+                  1. Recuperar música presa
                 </h3>
                 <p style={{ color: '#64748b', fontSize: '0.85rem', marginBottom: '14px' }}>
-                  Consulta a Kie.ai e a Efí direto do servidor: recupera música já pronta que nunca
-                  chegou ao pedido, libera pagamento já confirmado que ficou preso — inclusive de
-                  add-on de vídeo comprado em separado, que fica preso de um jeito que os outros
-                  pedidos travados não ficam (não é revisado pela mesma checagem) — e reenvia
-                  automaticamente (até 3 vezes) quem a Kie.ai reportou como falha real. Nunca cobra o
-                  cliente de novo — mas cada reenvio consome um crédito de geração na Kie.ai.
+                  Consulta a Kie.ai direto do servidor: recupera música que já ficou pronta lá e
+                  nunca chegou ao pedido, e reenvia (até 3 vezes) o que a Kie.ai reportou como falha
+                  real. Age direto, sem pedir confirmação — <strong>cada reenvio consome um crédito
+                  de geração</strong>. De quebra também libera pagamento confirmado que ficou preso,
+                  mas para conferir pagamento com calma use o card 2 abaixo.
                 </p>
                 <button
                   type="button"
@@ -1203,7 +1119,7 @@ export default function AdminDashboard() {
                   className="btn btn-primary"
                   style={{ padding: '11px 20px', fontSize: '0.9rem', fontWeight: '700', opacity: reconciling ? 0.6 : 1, cursor: reconciling ? 'wait' : 'pointer' }}
                 >
-                  {reconciling ? '⏳ Verificando...' : '🔄 Verificar pedidos travados e pagamentos'}
+                  {reconciling ? '⏳ Verificando...' : '🔄 Recuperar música presa na Kie.ai'}
                 </button>
 
                 {reconcileResult && (() => {
@@ -1340,148 +1256,11 @@ export default function AdminDashboard() {
                 )}
               </div>
 
-              {retryResult && (
-                <div style={{ padding: '14px 18px', backgroundColor: retryResult.failed > 0 ? '#fef3c7' : '#d1fae5', border: `1px solid ${retryResult.failed > 0 ? '#f59e0b' : '#10b981'}`, borderRadius: '8px', marginBottom: '20px', color: '#065f46', fontWeight: '600', fontSize: '0.9rem' }}>
-                  Reprocessamento concluído: {retryResult.success} enviado(s) com sucesso, {retryResult.failed} falharam de {retryResult.total} pedido(s).
-                </div>
-              )}
 
-              {(() => {
-                const stuckCandidates = getStuckGenerationCandidates();
-                const selectedCount = stuckCandidates.filter(o => !retryDeselected.has(o.id)).length;
-                return (
-                  <div className="glass-card" style={{ padding: '24px', borderRadius: '16px', backgroundColor: '#ffffff', border: '1px solid #e2e8f0' }}>
-                    {stuckCandidates.length === 0 ? (
-                      <p style={{ fontSize: '0.85rem', color: '#94a3b8' }}>Nenhum pedido travado no momento.</p>
-                    ) : (
-                      <>
-                        <div style={{ maxHeight: '400px', overflowY: 'auto', overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '10px', marginBottom: '16px' }}>
-                          <table style={{ width: '100%', fontSize: '0.85rem', borderCollapse: 'collapse' }}>
-                            <thead>
-                              <tr style={{ backgroundColor: '#f8fafc', textAlign: 'left' }}>
-                                <th style={{ padding: '10px 12px', width: '36px' }}></th>
-                                <th style={{ padding: '10px 12px' }}>Cliente</th>
-                                <th style={{ padding: '10px 12px' }}>Homenageado</th>
-                                <th style={{ padding: '10px 12px' }}>Criado em</th>
-                                <th style={{ padding: '10px 12px' }}>Motivo registrado</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {stuckCandidates.map((o) => (
-                                <tr key={o.id} style={{ borderTop: '1px solid #f1f5f9' }}>
-                                  <td style={{ padding: '8px 12px' }}>
-                                    <input
-                                      type="checkbox"
-                                      checked={!retryDeselected.has(o.id)}
-                                      onChange={() => toggleRetrySelection(o.id)}
-                                      aria-label={`Incluir pedido de ${o.customerName || o.id} no reprocessamento`}
-                                    />
-                                  </td>
-                                  <td style={{ padding: '8px 12px' }}>{o.customerName || '—'}</td>
-                                  <td style={{ padding: '8px 12px' }}>{o.honoreeName || '—'}</td>
-                                  <td style={{ padding: '8px 12px' }}>{formatDateWithTime(o.createdAt)}</td>
-                                  <td style={{ padding: '8px 12px', color: o.sunoError ? '#dc2626' : '#94a3b8' }}>
-                                    {o.sunoError ? `${o.sunoError}${o.sunoErrorCount ? ` (${o.sunoErrorCount}x)` : ''}` : 'sem registro (desistiu antes de aprovar)'}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => handleRetryStuckGeneration(stuckCandidates)}
-                          disabled={selectedCount === 0 || retryingGeneration}
-                          className="btn btn-primary"
-                          style={{ padding: '10px 22px', fontSize: '0.9rem' }}
-                        >
-                          {retryingGeneration ? 'Reenviando...' : `Reenviar ${selectedCount} pedido(s) 🔄`}
-                        </button>
-                      </>
-                    )}
-                  </div>
-                );
-              })()}
-
-              <h3 style={{ fontSize: '1.1rem', fontWeight: '700', color: '#0f172a', margin: '28px 0 14px' }}>
-                📲 WhatsApp &quot;música pronta&quot; não enviado
-              </h3>
-              <p style={{ fontSize: '0.82rem', color: '#64748b', marginBottom: '14px' }}>
-                Pedidos com música pronta desde 14/08/2026 que nunca receberam a notificação
-                automática (bug corrigido — ver commit 780ab82). Selecione e envie manualmente.
-              </p>
-
-              {whatsappSendResult && (
-                <div style={{ padding: '14px 18px', backgroundColor: whatsappSendResult.failed > 0 ? '#fef3c7' : '#d1fae5', border: `1px solid ${whatsappSendResult.failed > 0 ? '#f59e0b' : '#10b981'}`, borderRadius: '8px', marginBottom: '20px', color: '#065f46', fontWeight: '600', fontSize: '0.9rem' }}>
-                  Envio concluído: {whatsappSendResult.success} enviado(s) com sucesso, {whatsappSendResult.failed} falharam de {whatsappSendResult.total} pedido(s).
-                </div>
-              )}
-
-              {(() => {
-                const unnotified = getUnnotifiedCandidates();
-                const selectedCount = unnotified.filter(o => !whatsappDeselected.has(o.id)).length;
-                return (
-                  <div className="glass-card" style={{ padding: '24px', borderRadius: '16px', backgroundColor: '#ffffff', border: '1px solid #e2e8f0' }}>
-                    {unnotified.length === 0 ? (
-                      <p style={{ fontSize: '0.85rem', color: '#94a3b8' }}>Nenhum pedido pendente de notificação.</p>
-                    ) : (
-                      <>
-                        <div style={{ maxHeight: '400px', overflowY: 'auto', overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '10px', marginBottom: '16px' }}>
-                          <table style={{ width: '100%', fontSize: '0.85rem', borderCollapse: 'collapse' }}>
-                            <thead>
-                              <tr style={{ backgroundColor: '#f8fafc', textAlign: 'left' }}>
-                                <th style={{ padding: '10px 12px', width: '36px' }}>
-                                  <input
-                                    type="checkbox"
-                                    checked={selectedCount === unnotified.length}
-                                    onChange={() => {
-                                      setWhatsappDeselected(prev =>
-                                        prev.size === 0 ? new Set(unnotified.map(o => o.id)) : new Set()
-                                      );
-                                    }}
-                                    aria-label="Selecionar todos"
-                                  />
-                                </th>
-                                <th style={{ padding: '10px 12px' }}>Cliente</th>
-                                <th style={{ padding: '10px 12px' }}>Homenageado</th>
-                                <th style={{ padding: '10px 12px' }}>Música gerada em</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {unnotified.map((o) => (
-                                <tr key={o.id} style={{ borderTop: '1px solid #f1f5f9' }}>
-                                  <td style={{ padding: '8px 12px' }}>
-                                    <input
-                                      type="checkbox"
-                                      checked={!whatsappDeselected.has(o.id)}
-                                      onChange={() => toggleWhatsappSelection(o.id)}
-                                      aria-label={`Incluir pedido de ${o.customerName || o.id} no envio`}
-                                    />
-                                  </td>
-                                  <td style={{ padding: '8px 12px' }}>{o.customerName || '—'}</td>
-                                  <td style={{ padding: '8px 12px' }}>{o.honoreeName || '—'}</td>
-                                  <td style={{ padding: '8px 12px' }}>{formatDateWithTime(o.createdAt)}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => handleSendWhatsappBatch(unnotified)}
-                          disabled={selectedCount === 0 || sendingWhatsapp}
-                          className="btn btn-primary"
-                          style={{ padding: '10px 22px', fontSize: '0.9rem' }}
-                        >
-                          {sendingWhatsapp ? 'Enviando...' : `Enviar ${selectedCount} mensagem(ns) 📲`}
-                        </button>
-                      </>
-                    )}
-                  </div>
-                );
-              })()}
+              {/* Removidos em 20/09/2026 a pedido do dono: o mutirão de reenvio do WhatsApp
+                  "música pronta" (incidente de 14/08, já encerrado) e a lista de "pedidos travados
+                  na geração", que na prática só juntava quem desistiu antes de aprovar a letra —
+                  falso positivo, sem motivo registrado. Conferência de pagamento vive no card 2. */}
             </div>
           )}
 
