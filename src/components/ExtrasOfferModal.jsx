@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { getPriceForSku } from '@/lib/pricing';
 
 // Pop-up de oferta dos extras, exibido na página de entrega logo depois da música ficar pronta.
@@ -32,6 +33,9 @@ export default function ExtrasOfferModal({
   jaTemCarta = false,
   jaTemRetrospectiva = false,
 }) {
+  // Estado antes do early return: hook tem que rodar sempre na mesma ordem.
+  const [naoMostrarMais, setNaoMostrarMais] = useState(false);
+
   if (!isOpen) return null;
 
   // Preço exibido: combo (música + extra) antes de pagar, add-on avulso depois — é literalmente o
@@ -47,14 +51,14 @@ export default function ExtrasOfferModal({
       sku: 'video_addon',
       icone: '🎬',
       titulo: 'Vídeo Homenagem',
-      desc: `Um clipe com 10 a 20 fotos de ${honoreeName} sincronizadas com a sua música.`,
+      desc: `Clipe com as fotos de ${honoreeName} no ritmo da música.`,
       cor: '#ec4899',
     },
     !jaTemRetrospectiva && {
       sku: 'retrospectiva_addon',
       icone: '📖',
       titulo: 'Retrospectiva',
-      desc: 'Uma página só de vocês, com a música tocando de fundo, linha do tempo, contador ao vivo e quiz. Um link pra mandar pra família.',
+      desc: 'Página só de vocês, com linha do tempo, contador ao vivo e a música tocando.',
       cor: '#a855f7',
       destaque: true,
     },
@@ -62,7 +66,7 @@ export default function ExtrasOfferModal({
       sku: 'carta_addon',
       icone: '💌',
       titulo: 'Carta Virtual',
-      desc: 'Uma carta escrita a partir da mesma história da sua música, com envelope, foto e sua assinatura.',
+      desc: 'Carta com envelope e foto, escrita a partir da mesma história.',
       cor: '#f59e0b',
     },
   ].filter(Boolean);
@@ -91,24 +95,24 @@ export default function ExtrasOfferModal({
           width: '100%',
           background: '#fff',
           borderRadius: '18px',
-          padding: '24px 20px',
-          maxHeight: '92vh',
+          padding: '18px 16px',
+          maxHeight: '90vh',
           overflowY: 'auto',
         }}
       >
-        <div style={{ textAlign: 'center', marginBottom: '18px' }}>
-          <div style={{ fontSize: '1.9rem', marginBottom: '4px' }}>✨</div>
+        <div style={{ textAlign: 'center', marginBottom: '12px' }}>
+          <div style={{ fontSize: '1.4rem', marginBottom: '2px' }}>✨</div>
           <h3 style={{ fontFamily: 'var(--font-family-title)', fontSize: '1.2rem', color: 'var(--text-primary)', margin: '0 0 6px' }}>
             {isPaid ? 'Quer deixar essa homenagem ainda maior?' : 'Escolha o seu pacote'}
           </h3>
           <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.45 }}>
             {isPaid
               ? <>A música já está pronta. Esses extras usam a <strong>mesma história</strong> que você contou — é só escolher.</>
-              : 'Pode levar só a música, ou já incluir um extra no mesmo pagamento — sai mais barato que comprar separado depois.'}
+              : 'Leve só a música, ou inclua um extra no mesmo pagamento e pague menos que comprando depois.'}
           </p>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
           {!isPaid && (
             <button
               type="button"
@@ -118,15 +122,15 @@ export default function ExtrasOfferModal({
                 alignItems: 'center',
                 gap: '12px',
                 textAlign: 'left',
-                padding: '14px',
-                borderRadius: '14px',
+                padding: '10px 12px',
+                borderRadius: '12px',
                 border: '1.5px solid var(--border-color)',
                 background: 'var(--bg-primary)',
                 cursor: 'pointer',
                 width: '100%',
               }}
             >
-              <span style={{ fontSize: '1.6rem', lineHeight: 1 }}>🎵</span>
+              <span style={{ fontSize: '1.3rem', lineHeight: 1 }}>🎵</span>
               <span style={{ flex: 1 }}>
                 <span style={{ display: 'block', fontWeight: '700', fontSize: '0.95rem', color: 'var(--text-primary)' }}>
                   Só a música
@@ -148,8 +152,8 @@ export default function ExtrasOfferModal({
                 alignItems: 'flex-start',
                 gap: '12px',
                 textAlign: 'left',
-                padding: '14px',
-                borderRadius: '14px',
+                padding: '10px 12px',
+                borderRadius: '12px',
                 border: `1.5px solid ${opcao.destaque ? opcao.cor : 'var(--border-color)'}`,
                 background: opcao.destaque ? `${opcao.cor}12` : 'var(--bg-primary)',
                 cursor: 'pointer',
@@ -162,12 +166,12 @@ export default function ExtrasOfferModal({
                   MAIS COMPLETO
                 </span>
               )}
-              <span style={{ fontSize: '1.6rem', lineHeight: 1 }}>{opcao.icone}</span>
+              <span style={{ fontSize: '1.3rem', lineHeight: 1 }}>{opcao.icone}</span>
               <span style={{ flex: 1 }}>
                 <span style={{ display: 'block', fontWeight: '700', fontSize: '0.95rem', color: 'var(--text-primary)', marginBottom: '2px' }}>
                   {isPaid ? opcao.titulo : `Música + ${opcao.titulo}`}
                 </span>
-                <span style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.4, marginBottom: '6px' }}>
+                <span style={{ display: 'block', fontSize: '0.76rem', color: 'var(--text-secondary)', lineHeight: 1.35, marginBottom: '3px' }}>
                   {opcao.desc}
                 </span>
                 <span style={{ display: 'inline-block', fontWeight: '800', fontSize: '0.95rem', color: opcao.cor }}>
@@ -178,13 +182,36 @@ export default function ExtrasOfferModal({
           ))}
         </div>
 
+        {/* Saída com cara de botão. Antes era texto solto sem borda, e o dono do estúdio relatou
+            não perceber que dava para clicar. */}
         <button
           type="button"
-          onClick={onClose}
-          style={{ width: '100%', marginTop: '14px', padding: '11px', background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.85rem', cursor: 'pointer' }}
+          onClick={() => onClose(naoMostrarMais)}
+          style={{
+            width: '100%',
+            marginTop: '12px',
+            padding: '10px',
+            background: 'var(--bg-secondary)',
+            border: '1px solid var(--border-color)',
+            borderRadius: '10px',
+            color: 'var(--text-secondary)',
+            fontSize: '0.85rem',
+            fontWeight: '600',
+            cursor: 'pointer',
+          }}
         >
           Agora não, obrigado
         </button>
+
+        <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px', marginTop: '10px', fontSize: '0.78rem', color: 'var(--text-muted)', cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={naoMostrarMais}
+            onChange={(e) => setNaoMostrarMais(e.target.checked)}
+            style={{ cursor: 'pointer' }}
+          />
+          Não mostrar esta oferta de novo
+        </label>
       </div>
     </div>
   );

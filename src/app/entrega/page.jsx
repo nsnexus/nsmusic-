@@ -260,7 +260,8 @@ function EntregaContent() {
   useEffect(() => {
     if (order && !order.videoUrl && !order.hasVideoAccess && !promo && typeof window !== 'undefined') {
       const dismissed = sessionStorage.getItem(`video_modal_dismissed_${orderId}`);
-      if (!dismissed) {
+      const ocultoSempre = localStorage.getItem('nsmusic_extras_modal_oculto') === '1';
+      if (!dismissed && !ocultoSempre) {
         const timer = setTimeout(() => setShowVideoModal(true), 1200);
         return () => clearTimeout(timer);
       }
@@ -676,16 +677,38 @@ function EntregaContent() {
     return () => unsubscribe();
   }, [orderId]);
 
-  // A música toca INTEIRA, mesmo antes de pagar (decisão do dono do estúdio, 21/09/2026).
+  // Quem OUVE a música inteira sem ter pago: só quem criou o pedido, neste mesmo navegador.
   //
-  // O corte em 60s que existia aqui era ficção: o arquivo completo já era entregue ao navegador de
-  // qualquer forma (o documento do pedido chega cru do Firestore, com audioUrl dentro), e o player
-  // só fingia parar. Na prática o corte interrompia a venda no momento de maior emoção do cliente,
-  // e fazia parte das pessoas achar que a geração tinha falhado.
+  // A decisão de 21/09/2026 foi deixar o comprador ouvir tudo antes de pagar — o corte em 60s
+  // interrompia a venda no auge da emoção e fazia gente achar que a geração tinha falhado. Mas
+  // /entrega?orderId=X não pede nada para abrir: sem esta trava, bastava o cliente mandar o
+  // próprio link da entrega para a homenageada e o presente estava entregue de graça (o dono do
+  // estúdio percebeu isso no mesmo dia). A página pública /homenagem já era protegida; esta não.
   //
-  // O que continua atrás do pagamento é o ARTEFATO: download dos MP3, vídeo, carta, retrospectiva
-  // e página compartilhável. É isso que o cliente leva embora, e é isso que ele compra.
-  const handleAudioTimeUpdate = () => {};
+  // O marcador é o mesmo que o wizard grava ao criar (localStorage nsmusic_generated_orders).
+  // Limite conhecido: é por navegador. Quem cria no celular e abre no computador cai na prévia até
+  // pagar. Fechar isso exigiria um token no link que o WhatsApp manda para o próprio cliente.
+  const [souOCriadorDoPedido, setSouOCriadorDoPedido] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined' || !orderId) return;
+    try {
+      const criados = JSON.parse(localStorage.getItem('nsmusic_generated_orders') || '[]');
+      setSouOCriadorDoPedido(Array.isArray(criados) && criados.includes(orderId));
+    } catch (e) {
+      setSouOCriadorDoPedido(false);
+    }
+  }, [orderId]);
+
+  const podeOuvirInteira = isPaid || souOCriadorDoPedido;
+
+  const handleAudioTimeUpdate = (e) => {
+    if (podeOuvirInteira) return;
+    const audio = e.target;
+    if (audio.currentTime > 60) {
+      audio.pause();
+      audio.currentTime = 60;
+    }
+  };
 
   // Precisa ser calculado aqui (antes dos hooks abaixo, que dependem dele) em vez de depois dos
   // early returns de `loading`/`order` — hooks têm que rodar sempre na mesma ordem em todo render.
@@ -2213,10 +2236,13 @@ function EntregaContent() {
             jaTemVideo={Boolean(hasVideoAccess || order?.hasVideoAccess)}
             jaTemCarta={jaTemCarta}
             jaTemRetrospectiva={jaTemRetrospectiva}
-            onClose={() => {
+            onClose={(naoMostrarMais) => {
               setShowVideoModal(false);
               if (typeof window !== 'undefined' && orderId) {
                 sessionStorage.setItem(`video_modal_dismissed_${orderId}`, 'true');
+                // "Não mostrar de novo" vale para todos os pedidos deste navegador e sobrevive ao
+                // fechamento da aba. O dismiss por pedido acima é só da sessão.
+                if (naoMostrarMais) localStorage.setItem('nsmusic_extras_modal_oculto', '1');
               }
             }}
             onSelect={(sku) => {

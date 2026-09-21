@@ -282,6 +282,27 @@ export default function CriarMusica() {
         const saved = localStorage.getItem('nsmusic_order_draft');
         if (saved) {
           const parsed = JSON.parse(saved);
+
+          // Rascunho de pedido JÁ CONCLUÍDO não se restaura — começa do zero.
+          //
+          // BUG relatado em 21/09/2026 ("o cliente nunca consegue criar uma nova música"): quem
+          // terminava uma música e clicava em "Nova Música" caía de volta na etapa 10
+          // ("Produzindo seus 2 Arranjos Musicais"), porque o rascunho salvo era restaurado tal e
+          // qual; em seguida o polling encontrava a música pronta no pedido antigo e devolvia o
+          // cliente para a entrega. Loop fechado, sem caminho para um pedido novo.
+          //
+          // Restaurar só faz sentido para pedido INTERROMPIDO (aba fechada no meio da geração).
+          // Concluído é lixo: apaga e segue com o formulário limpo.
+          const rascunhoConcluido = parsed.formData?.sunoStatus === 'generated'
+            || Boolean(parsed.formData?.sunoTracks?.length)
+            || Number(parsed.step || 0) >= 11;
+          if (rascunhoConcluido) {
+            localStorage.removeItem('nsmusic_order_draft');
+            if (ocasiaoValida) setFormData((prev) => ({ ...prev, occasion: ocasiaoValida }));
+            setIsRestored(true);
+            return;
+          }
+
           // Rascunho existente manda: quem já escolheu a ocasião não tem a escolha trocada por um
           // link. O parâmetro só preenche o que ainda está vazio.
           if (parsed.formData) {

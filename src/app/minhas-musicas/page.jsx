@@ -266,142 +266,24 @@ export default function MinhasMusicasPage() {
                 Digite o seu número de WhatsApp para ver suas composições na hora sem precisar de senha!
               </p>
 
-              {/* Abas de Escolha: WhatsApp vs E-mail vs Login */}
-              <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', background: 'var(--bg-secondary)', padding: '4px', borderRadius: '12px' }}>
-                <button
-                  type="button"
-                  onClick={() => { setSearchTab('phone'); setOrders([]); setHasSearched(false); }}
-                  style={{
-                    flex: 1,
-                    padding: '8px 12px',
-                    borderRadius: '8px',
-                    border: 'none',
-                    fontSize: '0.82rem',
-                    fontWeight: 'bold',
-                    cursor: 'pointer',
-                    background: searchTab === 'phone' ? 'var(--primary)' : 'transparent',
-                    color: searchTab === 'phone' ? '#fff' : 'var(--text-muted)'
-                  }}
-                >
-                  📱 Por WhatsApp
+              {/* Só a busca por WhatsApp. As abas de e-mail e de login com senha saíram em
+                  21/09/2026 a pedido do dono do estúdio: o e-mail deixou de ser pedido no
+                  formulário de criação, e conta com senha nunca foi o caminho que o cliente usa,
+                  já que ele chega pelo link do WhatsApp. Três opções onde uma resolve só geram
+                  dúvida na hora de reencontrar a própria música. */}
+              <form onSubmit={handleQuickSearch} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <input
+                  type="tel"
+                  placeholder="Seu WhatsApp (ex: 94 99106-4040)"
+                  required
+                  value={searchPhone}
+                  onChange={(e) => setSearchPhone(e.target.value)}
+                  style={styles.input}
+                />
+                <button type="submit" disabled={loadingOrders} className="btn btn-primary" style={{ width: '100%', padding: '12px', fontSize: '0.95rem' }}>
+                  {loadingOrders ? '🔍 Buscando...' : '📱 Localizar Minhas Músicas'}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => { setSearchTab('email'); setOrders([]); setHasSearched(false); }}
-                  style={{
-                    flex: 1,
-                    padding: '8px 12px',
-                    borderRadius: '8px',
-                    border: 'none',
-                    fontSize: '0.82rem',
-                    fontWeight: 'bold',
-                    cursor: 'pointer',
-                    background: searchTab === 'email' ? 'var(--primary)' : 'transparent',
-                    color: searchTab === 'email' ? '#fff' : 'var(--text-muted)'
-                  }}
-                >
-                  📧 Por E-mail
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setSearchTab('login'); setOrders([]); setHasSearched(false); }}
-                  style={{
-                    flex: 1,
-                    padding: '8px 12px',
-                    borderRadius: '8px',
-                    border: 'none',
-                    fontSize: '0.82rem',
-                    fontWeight: 'bold',
-                    cursor: 'pointer',
-                    background: searchTab === 'login' ? 'var(--primary)' : 'transparent',
-                    color: searchTab === 'login' ? '#fff' : 'var(--text-muted)'
-                  }}
-                >
-                  🔐 Login com Senha
-                </button>
-              </div>
-
-              {/* Formulário 1: Busca por Telefone / WhatsApp */}
-              {searchTab === 'phone' && (
-                <form onSubmit={handleQuickSearch} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                  <input
-                    type="tel"
-                    placeholder="Seu WhatsApp (ex: 94 99106-4040)"
-                    required
-                    value={searchPhone}
-                    onChange={(e) => setSearchPhone(e.target.value)}
-                    style={styles.input}
-                  />
-                  <button type="submit" disabled={loadingOrders} className="btn btn-primary" style={{ width: '100%', padding: '12px', fontSize: '0.95rem' }}>
-                    {loadingOrders ? '🔍 Buscando...' : '📱 Localizar Minhas Músicas'}
-                  </button>
-                </form>
-              )}
-
-              {/* Formulário 2: Busca por E-mail simples */}
-              {searchTab === 'email' && (
-                <form onSubmit={handleQuickSearch} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                  <input
-                    type="email"
-                    placeholder="Seu e-mail do pedido"
-                    required
-                    value={searchEmail}
-                    onChange={(e) => setSearchEmail(e.target.value)}
-                    style={styles.input}
-                  />
-                  <button type="submit" disabled={loadingOrders} className="btn btn-primary" style={{ width: '100%', padding: '12px', fontSize: '0.95rem' }}>
-                    {loadingOrders ? '🔍 Buscando...' : '📧 Localizar Minhas Músicas'}
-                  </button>
-                </form>
-              )}
-
-              {/* Formulário 3: Login Tradicional com Senha */}
-              {searchTab === 'login' && (
-                <form onSubmit={handleAuthSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                  <input 
-                    type="email" 
-                    placeholder="Seu e-mail de acesso" 
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    style={styles.input}
-                  />
-                  <div style={{ position: 'relative', width: '100%' }}>
-                    <input 
-                      type={showPassword ? "text" : "password"} 
-                      placeholder="Sua senha de acesso" 
-                      required
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      style={{ ...styles.input, paddingRight: '45px' }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      style={{
-                        position: 'absolute',
-                        right: '12px',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        background: 'none',
-                        border: 'none',
-                        fontSize: '1.1rem',
-                        cursor: 'pointer',
-                        color: 'var(--text-muted)'
-                      }}
-                    >
-                      {showPassword ? '🙈' : '👁️'}
-                    </button>
-                  </div>
-
-                  {authError && <span style={{ color: 'var(--danger)', fontSize: '0.84rem' }}>{authError}</span>}
-                  {resetSuccess && <span style={{ color: '#34d399', fontSize: '0.84rem' }}>{resetSuccess}</span>}
-
-                  <button type="submit" disabled={authSubmitting} className="btn btn-primary" style={{ width: '100%', padding: '12px', fontSize: '0.95rem' }}>
-                    {authSubmitting ? '⏳ Entrando...' : 'Entrar na Minha Conta'}
-                  </button>
-                </form>
-              )}
+              </form>
             </div>
           )}
 
@@ -505,21 +387,15 @@ export default function MinhasMusicasPage() {
                         </div>
                       )}
 
-                      {/* Ações Rápidas */}
-                      <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
-                        <button 
-                          onClick={() => setSelectedLyrics({ title: ord.honoreeName, text: ord.lyrics })}
-                          className="btn btn-secondary"
-                          style={{ flex: 1, padding: '8px', fontSize: '0.8rem', minHeight: '36px' }}
-                        >
-                          📜 Ver Letra
-                        </button>
-                        <a 
-                          href={`/entrega?orderId=${ord.id}`} 
+                      {/* Uma ação só. "Ver Letra" saiu em 21/09/2026: a letra já está na página
+                          do pedido, e dois botões lado a lado disputavam a atenção sem motivo. */}
+                      <div style={{ display: 'flex', marginTop: '4px' }}>
+                        <a
+                          href={`/entrega?orderId=${ord.id}`}
                           className="btn btn-primary"
                           style={{ flex: 1, padding: '8px', fontSize: '0.8rem', textAlign: 'center', textDecoration: 'none', minHeight: '36px' }}
                         >
-                          🎁 Página do Presente
+                          Acessar
                         </a>
                       </div>
 
