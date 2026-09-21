@@ -19,6 +19,7 @@ import { requestPixCharge } from '@/lib/pixCheckout';
 import { compressImage } from '@/lib/imageCompress';
 import { getPriceForSku } from '@/lib/pricing';
 import { markPreviewListened } from '@/lib/previewTracking';
+import { isInAppBrowser } from '@/lib/inAppBrowser';
 import { styles } from './entregaStyles';
 
 function EntregaContent() {
@@ -46,6 +47,15 @@ function EntregaContent() {
   // destravar sozinho — eram 4 pagamentos presos por dia, alguns por mais de um dia.
   const [checandoPagamento, setChecandoPagamento] = useState(false);
   const [checagemMsg, setChecagemMsg] = useState('');
+  // Navegador embutido de app (WhatsApp/Instagram/...) bloqueia download sem avisar — relato de
+  // clientes em 20/09/2026 ("não consigo baixar as músicas"). Só dá pra saber depois da hidratação,
+  // por isso vive em estado e não numa constante de render.
+  const [navegadorInApp, setNavegadorInApp] = useState(false);
+  const [linkPaginaCopiado, setLinkPaginaCopiado] = useState(false);
+
+  useEffect(() => {
+    setNavegadorInApp(isInAppBrowser());
+  }, []);
   // Verificação automática de comprovante por IA (provisória — ver src/lib/receiptVerification.js).
   // 'idle' | 'uploading' | 'failed' — some depois de aprovado, pois a UI já muda pra "pago" via
   // onSnapshot assim que applyPaymentApproval grava o pedido.
@@ -1024,15 +1034,43 @@ function EntregaContent() {
                     </audio>
 
                     {isPaid && audioReadyState.primary === 'ready' && (
-                      <div style={{ ...styles.downloadGrid, marginTop: '16px' }}>
-                        <button 
-                          onClick={() => handleDownload(primaryAudioUrl, `Musica_V1_${order?.honoreeName || 'Homenagem'}.mp3`)} 
-                          className="btn btn-primary" 
-                          style={{ ...styles.downloadBtn, border: 'none', cursor: 'pointer' }}
-                        >
-                          ⬇ Baixar MP3 (V1)
-                        </button>
-                      </div>
+                      <>
+                        {/* O download é bloqueado pelo navegador embutido do WhatsApp/Instagram sem
+                            nenhum aviso — o cliente toca em "Baixar" e não acontece nada. Só o
+                            navegador de verdade (Chrome/Safari) salva o arquivo. */}
+                        {navegadorInApp && (
+                          <div style={{ marginTop: '14px', padding: '12px 14px', borderRadius: '10px', background: 'rgba(251, 191, 36, 0.12)', border: '1px solid rgba(251, 191, 36, 0.4)' }}>
+                            <p style={{ margin: 0, fontSize: '0.83rem', color: '#fbbf24', fontWeight: '700' }}>
+                              ⚠️ Para baixar, abra esta página no navegador
+                            </p>
+                            <p style={{ margin: '4px 0 10px', fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                              Você está dentro do app (WhatsApp/Instagram), e ele não deixa salvar arquivos.
+                              Toque nos <strong>três pontinhos</strong> no canto da tela e escolha
+                              <strong> &quot;Abrir no navegador&quot;</strong> — ou copie o link abaixo e cole no Chrome/Safari.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(window.location.href);
+                                setLinkPaginaCopiado(true);
+                                setTimeout(() => setLinkPaginaCopiado(false), 3000);
+                              }}
+                              style={{ width: '100%', padding: '10px', borderRadius: '8px', border: 'none', background: '#fbbf24', color: '#0f172a', fontWeight: '800', fontSize: '0.85rem', cursor: 'pointer' }}
+                            >
+                              {linkPaginaCopiado ? '✅ Link copiado! Cole no navegador' : '🔗 Copiar link desta página'}
+                            </button>
+                          </div>
+                        )}
+                        <div style={{ ...styles.downloadGrid, marginTop: '16px' }}>
+                          <button
+                            onClick={() => handleDownload(primaryAudioUrl, `Musica_V1_${order?.honoreeName || 'Homenagem'}.mp3`)}
+                            className="btn btn-primary"
+                            style={{ ...styles.downloadBtn, border: 'none', cursor: 'pointer' }}
+                          >
+                            ⬇ Baixar MP3 (V1)
+                          </button>
+                        </div>
+                      </>
                     )}
                   </div>
                 )}
