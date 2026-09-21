@@ -20,6 +20,11 @@ import { requestPixCharge } from '@/lib/pixCheckout';
 // de imediato, o cliente clicava e saía da tela antes de ver a música ficar pronta ali mesmo.
 const WHATSAPP_CTA_DELAY_MS = 30000;
 
+// Tempo na tela de produção depois do qual o cliente sempre ganha uma saída (conferir de novo,
+// recomeçar ou chamar no WhatsApp). Maior que o corte de 6 min do polling de propósito: só entra
+// em cena quando o polling não está dando conta, não em vez dele.
+const AUDIO_WATCHDOG_MS = 10 * 60 * 1000;
+
 // Códigos de área (DDD) válidos no Brasil, segundo o plano de numeração da ANATEL.
 const VALID_BRAZIL_DDDS = new Set([
   '11', '12', '13', '14', '15', '16', '17', '18', '19',
@@ -342,7 +347,21 @@ export default function CriarMusica() {
     }
     if (activeTaskId) {
       pollSunoStatus(activeTaskId, targetOrderId);
+      return;
     }
+
+    // Sem taskId e sem áudio no pedido: não há o que consultar. Antes isso saía da função em
+    // silêncio e a tela ficava em "Produzindo seus 2 Arranjos Musicais" a 0% para SEMPRE — sem
+    // polling, sem erro, sem cronômetro (relatado pelo dono do estúdio em 20/09/2026, com print).
+    // O corte de 6 minutos do polling nunca chegava aqui, porque polling nenhum tinha começado.
+    // Cair no estado de erro faz aparecer o painel que já existe, com "Tentar Novamente" e
+    // "Criar Nova Música".
+    setFormData((prev) => ({
+      ...prev,
+      sunoStatus: 'error',
+      sunoProgress: 'A geração não foi encontrada. Isso costuma acontecer quando a página é '
+        + 'recarregada antes de a música começar a ser produzida.',
+    }));
   };
 
   const handleResetForm = () => {
@@ -445,6 +464,23 @@ export default function CriarMusica() {
   // que se aproxima de 95% ao longo de ~2min (a duração típica, ver texto da tela) e nunca chega a
   // 100% sozinha — só quando sunoStatus vira 'generated' de verdade, o que já tira o cliente desta
   // tela (redireciona pra /entrega). Sem isso o cliente ficaria vendo "100%" parado, esperando ainda.
+  // Saída de emergência da tela de produção (pedido 20/09/2026: "tenho música que tá travada nessa
+  // tela... não teria tipo quando passar mais de 10 minutos aparecer o botão de resetar?").
+  //
+  // O polling normal já desiste em 6 minutos e mostra o painel de erro. Este relógio existe para o
+  // que o polling NÃO cobre: aba em segundo plano (o navegador estrangula setInterval e o corte de
+  // 6 min demora muito mais que 6 min), rede que caiu, ou qualquer caminho que deixe a tela viva
+  // sem ninguém consultando nada. Depois disso o cliente sempre tem o que clicar.
+  const [audioDemorouDemais, setAudioDemorouDemais] = useState(false);
+  useEffect(() => {
+    if (step !== 10 || formData.sunoStatus === 'generated') {
+      setAudioDemorouDemais(false);
+      return;
+    }
+    const timer = setTimeout(() => setAudioDemorouDemais(true), AUDIO_WATCHDOG_MS);
+    return () => clearTimeout(timer);
+  }, [step, formData.sunoStatus]);
+
   const [audioProgressPct, setAudioProgressPct] = useState(0);
   useEffect(() => {
     if (formData.sunoStatus !== 'generating') {
@@ -1427,6 +1463,59 @@ export default function CriarMusica() {
                     <span>💬 Receber Música no meu WhatsApp</span>
                   </a>
                 </div>
+                )}
+                {/* Passou de AUDIO_WATCHDOG_MS e a música não chegou. Não é o painel de erro: aqui
+                    ninguém reportou falha, a tela só ficou parada. A primeira ação é reconsultar o
+                    pedido, porque o caso mais comum é o áudio JÁ existir no banco (o webhook
+                    gravou) e só este navegador não ter ficado sabendo. */}
+                {audioDemorouDemais && formData.sunoStatus !== 'error' && (
+                  <div style={{ marginTop: '20px', background: 'rgba(245, 158, 11, 0.1)', padding: '18px', borderRadius: '12px', border: '1px solid rgba(245, 158, 11, 0.35)', textAlign: 'left' }}>
+                    <p style={{ fontWeight: '700', fontSize: '0.98rem', color: 'var(--text-primary)' }}>
+                      Está demorando mais que o normal ⏳
+                    </p>
+                    <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', marginTop: '6px', lineHeight: '1.55' }}>
+                      Na maioria das vezes a música já ficou pronta e só esta tela não atualizou.
+                      Clique em conferir antes de recomeçar — assim você não perde o que já foi feito.
+                    </p>
+
+                    <div style={{ display: 'flex', gap: '10px', marginTop: '14px', flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAudioDemorouDemais(false);
+                          if (orderId) {
+                            checkOrderStatusInFirestore(orderId, taskId);
+                          } else {
+                            setFormData((prev) => ({
+                              ...prev,
+                              sunoStatus: 'error',
+                              sunoProgress: 'Não foi possível localizar o seu pedido neste navegador.',
+                            }));
+                          }
+                        }}
+                        style={{ padding: '10px 18px', background: 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.9rem' }}
+                      >
+                        🔍 Conferir se já ficou pronta
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleResetForm}
+                        style={{ padding: '10px 18px', background: 'rgba(255,255,255,0.1)', color: 'var(--text-primary)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.9rem' }}
+                      >
+                        ✨ Começar de novo
+                      </button>
+
+                      <a
+                        href={`https://wa.me/559491081351?text=${encodeURIComponent(`Olá! Minha música para ${formData.honoreeName || 'alguém especial'}${orderId ? ` (pedido ${orderId})` : ''} travou na tela de produção.`)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ padding: '10px 18px', background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)', color: '#fff', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.9rem', textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}
+                      >
+                        Falar no WhatsApp 📲
+                      </a>
+                    </div>
+                  </div>
                 )}
                 {formData.sunoStatus === 'error' && (
                   <div style={{ color: 'var(--danger)', marginTop: '16px', background: 'rgba(239, 68, 68, 0.1)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
