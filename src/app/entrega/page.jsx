@@ -232,6 +232,21 @@ function EntregaContent() {
   // com a URL /entrega?orderId=X&status=success, sem pagar (ver C-01 no AUDIT_REPORT.md). O parâmetro
   // de URL só pode, no máximo, disparar uma reconsulta ao servidor (ver useEffect de fetchOrder acima).
   const isPaid = isPaidState || order?.paymentStatus === 'PAGAMENTO_APROVADO' || order?.paymentStatus === 'PAGO';
+
+  // Preço e texto do bloco de pagamento, derivados do pacote escolhido. Aqui é só EXIBIÇÃO — quem
+  // cobra é o servidor, a partir do sku (C-05 no AUDIT_REPORT.md). Mas exibir um valor diferente do
+  // que o banco pede faz o cliente desistir, então os dois têm que sair do mesmo catálogo.
+  const skuDoPacoteAtual = promo === '48h' ? 'recovery_combo_48h'
+    : promo === '24h' ? 'recovery_combo_24h'
+      : selectedPackage;
+  const precoDoPacoteAtual = getPriceForSku(skuDoPacoteAtual) || getPriceForSku('audio_only');
+  const DESCRICOES_DE_PACOTE = {
+    audio_only: 'para liberar o download das 2 versões completas sem corte e a página especial de presente!',
+    combo: 'para liberar as 2 versões completas e o Vídeo Homenagem com as suas fotos!',
+    combo_carta: 'para liberar as 2 versões completas e a Carta Virtual!',
+    combo_retrospectiva: 'para liberar as 2 versões completas e a Retrospectiva!',
+  };
+  const descricaoDoPacoteAtual = DESCRICOES_DE_PACOTE[skuDoPacoteAtual] || DESCRICOES_DE_PACOTE.audio_only;
   // hasVideoAccess só pode vir de campos confirmados pelo servidor. `selectedPackage` é estado local
   // do React, setado só por clique do usuário (inclusive antes de qualquer pagamento) — usá-lo aqui
   // liberava o vídeo (renderizado e enviado ao Storage inteiramente pelo cliente, sem checagem de
@@ -832,7 +847,7 @@ function EntregaContent() {
               backgroundColor: isPaid ? 'rgba(16, 185, 129, 0.05)' : 'rgba(245, 158, 11, 0.05)'
             }}
           >
-            {isPaid ? '✨ Entrega Liberada' : '⏳ Aguardando Pagamento (R$ 9,99)'}
+            {isPaid ? '✨ Entrega Liberada' : `⏳ Aguardando Pagamento (R$ ${precoDoPacoteAtual.toFixed(2).replace('.', ',')})`}
           </span>
         </div>
       </header>
@@ -1760,15 +1775,48 @@ function EntregaContent() {
                       <h3 style={{ fontSize: '1.25rem', fontWeight: '800', marginTop: '6px', color: 'var(--text-primary)' }}>
                         {promo ? '🎁 Oferta Especial Liberada!' : 'Liberar Músicas Completas em MP3 HD'}
                       </h3>
+                      {/* O valor sai do MESMO catálogo que o servidor usa para cobrar
+                          (src/lib/pricing.js), a partir do pacote escolhido. Até 21/09/2026 este
+                          texto era fixo em "R$ 9,99": quem escolhia a Retrospectiva junto via
+                          R$ 9,99 na tela enquanto o banco pedia R$ 19,98 — relatado pelo dono do
+                          estúdio com print. Preço na tela que não bate com o do Pix faz o cliente
+                          desistir achando que é golpe. */}
                       <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                        {promo === '48h' ? (
-                          <>Pague apenas <strong style={{ color: 'var(--success)', fontSize: '1.1rem' }}>R$ 6,90</strong> para liberar as 2 versões completas e <strong>ganhe o Vídeo Homenagem de brinde!</strong></>
-                        ) : promo === '24h' ? (
-                          <>Pague apenas <strong style={{ color: 'var(--success)', fontSize: '1.1rem' }}>R$ 9,99</strong> para liberar as 2 versões completas e <strong>ganhe o Vídeo Homenagem de brinde!</strong></>
-                        ) : (
-                          <>Pague apenas <strong style={{ color: 'var(--success)', fontSize: '1.1rem' }}>R$ 9,99</strong> para liberar o download das 2 versões completas sem corte e a página especial de presente!</>
-                        )}
+                        Pague apenas{' '}
+                        <strong style={{ color: 'var(--success)', fontSize: '1.1rem' }}>
+                          R$ {precoDoPacoteAtual.toFixed(2).replace('.', ',')}
+                        </strong>{' '}
+                        {promo ? (
+                          <>para liberar as 2 versões completas e <strong>ganhe o Vídeo Homenagem de brinde!</strong></>
+                        ) : descricaoDoPacoteAtual}
                       </p>
+
+                      {/* Desistir do extra sem precisar de suporte. Quem clica num extra por
+                          engano — ou muda de ideia diante do preço — ficava preso com uma cobrança
+                          maior e sem caminho de volta na tela (pedido 21/09/2026).
+                          Gerar a cobrança nova é seguro: api/payments/create guarda o txid antigo
+                          em previousPaymentIntentIds, e o webhook ainda encontra o pedido se o
+                          cliente acabar pagando a cobrança anterior. */}
+                      {!promo && !pixLoading && skuDoPacoteAtual !== 'audio_only' && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedPackage('audio_only');
+                            handleGeneratePix('audio_only');
+                          }}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            padding: '4px',
+                            color: 'var(--text-muted)',
+                            fontSize: '0.8rem',
+                            textDecoration: 'underline',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Prefiro só a música, por R$ {getPriceForSku('audio_only').toFixed(2).replace('.', ',')}
+                        </button>
+                      )}
                     </div>
 
                     {pixLoading ? (
