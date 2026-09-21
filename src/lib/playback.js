@@ -9,6 +9,7 @@
 import { doc, updateDoc } from 'firebase/firestore/lite';
 import { dbEdge as db } from './firebase-edge.js';
 import { readEnvValue, isTransientKieFailure } from './suno.js';
+import { resolverSiteUrl } from './siteUrl.js';
 
 /**
  * @param {{orderId: string, sunoTaskId: string, audioId: string}} params identificam a faixa já
@@ -28,8 +29,7 @@ export async function requestPlaybackGeneration({ orderId, sunoTaskId, audioId }
     return { ok: false, error: 'missing_api_key' };
   }
 
-  const rawUrl = readEnvValue(env, 'NEXT_PUBLIC_SITE_URL').replace(/\/+$/, '');
-  const baseUrl = (!rawUrl || rawUrl.includes('pages.dev') || rawUrl.includes('localhost')) ? 'https://nsmusic.nsnexus.com.br' : rawUrl;
+  const baseUrl = resolverSiteUrl(readEnvValue(env, 'NEXT_PUBLIC_SITE_URL'));
 
   // orderId embutido na query string (não é PII, é só o ID do pedido) porque, diferente da geração
   // de música, não existe uma coleção tipo suno_tasks pra resolver taskId->orderId no webhook.

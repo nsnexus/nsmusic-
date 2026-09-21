@@ -12,6 +12,8 @@
 //    pessoal, foto e áudio de gente real. Essas páginas são acessíveis por link, não são segredo —
 //    mas indexá-las colocaria a homenagem de um cliente no Google, o que ninguém pediu. /admin e
 //    /api saem pelo motivo óbvio.
+import { SITE_URL } from '@/lib/siteUrl';
+
 export const runtime = 'edge';
 
 const PRIVADAS = [
@@ -38,7 +40,7 @@ export default function robots() {
         disallow: PRIVADAS,
       },
     ],
-    sitemap: 'https://nsmusic.nsnexus.com.br/sitemap.xml',
-    host: 'https://nsmusic.nsnexus.com.br',
+    sitemap: `${SITE_URL}/sitemap.xml`,
+    host: SITE_URL,
   };
 }

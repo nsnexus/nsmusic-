@@ -10,6 +10,7 @@ import { doc, getDoc, updateDoc, increment } from 'firebase/firestore/lite';
 import { dbEdge as db } from './firebase-edge.js';
 import { saveTask, getTask } from './db.js';
 import { buildSunoPayload } from './sunoPayload.js';
+import { resolverSiteUrl } from './siteUrl.js';
 
 // A Kie.ai sinaliza a maioria dos erros com HTTP 200 e um `code` no corpo (429/430 = limite de
 // taxa, 455 = manutenção, 500 = erro interno deles) — só olhar response.status não pegava esses
@@ -71,9 +72,8 @@ export async function requestSunoGeneration({ orderId, prompt, tags }, env) {
     return { ok: false, error: 'Configuração ausente: KIE_API_KEY não definida no servidor.', status: 500 };
   }
 
-  // Garante a URL do webhook no domínio oficial de produção.
-  const rawUrl = readEnvValue(env, 'NEXT_PUBLIC_SITE_URL').replace(/\/+$/, '');
-  const baseUrl = (!rawUrl || rawUrl.includes('pages.dev') || rawUrl.includes('localhost')) ? 'https://nsmusic.nsnexus.com.br' : rawUrl;
+  // Garante a URL do webhook no domínio oficial de produção (ver src/lib/siteUrl.js).
+  const baseUrl = resolverSiteUrl(readEnvValue(env, 'NEXT_PUBLIC_SITE_URL'));
 
   // Segredo compartilhado no callback: /api/suno/webhook confere este valor antes de processar
   // (ver A-03 no AUDIT_REPORT.md — o webhook não tinha nenhuma autenticação).

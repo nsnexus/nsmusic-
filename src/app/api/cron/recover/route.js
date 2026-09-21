@@ -3,6 +3,7 @@ import { getRequestContext } from '@cloudflare/next-on-pages';
 import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore/lite';
 import { dbEdge as db } from '@/lib/firebase-edge';
 import { sendRecoveryTemplate, sendPreviewNudgeTemplate } from '@/lib/whatsapp';
+import { DOMINIO_CANONICO } from '@/lib/siteUrl';
 
 export const runtime = 'edge';
 
@@ -109,7 +110,7 @@ export async function GET(req) {
 
     for (const { order, targetStage, templateName, promoParam } of batch) {
       try {
-        const deliveryUrl = `https://nsmusic.nsnexus.com.br/entrega?id=${order.id}${promoParam}`;
+        const deliveryUrl = `${DOMINIO_CANONICO}/entrega?id=${order.id}${promoParam}`;
 
         const params = {
           customerName: order.customerName || 'Cliente',
@@ -162,7 +163,7 @@ export async function GET(req) {
     if (!dryRun) {
       for (const { order } of nudgeBatch) {
         try {
-          const deliveryUrl = `https://nsmusic.nsnexus.com.br/entrega?orderId=${order.id}`;
+          const deliveryUrl = `${DOMINIO_CANONICO}/entrega?orderId=${order.id}`;
           const targetPhone = order.whatsappSenderPhone || order.customerPhone;
           const waRes = await sendPreviewNudgeTemplate(targetPhone, {
             customerName: order.customerName,

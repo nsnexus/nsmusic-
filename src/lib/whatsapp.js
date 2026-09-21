@@ -1,4 +1,5 @@
 import { getRequestContext } from '@cloudflare/next-on-pages';
+import { DOMINIO_CANONICO } from './siteUrl.js';
 import { resolveDeliveryUrl, resolveCriarUrl, formatToWhatsAppNumber, cleanWhatsAppId, buildAudioDownloadLink } from './whatsappTemplates.js';
 
 export { resolveDeliveryUrl, resolveCriarUrl, formatToWhatsAppNumber, cleanWhatsAppId, buildAudioDownloadLink };
@@ -105,7 +106,7 @@ export const sendWApiTextMessage = async (phone, message, env = {}) => {
 export const sendMusicReadyTemplate = async (phone, { customerName, honoreeName, deliveryUrl }, env = {}) => {
   const name = customerName || 'Cliente';
   const honoree = honoreeName || 'alguém especial';
-  const url = deliveryUrl || 'https://nsmusic.nsnexus.com.br';
+  const url = deliveryUrl || DOMINIO_CANONICO;
 
   const message = `🎵 *Olá, ${name}!*
 
@@ -143,7 +144,7 @@ export const isVideoPurchased = (orderData = {}) => {
 export const sendPaymentApprovedTemplate = async (phone, { customerName, honoreeName, deliveryUrl, audioUrls, hasVideoAccess, orderData }, env = {}) => {
   const name = customerName || 'Cliente';
   const honoree = honoreeName || 'alguém especial';
-  const url = deliveryUrl || 'https://nsmusic.nsnexus.com.br';
+  const url = deliveryUrl || DOMINIO_CANONICO;
 
   const userHasVideo = Boolean(hasVideoAccess || isVideoPurchased(orderData));
 
@@ -193,7 +194,7 @@ ${videoBlock}Muito obrigado por escolher o *NS Music* para fazer parte desse mom
  */
 export const sendRecoveryTemplate = async (phone, templateName, { customerName, deliveryUrl }, env = {}) => {
   const name = customerName || 'Cliente';
-  const url = deliveryUrl || 'https://nsmusic.nsnexus.com.br';
+  const url = deliveryUrl || DOMINIO_CANONICO;
 
   const is24h = templateName?.includes('24h');
   const discountText = is24h ? 'com *desconto especial por tempo limitado*' : 'aguardando por você';
@@ -218,7 +219,7 @@ Qualquer dúvida, estamos por aqui! 💜`;
 export const sendPreviewNudgeTemplate = async (phone, { customerName, honoreeName, deliveryUrl }, env = {}) => {
   const name = customerName || 'Cliente';
   const honoree = honoreeName || 'alguém especial';
-  const url = deliveryUrl || 'https://nsmusic.nsnexus.com.br';
+  const url = deliveryUrl || DOMINIO_CANONICO;
 
   const message = `Olá, ${name}! 👋
 

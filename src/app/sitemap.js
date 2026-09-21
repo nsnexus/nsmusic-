@@ -4,10 +4,11 @@
 // /homenagem e afins mostram a homenagem de um cliente específico, e listá-las seria publicar o
 // presente de alguém (ver o comentário em robots.js).
 import { ocasioes } from '@/lib/ocasioes';
+import { SITE_URL } from '@/lib/siteUrl';
 
 export const runtime = 'edge';
 
-const BASE = 'https://nsmusic.nsnexus.com.br';
+const BASE = SITE_URL;
 
 export default function sitemap() {
   const agora = new Date();

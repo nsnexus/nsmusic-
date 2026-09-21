@@ -8,8 +8,9 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { ocasioes } from '@/lib/ocasioes';
 import { getPriceForSku } from '@/lib/pricing';
+import { SITE_URL } from '@/lib/siteUrl';
 
-const BASE = 'https://nsmusic.nsnexus.com.br';
+const BASE = SITE_URL;
 
 const preco = (sku) => getPriceForSku(sku).toFixed(2).replace('.', ',');
 

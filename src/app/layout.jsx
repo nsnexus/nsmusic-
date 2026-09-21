@@ -1,6 +1,7 @@
 import Script from 'next/script';
 import './globals.css';
 import { organizationJsonLd, serviceJsonLd } from '@/lib/structuredData';
+import { SITE_URL } from '@/lib/siteUrl';
 
 // Descrição única, usada em todo lugar (meta, OpenGraph, Twitter) — pedido 20/09/2026 ("deixar o
 // site otimizado para leitura de IA"). Diz O QUE é, PARA QUEM serve, QUANTO custa e EM QUANTO
@@ -14,7 +15,7 @@ const DESCRICAO =
 const TITULO = 'NS Music — Música Personalizada com IA a partir da Sua História';
 
 export const metadata = {
-  metadataBase: new URL('https://nsmusic.nsnexus.com.br'),
+  metadataBase: new URL(SITE_URL),
   title: {
     default: TITULO,
     template: '%s · NS Music',
@@ -41,7 +42,7 @@ export const metadata = {
     type: 'website',
     locale: 'pt_BR',
     siteName: 'NS Music',
-    url: 'https://nsmusic.nsnexus.com.br',
+    url: SITE_URL,
   },
   twitter: {
     card: 'summary_large_image',

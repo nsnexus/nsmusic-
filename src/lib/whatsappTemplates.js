@@ -2,12 +2,10 @@
 // que precisa de @cloudflare/next-on-pages) — arquivo separado só por isso, ver M-19 no AUDIT_REPORT.md.
 
 import { AUDIO_CACHE_VERSION } from './audioCacheVersion.js';
+import { resolverSiteUrl } from './siteUrl.js';
 
 function resolveSiteBaseUrl() {
-  const rawUrl = (process.env.NEXT_PUBLIC_SITE_URL || '').trim().replace(/\/+$/, '');
-  return (!rawUrl || rawUrl.includes('pages.dev') || rawUrl.includes('localhost'))
-    ? 'https://nsmusic.nsnexus.com.br'
-    : rawUrl;
+  return resolverSiteUrl(process.env.NEXT_PUBLIC_SITE_URL);
 }
 
 export function resolveDeliveryUrl(orderId) {

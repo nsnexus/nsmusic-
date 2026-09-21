@@ -9,6 +9,8 @@
 // Servidor não tem esse problema: dispara uma vez, no momento exato da aprovação, independente de
 // quantos navegadores o cliente usa depois.
 
+import { resolverSiteUrl } from './siteUrl.js';
+
 const META_PIXEL_ID = '1366434898413500';
 const GRAPH_API_VERSION = 'v21.0';
 
@@ -65,8 +67,8 @@ export async function sendMetaPurchaseEvent({ orderId, value, contentName, custo
   // Meta deduplica sozinha pelo mesmo event_id, então nunca conta duas vezes mesmo em retry.
   const eventId = `purchase_${orderId}_${contentName.replace(/\s+/g, '_').toLowerCase()}`;
 
-  const siteUrl = readEnvValue(env, 'NEXT_PUBLIC_SITE_URL') || 'https://nsmusic.nsnexus.com.br';
-  const eventSourceUrl = `${siteUrl.replace(/\/$/, '')}/entrega?id=${encodeURIComponent(orderId)}`;
+  const siteUrl = resolverSiteUrl(readEnvValue(env, 'NEXT_PUBLIC_SITE_URL'));
+  const eventSourceUrl = `${siteUrl}/entrega?id=${encodeURIComponent(orderId)}`;
 
   const payload = {
     data: [{

@@ -9,8 +9,9 @@
 // anunciado nunca divergir do valor real (a divergência seria pior aqui do que numa tela: um preço
 // errado no JSON-LD vira resposta errada no ChatGPT e no Google).
 import { getPriceForSku } from './pricing';
+import { SITE_URL } from './siteUrl';
 
-const BASE = 'https://nsmusic.nsnexus.com.br';
+const BASE = SITE_URL;
 
 const brl = (sku) => ({
   '@type': 'Offer',
