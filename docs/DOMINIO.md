@@ -91,6 +91,24 @@ Isso preserva o caminho inteiro, então `…/entrega?orderId=abc` do WhatsApp an
 `https://nsmusic.ia.br/entrega?orderId=abc`. E deixa `/api/*` intacto, pelo motivo do topo deste
 documento.
 
+**Atenção permanente — o webhook da Efí vive no domínio antigo.**
+
+Confirmado em 21/09/2026 pelo diagnóstico do painel (Admin → Pedidos → "Conferir na Efí"): a Efí
+está registrada para avisar em `nsmusic.nsnexus.com.br/api/webhooks/efi`. Isso funciona porque a
+regra acima exclui `/api/` — e é exatamente por isso que ela exclui.
+
+Enquanto isso valer, **nunca**:
+
+- remover `nsmusic.nsnexus.com.br` dos custom domains do projeto Pages;
+- incluir `/api/` no redirect.
+
+Qualquer um dos dois derruba a confirmação instantânea de pagamento. O sintoma seria "cliente pagou
+e não liberou", e só a reconciliação agendada pegaria, até 5 minutos depois.
+
+Reregistrar no domínio novo é opcional e exige `EFI_WEBHOOK_SECRET` mais o relay da Fly com o
+`EFI_PROXY_SECRET` correto (ver `scripts/register-efi-webhook.mjs` e `docs/EFI_SETUP.md`). Enquanto
+não for feito, o botão do painel mostra o aviso laranja, que é informação e não erro.
+
 Conferir:
 
 ```bash
