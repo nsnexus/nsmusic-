@@ -110,6 +110,7 @@ Não há suíte automatizada. O mínimo aceitável hoje:
 | Ordem segura para corrigir | `docs/audit/FIX_PLAN.md` |
 | Regras da área que estou tocando | `.claude/rules/*.md` |
 | Configurar o gateway de pagamento (Efí) | `docs/EFI_SETUP.md` |
+| Entender os dois provedores de música (VPS própria + Kie.ai) | `docs/GERACAO_MUSICA.md` |
 
 `.agents/AGENTS.md` é o rulebook legado — ainda útil como registro da intenção original do projeto,
 mas `.claude/rules/` tem precedência quando houver conflito.
