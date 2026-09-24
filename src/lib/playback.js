@@ -12,14 +12,27 @@ import { readEnvValue, isTransientKieFailure } from './suno.js';
 import { resolverSiteUrl } from './siteUrl.js';
 
 /**
- * @param {{orderId: string, sunoTaskId: string, audioId: string}} params identificam a faixa já
- *   gerada na Kie.ai — vem de orders/{orderId}.sunoTaskId e .audioIds[0], gravados na geração
- *   original (ver src/lib/suno.js e src/lib/db.js:updateTaskResult).
+ * A separação vocal continua toda na Kie.ai, inclusive para música gerada na VPS própria (decisão
+ * do dono do estúdio, 24/09/2026). O endpoint aceita duas formas de apontar a faixa:
+ *
+ *   - `taskId` + `audioId` — faixa gerada na PRÓPRIA conta Kie.ai;
+ *   - `audioUrl` + `audioId` — áudio externo.
+ *
+ * Música feita na VPS não existe na conta Kie.ai: mandar o `sunoTaskId` dela seria apontar para
+ * uma tarefa que a Kie.ai nunca viu, e o cliente pagaria R$ 4,99 por um playback que nunca sai. Por
+ * isso, quando o pedido veio da VPS, mandamos a URL do MP3 (cdn1.suno.ai, ou a cópia já arquivada
+ * no nosso storage — as duas são públicas e a Kie.ai consegue baixar).
+ *
+ * @param {{orderId: string, sunoTaskId: string, audioId: string, audioUrl?: string, provider?: string}} params
+ *   vêm de orders/{orderId}: .sunoTaskId, .audioIds[0], .audioUrl e .sunoProvider.
  * @param {object} env contexto de ambiente da rota chamadora
  * @returns {Promise<{ok: true, taskId: string} | {ok: false, error: string}>}
  */
-export async function requestPlaybackGeneration({ orderId, sunoTaskId, audioId }, env) {
-  if (!orderId || !sunoTaskId || !audioId) {
+export async function requestPlaybackGeneration({ orderId, sunoTaskId, audioId, audioUrl, provider }, env) {
+  // Faixa da própria Kie.ai é referenciada por taskId; qualquer outra origem, pela URL do áudio.
+  const usaAudioExterno = Boolean(provider && provider !== 'kie');
+
+  if (!orderId || !audioId || (usaAudioExterno ? !audioUrl : !sunoTaskId)) {
     return { ok: false, error: 'missing_arguments' };
   }
 
@@ -49,7 +62,7 @@ export async function requestPlaybackGeneration({ orderId, sunoTaskId, audioId }
           'Authorization': `Bearer ${apiKey}`
         },
         body: JSON.stringify({
-          taskId: sunoTaskId,
+          ...(usaAudioExterno ? { audioUrl } : { taskId: sunoTaskId }),
           audioId: audioId,
           type: 'separate_vocal',
           callBackUrl: callbackUrl

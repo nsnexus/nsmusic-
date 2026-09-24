@@ -1864,9 +1864,12 @@ function EntregaContent() {
                   </div>
                 ) : null}
 
-                {/* Add-on de playback (instrumental) — só pra pedidos com sunoTaskId/audioIds
-                    gravados na geração (pedidos anteriores a este recurso não têm esses campos). */}
-                {isPaid && order?.audioIds?.length > 0 && order?.sunoTaskId && (
+                {/* Add-on de playback (instrumental). A separação vocal roda sempre na Kie.ai:
+                    música gerada lá é referenciada por sunoTaskId; música gerada na VPS própria,
+                    pela URL do MP3 (ver src/lib/playback.js). Sem uma dessas referências o playback
+                    não teria como ser gerado, e ninguém deve pagar por isso. */}
+                {isPaid && order?.audioIds?.length > 0
+                  && (order?.sunoProvider && order.sunoProvider !== 'kie' ? Boolean(order?.audioUrl) : Boolean(order?.sunoTaskId)) && (
                   <PlaybackAddonCard orderId={orderId} order={order} />
                 )}
 

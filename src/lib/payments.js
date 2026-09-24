@@ -277,8 +277,15 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
           const audioIds = txResult.orderData?.audioIds || [];
           const escolhida = txResult.orderData?.playbackChosenAudioId;
           const audioId = (escolhida && audioIds.includes(escolhida)) ? escolhida : audioIds[0];
-          if (sunoTaskId && audioId) {
-            const genResult = await requestPlaybackGeneration({ orderId, sunoTaskId, audioId }, env);
+          // Pedido gerado na VPS própria não existe na conta Kie.ai: a separação vocal precisa da
+          // URL do MP3 em vez do taskId (ver src/lib/playback.js). O provedor foi gravado na
+          // geração; pedido antigo, sem o campo, é da Kie.ai por definição.
+          const provider = txResult.orderData?.sunoProvider || 'kie';
+          const audioUrl = txResult.orderData?.audioUrl || txResult.orderData?.audioFiles?.[0] || '';
+          const temReferencia = provider === 'kie' ? Boolean(sunoTaskId) : Boolean(audioUrl);
+
+          if (temReferencia && audioId) {
+            const genResult = await requestPlaybackGeneration({ orderId, sunoTaskId, audioId, audioUrl, provider }, env);
             await updateDoc(orderRef, {
               playbackRequested: true,
               playbackRequesting: false,
@@ -287,7 +294,7 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
               console.warn(`[payments] Falha ao iniciar playback (Kie.ai) — pedido ${orderId}:`, genResult.error);
             }
           } else {
-            console.warn(`[payments] Pedido ${orderId} sem sunoTaskId/audioId — playback pago mas não pôde ser gerado (pedido anterior a este recurso).`);
+            console.warn(`[payments] Pedido ${orderId} sem referência de faixa (taskId/audioUrl/audioId) — playback pago mas não pôde ser gerado.`);
             await updateDoc(orderRef, {
               playbackRequesting: false,
               playbackStatus: 'FAILED',

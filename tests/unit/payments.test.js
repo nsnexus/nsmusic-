@@ -336,8 +336,10 @@ describe('applyPaymentApproval', () => {
     await applyPaymentApproval('order16', '1616', { status: 'approved', transaction_amount: 4.99 });
 
     expect(requestPlaybackGenerationMock).toHaveBeenCalledTimes(1);
+    // provider/audioUrl entraram em 24/09/2026: musica gerada na VPS propria nao existe na conta
+    // Kie.ai e precisa ser referenciada pela URL do MP3 (ver tests/unit/playbackReferencia.test.js).
     expect(requestPlaybackGenerationMock).toHaveBeenCalledWith(
-      { orderId: 'order16', sunoTaskId: 'task-xyz', audioId: 'audio-primary' },
+      { orderId: 'order16', sunoTaskId: 'task-xyz', audioId: 'audio-primary', audioUrl: '', provider: 'kie' },
       expect.anything()
     );
     expect(store['order16'].playbackRequested).toBe(true);
