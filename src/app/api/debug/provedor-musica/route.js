@@ -55,5 +55,29 @@ export async function GET(req) {
     resultado.vps.aoVivo = await consultarSaldoVps(env);
   }
 
+  // ?playbackTaskId=... devolve o registro CRU da separação vocal na Kie.ai.
+  //
+  // Motivo (24/09/2026): 10 dos 11 playbacks pagos estão em FAILED com `playbackError:
+  // kie_callback_200` — a Kie.ai aceitou a tarefa e mandou o callback com code 200, mas nenhum dos
+  // formatos de URL que o webhook reconhece apareceu no corpo. Já houve duas variantes de nome
+  // (snake_case e camelCase, ver o comentário em api/playback/webhook); isto existe para descobrir
+  // a terceira sem precisar que um cliente pague de novo para reproduzir.
+  const playbackTaskId = searchParams.get('playbackTaskId');
+  if (playbackTaskId) {
+    const kieKey = readEnvValue(env, 'KIE_API_KEY');
+    try {
+      const r = await fetch(`https://api.kie.ai/api/v1/vocal-removal/record-info?taskId=${encodeURIComponent(playbackTaskId)}`, {
+        headers: { Authorization: `Bearer ${kieKey}`, 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(10000),
+      });
+      const texto = await r.text();
+      let corpo;
+      try { corpo = JSON.parse(texto); } catch (e) { corpo = { bruto: texto.slice(0, 500) }; }
+      resultado.playback = { http: r.status, corpo };
+    } catch (e) {
+      resultado.playback = { erro: `${e.name}: ${e.message}` };
+    }
+  }
+
   return NextResponse.json(resultado);
 }
