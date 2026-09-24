@@ -68,10 +68,11 @@ describe('requestSunoGeneration', () => {
 
     const result = await requestSunoGeneration({ orderId: 'order1', prompt: 'letra', tags: 'pop' }, { KIE_API_KEY: 'chave' });
 
-    expect(result).toEqual({ ok: true, taskId: 'task-abc' });
+    // provider passou a vir no retorno quando a geracao virou roteada (VPS primaria, Kie fallback).
+    expect(result).toEqual({ ok: true, taskId: 'task-abc', provider: 'kie' });
     expect(store['order1'].productionStatus).toBe('GERANDO_AUDIO');
     expect(store['order1'].sunoGenerationCount).toBe(1); // increment() a partir de undefined
-    expect(saveTaskMock).toHaveBeenCalledWith('task-abc', 'PROCESSING', null, 'order1');
+    expect(saveTaskMock).toHaveBeenCalledWith('task-abc', 'PROCESSING', null, 'order1', { provider: 'kie', clipIds: [] });
   });
 
   it('sem KIE_API_KEY: falha sem chamar a Kie.ai', async () => {
@@ -88,7 +89,17 @@ describe('requestSunoGeneration', () => {
 
     const result = await requestSunoGeneration({ orderId: 'order2', prompt: 'letra', tags: 'pop' }, { KIE_API_KEY: 'chave' });
 
-    expect(result).toEqual({ ok: true, taskId: 'task-retry-ok' });
+    expect(result).toEqual({ ok: true, taskId: 'task-retry-ok', provider: 'kie' });
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('limita falha transitória a duas chamadas para não exceder prazo da Pages', async () => {
+    global.fetch.mockResolvedValue(kieErrorResponse(503, 503));
+    store['order-timeout'] = {};
+
+    const result = await requestSunoGeneration({ orderId: 'order-timeout', prompt: 'letra', tags: 'pop' }, { KIE_API_KEY: 'chave' });
+
+    expect(result.ok).toBe(false);
     expect(global.fetch).toHaveBeenCalledTimes(2);
   });
 

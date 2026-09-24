@@ -20,7 +20,12 @@ export const getTask = async (taskId) => {
 // Retorna se a gravação teve sucesso — o chamador (api/suno/generate) precisa saber, porque sem
 // este documento o webhook/polling da Kie.ai nunca consegue achar o orderId de volta (taskId fica
 // órfão) e o pedido trava sem que ninguém saiba que a ligação falhou.
-export const saveTask = async (taskId, status, result = null, orderId = null) => {
+/**
+ * @param {object} [extra] campos além do básico. Hoje: `provider` ('kie' | 'suno_vps') e, só na
+ *   VPS, `clipIds` — os dois clipes que o webhook precisa reconsultar antes de fechar o pedido.
+ *   Sem o provider gravado aqui, o polling e a reconciliação não sabem em qual API perguntar.
+ */
+export const saveTask = async (taskId, status, result = null, orderId = null, extra = {}) => {
   try {
     const docRef = doc(db, 'suno_tasks', taskId);
     // merge:true padronizado com updateTaskResult (ver M-06 no AUDIT_REPORT.md) — sem isso, uma
@@ -29,6 +34,8 @@ export const saveTask = async (taskId, status, result = null, orderId = null) =>
       status,
       result,
       orderId,
+      ...(extra.provider ? { provider: extra.provider } : {}),
+      ...(Array.isArray(extra.clipIds) && extra.clipIds.length > 0 ? { clipIds: extra.clipIds } : {}),
       updatedAt: new Date().toISOString()
     }, { merge: true });
     return true;

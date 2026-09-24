@@ -8,7 +8,8 @@ Add-on de vídeo slideshow: + R$ 6,90.
 
 Next.js 14 App Router · JavaScript puro (sem TypeScript) · React 18 · npm
 Cloudflare Pages **Edge Runtime** (`@cloudflare/next-on-pages`) · Firebase Firestore + Storage
-Integrações: Kie.ai/Suno (música) · OpenAI→Gemini (letra) · Efí (PIX, API real com mTLS) · W-API (WhatsApp)
+Integrações: API de Suno própria na VPS do estúdio (música, primária) com Kie.ai de fallback ·
+OpenAI→Gemini (letra) · Efí (PIX, API real com mTLS) · W-API (WhatsApp)
 
 ## Arquitetura em uma frase
 
