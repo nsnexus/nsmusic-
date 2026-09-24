@@ -17,11 +17,6 @@ vi.mock('@/lib/whatsapp', () => ({
   isVideoPurchased: (orderData) => Boolean(orderData?.hasVideoAccess || orderData?.paymentIntentSku === 'combo'),
 }));
 
-const requestPlaybackGenerationMock = vi.fn().mockResolvedValue({ ok: true, taskId: 'kie-task-1' });
-vi.mock('@/lib/playback', () => ({
-  requestPlaybackGeneration: (...args) => requestPlaybackGenerationMock(...args),
-}));
-
 vi.mock('firebase/firestore/lite', () => {
   return {
     doc: (_db, _collection, id) => ({ id }),
@@ -52,7 +47,6 @@ const { applyPaymentApproval } = await import('@/lib/payments');
 beforeEach(() => {
   store = {};
   sendPaymentApprovedTemplateMock.mockClear();
-  requestPlaybackGenerationMock.mockClear();
 });
 
 describe('applyPaymentApproval', () => {
@@ -325,7 +319,9 @@ describe('applyPaymentApproval', () => {
     expect(store['order15'].playbackPaymentId).toBe('1515');
   });
 
-  it('playback_addon aprovado dispara a geração na Kie.ai com o taskId/audioId do pedido', async () => {
+  // Desde 24/09/2026 o playback não é mais gerado na Kie.ai: o pagamento libera o acesso e o
+  // cliente pede o arquivo pelo WhatsApp (a geração automática falhava em 10 de 11 pedidos pagos).
+  it('playback_addon aprovado marca o pedido como aguardando contato, sem gerar nada', async () => {
     store['order16'] = {
       paymentIntentSku: 'playback_addon',
       sunoTaskId: 'task-xyz',
@@ -335,18 +331,11 @@ describe('applyPaymentApproval', () => {
 
     await applyPaymentApproval('order16', '1616', { status: 'approved', transaction_amount: 4.99 });
 
-    expect(requestPlaybackGenerationMock).toHaveBeenCalledTimes(1);
-    // provider/audioUrl entraram em 24/09/2026: musica gerada na VPS propria nao existe na conta
-    // Kie.ai e precisa ser referenciada pela URL do MP3 (ver tests/unit/playbackReferencia.test.js).
-    expect(requestPlaybackGenerationMock).toHaveBeenCalledWith(
-      { orderId: 'order16', sunoTaskId: 'task-xyz', audioId: 'audio-primary', audioUrl: '', provider: 'kie' },
-      expect.anything()
-    );
-    expect(store['order16'].playbackRequested).toBe(true);
-    expect(store['order16'].playbackRequesting).toBe(false);
+    expect(store['order16'].hasPlaybackAccess).toBe(true);
+    expect(store['order16'].playbackStatus).toBe('AGUARDANDO_CONTATO');
   });
 
-  it('playback_addon em pedido antigo (sem sunoTaskId/audioIds) marca FAILED e não chama a Kie.ai', async () => {
+  it('playback_addon em pedido antigo (sem sunoTaskId/audioIds) continua liberando o acesso pago', async () => {
     store['order17'] = {
       paymentIntentSku: 'playback_addon',
       playbackPaymentId: null,
@@ -357,9 +346,9 @@ describe('applyPaymentApproval', () => {
 
     expect(result.applied).toBe(true);
     expect(store['order17'].hasPlaybackAccess).toBe(true); // pagamento continua válido
-    expect(requestPlaybackGenerationMock).not.toHaveBeenCalled();
-    expect(store['order17'].playbackStatus).toBe('FAILED');
-    expect(store['order17'].playbackError).toBe('missing_track_reference');
+    // Sem geração automática, a falta de referência de faixa deixou de ser motivo de falha: quem
+    // prepara o arquivo é o estúdio, pelo WhatsApp.
+    expect(store['order17'].playbackStatus).toBe('AGUARDANDO_CONTATO');
   });
 
   it('NÃO notifica via WhatsApp no pagamento isolado do add-on de playback', async () => {
@@ -421,7 +410,7 @@ describe('applyPaymentApproval — SKU vem do txid pago, não da última cobran�
     expect(store['order20'].playbackAddonPaid).toBeUndefined();
     // E a música foi corretamente aprovada.
     expect(store['order20'].paymentStatus).toBe('PAGAMENTO_APROVADO');
-    expect(requestPlaybackGenerationMock).not.toHaveBeenCalled();
+    expect(store['order20'].playbackStatus).toBeUndefined();
   });
 
   it('pagamento ATRASADO da música NÃO libera o add-on de vídeo recém-oferecido', async () => {
@@ -464,7 +453,7 @@ describe('applyPaymentApproval — SKU vem do txid pago, não da última cobran�
     expect(result.applied).toBe(true);
     expect(result.sku).toBe('playback_addon');
     expect(store['order22'].hasPlaybackAccess).toBe(true);
-    expect(requestPlaybackGenerationMock).toHaveBeenCalledTimes(1);
+    expect(store['order22'].playbackStatus).toBe('AGUARDANDO_CONTATO');
   });
 
   it('pedido antigo sem o mapa: usa paymentIntentSku só quando o txid é o da cobrança atual', async () => {

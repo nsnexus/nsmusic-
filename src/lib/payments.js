@@ -16,7 +16,6 @@ import { dbEdge as db } from './firebase-edge';
 import { skuApprovesMusic, skuGrantsVideoAccess, skuGrantsCartaAccess, skuGrantsRetrospectivaAccess, getPriceForSku, brindesPorValorPago } from './pricing';
 import { resolveDeliveryUrl } from './whatsappTemplates';
 import { sendMetaPurchaseEvent } from './metaCapi';
-import { requestPlaybackGeneration } from './playback';
 
 const REVOKING_STATUSES = new Set(['cancelled', 'refunded', 'charged_back']);
 
@@ -252,58 +251,26 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
       }
     }
 
-    // Playback (instrumental) é gerado automaticamente assim que o pagamento do add-on é aprovado —
-    // sem clique extra do cliente. Isolado em try/catch próprio (payments.md: efeito colateral nunca
-    // pode impedir a gravação da aprovação, que já aconteceu acima) e com a mesma reserva sequencial
-    // usada abaixo pro Meta CAPI, pra não disparar a Kie.ai duas vezes se webhook e polling do
-    // pagamento chegarem juntos (cada chamada cobra crédito da Kie.ai, sem estorno).
+    // Playback (instrumental): o pagamento é automático, a ENTREGA é manual pelo WhatsApp.
+    //
+    // A separação vocal era feita na Kie.ai e falhava quase sempre — 10 dos 11 playbacks pagos
+    // entre 04/09 e 23/09/2026 terminaram em FAILED com `kie_callback_200`: a Kie.ai aceitava a
+    // tarefa e mandava callback de sucesso, mas a URL do instrumental vinha num campo que o webhook
+    // não reconhecia (já eram duas variantes de nome antes dessa). O cliente pagava e não recebia.
+    //
+    // Decisão do dono do estúdio em 24/09/2026: tirar a Kie.ai desse caminho. O pedido fica marcado
+    // como aguardando contato e o cliente pede o arquivo no WhatsApp (ver
+    // src/components/PlaybackAddonCard.jsx). Nada é gerado por aqui, então não há efeito colateral
+    // que possa falhar depois da aprovação já gravada.
     if (txResult.isPlaybackOnly) {
       try {
-        let shouldGenerate = false;
-        const freshSnap = await getDoc(orderRef);
-        if (freshSnap.exists()) {
-          const freshData = freshSnap.data();
-          if (!freshData.playbackRequested && !freshData.playbackRequesting) {
-            await updateDoc(orderRef, { playbackRequesting: true });
-            shouldGenerate = true;
-          }
-        }
-
-        if (shouldGenerate) {
-          const sunoTaskId = txResult.orderData?.sunoTaskId;
-          // Faixa escolhida pelo cliente antes de pagar (ver /api/playback/choose-track) — só aceita
-          // se for uma das faixas realmente geradas pra este pedido; sem escolha válida, cai na 0
-          // (comportamento anterior a 04/09/2026).
-          const audioIds = txResult.orderData?.audioIds || [];
-          const escolhida = txResult.orderData?.playbackChosenAudioId;
-          const audioId = (escolhida && audioIds.includes(escolhida)) ? escolhida : audioIds[0];
-          // Pedido gerado na VPS própria não existe na conta Kie.ai: a separação vocal precisa da
-          // URL do MP3 em vez do taskId (ver src/lib/playback.js). O provedor foi gravado na
-          // geração; pedido antigo, sem o campo, é da Kie.ai por definição.
-          const provider = txResult.orderData?.sunoProvider || 'kie';
-          const audioUrl = txResult.orderData?.audioUrl || txResult.orderData?.audioFiles?.[0] || '';
-          const temReferencia = provider === 'kie' ? Boolean(sunoTaskId) : Boolean(audioUrl);
-
-          if (temReferencia && audioId) {
-            const genResult = await requestPlaybackGeneration({ orderId, sunoTaskId, audioId, audioUrl, provider }, env);
-            await updateDoc(orderRef, {
-              playbackRequested: true,
-              playbackRequesting: false,
-            }).catch((e) => console.warn('[payments] Erro ao marcar playback solicitado:', e.message));
-            if (!genResult.ok) {
-              console.warn(`[payments] Falha ao iniciar playback (Kie.ai) — pedido ${orderId}:`, genResult.error);
-            }
-          } else {
-            console.warn(`[payments] Pedido ${orderId} sem referência de faixa (taskId/audioUrl/audioId) — playback pago mas não pôde ser gerado.`);
-            await updateDoc(orderRef, {
-              playbackRequesting: false,
-              playbackStatus: 'FAILED',
-              playbackError: 'missing_track_reference',
-            }).catch((e) => console.warn(e.message));
-          }
-        }
+        await updateDoc(orderRef, {
+          playbackStatus: 'AGUARDANDO_CONTATO',
+          playbackRequesting: false,
+          updatedAt: new Date().toISOString(),
+        });
       } catch (err) {
-        console.warn('[payments] Erro ao disparar geração de playback:', err.message);
+        console.warn('[payments] Erro ao marcar playback como aguardando contato:', err.message);
       }
     }
 

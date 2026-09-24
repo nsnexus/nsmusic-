@@ -9,15 +9,19 @@ import { useWhatsappSuporte, linkWhatsapp } from '@/lib/useWhatsappSuporte';
 const MAX_PIX_ATTEMPTS = 3;
 const PIX_POLLING_MAX_ATTEMPTS = 150; // ~10min a cada 4s, mesmo limite do add-on de vídeo
 
-// Add-on "Gerar Playback" (instrumental sem voz, R$ 4,99) — mesmo padrão de pagamento do add-on de
-// vídeo em entrega/page.jsx, extraído em componente próprio pra não engordar aquele arquivo (já
-// acima do limite de 400 linhas, ver .claude/rules/frontend.md). A elegibilidade (pedido precisa ter
-// sunoTaskId/audioIds) é decidida por quem renderiza este componente, não aqui.
+// Add-on "Gerar Playback" (instrumental sem voz, R$ 4,99). O pagamento continua automático aqui; a
+// ENTREGA passou a ser manual, pelo WhatsApp, em 24/09/2026.
 //
-// Depois de pago, a geração é automática no servidor (src/lib/payments.js:applyPaymentApproval) — o
-// `order` vem ao vivo do onSnapshot que a página pai já mantém, então playbackStatus/playbackUrl
-// chegam sozinhos quando o webhook da Kie.ai gravar, sem esse componente precisar escutar nada além
-// do próprio pagamento.
+// Por quê: a separação vocal era feita na Kie.ai e falhava quase sempre — 10 dos 11 playbacks pagos
+// entre 04/09 e 23/09 terminaram em `playbackStatus: FAILED` com `kie_callback_200` (a Kie.ai
+// aceitava a tarefa, mandava callback de sucesso, e a URL do instrumental vinha num campo que o
+// webhook não reconhecia; já eram duas variantes de formato antes dessa). Cliente pagava e não
+// recebia. Enquanto isso não for confiável, o estúdio prefere entregar na mão: o cliente paga, fala
+// no WhatsApp com o número do pedido, e recebe o arquivo por lá.
+//
+// Este componente não gera nada e não fala com provedor nenhum: cobra, confirma e mostra o caminho
+// do WhatsApp. `playbackUrl`/`READY` continuam sendo respeitados para quem já tem o arquivo
+// gravado no pedido (os playbacks antigos que deram certo).
 export default function PlaybackAddonCard({ orderId, order }) {
   // Número do suporte vem da configuração editável no painel (src/lib/configSite.js), não do código.
   const whatsappSuporte = useWhatsappSuporte();
@@ -27,50 +31,24 @@ export default function PlaybackAddonCard({ orderId, order }) {
   const [unlocked, setUnlocked] = useState(false);
   const [pollingTimedOut, setPollingTimedOut] = useState(false);
   const [pixCopied, setPixCopied] = useState(false);
-  const [retrying, setRetrying] = useState(false);
-  const [retryError, setRetryError] = useState('');
 
-  // Faixa escolhida pelo cliente — achado 04/09/2026: a separação vocal da Kie.ai pode falhar numa
-  // faixa específica mesmo com a música tocando normal, sem alternativa antes disso. `audioIds` só
-  // tem mais de 1 item em pedidos gerados depois desse recurso existir (ver docs/audit e o plano do
-  // add-on) — pedidos antigos simplesmente não mostram o seletor e usam a faixa 0 direto.
+  // Faixa escolhida pelo cliente. Continua sendo gravada no pedido (/api/playback/choose-track)
+  // porque agora ela serve para o estúdio saber QUAL das duas versões transformar em playback.
   const faixas = Array.isArray(order?.audioIds) ? order.audioIds : [];
   const arquivosFaixas = Array.isArray(order?.audioFiles) ? order.audioFiles : [];
   const temEscolha = faixas.length > 1;
   const [faixaEscolhida, setFaixaEscolhida] = useState(0);
-  const [faixaRetry, setFaixaRetry] = useState(0);
-
-  const handleRetry = async () => {
-    if (!orderId) return;
-    setRetrying(true);
-    setRetryError('');
-    try {
-      const res = await fetch('/api/playback/retry', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId, audioId: faixas[faixaRetry] || undefined }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setRetryError(data.error || 'Não foi possível tentar de novo agora.');
-      }
-      // Sucesso não precisa de estado local: o onSnapshot da página pai atualiza `order.playbackStatus`
-      // pra PROCESSING assim que a rota grava no Firestore.
-    } catch (e) {
-      setRetryError('Erro de conexão. Tente novamente.');
-    }
-    setRetrying(false);
-  };
 
   const hasAccess = unlocked || order?.hasPlaybackAccess || order?.playbackAddonPaid;
+  const identificacao = order?.orderNumber || orderId;
 
   const handleGeneratePix = async () => {
     if (!orderId) return;
     setPixError('');
     setLoading(true);
 
-    // Salva a faixa escolhida ANTES de cobrar — se falhar, segue mesmo assim (o servidor cai pra
-    // faixa 0 por padrão, nunca bloqueia o pagamento por causa disso).
+    // Salva a faixa escolhida ANTES de cobrar — se falhar, segue mesmo assim (nunca bloqueia o
+    // pagamento por causa disso; o cliente ainda informa a faixa na conversa do WhatsApp).
     if (temEscolha && faixas[faixaEscolhida]) {
       try {
         await fetch('/api/playback/choose-track', {
@@ -126,9 +104,22 @@ export default function PlaybackAddonCard({ orderId, order }) {
     return () => clearInterval(interval);
   }, [orderId, pixInfo.paymentId, hasAccess]);
 
+  const estiloCartao = {
+    padding: '20px',
+    borderRadius: '16px',
+    background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(236, 72, 153, 0.15) 100%)',
+    border: '1.5px solid rgba(139, 92, 246, 0.35)',
+    marginTop: '16px',
+    color: '#ffffff',
+    boxSizing: 'border-box',
+    width: '100%',
+    maxWidth: '100%',
+    overflow: 'hidden',
+  };
+
   if (!hasAccess) {
     return (
-      <div className="glass-card" style={{ padding: '20px', borderRadius: '16px', background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(236, 72, 153, 0.15) 100%)', border: '1.5px solid rgba(139, 92, 246, 0.35)', marginTop: '16px', color: '#ffffff', boxSizing: 'border-box', width: '100%', maxWidth: '100%', overflow: 'hidden' }}>
+      <div className="glass-card" style={estiloCartao}>
         {pixInfo.paymentId ? (
           <div style={{ textAlign: 'center' }}>
             <p style={{ fontSize: '0.95rem', fontWeight: '700', marginBottom: '10px', color: '#ffffff' }}>
@@ -158,6 +149,9 @@ export default function PlaybackAddonCard({ orderId, order }) {
             >
               {pixCopied ? '✅ Código PIX Copiado!' : '📋 Copiar Código PIX (R$ 4,99)'}
             </button>
+            <p style={{ fontSize: '0.78rem', color: '#cbd5e1', marginTop: '10px' }}>
+              Assim que o pagamento cair, aparece aqui o botão pra pedir seu playback no WhatsApp.
+            </p>
             {pollingTimedOut && (
               <p style={{ fontSize: '0.8rem', color: '#cbd5e1', marginTop: '10px' }}>
                 Ainda não identificamos o pagamento. Se já pagou, aguarde mais um instante — a confirmação
@@ -172,6 +166,10 @@ export default function PlaybackAddonCard({ orderId, order }) {
             </h4>
             <p style={{ fontSize: '0.85rem', color: '#cbd5e1', marginBottom: '14px', lineHeight: '1.4' }}>
               A versão da sua música sem voz, pronta pra cantar junto — por apenas <strong style={{ color: '#34d399' }}>R$ 4,99</strong>.
+              <br />
+              <span style={{ fontSize: '0.8rem' }}>
+                Depois do pagamento você fala com a gente no WhatsApp e recebe o arquivo por lá.
+              </span>
             </p>
             {temEscolha && (
               <div style={{ marginBottom: '14px', textAlign: 'left' }}>
@@ -229,94 +227,56 @@ export default function PlaybackAddonCard({ orderId, order }) {
     );
   }
 
-  const status = order?.playbackStatus;
+  // Playback antigo que ficou pronto antes da entrega virar manual: continua tocando e baixando.
+  if (order?.playbackStatus === 'READY' && order?.playbackUrl) {
+    return (
+      <div className="glass-card" style={{ ...estiloCartao, textAlign: 'center' }}>
+        <h4 style={{ fontSize: '1.05rem', marginBottom: '10px', fontFamily: 'var(--font-family-title)', color: '#ffffff' }}>
+          🎧 Seu Playback está pronto!
+        </h4>
+        <audio controls src={buildAudioProxySrc(order.playbackUrl)} style={{ width: '100%', marginBottom: '10px' }} />
+        <a
+          href={`/api/audio/proxy?url=${encodeURIComponent(order.playbackUrl)}&download=${encodeURIComponent(`playback-${identificacao}.mp3`)}`}
+          download={`playback-${identificacao}.mp3`}
+          className="btn btn-secondary"
+          style={{ padding: '8px 14px', fontSize: '0.8rem', textDecoration: 'none' }}
+        >
+          💾 Baixar Playback
+        </a>
+      </div>
+    );
+  }
+
+  // Pago e sem arquivo: o caminho é o WhatsApp. Vale também para os pedidos que ficaram em FAILED
+  // na época da geração automática — para o cliente, a situação é a mesma: pagou e falta receber.
+  const faixaInformada = temEscolha
+    ? ` (faixa ${Math.max(1, faixas.indexOf(order?.playbackChosenAudioId) + 1)})`
+    : '';
 
   return (
-    <div className="glass-card" style={{ padding: '20px', borderRadius: '16px', background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(236, 72, 153, 0.15) 100%)', border: '1.5px solid rgba(139, 92, 246, 0.35)', marginTop: '16px', textAlign: 'center', color: '#ffffff', boxSizing: 'border-box', width: '100%', maxWidth: '100%', overflow: 'hidden' }}>
-      {status === 'READY' && order?.playbackUrl ? (
-        <>
-          <h4 style={{ fontSize: '1.05rem', marginBottom: '10px', fontFamily: 'var(--font-family-title)', color: '#ffffff' }}>
-            🎧 Seu Playback está pronto!
-          </h4>
-          <audio controls src={buildAudioProxySrc(order.playbackUrl)} style={{ width: '100%', marginBottom: '10px' }} />
-          <a
-            href={`/api/audio/proxy?url=${encodeURIComponent(order.playbackUrl)}&download=${encodeURIComponent(`playback-${order?.orderNumber || orderId}.mp3`)}`}
-            download={`playback-${order?.orderNumber || orderId}.mp3`}
-            className="btn btn-secondary"
-            style={{ padding: '8px 14px', fontSize: '0.8rem', textDecoration: 'none' }}
-          >
-            💾 Baixar Playback
-          </a>
-        </>
-      ) : status === 'FAILED' ? (
-        <>
-          <p style={{ fontSize: '0.95rem', fontWeight: '700', marginBottom: '8px', color: '#ffffff' }}>
-            Não conseguimos gerar seu playback agora 😕
-          </p>
-          <p style={{ fontSize: '0.85rem', color: '#cbd5e1', marginBottom: '14px' }}>
-            Seu pagamento está confirmado. Pode tentar gerar de novo, ou falar com a gente pelo WhatsApp.
-          </p>
-          {temEscolha && (
-            <div style={{ marginBottom: '14px', textAlign: 'left' }}>
-              <p style={{ fontSize: '0.85rem', fontWeight: '700', marginBottom: '8px', textAlign: 'center', color: '#ffffff' }}>
-                Tentar com qual faixa?
-              </p>
-              {faixas.map((id, i) => (
-                <label
-                  key={id}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: '10px', padding: '6px 10px', borderRadius: '8px',
-                    border: `1.5px solid ${faixaRetry === i ? 'var(--secondary)' : 'rgba(255,255,255,0.18)'}`,
-                    backgroundColor: faixaRetry === i ? 'rgba(236, 72, 153, 0.18)' : 'rgba(0,0,0,0.3)',
-                    marginBottom: '6px', cursor: 'pointer',
-                  }}
-                >
-                  <input
-                    type="radio"
-                    name="playback-faixa-retry"
-                    checked={faixaRetry === i}
-                    onChange={() => setFaixaRetry(i)}
-                  />
-                  <span style={{ fontSize: '0.85rem', fontWeight: '600', minWidth: '52px', color: '#ffffff' }}>Faixa {i + 1}</span>
-                  {arquivosFaixas[i] && (
-                    <audio controls src={buildAudioProxySrc(arquivosFaixas[i])} style={{ flex: 1, height: '30px' }} />
-                  )}
-                </label>
-              ))}
-            </div>
-          )}
-          {retryError && (
-            <p style={{ fontSize: '0.78rem', color: 'var(--error, #ef4444)', marginBottom: '10px' }}>{retryError}</p>
-          )}
-          <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              onClick={handleRetry}
-              disabled={retrying}
-              className="btn btn-primary"
-              style={{ padding: '8px 14px', fontSize: '0.8rem', fontWeight: 'bold', border: 'none', cursor: retrying ? 'default' : 'pointer', opacity: retrying ? 0.7 : 1 }}
-            >
-              {retrying ? 'Tentando...' : '🔁 Tentar gerar novamente'}
-            </button>
-            <a
-              href={`${linkWhatsapp(whatsappSuporte, `Olá! Paguei o Playback (Instrumental) do pedido #${orderId} mas não recebi o arquivo.`)}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn btn-secondary"
-              style={{ padding: '8px 14px', fontSize: '0.8rem', textDecoration: 'none' }}
-            >
-              💬 Chamar no WhatsApp
-            </a>
-          </div>
-        </>
-      ) : (
-        <>
-          <div style={{ width: '36px', height: '36px', border: '3px solid rgba(255,255,255,0.2)', borderTopColor: 'var(--secondary)', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 10px' }} />
-          <p style={{ fontSize: '0.85rem', color: '#cbd5e1' }}>
-            Gerando seu playback instrumental — já aparece por aqui assim que estiver pronto.
-          </p>
-        </>
-      )}
+    <div className="glass-card" style={{ ...estiloCartao, textAlign: 'center' }}>
+      <h4 style={{ fontSize: '1.05rem', marginBottom: '8px', fontFamily: 'var(--font-family-title)', color: '#ffffff' }}>
+        ✅ Playback pago — só falta pedir
+      </h4>
+      <p style={{ fontSize: '0.85rem', color: '#cbd5e1', marginBottom: '14px', lineHeight: 1.45 }}>
+        Seu pagamento está confirmado. Mande uma mensagem no WhatsApp com o número do seu pedido que a
+        gente prepara o playback e te envia por lá.
+      </p>
+      <p style={{ fontSize: '0.9rem', fontWeight: '700', color: '#ffffff', marginBottom: '14px' }}>
+        Pedido <span style={{ color: '#34d399' }}>{identificacao}</span>
+      </p>
+      <a
+        href={linkWhatsapp(
+          whatsappSuporte,
+          `Olá! Paguei o Playback (Instrumental) do pedido ${identificacao}${faixaInformada} e gostaria de receber o arquivo.`
+        )}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="btn btn-primary"
+        style={{ padding: '12px 20px', fontSize: '0.9rem', fontWeight: 'bold', textDecoration: 'none', display: 'inline-block' }}
+      >
+        💬 Pedir meu playback no WhatsApp
+      </a>
     </div>
   );
 }
