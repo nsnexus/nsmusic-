@@ -11,6 +11,7 @@ import { primeAudioContext } from '@/lib/audioContext';
 import { AUDIO_CACHE_VERSION } from '@/lib/audioCacheVersion';
 import ExtrasOfferModal from '@/components/ExtrasOfferModal';
 import PixQrCode from '@/components/PixQrCode';
+import PreviaEncerradaModal from '@/components/PreviaEncerradaModal';
 import PlaybackAddonCard from '@/components/PlaybackAddonCard';
 import CartaAddonCard from '@/components/CartaAddonCard';
 import RetrospectivaAddonCard from '@/components/RetrospectivaAddonCard';
@@ -714,12 +715,30 @@ function EntregaContent() {
   // carta e a retrospectiva.
   const podeOuvirInteira = isPaid;
 
+  // Pop-up do corte: abre no instante em que a prévia para. Antes, o único sinal era uma linha de
+  // texto abaixo do player, e parte dos clientes entendia que a música tinha falhado em vez de
+  // entender que faltava pagar. Uma vez por carregamento da página — reabrir a cada replay vira
+  // armadilha, e quem fechou já entendeu o recado.
+  const [showPreviaModal, setShowPreviaModal] = useState(false);
+  const previaModalJaMostrado = useRef(false);
+
   const handleAudioTimeUpdate = (e) => {
     if (podeOuvirInteira) return;
     const audio = e.target;
     if (audio.currentTime > 60) {
       audio.pause();
       audio.currentTime = 60;
+      if (!previaModalJaMostrado.current) {
+        previaModalJaMostrado.current = true;
+        setShowPreviaModal(true);
+      }
+    }
+  };
+
+  const irParaPagamento = () => {
+    setShowPreviaModal(false);
+    if (typeof document !== 'undefined') {
+      document.getElementById('pagamento')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   };
 
@@ -2329,6 +2348,15 @@ function EntregaContent() {
               isPaid), então "clicava e nada acontecia". Agora, se ainda não pagou, cada opção gera
               o combo certo na hora (preço muda de verdade); se já pagou, some do pop-up (jaTem*) e,
               nos raros casos em que ainda aparecer, cai no card do add-on já visível. */}
+          <PreviaEncerradaModal
+            isOpen={showPreviaModal && !isPaid}
+            onClose={() => setShowPreviaModal(false)}
+            onPagar={irParaPagamento}
+            honoreeName={order?.honoreeName || ''}
+            precoTexto={valorCobradoTexto}
+            ctaLabel="Liberar a música completa"
+          />
+
           <ExtrasOfferModal
             isOpen={showVideoModal}
             honoreeName={order?.honoreeName || 'alguém especial'}

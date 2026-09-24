@@ -5,7 +5,7 @@ import { markPreviewListened } from '@/lib/previewTracking';
 
 // Player de prévia de 60s usado na tela de geração de áudio — extraído de page.jsx (M-20 no
 // AUDIT_REPORT.md). Componente autocontido: só depende das props recebidas.
-export default function CustomAudioPreview({ src, label, badge, isBonus, orderId }) {
+export default function CustomAudioPreview({ src, label, badge, isBonus, orderId, onPreviaEncerrada }) {
   const audioRef = useRef(null);
   const retryTimerRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -41,6 +41,8 @@ export default function CustomAudioPreview({ src, label, badge, isBonus, orderId
       audioRef.current.pause();
       audioRef.current.currentTime = 60;
       setIsPlaying(false);
+      // Avisa a página uma única vez por corte, para ela abrir o pop-up de pagamento.
+      if (!showEndedNotice) onPreviaEncerrada?.();
       setShowEndedNotice(true);
     } else if (showEndedNotice) {
       setShowEndedNotice(false);

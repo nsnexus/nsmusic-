@@ -12,6 +12,7 @@ import { pushAdvancedMatching } from '@/lib/metaPixel';
 import { styles } from './wizardStyles';
 import { occasions } from './wizardOptions';
 import CustomAudioPreview from './CustomAudioPreview';
+import PreviaEncerradaModal from '@/components/PreviaEncerradaModal';
 import WizardSteps from './WizardSteps';
 import PixQrCode from '@/components/PixQrCode';
 import { requestPixCharge } from '@/lib/pixCheckout';
@@ -1256,6 +1257,17 @@ export default function CriarMusica() {
     }
   };
 
+  // Pop-up do corte da prévia — ver src/components/PreviaEncerradaModal.jsx. Uma vez por visita:
+  // são dois players na tela (arranjo 1 e 2) e reabrir no segundo vira armadilha.
+  const [showPreviaModal, setShowPreviaModal] = useState(false);
+  const previaModalJaMostrado = useRef(false);
+
+  const aoEncerrarPrevia = () => {
+    if (previaModalJaMostrado.current) return;
+    previaModalJaMostrado.current = true;
+    setShowPreviaModal(true);
+  };
+
   const nextStep = () => {
     setStep(prev => prev + 1);
   };
@@ -1620,6 +1632,7 @@ export default function CriarMusica() {
                     badge={`VERSÃO 1 - ESTILO ${formData.musicStyle?.toUpperCase() || 'PRINCIPAL'}`}
                     isBonus={false}
                     orderId={orderId}
+                    onPreviaEncerrada={aoEncerrarPrevia}
                   />
 
                   {/* Versão 2 Preview Card */}
@@ -1630,6 +1643,7 @@ export default function CriarMusica() {
                       badge="VERSÃO 2 - ARRANJO ALTERNATIVO BÔNUS"
                       isBonus={true}
                       orderId={orderId}
+                      onPreviaEncerrada={aoEncerrarPrevia}
                     />
                   )}
 
@@ -2154,6 +2168,17 @@ export default function CriarMusica() {
           </div>
         </div>
       )}
+
+      {/* Pop-up do corte da prévia de 60s. O CTA leva ao passo de pagamento (11), que é onde o PIX
+          desta tela vive — não manda o cliente para outra página no meio da emoção. */}
+      <PreviaEncerradaModal
+        isOpen={showPreviaModal}
+        onClose={() => setShowPreviaModal(false)}
+        onPagar={() => { setShowPreviaModal(false); setStep(11); }}
+        honoreeName={formData.honoreeName || ''}
+        precoTexto={`R$ ${getTotalPrice().toFixed(2).replace('.', ',')}`}
+        ctaLabel="Liberar as músicas completas"
+      />
     </div>
   );
 }
