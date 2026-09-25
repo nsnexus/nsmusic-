@@ -1,12 +1,18 @@
 import { NextResponse } from 'next/server';
 import { collection, addDoc, query, where, getDocs, limit } from 'firebase/firestore/lite';
 import { dbEdge as db } from '@/lib/firebase-edge';
+import { calcularCota } from '@/lib/cotaGeracoes';
 
 export const runtime = 'edge';
 
-// Limite de 5 músicas grátis por telefone/e-mail para quem nunca pagou. Antes só existia no cliente
-// (criar/page.jsx:checkUserLimit), então chamar esta rota direto ignorava o limite (ver A-11 no
-// AUDIT_REPORT.md). O localStorage do cliente é só um contador de conveniência, não uma trava real.
+// Cota de gerações por telefone/e-mail: 5 grátis, mais 5 a cada compra paga (ver
+// src/lib/cotaGeracoes.js). Até 25/09/2026 a regra era outra — quem pagasse UMA vez passava a
+// gerar sem limite nenhum, e a geração é justamente o que custa, porque acontece antes do
+// pagamento.
+//
+// A trava tem que viver aqui: só existia no cliente (criar/page.jsx:checkUserLimit) e chamar esta
+// rota direto a ignorava (ver A-11 no AUDIT_REPORT.md). O localStorage do navegador é contador de
+// conveniência de tela, nunca a trava.
 export async function isBlockedByFreeLimit(phone, email) {
   const ordersRef = collection(db, 'orders');
   const matches = [];
@@ -26,8 +32,7 @@ export async function isBlockedByFreeLimit(phone, email) {
     }
   }
 
-  const hasPaid = matches.some((o) => o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'PAGO');
-  return !hasPaid && matches.length >= 5;
+  return calcularCota(matches).bloqueado;
 }
 
 import { generateUniqueOrderNumber } from '@/lib/orderNumber';
@@ -45,7 +50,7 @@ export async function POST(req) {
 
     if (await isBlockedByFreeLimit(formData.customerPhone, formData.customerEmail)) {
       return NextResponse.json(
-        { error: 'Limite de músicas gratuitas atingido. Finalize o pagamento de um pedido anterior para continuar.' },
+        { error: 'Você já usou todas as suas gerações. Finalize o pagamento de uma das músicas para liberar mais 5.' },
         { status: 403 }
       );
     }

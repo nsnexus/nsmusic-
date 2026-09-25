@@ -14,6 +14,7 @@ import { occasions } from './wizardOptions';
 import CustomAudioPreview from './CustomAudioPreview';
 import PreviaEncerradaModal from '@/components/PreviaEncerradaModal';
 import { usePromoverAudio } from '@/lib/usePromoverAudio';
+import { calcularCota, COTA_POR_COMPRA } from '@/lib/cotaGeracoes';
 import WizardSteps from './WizardSteps';
 import PixQrCode from '@/components/PixQrCode';
 import { requestPixCharge } from '@/lib/pixCheckout';
@@ -829,7 +830,7 @@ export default function CriarMusica() {
       }
 
       let totalCount = Array.isArray(localGenerated) ? localGenerated.length : 0;
-      let hasPaid = false;
+      let pedidosDaPessoa = [];
 
       if (db) {
         const ordersRef = collection(db, 'orders');
@@ -859,18 +860,23 @@ export default function CriarMusica() {
 
         if (fetchedOrders.length > 0) {
           totalCount = Math.max(totalCount, fetchedOrders.length);
-          hasPaid = fetchedOrders.some(o => 
-            o.paymentStatus === 'PAGO' || 
-            o.paymentStatus === 'PAGAMENTO_APROVADO' || 
-            o.paymentStatus === 'approved'
-          );
+          pedidosDaPessoa = fetchedOrders;
         }
       }
 
-      return { totalCount, hasPaid, isBlocked: !hasPaid && totalCount >= 5 };
+      // Mesma conta do servidor (src/lib/cotaGeracoes.js): 5 grátis + 5 por compra paga. Aqui é só
+      // para a tela avisar antes de o cliente preencher tudo — quem bloqueia de verdade é
+      // /api/orders/create.
+      const cota = calcularCota(
+        pedidosDaPessoa.length > 0
+          ? pedidosDaPessoa
+          : Array.from({ length: totalCount }, () => ({}))
+      );
+
+      return { totalCount, hasPaid: cota.pagos > 0, restantes: cota.restantes, cota: cota.cota, isBlocked: cota.bloqueado };
     } catch (e) {
       console.warn("Erro ao verificar limite de gerações:", e);
-      return { totalCount: 0, hasPaid: false, isBlocked: false };
+      return { totalCount: 0, hasPaid: false, restantes: null, cota: null, isBlocked: false };
     }
   };
 
@@ -2141,10 +2147,10 @@ export default function CriarMusica() {
           }}>
             <div style={{ fontSize: '3rem', marginBottom: '12px' }}>🚫</div>
             <h2 style={{ fontSize: '1.5rem', fontWeight: '800', color: '#fff', marginBottom: '12px' }}>
-              Limite de 5 Prévias Gratuitas Atingido
+              Você usou todas as suas gerações
             </h2>
             <p style={{ fontSize: '0.95rem', color: 'var(--text-secondary)', lineHeight: '1.6', marginBottom: '24px' }}>
-              Você já gerou 5 composições de teste. Para continuar criando novas músicas do zero sem restrições, escolha uma das suas composições para adquirir por apenas <strong style={{ color: '#34d399' }}>R$ 9,99</strong>! Como você ainda não realizou nenhuma compra, a geração de novas prévias do zero foi desabilitada temporariamente.
+              Escolha uma das músicas que você já criou e libere por apenas <strong style={{ color: '#34d399' }}>R$ 9,99</strong> — cada música que você leva libera <strong style={{ color: '#fff' }}>mais {COTA_POR_COMPRA} gerações</strong> para você continuar criando.
             </p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>

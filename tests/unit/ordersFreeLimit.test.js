@@ -40,7 +40,9 @@ describe('isBlockedByFreeLimit', () => {
     expect(blocked).toBe(true);
   });
 
-  it('não bloqueia se algum dos pedidos já foi pago, mesmo com 5+', async () => {
+  // Desde 25/09/2026 uma compra nao e passe livre: ela soma 5 a cota (ver cotaGeracoes.test.js).
+  // Com 6 pedidos e 1 pago, a cota e 10 — por isso ainda nao bloqueia.
+  it('não bloqueia com 6 pedidos quando um deles foi pago (cota vira 10)', async () => {
     phoneMatches = Array.from({ length: 6 }, (_, i) => ({
       orderNumber: String(i),
       paymentStatus: i === 0 ? 'PAGAMENTO_APROVADO' : 'AGUARDANDO_PAGAMENTO',
