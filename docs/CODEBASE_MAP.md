@@ -87,7 +87,6 @@ para o que ainda depende de rate limiting externo (A-04/A-12, não implementado 
 | `POST /api/suno/generate` | `suno/generate/route.js:POST` | Fino: valida corpo e delega a `src/lib/suno.js:requestSunoGeneration`; inclui segredo no callback (A-03) | Pública |
 | `GET /api/suno/status` | `suno/status/route.js:GET` | Polling do status; `orderId` sempre vem do `suno_tasks`, nunca da query (A-02); em falha definitiva da Kie.ai, tenta `src/lib/suno.js:maybeAutoRetrySunoFailure` antes de admitir erro ao cliente | Pública |
 | `POST /api/suno/webhook` | `suno/webhook/route.js:POST` | Callback da Kie.ai; exige `?secret=` se `KIE_WEBHOOK_SECRET` configurado | Segredo compartilhado |
-| `POST /api/suno/webhook-vps` | `suno/webhook-vps/route.js:POST` | Callback da API de Suno própria. Avisa UMA VEZ POR CLIPE e a Suno gera dois, então o callback é só gatilho: reconsulta os dois `sunoClipIds` na VPS e só fecha o pedido quando não há mais nada por vir. `orderId` vem na query (não existe taskId antes da resposta) | Segredo compartilhado (`KIE_WEBHOOK_SECRET`) |
 | `POST /api/playback/webhook` | `playback/webhook/route.js:POST` | Callback da Kie.ai pra separação vocal (add-on de playback instrumental, R$ 4,99); `orderId` vem na query string do próprio callback (não há `suno_tasks` equivalente pra essa tarefa) | Segredo compartilhado |
 | `POST /api/orders/reconcile` | `orders/reconcile/route.js:POST` | Terceira via de convergência (webhook/polling do cliente + esta): recupera música pronta e pagamento confirmado que ficaram presos porque o cliente fechou a aba; retenta geração automaticamente via `src/lib/suno.js`. Acionável pelo painel ou por cron no Worker `efi-proxy` | Admin ou segredo (`RECONCILE_SECRET`) |
 | `POST /api/lyrics/generate` | `lyrics/generate/route.js:POST` | Compõe a letra | Pública |
@@ -113,9 +112,7 @@ para o que ainda depende de rate limiting externo (A-04/A-12, não implementado 
 | `whatsapp.js` | Envio via WhatsApp Business Platform (API Oficial da Meta, `graph.facebook.com`); re-exporta os templates acima |
 | `authErrors.js` | `getFriendlyAuthErrorMessage` (B-04) |
 | `sunoPayload.js` | `buildSunoPayload` — payload de `/api/suno/generate`, reaproveitado também pela retentativa automática (M-12) |
-| `sunoVps.js` | Cliente da API de Suno própria (VPS): `gerarNaVps`, `consultarClipesVps`, `consultarSaldoVps`, `avaliarClipes` (quando fechar o pedido). Recusa base URL sem https — a `x-api-key` vai em toda geração |
-| `envValue.js` | `readEnvValue` — leitura de variável de ambiente nos dois runtimes; extraído de `suno.js` para `sunoVps.js` usar sem criar ciclo de import |
-| `suno.js` | `requestSunoGeneration` (roteia entre VPS e Kie.ai, com fallback automático, e persiste o vínculo tarefa→pedido), `provedorPrimario` (lê `MUSIC_PROVIDER_PRIMARY`), `maybeAutoRetrySunoFailure` (retry automático limitado — até 3 tentativas — quando a Kie.ai reporta falha definitiva, com reserva de idempotência), `resolveLatestTaskId` (segue a cadeia de `retryTaskId` até a tarefa mais recente) |
+| `suno.js` | `requestSunoGeneration` (chamada à Kie.ai + persistência do vínculo tarefa→pedido), `maybeAutoRetrySunoFailure` (retry automático limitado — até 3 tentativas — quando a Kie.ai reporta falha definitiva, com reserva de idempotência), `resolveLatestTaskId` (segue a cadeia de `retryTaskId` até a tarefa mais recente) |
 | `playback.js` | `requestPlaybackGeneration` — separação vocal na Kie.ai (add-on de playback instrumental), disparada automaticamente por `payments.js:applyPaymentApproval` quando `sku === 'playback_addon'` é aprovado; usa `sunoTaskId`+`audioIds[0]` gravados no pedido pela geração original |
 | `firebase.js` / `firebase-edge.js` | Client SDK completo (browser) / `firestore/lite` (rotas Edge) |
 | `gemini.js` | `runGeminiWithFailover` — OpenAI primário, Gemini fallback |
@@ -144,7 +141,7 @@ antes uma identidade de servidor, que ainda não existe nesta arquitetura Edge-o
   Flags de notificação: `whatsappSent`/`whatsappSending`, `paymentWhatsappSent`,
   `videoPaymentWhatsappSent` (+ sufixos `Sending`/`At`).
   Consentimento: `termsAccepted`, `termsAcceptedAt` (M-13).
-- **`suno_tasks`** — `{ status, result, orderId, provider, clipIds, updatedAt }` (`provider`/`clipIds` desde 24/09/2026: sem eles o polling pergunta à API errada), escrito por `src/lib/db.js:saveTask` /
+- **`suno_tasks`** — `{ status, result, orderId, provider, updatedAt }`, escrito por `src/lib/db.js:saveTask` /
   `updateTaskResult` (ambos com `merge: true`, M-06).
 
 Índices: nenhum composto declarado hoje (todas as queries são igualdade/orderBy de campo único,

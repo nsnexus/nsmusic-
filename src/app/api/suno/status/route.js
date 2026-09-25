@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getTask, updateTaskResult, extractAudioTracks } from '@/lib/db';
 import { getRequestContext } from '@cloudflare/next-on-pages';
-import { resolveLatestTaskId, maybeAutoRetrySunoFailure, recordSunoFailure, PROVIDER_VPS } from '@/lib/suno';
-import { consultarClipesVps, avaliarClipes } from '@/lib/sunoVps';
+import { resolveLatestTaskId, maybeAutoRetrySunoFailure, recordSunoFailure } from '@/lib/suno';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
@@ -31,53 +30,6 @@ export async function GET(req) {
     // foi reenviada por trás das cortinas, o cliente que está fazendo polling pelo taskId ORIGINAL
     // acaba consultando o resultado da tarefa nova, sem precisar saber que ela existe.
     const effectiveTaskId = await resolveLatestTaskId(taskId);
-
-    // ============================================================
-    // 0. Tarefa gerada na VPS própria (provedor primário desde 24/09/2026): o estado vive lá, não
-    //    na Kie.ai. O provedor foi gravado em suno_tasks na hora da geração — sem essa leitura, o
-    //    polling perguntaria à Kie.ai por um taskId que ela nunca viu e o cliente ficaria eternamente
-    //    em "PROCESSING" mesmo com a música pronta.
-    // ============================================================
-    const tarefa = await getTask(effectiveTaskId).catch(() => null);
-
-    if (tarefa?.provider === PROVIDER_VPS) {
-      if (tarefa.status === 'COMPLETED') {
-        const tracks = extractAudioTracks(tarefa.result);
-        if (tracks.length > 0) return NextResponse.json({ status: 'COMPLETED', tracks });
-      }
-
-      const clipIds = Array.isArray(tarefa.clipIds) && tarefa.clipIds.length > 0
-        ? tarefa.clipIds
-        : [effectiveTaskId];
-
-      const consulta = await consultarClipesVps(clipIds, env);
-      if (!consulta.ok) {
-        console.warn('[api/suno/status] Falha ao consultar a VPS:', consulta.erro);
-        return NextResponse.json({ status: 'PROCESSING' });
-      }
-
-      const avaliacao = avaliarClipes(consulta.clipes, clipIds.length);
-
-      if (avaliacao.fechar) {
-        await updateTaskResult(effectiveTaskId, { data: avaliacao.prontos }, tarefa.orderId || null);
-        return NextResponse.json({ status: 'COMPLETED', tracks: extractAudioTracks({ data: avaliacao.prontos }) });
-      }
-
-      if (avaliacao.tudoFalhou) {
-        const orderId = tarefa.orderId || null;
-        const motivo = 'vps_status_error';
-        const retry = orderId
-          ? await maybeAutoRetrySunoFailure({ taskId: effectiveTaskId, orderId, env, reason: motivo })
-          : { retried: false, reason: 'sem_order_id' };
-
-        if (retry.retried) return NextResponse.json({ status: 'PROCESSING', providerStatus: 'RETRYING' });
-
-        if (orderId) await recordSunoFailure(orderId, `${motivo}_${retry.reason}`);
-        return NextResponse.json({ status: 'ERROR', error: 'A geração da música falhou. Tente novamente em instantes.' });
-      }
-
-      return NextResponse.json({ status: 'PROCESSING', prontos: avaliacao.totalPronto, esperados: clipIds.length });
-    }
 
     if (!apiKey) {
       console.error('[api/suno/status] Variável de ambiente KIE_API_KEY não configurada.');

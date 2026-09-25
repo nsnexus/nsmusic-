@@ -12,21 +12,15 @@ import { saveTask, getTask } from './db.js';
 import { buildSunoPayload } from './sunoPayload.js';
 import { resolverSiteUrl } from './siteUrl.js';
 import { readEnvValue } from './envValue.js';
-import { gerarNaVps, lerConfigVps, configVpsUtilizavel } from './sunoVps.js';
 
-// Provedores de geração. A VPS própria do estúdio (src/lib/sunoVps.js) entrou em 24/09/2026 como
-// primária; a Kie.ai continua inteira como fallback. MUSIC_PROVIDER_PRIMARY inverte a ordem sem
-// deploy — é a alavanca para quando um dos dois cair de madrugada.
-export const PROVIDER_VPS = 'suno_vps';
+// Provedor único de geração: Kie.ai.
+//
+// Entre 24 e 25/09/2026 existiu um roteamento com uma API de Suno própria (VPS do estúdio) como
+// primária e a Kie.ai de fallback. A VPS nunca chegou a gerar uma música: a sessão dela com o Suno
+// caía com 401 poucas horas depois de cada reautenticação, e as 50+ gerações do período foram todas
+// pela Kie.ai. Removido a pedido do dono do estúdio. O campo `provider` continua sendo gravado em
+// suno_tasks/orders porque os pedidos daquele período já o têm.
 export const PROVIDER_KIE = 'kie';
-
-export function provedorPrimario(env) {
-  const escolhido = readEnvValue(env, 'MUSIC_PROVIDER_PRIMARY').toLowerCase();
-  if (escolhido === PROVIDER_KIE) return PROVIDER_KIE;
-  if (escolhido === PROVIDER_VPS) return PROVIDER_VPS;
-  // Sem configuração explícita: usa a VPS quando ela estiver configurada, senão Kie.ai.
-  return configVpsUtilizavel(lerConfigVps(env)) ? PROVIDER_VPS : PROVIDER_KIE;
-}
 
 // A Kie.ai sinaliza a maioria dos erros com HTTP 200 e um `code` no corpo (429/430 = limite de
 // taxa, 455 = manutenção, 500 = erro interno deles) — só olhar response.status não pegava esses
@@ -75,83 +69,24 @@ export async function recordSunoFailure(orderId, reason) {
 }
 
 /**
- * Inicia a geração da música no provedor primário e, se ele falhar, no outro. Persiste o vínculo
- * taskId->orderId e qual provedor atendeu — sem esse registro, nem o webhook nem o polling nem o
- * arquivamento sabem para onde olhar depois.
+ * Inicia a geração da música na Kie.ai e persiste o vínculo taskId->orderId. Não decide política de
+ * quantas vezes retentar depois de uma falha definitiva — isso é de quem chama (a rota, no clique
+ * manual; maybeAutoRetrySunoFailure, no automático).
  *
- * Não decide política de quantas vezes retentar depois de uma falha definitiva dos DOIS provedores;
- * isso é de quem chama (a rota, no clique manual; maybeAutoRetrySunoFailure, no automático).
- *
- * @param {{orderId: string, prompt: string, tags: string, title?: string}} params
+ * @param {{orderId: string, prompt: string, tags: string}} params
  * @param {object} env
  * @returns {Promise<{ok: true, taskId: string, provider: string} | {ok: false, error: string, status: number}>}
  */
-export async function requestSunoGeneration({ orderId, prompt, tags, title }, env) {
-  const primario = provedorPrimario(env);
-
-  if (primario === PROVIDER_VPS) {
-    const viaVps = await gerarPelaVps({ orderId, prompt, tags, title }, env);
-    if (viaVps.ok) return viaVps;
-    // Fallback: a Kie.ai é a rede de segurança. Um pedido não pode morrer porque a VPS ficou sem
-    // crédito ou saiu do ar — o cliente já está na tela esperando a música.
-    //
-    // Sem crédito é o caminho ESPERADO, não uma anomalia: o plano Pro da conta Suno dá 2.500
-    // créditos por mês (10 por geração) e o estúdio gera bem mais que isso. A VPS é a economia
-    // enquanto dura; a Kie.ai é quem garante o mês inteiro.
-    console.warn(
-      viaVps.semCredito
-        ? '[suno] Créditos da VPS esgotados — geração indo para a Kie.ai.'
-        : `[suno] VPS falhou, caindo para a Kie.ai: ${viaVps.error}`
-    );
-  }
-
-  const viaKie = await gerarPelaKie({ orderId, prompt, tags }, env);
-  if (viaKie.ok || primario === PROVIDER_VPS) return viaKie;
-
-  // Primário era a Kie.ai e ela falhou: tenta a VPS antes de desistir.
-  const viaVps = await gerarPelaVps({ orderId, prompt, tags, title }, env);
-  return viaVps.ok ? viaVps : viaKie;
+export async function requestSunoGeneration({ orderId, prompt, tags }, env) {
+  return gerarPelaKie({ orderId, prompt, tags }, env);
 }
 
 /**
- * Geração na VPS própria (src/lib/sunoVps.js). A resposta traz os dois clipes de uma vez; o id do
- * primeiro vira o taskId lógico do pedido.
+ * Grava o vínculo tarefa->pedido das duas pontas (suno_tasks e orders) — o resto do sistema
+ * (webhook, polling, reconciliação, arquivamento) lê sempre daqui, nunca do provedor.
  */
-async function gerarPelaVps({ orderId, prompt, tags, title }, env) {
-  const baseUrl = resolverSiteUrl(readEnvValue(env, 'NEXT_PUBLIC_SITE_URL'));
-  const webhookSecret = readEnvValue(env, 'KIE_WEBHOOK_SECRET');
-
-  // O callback precisa ser montado ANTES da chamada, quando ainda não existe taskId — por isso
-  // leva o orderId, e não o taskId. orderId não é dado pessoal (ver .claude/rules/security.md), e o
-  // webhook confere o segredo antes de qualquer escrita. Sem orderId não há para onde gravar o
-  // resultado, então nesse caso a geração fica só no polling.
-  const callbackUrl = orderId && webhookSecret
-    ? `${baseUrl}/api/suno/webhook-vps?secret=${encodeURIComponent(webhookSecret)}&orderId=${encodeURIComponent(orderId)}`
-    : '';
-
-  const resultado = await gerarNaVps({ prompt, tags, title, callbackUrl }, env);
-  if (!resultado.ok) {
-    return { ok: false, error: resultado.erro, status: resultado.status || 502, semCredito: Boolean(resultado.semCredito) };
-  }
-
-  const persistido = await persistirGeracao({
-    orderId,
-    taskId: resultado.taskId,
-    provider: PROVIDER_VPS,
-    clipIds: resultado.clipIds,
-  });
-  if (!persistido.ok) return persistido;
-
-  return { ok: true, taskId: resultado.taskId, provider: PROVIDER_VPS };
-}
-
-/**
- * Grava o vínculo tarefa->pedido das duas pontas (suno_tasks e orders). Comum aos dois provedores:
- * o resto do sistema (webhook, polling, reconciliação, arquivamento, add-on de playback) lê sempre
- * daqui, nunca do provedor.
- */
-async function persistirGeracao({ orderId, taskId, provider, clipIds = [] }) {
-  const salvo = await saveTask(taskId, 'PROCESSING', null, orderId, { provider, clipIds });
+async function persistirGeracao({ orderId, taskId, provider }) {
+  const salvo = await saveTask(taskId, 'PROCESSING', null, orderId, { provider });
   if (!salvo) {
     await recordSunoFailure(orderId, 'save_task_failed');
     return { ok: false, error: 'A geração foi iniciada, mas houve uma falha ao registrar o pedido. A equipe será notificada.', status: 502 };
@@ -165,8 +100,6 @@ async function persistirGeracao({ orderId, taskId, provider, clipIds = [] }) {
         sunoError: null,
         sunoTaskId: taskId,
         sunoProvider: provider,
-        // Só a VPS usa: os dois clipes que o webhook precisa reconsultar antes de fechar o pedido.
-        ...(clipIds.length > 0 ? { sunoClipIds: clipIds } : {}),
         sunoGenerationCount: increment(1),
         updatedAt: new Date().toISOString(),
       });

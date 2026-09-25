@@ -72,7 +72,7 @@ describe('requestSunoGeneration', () => {
     expect(result).toEqual({ ok: true, taskId: 'task-abc', provider: 'kie' });
     expect(store['order1'].productionStatus).toBe('GERANDO_AUDIO');
     expect(store['order1'].sunoGenerationCount).toBe(1); // increment() a partir de undefined
-    expect(saveTaskMock).toHaveBeenCalledWith('task-abc', 'PROCESSING', null, 'order1', { provider: 'kie', clipIds: [] });
+    expect(saveTaskMock).toHaveBeenCalledWith('task-abc', 'PROCESSING', null, 'order1', { provider: 'kie' });
   });
 
   it('sem KIE_API_KEY: falha sem chamar a Kie.ai', async () => {

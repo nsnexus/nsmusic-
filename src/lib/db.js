@@ -21,9 +21,8 @@ export const getTask = async (taskId) => {
 // este documento o webhook/polling da Kie.ai nunca consegue achar o orderId de volta (taskId fica
 // órfão) e o pedido trava sem que ninguém saiba que a ligação falhou.
 /**
- * @param {object} [extra] campos além do básico. Hoje: `provider` ('kie' | 'suno_vps') e, só na
- *   VPS, `clipIds` — os dois clipes que o webhook precisa reconsultar antes de fechar o pedido.
- *   Sem o provider gravado aqui, o polling e a reconciliação não sabem em qual API perguntar.
+ * @param {object} [extra] campos além do básico. Hoje só `provider` ('kie'), gravado desde que o
+ *   projeto experimentou um segundo provedor de geração em 24/09/2026.
  */
 export const saveTask = async (taskId, status, result = null, orderId = null, extra = {}) => {
   try {
@@ -35,7 +34,6 @@ export const saveTask = async (taskId, status, result = null, orderId = null, ex
       result,
       orderId,
       ...(extra.provider ? { provider: extra.provider } : {}),
-      ...(Array.isArray(extra.clipIds) && extra.clipIds.length > 0 ? { clipIds: extra.clipIds } : {}),
       updatedAt: new Date().toISOString()
     }, { merge: true });
     return true;

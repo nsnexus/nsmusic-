@@ -8,8 +8,7 @@ Add-on de vídeo slideshow: + R$ 6,90.
 
 Next.js 14 App Router · JavaScript puro (sem TypeScript) · React 18 · npm
 Cloudflare Pages **Edge Runtime** (`@cloudflare/next-on-pages`) · Firebase Firestore + Storage
-Integrações: API de Suno própria na VPS do estúdio (música, primária) com Kie.ai de fallback ·
-OpenAI→Gemini (letra) · Efí (PIX, API real com mTLS) · W-API (WhatsApp)
+Integrações: Kie.ai/Suno (música) · OpenAI→Gemini (letra) · Efí (PIX, API real com mTLS) · W-API (WhatsApp)
 
 ## Arquitetura em uma frase
 
@@ -110,7 +109,6 @@ Não há suíte automatizada. O mínimo aceitável hoje:
 | Ordem segura para corrigir | `docs/audit/FIX_PLAN.md` |
 | Regras da área que estou tocando | `.claude/rules/*.md` |
 | Configurar o gateway de pagamento (Efí) | `docs/EFI_SETUP.md` |
-| Entender os dois provedores de música (VPS própria + Kie.ai) | `docs/GERACAO_MUSICA.md` |
 
 `.agents/AGENTS.md` é o rulebook legado — ainda útil como registro da intenção original do projeto,
 mas `.claude/rules/` tem precedência quando houver conflito.
