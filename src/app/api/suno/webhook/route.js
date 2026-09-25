@@ -36,7 +36,13 @@ export async function POST(req) {
 
     if (taskId) {
       // Salva no banco e garante a entrega da notificação de WhatsApp antes de finalizar
-      await updateTaskResult(taskId, data);
+      // env é necessário para o arquivamento imediato (binding do R2, ver src/lib/db.js).
+      let env = {};
+      try {
+        const ctx = getRequestContext();
+        if (ctx?.env) env = ctx.env;
+      } catch (e) {}
+      await updateTaskResult(taskId, data, null, env);
       return NextResponse.json({ success: true }, { status: 200 });
     } else {
       console.error("Webhook recebido sem taskId");

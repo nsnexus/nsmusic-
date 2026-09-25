@@ -217,3 +217,77 @@ export async function archiveAudioFiles(orderId, files, opts = {}) {
 
   return { files: archived, anyFailure, filesCopied, bytesCopied, destino: usaR2 ? 'r2' : 'firebase' };
 }
+
+/**
+ * Copia o áudio do pedido para o nosso storage AGORA, com reserva contra corrida.
+ *
+ * Extraído de src/lib/payments.js (25/09/2026) para poder ser chamado também no instante em que a
+ * música fica pronta — antes de qualquer pagamento. Motivo: a Kie.ai entrega a prévia num endpoint
+ * de streaming que morre em poucas horas, e todo o resto (proxy, troca de URL, cron) é remendo em
+ * cima de um arquivo que já está sumindo. Copiando na chegada, a música passa a existir no nosso
+ * storage desde o primeiro minuto e nada mais depende do prazo deles.
+ *
+ * Nunca lança: arquivamento é efeito colateral e não pode derrubar a entrega da música nem a
+ * aprovação de um pagamento. Falhou, o cron (api/orders/archive-audio) tenta de novo.
+ *
+ * @returns {Promise<{arquivou: boolean, motivo?: string, files?: string[]}>}
+ */
+export async function arquivarAudioDoPedido({ orderRef, orderId, env, doc: docRef, getDoc, updateDoc }) {
+  try {
+    let filesParaArquivar = [];
+    let deveArquivar = false;
+
+    const freshSnap = await getDoc(orderRef);
+    if (freshSnap.exists()) {
+      const freshData = freshSnap.data();
+      filesParaArquivar = Array.isArray(freshData.audioFiles) && freshData.audioFiles.length
+        ? freshData.audioFiles
+        : [freshData.audioUrl].filter(Boolean);
+
+      // Reserva sequencial: webhook e polling chegam em paralelo e copiariam os mesmos MB duas vezes.
+      if (filesParaArquivar.length > 0 && !freshData.audioArchivedAt && !freshData.audioArchiving) {
+        await updateDoc(orderRef, { audioArchiving: true });
+        deveArquivar = true;
+      }
+    }
+
+    if (!deveArquivar) return { arquivou: false, motivo: 'nada_a_fazer' };
+
+    // R2 primeiro (binding `nsmusic_media`, só existe no runtime real da Cloudflare); Firebase
+    // Storage como reserva quando o binding falta.
+    const r2Bucket = env?.nsmusic_media;
+    const r2PublicUrl = env?.R2_PUBLIC_URL || process.env.R2_PUBLIC_URL;
+    const firebaseBucket = env?.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
+
+    if (!((r2Bucket && r2PublicUrl) || firebaseBucket)) {
+      console.warn('[audioArchive] Nem R2 nem Firebase Storage configurados — áudio não arquivado.');
+      await updateDoc(orderRef, { audioArchiving: false }).catch(() => {});
+      return { arquivou: false, motivo: 'sem_destino' };
+    }
+
+    const { files: archived, anyFailure } = await archiveAudioFiles(orderId, filesParaArquivar, { r2Bucket, r2PublicUrl, firebaseBucket });
+
+    // Nunca gravar menos faixas do que o pedido já tinha: a Suno entrega duas versões e o cliente
+    // pagou pelas duas (mesma trava de api/orders/refresh-audio, 25/09/2026).
+    if (archived.length < filesParaArquivar.length) {
+      await updateDoc(orderRef, { audioArchiving: false, audioArchiveFailedAt: new Date().toISOString() }).catch(() => {});
+      return { arquivou: false, motivo: 'copia_parcial' };
+    }
+
+    const nowIso = new Date().toISOString();
+    await updateDoc(orderRef, {
+      audioFiles: archived,
+      audioUrl: archived[0],
+      audioArchiving: false,
+      ...(anyFailure
+        ? { audioArchiveFailedAt: nowIso }
+        : { audioArchivedAt: nowIso, audioArchiveFailedAt: null }),
+    });
+
+    return { arquivou: !anyFailure, files: archived };
+  } catch (err) {
+    console.warn('[audioArchive] Falha ao arquivar áudio na chegada:', err.message);
+    try { await updateDoc(orderRef, { audioArchiving: false }); } catch (e) {}
+    return { arquivou: false, motivo: 'erro' };
+  }
+}

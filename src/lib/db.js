@@ -36,6 +36,19 @@ export const saveTask = async (taskId, status, result = null, orderId = null, ex
       ...(extra.provider ? { provider: extra.provider } : {}),
       updatedAt: new Date().toISOString()
     }, { merge: true });
+
+    // Dual-Write seguro para o Supabase
+    try {
+      const { mirrorTaskToSupabase } = await import('./supabaseSync.js');
+      mirrorTaskToSupabase(taskId, {
+        status,
+        result,
+        orderId,
+        provider: extra.provider || null,
+        updatedAt: new Date().toISOString()
+      }).catch(() => {});
+    } catch {}
+
     return true;
   } catch (err) {
     console.error("Error saving task:", err);
@@ -116,7 +129,7 @@ export const extractAudioTracks = (result) => {
   }).filter(t => t && t.audio_url);
 };
 
-export const updateTaskResult = async (taskId, result, overrideOrderId = null) => {
+export const updateTaskResult = async (taskId, result, overrideOrderId = null, env = {}) => {
   try {
     const docRef = doc(db, 'suno_tasks', taskId);
     const docSnap = await getDoc(docRef);
@@ -131,6 +144,17 @@ export const updateTaskResult = async (taskId, result, overrideOrderId = null) =
       orderId: orderId || null,
       updatedAt: new Date().toISOString()
     }, { merge: true });
+
+    // Dual-Write seguro para o Supabase
+    try {
+      const { mirrorTaskToSupabase } = await import('./supabaseSync.js');
+      mirrorTaskToSupabase(taskId, {
+        status: 'COMPLETED',
+        result,
+        orderId: orderId || null,
+        updatedAt: new Date().toISOString()
+      }).catch(() => {});
+    } catch {}
 
     // Extrai as faixas de qualquer estrutura da Kie.ai
     const tracks = extractAudioTracks(result);
@@ -163,6 +187,29 @@ export const updateTaskResult = async (taskId, result, overrideOrderId = null) =
 
       await updateDoc(orderRef, updates);
       console.log(`Ordem ${orderId} no Firebase atualizada com sucesso com ${audioFiles.length} áudios!`);
+
+      // Copia o áudio para o NOSSO storage imediatamente, antes de qualquer pagamento.
+      //
+      // A Kie.ai entrega a prévia num endpoint de streaming que serve o arquivo por poucas horas e
+      // depois responde 200 com 0 byte (medido em 25/09/2026: 3,84 MB com 10 minutos de vida, 0
+      // byte com 185 minutos). Todo o resto — proxy com fallback, troca da URL pela definitiva,
+      // cron de renovação — é remendo em cima de um arquivo que já está sumindo. Copiando aqui, a
+      // música existe no nosso storage desde o primeiro minuto e nada mais depende do prazo deles.
+      //
+      // Isolado: se a cópia falhar, a música JÁ está entregue e o cron (api/orders/archive-audio)
+      // tenta de novo. Arquivamento nunca pode derrubar a entrega.
+      try {
+        const { arquivarAudioDoPedido } = await import('./audioArchive.js');
+        await arquivarAudioDoPedido({ orderRef, orderId, env, getDoc, updateDoc });
+      } catch (err) {
+        console.warn('[db] Falha ao arquivar áudio na chegada:', err.message);
+      }
+
+      // Dual-Write seguro para o Supabase
+      try {
+        const { mirrorOrderToSupabase } = await import('./supabaseSync.js');
+        mirrorOrderToSupabase(orderId, { ...orderData, ...updates }).catch(() => {});
+      } catch {}
 
       // Contador da vitrine da home (stats/_live). Só soma se o pedido AINDA NÃO tinha áudio: esta
       // função também roda em reprocessamento e nas duas vias concorrentes (webhook e polling), e

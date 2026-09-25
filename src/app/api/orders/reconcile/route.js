@@ -167,7 +167,7 @@ async function reconcileStuckAudio(env) {
         if (extractAudioTracks(kieData).length > 0) {
           // Mesmo ponto de convergência do webhook e do polling: grava os áudios, marca
           // AUDIO_GERADO e dispara o WhatsApp de "música pronta" (com a própria idempotência dele).
-          await updateTaskResult(effectiveTaskId, kieData);
+          await updateTaskResult(effectiveTaskId, kieData, null, env);
           result.completed++;
           continue;
         }

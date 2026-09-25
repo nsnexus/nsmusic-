@@ -67,7 +67,7 @@ export async function GET(req) {
             const tracksArray = extractAudioTracks(kieData);
             if (tracksArray.length > 0) {
               // Garante a atualização do pedido no Firestore e envio do WhatsApp antes de responder
-              await updateTaskResult(effectiveTaskId, kieData);
+              await updateTaskResult(effectiveTaskId, kieData, null, env);
               return NextResponse.json({ status: "COMPLETED", tracks: tracksArray });
             }
           }
