@@ -209,6 +209,10 @@ const TAREFAS = [
   // A cada 10 min, nao 60: a URL de origem da Kie.ai (audiostream) morre em poucas horas, entao
   // arquivar tarde e arquivar 0 byte. Cada execucao processa um lote pequeno (ver MAX_ORDERS_PER_RUN
   // na rota) porque cada faixa atravessa o Worker inteira.
+  // Troca a URL efêmera da Kie.ai (audiostream/musicfile) pela definitiva, consultando o
+  // record-info por taskId. Roda ANTES do arquivamento de propósito: arquivar a URL de stream
+  // copia 0 byte, e o stream morre em poucas horas.
+  { nome: 'refresh-audio', caminho: '/api/orders/refresh-audio', cabecalho: 'X-Cleanup-Secret', envSegredo: 'CLEANUP_SECRET', alternativaSegredo: 'RECONCILE_SECRET', minutos: 10 },
   { nome: 'archive-audio', caminho: '/api/orders/archive-audio', cabecalho: 'X-Cleanup-Secret', envSegredo: 'CLEANUP_SECRET', alternativaSegredo: 'RECONCILE_SECRET', minutos: 10 },
   // Limpeza de rascunho antigo, uma vez por dia.
   { nome: 'cleanup', caminho: '/api/orders/cleanup', cabecalho: 'X-Cleanup-Secret', envSegredo: 'CLEANUP_SECRET', alternativaSegredo: 'RECONCILE_SECRET', minutos: 24 * 60 },

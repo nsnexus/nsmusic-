@@ -57,10 +57,24 @@ async function authorize(req, env) {
   return { ok: false, status: admin.status || 401, error: admin.error || 'Não autorizado.' };
 }
 
-// Uma URL é considerada quebrada quando aponta para o domínio que parou de servir os arquivos.
+// Domínios da Kie.ai que NÃO servem para guardar no pedido.
+//
+// - musicfile.kie.ai: parou de servir os arquivos no incidente de 28-29/08/2026 (403 com sufixo no
+//   path, depois 200 com corpo vazio).
+// - audiostream.kie.ai: é o endpoint de STREAMING do preview, não o arquivo. Dura poucas horas e
+//   depois responde 200 com 0 byte — medido em 25/09/2026: pedido de 0h servia 3,4 MB, de 6,7h
+//   servia 0 byte nas duas faixas. Era o que estava em 56 dos 100 pedidos recentes, e a causa de
+//   "a música toca quando gera e some depois". Até aqui ele não entrava nesta lista, então esses
+//   pedidos nunca chegavam a ser candidatos a refresh.
+const DOMINIOS_QUE_NAO_DURAM = ['musicfile.kie.ai', 'audiostream.kie.ai'];
+
+function urlEfemera(u) {
+  return typeof u === 'string' && DOMINIOS_QUE_NAO_DURAM.some((d) => u.includes(d));
+}
+
 function needsRefresh(order) {
   const urls = [order?.audioUrl, ...(Array.isArray(order?.audioFiles) ? order.audioFiles : [])];
-  return urls.some((u) => typeof u === 'string' && u.includes('musicfile.kie.ai'));
+  return urls.some(urlEfemera);
 }
 
 // O taskId só passou a ser gravado no próprio pedido (`sunoTaskId`) em 28/08/2026 — antes disso o
@@ -96,9 +110,10 @@ async function fetchFreshTracks(taskId, apiKey) {
 
     // Mesmo extrator do webhook e do polling — conhece todos os formatos que a Kie.ai já usou.
     const tracks = extractAudioTracks(data);
-    // Descarta faixa que voltou apontando de novo para o domínio quebrado: trocar uma URL que não
-    // funciona por outra que também não funciona só mascara o problema.
-    const usable = tracks.filter((t) => t.audio_url && !t.audio_url.includes('musicfile.kie.ai'));
+    // Descarta faixa que voltou apontando de novo para um domínio efêmero: trocar uma URL que
+    // morre por outra que também morre só mascara o problema. Quando a Kie.ai ainda não terminou o
+    // MP3 final, ela devolve o stream de novo — aí é melhor não mexer e tentar na próxima rodada.
+    const usable = tracks.filter((t) => t.audio_url && !urlEfemera(t.audio_url));
     if (usable.length === 0) return { ok: false, reason: 'sem_url_utilizavel' };
 
     return { ok: true, tracks: usable };

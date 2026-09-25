@@ -62,10 +62,13 @@ function isPaidOrder(order) {
   );
 }
 
-// Janela em que a origem da Kie.ai ainda costuma servir o arquivo. Fora dela, tentar um pedido não
-// pago é quase sempre baixar 0 byte e gastar o orçamento do Worker à toa — pedido pago continua
-// sendo tentado sempre, porque ali vale insistir mesmo com chance baixa.
-const HORAS_JANELA_NAO_PAGO = 12;
+// Janela em que a origem da Kie.ai ainda serve o arquivo, medida em 25/09/2026 num pedido de cada
+// idade: 0h -> 3,4 MB; 5h -> 0 bytes; 6,7h -> 0 bytes nas duas faixas, e sem cópia em tempfile para
+// buscar (404). Fora da janela a tentativa é quase sempre 0 byte, e como o lote é pequeno e roda a
+// cada 10 minutos, cada morto tentado rouba a vaga de um pedido que ainda dava para salvar.
+//
+// Pedido PAGO ignora esta janela: ali vale insistir mesmo com chance baixa.
+const HORAS_JANELA_NAO_PAGO = 4;
 
 function dentroDaJanela(order) {
   const criado = order?.createdAt;
