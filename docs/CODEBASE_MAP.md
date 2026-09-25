@@ -94,15 +94,19 @@ para o que ainda depende de rate limiting externo (A-04/A-12, não implementado 
 | `POST /api/video/generate` | `video/generate/route.js:POST` | Registra fotos do slideshow; exige `hasVideoAccess` (A-07) | Pública (gate por acesso pago) |
 | `POST /api/whatsapp/send` | `whatsapp/send/route.js:POST` | Reenvio manual pelo admin | Admin |
 | `POST /api/whatsapp/{notify,verify}` | `whatsapp/*/route.js:POST` | Notificação automática e verificação de número | Pública |
+| `GET /api/admin/reports` | `admin/reports/route.js:GET` | Relatórios agregados (faturamento, vendas por dia, pedidos do mês) acelerados via Supabase com fallback | Admin |
 | `GET /api/audio/proxy`, `GET /api/image-proxy` | `audio/proxy`, `image-proxy` | Proxies de mídia — só domínios da allowlist (`src/lib/proxyAllowlist.js`, A-05/A-06) | Pública |
 
 ## `src/lib/` — módulos compartilhados
 
 | Arquivo | Responsabilidade |
 |---|---|
+| `supabase-edge.js` | Cliente PostgREST Supabase nativo com zero dependências externas — compatível com Edge Runtime da Cloudflare e Node |
+| `supabase.js` | Re-export do cliente Supabase para o front-end e utilitários públicos |
+| `supabaseSync.js` | Mapeador Firestore -> Postgres e helpers de espelhamento não-bloqueante (`mirrorOrderToSupabase`, `mirrorPaymentToSupabase`, `mirrorTaskToSupabase`) |
 | `gateway.js` | Autenticação de API Key, criação de cobranças Pix externas, gravação em `gateway_charges` e despacho de webhooks (`docs/GATEWAY_INTEGRATION.md`) |
-| `db.js` | `saveTask`/`updateTaskResult`/`extractAudioTracks`/`getTask` — resultado da Suno, com `runTransaction` para o envio de WhatsApp (M-06) |
-| `payments.js` | `applyPaymentApproval` — único ponto de aprovação de pagamento (M-18), com idempotência via `runTransaction` (A-09) |
+| `db.js` | `saveTask`/`updateTaskResult`/`extractAudioTracks`/`getTask` — resultado da Suno, com `runTransaction` para o envio de WhatsApp (M-06) e espelhamento Supabase |
+| `payments.js` | `applyPaymentApproval` — único ponto de aprovação de pagamento (M-18), com idempotência via `runTransaction` (A-09) e registro na tabela `payments` do Supabase |
 | `efi.js` | Cliente da API Pix da Efí (`createPixCharge`, `getChargeStatus`) — toda chamada exige mTLS (ver `docs/EFI_SETUP.md`) |
 | `httpRetry.js` | `fetchWithRetry` — retry com backoff, compartilhado entre webhook e polling de pagamento (B-08) |
 | `pricing.js` | Catálogo de preços por SKU (`audio_only`, `combo`, `video_addon`, `playback_addon`) — fonte única de valor (C-05) |

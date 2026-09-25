@@ -22,14 +22,51 @@ export const dynamic = 'force-dynamic';
 
 // Janela de varredura. Cota é acumulada sobre o histórico inteiro da pessoa, mas quem interessa ao
 // estúdio é quem esbarrou no limite agora — e ler a coleção inteira custa uma leitura por documento.
+import { getSupabaseEdge } from '@/lib/supabase-edge';
+
 // 15 dias e o suficiente: quem estourou a cota gerou pelo menos 5 musicas em sequencia, e isso
 // acontece em dias, nao em meses. Janela maior faz a rota ler milhares de documentos por abertura
 // da aba — com ~145 pedidos criados por dia, 45 dias passavam de 6 mil.
 const DIAS_DE_VARREDURA = 15;
 const MAX_PEDIDOS = 2500;
 
-async function carregarPedidos() {
+async function carregarPedidos(env) {
   const desde = new Date(Date.now() - DIAS_DE_VARREDURA * 24 * 60 * 60 * 1000).toISOString();
+
+  // 1. Tenta consulta direta no Supabase
+  const supabase = getSupabaseEdge(env);
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('customer_phone, customer_name, payment_status, created_at, deleted_at, production_status')
+        .gte('created_at', desde)
+        .is('deleted_at', 'null')
+        .order('created_at', { ascending: false })
+        .limit(MAX_PEDIDOS);
+
+      if (!error && Array.isArray(data)) {
+        const porTelefone = new Map();
+        for (const row of data) {
+          if (row.production_status === 'CONFIG' || row.production_status === 'RASCUNHO') continue;
+          const telefone = normalizarTelefone(row.customer_phone);
+          if (!telefone || telefone.length < 10) continue;
+
+          if (!porTelefone.has(telefone)) porTelefone.set(telefone, []);
+          porTelefone.get(telefone).push({
+            createdAt: row.created_at || null,
+            paymentStatus: row.payment_status || null,
+            customerName: row.customer_name || '',
+          });
+        }
+        return porTelefone;
+      }
+    } catch (e) {
+      console.warn('[admin/cotas] Fallback para Firestore devido a erro no Supabase:', e.message);
+    }
+  }
+
+  // 2. Fallback Firestore
   const snap = await getDocs(query(
     collection(db, 'orders'),
     where('createdAt', '>=', desde),
@@ -69,7 +106,7 @@ export async function GET(req) {
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status || 401 });
 
   try {
-    const porTelefone = await carregarPedidos();
+    const porTelefone = await carregarPedidos(env);
     const bloqueados = [];
 
     // Todos os resets numa consulta só. Ler documento por documento dentro do laço estourava o

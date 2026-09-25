@@ -4,6 +4,8 @@ import { dbEdge as db } from '@/lib/firebase-edge';
 import { calcularCota } from '@/lib/cotaGeracoes';
 import { lerResetDeCota } from '@/lib/cotaReset';
 
+import { getSupabaseEdge } from '@/lib/supabase-edge';
+
 export const runtime = 'edge';
 
 // Cota de gerações por telefone/e-mail: 5 grátis, mais 5 a cada compra paga (ver
@@ -15,6 +17,41 @@ export const runtime = 'edge';
 // rota direto a ignorava (ver A-11 no AUDIT_REPORT.md). O localStorage do navegador é contador de
 // conveniência de tela, nunca a trava.
 export async function isBlockedByFreeLimit(phone, email) {
+  // 1. Tenta consulta no Supabase (se configurado)
+  const supabase = getSupabaseEdge();
+  if (supabase) {
+    try {
+      const orParts = [];
+      if (phone && phone.replace(/\D/g, '').length >= 10) {
+        orParts.push(`customer_phone.eq.${phone}`);
+      }
+      if (email && email.includes('@')) {
+        orParts.push(`customer_email.eq.${email}`);
+      }
+
+      if (orParts.length > 0) {
+        const { data, error } = await supabase
+          .from('orders')
+          .select('order_number, payment_status, created_at, deleted_at')
+          .is('deleted_at', 'null')
+          .or(orParts.join(','));
+
+        if (!error && Array.isArray(data)) {
+          const matches = data.map((o) => ({
+            orderNumber: o.order_number,
+            paymentStatus: o.payment_status,
+            createdAt: o.created_at,
+          }));
+          const resetAt = phone ? await lerResetDeCota(phone) : '';
+          return calcularCota(matches, { resetAt }).bloqueado;
+        }
+      }
+    } catch (e) {
+      console.warn('[isBlockedByFreeLimit] Fallback para Firestore devido a erro no Supabase:', e.message);
+    }
+  }
+
+  // 2. Fallback resiliente no Firestore
   const ordersRef = collection(db, 'orders');
   const matches = [];
 
@@ -90,6 +127,16 @@ export async function POST(req) {
     const docRef = await addDoc(ordersRef, orderPayload);
 
     console.log(`[API /orders/create] Pedido criado com sucesso no Firebase! ID: ${docRef.id}, Número: ${orderNumber}`);
+
+    // Dual-Write seguro: espelha o pedido no Supabase sem travar a resposta do Firebase
+    try {
+      const { mirrorOrderToSupabase } = await import('@/lib/supabaseSync');
+      mirrorOrderToSupabase(docRef.id, orderPayload).catch((err) => {
+        console.warn('[API /orders/create] Aviso ao espelhar no Supabase:', err?.message);
+      });
+    } catch (e) {
+      // Ignora falhas no espelhamento para proteger a operação principal
+    }
 
     return NextResponse.json({
       success: true,

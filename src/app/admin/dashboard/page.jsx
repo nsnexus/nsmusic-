@@ -3,10 +3,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
-import { auth, db } from '@/lib/firebase';
+import { auth } from '@/lib/firebase';
 import Link from 'next/link';
 import Image from 'next/image';
+import { usePedidosDoMes } from '@/lib/usePedidosDoMes';
 import VendasPorDiaTable from '@/components/VendasPorDiaTable';
 import VendasPorHoraHeatmap from '@/components/VendasPorHoraHeatmap';
 import VendasPorEstadoMapa from '@/components/VendasPorEstadoMapa';
@@ -28,12 +28,13 @@ function daysInMonth(year, month) {
 export default function AdminDashboard() {
   const [user, setUser] = useState(null);
   const [checkingAuth, setCheckingAuth] = useState(true);
-  const [orders, setOrders] = useState([]);
-  const [loadingOrders, setLoadingOrders] = useState(true);
 
   const now = new Date();
   const defaultMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const [monthValue, setMonthValue] = useState(defaultMonth);
+
+  // Consulta do mês (rápida via Supabase com fallback seguro no Firestore)
+  const { pedidos: orders, loading: loadingOrders } = usePedidosDoMes(monthValue);
 
   const router = useRouter();
 
@@ -62,22 +63,6 @@ export default function AdminDashboard() {
       unsubscribe();
     };
   }, [router]);
-
-  useEffect(() => {
-    if (!user) return;
-    const q = query(collection(db, 'orders'), orderBy('createdAt', 'desc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = [];
-      snapshot.forEach((d) => {
-        const o = d.data();
-        if (o.deletedAt) return;
-        data.push({ id: d.id, ...o });
-      });
-      setOrders(data);
-      setLoadingOrders(false);
-    }, () => setLoadingOrders(false));
-    return () => unsubscribe();
-  }, [user]);
 
   const handleLogout = async () => {
     await signOut(auth);

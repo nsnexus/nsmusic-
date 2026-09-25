@@ -382,12 +382,22 @@ export default function OrderDetailsAdmin() {
         })
       });
 
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.error || 'Falha ao iniciar geração.');
+      const rawResponse = await response.text();
+      let data;
+      try {
+        data = JSON.parse(rawResponse);
+      } catch (parseError) {
+        const status = response.status ? `HTTP ${response.status}` : 'sem status HTTP';
+        throw new Error(
+          response.ok
+            ? 'O servidor retornou uma resposta inválida ao iniciar a geração.'
+            : `O servidor não conseguiu iniciar a geração (${status}). Tente novamente em instantes.`
+        );
       }
 
-      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Falha ao iniciar geração.');
+      }
       
       if (!data.taskId) {
         throw new Error("Nenhum taskId retornado pela API.");

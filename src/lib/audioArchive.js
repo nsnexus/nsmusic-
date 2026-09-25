@@ -275,14 +275,21 @@ export async function arquivarAudioDoPedido({ orderRef, orderId, env, doc: docRe
     }
 
     const nowIso = new Date().toISOString();
-    await updateDoc(orderRef, {
+    const archivePayload = {
       audioFiles: archived,
       audioUrl: archived[0],
       audioArchiving: false,
       ...(anyFailure
         ? { audioArchiveFailedAt: nowIso }
         : { audioArchivedAt: nowIso, audioArchiveFailedAt: null }),
-    });
+    };
+    await updateDoc(orderRef, archivePayload);
+
+    // Espelha a URL definitiva do R2 para o Supabase
+    try {
+      const { mirrorOrderToSupabase } = await import('./supabaseSync.js');
+      mirrorOrderToSupabase(orderId, archivePayload, env).catch(() => {});
+    } catch {}
 
     return { arquivou: !anyFailure, files: archived };
   } catch (err) {

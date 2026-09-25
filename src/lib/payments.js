@@ -186,6 +186,28 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
 
         await updateDoc(orderRef, updates);
 
+        // Dual-Write seguro para Supabase (atualiza pedido e registra transação na tabela payments)
+        try {
+          const { mirrorOrderToSupabase, mirrorPaymentToSupabase } = await import('./supabaseSync.js');
+          mirrorOrderToSupabase(orderId, { ...orderData, ...updates }, env).catch(() => {});
+
+          let paymentKind = 'musica';
+          if (isVideoOnly) paymentKind = 'video';
+          else if (isCartaOnly) paymentKind = 'carta';
+          else if (isPlaybackOnly) paymentKind = 'playback';
+          else if (isRetroOnly) paymentKind = 'retrospectiva';
+
+          const confirmedAmount = Number(payment.transaction_amount) || getPriceForSku(sku) || 9.99;
+          mirrorPaymentToSupabase({
+            orderId,
+            kind: paymentKind,
+            sku,
+            txid: String(paymentId),
+            amount: confirmedAmount,
+            paidAt: nowIso
+          }, env).catch(() => {});
+        } catch {}
+
         const grantedCartaViaCombo = skuGrantsCartaAccess(sku);
         txResult = { applied: true, sku, isVideoOnly, isPlaybackOnly, isCartaOnly, isRetroOnly, grantedCartaViaCombo, orderData };
       }
@@ -247,14 +269,20 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
             const { files: archived, anyFailure } = await archiveAudioFiles(orderId, files, { r2Bucket, r2PublicUrl, firebaseBucket });
 
             const nowIso = new Date().toISOString();
-            await updateDoc(orderRef, {
+            const archivePayload = {
               audioFiles: archived,
               audioUrl: archived[0],
               audioArchiving: false,
               ...(anyFailure
                 ? { audioArchiveFailedAt: nowIso }
                 : { audioArchivedAt: nowIso, audioArchiveFailedAt: null }),
-            });
+            };
+            await updateDoc(orderRef, archivePayload);
+
+            try {
+              const { mirrorOrderToSupabase } = await import('./supabaseSync.js');
+              mirrorOrderToSupabase(orderId, archivePayload, env).catch(() => {});
+            } catch {}
           } else {
             console.warn('[payments] Nem R2 (nsmusic_media) nem NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET configurados — áudio não arquivado.');
             await updateDoc(orderRef, { audioArchiving: false }).catch(() => {});

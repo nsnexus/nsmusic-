@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { where } from 'firebase/firestore';
+import { auth } from '@/lib/firebase';
 import { getPriceForSku } from '@/lib/pricing';
 import { buscarPedidosPaginado } from '@/lib/buscarPedidosPaginado';
 
@@ -35,6 +36,7 @@ function localDayEnd(dateStr) {
 
 export default function FaturamentoCards({ dateFrom, dateTo }) {
   const [pedidos, setPedidos] = useState([]);
+  const [supaStats, setSupaStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState('');
 
@@ -43,15 +45,36 @@ export default function FaturamentoCards({ dateFrom, dateTo }) {
     (async () => {
       setLoading(true);
       setErro('');
-      try {
-        // Paginado: com limit fixo e ordem crescente, um período grande devolvia os pedidos mais
-        // ANTIGOS e descartava os recentes — os cards mostravam uma fração das vendas sem avisar
-        // (achado 25/09/2026, ver src/lib/buscarPedidosPaginado.js).
-        const constraints = [];
+      setSupaStats(null);
 
-        // Busca com folga pra trás (LOOKBACK_DAYS) — sem isso, um pedido criado ontem e pago hoje
-        // nunca seria buscado quando dateFrom = hoje, e o faturamento "de hoje" ficaria subestimado
-        // de novo, exatamente o bug que este componente corrige.
+      // 1. Tenta buscar direto os totais calculados no Supabase (alta performance)
+      try {
+        const token = await auth.currentUser?.getIdToken();
+        if (token) {
+          const params = new URLSearchParams({ tipo: 'faturamento' });
+          if (dateFrom) params.set('dateFrom', dateFrom);
+          if (dateTo) params.set('dateTo', dateTo);
+
+          const res = await fetch(`/api/admin/reports?${params.toString()}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (res.ok) {
+            const json = await res.json().catch(() => null);
+            if (json?.ok && typeof json.faturamentoTotal === 'number') {
+              if (!ativo) return;
+              setSupaStats(json);
+              setLoading(false);
+              return;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[FaturamentoCards] Falha ao consultar Supabase, caindo para Firestore:', err.message);
+      }
+
+      // 2. Fallback resiliente no Firestore
+      try {
+        const constraints = [];
         if (dateFrom) {
           const inicio = localDayStart(dateFrom);
           inicio.setDate(inicio.getDate() - LOOKBACK_DAYS);
@@ -174,7 +197,12 @@ export default function FaturamentoCards({ dateFrom, dateTo }) {
   // Quatro números, a pedido do dono do estúdio (25/09/2026): o que entrou, o que saiu, e o volume
   // dos dois lados. A divisão por produto (músicas, vídeos, cartas...) vive na tabela Vendas por
   // dia, que é o lugar de olhar detalhe.
-  const cards = [
+  const cards = supaStats ? [
+    { label: 'Faturamento total', valor: `R$ ${supaStats.faturamentoTotal.toFixed(2).replace('.', ',')}`, cor: '#059669' },
+    { label: 'Vendas (pagas)', valor: supaStats.vendasCount, cor: '#0f172a' },
+    { label: 'Gerações', valor: supaStats.geracoes, cor: '#d97706' },
+    { label: 'Gasto em Geração (Kie.ai)', valor: `R$ ${supaStats.gastoGeracao.toFixed(2).replace('.', ',')}`, cor: '#dc2626' },
+  ] : [
     { label: 'Faturamento total', valor: `R$ ${faturamentoTotal.toFixed(2).replace('.', ',')}`, cor: '#059669' },
     { label: 'Vendas (pagas)', valor: vendasCount, cor: '#0f172a' },
     { label: 'Gerações', valor: geracoes, cor: '#d97706' },

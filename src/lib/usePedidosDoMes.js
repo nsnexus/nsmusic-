@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { where } from 'firebase/firestore';
+import { auth } from '@/lib/firebase';
 import { buscarPedidosPaginado } from '@/lib/buscarPedidosPaginado';
 
 export function paraData(valor) {
@@ -11,12 +12,51 @@ export function paraData(valor) {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-// Busca os pedidos de um mês (por createdAt) — consulta compartilhada por VendasPorDiaTable,
-// VendasPorHoraHeatmap e VendasPorEstadoMapa (pedido 12/09/2026), extraída aqui pra não triplicar o
-// mesmo código (ver .claude/rules/frontend.md: função repetida em mais de um arquivo vai pra
-// src/lib/). Cada componente que usa este hook faz a SUA PRÓPRIA chamada ao Firestore — não
-// compartilha estado entre eles, mesmo padrão já adotado nos outros cards do dashboard pra cada um
-// funcionar sozinho, independente do filtro de data da lista principal de pedidos.
+// Cache em memória para evitar chamadas duplicadas simultâneas
+// quando VendasPorDiaTable, VendasPorHoraHeatmap e VendasPorEstadoMapa montam juntos
+const cacheMes = new Map();
+const promessasAtivas = new Map();
+
+async function buscarPedidosDoMesComFallback(mes) {
+  const agora = Date.now();
+  const emCache = cacheMes.get(mes);
+  if (emCache && (agora - emCache.timestamp < 45000)) {
+    return emCache.pedidos;
+  }
+
+  // 1. Tenta carregar via API Edge / Supabase com token de admin
+  try {
+    const token = await auth.currentUser?.getIdToken();
+    if (token) {
+      const res = await fetch(`/api/admin/reports?tipo=pedidos_mes&mes=${encodeURIComponent(mes)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const json = await res.json().catch(() => null);
+        if (json?.ok && Array.isArray(json.pedidos)) {
+          cacheMes.set(mes, { timestamp: agora, pedidos: json.pedidos });
+          return json.pedidos;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[usePedidosDoMes] Falha ao carregar do Supabase via API, caindo para Firestore:', err.message);
+  }
+
+  // 2. Fallback resiliente no Firestore
+  const [ano, mesNum] = mes.split('-').map(Number);
+  const inicio = new Date(ano, mesNum - 1, 1, 0, 0, 0, 0).toISOString();
+  const fim = new Date(ano, mesNum, 1, 0, 0, 0, 0).toISOString();
+
+  const { pedidos: validos } = await buscarPedidosPaginado([
+    where('createdAt', '>=', inicio),
+    where('createdAt', '<', fim),
+  ]);
+
+  cacheMes.set(mes, { timestamp: agora, pedidos: validos });
+  return validos;
+}
+
 export function usePedidosDoMes(mes) {
   const [pedidos, setPedidos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -28,18 +68,15 @@ export function usePedidosDoMes(mes) {
       setLoading(true);
       setErro('');
       try {
-        const [ano, mesNum] = mes.split('-').map(Number);
-        const inicio = new Date(ano, mesNum - 1, 1, 0, 0, 0, 0).toISOString();
-        const fim = new Date(ano, mesNum, 1, 0, 0, 0, 0).toISOString();
+        let p = promessasAtivas.get(mes);
+        if (!p) {
+          p = buscarPedidosDoMesComFallback(mes).finally(() => {
+            promessasAtivas.delete(mes);
+          });
+          promessasAtivas.set(mes, p);
+        }
 
-        // Paginado, sem teto fixo: com limit(2000) e ordem crescente, um mês com mais de 2.000
-        // pedidos perdia justamente os dias MAIS RECENTES — a tabela mostrava zero vendas nos
-        // últimos dias enquanto o banco tinha dezenas por dia (achado 25/09/2026, ver
-        // src/lib/buscarPedidosPaginado.js).
-        const { pedidos: validos } = await buscarPedidosPaginado([
-          where('createdAt', '>=', inicio),
-          where('createdAt', '<', fim),
-        ]);
+        const validos = await p;
         if (!ativo) return;
         setPedidos(validos);
       } catch (e) {

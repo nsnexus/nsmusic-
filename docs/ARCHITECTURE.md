@@ -22,13 +22,15 @@ mesma identidade anônima do browser.
 graph TD
     B["Browser<br/>/criar · /entrega · /admin"]
     E["Rotas Edge<br/>src/app/api/*<br/>(requireAdmin nas rotas sensíveis)"]
-    FS[("Firestore<br/>orders · suno_tasks<br/>regras ainda não publicadas")]
+    FS[("Firestore<br/>orders · suno_tasks<br/>Fonte primária / autoridade atual")]
+    SB[("Supabase (PostgreSQL)<br/>orders · payments · suno_tasks<br/>Dual-write + Views Analíticas")]
     ST[("Firebase Storage")]
 
     B -->|"fetch + Authorization: Bearer idToken (admin)"| E
     B -->|"SDK cliente: getDoc/getDocs com where, sem varredura completa"| FS
     B -->|"upload de fotos/capa"| ST
     E -->|"SDK cliente (lite)"| FS
+    E -->|"PostgREST Nativo (Service Role)"| SB
 
     E --> KIE["Kie.ai / Suno<br/>(webhook autenticado por segredo)"]
     E --> AI["OpenAI → Gemini"]
@@ -39,6 +41,7 @@ graph TD
     EFI -.->|"webhook"| E
 
     style FS fill:#4a2020,stroke:#c04040
+    style SB fill:#1e4a38,stroke:#3ecf8e
     style B fill:#2a3a52,stroke:#5588cc
 ```
 
@@ -54,7 +57,8 @@ AUDIT_REPORT.md, corrigidos no Lote 2).
 | Browser → API (rotas admin) | `fetch` JSON + `Authorization: Bearer <idToken>` | Verificado no servidor via `requireAdmin()` |
 | Browser → API (rotas públicas) | `fetch` JSON, sem credenciais | Por design — usadas durante a criação/pagamento por qualquer visitante |
 | Browser → Firestore | SDK cliente, config `NEXT_PUBLIC_*` | Leitura com `where`; escrita restante é metadado não-sensível (ver acima) |
-| Edge → Firestore | `firebase/firestore/lite` | Mesma identidade anônima do browser — sem identidade de serviço |
+| Edge → Firestore | `firebase/firestore/lite` | Mesma identidade anônima do browser — mantido como fonte primária |
+| Edge → Supabase | PostgREST nativo (`src/lib/supabase-edge.js`) com `SUPABASE_SERVICE_ROLE_KEY` | Dual-write não-bloqueante + consultas agregadas analíticas ultra-rápidas |
 | Edge → externos | `fetch` com `Bearer` + `AbortSignal.timeout()` (B-08); retry com backoff (`src/lib/httpRetry.js`) | Segredos via `getRequestContext().env` com fallback `process.env`, nunca hardcoded |
 | Edge → Worker `efi-proxy` → Efí | `fetch` HTTPS simples até um Worker dedicado (`workers/efi-proxy/`, segredo `EFI_PROXY_SECRET`), que detém o binding `EFI_MTLS_CERT` e repassa com **mTLS** | Cloudflare Pages não suporta binding mTLS (só Workers); toda chamada (OAuth2, criar cobrança, consultar status) exige o certificado — ver `docs/EFI_SETUP.md` |
 | Efí → Edge | Webhook POST (`api/webhooks/efi`) | Segredo `?secret=` na URL como primeira barreira; nunca aprova sem reconsultar `GET /v2/cob/{txid}` na mesma requisição |

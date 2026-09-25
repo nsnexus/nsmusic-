@@ -198,17 +198,28 @@ export const updateTaskResult = async (taskId, result, overrideOrderId = null, e
       //
       // Isolado: se a cópia falhar, a música JÁ está entregue e o cron (api/orders/archive-audio)
       // tenta de novo. Arquivamento nunca pode derrubar a entrega.
+      let archiveResult = null;
       try {
         const { arquivarAudioDoPedido } = await import('./audioArchive.js');
-        await arquivarAudioDoPedido({ orderRef, orderId, env, getDoc, updateDoc });
+        archiveResult = await arquivarAudioDoPedido({ orderRef, orderId, env, getDoc, updateDoc });
       } catch (err) {
         console.warn('[db] Falha ao arquivar áudio na chegada:', err.message);
+      }
+
+      // Se o R2 arquivou com sucesso na hora, atualiza as URLs espelhadas para o Supabase
+      const finalUpdates = { ...updates };
+      if (archiveResult?.files?.length) {
+        finalUpdates.audioFiles = archiveResult.files;
+        finalUpdates.audioUrl = archiveResult.files[0];
+        if (archiveResult.arquivou) {
+          finalUpdates.audioArchivedAt = new Date().toISOString();
+        }
       }
 
       // Dual-Write seguro para o Supabase
       try {
         const { mirrorOrderToSupabase } = await import('./supabaseSync.js');
-        mirrorOrderToSupabase(orderId, { ...orderData, ...updates }).catch(() => {});
+        mirrorOrderToSupabase(orderId, { ...orderData, ...finalUpdates }, env).catch(() => {});
       } catch {}
 
       // Contador da vitrine da home (stats/_live). Só soma se o pedido AINDA NÃO tinha áudio: esta
