@@ -138,6 +138,18 @@ async function fetchFreshTracks(taskId, apiKey) {
   }
 }
 
+// Guarda de segurança compartilhada: a Suno entrega DUAS versões e o cliente pagou pelas duas.
+// Gravar menos faixas do que o pedido já tem apaga uma delas — aconteceu com 6 pedidos quando a
+// checagem de saúde entrou sem esta trava (25/09/2026).
+function faixasNoPedido(data) {
+  if (Array.isArray(data?.audioFiles)) return data.audioFiles.filter(Boolean).length;
+  return data?.audioUrl ? 1 : 0;
+}
+
+function naoPodeGravar(tracks, data) {
+  return tracks.length < faixasNoPedido(data);
+}
+
 async function runRefresh(env, { dryRun }) {
   const apiKey = readEnv(env, 'KIE_API_KEY');
   const result = { dryRun, scanned: 0, needingRefresh: 0, refreshed: 0, failed: 0, skippedNoTaskId: 0, skippedRecentFailure: 0, samples: [] };
@@ -193,6 +205,10 @@ async function runRefresh(env, { dryRun }) {
     if (needsRefresh(data)) continue;            // já está na fila principal
     if (!data.audioRefreshedAt) continue;        // nunca foi trocado por nós
     if (data.audioArchivedAt) continue;          // já está no nosso storage, não depende da Kie.ai
+
+    // Pedido que ficou com UMA faixa depois de uma troca: a Suno sempre entrega duas, então falta
+    // a segunda — reconsulta para recuperá-la (ver naoPodeGravar).
+    if (faixasNoPedido(data) < 2) { suspeitos.push({ id: d.id, data }); continue; }
     const quando = Date.parse(data.audioRefreshedAt);
     if (!Number.isFinite(quando) || Date.now() - quando > JANELA_SUSPEITA_MS) continue;
     suspeitos.push({ id: d.id, data });
@@ -238,6 +254,15 @@ async function runRefresh(env, { dryRun }) {
       result.failed++;
       await updateDoc(doc(db, 'orders', c.id), {
         audioRefreshFailed: fresh.reason,
+        audioRefreshCheckedAt: new Date().toISOString(),
+      }).catch(() => {});
+      continue;
+    }
+
+    if (naoPodeGravar(fresh.tracks, c.data)) {
+      // Só parte das faixas está servindo: espera a próxima execução em vez de perder uma versão.
+      result.skippedParcial = (result.skippedParcial || 0) + 1;
+      await updateDoc(doc(db, 'orders', c.id), {
         audioRefreshCheckedAt: new Date().toISOString(),
       }).catch(() => {});
       continue;

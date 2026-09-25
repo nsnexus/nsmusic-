@@ -114,8 +114,13 @@ export async function POST(req) {
     const saude = await Promise.all(definitivas.map((t) => audioUrlSaudavel(t.audio_url)));
     const prontas = definitivas.filter((_, i) => saude[i]);
 
-    if (prontas.length === 0) {
-      return NextResponse.json({ ok: false, estado: 'definitiva_ainda_nao_serve' });
+    // NUNCA reduzir o número de faixas: a Suno entrega duas versões e o cliente pagou pelas duas.
+    // Gravar só a que já está pronta apagaria a segunda do pedido — foi o que aconteceu com 6
+    // pedidos logo depois da checagem de saúde entrar (25/09/2026). Se a segunda ainda não serve,
+    // melhor deixar tudo como está e tentar de novo na próxima rodada.
+    const faixasAtuais = Array.isArray(order.audioFiles) ? order.audioFiles.filter(Boolean).length : (order.audioUrl ? 1 : 0);
+    if (prontas.length === 0 || prontas.length < faixasAtuais) {
+      return NextResponse.json({ ok: false, estado: 'definitiva_ainda_nao_serve', prontas: prontas.length, atuais: faixasAtuais });
     }
 
     const audioFiles = prontas.map((t) => t.audio_url);
