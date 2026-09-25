@@ -5,11 +5,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // reconstruído — o pedido não existe mais.
 
 let store;
+let colecoesUsadas;
 
 vi.mock('@/lib/firebase-edge', () => ({ dbEdge: {} }));
 
 vi.mock('firebase/firestore/lite', () => ({
-  doc: (_db, _collection, id) => ({ id }),
+  doc: (_db, collection, id) => { colecoesUsadas.push(collection); return { id }; },
   // increment é representado por um marcador para o mock somar como o Firestore faria.
   increment: (n) => ({ __increment: n }),
   setDoc: async (ref, data) => {
@@ -30,6 +31,7 @@ const { consolidateOrders, buildOrderMetrics, statsDayKey } = await import('@/li
 
 beforeEach(() => {
   store = {};
+  colecoesUsadas = [];
 });
 
 describe('statsDayKey', () => {
@@ -98,25 +100,25 @@ describe('consolidateOrders', () => {
       { createdAt: '2026-08-28T09:00:00.000Z', paymentStatus: 'PAGO', expectedAmount: 16.89, videoAddonPaid: true },
     ]);
 
-    expect(store['2026-08-27'].ordersCreated).toBe(2);
-    expect(store['2026-08-27'].musicsPaid).toBe(1);
-    expect(store['2026-08-27'].revenue).toBe(9.99);
+    expect(store['config_stats_2026-08-27'].ordersCreated).toBe(2);
+    expect(store['config_stats_2026-08-27'].musicsPaid).toBe(1);
+    expect(store['config_stats_2026-08-27'].revenue).toBe(9.99);
 
-    expect(store['2026-08-28'].ordersCreated).toBe(1);
-    expect(store['2026-08-28'].videosPaid).toBe(1);
+    expect(store['config_stats_2026-08-28'].ordersCreated).toBe(1);
+    expect(store['config_stats_2026-08-28'].videosPaid).toBe(1);
 
-    expect(store['_totals'].ordersCreated).toBe(3);
-    expect(store['_totals'].musicsPaid).toBe(2);
-    expect(store['_totals'].revenue).toBeCloseTo(26.88, 2);
+    expect(store['config_stats_totals'].ordersCreated).toBe(3);
+    expect(store['config_stats_totals'].musicsPaid).toBe(2);
+    expect(store['config_stats_totals'].revenue).toBeCloseTo(26.88, 2);
   });
 
   it('acumula entre execuções em vez de sobrescrever (o pedido apagado não volta pra recontar)', async () => {
     await consolidateOrders([{ createdAt: '2026-08-27T10:00:00.000Z', paymentStatus: 'PAGO', expectedAmount: 9.99 }]);
     await consolidateOrders([{ createdAt: '2026-08-27T11:00:00.000Z', paymentStatus: 'PAGO', expectedAmount: 9.99 }]);
 
-    expect(store['2026-08-27'].ordersCreated).toBe(2);
-    expect(store['2026-08-27'].revenue).toBeCloseTo(19.98, 2);
-    expect(store['_totals'].ordersCreated).toBe(2);
+    expect(store['config_stats_2026-08-27'].ordersCreated).toBe(2);
+    expect(store['config_stats_2026-08-27'].revenue).toBeCloseTo(19.98, 2);
+    expect(store['config_stats_totals'].ordersCreated).toBe(2);
   });
 
   it('lista vazia não escreve nada', async () => {
@@ -127,7 +129,17 @@ describe('consolidateOrders', () => {
 
   it('pedido sem createdAt vai para o balde "sem-data" em vez de ser descartado', async () => {
     await consolidateOrders([{ paymentStatus: 'PAGO', expectedAmount: 9.99 }]);
-    expect(store['sem-data'].ordersCreated).toBe(1);
-    expect(store['_totals'].revenue).toBe(9.99);
+    expect(store['config_stats_sem-data'].ordersCreated).toBe(1);
+    expect(store['config_stats_totals'].revenue).toBe(9.99);
+  });
+
+  // Não é preferência de nomenclatura: as regras do Firestore em produção NEGAM escrita na coleção
+  // `stats` (403 PERMISSION_DENIED, medido em 03/09 e de novo em 25/09/2026) e o projeto não tem
+  // Admin SDK. Enquanto isso valer, escrever em `stats` faz a consolidação falhar — e a limpeza
+  // aborta quando a consolidação falha, então nenhum pedido antigo era apagado.
+  it('escreve na coleção gravável, nunca na coleção stats', async () => {
+    await consolidateOrders([{ createdAt: '2026-08-27T10:00:00.000Z', paymentStatus: 'PAGO', expectedAmount: 9.99 }]);
+    expect(colecoesUsadas).not.toContain('stats');
+    expect(new Set(colecoesUsadas)).toEqual(new Set(['orders']));
   });
 });

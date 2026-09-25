@@ -1,13 +1,31 @@
-// Consolidação de métricas de pedidos na coleção `stats`.
+// Consolidação de métricas de pedidos.
 //
 // Por que existe: os pedidos são apagados depois de 10 dias (ver api/orders/cleanup) para não
 // acumular custo de Firestore e de Storage. Antes de apagar, os números que interessam ao negócio
 // (quantas músicas foram geradas, quantas foram pagas, quantos vídeos e playbacks vendidos, quanto
 // entrou) são somados aqui — o histórico de FATURAMENTO sobrevive mesmo sem o pedido em si.
 //
-// Formato: um documento por dia (`stats/2026-08-28`, a data de CRIAÇÃO do pedido) mais um documento
-// acumulado (`stats/_totals`). Documento por dia permite montar gráfico de evolução depois; o
-// acumulado dá o total de sempre sem precisar varrer a coleção.
+// ONDE isto é gravado, e por quê: em `orders/config_stats_<dia>` e `orders/config_stats_totals`,
+// não na coleção `stats`.
+//
+// As regras do Firestore em produção NEGAM escrita em `stats` para quem não está autenticado, e
+// este projeto não tem Admin SDK — as rotas Edge acessam o banco com o mesmo SDK cliente anônimo do
+// navegador (ver docs/ARCHITECTURE.md). Medido de novo em 25/09/2026: `GET stats/_totals` devolve
+// 403 PERMISSION_DENIED enquanto `orders` responde normalmente.
+//
+// A consequência era pior do que métricas faltando: api/orders/cleanup consolida ANTES de apagar e
+// aborta a execução inteira se a consolidação falhar ("sem métricas gravadas, apagar seria perder o
+// faturamento do período"). Como ela falhava todo dia, a limpeza nunca apagou nada — pedido
+// nenhum, desde que a regra existe, com PII de cliente ficando muito além dos 10 dias de retenção
+// previstos. O erro aparecia no log como `consolidacao_falhou`, uma linha por dia, sem ninguém ver.
+//
+// `orders` é gravável e o projeto já usa esse mesmo desvio para configuração e para os contadores
+// da home (`orders/config_whatsapp`, `orders/config_stats` — ver src/lib/liveStats.js). O prefixo
+// `config_` já é ignorado pela limpeza e pelo painel, então estes documentos não viram "pedidos
+// fantasma" em lugar nenhum.
+//
+// A saída definitiva continua sendo dar identidade de servidor às rotas (Lote 3 do FIX_PLAN); aí
+// isto volta para `stats`, que é o lugar certo.
 //
 // Idempotência: todo incremento usa `increment()` do Firestore (atômico, não precisa ler antes). O
 // chamador é responsável por marcar o pedido como já consolidado antes de apagá-lo, para que uma
@@ -16,6 +34,11 @@
 
 import { doc, setDoc, increment } from 'firebase/firestore/lite';
 import { dbEdge as db } from './firebase-edge.js';
+
+// Ver o comentário do topo: a coleção `stats` é negada pelas regras em produção.
+const STATS_COLLECTION = 'orders';
+const STATS_DOC_PREFIX = 'config_stats_';
+const STATS_TOTALS_DOC = 'config_stats_totals';
 
 // Mesma convenção do resto do sistema: PAGAMENTO_APROVADO e PAGO são equivalentes (ver CLAUDE.md).
 function isPaid(order) {
@@ -104,7 +127,7 @@ export async function consolidateOrders(orders) {
         // Arredonda a receita para 2 casas: soma de floats acumula erro (9.99 + 9.99 + ...).
         updates[key] = key === 'revenue' ? increment(Math.round(metrics[key] * 100) / 100) : increment(metrics[key]);
       }
-      await setDoc(doc(db, 'stats', day), updates, { merge: true });
+      await setDoc(doc(db, STATS_COLLECTION, `${STATS_DOC_PREFIX}${day}`), updates, { merge: true });
       consolidated += metrics.ordersCreated;
     }
 
@@ -112,7 +135,7 @@ export async function consolidateOrders(orders) {
     for (const key of Object.keys(totals)) {
       totalUpdates[key] = key === 'revenue' ? increment(Math.round(totals[key] * 100) / 100) : increment(totals[key]);
     }
-    await setDoc(doc(db, 'stats', '_totals'), totalUpdates, { merge: true });
+    await setDoc(doc(db, STATS_COLLECTION, STATS_TOTALS_DOC), totalUpdates, { merge: true });
 
     return { days: byDay.size, consolidated };
   } catch (err) {
