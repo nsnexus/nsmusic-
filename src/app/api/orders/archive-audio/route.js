@@ -15,19 +15,15 @@ export const dynamic = 'force-dynamic';
 // que isso: as URLs pararam de servir muito antes do prazo. Enquanto o áudio mora só lá, o pedido
 // vira link quebrado com data marcada, inclusive o link que o cliente já recebeu por WhatsApp.
 //
-// MEDIDO em 25/09/2026, e é por isso que pedido NÃO PAGO também entra agora: a URL que a Kie.ai
-// grava na maioria dos pedidos é `audiostream.kie.ai`, um endpoint de STREAMING que dura poucas
-// horas. Depois disso ele responde 200 com CORPO VAZIO — a Kie.ai continua marcando sucesso do lado
-// dela, e o player do cliente simplesmente não toca. Três pedidos medidos na mesma varredura:
-// 1 hora de vida → 5,6 MB; 5 horas → 0 bytes; 13 horas → 0 bytes e sem fallback vivo.
+// Só pedido PAGO é arquivado: prévia não convertida é a maior parte do volume e não justifica o
+// custo de armazenamento (~6 MB por faixa). Quem pagou tem direito a voltar e baixar meses depois.
 //
-// O cliente ouve a prévia na hora em que gera, pensa até o dia seguinte e volta para pagar — e aí
-// encontra uma música muda. A janela entre gerar e pagar é justamente onde a venda acontece, então
-// esperar o pagamento para arquivar é esperar demais.
-//
-// Prévia não paga custa armazenamento (~6 MB por faixa), e é de propósito: é mais barato guardar a
-// faixa do que perder a venda. A limpeza periódica (api/cron/cleanup) continua responsável por
-// descartar pedido antigo que nunca converteu.
+// A prévia NÃO paga é protegida por outro caminho, sem custo de storage: api/orders/refresh-audio
+// troca a URL efêmera da Kie.ai pela URL definitiva do arquivo, que dura os ~14 dias documentados.
+// A efêmera é `audiostream.kie.ai`, endpoint de STREAMING do preview — medido em 25/09/2026, ele
+// serve 3,4 MB num pedido de 0h e 0 byte num de 6,7h, enquanto a Kie.ai segue marcando sucesso do
+// lado dela. Era essa troca que faltava (e não o arquivamento da prévia) para a música parar de
+// tocar na geração e sumir no dia seguinte.
 //
 // Achado 04/09/2026: desde este commit, o arquivamento também acontece NA HORA da aprovação do
 // pagamento (ver src/lib/payments.js) — o cron aqui virou REDE DE SEGURANÇA, não o caminho
@@ -60,22 +56,6 @@ function isPaidOrder(order) {
     order?.paymentStatus === 'PAGO' ||
     order?.paidAt
   );
-}
-
-// Janela em que a origem da Kie.ai ainda serve o arquivo, medida em 25/09/2026 num pedido de cada
-// idade: 0h -> 3,4 MB; 5h -> 0 bytes; 6,7h -> 0 bytes nas duas faixas, e sem cópia em tempfile para
-// buscar (404). Fora da janela a tentativa é quase sempre 0 byte, e como o lote é pequeno e roda a
-// cada 10 minutos, cada morto tentado rouba a vaga de um pedido que ainda dava para salvar.
-//
-// Pedido PAGO ignora esta janela: ali vale insistir mesmo com chance baixa.
-const HORAS_JANELA_NAO_PAGO = 4;
-
-function dentroDaJanela(order) {
-  const criado = order?.createdAt;
-  if (!criado) return false;
-  const ms = typeof criado === 'string' ? Date.parse(criado) : (criado?.toDate?.()?.getTime?.() ?? NaN);
-  if (!Number.isFinite(ms)) return false;
-  return (Date.now() - ms) < HORAS_JANELA_NAO_PAGO * 60 * 60 * 1000;
 }
 
 async function runArchive(env, { dryRun }) {
@@ -115,8 +95,7 @@ async function runArchive(env, { dryRun }) {
   for (const d of snap.docs) {
     result.scanned++;
     const data = d.data();
-    // Pago: sempre. Não pago: só enquanto a origem provavelmente ainda serve o arquivo.
-    if (!isPaidOrder(data) && !dentroDaJanela(data)) continue;
+    if (!isPaidOrder(data)) continue;
     if (data.audioArchivedAt) continue; // já arquivado
 
     const files = Array.isArray(data.audioFiles) && data.audioFiles.length
@@ -141,10 +120,6 @@ async function runArchive(env, { dryRun }) {
     }));
     return result;
   }
-
-  // Pago primeiro: se o lote não couber todo mundo, quem já pagou não pode ficar esperando a vez
-  // atrás de prévias que talvez nunca convertam.
-  candidates.sort((a, b) => Number(isPaidOrder(b.data)) - Number(isPaidOrder(a.data)));
 
   for (const c of candidates.slice(0, MAX_ORDERS_PER_RUN)) {
     const { files: archived, anyFailure, filesCopied, bytesCopied } = await archiveAudioFiles(c.id, c.files, { r2Bucket, r2PublicUrl, firebaseBucket });
