@@ -206,7 +206,10 @@ const TAREFAS = [
   // cabeçalho próprio — ver src/app/api/cron/recover/route.js:37.
   { nome: 'recover', caminho: '/api/cron/recover', metodo: 'GET', cabecalho: 'Authorization', prefixoBearer: true, envSegredo: 'CRON_SECRET', minutos: 15 },
   // Arquivamento de áudio pago no R2. Aceita `x-cleanup-secret` ou `x-reconcile-secret`.
-  { nome: 'archive-audio', caminho: '/api/orders/archive-audio', cabecalho: 'X-Cleanup-Secret', envSegredo: 'CLEANUP_SECRET', alternativaSegredo: 'RECONCILE_SECRET', minutos: 60 },
+  // A cada 10 min, nao 60: a URL de origem da Kie.ai (audiostream) morre em poucas horas, entao
+  // arquivar tarde e arquivar 0 byte. Cada execucao processa um lote pequeno (ver MAX_ORDERS_PER_RUN
+  // na rota) porque cada faixa atravessa o Worker inteira.
+  { nome: 'archive-audio', caminho: '/api/orders/archive-audio', cabecalho: 'X-Cleanup-Secret', envSegredo: 'CLEANUP_SECRET', alternativaSegredo: 'RECONCILE_SECRET', minutos: 10 },
   // Limpeza de rascunho antigo, uma vez por dia.
   { nome: 'cleanup', caminho: '/api/orders/cleanup', cabecalho: 'X-Cleanup-Secret', envSegredo: 'CLEANUP_SECRET', alternativaSegredo: 'RECONCILE_SECRET', minutos: 24 * 60 },
 ];
