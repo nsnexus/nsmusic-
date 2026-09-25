@@ -4,6 +4,7 @@ import { doc, getDoc, updateDoc, collection, query, where, limit, getDocs } from
 import { dbEdge as db } from '@/lib/firebase-edge';
 import { extractAudioTracks } from '@/lib/db';
 import { readEnvValue } from '@/lib/envValue';
+import { audioUrlSaudavel } from '@/lib/audioUrlSaudavel';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
@@ -107,8 +108,18 @@ export async function POST(req) {
       return NextResponse.json({ ok: false, estado: 'ainda_processando' });
     }
 
-    const audioFiles = definitivas.map((t) => t.audio_url);
-    const audioIds = definitivas.map((t) => t.trackId).filter(Boolean);
+    // A Kie.ai publica a URL do MP3 final ANTES de o arquivo existir: sem esta checagem, trocamos
+    // um stream que estava tocando por um 404 e o cliente ficava sem áudio nenhum (achado
+    // 25/09/2026, poucas horas depois da troca automática entrar no ar).
+    const saude = await Promise.all(definitivas.map((t) => audioUrlSaudavel(t.audio_url)));
+    const prontas = definitivas.filter((_, i) => saude[i]);
+
+    if (prontas.length === 0) {
+      return NextResponse.json({ ok: false, estado: 'definitiva_ainda_nao_serve' });
+    }
+
+    const audioFiles = prontas.map((t) => t.audio_url);
+    const audioIds = prontas.map((t) => t.trackId).filter(Boolean);
 
     const updates = {
       audioUrl: audioFiles[0],

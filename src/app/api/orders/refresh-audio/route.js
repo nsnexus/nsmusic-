@@ -4,6 +4,7 @@ import { collection, query, where, limit, getDocs, doc, updateDoc } from 'fireba
 import { dbEdge as db } from '@/lib/firebase-edge';
 import { extractAudioTracks } from '@/lib/db';
 import { requireAdmin } from '@/lib/auth';
+import { audioUrlSaudavel } from '@/lib/audioUrlSaudavel';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
@@ -27,7 +28,16 @@ export const dynamic = 'force-dynamic';
 // Kie.ai não devolver nada (arquivo expirado de vez — a doc deles avisa que expira em 14 dias), o
 // pedido é marcado com audioRefreshFailed para revisão, e nada do que já existe é apagado.
 
-const MAX_ORDERS_PER_RUN = 25;
+// Cada renovação agora faz também 2 checagens de saúde da URL nova (ver audioUrlSaudavel), então o
+// lote encolheu para caber no orçamento de subrequests do Edge.
+const MAX_ORDERS_PER_RUN = 12;
+
+// Pedidos que JÁ foram renovados mas podem ter recebido uma URL que ainda não servia: entre a
+// entrada da troca automática e a checagem de saúde (25/09/2026), gravamos URLs 404 por cima de
+// streams que estavam tocando. Estes não voltariam à fila sozinhos — a URL deles não é "efêmera",
+// só está morta. Poucos por rodada: cada um custa uma requisição extra só para descobrir se está bom.
+const MAX_SUSPEITOS_POR_RUN = 8;
+const JANELA_SUSPEITA_MS = 48 * 60 * 60 * 1000;
 
 // Quantos documentos a consulta traz por execução para depois filtrar em memória. Bem mais alto que
 // o lote porque a maioria já está com URL boa e é descartada no filtro — e porque um limite curto
@@ -116,7 +126,13 @@ async function fetchFreshTracks(taskId, apiKey) {
     const usable = tracks.filter((t) => t.audio_url && !urlEfemera(t.audio_url));
     if (usable.length === 0) return { ok: false, reason: 'sem_url_utilizavel' };
 
-    return { ok: true, tracks: usable };
+    // A URL definitiva e publicada antes do arquivo existir — gravar sem conferir troca um stream
+    // que toca por um 404 (ver src/lib/audioUrlSaudavel.js).
+    const saude = await Promise.all(usable.map((t) => audioUrlSaudavel(t.audio_url)));
+    const prontas = usable.filter((_, i) => saude[i]);
+    if (prontas.length === 0) return { ok: false, reason: 'definitiva_ainda_nao_serve' };
+
+    return { ok: true, tracks: prontas };
   } catch (err) {
     return { ok: false, reason: err?.message || 'erro_desconhecido' };
   }
@@ -167,6 +183,27 @@ async function runRefresh(env, { dryRun }) {
     }
 
     candidates.push({ id: d.id, data });
+  }
+
+  // Segunda fila: renovados há pouco, para conferir se a URL gravada realmente serve.
+  const suspeitos = [];
+  for (const d of snap.docs) {
+    if (suspeitos.length >= MAX_SUSPEITOS_POR_RUN) break;
+    const data = d.data();
+    if (needsRefresh(data)) continue;            // já está na fila principal
+    if (!data.audioRefreshedAt) continue;        // nunca foi trocado por nós
+    if (data.audioArchivedAt) continue;          // já está no nosso storage, não depende da Kie.ai
+    const quando = Date.parse(data.audioRefreshedAt);
+    if (!Number.isFinite(quando) || Date.now() - quando > JANELA_SUSPEITA_MS) continue;
+    suspeitos.push({ id: d.id, data });
+  }
+
+  for (const s of suspeitos) {
+    const urlAtual = s.data.audioUrl;
+    // eslint-disable-next-line no-await-in-loop
+    if (await audioUrlSaudavel(urlAtual)) continue;
+    result.urlMortaEncontrada = (result.urlMortaEncontrada || 0) + 1;
+    candidates.push(s);
   }
 
   result.needingRefresh = candidates.length;
