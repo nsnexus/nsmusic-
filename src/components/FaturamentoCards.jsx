@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { where } from 'firebase/firestore';
 import { getPriceForSku } from '@/lib/pricing';
+import { buscarPedidosPaginado } from '@/lib/buscarPedidosPaginado';
 
 // Cards de faturamento do topo do dashboard admin — extraído de admin/page.jsx (pedido 12/09/2026:
 // "os valores não estão batendo" com a tabela Vendas por dia, ver VendasPorDiaTable.jsx).
@@ -44,8 +44,10 @@ export default function FaturamentoCards({ dateFrom, dateTo }) {
       setLoading(true);
       setErro('');
       try {
-        const ordersRef = collection(db, 'orders');
-        const constraints = [orderBy('createdAt'), limit(3000)];
+        // Paginado: com limit fixo e ordem crescente, um período grande devolvia os pedidos mais
+        // ANTIGOS e descartava os recentes — os cards mostravam uma fração das vendas sem avisar
+        // (achado 25/09/2026, ver src/lib/buscarPedidosPaginado.js).
+        const constraints = [];
 
         // Busca com folga pra trás (LOOKBACK_DAYS) — sem isso, um pedido criado ontem e pago hoje
         // nunca seria buscado quando dateFrom = hoje, e o faturamento "de hoje" ficaria subestimado
@@ -59,12 +61,8 @@ export default function FaturamentoCards({ dateFrom, dateTo }) {
           constraints.unshift(where('createdAt', '<=', localDayEnd(dateTo).toISOString()));
         }
 
-        const snap = await getDocs(query(ordersRef, ...constraints));
+        const { pedidos: validos } = await buscarPedidosPaginado(constraints);
         if (!ativo) return;
-        const validos = snap.docs
-          .map((d) => ({ id: d.id, ...d.data() }))
-          .filter((o) => !o.deletedAt && !o.id.startsWith('config_') && !o.id.startsWith('session_')
-            && o.productionStatus !== 'CONFIG' && o.productionStatus !== 'RASCUNHO');
         setPedidos(validos);
       } catch (e) {
         console.error('[FaturamentoCards] Erro ao buscar pedidos do período:', e.message);
@@ -101,49 +99,69 @@ export default function FaturamentoCards({ dateFrom, dateTo }) {
     return fallback;
   };
 
-  // "Pedidos" e "Gasto em Geração" continuam por createdAt — ver comentário de topo.
+  // "Gerações" e "Gasto em Geração" são por createdAt — a chamada à Kie.ai acontece na criação do
+  // pedido, não no pagamento. Faturamento e vendas são por data de PAGAMENTO (ver comentário de topo).
   const pedidosCriadosNoPeriodo = pedidos.filter((o) => dentroDoPeriodo(o.createdAt));
 
-  const gastoGeracao = pedidosCriadosNoPeriodo.reduce((sum, o) => {
-    const count = Number(o.sunoGenerationCount) || (o.sunoRequestedAt ? 1 : 0);
-    return sum + count * KIE_COST_PER_GENERATION;
+  const geracoes = pedidosCriadosNoPeriodo.reduce((sum, o) => {
+    return sum + (Number(o.sunoGenerationCount) || (o.sunoRequestedAt ? 1 : 0));
   }, 0);
 
-  // Faturamento e vendas: por data de PAGAMENTO, não de criação (ver comentário de topo).
+  const gastoGeracao = geracoes * KIE_COST_PER_GENERATION;
+
+  // Faturamento = soma do que a Efí confirmou em cada transação.
+  //
+  // `paidAmount`/`*PaidAmount` passaram a ser gravados em 25/09/2026 (ver src/lib/payments.js).
+  // Antes disso o painel adivinhava a partir de `expectedAmount`, que guarda só a ÚLTIMA cobrança
+  // criada no pedido — quem pagasse a música e depois um add-on tinha a música recontada pelo preço
+  // do add-on, e o SKU 'impacto' (valor escolhido pelo cliente) não tinha como ser representado.
+  // Pedido antigo, sem o campo, cai no preço de catálogo do SKU: é estimativa, mas explícita.
+  const somaPagamentos = (lista, campoData, campoValor, precoPadrao) => lista
+    .filter((o) => dentroDoPeriodo(o[campoData]))
+    .reduce((sum, o) => {
+      const valor = parseAmount(o[campoValor], null);
+      return sum + (valor !== null ? valor : precoPadrao);
+    }, 0);
+
   const pagosMusica = pedidos.filter((o) =>
     (o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'PAGO') && dentroDoPeriodo(o.paidAt)
   );
 
-  const faturamentoMusicas = pagosMusica.reduce((sum, o) => {
-    // Vídeo cobrado em intenção de pagamento separada: expectedAmount reflete a cobrança mais
-    // recente (a do vídeo), não a da música (ver mesmo comentário em admin/page.jsx original).
-    if (o.videoPaymentId) return sum + AUDIO_PRICE;
-    let val = parseAmount(o.expectedAmount, null);
-    if (val === null) val = parseAmount(o.total, null);
-    if (val === null) return sum;
-    return sum + (val > AUDIO_PRICE ? AUDIO_PRICE : val);
+  const faturamentoMusica = pagosMusica.reduce((sum, o) => {
+    const valor = parseAmount(o.paidAmount, null);
+    if (valor !== null) return sum + valor;
+    // Sem paidAmount: usa o preço do SKU da cobrança, e só cai em expectedAmount quando o pedido
+    // não teve add-on cobrado depois (que sobrescreveria o campo).
+    const porSku = getPriceForSku(o.paymentIntentSku);
+    if (porSku !== null && o.paymentIntentSku !== 'impacto') return sum + porSku;
+    const temAddonPosterior = Boolean(o.videoPaymentId || o.cartaPaymentId || o.retrospectivaPaymentId || o.playbackPaymentId);
+    const estimado = temAddonPosterior ? null : parseAmount(o.expectedAmount, null);
+    return sum + (estimado !== null ? estimado : AUDIO_PRICE);
   }, 0);
 
-  const videoStandalone = pedidos.filter((o) => o.videoAddonPaid && o.videoPaymentId && dentroDoPeriodo(o.videoPaidAt));
-  const faturamentoVideoStandalone = videoStandalone.length * VIDEO_PRICE;
+  // Add-ons comprados SEPARADAMENTE (cobrança própria). Add-on que veio junto da música no mesmo
+  // checkout já está dentro do valor acima — somá-lo de novo contaria a mesma transação duas vezes.
+  const addonsAvulsos = pedidos.filter((o) => o.videoPaymentId && o.videoAddonPaid && dentroDoPeriodo(o.videoPaidAt));
+  const faturamentoVideo = somaPagamentos(addonsAvulsos, 'videoPaidAt', 'videoPaidAmount', VIDEO_PRICE);
 
-  const faturamentoVideoCombo = pagosMusica
-    .filter((o) => !o.videoPaymentId)
-    .reduce((sum, o) => {
-      let val = parseAmount(o.expectedAmount, null);
-      if (val === null) val = parseAmount(o.total, null);
-      if (val === null) return sum;
-      const excess = val - AUDIO_PRICE;
-      return sum + (excess > 0 ? excess : 0);
-    }, 0);
+  const cartasAvulsas = pedidos.filter((o) => o.cartaPaymentId && o.cartaAddonPaid && dentroDoPeriodo(o.cartaPaidAt));
+  const faturamentoCarta = somaPagamentos(cartasAvulsas, 'cartaPaidAt', 'cartaPaidAmount', getPriceForSku('carta_addon') || 0);
 
-  const faturamentoVideos = faturamentoVideoStandalone + faturamentoVideoCombo;
-  const faturamentoTotal = faturamentoMusicas + faturamentoVideos;
+  const retrosAvulsas = pedidos.filter((o) => o.retrospectivaPaymentId && o.retrospectivaAddonPaid && dentroDoPeriodo(o.retrospectivaPaidAt));
+  const faturamentoRetro = somaPagamentos(retrosAvulsas, 'retrospectivaPaidAt', 'retrospectivaPaidAmount', getPriceForSku('retrospectiva_addon') || 0);
 
-  // Venda = música paga OU vídeo liberado (o que vier primeiro), sem contar o mesmo pedido 2x.
+  const playbacksAvulsos = pedidos.filter((o) => o.playbackPaymentId && o.playbackAddonPaid && dentroDoPeriodo(o.playbackPaidAt));
+  const faturamentoPlayback = somaPagamentos(playbacksAvulsos, 'playbackPaidAt', 'playbackPaidAmount', getPriceForSku('playback_addon') || 0);
+
+  const faturamentoTotal = faturamentoMusica + faturamentoVideo + faturamentoCarta + faturamentoRetro + faturamentoPlayback;
+
+  // Venda = qualquer transação paga no período, sem contar o mesmo pedido duas vezes.
   const vendasCount = new Set([
     ...pagosMusica.map((o) => o.id),
-    ...videoStandalone.map((o) => o.id),
+    ...addonsAvulsos.map((o) => o.id),
+    ...cartasAvulsas.map((o) => o.id),
+    ...retrosAvulsas.map((o) => o.id),
+    ...playbacksAvulsos.map((o) => o.id),
   ]).size;
 
   if (loading) {
@@ -153,12 +171,13 @@ export default function FaturamentoCards({ dateFrom, dateTo }) {
     return <p style={{ color: '#dc2626', fontSize: '0.9rem', margin: '16px 0' }}>{erro}</p>;
   }
 
+  // Quatro números, a pedido do dono do estúdio (25/09/2026): o que entrou, o que saiu, e o volume
+  // dos dois lados. A divisão por produto (músicas, vídeos, cartas...) vive na tabela Vendas por
+  // dia, que é o lugar de olhar detalhe.
   const cards = [
-    { label: 'Total (Músicas + Vídeos)', valor: `R$ ${faturamentoTotal.toFixed(2).replace('.', ',')}`, cor: '#059669' },
-    { label: 'Músicas (R$ 9,99)', valor: `R$ ${faturamentoMusicas.toFixed(2).replace('.', ',')}`, cor: '#0f172a' },
-    { label: 'Vídeos (R$ 6,90)', valor: `R$ ${faturamentoVideos.toFixed(2).replace('.', ',')}`, cor: '#7c3aed' },
-    { label: 'Pedidos', valor: pedidosCriadosNoPeriodo.length, cor: '#d97706' },
-    { label: 'Vendas (pagas)', valor: vendasCount, cor: '#059669' },
+    { label: 'Faturamento total', valor: `R$ ${faturamentoTotal.toFixed(2).replace('.', ',')}`, cor: '#059669' },
+    { label: 'Vendas (pagas)', valor: vendasCount, cor: '#0f172a' },
+    { label: 'Gerações', valor: geracoes, cor: '#d97706' },
     { label: 'Gasto em Geração (Kie.ai)', valor: `R$ ${gastoGeracao.toFixed(2).replace('.', ',')}`, cor: '#dc2626' },
   ];
 

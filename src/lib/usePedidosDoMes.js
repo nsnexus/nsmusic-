@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { where } from 'firebase/firestore';
+import { buscarPedidosPaginado } from '@/lib/buscarPedidosPaginado';
 
 export function paraData(valor) {
   if (!valor) return null;
@@ -32,19 +32,15 @@ export function usePedidosDoMes(mes) {
         const inicio = new Date(ano, mesNum - 1, 1, 0, 0, 0, 0).toISOString();
         const fim = new Date(ano, mesNum, 1, 0, 0, 0, 0).toISOString();
 
-        const q = query(
-          collection(db, 'orders'),
+        // Paginado, sem teto fixo: com limit(2000) e ordem crescente, um mês com mais de 2.000
+        // pedidos perdia justamente os dias MAIS RECENTES — a tabela mostrava zero vendas nos
+        // últimos dias enquanto o banco tinha dezenas por dia (achado 25/09/2026, ver
+        // src/lib/buscarPedidosPaginado.js).
+        const { pedidos: validos } = await buscarPedidosPaginado([
           where('createdAt', '>=', inicio),
           where('createdAt', '<', fim),
-          orderBy('createdAt'),
-          limit(2000)
-        );
-        const snap = await getDocs(q);
+        ]);
         if (!ativo) return;
-        const validos = snap.docs
-          .map((d) => ({ id: d.id, ...d.data() }))
-          .filter((o) => !o.deletedAt && !o.id.startsWith('config_') && !o.id.startsWith('session_')
-            && o.productionStatus !== 'CONFIG' && o.productionStatus !== 'RASCUNHO');
         setPedidos(validos);
       } catch (e) {
         console.error('[usePedidosDoMes] Erro ao buscar pedidos do mês:', e.message);

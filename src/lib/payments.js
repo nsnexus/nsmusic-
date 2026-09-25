@@ -108,6 +108,14 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
         const nowIso = new Date().toISOString();
         const updates = { updatedAt: nowIso };
 
+        // Valor REALMENTE confirmado pela Efí nesta transação. Até 25/09/2026 nada disso era
+        // gravado: o painel tentava adivinhar o faturamento a partir de `expectedAmount`, que é a
+        // ÚLTIMA cobrança criada no pedido — quem pagasse a música e depois um add-on tinha a
+        // música recontada pelo preço do add-on. Com o SKU 'impacto' (valor escolhido pelo cliente)
+        // a adivinhação ficou impossível. Cada ramo abaixo grava o seu próprio valor, e o relatório
+        // passa a somar fato, não estimativa.
+        const valorPago = Number(payment.transaction_amount) || 0;
+
         if (isVideoOnly) {
           updates.hasVideoAccess = true;
           updates.videoAddonPaid = true;
@@ -115,26 +123,34 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
           // Timestamp do pagamento do add-on, independente de videoStatus (que só existe depois da
           // renderização no navegador do cliente, um evento não confiável de servidor).
           updates.videoPaidAt = nowIso;
+          updates.videoPaidAmount = valorPago;
         } else if (isPlaybackOnly) {
           updates.hasPlaybackAccess = true;
           updates.playbackAddonPaid = true;
           updates.playbackPaymentId = String(paymentId);
           updates.playbackPaidAt = nowIso;
+          updates.playbackPaidAmount = valorPago;
         } else if (isRetroOnly) {
           updates.hasRetrospectivaAccess = true;
           updates.retrospectivaAddonPaid = true;
           updates.retrospectivaPaymentId = String(paymentId);
           updates.retrospectivaPaidAt = nowIso;
+          updates.retrospectivaPaidAmount = valorPago;
         } else if (isCartaOnly) {
           updates.hasCartaAccess = true;
           updates.cartaAddonPaid = true;
           updates.cartaPaymentId = String(paymentId);
           updates.cartaPaidAt = nowIso;
+          updates.cartaPaidAmount = valorPago;
         } else {
           // C-09: paymentStatus só é escrito neste ramo — os add-ons isolados nunca o alteram.
           updates.paymentStatus = 'PAGAMENTO_APROVADO';
           updates.paymentId = String(paymentId);
           updates.paidAt = nowIso;
+          // Inclui o que veio junto no mesmo checkout (combo, ou a faixa escolhida no SKU
+          // 'impacto'): é uma transação só, e é esse o valor que entrou na conta do estúdio.
+          updates.paidAmount = valorPago;
+          updates.paidSku = sku || null;
 
           // 'impacto' ("pague conforme o impacto emocional", ver /pagar e /api/payments/create) tem
           // preço variável — o vídeo é liberado por FAIXA do valor realmente pago na Efí (nunca do
@@ -146,8 +162,7 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
           // pediu ao gerar a cobrança. Cumulativa e definida em src/lib/pricing.js. Até 21/09/2026
           // só o vídeo era concedido assim; carta e retrospectiva entraram na mesma lógica quando
           // a escada virou a tela de pagamento da entrega.
-          const paidAmount = Number(payment.transaction_amount) || 0;
-          const brindes = sku === 'impacto' ? brindesPorValorPago(paidAmount) : { carta: false, video: false, retrospectiva: false };
+          const brindes = sku === 'impacto' ? brindesPorValorPago(valorPago) : { carta: false, video: false, retrospectiva: false };
 
           if (skuGrantsVideoAccess(sku) || brindes.video) {
             updates.hasVideoAccess = true;

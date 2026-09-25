@@ -59,15 +59,16 @@ export default function AdminDashboard() {
   const [selectedOrderIds, setSelectedOrderIds] = useState([]);
   const [deletingOrders, setDeletingOrders] = useState(false);
 
-  const [activeTab, setActiveTab] = useState('ORDERS'); // 'ORDERS', 'STUCK'
+  // 'ORDERS' | 'STUCK' | 'AJUSTES'. Ajustes reúne o que é CONFIGURAÇÃO (robô do WhatsApp, número
+  // do suporte) — antes vivia no topo da lista de pedidos, competindo por atenção com o trabalho
+  // do dia (pedido do dono do estúdio, 25/09/2026).
+  const [activeTab, setActiveTab] = useState('ORDERS');
 
   // Número de WhatsApp do suporte, editável aqui em vez de hardcoded no código (pedido 21/09/2026:
   // o número principal foi suspenso e o dono vai alternar de volta em dois dias — trocar isso não
   // pode exigir deploy). Ver src/lib/configSite.js.
   // Diagnóstico do webhook da Efí — a via instantânea de confirmação de pagamento. Ver
   // src/app/api/admin/efi-webhook/route.js.
-  const [webhookEfi, setWebhookEfi] = useState(null);
-  const [checandoWebhook, setChecandoWebhook] = useState(false);
 
   const [numeroSuporte, setNumeroSuporte] = useState('');
   const [salvandoNumero, setSalvandoNumero] = useState(false);
@@ -415,22 +416,6 @@ export default function AdminDashboard() {
     });
   }, []);
 
-  const handleCheckWebhookEfi = async () => {
-    setChecandoWebhook(true);
-    setWebhookEfi(null);
-    try {
-      const idToken = await auth.currentUser?.getIdToken();
-      const res = await fetch('/api/admin/efi-webhook', {
-        headers: { Authorization: `Bearer ${idToken}` },
-      });
-      const data = await res.json().catch(() => ({}));
-      setWebhookEfi(res.ok ? data : { erro: data.error || 'Falha ao consultar.' });
-    } catch (err) {
-      setWebhookEfi({ erro: 'Falha de conexão ao consultar a Efí.' });
-    } finally {
-      setChecandoWebhook(false);
-    }
-  };
 
   const handleSalvarNumeroSuporte = async () => {
     const normalizado = normalizarNumeroWhatsapp(numeroSuporte);
@@ -640,6 +625,16 @@ export default function AdminDashboard() {
               <Link href="/admin/cartas" style={{ ...styles.tabBtn, backgroundColor: '#e2e8f0', color: '#334155', textDecoration: 'none', display: 'inline-block' }}>
                 💌 Temas da Carta
               </Link>
+              <button
+                onClick={() => setActiveTab('AJUSTES')}
+                style={{
+                  ...styles.tabBtn,
+                  backgroundColor: activeTab === 'AJUSTES' ? '#7c3aed' : '#e2e8f0',
+                  color: activeTab === 'AJUSTES' ? '#ffffff' : '#334155',
+                }}
+              >
+                ⚙️ Ajustes
+              </button>
             </div>
           </div>
 
@@ -653,8 +648,12 @@ export default function AdminDashboard() {
       <main style={{ flex: 1, padding: '32px 0' }}>
         <div className="container" style={{ maxWidth: '1280px', margin: '0 auto', padding: '0 20px' }}>
           
-          {activeTab === 'ORDERS' ? (
-            <div>
+          {activeTab === 'AJUSTES' ? (
+            <div style={{ maxWidth: '760px' }}>
+              <h2 style={{ fontSize: '1.2rem', fontWeight: '800', color: '#0f172a', margin: '0 0 4px' }}>Ajustes</h2>
+              <p style={{ fontSize: '0.85rem', color: '#64748b', margin: '0 0 20px' }}>
+                Configurações que valem para o site inteiro. Mudam na hora, sem precisar de deploy.
+              </p>
               {/* Barra de Controle Master do Agente WhatsApp */}
               <div className="admin-agent-bar" style={{
                 display: 'flex',
@@ -704,61 +703,6 @@ export default function AdminDashboard() {
                 >
                   {togglingAgent ? 'Salvando...' : (agentEnabled ? '🛑 Desativar' : '✅ Ativar')}
                 </button>
-              </div>
-
-              {/* Cards de faturamento/vendas/pedidos do período — pedido 12/09/2026, ver comentário
-                  em src/components/FaturamentoCards.jsx pro porquê de ser consulta própria. */}
-              <FaturamentoCards dateFrom={dateFrom} dateTo={dateTo} />
-
-              {/* Webhook da Efí: a via INSTANTÂNEA de confirmação de pagamento. Se ele não
-                  estiver registrado, o cliente só é liberado pelo polling (aba aberta) ou pela
-                  reconciliação agendada, que leva até 5 minutos — e quem paga pelo app do banco e
-                  não volta ao site fica esperando. */}
-              <div style={{
-                marginTop: '16px',
-                padding: '12px 16px',
-                borderRadius: '12px',
-                background: '#f8fafc',
-                border: '1px solid #e2e8f0',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '10px',
-                flexWrap: 'wrap',
-              }}>
-                <span style={{ fontSize: '0.82rem', fontWeight: '700', color: '#334155' }}>
-                  🔔 Webhook da Efí
-                </span>
-                <button
-                  type="button"
-                  onClick={handleCheckWebhookEfi}
-                  disabled={checandoWebhook}
-                  style={{
-                    padding: '8px 16px',
-                    borderRadius: '8px',
-                    border: '1px solid #cbd5e1',
-                    background: '#fff',
-                    color: '#334155',
-                    fontWeight: '700',
-                    fontSize: '0.85rem',
-                    cursor: checandoWebhook ? 'default' : 'pointer',
-                  }}
-                >
-                  {checandoWebhook ? 'Consultando...' : 'Conferir na Efí'}
-                </button>
-
-                {webhookEfi && (
-                  <span style={{
-                    flexBasis: '100%',
-                    fontSize: '0.82rem',
-                    lineHeight: 1.5,
-                    color: webhookEfi.erro || webhookEfi.registrado === false ? '#dc2626'
-                      : webhookEfi.apontaParaODominioAtual ? '#059669' : '#b45309',
-                  }}>
-                    {webhookEfi.erro
-                      ? webhookEfi.erro
-                      : `${webhookEfi.registrado ? `${webhookEfi.host}${webhookEfi.caminho}` : 'NÃO REGISTRADO'} — ${webhookEfi.diagnostico}`}
-                  </span>
-                )}
               </div>
 
               {/* Número de WhatsApp do suporte. Editável aqui de propósito: é para onde TODOS os
@@ -816,6 +760,13 @@ export default function AdminDashboard() {
                   </span>
                 )}
               </div>
+
+            </div>
+          ) : activeTab === 'ORDERS' ? (
+            <div>
+              {/* Cards de faturamento/vendas/pedidos do período — pedido 12/09/2026, ver comentário
+                  em src/components/FaturamentoCards.jsx pro porquê de ser consulta própria. */}
+              <FaturamentoCards dateFrom={dateFrom} dateTo={dateTo} />
 
               {/* Tabela por dia, mapa de calor por horário e mapa por estado moraram aqui até
                   12/09/2026 — pedido do dono pra ficarem em /admin/dashboard junto do resto da
