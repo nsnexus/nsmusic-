@@ -22,10 +22,12 @@ import { markPreviewListened } from '@/lib/previewTracking';
 import { isInAppBrowser } from '@/lib/inAppBrowser';
 import { styles } from './entregaStyles';
 import { useWhatsappSuporte, linkWhatsapp } from '@/lib/useWhatsappSuporte';
+import { usePromoverAudio } from '@/lib/usePromoverAudio';
 
 function EntregaContent() {
   // Número do suporte vem da configuração editável no painel (src/lib/configSite.js), não do código.
   const whatsappSuporte = useWhatsappSuporte();
+
   const searchParams = useSearchParams();
   const orderId = searchParams.get('orderId') || searchParams.get('id');
   const promo = searchParams.get('promo');
@@ -34,6 +36,11 @@ function EntregaContent() {
   const [order, setOrder] = useState(null);
   const [copied, setCopied] = useState(false);
   const [mounted, setMounted] = useState(false);
+
+  // Enquanto o pedido estiver com a URL temporaria da Kie.ai (audiostream), pede a troca pela
+  // definitiva por tras da tela. O cliente segue ouvindo o stream, que funciona nos primeiros
+  // minutos; o onSnapshot abaixo troca a fonte do player sozinho quando a definitiva chegar.
+  usePromoverAudio(orderId, order);
 
   // Estados do Checkout PIX para pedidos pendentes
   const [pixInfo, setPixInfo] = useState({ qrCode: '', qrCodeBase64: '', paymentId: '' });

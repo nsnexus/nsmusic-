@@ -13,6 +13,7 @@ import { styles } from './wizardStyles';
 import { occasions } from './wizardOptions';
 import CustomAudioPreview from './CustomAudioPreview';
 import PreviaEncerradaModal from '@/components/PreviaEncerradaModal';
+import { usePromoverAudio } from '@/lib/usePromoverAudio';
 import WizardSteps from './WizardSteps';
 import PixQrCode from '@/components/PixQrCode';
 import { requestPixCharge } from '@/lib/pixCheckout';
@@ -1267,6 +1268,18 @@ export default function CriarMusica() {
     previaModalJaMostrado.current = true;
     setShowPreviaModal(true);
   };
+
+  // A Kie.ai entrega primeiro uma URL de streaming temporaria e so depois o MP3 final. Esta tela e
+  // onde o cliente ouve primeiro, entao ela segue tocando o stream (que funciona nos primeiros
+  // minutos) enquanto pede a troca pela definitiva por tras. Quando a definitiva chega, as faixas
+  // sao substituidas aqui mesmo, sem interromper nada — nesta tela nao ha onSnapshot.
+  usePromoverAudio(
+    orderId,
+    { audioFiles: formData.sunoTracks.map((f) => (typeof f === 'string' ? f : f?.audio_url)).filter(Boolean) },
+    (audioFiles) => {
+      setFormData((prev) => ({ ...prev, sunoTracks: audioFiles.map((url) => ({ audio_url: url })) }));
+    }
+  );
 
   const nextStep = () => {
     setStep(prev => prev + 1);
