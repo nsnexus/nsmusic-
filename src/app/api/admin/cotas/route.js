@@ -4,7 +4,7 @@ import { collection, query, where, orderBy, limit, getDocs } from 'firebase/fire
 import { dbEdge as db } from '@/lib/firebase-edge';
 import { requireAdmin } from '@/lib/auth';
 import { calcularCota } from '@/lib/cotaGeracoes';
-import { lerResetDeCota, registrarResetDeCota, normalizarTelefone } from '@/lib/cotaReset';
+import { registrarResetDeCota, normalizarTelefone, idDoReset, lerTodosOsResets } from '@/lib/cotaReset';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
@@ -22,8 +22,11 @@ export const dynamic = 'force-dynamic';
 
 // Janela de varredura. Cota é acumulada sobre o histórico inteiro da pessoa, mas quem interessa ao
 // estúdio é quem esbarrou no limite agora — e ler a coleção inteira custa uma leitura por documento.
-const DIAS_DE_VARREDURA = 45;
-const MAX_PEDIDOS = 4000;
+// 15 dias e o suficiente: quem estourou a cota gerou pelo menos 5 musicas em sequencia, e isso
+// acontece em dias, nao em meses. Janela maior faz a rota ler milhares de documentos por abertura
+// da aba — com ~145 pedidos criados por dia, 45 dias passavam de 6 mil.
+const DIAS_DE_VARREDURA = 15;
+const MAX_PEDIDOS = 2500;
 
 async function carregarPedidos() {
   const desde = new Date(Date.now() - DIAS_DE_VARREDURA * 24 * 60 * 60 * 1000).toISOString();
@@ -69,9 +72,14 @@ export async function GET(req) {
     const porTelefone = await carregarPedidos();
     const bloqueados = [];
 
+    // Todos os resets numa consulta só. Ler documento por documento dentro do laço estourava o
+    // limite de subrequests do Worker com algumas centenas de clientes, e a aba inteira falhava
+    // (achado 25/09/2026, na primeira vez que foi aberta em produção).
+    const resets = await lerTodosOsResets();
+
     for (const [telefone, pedidos] of porTelefone.entries()) {
-      // Sem reset, a conta é a mesma do /api/orders/create — o painel não pode discordar da trava.
-      const resetAt = await lerResetDeCota(telefone);
+      // Mesma conta do /api/orders/create — o painel não pode discordar da trava.
+      const resetAt = resets.get(await idDoReset(telefone)) || '';
       const cota = calcularCota(pedidos, { resetAt });
       if (!cota.bloqueado) continue;
 
@@ -95,7 +103,9 @@ export async function GET(req) {
     return NextResponse.json({ bloqueados, telefonesAnalisados: porTelefone.size, dias: DIAS_DE_VARREDURA });
   } catch (error) {
     console.error('[admin/cotas] Erro ao listar bloqueados:', error.message);
-    return NextResponse.json({ error: 'Falha ao listar os limites.' }, { status: 500 });
+    // Mensagem com o motivo real: o generico "Falha na requisicao" na tela nao dizia nada e custou
+    // uma ida e volta so para descobrir o que tinha quebrado (25/09/2026).
+    return NextResponse.json({ error: `Falha ao listar os limites: ${error.message}` }, { status: 500 });
   }
 }
 

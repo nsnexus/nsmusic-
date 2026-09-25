@@ -31,7 +31,7 @@ export default function LimitesCota() {
       ...(corpo ? { body: JSON.stringify(corpo) } : {}),
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data?.error || 'Falha na requisição.');
+    if (!res.ok) throw new Error(data?.error || `Falha na requisição (HTTP ${res.status}).`);
     return data;
   }, []);
 

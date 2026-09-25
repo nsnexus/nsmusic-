@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc } from 'firebase/firestore/lite';
+import { doc, getDoc, setDoc, collection, query, where, getDocs, documentId, limit } from 'firebase/firestore/lite';
 import { dbEdge as db } from './firebase-edge.js';
 
 // Registro de "reset de cota": quando o estúdio libera um cliente que estourou o limite de
@@ -14,7 +14,7 @@ import { dbEdge as db } from './firebase-edge.js';
 //     qualquer listagem da coleção. Telefone é PII e não entra nisso (.claude/rules/security.md).
 //     SHA-256 do telefone só com dígitos, então o mesmo número sempre cai no mesmo documento.
 
-const PREFIXO = 'config_cotareset_';
+export const PREFIXO = 'config_cotareset_';
 
 export function normalizarTelefone(telefone) {
   return String(telefone || '').replace(/\D/g, '');
@@ -67,5 +67,37 @@ export async function registrarResetDeCota(telefone, { porQuem = '' } = {}) {
   } catch (err) {
     console.warn('[cotaReset] Falha ao gravar reset de cota:', err.message);
     return { ok: false, error: 'falha_ao_gravar' };
+  }
+}
+
+/**
+ * Lê TODOS os resets registrados de uma vez.
+ *
+ * O painel precisa do reset de cada telefone da lista, e ler documento por documento estourava o
+ * limite de subrequests do Worker assim que a base passou de algumas centenas de clientes — a aba
+ * inteira falhava com "Falha na requisição" (achado 25/09/2026, na primeira vez que foi aberta).
+ * Uma consulta por faixa de id resolve: são poucos documentos, e o hash é calculado localmente.
+ *
+ * @returns {Promise<Map<string, string>>} id do documento -> data ISO do reset
+ */
+export async function lerTodosOsResets() {
+  try {
+    const snap = await getDocs(query(
+      collection(db, 'orders'),
+      where(documentId(), '>=', PREFIXO),
+      where(documentId(), '<', `${PREFIXO}\uf8ff`),
+      limit(2000)
+    ));
+
+    const mapa = new Map();
+    snap.forEach((d) => {
+      const resetAt = d.data()?.resetAt;
+      if (resetAt) mapa.set(d.id, String(resetAt));
+    });
+    return mapa;
+  } catch (err) {
+    // Sem os resets, ninguém é liberado por engano — a cota normal vale para todos.
+    console.warn('[cotaReset] Falha ao listar resets:', err.message);
+    return new Map();
   }
 }
