@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { collection, addDoc, query, where, getDocs, limit } from 'firebase/firestore/lite';
 import { dbEdge as db } from '@/lib/firebase-edge';
 import { calcularCota } from '@/lib/cotaGeracoes';
+import { lerResetDeCota } from '@/lib/cotaReset';
 
 export const runtime = 'edge';
 
@@ -32,7 +33,9 @@ export async function isBlockedByFreeLimit(phone, email) {
     }
   }
 
-  return calcularCota(matches).bloqueado;
+  // Reset feito pelo painel admin (api/admin/cotas): pedidos anteriores a ele deixam de contar.
+  const resetAt = phone ? await lerResetDeCota(phone) : '';
+  return calcularCota(matches, { resetAt }).bloqueado;
 }
 
 import { generateUniqueOrderNumber } from '@/lib/orderNumber';

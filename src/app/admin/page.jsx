@@ -9,6 +9,7 @@ import { lerConfigSite, normalizarNumeroWhatsapp, WHATSAPP_SUPORTE_PADRAO } from
 import { getPriceForSku } from '@/lib/pricing';
 import { buildSunoPayload } from '@/lib/sunoPayload';
 import FaturamentoCards from '@/components/FaturamentoCards';
+import LimitesCota from '@/components/admin/LimitesCota';
 import { formatToWhatsAppNumber } from '@/lib/whatsappTemplates';
 import { hasPreviewTrackingData } from '@/lib/previewTracking';
 import Link from 'next/link';
@@ -59,7 +60,7 @@ export default function AdminDashboard() {
   const [selectedOrderIds, setSelectedOrderIds] = useState([]);
   const [deletingOrders, setDeletingOrders] = useState(false);
 
-  // 'ORDERS' | 'STUCK' | 'AJUSTES'. Ajustes reúne o que é CONFIGURAÇÃO (robô do WhatsApp, número
+  // 'ORDERS' | 'STUCK' | 'LIMITES' | 'AJUSTES'. Ajustes reúne o que é CONFIGURAÇÃO (robô do WhatsApp, número
   // do suporte) — antes vivia no topo da lista de pedidos, competindo por atenção com o trabalho
   // do dia (pedido do dono do estúdio, 25/09/2026).
   const [activeTab, setActiveTab] = useState('ORDERS');
@@ -626,6 +627,16 @@ export default function AdminDashboard() {
                 💌 Temas da Carta
               </Link>
               <button
+                onClick={() => setActiveTab('LIMITES')}
+                style={{
+                  ...styles.tabBtn,
+                  backgroundColor: activeTab === 'LIMITES' ? '#7c3aed' : '#e2e8f0',
+                  color: activeTab === 'LIMITES' ? '#ffffff' : '#334155',
+                }}
+              >
+                🚦 Limites
+              </button>
+              <button
                 onClick={() => setActiveTab('AJUSTES')}
                 style={{
                   ...styles.tabBtn,
@@ -648,7 +659,9 @@ export default function AdminDashboard() {
       <main style={{ flex: 1, padding: '32px 0' }}>
         <div className="container" style={{ maxWidth: '1280px', margin: '0 auto', padding: '0 20px' }}>
           
-          {activeTab === 'AJUSTES' ? (
+          {activeTab === 'LIMITES' ? (
+            <LimitesCota />
+          ) : activeTab === 'AJUSTES' ? (
             <div style={{ maxWidth: '760px' }}>
               <h2 style={{ fontSize: '1.2rem', fontWeight: '800', color: '#0f172a', margin: '0 0 4px' }}>Ajustes</h2>
               <p style={{ fontSize: '0.85rem', color: '#64748b', margin: '0 0 20px' }}>

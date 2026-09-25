@@ -23,10 +23,19 @@ export function pedidoFoiPago(pedido) {
 
 /**
  * @param {Array<object>} pedidos pedidos já filtrados (sem deletedAt) da mesma pessoa
+ * @param {{resetAt?: string}} [opcoes] `resetAt` (ISO) zera a contagem: pedidos criados ANTES dele
+ *   não contam mais para a cota. É como o painel admin "libera" um cliente que estourou o limite —
+ *   sem apagar pedido nenhum, o histórico continua inteiro para consulta e faturamento.
  * @returns {{cota: number, usados: number, pagos: number, restantes: number, bloqueado: boolean}}
  */
-export function calcularCota(pedidos) {
-  const lista = Array.isArray(pedidos) ? pedidos : [];
+export function calcularCota(pedidos, opcoes = {}) {
+  const corte = opcoes.resetAt ? Date.parse(opcoes.resetAt) : NaN;
+  const lista = (Array.isArray(pedidos) ? pedidos : []).filter((p) => {
+    if (!Number.isFinite(corte)) return true;
+    const criado = Date.parse(p?.createdAt || '');
+    // Pedido sem data legível conta: na dúvida, não invente cota extra para ninguém.
+    return !Number.isFinite(criado) || criado >= corte;
+  });
   const pagos = lista.filter(pedidoFoiPago).length;
   const cota = COTA_INICIAL + pagos * COTA_POR_COMPRA;
   const usados = lista.length;

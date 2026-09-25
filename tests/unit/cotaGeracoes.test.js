@@ -54,3 +54,30 @@ describe('cota de gerações', () => {
     expect(calcularCota(null)).toMatchObject({ usados: 0, bloqueado: false });
   });
 });
+
+// Reset feito pelo painel admin (api/admin/cotas): pedidos anteriores à data param de contar, sem
+// que nenhum pedido seja apagado.
+describe('reset de cota pelo admin', () => {
+  const em = (dia) => ({ createdAt: `2026-09-${dia}T12:00:00.000Z`, paymentStatus: 'AGUARDANDO_PAGAMENTO' });
+
+  it('ignora os pedidos anteriores ao reset', () => {
+    const lista = [em('01'), em('02'), em('03'), em('04'), em('05')];
+    expect(calcularCota(lista).bloqueado).toBe(true);
+    expect(calcularCota(lista, { resetAt: '2026-09-04T00:00:00.000Z' })).toMatchObject({ usados: 2, bloqueado: false });
+  });
+
+  it('compras anteriores ao reset também saem da conta', () => {
+    const lista = [{ createdAt: '2026-09-01T12:00:00.000Z', paymentStatus: 'PAGO' }, em('10')];
+    expect(calcularCota(lista, { resetAt: '2026-09-05T00:00:00.000Z' })).toMatchObject({ pagos: 0, cota: COTA_INICIAL, usados: 1 });
+  });
+
+  it('sem resetAt nada muda', () => {
+    const lista = [em('01'), em('02')];
+    expect(calcularCota(lista, {})).toMatchObject({ usados: 2 });
+  });
+
+  it('pedido sem data legível continua contando — na dúvida, não inventa cota extra', () => {
+    const lista = [{ paymentStatus: 'AGUARDANDO_PAGAMENTO' }, em('10')];
+    expect(calcularCota(lista, { resetAt: '2026-09-09T00:00:00.000Z' }).usados).toBe(2);
+  });
+});
