@@ -79,9 +79,14 @@ function HomenagemContent() {
   const isPaid = order.paymentStatus === 'PAGAMENTO_APROVADO' || order.paymentStatus === 'PAGO';
   const hasVideo = isPaid && !!order.videoUrl;
 
-  const audioList = isPaid
+  // Versão escolhida por quem montou a homenagem, na tela de entrega (pedido do dono do estúdio em
+  // 25/09/2026). O presente chega pronto: uma música, não duas para o homenageado escolher. Pedido
+  // sem escolha salva — inclusive todos os anteriores a este recurso — continua mostrando as duas.
+  const todasAsFaixas = isPaid
     ? (order.audioFiles && order.audioFiles.length > 0 ? order.audioFiles : (order.audioUrl ? [order.audioUrl] : []))
     : [];
+  const escolhida = order.homenagemMusicaUrl;
+  const audioList = escolhida && todasAsFaixas.includes(escolhida) ? [escolhida] : todasAsFaixas;
 
   const videoUrl = hasVideo ? order.videoUrl : null;
 

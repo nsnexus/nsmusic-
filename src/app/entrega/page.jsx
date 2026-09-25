@@ -735,12 +735,44 @@ function EntregaContent() {
     }
   };
 
+  // Versão que toca na página pública de presente (/homenagem). Quem escolhe é quem montou a
+  // homenagem — o homenageado abre o link e já ouve a música certa, sem ter que decidir nada
+  // (pedido do dono do estúdio em 25/09/2026). Sem escolha salva, a página mostra as duas, como
+  // sempre fez. Mesmo padrão que a Carta já usa desde 04/09.
+  const [musicaHomenagem, setMusicaHomenagem] = useState('');
+  const [salvandoMusicaHomenagem, setSalvandoMusicaHomenagem] = useState(false);
+
+  const escolherMusicaHomenagem = async (url) => {
+    setMusicaHomenagem(url);
+    setSalvandoMusicaHomenagem(true);
+    try {
+      const res = await fetch('/api/homenagem/choose-music', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId, audioUrl: url }),
+      });
+      if (!res.ok) {
+        // Falha silenciosa aqui enganaria: a tela mostraria a faixa marcada e a página pública
+        // continuaria com a outra (.claude/rules/frontend.md).
+        setMusicaHomenagem(order?.homenagemMusicaUrl || '');
+      }
+    } catch (e) {
+      console.warn('[entrega] Falha ao salvar a música da página de presente:', e?.message);
+      setMusicaHomenagem(order?.homenagemMusicaUrl || '');
+    }
+    setSalvandoMusicaHomenagem(false);
+  };
+
   const irParaPagamento = () => {
     setShowPreviaModal(false);
     if (typeof document !== 'undefined') {
       document.getElementById('pagamento')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   };
+
+  useEffect(() => {
+    if (order?.homenagemMusicaUrl) setMusicaHomenagem(order.homenagemMusicaUrl);
+  }, [order?.homenagemMusicaUrl]);
 
   // Precisa ser calculado aqui (antes dos hooks abaixo, que dependem dele) em vez de depois dos
   // early returns de `loading`/`order` — hooks têm que rodar sempre na mesma ordem em todo render.
@@ -772,6 +804,12 @@ function EntregaContent() {
   // estiver provada contra um pedido real.
   const primaryAudioUrl = formatAudioUrl(order?.audioUrl || (order?.audioFiles && order.audioFiles[0]) || '', primaryTrackId);
   const secondAudioUrl = formatAudioUrl(order?.audioFiles && order.audioFiles[1] ? order.audioFiles[1] : '', secondTrackId);
+
+  // Faixas do pedido em URL crua (sem o envelope do proxy) — é essa forma que /api/homenagem/choose-music
+  // valida contra o documento, então o seletor da página de presente precisa mandar exatamente ela.
+  const faixasDoPedido = [...new Set(
+    [order?.audioUrl, ...(Array.isArray(order?.audioFiles) ? order.audioFiles : [])].filter(Boolean)
+  )];
 
   // A URL do áudio às vezes fica pronta no pedido antes do arquivo terminar de propagar na CDN da
   // Kie.ai — e nem sempre isso dispara `onError` no <audio> (às vezes ele só fica "pendurado", sem
@@ -1795,6 +1833,51 @@ function EntregaContent() {
                       <p style={{ fontSize: '0.85rem', color: '#cbd5e1', lineHeight: '1.4' }}>
                         Envie o link exclusivo ou salve o QR Code para compartilhar essa linda homenagem diretamente com quem você ama!
                       </p>
+
+                      {faixasDoPedido.length > 1 && (
+                        <div style={{ marginTop: '12px', textAlign: 'left' }}>
+                          <p style={{ fontSize: '0.8rem', fontWeight: '700', marginBottom: '8px', color: '#ffffff' }}>
+                            Qual versão a pessoa vai ouvir na página de presente?
+                          </p>
+                          {faixasDoPedido.map((url, i) => {
+                            const marcada = musicaHomenagem
+                              ? musicaHomenagem === url
+                              : i === 0;
+                            return (
+                              <label
+                                key={url}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '10px',
+                                  padding: '8px 10px',
+                                  borderRadius: '8px',
+                                  border: `1.5px solid ${marcada ? '#ec4899' : 'rgba(255,255,255,0.18)'}`,
+                                  background: marcada ? 'rgba(236, 72, 153, 0.14)' : 'rgba(0,0,0,0.25)',
+                                  marginBottom: '6px',
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                <input
+                                  type="radio"
+                                  name="musica-homenagem"
+                                  checked={marcada}
+                                  onChange={() => escolherMusicaHomenagem(url)}
+                                />
+                                <span style={{ fontSize: '0.8rem', fontWeight: '600', minWidth: '56px', color: '#ffffff' }}>
+                                  Versão {i + 1}
+                                </span>
+                                <audio controls src={formatAudioUrl(url)} style={{ flex: 1, height: '30px', minWidth: 0 }} />
+                              </label>
+                            );
+                          })}
+                          <p style={{ fontSize: '0.72rem', color: '#94a3b8', margin: '2px 0 0' }}>
+                            {salvandoMusicaHomenagem
+                              ? 'Salvando...'
+                              : 'A outra versão continua disponível aqui para você baixar.'}
+                          </p>
+                        </div>
+                      )}
                       <div className="entrega-qr-buttons">
                         <button
                           type="button"
