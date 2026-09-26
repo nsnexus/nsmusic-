@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
-import { collection, addDoc, query, where, getDocs, limit } from 'firebase/firestore/lite';
+import { collection, query, where, getDocs, limit } from 'firebase/firestore/lite';
 import { dbEdge as db } from '@/lib/firebase-edge';
 import { calcularCota } from '@/lib/cotaGeracoes';
 import { lerResetDeCota } from '@/lib/cotaReset';
-
 import { getSupabaseEdge } from '@/lib/supabase-edge';
+import { getRequestContext } from '@cloudflare/next-on-pages';
+import { createOrder } from '@/lib/supabaseDb';
 
 export const runtime = 'edge';
 
@@ -80,6 +81,12 @@ export { generateUniqueOrderNumber };
 
 export async function POST(req) {
   try {
+    let env = {};
+    try {
+      const ctx = getRequestContext();
+      if (ctx?.env) env = ctx.env;
+    } catch (e) {}
+
     const formData = await req.json();
 
     // M-13 no AUDIT_REPORT.md: o consentimento aos termos precisa ser real (checkbox marcado pelo
@@ -95,7 +102,7 @@ export async function POST(req) {
       );
     }
 
-    const orderNumber = await generateUniqueOrderNumber();
+    const orderNumber = await generateUniqueOrderNumber(env);
     const createdAtIso = new Date().toISOString();
 
     const orderPayload = {
@@ -123,24 +130,14 @@ export async function POST(req) {
       updatedAt: createdAtIso
     };
 
-    const ordersRef = collection(db, 'orders');
-    const docRef = await addDoc(ordersRef, orderPayload);
+    const created = await createOrder(orderPayload, env);
 
-    console.log(`[API /orders/create] Pedido criado com sucesso no Firebase! ID: ${docRef.id}, Número: ${orderNumber}`);
-
-    // Dual-Write: grava no Supabase com confirmação garantida
-    try {
-      const { mirrorOrderToSupabase } = await import('@/lib/supabaseSync');
-      await mirrorOrderToSupabase(docRef.id, orderPayload);
-      console.log(`[API /orders/create] Pedido gravado no Supabase com sucesso! ID: ${docRef.id}`);
-    } catch (e) {
-      console.warn('[API /orders/create] Aviso ao gravar no Supabase:', e?.message);
-    }
+    console.log(`[API /orders/create] Pedido criado com sucesso! ID: ${created.id}, Número: ${created.orderNumber}`);
 
     return NextResponse.json({
       success: true,
-      orderId: docRef.id,
-      orderNumber
+      orderId: created.id,
+      orderNumber: created.orderNumber
     }, { status: 200 });
 
   } catch (error) {
@@ -148,3 +145,4 @@ export async function POST(req) {
     return NextResponse.json({ error: error.message || 'Erro ao criar pedido no banco de dados' }, { status: 500 });
   }
 }
+

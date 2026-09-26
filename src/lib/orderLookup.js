@@ -172,6 +172,35 @@ export async function findOrderByIdOrNumber(candidate, env = {}) {
   const trimmed = String(candidate).trim();
   if (!trimmed) return null;
 
+  // "num:8337" — o cliente mandou só o bloco de 4 dígitos do número do pedido, que é o pedaço que
+  // ele decora ("NS-MUHEKI5D-8337-2026"). Sozinho ele NÃO identifica o pedido com certeza: o mesmo
+  // bloco pode se repetir entre pedidos. Por isso a busca exige resultado único — com mais de um,
+  // devolve null e quem chama pede o número completo, em vez de mandar a música de outro cliente
+  // (dado pessoal de terceiro, .claude/rules/security.md).
+  if (trimmed.startsWith('num:')) {
+    const bloco = trimmed.slice(4);
+    if (!/^\d{4}$/.test(bloco)) return null;
+
+    try {
+      const supabase = getSupabaseEdge(env);
+      if (!supabase) return null;
+
+      const { data, error } = await supabase
+        .from('orders')
+        .select('*')
+        .like('order_number', `%-${bloco}-%`)
+        .is('deleted_at', 'null')
+        .order('created_at', { ascending: false })
+        .limit(2);
+
+      if (error || !Array.isArray(data) || data.length !== 1) return null;
+      return mapSupabaseOrderToFirestore(data[0]);
+    } catch (err) {
+      console.warn('[OrderLookup] Falha na busca por bloco do número do pedido:', err.message);
+      return null;
+    }
+  }
+
   // 1. Tenta consulta direta no Supabase (Postgres)
   try {
     const supabase = getSupabaseEdge(env);

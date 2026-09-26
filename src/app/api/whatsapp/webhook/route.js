@@ -91,6 +91,25 @@ function extractCandidateOrderId(text) {
     return prefixMatch[1].trim();
   }
 
+  // 3. ID cru do documento, colado sozinho (ex: "w4misqMQd27xN3XVIExj").
+  //
+  // É o que sai quando o cliente copia só o pedaço final do link de entrega em vez do link todo —
+  // acontece o tempo inteiro e até 25/09/2026 caía no silêncio. Exige mensagem curta e o formato
+  // exato do id do Firestore (20 caracteres, maiúsculas e minúsculas misturadas) para não
+  // confundir com uma palavra qualquer da conversa.
+  const limpo = str.trim();
+  if (/^[A-Za-z0-9]{18,24}$/.test(limpo) && /[a-z]/.test(limpo) && /[A-Z]/.test(limpo)) {
+    return limpo;
+  }
+
+  // 4. Só o bloco de 4 dígitos do número do pedido (ex: "8337" de NS-MUHEKI5D-8337-2026).
+  //
+  // É o que o cliente decora e manda. Sozinho ele não identifica o pedido com certeza, então vai
+  // marcado com o prefixo `num:` — quem busca (findOrderByIdOrNumber) decide, e só responde se for
+  // um único pedido; com mais de um, pede o número completo em vez de mandar a música do vizinho.
+  const soDigitos = limpo.match(/^#?(\d{4})$/);
+  if (soDigitos) return `num:${soDigitos[1]}`;
+
   return '';
 }
 
@@ -466,10 +485,20 @@ export async function POST(req) {
 
     const candidateId = extractCandidateOrderId(messageText);
     if (candidateId) {
-      const found = await findOrderByIdOrNumber(candidateId);
+      const found = await findOrderByIdOrNumber(candidateId, envVars);
       if (found) {
         matchedOrderId = found.id;
         matchedOrder = found;
+      } else if (candidateId.startsWith('num:')) {
+        // Mandou só os 4 digitos e nao deu para identificar com certeza (o bloco se repete em ~5%
+        // dos pedidos). Pedir o numero completo e melhor do que arriscar mandar a musica de outro
+        // cliente — e melhor ainda do que o silencio de antes.
+        await sendWApiTextMessage(
+          senderPhone,
+          'Achei mais de um pedido com esse final. 🙈 Me manda o numero completo (NS-...) ou o link da sua pagina de entrega que eu te mando a musica na hora!',
+          envVars
+        );
+        return NextResponse.json({ success: true, action: 'numero_ambiguo' }, { status: 200 });
       }
     }
 

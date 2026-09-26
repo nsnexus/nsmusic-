@@ -302,3 +302,112 @@ export function mapSupabaseTaskToFirestore(row) {
   };
 }
 
+/**
+ * Mapeia atualizações parciais do pedido (camelCase) para as colunas do Postgres (snake_case)
+ * sem sobrescrever colunas ausentes com valores default.
+ */
+export function mapOrderUpdatesToSupabase(updates = {}) {
+  const COLUMN_MAP = {
+    orderNumber: 'order_number',
+    customerName: 'customer_name',
+    customerPhone: 'customer_phone',
+    customerEmail: 'customer_email',
+    userId: 'user_id',
+    honoreeName: 'honoree_name',
+    recipientType: 'recipient_type',
+    relationship: 'relationship',
+    occasion: 'occasion',
+    story: 'story',
+    importantMoments: 'important_moments',
+    musicStyle: 'music_style',
+    musicMood: 'music_mood',
+    voiceType: 'voice_type',
+    lyrics: 'lyrics',
+    sunoPrompt: 'suno_prompt',
+    productionStatus: 'production_status',
+    sunoTaskId: 'suno_task_id',
+    sunoProvider: 'suno_provider',
+    sunoGenerationCount: 'suno_generation_count',
+    sunoRequestedAt: 'suno_requested_at',
+    sunoError: 'suno_error',
+    audioUrl: 'audio_url',
+    audioFiles: 'audio_files',
+    audioIds: 'audio_ids',
+    coverUrl: 'cover_url',
+    audioArchivedAt: 'audio_archived_at',
+    audioArchiveFailedAt: 'audio_archive_failed_at',
+    audioRefreshedAt: 'audio_refreshed_at',
+    audioRefreshFailed: 'audio_refresh_failed',
+    paymentStatus: 'payment_status',
+    paidAt: 'paid_at',
+    hasVideoAccess: 'has_video_access',
+    hasCartaAccess: 'has_carta_access',
+    hasRetrospectivaAccess: 'has_retrospectiva_access',
+    hasPlaybackAccess: 'has_playback_access',
+    videoUrl: 'video_url',
+    videoStatus: 'video_status',
+    videoError: 'video_error',
+    playbackUrl: 'playback_url',
+    playbackStatus: 'playback_status',
+    playbackError: 'playback_error',
+    cartaTexto: 'carta_texto',
+    cartaTemaEscolhido: 'carta_tema_escolhido',
+    cartaMusicaUrl: 'carta_musica_url',
+    homenagemMusicaUrl: 'homenagem_musica_url',
+    retrospectiva: 'retrospectiva',
+    slideshowImages: 'slideshow_images',
+    whatsappRequested: 'whatsapp_requested',
+    whatsappSent: 'whatsapp_sent',
+    whatsappSentAt: 'whatsapp_sent_at',
+    readyTemplateSent: 'ready_template_sent',
+    readyTemplateSentAt: 'ready_template_sent_at',
+    paymentWhatsappSent: 'payment_whatsapp_sent',
+    recoveryStage: 'recovery_stage',
+    humanTakeover: 'human_takeover',
+    previewListenedAt: 'preview_listened_at',
+    termsAccepted: 'terms_accepted',
+    termsAcceptedAt: 'terms_accepted_at',
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
+    deletedAt: 'deleted_at',
+  };
+
+  const dateKeys = new Set([
+    'sunoRequestedAt', 'audioArchivedAt', 'audioArchiveFailedAt', 'audioRefreshedAt',
+    'paidAt', 'whatsappSentAt', 'readyTemplateSentAt', 'previewListenedAt',
+    'termsAcceptedAt', 'createdAt', 'updatedAt', 'deletedAt'
+  ]);
+  const arrayKeys = new Set(['audioFiles', 'audioIds', 'slideshowImages']);
+  const boolKeys = new Set([
+    'hasVideoAccess', 'hasCartaAccess', 'hasRetrospectivaAccess', 'hasPlaybackAccess',
+    'whatsappRequested', 'whatsappSent', 'readyTemplateSent', 'paymentWhatsappSent',
+    'humanTakeover', 'termsAccepted'
+  ]);
+  const numKeys = new Set(['sunoGenerationCount', 'recoveryStage']);
+
+  const result = {};
+  for (const [key, val] of Object.entries(updates)) {
+    if (val === undefined) continue;
+    const col = COLUMN_MAP[key] || (Object.values(COLUMN_MAP).includes(key) ? key : null);
+    if (col) {
+      if (dateKeys.has(key) || col.endsWith('_at')) {
+        result[col] = toIso(val);
+      } else if (arrayKeys.has(key) || col.endsWith('_files') || col.endsWith('_ids') || col.endsWith('_images')) {
+        result[col] = Array.isArray(val) ? val.filter(Boolean) : [];
+      } else if (boolKeys.has(key) || col.startsWith('has_') || col.endsWith('_sent') || col.endsWith('_accepted') || col.endsWith('_takeover') || col.endsWith('_requested')) {
+        result[col] = Boolean(val);
+      } else if (numKeys.has(key) || col.endsWith('_count') || col.endsWith('_stage')) {
+        result[col] = Number(val) || 0;
+      } else {
+        result[col] = val;
+      }
+    }
+  }
+
+  if (!result.updated_at) {
+    result.updated_at = new Date().toISOString();
+  }
+
+  return result;
+}
+

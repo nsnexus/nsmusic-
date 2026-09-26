@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
-import { doc, updateDoc } from 'firebase/firestore/lite';
-import { dbEdge as db } from '@/lib/firebase-edge';
 import { requireAdmin } from '@/lib/auth';
 import { getRequestContext } from '@cloudflare/next-on-pages';
+import { updateOrder } from '@/lib/supabaseDb';
 
 export const runtime = 'edge';
 
@@ -32,25 +31,7 @@ export async function POST(req) {
     if (paymentStatus !== undefined) updateData.paymentStatus = paymentStatus;
     if (productionStatus !== undefined) updateData.productionStatus = productionStatus;
 
-    // 1. Atualiza no Supabase (Postgres)
-    try {
-      const { getSupabaseEdge } = await import('@/lib/supabase-edge');
-      const supabase = getSupabaseEdge(env);
-      if (supabase) {
-        const sbUpdates = { updated_at: updateData.updatedAt };
-        if (audioUrl !== undefined) sbUpdates.audio_url = audioUrl;
-        if (audioFiles !== undefined) sbUpdates.audio_files = audioFiles;
-        if (paymentStatus !== undefined) sbUpdates.payment_status = paymentStatus;
-        if (productionStatus !== undefined) sbUpdates.production_status = productionStatus;
-
-        await supabase.from('orders').eq('id', orderId).update(sbUpdates);
-      }
-    } catch (sbErr) {
-      console.warn('[API /orders/update] Aviso ao atualizar Supabase:', sbErr.message);
-    }
-
-    // 2. Dual-Write de transição no Firestore
-    await updateDoc(doc(db, 'orders', orderId), updateData);
+    await updateOrder(orderId, updateData, env);
 
     return NextResponse.json({ success: true, orderId, updated: updateData }, { status: 200 });
   } catch (error) {
@@ -58,3 +39,4 @@ export async function POST(req) {
     return NextResponse.json({ error: error.message || 'Erro ao atualizar pedido' }, { status: 500 });
   }
 }
+
