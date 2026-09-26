@@ -275,12 +275,11 @@ export default function AdminDashboard() {
     } else if (purchaseTypeTab === 'VIDEO') {
       result = result.filter(o => o.videoAddonPaid);
     } else if (purchaseTypeTab === 'PIX_COPIADO') {
-      // Copiou o código e ainda não consta pago — é exatamente o perfil dos pagamentos que ficaram
-      // sem computar (achado 20/09/2026). Serve pra conferir na mão e pra medir quanta gente copia
-      // o Pix e desiste.
-      result = result.filter(o =>
-        o.pixCopiedAt && o.paymentStatus !== 'PAGAMENTO_APROVADO' && o.paymentStatus !== 'PAGO'
-      );
+      // Gerou o QR code ou copiou o código e ainda não consta pago — intenção de compra
+      result = result.filter(o => {
+        const hasPix = o.pixCopiedAt || o.extras?.pixCopiedAt || o.paymentIntentId || o.extras?.paymentIntentId || o.pixGeneratedAt || o.extras?.pixGeneratedAt;
+        return hasPix && o.paymentStatus !== 'PAGAMENTO_APROVADO' && o.paymentStatus !== 'PAGO';
+      });
     }
 
     // Filtro de data já aconteceu na query do Firestore (where() em createdAt) — orders só chega
@@ -1144,14 +1143,23 @@ export default function AdminDashboard() {
                                       lugar pra procurar pagamento não computado. Só aparece quando
                                       houve a cópia: um ícone apagado em pedido antigo (de antes
                                       deste rastreio) seria lido como "não copiou", que é falso. */}
-                                  {o.pixCopiedAt && (
-                                    <span
-                                      title={`Copiou o código Pix em ${new Date(o.pixCopiedAt).toLocaleString('pt-BR')}`}
-                                      style={{ fontSize: '0.85rem' }}
-                                    >
-                                      📋
-                                    </span>
-                                  )}
+                                  {(() => {
+                                    const pixCopied = o.pixCopiedAt || o.extras?.pixCopiedAt;
+                                    const pixIntent = o.paymentIntentId || o.extras?.paymentIntentId || o.pixGeneratedAt || o.extras?.pixGeneratedAt;
+                                    if (!pixCopied && !pixIntent) return null;
+                                    const dateStr = pixCopied || o.pixGeneratedAt || o.extras?.pixGeneratedAt || o.updatedAt;
+                                    const label = pixCopied
+                                      ? `Copiou o código Pix em ${new Date(pixCopied).toLocaleString('pt-BR')}`
+                                      : `Gerou o QR Code Pix em ${dateStr ? new Date(dateStr).toLocaleString('pt-BR') : ''}`;
+                                    return (
+                                      <span
+                                        title={label}
+                                        style={{ fontSize: '0.85rem' }}
+                                      >
+                                        📋
+                                      </span>
+                                    );
+                                  })()}
                                 </div>
                               </td>
                               <td style={{ ...styles.td, fontWeight: '700' }}>

@@ -584,7 +584,10 @@ export async function POST(req) {
       const isShortAck = isShortAckMessage(messageText);
       const isExplicitId = Boolean(candidateId);
 
-      const customerName = matchedOrder.customerName || 'Cliente';
+      // Primeiro nome só. Ninguém chama a pessoa pelo nome completo no WhatsApp, e "Olá,
+      // Cliente!" (o padrão antigo quando o nome faltava) é a assinatura de mensagem automática.
+      const nomeCompleto = String(matchedOrder.customerName || '').trim();
+      const customerName = nomeCompleto ? nomeCompleto.split(/\s+/)[0] : '';
       const honoreeName = matchedOrder.honoreeName || 'alguém especial';
       const orderNum = matchedOrder.orderNumber ? `#${matchedOrder.orderNumber}` : '';
       const deliveryUrl = resolveDeliveryUrl(matchedOrderId);
@@ -669,35 +672,25 @@ export async function POST(req) {
         let replyMsg = '';
         if (isPaid) {
           const userHasVideo = isVideoPurchased(matchedOrder);
+          // Quem já pagou o vídeo precisa saber como usar; quem não pagou recebe UMA linha, não um
+          // anúncio. A oferta completa já está na própria página de entrega.
           const videoBlock = userHasVideo
-            ? `━━━━━━━━━━━━━━━━━━━━\n🎬 Seu *vídeo homenagem* também já está liberado! Pra gerar, é só enviar de 10 a 20 fotos na sua página de entrega (mesmo link acima) que a gente sincroniza tudo com a música. 📸\n━━━━━━━━━━━━━━━━━━━━\n\n`
-            : `━━━━━━━━━━━━━━━━━━━━\n🎬 *QUE TAL UM VÍDEO HOMENAGEM?*\nTransforme essa música linda em um *vídeo com fotos e legendas sincronizadas* para emocionar ainda mais ${honoreeName}!\n\n✨ *Adicione o vídeo ao seu pedido por apenas R$ 6,90:*\n${deliveryUrl}\n━━━━━━━━━━━━━━━━━━━━\n\n`;
+            ? `\nO vídeo também tá liberado — é só mandar de 10 a 20 fotos nessa mesma página que eu sincronizo com a música. 📸\n`
+            : `\nSe quiser, dá pra transformar em vídeo com as fotos de ${honoreeName} por R$ 6,90 — tá na mesma página. 🎬\n`;
 
-          replyMsg = `🎉 *PAGAMENTO CONFIRMADO!*
+          replyMsg = `${customerName ? `${customerName}, s` : 'S'}eu pagamento caiu! 🎉 A música de ${honoreeName} tá liberada.
 
-Olá, ${customerName}! Localizei seu pedido ${orderNum ? `*(${orderNum})* ` : ''}para *${honoreeName}*! 🎶
-
-As músicas personalizadas já estão 100% liberadas em alta definição (MP3 HD):
-
-${audiosList ? `📥 *Baixe seus áudios diretamente:*\n${audiosList}\n\n` : ''}🔗 *Acesse sua página de entrega permanente:*
+${audiosList ? `${audiosList}\n\n` : ''}A página completa fica aqui:
 ${deliveryUrl}
-
-${videoBlock}───────────────────
-💬 *Precisa de ajuda ou suporte com este pedido?* Nossa equipe humana já vai te atender aqui!
-🎵 *Quer criar uma NOVA música para outra pessoa?* Basta responder *NOVO PEDIDO*.`;
+${videoBlock}
+Qualquer coisa é só me chamar por aqui. 💜`;
         } else {
-          replyMsg = `🎵 *Olá, ${customerName}!*
+          replyMsg = `${customerName ? `Oi, ${customerName}! ` : 'Oi! '}A música de ${honoreeName} ficou pronta. 🎧
 
-Localizei seu pedido ${orderNum ? `*(${orderNum})* ` : ''}para *${honoreeName}*! 🎧
-
-A sua música personalizada já foi produzida com sucesso no estúdio *NS Music*. Foram gravadas 2 versões exclusivas com arranjos diferentes para você escolher.
-
-👉 *Ouça a prévia e libere seus arquivos aqui:*
+Gravei 2 versões, com arranjos diferentes, pra você escolher. Ouça aqui:
 ${deliveryUrl}
 
-───────────────────
-💬 *Precisa de suporte ou ajuda com o pagamento?* Nossa equipe humana já vai te atender por aqui!
-🎵 *Quer criar uma NOVA música do zero?* Basta responder *NOVO PEDIDO*.`;
+Se precisar de qualquer coisa, é só me chamar.`;
         }
 
         try {
@@ -727,16 +720,9 @@ ${deliveryUrl}
           return NextResponse.json({ success: true, ignored: 'wait_ack_cooldown' }, { status: 200 });
         }
 
-        const replyMsg = `⏳ *Olá, ${customerName}!*
+        const replyMsg = `${customerName ? `Oi, ${customerName}! ` : 'Oi! '}A música de ${honoreeName} ainda tá sendo finalizada aqui — leva uns minutinhos. ⏳
 
-Localizei seu pedido ${orderNum ? `*(${orderNum})* ` : ''}para *${honoreeName}*! 🎧
-
-Nosso estúdio está finalizando a gravação das 2 versões da música neste momento (leva de 1 a 2 minutinhos).
-
-Assim que a renderização terminar, eu te envio os arquivos e o link direto aqui nesta conversa! 💜
-
-───────────────────
-💬 *Precisa de suporte?* Nossa equipe humana já vai te responder!`;
+Assim que ficar pronta eu te mando o link aqui mesmo, pode deixar comigo. 💜`;
 
         await sendWApiTextMessage(senderPhone, replyMsg, envVars);
         try {

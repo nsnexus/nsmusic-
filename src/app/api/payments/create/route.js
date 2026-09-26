@@ -76,14 +76,17 @@ export async function POST(req) {
       const skuByTxid = { ...(existingOrderData.paymentIntentSkuByTxid || {}), [charge.txid]: sku };
       const amountByTxid = { ...(existingOrderData.paymentIntentAmountByTxid || {}), [charge.txid]: amount };
 
+      const agora = new Date().toISOString();
       const updates = {
         paymentIntentId: charge.txid,
         paymentIntentSku: sku,
         expectedAmount: amount,
+        pixGeneratedAt: agora,
+        pixCopiedAt: existingOrderData.pixCopiedAt || agora,
         paymentIntentSkuByTxid: skuByTxid,
         paymentIntentAmountByTxid: amountByTxid,
         previousPaymentIntentIds: prevIds,
-        updatedAt: new Date().toISOString(),
+        updatedAt: agora,
       };
 
       await updateOrder(orderId, updates, env);
