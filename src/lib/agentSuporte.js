@@ -27,6 +27,7 @@ const INTENCOES = [
   'TROCAR_ESTILO',       // quer outro estilo musical
   'NOVO_PEDIDO',         // quer fazer outra música
   'FALAR_HUMANO',        // quer pessoa
+  'SAUDACAO',            // só cumprimentou, ainda não disse o que quer
   'OUTRO',               // qualquer outra coisa
 ];
 
@@ -41,6 +42,7 @@ Intenções possíveis:
 - TROCAR_ESTILO: quer outro estilo/ritmo musical (sertanejo, pagode, gospel...).
 - NOVO_PEDIDO: quer fazer uma música NOVA, além da que já tem.
 - FALAR_HUMANO: pede atendente, pessoa, humano, ou está claramente irritado querendo suporte real.
+- SAUDACAO: só cumprimentou ("oi", "boa tarde", "tudo bem?") sem dizer o que precisa.
 - OUTRO: qualquer outra coisa.
 
 Em "detalhe", quando for AJUSTAR_LETRA ou TROCAR_ESTILO, coloque exatamente o que o cliente pediu
@@ -84,7 +86,31 @@ export async function tentarAtenderSuporte(phone, mensagem, envVars = {}) {
   const { pedido, resumo } = contexto;
   const { intencao, detalhe } = await classificarIntencao(mensagem, resumo, envVars);
 
-  if (intencao === 'NOVO_PEDIDO' || intencao === 'OUTRO') return { atendido: false };
+  if (intencao === 'NOVO_PEDIDO') return { atendido: false };
+
+  // Cliente que JÁ tem pedido só cumprimentou, ou disse algo que não classificamos.
+  //
+  // Antes isto caía no fluxo de coleta de pedido novo, cujo prompt manda fechar venda — então um
+  // "oi" de quem já comprou virava "pra quem vai ser a música?" (relatado em 26/09/2026). Quem já é
+  // cliente merece ser reconhecido e perguntado o que precisa, não abordado de novo.
+  if (intencao === 'SAUDACAO' || intencao === 'OUTRO') {
+    const nome = resumo.cliente ? String(resumo.cliente).split(' ')[0] : '';
+
+    // Responder a um "oi" com link e lista de opções é despejo, não conversa. Pessoa de verdade
+    // cumprimenta de volta e pergunta o que a outra precisa — só isso. O contexto do pedido já
+    // está carregado; ele entra na resposta SEGUINTE, quando souber o que a pessoa quer.
+    //
+    // A única menção ao pedido aqui é quando ele ainda está em produção, porque nesse caso a
+    // pessoa quase sempre escreveu por causa disso e esperar ela perguntar soaria desatento.
+    const emProducao = !resumo.temMusica;
+
+    return {
+      atendido: true,
+      resposta: emProducao
+        ? `Oi${nome ? `, ${nome}` : ''}! Tudo bem? A música de ${resumo.homenageado || 'vocês'} ainda tá sendo finalizada aqui. Posso te ajudar em alguma coisa?`
+        : `Oi${nome ? `, ${nome}` : ''}! Tudo bem? Como posso te ajudar?`,
+    };
+  }
 
   if (intencao === 'FALAR_HUMANO') {
     return {

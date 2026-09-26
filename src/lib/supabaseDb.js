@@ -85,7 +85,11 @@ export async function updateOrder(orderId, updates = {}, env = {}) {
     const supabase = getSupabaseEdge(env);
     if (supabase) {
       const sbUpdates = mapOrderUpdatesToSupabase(normalizedUpdates);
-      const { error } = await supabase.from('orders').eq('id', orderId).update(sbUpdates);
+      const isOrderNumber = typeof orderId === 'string' && orderId.startsWith('NS-');
+      const query = isOrderNumber
+        ? supabase.from('orders').eq('order_number', orderId)
+        : supabase.from('orders').eq('id', orderId);
+      const { error } = await query.update(sbUpdates);
       if (error) {
         console.warn(`[supabaseDb] Erro ao atualizar pedido ${orderId} no Supabase:`, error.message);
       }

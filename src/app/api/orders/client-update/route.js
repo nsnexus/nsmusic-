@@ -59,7 +59,7 @@ export async function POST(req) {
       return NextResponse.json({ ok: true, updated: false });
     }
 
-    await updateOrder(orderId, safeUpdates, env);
+    await updateOrder(existing.id || orderId, safeUpdates, env);
     return NextResponse.json({ ok: true, updated: safeUpdates });
 
   } catch (err) {

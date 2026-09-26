@@ -144,6 +144,10 @@ export const updateTaskResult = async (taskId, result, overrideOrderId = null, e
         updates.coverUrl = tracks[0].imageUrl;
       }
 
+      if (!orderData.lyrics && tracks[0]?.prompt) {
+        updates.lyrics = tracks[0].prompt;
+      }
+
       await updateOrder(orderId, updates, env);
       console.log(`Ordem ${orderId} atualizada com sucesso com ${audioFiles.length} áudios!`);
 

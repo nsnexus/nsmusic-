@@ -28,6 +28,11 @@ export default function AdminDashboard() {
   const [dateFrom, setDateFrom] = useState(todayLocalStr);
   const [dateTo, setDateTo] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchQuery), 350);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
   const [paymentStatusFilter, setPaymentStatusFilter] = useState('ALL');
   const [productionStatusFilter, setProductionStatusFilter] = useState('ALL');
   const [sortBy, setSortBy] = useState('createdAt_desc'); // 'createdAt_desc'|'createdAt_asc'|'paidAt_desc'|'paidAt_asc'
@@ -132,8 +137,12 @@ export default function AdminDashboard() {
         const token = await auth.currentUser?.getIdToken();
         if (token) {
           const params = new URLSearchParams();
-          if (dateFrom) params.set('dateFrom', localDayStartIso(dateFrom));
-          if (dateTo) params.set('dateTo', localDayEndIso(dateTo));
+          if (debouncedSearch && debouncedSearch.trim().length >= 2) {
+            params.set('search', debouncedSearch.trim());
+          } else {
+            if (dateFrom) params.set('dateFrom', localDayStartIso(dateFrom));
+            if (dateTo) params.set('dateTo', localDayEndIso(dateTo));
+          }
           params.set('limit', String(loadAll ? 1000 : pageSize + 1));
 
           const res = await fetch(`/api/admin/orders?${params.toString()}`, {
@@ -172,7 +181,7 @@ export default function AdminDashboard() {
     return () => {
       cancelado = true;
     };
-  }, [user, loadAll, pageSize, dateFrom, dateTo]);
+  }, [user, loadAll, pageSize, dateFrom, dateTo, debouncedSearch]);
 
 
   // Configurações do WhatsApp (Master Switch do Agente e Suporte)

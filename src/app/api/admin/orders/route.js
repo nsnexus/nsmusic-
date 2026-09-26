@@ -36,10 +36,9 @@ export async function GET(req) {
 
     let q = supabase.from('orders').select('*')
       .is('deleted_at', null)
-      .neq('production_status', 'CONFIG')
-      .neq('production_status', 'RASCUNHO');
+      .neq('production_status', 'CONFIG');
 
-    if (dateFrom) {
+    if (dateFrom && !search) {
       const fromIso = dateFrom.includes('T') ? dateFrom : `${dateFrom}T00:00:00.000Z`;
       q = q.gte('created_at', fromIso);
     }
@@ -72,7 +71,10 @@ export async function GET(req) {
       throw error;
     }
 
-    const orders = (Array.isArray(data) ? data : []).map(mapSupabaseOrderToFirestore).filter(Boolean);
+    const orders = (Array.isArray(data) ? data : [])
+      .filter(row => row && !row.id.startsWith('session_') && !row.id.startsWith('config_'))
+      .map(mapSupabaseOrderToFirestore)
+      .filter(Boolean);
     return NextResponse.json({
       ok: true,
       orders,

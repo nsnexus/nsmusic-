@@ -106,7 +106,7 @@ export default function OrderDetailsAdmin() {
           setWavUrl(data.wavFiles?.[0] || data.wavUrl || '');
           setVideoUrl(data.videoFile || data.videoUrl || '');
           setQrCodeUrl(data.qrCodeFile || data.qrCodeUrl || '');
-          setLyrics(data.lyrics || '');
+          setLyrics(data.lyrics || data.sunoTracks?.[0]?.prompt || '');
           // Achado 04/09/2026: `value={sunoPrompt || getSunoStylePrompt()}` no input fazia o campo
           // "voltar pro que estava" sempre que ficava vazio no meio de uma edição (selecionar tudo e
           // apagar, por exemplo) — sem valor, o `||` recalculava o texto padrão na hora e reaparecia
@@ -246,11 +246,18 @@ export default function OrderDetailsAdmin() {
   // dá o mesmo resultado — na hora — sem abrir mão de checar de verdade: chama a mesma rota pública
   // que o polling do cliente usa, que só aprova depois de confirmar na Efí.
   const handleCheckPaymentNow = async () => {
-    const txid = order?.paymentIntentId;
+    let txid = order?.paymentIntentId || order?.paymentId || order?.txid;
+    if (!txid && Array.isArray(order?.previousPaymentIntentIds) && order.previousPaymentIntentIds.length > 0) {
+      txid = order.previousPaymentIntentIds[order.previousPaymentIntentIds.length - 1];
+    }
     if (!txid) {
-      setCheckPaymentMsg('❌ Este pedido não tem cobrança Pix registrada (paymentIntentId ausente).');
-      setTimeout(() => setCheckPaymentMsg(''), 6000);
-      return;
+      txid = window.prompt('Este pedido ainda não tem identificador Pix (txid) registrado automaticamente. Se você tem o txid da cobrança na Efí, digite ou cole aqui:');
+      if (!txid || !txid.trim()) {
+        setCheckPaymentMsg('⚠️ Verificação cancelada: nenhum txid informado.');
+        setTimeout(() => setCheckPaymentMsg(''), 4000);
+        return;
+      }
+      txid = txid.trim();
     }
 
     setCheckingPayment(true);
@@ -640,7 +647,7 @@ export default function OrderDetailsAdmin() {
                       <option value="RECUSADO">RECUSADO</option>
                     </select>
 
-                    {order.paymentStatus !== 'PAGAMENTO_APROVADO' && order.paymentStatus !== 'PAGO' && order.paymentIntentId && (
+                    {order.paymentStatus !== 'PAGAMENTO_APROVADO' && order.paymentStatus !== 'PAGO' ? (
                       <div style={{ marginTop: '8px' }}>
                         <button
                           type="button"
@@ -652,6 +659,19 @@ export default function OrderDetailsAdmin() {
                           {checkingPayment ? '⏳ Consultando a Efí...' : '🔍 Verificar pagamento agora (Efí)'}
                         </button>
                         {checkPaymentMsg && <p style={{ fontSize: '0.8rem', marginTop: '6px', color: checkPaymentMsg.startsWith('✅') ? '#059669' : checkPaymentMsg.startsWith('⏳') ? '#d97706' : '#dc2626' }}>{checkPaymentMsg}</p>}
+                      </div>
+                    ) : (
+                      <div style={{ marginTop: '8px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                        <button
+                          type="button"
+                          onClick={handleCheckPaymentNow}
+                          disabled={checkingPayment}
+                          style={{ ...styles.quickActionBtn, background: '#475569', color: '#fff', fontSize: '0.78rem', padding: '6px 10px', cursor: checkingPayment ? 'default' : 'pointer' }}
+                          title="Reconsultar status na Efí"
+                        >
+                          {checkingPayment ? '⏳ Consultando...' : '🔄 Reconferir na Efí'}
+                        </button>
+                        {checkPaymentMsg && <p style={{ fontSize: '0.8rem', marginTop: '6px', width: '100%', color: checkPaymentMsg.startsWith('✅') ? '#059669' : checkPaymentMsg.startsWith('⏳') ? '#d97706' : '#dc2626' }}>{checkPaymentMsg}</p>}
                       </div>
                     )}
 

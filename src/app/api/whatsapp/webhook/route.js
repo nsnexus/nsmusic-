@@ -112,9 +112,33 @@ function extractCandidateOrderId(text) {
   return '';
 }
 
-function extractSenderPhone(body) {
+// Número da PRÓPRIA instância, quando o provedor manda.
+//
+// A Evolution API coloca no nível raiz do payload um campo `sender` com o número da instância —
+// ou seja, o NOSSO número, não o do cliente (o cliente fica em data.key.remoteJid). Como
+// `body.sender` é um dos candidatos a remetente, o agente passou a ler o próprio número como se
+// fosse o cliente e respondia para si mesmo, em laço (relatado em 26/09/2026).
+//
+// Tudo que bater com este número é descartado da lista de candidatos.
+function extractInstanceOwner(body) {
+  const bruto = body?.sender ?? body?.owner ?? body?.instanceOwner ?? body?.data?.owner;
+  if (!bruto || typeof bruto !== 'string') return '';
+  return bruto.replace(/@.*$/, '').replace(/\D/g, '');
+}
+
+// Exportada para teste: este e o ponto que fazia o agente responder a si mesmo (ver
+// tests/unit/webhookSender.test.js).
+export function extractSenderPhone(body) {
   if (!body) return '';
+
+  // Formato Evolution API: o remetente real é sempre data.key.remoteJid (ou participant, em grupo).
+  // Vem primeiro de propósito, antes de qualquer campo do nível raiz.
+  const evolutionJid = body?.data?.key?.participant || body?.data?.key?.remoteJid;
+
+  const owner = extractInstanceOwner(body);
+
   const candidates = [
+    evolutionJid,
     // Formato real da W-API — sender é um objeto ({ id, senderLid, pushName, ... }), não uma string;
     // o número puro fica em sender.id (senderLid/chat.id usam o formato novo "@lid" da Meta, que não
     // é o telefone). body.sender sozinho (candidato abaixo) vira "[object Object]" e é descartado.
@@ -138,6 +162,7 @@ function extractSenderPhone(body) {
   ];
 
   const candidateNames = [
+    'data.key.remoteJid(evolution)',
     'sender.id', 'chat.id', 'chat.phone', 'phone', 'from', 'sender', 'data.phone', 'data.from', 'data.sender',
     'data.chat.id', 'data.chat.phone', 'data.key.remoteJid', 'data.key.participant', 'key.remoteJid', 'key.participant',
     'chatId', 'data.chatId',
@@ -171,6 +196,10 @@ function extractSenderPhone(body) {
     let raw = candidates[i];
     if (!raw) continue;
     raw = String(raw);
+
+    // Nunca tratar o número da própria instância como cliente — é o que fazia o agente responder
+    // a si mesmo em laço.
+    if (owner && raw.replace(/@.*$/, '').replace(/\D/g, '') === owner) continue;
 
     let explicitLid = false;
     if (raw.includes('@')) {

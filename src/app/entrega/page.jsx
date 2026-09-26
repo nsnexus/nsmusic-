@@ -1375,7 +1375,7 @@ function EntregaContent() {
                   <h3 style={{ fontSize: '1.25rem', marginBottom: '16px', fontFamily: isPaid ? 'var(--font-family-gala)' : 'var(--font-family-title)', color: isPaid ? '#f472b6' : 'var(--primary)' }}>
                     Letra Oficial 📜
                   </h3>
-                  <pre style={isPaid ? { ...styles.lyricsText, color: '#e2e8f0' } : styles.lyricsText}>{order.lyrics || 'Letra ainda não gerada para esta composição.'}</pre>
+                  <pre style={isPaid ? { ...styles.lyricsText, color: '#e2e8f0' } : styles.lyricsText}>{order.lyrics || order.sunoTracks?.[0]?.prompt || 'Letra ainda não gerada para esta composição.'}</pre>
                 </div>
               </div>
 

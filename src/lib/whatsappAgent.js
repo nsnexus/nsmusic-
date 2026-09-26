@@ -42,7 +42,8 @@ Como conversar (isso é o que mais importa — leia com atenção):
 - PROIBIDO abrir com elogio genérico vazio: "Que fofo!", "Que lindo!", "Que legal!", "Ótima escolha!", "Adorei!", "Perfeito!" — nada disso. Em vez de elogiar, REAJA AO CONTEÚDO: repita de volta o detalhe que ele deu, com suas palavras. Ex: se ele disse que se conheceram na faculdade e ela usava blusa amarela, você fala da blusa amarela; se ele disse "minha Elisa", você fala da Elisa pelo nome.
 - Escreva como gente escreve no zap: frase curta, informal, sem parecer texto revisado de empresa. Varie a abertura, nunca repita a mesma estrutura duas vezes seguidas.
 - No máximo UM emoji por mensagem, e só quando encaixar de verdade. Pode mandar mensagem sem emoji nenhum.
-- Você QUER fechar essa venda — não com pressão ou script, mas com entusiasmo genuíno pela história. Assim que tiver o essencial (nome + história com substância + estilo), PARE de perguntar e feche: diga que já vai escrever a letra. Não fique pedindo "mais um detalhinho" — isso perde venda.
+- ENTENDA ANTES DE OFERECER. A primeira coisa é descobrir o que a pessoa quer — e nem sempre ela quer encomendar uma música. Pode estar cobrando um pedido antigo, tirando dúvida, ou só cumprimentando. Se a mensagem não deixa claro, PERGUNTE o que ela precisa, com naturalidade, e espere a resposta. Nunca presuma que é pedido novo, e nunca abra perguntando pra quem é a música.
+- Só comece a coletar dados de homenagem depois que a pessoa demonstrar que quer fazer uma. A partir daí, conduza com entusiasmo genuíno pela história, sem script e sem pressão. Quando tiver o essencial (nome + história com substância + estilo), PARE de perguntar e diga que já vai escrever a letra — não fique pedindo "mais um detalhinho".
 - A PRIMEIRA mensagem do cliente já faz parte da conversa. Responda ao que ela disse; nunca mande uma saudação genérica que repete uma pergunta já respondida nela. Se ela já trouxer nome, história ou estilo, aproveite esses dados e siga do ponto em que a conversa realmente está.
 - Quando cliente perguntar preço, prazo ou como funciona, responda primeiro de forma curta e natural. Depois retome apenas uma pergunta que ainda ajude a criar a homenagem. Não desvie da pergunta para um roteiro.
 - Se cliente corrigir um dado anterior, aceite a correção sem discutir nem repetir a informação antiga. Se ele mudar de assunto, responda ao assunto em uma frase e volte com uma única pergunta útil.
@@ -335,7 +336,11 @@ Ou me conta agora mesmo: pra quem vai ser essa música, e um pouco da história 
   // maior parte das mensagens que chegam é de cliente que já comprou ("paguei e não recebi", "cadê
   // minha música", "quero mudar a letra"), e até 25/09/2026 tudo isso caía no silêncio — o agente
   // só sabia coletar dados de pedido novo. Ver src/lib/agentSuporte.js.
-  if (!session || session.step === 'DONE') {
+  // Roda também quando há sessão de coleta em andamento: um cliente antigo que volta e pergunta
+  // "cadê minha música" no meio de uma conversa antiga ficava preso no fluxo de venda, que só sabe
+  // perguntar sobre o próximo pedido (relatado em 26/09/2026). Se o suporte não reconhecer a
+  // intenção, o fluxo de coleta continua normalmente logo abaixo.
+  if (!session || session.step === 'DONE' || session.step === 'COLLECTING') {
     let suporte = { atendido: false };
     try {
       suporte = await tentarAtenderSuporte(cleanPhone, messageText, envVars);
