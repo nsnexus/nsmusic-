@@ -275,10 +275,10 @@ export default function AdminDashboard() {
     } else if (purchaseTypeTab === 'VIDEO') {
       result = result.filter(o => o.videoAddonPaid);
     } else if (purchaseTypeTab === 'PIX_COPIADO') {
-      // Gerou o QR code ou copiou o código e ainda não consta pago — intenção de compra
+      // Copiou o código Pix e ainda não consta pago
       result = result.filter(o => {
-        const hasPix = o.pixCopiedAt || o.extras?.pixCopiedAt || o.paymentIntentId || o.extras?.paymentIntentId || o.pixGeneratedAt || o.extras?.pixGeneratedAt;
-        return hasPix && o.paymentStatus !== 'PAGAMENTO_APROVADO' && o.paymentStatus !== 'PAGO';
+        const copiou = o.pixCopiedAt || o.extras?.pixCopiedAt;
+        return copiou && o.paymentStatus !== 'PAGAMENTO_APROVADO' && o.paymentStatus !== 'PAGO';
       });
     }
 
@@ -1145,15 +1145,10 @@ export default function AdminDashboard() {
                                       deste rastreio) seria lido como "não copiou", que é falso. */}
                                   {(() => {
                                     const pixCopied = o.pixCopiedAt || o.extras?.pixCopiedAt;
-                                    const pixIntent = o.paymentIntentId || o.extras?.paymentIntentId || o.pixGeneratedAt || o.extras?.pixGeneratedAt;
-                                    if (!pixCopied && !pixIntent) return null;
-                                    const dateStr = pixCopied || o.pixGeneratedAt || o.extras?.pixGeneratedAt || o.updatedAt;
-                                    const label = pixCopied
-                                      ? `Copiou o código Pix em ${new Date(pixCopied).toLocaleString('pt-BR')}`
-                                      : `Gerou o QR Code Pix em ${dateStr ? new Date(dateStr).toLocaleString('pt-BR') : ''}`;
+                                    if (!pixCopied) return null;
                                     return (
                                       <span
-                                        title={label}
+                                        title={`Copiou o código Pix em ${new Date(pixCopied).toLocaleString('pt-BR')}`}
                                         style={{ fontSize: '0.85rem' }}
                                       >
                                         📋

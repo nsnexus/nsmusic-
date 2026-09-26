@@ -1941,6 +1941,13 @@ export default function CriarMusica() {
                               navigator.clipboard.writeText(pixInfo.qrCode);
                               setPixCopied(true);
                               setTimeout(() => setPixCopied(false), 3000);
+                              if (orderId) {
+                                fetch('/api/payments/pix-copied', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ orderId }),
+                                }).catch(() => {});
+                              }
                             }
                           }}
                           style={{

@@ -81,8 +81,6 @@ export async function POST(req) {
         paymentIntentId: charge.txid,
         paymentIntentSku: sku,
         expectedAmount: amount,
-        pixGeneratedAt: agora,
-        pixCopiedAt: existingOrderData.pixCopiedAt || agora,
         paymentIntentSkuByTxid: skuByTxid,
         paymentIntentAmountByTxid: amountByTxid,
         previousPaymentIntentIds: prevIds,

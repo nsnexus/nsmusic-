@@ -391,6 +391,13 @@ function PagarContent() {
                   navigator.clipboard.writeText(pixInfo.qrCode);
                   setPixCopied(true);
                   setTimeout(() => setPixCopied(false), 3000);
+                  if (orderId) {
+                    fetch('/api/payments/pix-copied', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ orderId }),
+                    }).catch(() => {});
+                  }
                 }}
                 className="btn btn-primary"
                 style={{ width: '100%', padding: '12px', borderRadius: '10px', fontWeight: 'bold', border: 'none', cursor: 'pointer', marginBottom: '12px' }}
