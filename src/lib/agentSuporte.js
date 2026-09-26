@@ -6,6 +6,7 @@ import {
   ajustarLetra,
   regerarMusica,
   avisarDono,
+  listarMusicasPagas,
 } from './agentTools.js';
 
 // Atendimento de quem JÁ tem pedido. É a metade que faltava no agente: ele só sabia coletar dados
@@ -174,6 +175,22 @@ export async function tentarAtenderSuporte(phone, mensagem, envVars = {}) {
   }
 
   if (intencao === 'CADE_MINHA_MUSICA') {
+    // Cliente que volta costuma ter mais de uma homenagem. Responder só sobre a última é entregar
+    // pela metade — e é justamente quem comprou várias vezes que merece a resposta completa
+    // (pedido do dono do estúdio em 26/09/2026).
+    const pagas = await listarMusicasPagas(phone, envVars).catch(() => []);
+
+    if (pagas.length > 1) {
+      const lista = pagas
+        .map((m) => `• ${m.homenageado ? `*${m.homenageado}*` : `Pedido ${m.numero}`}: ${m.link}`)
+        .join('\n');
+
+      return {
+        atendido: true,
+        resposta: `Achei ${pagas.length} músicas suas aqui! 🎶\n\n${lista}\n\nÉ só abrir a que você quer ouvir ou baixar. Precisa de mais alguma coisa?`,
+      };
+    }
+
     const links = montarLinksDaMusica(pedido);
 
     if (!links.temMusica) {

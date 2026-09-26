@@ -213,6 +213,43 @@ export async function findOrderByIdOrNumber(candidate, env = {}) {
 /**
  * Busca o pedido mais recente feito por um número de telefone no Supabase
  */
+/**
+ * TODOS os pedidos de um telefone, do mais recente para o mais antigo.
+ *
+ * findRecentOrderByPhone devolve só o último, e isso bastava enquanto o agente respondia sobre "o
+ * pedido". Mas cliente que volta costuma ter mais de uma música — e mandar só a última é entregar
+ * pela metade (pedido do dono do estúdio em 26/09/2026: "manda os links das músicas que ele tem
+ * pago").
+ */
+export async function findOrdersByPhone(phone, env = {}, limite = 10) {
+  const variants = generatePhoneVariants(phone);
+  if (variants.length === 0) return [];
+
+  const digitos = variants.map((v) => String(v).replace(/\D/g, '')).filter(Boolean);
+  if (digitos.length === 0) return [];
+
+  const supabase = getSupabaseEdge(env);
+  if (!supabase) return [];
+
+  try {
+    const { data, error } = await supabase
+      .from('orders')
+      .select('*')
+      .in('customer_phone_digits', digitos.slice(0, 25))
+      .is('deleted_at', null)
+      .neq('production_status', 'RASCUNHO')
+      .neq('production_status', 'CONFIG')
+      .order('created_at', { ascending: false })
+      .limit(limite);
+
+    if (error || !Array.isArray(data)) return [];
+    return data.map(mapSupabaseOrderToFirestore).filter(Boolean);
+  } catch (err) {
+    console.warn('[OrderLookup] Falha ao listar pedidos do telefone:', err.message);
+    return [];
+  }
+}
+
 export async function findRecentOrderByPhone(phone, env = {}) {
   const variants = generatePhoneVariants(phone);
   if (variants.length === 0) return null;

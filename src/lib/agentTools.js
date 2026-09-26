@@ -1,5 +1,5 @@
 import { getOrder, updateOrder } from './supabaseDb.js';
-import { findRecentOrderByPhone } from './orderLookup.js';
+import { findRecentOrderByPhone, findOrdersByPhone } from './orderLookup.js';
 import { resolveDeliveryUrl, buildAudioDownloadLink } from './whatsappTemplates.js';
 import { getChargeStatus } from './efi.js';
 import { readEnvValue } from './envValue.js';
@@ -75,20 +75,47 @@ export async function conferirPagamento(pedido, env = {}) {
     return { ok: true, estado: 'ja_estava_pago', linkEntrega: resolveDeliveryUrl(pedido.id) };
   }
 
-  const txid = pedido.paymentIntentId;
-  if (!txid) return { ok: true, estado: 'sem_cobranca' };
+  // Todas as cobranças que este pedido já gerou, da mais nova para a mais antiga.
+  //
+  // Trocar de faixa na escada de impacto gera uma cobrança NOVA e guarda a anterior em
+  // previousPaymentIntentIds. O cliente costuma pagar o Pix que já estava aberto no celular — ou
+  // seja, um txid antigo. Conferir só o atual responde "não pago" com o dinheiro na conta
+  // (ver api/payments/create, que guarda o histórico justamente para isto).
+  const anteriores = Array.isArray(pedido.previousPaymentIntentIds) ? pedido.previousPaymentIntentIds : [];
+  const txids = [pedido.paymentIntentId, ...anteriores].filter(Boolean);
+  if (txids.length === 0) return { ok: true, estado: 'sem_cobranca' };
+
+  const txid = txids[0];
 
   try {
-    const cobranca = await getChargeStatus(txid, env);
-    const status = String(cobranca?.status || '').toUpperCase();
+    let pago = null;
+    let ultimoStatus = '';
+    let respondeu = 0;
 
-    // CONCLUIDA é o status de pago na API Pix da Efí.
-    if (status !== 'CONCLUIDA') {
-      return { ok: true, estado: 'ainda_nao_pago', statusProvedor: status || 'desconhecido' };
+    for (const candidato of txids.slice(0, 5)) {
+      // eslint-disable-next-line no-await-in-loop
+      const cobranca = await getChargeStatus(candidato, env).catch(() => null);
+      if (!cobranca) continue; // esta consulta falhou; tenta a próxima cobrança
+      respondeu++;
+      const status = String(cobranca?.status || '').toUpperCase();
+      if (!ultimoStatus) ultimoStatus = status;
+      // CONCLUIDA é o status de pago na API Pix da Efí.
+      if (status === 'CONCLUIDA') { pago = { txid: candidato, cobranca }; break; }
     }
 
-    const valor = Number(cobranca?.valor?.original || cobranca?.pix?.[0]?.valor || 0);
-    const resultado = await applyPaymentApproval(pedido.id, txid, {
+    // Nenhuma consulta respondeu: a Efí está fora do ar ou o relay caiu. Isso NÃO é "não pago" —
+    // dizer ao cliente que o pagamento não caiu quando ninguém conseguiu olhar é mentira, e some
+    // com a única informação útil (que precisamos tentar de novo).
+    if (!pago && respondeu === 0) {
+      return { ok: false, motivo: 'consulta_indisponivel' };
+    }
+
+    if (!pago) {
+      return { ok: true, estado: 'ainda_nao_pago', statusProvedor: ultimoStatus || 'desconhecido', cobrancasConferidas: respondeu };
+    }
+
+    const valor = Number(pago.cobranca?.valor?.original || pago.cobranca?.pix?.[0]?.valor || 0);
+    const resultado = await applyPaymentApproval(pedido.id, pago.txid, {
       status: 'approved',
       transaction_amount: valor,
     }, env);
@@ -108,6 +135,30 @@ export async function conferirPagamento(pedido, env = {}) {
  * Links para o cliente ouvir e baixar. O caso mais comum do suporte: a pessoa pagou, a música está
  * pronta, e só falta o link chegar até ela.
  */
+/**
+ * Todas as músicas PAGAS do cliente, com link de cada uma.
+ *
+ * Cliente que volta costuma ter mais de uma homenagem. Responder só sobre a última é entregar pela
+ * metade — e é justamente quem já comprou várias vezes que merece a resposta completa.
+ */
+export async function listarMusicasPagas(phone, env = {}) {
+  const pedidos = await findOrdersByPhone(phone, env, 10);
+
+  const pagos = pedidos.filter((p) => {
+    const pago = p.paymentStatus === 'PAGAMENTO_APROVADO' || p.paymentStatus === 'PAGO';
+    const temAudio = (Array.isArray(p.audioFiles) && p.audioFiles.filter(Boolean).length > 0) || Boolean(p.audioUrl);
+    return pago && temAudio;
+  });
+
+  return pagos.map((p) => ({
+    orderId: p.id,
+    numero: p.orderNumber || p.id,
+    homenageado: p.honoreeName || '',
+    criadoEm: p.createdAt || null,
+    link: resolveDeliveryUrl(p.id),
+  }));
+}
+
 export function montarLinksDaMusica(pedido) {
   if (!pedido?.id) return { ok: false, motivo: 'sem_pedido' };
 
