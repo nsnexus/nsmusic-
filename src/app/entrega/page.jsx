@@ -324,10 +324,28 @@ function EntregaContent() {
         return;
       }
       try {
-        const docRef = doc(db, 'orders', orderId);
-        const docSnap = await fetchWithTimeout(getDoc(docRef));
-        if (!cancelled && docSnap.exists()) {
-          const data = docSnap.data();
+        let data = null;
+        // 1. Primário: consulta via Edge API que lê do Supabase
+        try {
+          const res = await fetch(`/api/orders/${orderId}`, { cache: 'no-store' });
+          if (res.ok) {
+            const json = await res.json();
+            if (json?.order) data = json.order;
+          }
+        } catch (apiErr) {
+          console.warn("[entrega] Fallback para leitura direta:", apiErr.message);
+        }
+
+        // 2. Fallback: leitura no Firestore
+        if (!data) {
+          const docRef = doc(db, 'orders', orderId);
+          const docSnap = await fetchWithTimeout(getDoc(docRef));
+          if (docSnap.exists()) {
+            data = docSnap.data();
+          }
+        }
+
+        if (!cancelled && data) {
           setOrder(data);
 
           // Se o pedido ainda consta como pendente no Firebase, consulta imediatamente a Efí

@@ -4,8 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { onAuthStateChanged, signOut, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
-import { collection, query, where, getDocs } from 'firebase/firestore';
-import { auth, db } from '@/lib/firebase';
+import { auth } from '@/lib/firebase';
 import { AUDIO_CACHE_VERSION } from '@/lib/audioCacheVersion';
 import { getFriendlyAuthErrorMessage } from '@/lib/authErrors';
 
@@ -64,24 +63,14 @@ export default function MinhasMusicasPage() {
       if (currentUser) {
         setLoadingOrders(true);
         try {
-          const ordersRef = collection(db, 'orders');
-          const qUser = query(ordersRef, where('userId', '==', currentUser.uid));
-          const qEmail = query(ordersRef, where('customerEmail', '==', currentUser.email));
-
-          const [snapUser, snapEmail] = await Promise.all([
-            getDocs(qUser).catch(() => ({ docs: [] })),
-            getDocs(qEmail).catch(() => ({ docs: [] }))
-          ]);
-
-          // Exclusão lógica (M-07 no AUDIT_REPORT.md) — pedidos excluídos não aparecem para o cliente.
-          const map = new Map();
-          snapUser.docs.forEach(doc => { if (!doc.data().deletedAt) map.set(doc.id, { id: doc.id, ...doc.data() }); });
-          snapEmail.docs.forEach(doc => { if (!doc.data().deletedAt) map.set(doc.id, { id: doc.id, ...doc.data() }); });
-
-          const encontrados = Array.from(map.values());
-          marcarPedidosComoMeus(encontrados);
-          setOrders(encontrados);
-          setHasSearched(true);
+          const res = await fetch(`/api/orders/my-orders?email=${encodeURIComponent(currentUser.email || '')}&userId=${encodeURIComponent(currentUser.uid || '')}`);
+          if (res.ok) {
+            const data = await res.json();
+            const encontrados = Array.isArray(data.orders) ? data.orders : [];
+            marcarPedidosComoMeus(encontrados);
+            setOrders(encontrados);
+            setHasSearched(true);
+          }
         } catch (err) {
           console.error("Erro ao carregar músicas do usuário:", err);
         } finally {
@@ -93,63 +82,44 @@ export default function MinhasMusicasPage() {
     return () => unsubscribe();
   }, []);
 
-  // Reconstrói o telefone no mesmo formato mascarado usado ao salvar o pedido
-  // (ver criar/page.jsx:handlePhoneChange), para permitir consulta exata no Firestore.
-  const formatPhoneForQuery = (raw) => {
-    const clean = (raw || '').replace(/\D/g, '');
-    if (clean.length < 10 || clean.length > 11) return null;
-    let formatted = `(${clean.slice(0, 2)})`;
-    formatted += clean.length === 11 ? ` ${clean.slice(2, 7)}` : ` ${clean.slice(2, 6)}`;
-    formatted += clean.length === 11 ? `-${clean.slice(7, 11)}` : `-${clean.slice(6, 10)}`;
-    return formatted;
-  };
-
-  // Busca rápida por WhatsApp ou E-mail sem exigir senha.
-  // Usa `where` no Firestore em vez de baixar a coleção inteira (ver C-08 do audit).
+  // Busca rápida por WhatsApp ou E-mail sem exigir senha via Edge API /api/orders/my-orders
   const handleQuickSearch = async (e) => {
     e.preventDefault();
     setLoadingOrders(true);
     setHasSearched(true);
 
     try {
-      const ordersRef = collection(db, 'orders');
-
+      let queryParam = '';
       if (searchTab === 'phone') {
-        const formattedPhone = formatPhoneForQuery(searchPhone);
-        if (!formattedPhone) {
+        const clean = (searchPhone || '').replace(/\D/g, '');
+        if (clean.length < 10) {
           setOrders([]);
           setLoadingOrders(false);
           return;
         }
-
-        const q = query(ordersRef, where('customerPhone', '==', formattedPhone));
-        const snap = await getDocs(q).catch(() => ({ docs: [] }));
-        const encontrados = snap.docs.filter(d => !d.data().deletedAt).map(d => ({ id: d.id, ...d.data() }));
-        marcarPedidosComoMeus(encontrados);
-        setOrders(encontrados);
+        queryParam = `phone=${encodeURIComponent(clean)}`;
       } else {
         const typedEmail = searchEmail.trim();
-        const lowerEmail = typedEmail.toLowerCase();
         if (!typedEmail) {
           setOrders([]);
           setLoadingOrders(false);
           return;
         }
+        queryParam = `email=${encodeURIComponent(typedEmail)}`;
+      }
 
-        const qExact = query(ordersRef, where('customerEmail', '==', typedEmail));
-        const qLower = query(ordersRef, where('customerEmail', '==', lowerEmail));
-        const [snapExact, snapLower] = await Promise.all([
-          getDocs(qExact).catch(() => ({ docs: [] })),
-          getDocs(qLower).catch(() => ({ docs: [] })),
-        ]);
-
-        const map = new Map();
-        snapExact.docs.forEach(d => { if (!d.data().deletedAt) map.set(d.id, { id: d.id, ...d.data() }); });
-        snapLower.docs.forEach(d => { if (!d.data().deletedAt) map.set(d.id, { id: d.id, ...d.data() }); });
-        setOrders(Array.from(map.values()));
+      const res = await fetch(`/api/orders/my-orders?${queryParam}`);
+      if (res.ok) {
+        const data = await res.json();
+        const encontrados = Array.isArray(data.orders) ? data.orders : [];
+        marcarPedidosComoMeus(encontrados);
+        setOrders(encontrados);
+      } else {
+        setOrders([]);
       }
     } catch (err) {
       console.error("Erro na busca de pedidos:", err);
+      setOrders([]);
     } finally {
       setLoadingOrders(false);
     }
