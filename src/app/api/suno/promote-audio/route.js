@@ -5,6 +5,7 @@ import { dbEdge as db } from '@/lib/firebase-edge';
 import { extractAudioTracks } from '@/lib/db';
 import { readEnvValue } from '@/lib/envValue';
 import { audioUrlSaudavel } from '@/lib/audioUrlSaudavel';
+import { isOurStorage } from '@/lib/audioArchive';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
@@ -123,7 +124,12 @@ export async function POST(req) {
       return NextResponse.json({ ok: false, estado: 'definitiva_ainda_nao_serve', prontas: prontas.length, atuais: faixasAtuais });
     }
 
-    const audioFiles = prontas.map((t) => t.audio_url);
+    // URL do nosso storage nunca e substituida por uma da Kie.ai: o R2 e permanente, o tempfile
+    // expira em ~14 dias (ver mesclarPreservandoNosso em api/orders/refresh-audio).
+    const atuais = Array.isArray(order.audioFiles) && order.audioFiles.length
+      ? order.audioFiles.filter(Boolean)
+      : [order.audioUrl].filter(Boolean);
+    const audioFiles = prontas.map((t, i) => (isOurStorage(atuais[i]) ? atuais[i] : t.audio_url));
     const audioIds = prontas.map((t) => t.trackId).filter(Boolean);
 
     const updates = {

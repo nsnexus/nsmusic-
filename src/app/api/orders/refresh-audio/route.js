@@ -5,6 +5,7 @@ import { dbEdge as db } from '@/lib/firebase-edge';
 import { extractAudioTracks } from '@/lib/db';
 import { requireAdmin } from '@/lib/auth';
 import { audioUrlSaudavel } from '@/lib/audioUrlSaudavel';
+import { isOurStorage } from '@/lib/audioArchive';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
@@ -85,6 +86,17 @@ function urlEfemera(u) {
 function needsRefresh(order) {
   const urls = [order?.audioUrl, ...(Array.isArray(order?.audioFiles) ? order.audioFiles : [])];
   return urls.some(urlEfemera);
+}
+
+// Mescla o que a Kie.ai devolveu com o que o pedido JA tem, posicao a posicao.
+//
+// Regra que faltava: URL do NOSSO storage (R2/Firebase) nunca e substituida. O R2 e permanente; o
+// tempfile da Kie.ai expira em ~14 dias. Trocar um pelo outro e piorar. Isso acontecia quando o
+// pedido tinha uma faixa ja arquivada e outra ainda na origem: needsRefresh via a segunda, e o
+// codigo regravava audioFiles INTEIRO com o retorno da Kie.ai, jogando fora a que estava salva.
+function mesclarPreservandoNosso(novas, atuais) {
+  const base = Array.isArray(atuais) ? atuais.filter(Boolean) : [];
+  return novas.map((nova, i) => (isOurStorage(base[i]) ? base[i] : nova));
 }
 
 // O taskId só passou a ser gravado no próprio pedido (`sunoTaskId`) em 28/08/2026 — antes disso o
@@ -268,7 +280,11 @@ async function runRefresh(env, { dryRun }) {
       continue;
     }
 
-    const audioFiles = fresh.tracks.map((t) => t.audio_url).filter(Boolean);
+    const audioFilesDaKie = fresh.tracks.map((t) => t.audio_url).filter(Boolean);
+    const atuais = Array.isArray(c.data.audioFiles) && c.data.audioFiles.length
+      ? c.data.audioFiles
+      : [c.data.audioUrl].filter(Boolean);
+    const audioFiles = mesclarPreservandoNosso(audioFilesDaKie, atuais);
     const audioIds = fresh.tracks.map((t) => t.trackId).filter(Boolean);
 
     try {
