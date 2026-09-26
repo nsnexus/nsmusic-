@@ -5,6 +5,7 @@ import {
   montarLinksDaMusica,
   ajustarLetra,
   regerarMusica,
+  avisarDono,
 } from './agentTools.js';
 
 // Atendimento de quem JÁ tem pedido. É a metade que faltava no agente: ele só sabia coletar dados
@@ -147,13 +148,25 @@ export async function tentarAtenderSuporte(phone, mensagem, envVars = {}) {
     }
 
     if (conferencia.estado === 'ainda_nao_pago') {
+      // O cliente afirma que pagou e a Efí diz que não. Não existe resposta automática certa aqui:
+      // ou o dinheiro saiu e algo quebrou no caminho, ou houve confusão. Chama gente (uma vez só
+      // por pedido) em vez de deixar o cliente repetindo a mesma queixa no vazio.
+      await avisarDono(pedido, `Efí retornou "${conferencia.statusProvedor || 'sem pagamento'}"`, envVars).catch(() => {});
+      // NÃO pedir comprovante. Quem decide se o pagamento existe é a Efí, e ela acabou de ser
+      // consultada — o print do cliente não mudaria a resposta, e prometer conferir um arquivo que
+      // o bot não lê é prometer o que não vai acontecer (achado 26/09/2026).
+      //
+      // A liberação automática continua rodando: a reconciliação confere as cobranças a cada 5
+      // minutos e, quando o pagamento cai, o próprio sistema manda a mensagem de aprovação. Por
+      // isso "te aviso aqui" é verdade, não consolo.
       return {
         atendido: true,
-        resposta: `Acabei de consultar no banco e o pagamento ainda não caiu por aqui. 😕\n\nSe você pagou agora há pouco, às vezes leva alguns minutinhos. Pode me mandar o comprovante que eu confiro na hora?\n\nSe preferir pagar de novo, é por aqui:\n${resumo.linkEntrega}`,
+        resposta: `Conferi agora direto no banco e o pagamento ainda não apareceu aqui. 😕\n\nSe você pagou faz pouco tempo, costuma levar alguns minutinhos pra compensar — e assim que cair eu te aviso por aqui mesmo, sem você precisar fazer nada.\n\nSe quiser conferir ou pagar de novo, é nesta página:\n${resumo.linkEntrega}`,
       };
     }
 
     // sem_cobranca: o pedido nunca chegou a gerar Pix.
+    await avisarDono(pedido, 'pedido sem cobrança Pix registrada', envVars).catch(() => {});
     return {
       atendido: true,
       resposta: `Olhei aqui e ainda não encontrei um pagamento nesse pedido. Pode ser que a cobrança não tenha chegado a ser gerada.\n\nDá uma olhada nesta página, que ela mostra o Pix certinho:\n${resumo.linkEntrega}`,

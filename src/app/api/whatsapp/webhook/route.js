@@ -128,6 +128,18 @@ function extractInstanceOwner(body) {
 
 // Exportada para teste: este e o ponto que fazia o agente responder a si mesmo (ver
 // tests/unit/webhookSender.test.js).
+// Imagem ou documento anexado. Só detecta a PRESENÇA do anexo — o conteúdo nunca é lido aqui.
+export function temAnexoDeComprovante(body) {
+  const msg = body?.data?.message || body?.message || body?.msgContent || {};
+  if (msg.imageMessage || msg.documentMessage || msg.documentWithCaptionMessage) return true;
+
+  const tipo = String(body?.messageType || body?.data?.messageType || body?.type || '').toLowerCase();
+  if (tipo.includes('image') || tipo.includes('document')) return true;
+
+  const mime = String(body?.mimetype || body?.data?.mimetype || '').toLowerCase();
+  return mime.startsWith('image/') || mime.includes('pdf');
+}
+
 export function extractSenderPhone(body) {
   if (!body) return '';
 
@@ -472,6 +484,20 @@ export async function POST(req) {
       } catch (err) {
         console.warn('[WhatsApp Webhook] Erro ao transcrever áudio:', err.message);
       }
+    }
+
+    // Comprovante enviado como IMAGEM ou PDF, sem legenda.
+    //
+    // Acontece o tempo todo: o cliente diz que pagou e manda o print do banco. Até 26/09/2026 isso
+    // caía em 'empty_content' e a mensagem era ignorada EM SILÊNCIO — pior ainda porque o próprio
+    // bot pedia o comprovante e depois não dava sinal de vida.
+    //
+    // Não lemos o arquivo: quem decide se o pagamento existe é a Efí, consultada na hora (ver
+    // conferirPagamento em src/lib/agentTools.js). O anexo é tratado como a FRASE que ele
+    // representa, e o resto do fluxo faz o que já sabe fazer — inclusive liberar e mandar o link.
+    if (!messageText && !audioSource && temAnexoDeComprovante(body)) {
+      messageText = 'enviei o comprovante, já paguei';
+      console.log('[WhatsApp Webhook] Anexo recebido sem legenda — tratando como aviso de pagamento.');
     }
 
     // 3. Ignora eventos sem nenhum conteúdo de texto ou áudio

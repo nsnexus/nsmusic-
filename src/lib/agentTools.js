@@ -2,6 +2,7 @@ import { getOrder, updateOrder } from './supabaseDb.js';
 import { findRecentOrderByPhone } from './orderLookup.js';
 import { resolveDeliveryUrl, buildAudioDownloadLink } from './whatsappTemplates.js';
 import { getChargeStatus } from './efi.js';
+import { readEnvValue } from './envValue.js';
 import { applyPaymentApproval } from './payments.js';
 
 // Ferramentas do atendente de WhatsApp: o que a IA pode REALMENTE fazer, em vez de só conversar.
@@ -168,6 +169,56 @@ ${pedido.lyrics}`;
   } catch (err) {
     console.warn('[agentTools] Falha ao ajustar letra:', err.message);
     return { ok: false, motivo: 'falha_na_ia' };
+  }
+}
+
+// Número do dono do estúdio, para quando a conversa precisa de gente.
+//
+// Não é segredo (é o WhatsApp de atendimento), mas fica em variável de ambiente para não exigir
+// deploy quando mudar — já aconteceu de o número principal ser suspenso e precisar trocar na hora.
+const WHATSAPP_DONO_PADRAO = '5594991064043';
+
+export function numeroDoDono(env = {}) {
+  return readEnvValue(env, 'ADMIN_WHATSAPP') || WHATSAPP_DONO_PADRAO;
+}
+
+/**
+ * Chama o dono quando a máquina não resolve.
+ *
+ * O caso que motivou isto (26/09/2026): o cliente afirma que pagou, a Efí responde que não há
+ * pagamento, e aí não existe resposta automática correta — ou o dinheiro saiu e algo quebrou no
+ * caminho, ou o cliente se confundiu. Nos dois casos quem resolve é uma pessoa, e ela precisa saber
+ * ANTES do cliente reclamar de novo.
+ *
+ * Avisa UMA VEZ por pedido: o mesmo cliente insistindo não pode virar enxurrada no WhatsApp do dono.
+ */
+export async function avisarDono(pedido, motivo, env = {}) {
+  if (!pedido?.id) return { ok: false, motivo: 'sem_pedido' };
+
+  try {
+    const { updateOrder } = await import('./supabaseDb.js');
+    const { sendWApiTextMessage } = await import('./whatsapp.js');
+
+    if (pedido.alertaDonoEnviadoEm) return { ok: true, estado: 'ja_avisado' };
+
+    const numero = pedido.orderNumber || pedido.id;
+    const cliente = pedido.customerName || 'Cliente';
+    const telefone = pedido.customerPhone || '(sem telefone)';
+
+    const texto = `⚠️ *Pagamento para conferir*\n\n`
+      + `Pedido: ${numero}\n`
+      + `Cliente: ${cliente}\n`
+      + `WhatsApp: ${telefone}\n`
+      + `Situação: ${motivo}\n\n`
+      + `O cliente diz que pagou, mas a Efí não confirma. Precisa de conferência manual.`;
+
+    await sendWApiTextMessage(numeroDoDono(env), texto, env);
+    await updateOrder(pedido.id, { alertaDonoEnviadoEm: new Date().toISOString() }, env).catch(() => {});
+
+    return { ok: true, estado: 'avisado' };
+  } catch (err) {
+    console.warn('[agentTools] Falha ao avisar o dono:', err.message);
+    return { ok: false, motivo: 'falha_no_envio' };
   }
 }
 
