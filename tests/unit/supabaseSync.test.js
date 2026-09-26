@@ -1,5 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
-import { mapFirestoreOrderToSupabase, mapSupabaseOrderToFirestore, mapSupabaseTaskToFirestore, mirrorOrderToSupabase, mirrorPaymentToSupabase } from '../../src/lib/supabaseSync.js';
+import {
+  mapFirestoreOrderToSupabase,
+  mapSupabaseOrderToFirestore,
+  mapSupabaseTaskToFirestore,
+  mapOrderUpdatesToSupabase,
+  mirrorOrderToSupabase,
+  mirrorPaymentToSupabase
+} from '../../src/lib/supabaseSync.js';
 
 describe('supabaseSync', () => {
   it('converte corretamente campos de snake_case do Postgres de volta para camelCase', () => {
@@ -107,5 +114,32 @@ describe('supabaseSync', () => {
     expect(mapped.provider).toBe('kie');
     expect(mapped.clipIds).toEqual(['clip-1', 'clip-2']);
     expect(mapped.result).toEqual(row.result);
+  });
+
+  it('mapOrderUpdatesToSupabase preserva campos não colunas (paymentIntentId, pixCopiedAt) em _extraFields', () => {
+    const updates = {
+      paymentStatus: 'PAGAMENTO_APROVADO',
+      paidAt: '2026-09-26T20:00:00.000Z',
+      paymentIntentId: 'txid_efi_1234567890',
+      paymentIntentSku: 'audio_only',
+      pixCopiedAt: '2026-09-26T19:59:00.000Z',
+      pixCopiedCount: 2,
+      previousPaymentIntentIds: ['txid_antigo_001']
+    };
+
+    const mapped = mapOrderUpdatesToSupabase(updates);
+
+    // Colunas diretas mapeadas
+    expect(mapped.payment_status).toBe('PAGAMENTO_APROVADO');
+    expect(mapped.paid_at).toBe('2026-09-26T20:00:00.000Z');
+    expect(mapped.updated_at).toBeDefined();
+
+    // Campos extras mapeados para _extraFields
+    expect(mapped._extraFields).toBeDefined();
+    expect(mapped._extraFields.paymentIntentId).toBe('txid_efi_1234567890');
+    expect(mapped._extraFields.paymentIntentSku).toBe('audio_only');
+    expect(mapped._extraFields.pixCopiedAt).toBe('2026-09-26T19:59:00.000Z');
+    expect(mapped._extraFields.pixCopiedCount).toBe(2);
+    expect(mapped._extraFields.previousPaymentIntentIds).toEqual(['txid_antigo_001']);
   });
 });

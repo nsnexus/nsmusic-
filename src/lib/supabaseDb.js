@@ -86,6 +86,28 @@ export async function updateOrder(orderId, updates = {}, env = {}) {
     if (supabase) {
       const sbUpdates = mapOrderUpdatesToSupabase(normalizedUpdates);
       const isOrderNumber = typeof orderId === 'string' && orderId.startsWith('NS-');
+
+      if (sbUpdates._extraFields && Object.keys(sbUpdates._extraFields).length > 0) {
+        const extraFields = sbUpdates._extraFields;
+        delete sbUpdates._extraFields;
+
+        const { data: currentOrder } = await (isOrderNumber
+          ? supabase.from('orders').select('extras').eq('order_number', orderId).maybeSingle()
+          : supabase.from('orders').select('extras').eq('id', orderId).maybeSingle()
+        );
+
+        const currentExtras = (currentOrder?.extras && typeof currentOrder.extras === 'object')
+          ? currentOrder.extras
+          : {};
+
+        sbUpdates.extras = {
+          ...currentExtras,
+          ...extraFields
+        };
+      } else {
+        delete sbUpdates._extraFields;
+      }
+
       const query = isOrderNumber
         ? supabase.from('orders').eq('order_number', orderId)
         : supabase.from('orders').eq('id', orderId);

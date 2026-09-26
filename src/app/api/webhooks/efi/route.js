@@ -59,7 +59,21 @@ async function processPixItem(item, env) {
   if (!charge || charge.status !== 'CONCLUIDA') return;
 
   const transactionAmount = Number(charge.valor?.original);
-  const orderId = await findOrderIdByTxid(txid, env);
+  let orderId = await findOrderIdByTxid(txid, env);
+
+  if (!orderId && charge.solicitacaoPagador) {
+    const match = charge.solicitacaoPagador.match(/Pedido NS Music\s+([A-Za-z0-9_-]+)/i);
+    if (match && match[1]) {
+      const candidateId = match[1];
+      const { findOrderByIdOrNumber } = await import('@/lib/orderLookup');
+      const order = await findOrderByIdOrNumber(candidateId, env);
+      if (order?.id) {
+        orderId = order.id;
+        const { updateOrder } = await import('@/lib/supabaseDb');
+        await updateOrder(order.id, { paymentIntentId: txid }, env).catch(() => {});
+      }
+    }
+  }
 
   if (orderId) {
     await applyPaymentApproval(orderId, txid, { status: 'approved', transaction_amount: transactionAmount }, env);

@@ -246,9 +246,10 @@ export default function OrderDetailsAdmin() {
   // dá o mesmo resultado — na hora — sem abrir mão de checar de verdade: chama a mesma rota pública
   // que o polling do cliente usa, que só aprova depois de confirmar na Efí.
   const handleCheckPaymentNow = async () => {
-    let txid = order?.paymentIntentId || order?.paymentId || order?.txid;
-    if (!txid && Array.isArray(order?.previousPaymentIntentIds) && order.previousPaymentIntentIds.length > 0) {
-      txid = order.previousPaymentIntentIds[order.previousPaymentIntentIds.length - 1];
+    let txid = order?.paymentIntentId || order?.extras?.paymentIntentId || order?.paymentId || order?.extras?.paymentId || order?.txid;
+    const prevIds = order?.previousPaymentIntentIds || order?.extras?.previousPaymentIntentIds;
+    if (!txid && Array.isArray(prevIds) && prevIds.length > 0) {
+      txid = prevIds[prevIds.length - 1];
     }
     if (!txid) {
       txid = window.prompt('Este pedido ainda não tem identificador Pix (txid) registrado automaticamente. Se você tem o txid da cobrança na Efí, digite ou cole aqui:');

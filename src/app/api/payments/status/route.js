@@ -92,11 +92,26 @@ export async function GET(req) {
     // Também aceita um txid de uma cobrança anterior do MESMO pedido, já substituída por uma mais
     // nova (ver previousPaymentIntentIds em api/payments/create) — evita perder um pagamento
     // legítimo de uma cobrança antiga que o cliente pagou por engano (achado #4).
-    const previousTxids = Array.isArray(orderData?.previousPaymentIntentIds) ? orderData.previousPaymentIntentIds : [];
-    const txidBelongsToOrder = !!orderData && (
-      String(txid) === String(orderData.paymentIntentId || '') ||
-      previousTxids.some((id) => String(id) === String(txid))
+    const currentIntent = orderData?.paymentIntentId || orderData?.extras?.paymentIntentId;
+    const previousTxids = Array.isArray(orderData?.previousPaymentIntentIds || orderData?.extras?.previousPaymentIntentIds)
+      ? (orderData.previousPaymentIntentIds || orderData.extras?.previousPaymentIntentIds)
+      : [];
+
+    const orderIdPrefix = String(orderData?.id || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 15);
+    const matchesPrefix = orderIdPrefix.length >= 6 && String(txid).toUpperCase().startsWith(orderIdPrefix);
+
+    const matchesSolicitacao = !!charge?.solicitacaoPagador && (
+      charge.solicitacaoPagador.includes(String(orderData?.id || '')) ||
+      (orderData?.orderNumber && charge.solicitacaoPagador.includes(String(orderData.orderNumber)))
     );
+
+    const txidBelongsToOrder = !!orderData && (
+      (currentIntent && String(txid) === String(currentIntent)) ||
+      previousTxids.some((id) => String(id) === String(txid)) ||
+      matchesPrefix ||
+      matchesSolicitacao
+    );
+
     if (charge?.status === 'CONCLUIDA' && orderId && txidBelongsToOrder) {
       const transactionAmount = Number(charge.valor?.original);
       await applyPaymentApproval(orderId, txid, { status: 'approved', transaction_amount: transactionAmount }, env);

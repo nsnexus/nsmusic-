@@ -386,8 +386,16 @@ export function mapOrderUpdatesToSupabase(updates = {}) {
   const numKeys = new Set(['sunoGenerationCount', 'recoveryStage']);
 
   const result = {};
+  const extraFields = {};
+
   for (const [key, val] of Object.entries(updates)) {
     if (val === undefined) continue;
+
+    if (key === 'extras' && val && typeof val === 'object') {
+      Object.assign(extraFields, val);
+      continue;
+    }
+
     const col = COLUMN_MAP[key] || (Object.values(COLUMN_MAP).includes(key) ? key : null);
     if (col) {
       if (dateKeys.has(key) || col.endsWith('_at')) {
@@ -401,7 +409,13 @@ export function mapOrderUpdatesToSupabase(updates = {}) {
       } else {
         result[col] = val;
       }
+    } else {
+      extraFields[key] = (val instanceof Date) ? val.toISOString() : val;
     }
+  }
+
+  if (Object.keys(extraFields).length > 0) {
+    result._extraFields = extraFields;
   }
 
   if (!result.updated_at) {
