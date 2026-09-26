@@ -258,7 +258,11 @@ export async function findRecentOrderByPhone(phone, env = {}) {
       const { data, error } = await supabase
         .from('orders')
         .select('*')
-        .in('customer_phone', searchVariants)
+        // customer_phone_digits e coluna GERADA (so digitos) — ver supabase/correcoes.sql.
+        // O telefone chega formatado do site ("(31) 98241-4961") e em digitos do WhatsApp
+        // ("5531982414961"); comparar com a coluna crua fazia a busca nunca achar nada no
+        // Supabase e depender do fallback do Firestore para sempre (medido em 26/09/2026).
+        .in('customer_phone_digits', searchVariants.map((v) => String(v).replace(/\D/g, '')).filter(Boolean))
         .is('deleted_at', 'null')
         .neq('production_status', 'RASCUNHO')
         .neq('production_status', 'CONFIG')
