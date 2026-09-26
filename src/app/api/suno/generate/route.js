@@ -18,6 +18,22 @@ export async function POST(req) {
       if (ctx?.env) env = ctx.env;
     } catch (e) {}
 
+    if (orderId) {
+      try {
+        const { findOrderByIdOrNumber } = await import('@/lib/orderLookup');
+        const { isContactBlocked } = await import('@/lib/blocklist');
+        const order = await findOrderByIdOrNumber(orderId, env);
+        if (order) {
+          const block = await isContactBlocked(order.customerPhone, order.customerEmail, env);
+          if (block.blocked) {
+            return NextResponse.json({ error: 'Contato bloqueado para novas gerações na plataforma.' }, { status: 403 });
+          }
+        }
+      } catch (checkErr) {
+        console.warn('[suno/generate] Falha ao conferir bloqueio do pedido:', checkErr.message);
+      }
+    }
+
     // A chamada de fato à Kie.ai e a persistência do vínculo taskId->orderId vivem em
     // src/lib/suno.js — compartilhado com a retentativa automática (polling em tempo real e
     // reconciliação por cron), para as três nunca divergirem no que significa "gerar uma música".

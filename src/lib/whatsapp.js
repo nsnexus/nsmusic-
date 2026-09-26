@@ -8,6 +8,20 @@ const WAPI_BASE_URL = 'https://api.w-api.app/v1';
 const DEFAULT_INSTANCE_ID = 'LITE-34O7BP-59EWJO';
 const DEFAULT_TOKEN = 'xVm8wbENzXq1UAicisSshnAPGVQE6yedr';
 
+export const getEvolutionConfig = (env = {}) => {
+  let ctxEnv = {};
+  try {
+    const ctx = getRequestContext();
+    if (ctx?.env) ctxEnv = ctx.env;
+  } catch (e) {}
+
+  const baseUrl = (env.EVOLUTION_API_URL || ctxEnv.EVOLUTION_API_URL || process.env.EVOLUTION_API_URL || '').replace(/\/$/, '');
+  const instanceName = env.EVOLUTION_INSTANCE_NAME || ctxEnv.EVOLUTION_INSTANCE_NAME || process.env.EVOLUTION_INSTANCE_NAME || '';
+  const token = env.EVOLUTION_API_KEY || ctxEnv.EVOLUTION_API_KEY || process.env.EVOLUTION_API_KEY || '';
+
+  return { baseUrl, instanceName, token, enabled: Boolean(baseUrl && instanceName && token) };
+};
+
 export const getWApiConfig = (env = {}) => {
   let ctxEnv = {};
   try {
@@ -25,9 +39,33 @@ export const getWApiConfig = (env = {}) => {
  * Simula status de presença ("composing" = digitando..., "recording" = gravando áudio...)
  */
 export const sendWApiPresence = async (phone, presence = 'composing', env = {}) => {
-  const { instanceId, token, baseUrl } = getWApiConfig(env);
   const formattedNumber = formatToWhatsAppNumber(phone);
-  if (!formattedNumber || !instanceId || !token) return;
+  if (!formattedNumber) return;
+
+  // 1. Tenta Evolution API (VPS)
+  const evoConfig = getEvolutionConfig(env);
+  if (evoConfig.enabled) {
+    try {
+      await fetch(`${evoConfig.baseUrl}/chat/sendPresence/${evoConfig.instanceName}`, {
+        method: 'POST',
+        headers: {
+          'apikey': evoConfig.token,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          number: formattedNumber,
+          presence: presence,
+          delay: 1200,
+        }),
+        signal: AbortSignal.timeout(4000),
+      }).catch(() => {});
+      return;
+    } catch (e) {}
+  }
+
+  // 2. Fallback W-API
+  const { instanceId, token, baseUrl } = getWApiConfig(env);
+  if (!instanceId || !token) return;
 
   try {
     await fetch(`${baseUrl}/message/send-presence?instanceId=${instanceId}`, {
@@ -46,17 +84,80 @@ export const sendWApiPresence = async (phone, presence = 'composing', env = {}) 
 };
 
 /**
- * Envia uma mensagem de texto simples via W-API
+ * Envia uma mensagem de texto via Evolution API (VPS própria)
  */
-export const sendWApiTextMessage = async (phone, message, env = {}) => {
-  const { instanceId, token, baseUrl } = getWApiConfig(env);
+export const sendEvolutionTextMessage = async (phone, message, env = {}) => {
+  const { baseUrl, instanceName, token, enabled } = getEvolutionConfig(env);
   const formattedNumber = formatToWhatsAppNumber(phone);
 
+  if (!formattedNumber || !enabled) {
+    return { success: false, error: 'Evolution API não configurado ou número inválido.' };
+  }
+
+  const numbersToSend = [formattedNumber];
+  if (formattedNumber.startsWith('55') && formattedNumber.length === 13 && formattedNumber[4] === '9') {
+    const withoutNine = `${formattedNumber.substring(0, 4)}${formattedNumber.substring(5)}`;
+    numbersToSend.push(withoutNine);
+  }
+
+  let lastError = '';
+  for (let i = 0; i < numbersToSend.length; i++) {
+    const num = numbersToSend[i];
+    try {
+      console.log(`[Evolution API] Enviando mensagem (variante ${i + 1}/${numbersToSend.length})...`);
+      const res = await fetch(`${baseUrl}/message/sendText/${instanceName}`, {
+        method: 'POST',
+        headers: {
+          'apikey': token,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          number: num,
+          text: message,
+        }),
+        signal: AbortSignal.timeout(10000),
+      });
+
+      if (res.ok) {
+        console.log('[Evolution API] ✅ Mensagem enviada com sucesso pela VPS.');
+        return { success: true, provider: 'evolution', phoneUsed: num };
+      }
+
+      const errData = await res.json().catch(() => ({}));
+      lastError = JSON.stringify(errData?.response?.message || errData?.message || `HTTP ${res.status}`);
+      console.error(`[Evolution API] Erro ao enviar (variante ${i + 1}):`, res.status, lastError);
+    } catch (err) {
+      lastError = err.message;
+      console.error(`[Evolution API] Falha de rede (variante ${i + 1}):`, err.message);
+    }
+  }
+
+  return { success: false, error: lastError };
+};
+
+/**
+ * Envia mensagem de texto com prioridade na Evolution API (VPS) e fallback para W-API
+ */
+export const sendWApiTextMessage = async (phone, message, env = {}) => {
+  const formattedNumber = formatToWhatsAppNumber(phone);
   if (!formattedNumber) {
     return { success: false, error: 'Telefone inválido ou não informado.' };
   }
+
+  // 1. Tenta Evolution API (VPS própria) primeiro se configurada
+  const evoConfig = getEvolutionConfig(env);
+  if (evoConfig.enabled) {
+    const evoResult = await sendEvolutionTextMessage(phone, message, env);
+    if (evoResult.success) {
+      return evoResult;
+    }
+    console.warn('[WhatsApp] Falha no envio via Evolution API VPS. Acionando fallback W-API...', evoResult.error);
+  }
+
+  // 2. Fallback W-API
+  const { instanceId, token, baseUrl } = getWApiConfig(env);
   if (!instanceId || !token) {
-    return { success: false, error: 'W-API não configurado.' };
+    return { success: false, error: 'Nenhum provedor WhatsApp ativo (Evolution / W-API não configurados).' };
   }
 
   const numbersToSend = [formattedNumber];

@@ -1012,10 +1012,13 @@ export default function CriarMusica() {
               }
             }
           } else if (orderRes.status === 403) {
-            // Trava de músicas grátis reforçada no servidor (ver A-11) — o cliente já verifica isso
-            // antes de chegar aqui, mas se ainda assim for bloqueado, não prossegue para gerar a letra.
+            const errData = await orderRes.json().catch(() => ({}));
             updateField('lyricsStatus', 'idle');
-            setShowLimitModal(true);
+            if (errData?.blocked) {
+              alert(errData.error || 'Este contato foi bloqueado para novas gerações na plataforma. Entre em contato com o suporte.');
+            } else {
+              setShowLimitModal(true);
+            }
             return;
           }
         } catch (orderErr) {
@@ -1144,8 +1147,13 @@ export default function CriarMusica() {
               setOrderId(createData.orderId);
             }
           } else if (createRes.status === 403) {
+            const errData = await createRes.json().catch(() => ({}));
             updateField('sunoStatus', 'idle');
-            setShowLimitModal(true);
+            if (errData?.blocked) {
+              alert(errData.error || 'Este contato foi bloqueado para novas gerações na plataforma. Entre em contato com o suporte.');
+            } else {
+              setShowLimitModal(true);
+            }
             return;
           }
         } catch (e) {

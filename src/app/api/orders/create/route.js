@@ -17,17 +17,22 @@ export const runtime = 'edge';
 // A trava tem que viver aqui: só existia no cliente (criar/page.jsx:checkUserLimit) e chamar esta
 // rota direto a ignorava (ver A-11 no AUDIT_REPORT.md). O localStorage do navegador é contador de
 // conveniência de tela, nunca a trava.
+import { isContactBlocked } from '@/lib/blocklist';
+
 export async function isBlockedByFreeLimit(phone, email) {
   // 1. Tenta consulta no Supabase (se configurado)
   const supabase = getSupabaseEdge();
   if (supabase) {
     try {
       const orParts = [];
-      if (phone && phone.replace(/\D/g, '').length >= 10) {
+      const digits = phone ? phone.replace(/\D/g, '') : '';
+      if (digits.length >= 10) {
         orParts.push(`customer_phone.eq.${phone}`);
+        if (digits !== phone) orParts.push(`customer_phone.eq.${digits}`);
+        orParts.push(`customer_phone.ilike.*${digits.slice(-8)}*`);
       }
       if (email && email.includes('@')) {
-        orParts.push(`customer_email.eq.${email}`);
+        orParts.push(`customer_email.eq.${email.trim().toLowerCase()}`);
       }
 
       if (orParts.length > 0) {
@@ -59,10 +64,21 @@ export async function isBlockedByFreeLimit(phone, email) {
   if (phone && phone.replace(/\D/g, '').length >= 10) {
     const snap = await getDocs(query(ordersRef, where('customerPhone', '==', phone))).catch(() => null);
     if (snap) snap.forEach((d) => { if (!d.data().deletedAt) matches.push(d.data()); });
+
+    const digits = phone.replace(/\D/g, '');
+    if (digits !== phone) {
+      const snapDigits = await getDocs(query(ordersRef, where('customerPhone', '==', digits))).catch(() => null);
+      if (snapDigits) {
+        snapDigits.forEach((d) => {
+          const data = d.data();
+          if (!data.deletedAt && !matches.some((o) => o.orderNumber === data.orderNumber)) matches.push(data);
+        });
+      }
+    }
   }
 
   if (email && email.includes('@')) {
-    const snap = await getDocs(query(ordersRef, where('customerEmail', '==', email))).catch(() => null);
+    const snap = await getDocs(query(ordersRef, where('customerEmail', '==', email.trim()))).catch(() => null);
     if (snap) {
       snap.forEach((d) => {
         const data = d.data();
@@ -95,6 +111,20 @@ export async function POST(req) {
       return NextResponse.json({ error: 'É necessário aceitar os Termos de Uso para continuar.' }, { status: 400 });
     }
 
+    // 1. Trava de bloqueio manual (Blacklist do administrador)
+    const manualBlock = await isContactBlocked(formData.customerPhone, formData.customerEmail, env);
+    if (manualBlock.blocked) {
+      return NextResponse.json(
+        {
+          error: 'Este contato foi bloqueado para novas gerações na plataforma. Entre em contato com o suporte para mais informações.',
+          blocked: true,
+          reason: manualBlock.reason || 'manual_block'
+        },
+        { status: 403 }
+      );
+    }
+
+    // 2. Trava de cota automática (5 grátis + 5 por compra)
     if (await isBlockedByFreeLimit(formData.customerPhone, formData.customerEmail)) {
       return NextResponse.json(
         { error: 'Você já usou todas as suas gerações. Finalize o pagamento de uma das músicas para liberar mais 5.' },

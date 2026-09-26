@@ -7,7 +7,7 @@ import { calcularCota } from '@/lib/cotaGeracoes';
 import { registrarResetDeCota, normalizarTelefone, idDoReset, lerTodosOsResets } from '@/lib/cotaReset';
 
 export const runtime = 'edge';
-export const dynamic = 'force-dynamic';
+import { getBlocklist, addBlockContact, removeBlockContact, obterVariacoesTelefone } from '@/lib/blocklist';
 
 // Quem estourou a cota de gerações, e o botão para liberar.
 //
@@ -95,6 +95,7 @@ async function carregarPedidos(env) {
   return porTelefone;
 }
 
+
 export async function GET(req) {
   let env = {};
   try {
@@ -108,23 +109,30 @@ export async function GET(req) {
   try {
     const porTelefone = await carregarPedidos(env);
     const bloqueados = [];
+    const topGeradores = [];
 
-    // Todos os resets numa consulta só. Ler documento por documento dentro do laço estourava o
-    // limite de subrequests do Worker com algumas centenas de clientes, e a aba inteira falhava
-    // (achado 25/09/2026, na primeira vez que foi aberta em produção).
-    const resets = await lerTodosOsResets();
+    // Todos os resets e a lista de bloqueados manuais numa tacada só
+    const [resets, blocklist] = await Promise.all([
+      lerTodosOsResets(),
+      getBlocklist(env).catch(() => []),
+    ]);
 
     for (const [telefone, pedidos] of porTelefone.entries()) {
       // Mesma conta do /api/orders/create — o painel não pode discordar da trava.
       const resetAt = resets.get(await idDoReset(telefone)) || '';
       const cota = calcularCota(pedidos, { resetAt });
-      if (!cota.bloqueado) continue;
 
       const maisRecente = pedidos.reduce((a, b) => (
         (Date.parse(b.createdAt || '') || 0) > (Date.parse(a.createdAt || '') || 0) ? b : a
       ), pedidos[0]);
 
-      bloqueados.push({
+      // Verifica se este telefone está manualmente bloqueado
+      const phoneVars = obterVariacoesTelefone(telefone);
+      const manualItem = blocklist.find(
+        (b) => b.type === 'phone' && phoneVars.some((v) => obterVariacoesTelefone(b.value).includes(v))
+      );
+
+      const clienteInfo = {
         telefone,
         nome: maisRecente?.customerName || '',
         usados: cota.usados,
@@ -132,16 +140,34 @@ export async function GET(req) {
         pagos: cota.pagos,
         ultimoPedidoEm: maisRecente?.createdAt || null,
         resetAt: resetAt || null,
-      });
+        bloqueadoCota: cota.bloqueado,
+        bloqueadoManual: Boolean(manualItem),
+        motivoBloqueio: manualItem?.reason || null,
+        bloqueadoEm: manualItem?.blockedAt || null,
+      };
+
+      if (cota.bloqueado) {
+        bloqueados.push(clienteInfo);
+      }
+
+      // Quem gerou 2 ou mais músicas (ou já está bloqueado) entra no ranking de maiores geradores
+      if (cota.usados >= 2 || manualItem) {
+        topGeradores.push(clienteInfo);
+      }
     }
 
     bloqueados.sort((a, b) => (Date.parse(b.ultimoPedidoEm || '') || 0) - (Date.parse(a.ultimoPedidoEm || '') || 0));
+    topGeradores.sort((a, b) => b.usados - a.usados);
 
-    return NextResponse.json({ bloqueados, telefonesAnalisados: porTelefone.size, dias: DIAS_DE_VARREDURA });
+    return NextResponse.json({
+      bloqueados,
+      topGeradores: topGeradores.slice(0, 50),
+      blocklist,
+      telefonesAnalisados: porTelefone.size,
+      dias: DIAS_DE_VARREDURA,
+    });
   } catch (error) {
     console.error('[admin/cotas] Erro ao listar bloqueados:', error.message);
-    // Mensagem com o motivo real: o generico "Falha na requisicao" na tela nao dizia nada e custou
-    // uma ida e volta so para descobrir o que tinha quebrado (25/09/2026).
     return NextResponse.json({ error: `Falha ao listar os limites: ${error.message}` }, { status: 500 });
   }
 }
@@ -158,6 +184,28 @@ export async function POST(req) {
 
   try {
     const body = await req.json().catch(() => ({}));
+    const action = body?.action || 'reset';
+
+    // Ação: Bloquear pessoa manualmente
+    if (action === 'block') {
+      const res = await addBlockContact({
+        phone: body?.telefone,
+        email: body?.email,
+        name: body?.nome || body?.name || '',
+        reason: body?.motivo || body?.reason || 'Bloqueio manual de geração excessiva',
+        blockedBy: auth.email || auth.uid || 'admin',
+      }, env);
+      return NextResponse.json(res);
+    }
+
+    // Ação: Desbloquear pessoa
+    if (action === 'unblock') {
+      const idOuValor = body?.id || body?.telefone || body?.email;
+      const res = await removeBlockContact(idOuValor, env);
+      return NextResponse.json(res);
+    }
+
+    // Ação padrão: Resetar cota automática do telefone
     const telefone = normalizarTelefone(body?.telefone);
     if (!telefone || telefone.length < 10) {
       return NextResponse.json({ error: 'Telefone inválido.' }, { status: 400 });
@@ -170,7 +218,7 @@ export async function POST(req) {
 
     return NextResponse.json({ ok: true, resetAt: resultado.resetAt });
   } catch (error) {
-    console.error('[admin/cotas] Erro ao resetar cota:', error.message);
-    return NextResponse.json({ error: 'Falha ao resetar o limite.' }, { status: 500 });
+    console.error('[admin/cotas] Erro ao processar limite/bloqueio:', error.message);
+    return NextResponse.json({ error: error.message || 'Falha ao processar solicitação.' }, { status: 500 });
   }
 }
