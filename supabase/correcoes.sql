@@ -17,12 +17,9 @@ alter table orders
 
 create index if not exists orders_phone_digits_idx on orders (customer_phone_digits);
 
--- Mesma coisa para o telefone do remetente no WhatsApp, usado na busca reversa.
-alter table orders
-  add column if not exists whatsapp_sender_digits text
-  generated always as (regexp_replace(coalesce(whatsapp_sender_phone, ''), '[^0-9]', '', 'g')) stored;
-
-create index if not exists orders_sender_digits_idx on orders (whatsapp_sender_digits);
+-- NOTA: whatsapp_sender_phone NAO existe no Supabase (o espelhamento nao trouxe esse campo, e
+-- so 2 pedidos recentes o tinham no Firestore). A busca reversa por ele segue valendo apenas no
+-- Firestore; quando virar necessidade, a coluna precisa ser criada e preenchida antes.
 
 -- ============================================================================
 -- 2. DOCUMENTOS DE SISTEMA espelhados como pedidos
