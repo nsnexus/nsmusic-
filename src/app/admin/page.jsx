@@ -482,22 +482,44 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleAuditPayments = async (aplicar = false) => {
+  const handleAuditPayments = async (aplicar = false, nextOffset = 0) => {
     if (aplicar && !confirm('Confirmar e liberar TODOS os pagamentos encontrados nesta varredura?')) return;
 
     setAuditing(true);
-    if (!aplicar) setAuditResult(null);
+    if (!aplicar && nextOffset === 0) setAuditResult(null);
     try {
       const idToken = await auth.currentUser?.getIdToken();
-      const params = new URLSearchParams({ dias: String(auditDias) });
+      const params = new URLSearchParams({
+        dias: String(auditDias),
+        offset: String(nextOffset)
+      });
       if (auditSoCopiaram) params.set('pixCopiado', 'true');
+
+      const bodyPayload = (aplicar && auditResult?.itens?.length) ? JSON.stringify({ itens: auditResult.itens }) : undefined;
 
       const res = await fetch(`/api/orders/audit-payments?${params}`, {
         method: aplicar ? 'POST' : 'GET',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+        body: bodyPayload,
       });
       const data = await res.json().catch(() => ({}));
-      setAuditResult(res.ok ? data : { error: data.error || 'Falha na varredura.' });
+      if (res.ok) {
+        if (nextOffset > 0 && auditResult && !aplicar) {
+          const combinedItens = [...(auditResult.itens || []), ...(data.itens || [])];
+          setAuditResult({
+            ...data,
+            itens: combinedItens,
+            pagosNaoLiberados: combinedItens.length,
+            valorTotal: Number(combinedItens.reduce((s, p) => s + (p.valor || 0), 0).toFixed(2)),
+            verificados: (auditResult.verificados || 0) + data.verificados,
+            totalVerificadosAteAgora: data.totalVerificadosAteAgora
+          });
+        } else {
+          setAuditResult(data);
+        }
+      } else {
+        setAuditResult({ error: data.error || 'Falha na varredura.' });
+      }
     } catch (e) {
       setAuditResult({ error: 'Falha de conexão na varredura.' });
     } finally {
@@ -1271,7 +1293,7 @@ export default function AdminDashboard() {
 
                   <button
                     type="button"
-                    onClick={() => handleAuditPayments(false)}
+                    onClick={() => handleAuditPayments(false, 0)}
                     disabled={auditing}
                     className="btn btn-primary"
                     style={{ padding: '11px 20px', fontSize: '0.9rem', fontWeight: '700', opacity: auditing ? 0.6 : 1, cursor: auditing ? 'wait' : 'pointer' }}
@@ -1293,8 +1315,29 @@ export default function AdminDashboard() {
                         {auditResult.pagosNaoLiberados > 0 ? ` (R$ ${auditResult.valorTotal.toFixed(2).replace('.', ',')})` : ''}.
                       </strong>
                       {auditResult.naoVerificados > 0 && (
-                        <div style={{ marginTop: '4px', fontWeight: '500' }}>
-                          {auditResult.naoVerificados} ficaram fora do limite desta execução — rode de novo para conferir o restante.
+                        <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px dashed #cbd5e1' }}>
+                          <p style={{ fontWeight: '600', marginBottom: '8px' }}>
+                            ⚠️ {auditResult.naoVerificados} cobrança(s) ainda não foram conferidas neste período.
+                          </p>
+                          {auditResult.proximoOffset !== null && (
+                            <button
+                              type="button"
+                              onClick={() => handleAuditPayments(false, auditResult.proximoOffset)}
+                              disabled={auditing}
+                              style={{
+                                padding: '8px 16px',
+                                backgroundColor: '#2563eb',
+                                color: '#ffffff',
+                                border: 'none',
+                                borderRadius: '8px',
+                                fontWeight: '700',
+                                fontSize: '0.85rem',
+                                cursor: auditing ? 'wait' : 'pointer'
+                              }}
+                            >
+                              {auditing ? '⏳ Conferindo próximo lote...' : `⏭️ Conferir próximo lote (${Math.min(60, auditResult.naoVerificados)} de ${auditResult.naoVerificados} restantes)`}
+                            </button>
+                          )}
                         </div>
                       )}
 

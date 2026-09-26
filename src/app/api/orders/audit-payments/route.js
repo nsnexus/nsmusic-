@@ -93,6 +93,7 @@ async function executar(req, env, aplicar) {
   const { searchParams } = new URL(req.url);
   const dias = Math.min(Math.max(Number(searchParams.get('dias')) || 7, 1), 30);
   const somenteCopiaram = searchParams.get('pixCopiado') === 'true';
+  const offset = Math.max(0, Number(searchParams.get('offset')) || 0);
 
   const supabase = getSupabaseEdge(env);
   if (!supabase) {
@@ -101,12 +102,14 @@ async function executar(req, env, aplicar) {
 
   let orders = [];
   try {
+    const sinceIso = new Date(Date.now() - dias * 86400000).toISOString();
     const { data, error } = await supabase
       .from('orders')
       .select('*')
       .is('deleted_at', null)
+      .gte('created_at', sinceIso)
       .order('created_at', { ascending: false })
-      .limit(MAX_ORDERS_LIDOS);
+      .limit(1000);
 
     if (error) throw error;
     orders = (data || []).map(mapSupabaseOrderToFirestore);
@@ -118,40 +121,54 @@ async function executar(req, env, aplicar) {
   let candidatos = levantarCandidatos(orders, dias);
   if (somenteCopiaram) candidatos = candidatos.filter((c) => c.pixCopiedAt);
 
-  const aVerificar = candidatos.slice(0, MAX_CONSULTAS_EFI);
+  const totalCandidatos = candidatos.length;
+  const aVerificar = candidatos.slice(offset, offset + MAX_CONSULTAS_EFI);
+  const verificadosNestaRodada = aVerificar.length;
+  const totalVerificadosAteAgora = Math.min(totalCandidatos, offset + verificadosNestaRodada);
+  const restantes = Math.max(0, totalCandidatos - totalVerificadosAteAgora);
+  const proximoOffset = restantes > 0 ? totalVerificadosAteAgora : null;
+
   const pagos = [];
   const erros = [];
 
-  for (const c of aVerificar) {
-    try {
-      const charge = await getChargeStatus(c.txid, env);
-      if (charge?.status !== 'CONCLUIDA') continue;
+  // Processa em lotes paralelos de 5 consultas para velocidade sem sobrecarregar
+  const BATCH_SIZE = 5;
+  for (let i = 0; i < aVerificar.length; i += BATCH_SIZE) {
+    const chunk = aVerificar.slice(i, i + BATCH_SIZE);
+    await Promise.all(chunk.map(async (c) => {
+      try {
+        const charge = await getChargeStatus(c.txid, env);
+        if (charge?.status !== 'CONCLUIDA') return;
 
-      const valor = Number(charge.valor?.original);
-      const item = { ...c, valor, pagoEm: charge.pix?.[0]?.horario || null, aprovado: false };
+        const valor = Number(charge.valor?.original);
+        const item = { ...c, valor, pagoEm: charge.pix?.[0]?.horario || null, aprovado: false };
 
-      if (aplicar) {
-        try {
-          await applyPaymentApproval(c.orderId, c.txid, { status: 'approved', transaction_amount: valor }, env);
-          item.aprovado = true;
-        } catch (errAprov) {
-          console.warn(`[audit-payments] Falha ao aprovar ${c.orderId}:`, errAprov.message);
-          item.erroAprovacao = true;
+        if (aplicar) {
+          try {
+            await applyPaymentApproval(c.orderId, c.txid, { status: 'approved', transaction_amount: valor }, env);
+            item.aprovado = true;
+          } catch (errAprov) {
+            console.warn(`[audit-payments] Falha ao aprovar ${c.orderId}:`, errAprov.message);
+            item.erroAprovacao = true;
+          }
         }
+        pagos.push(item);
+      } catch (err) {
+        erros.push({ orderId: c.orderId, txid: c.txid });
       }
-      pagos.push(item);
-    } catch (err) {
-      erros.push({ orderId: c.orderId, txid: c.txid });
-    }
+    }));
   }
 
   return NextResponse.json({
     dias,
     somenteCopiaram,
     aplicado: aplicar,
-    candidatos: candidatos.length,
-    verificados: aVerificar.length,
-    naoVerificados: Math.max(0, candidatos.length - aVerificar.length),
+    offset,
+    totalCandidatos,
+    verificados: verificadosNestaRodada,
+    totalVerificadosAteAgora,
+    naoVerificados: restantes,
+    proximoOffset,
     errosConsulta: erros.length,
     pagosNaoLiberados: pagos.length,
     valorTotal: Number(pagos.reduce((s, p) => s + (p.valor || 0), 0).toFixed(2)),
@@ -187,6 +204,25 @@ export async function POST(req) {
 
     const auth = await authorize(req, env);
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
+    const body = await req.json().catch(() => null);
+    if (Array.isArray(body?.itens) && body.itens.length > 0) {
+      const aplicados = [];
+      for (const it of body.itens) {
+        try {
+          await applyPaymentApproval(it.orderId, it.txid, { status: 'approved', transaction_amount: it.valor }, env);
+          aplicados.push({ ...it, aprovado: true });
+        } catch (err) {
+          console.warn(`[audit-payments] Falha ao aprovar ${it.orderId}:`, err.message);
+          aplicados.push({ ...it, aprovado: false, erroAprovacao: true });
+        }
+      }
+      return NextResponse.json({
+        aplicado: true,
+        itens: aplicados,
+        pagosNaoLiberados: aplicados.filter((i) => !i.aprovado).length,
+      });
+    }
 
     return await executar(req, env, true);
   } catch (error) {
