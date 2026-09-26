@@ -460,17 +460,21 @@ export async function POST(req) {
 
     // Quando a mensagem foi enviada por nós mesmos (fromMe: true), detectamos intervenção humana
     if (body.fromMe === true || body.data?.key?.fromMe === true || body.key?.fromMe === true) {
-      if (senderPhone) {
+      // O telefone do cliente que está sendo atendido é o chat.id / remoteJid, nunca o sender.id (estúdio)
+      const chatPhone = body.chat?.id || body.chat?.phone || body.data?.chat?.id || body.data?.key?.remoteJid || body.key?.remoteJid;
+      const targetPhone = chatPhone ? cleanWhatsAppId(chatPhone) : senderPhone;
+
+      if (targetPhone) {
         const lower = (messageText || '').toLowerCase();
         // Se o atendente humano enviou comando explícito para reativar o bot:
         if (lower.includes('#ia') || lower.includes('#bot') || lower.includes('#ligar')) {
-          await resumeAgentForPhone(senderPhone);
+          await resumeAgentForPhone(targetPhone);
           return NextResponse.json({ success: true, action: 'agent_resumed_by_human' }, { status: 200 });
         }
 
         // Caso contrário, qualquer mensagem enviada manualmente pelo WhatsApp pausa a IA automaticamente para este cliente:
-        await pauseAgentForPhone(senderPhone);
-        console.log('[WhatsApp Webhook] fromMe detectado — IA pausada (intervenção humana).');
+        await pauseAgentForPhone(targetPhone);
+        console.log('[WhatsApp Webhook] fromMe detectado — IA pausada para cliente:', targetPhone);
       }
       return NextResponse.json({ success: true, ignored: 'from_me_human_takeover' }, { status: 200 });
     }
@@ -568,15 +572,35 @@ export async function POST(req) {
           return NextResponse.json({ success: true, ignored: 'already_notified_short_ack_silence' }, { status: 200 });
         }
 
-        // Mesmo COM ID explícito: não repete um template recém-enviado (ver
-        // TEMPLATE_RESEND_COOLDOWN_MS) — vale para qualquer um dos três, já que todos entregam o
-        // mesmo link e o cliente veria duas mensagens praticamente iguais. `readyTemplateSending`
-        // cobre o envio em andamento AGORA (reservado abaixo) — sem timestamp ainda, porque o envio
-        // pode não ter terminado.
-        const recentlySent = sentWithinCooldown(freshData.readyTemplateSentAt)
-          || sentWithinCooldown(freshData.whatsappSentAt)
-          || sentWithinCooldown(freshData.paymentWhatsappSentAt)
-          || isSendingInProgress(freshData);
+        // Se há um envio em andamento neste exato momento (janela de até 60s), evita disparo duplicado concorrente:
+        if (isSendingInProgress(freshData)) {
+          return NextResponse.json({ success: true, ignored: 'sending_in_progress' }, { status: 200 });
+        }
+
+        // Se o cliente enviou uma mensagem com dúvida ou suporte (não só o clique automático do botão),
+        // atende primeiro com o suporte inteligente antes de disparar o template fixo:
+        const isDefaultSiteButtonText = messageText.includes('Quero receber a prévia da música do meu pedido');
+        if (!isShortAck && !isDefaultSiteButtonText) {
+          try {
+            const { tentarAtenderSuporte } = await import('@/lib/agentSuporte');
+            const suporte = await tentarAtenderSuporte(senderPhone, messageText, envVars);
+            if (suporte?.atendido) {
+              await sendWApiTextMessage(senderPhone, suporte.resposta, envVars);
+              if (suporte.entregarHumano) await pauseAgentForPhone(senderPhone);
+              return NextResponse.json({ success: true, action: 'suporte_atendeu' }, { status: 200 });
+            }
+          } catch (supErr) {
+            console.warn('[WhatsApp Webhook] Falha ao tentar suporte para pedido existente:', supErr.message);
+          }
+        }
+
+        // Se for o clique explícito com o ID, dedup curto (15s) para evitar clique duplo acidental.
+        // A notificação automática de música pronta disparada pelo worker (whatsappSentAt) NUNCA bloqueia
+        // o cliente que ativamente clica no botão do site.
+        const EXPLICIT_CLICK_COOLDOWN_MS = 15000;
+        const recentlySent = isExplicitId
+          ? (freshData.readyTemplateSentAt && (Date.now() - Date.parse(freshData.readyTemplateSentAt) < EXPLICIT_CLICK_COOLDOWN_MS))
+          : (sentWithinCooldown(freshData.readyTemplateSentAt) || sentWithinCooldown(freshData.whatsappSentAt) || sentWithinCooldown(freshData.paymentWhatsappSentAt));
 
         if (recentlySent) {
           console.log(`[WhatsApp Webhook] Template de música pronta enviado (ou sendo enviado) há pouco para o pedido #${matchedOrderId} — não repete.`);
@@ -653,8 +677,10 @@ ${deliveryUrl}
         return NextResponse.json({ success: true, action: 'sent_ready_link' }, { status: 200 });
       } else {
         // A música ainda está sendo gerada pela IA:
-        // Não repete se já avisou dentro do cooldown de 10 min
-        if (sentWithinCooldown(matchedOrder.whatsappWaitAckSentAt)) {
+        // Se o cliente clicou explicitamente, dedup curto de 15s para evitar envio duplo de clique rápido:
+        const waitCooldownMs = isExplicitId ? 15000 : TEMPLATE_RESEND_COOLDOWN_MS;
+        const waitSentAt = Date.parse(matchedOrder.whatsappWaitAckSentAt || '');
+        if (!Number.isNaN(waitSentAt) && Date.now() - waitSentAt < waitCooldownMs) {
           console.log(`[WhatsApp Webhook] Aviso de espera enviado há pouco para o pedido #${matchedOrderId} — não repete.`);
           return NextResponse.json({ success: true, ignored: 'wait_ack_cooldown' }, { status: 200 });
         }

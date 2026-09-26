@@ -289,27 +289,35 @@ Ou me conta agora mesmo: pra quem vai ser essa música, e um pouco da história 
   // 4. Carrega sessão atual
   let session = await loadSession(cleanPhone);
 
-  // Se o atendimento foi assumido por um atendente humano, a IA permanece 100% em silêncio
-  if (session?.humanTakeover === true) {
-    console.log(`[WhatsApp Agent] Chat com ${cleanPhone} está em atendimento humano. IA em silêncio.`);
-    return false;
-  }
-
-  // Se não tem sessão ativa, verifica se a mensagem é um gatilho de início de atendimento.
-  //
-  // ACHADO 03/09/2026: a lista de substrings fixos ("fazer uma música", "quero uma música" etc.)
-  // não pega frases naturais com uma palavra a mais no meio — "quero fazer uma NOVA música" não
-  // contém "fazer uma música" como substring (por causa do "nova" inserido), então a mensagem mais
-  // óbvia possível pra pedir uma música nova caía direto no silêncio (`return false`, nem log).
-  // Trocado pela mesma ideia num regex tolerante a palavras no meio (até 20 caracteres), que cobre
-  // "quero/gostaria/fazer/criar ... música/musica" em qualquer ordem de frase plausível.
+  // Gatilhos de início de conversa (inclui cumprimentos comuns se o bot estiver ativo)
   const isTriggerMessage =
     textLower.includes('site da nsmusic') ||
     textLower.includes('vim pelo site') ||
     textLower.includes('informações') ||
+    textLower.includes('informacao') ||
     textLower.includes('como funciona') ||
     textLower.includes('quanto custa') ||
+    textLower.includes('preco') ||
+    textLower.includes('preço') ||
+    textLower.includes('valor') ||
+    /^(oi|ola|olá|oii|oiii|bom dia|boa tarde|boa noite|opa|salve)[\s!.,?]*$/i.test(textLower) ||
     /(criar|fazer|quero|queria|gostaria|preciso).{0,20}(musica|música)/.test(textLower);
+
+  // Se o atendimento foi assumido por um atendente humano:
+  if (session?.humanTakeover === true) {
+    const pausedAtTs = Date.parse(session.pausedAt || '');
+    const isOldTakeover = !Number.isNaN(pausedAtTs) && (Date.now() - pausedAtTs > 12 * 60 * 60 * 1000);
+    const isExplicitComeback = isTriggerMessage || textLower.includes('novo pedido');
+
+    if (isOldTakeover || isExplicitComeback) {
+      console.log(`[WhatsApp Agent] Chat com ${cleanPhone} reativado automaticamente (nova intenção ou >12h).`);
+      session.humanTakeover = false;
+      await saveSession(cleanPhone, { ...session, humanTakeover: false });
+    } else {
+      console.log(`[WhatsApp Agent] Chat com ${cleanPhone} está em atendimento humano. IA em silêncio.`);
+      return false;
+    }
+  }
 
   // ATENDIMENTO DE QUEM JÁ TEM PEDIDO.
   //

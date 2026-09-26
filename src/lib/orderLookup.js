@@ -97,7 +97,8 @@ export function isNewSongIntent(text) {
     lower.includes('começar de novo') ||
     lower.includes('comecar de novo') ||
     lower.includes('#ia') ||
-    lower.includes('#bot')
+    lower.includes('#bot') ||
+    /(criar|fazer|quero|queria|gostaria|preciso).{0,20}(musica|música)/i.test(lower)
   );
 }
 
