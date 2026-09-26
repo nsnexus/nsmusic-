@@ -49,7 +49,19 @@ export async function audioUrlSaudavel(url) {
     if (tipo && !tipo.startsWith('audio/') && !tipo.includes('octet-stream')) return false;
 
     const total = tamanhoTotal(res);
-    if (total === null) return false;
+    if (total === null) {
+      // Resposta streaming chunked (ex: audiostream.kie.ai sem Content-Length):
+      // confere se o stream responde com bytes reais de áudio
+      if (res.body) {
+        try {
+          const reader = res.body.getReader();
+          const { value } = await reader.read();
+          reader.cancel().catch(() => {});
+          if (value && value.byteLength > 0) return true;
+        } catch (e) {}
+      }
+      return false;
+    }
 
     return total >= MIN_AUDIO_BYTES;
   } catch (e) {

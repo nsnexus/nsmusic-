@@ -10,6 +10,7 @@ import { formatToWhatsAppNumber } from '@/lib/whatsappTemplates';
 import { AUDIO_CACHE_VERSION } from '@/lib/audioCacheVersion';
 import { hasPreviewTrackingData } from '@/lib/previewTracking';
 import { buildSunoPayload } from '@/lib/sunoPayload';
+import { buildAudioProxySrc } from '@/lib/audioProxy';
 import Link from 'next/link';
 import Image from 'next/image';
 
@@ -917,7 +918,7 @@ export default function OrderDetailsAdmin() {
                           <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#0f172a' }}>Versão {idx + 1} ({track.status})</span>
                           {track.audio_url ? (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                              <audio src={track.audio_url} controls style={{ width: '100%', height: '36px' }} />
+                              <audio src={buildAudioProxySrc(track.audio_url)} controls style={{ width: '100%', height: '36px' }} />
                               <button 
                                 type="button" 
                                 onClick={() => {

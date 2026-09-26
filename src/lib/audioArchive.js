@@ -61,9 +61,10 @@ export function origensParaArquivar(sourceUrl) {
 
   const id = uuid || uuidDeBase64;
   if (id) {
-    // Arquivo direto primeiro. O stream fica por último porque costuma vir vazio.
+    // Arquivo direto primeiro. Se tempfile responder 404 HTML, audiostream entrega os ~6 MB completos.
     candidatos.push(`https://tempfile.aiquickdraw.com/r/${id}.mp3`);
     candidatos.push(`https://file.aiquickdraw.com/r/${id}.mp3`);
+    candidatos.push(`https://audiostream.kie.ai/stream/${id}.mp3`);
   }
   candidatos.push(url);
 

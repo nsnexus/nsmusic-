@@ -128,9 +128,11 @@ export async function GET(req) {
       // que der pra derivar o UUID, e o musicfile fica só como reserva.
       const derivedUuid = formattedRaw.includes('musicfile.kie.ai') ? uuidFromKieBase64(formattedRaw) : '';
       if (derivedUuid) {
+        candidates.push(`https://audiostream.kie.ai/stream/${derivedUuid}.mp3`);
         candidates.push(`https://tempfile.aiquickdraw.com/r/${derivedUuid}.mp3`);
       }
       if (itemId) {
+        candidates.push(`https://audiostream.kie.ai/stream/${itemId}.mp3`);
         candidates.push(`https://tempfile.aiquickdraw.com/r/${itemId}.mp3`);
       }
 
@@ -159,6 +161,7 @@ export async function GET(req) {
     }
 
     if (itemId) {
+      candidates.push(`https://audiostream.kie.ai/stream/${itemId}.mp3`);
       try {
         const b64 = btoa(itemId);
         candidates.push(`https://musicfile.kie.ai/${b64}`);

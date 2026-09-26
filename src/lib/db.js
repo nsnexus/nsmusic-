@@ -120,20 +120,23 @@ export const extractAudioTracks = (result) => {
     const uuidMatch = rawCandidates.join(' ').match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
     const trackId = (t.id && /^[a-f0-9-]{36}$/i.test(t.id)) ? t.id : (uuidMatch ? uuidMatch[1] : (t.id || ''));
 
-    // Deriva a URL estável do tempfile quando há UUID e candidatos de áudio
-    const hasAudiostream = rawCandidates.some(u => u.includes('audiostream.kie.ai'));
-    const tempUrl = (trackId && (hasAudiostream || rawCandidates.length > 0) && /^[a-f0-9-]{36}$/i.test(trackId))
-      ? `https://tempfile.aiquickdraw.com/r/${trackId}.mp3`
+    // O arquivo MP3 estático e completo (~6 MB com CORS liberado) da Kie.ai fica em
+    // `https://audiostream.kie.ai/stream/<uuid>.mp3`. O domínio tempfile.aiquickdraw.com responde
+    // 404 HTML para faixas recentes (arquivo vazio). Priorizamos o stream que de fato entrega áudio.
+    const hasStream = rawCandidates.some(u => u.includes('audiostream.kie.ai') || u.includes('stream'));
+    const streamCandidate = (trackId && (hasStream || rawCandidates.length > 0) && /^[a-f0-9-]{36}$/i.test(trackId))
+      ? `https://audiostream.kie.ai/stream/${trackId}.mp3`
       : '';
 
     const urlCandidates = [
-      t.audio_url, t.audioUrl,
-      tempUrl,
-      t.source_audio_url, t.sourceAudioUrl,
       t.stream_audio_url, t.streamAudioUrl,
+      streamCandidate,
+      t.audio_url, t.audioUrl,
+      t.source_audio_url, t.sourceAudioUrl,
     ].filter((u) => typeof u === 'string' && u.trim());
 
-    let url = urlCandidates.find((u) => !u.includes('musicfile.kie.ai') && !u.includes('audiostream.kie.ai'))
+    let url = urlCandidates.find((u) => u.includes('audiostream.kie.ai'))
+      || urlCandidates.find((u) => !u.includes('musicfile.kie.ai') && !u.includes('tempfile.aiquickdraw.com'))
       || urlCandidates.find((u) => !u.includes('musicfile.kie.ai'))
       || urlCandidates[0] || '';
 
