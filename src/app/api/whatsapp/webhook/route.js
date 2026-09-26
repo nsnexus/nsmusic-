@@ -250,6 +250,16 @@ function sentWithinCooldown(sentAtIso) {
 
 // Verifica se há um envio em andamento neste exato momento (janela curta de até 60s).
 // Evita que um boolean legado ou falha de rede trave o pedido para sempre.
+// Mensagem de quem está cobrando a música que encomendou. Deliberadamente estreita: serve para
+// decidir se respondemos a um número que NÃO conseguimos associar a nenhum pedido, e responder
+// demais aí seria escrever para quem não pediu nada.
+function pareceCobrancaDeMusica(texto) {
+  const t = String(texto || '').toLowerCase();
+  if (!t.trim()) return false;
+  return /(previa|prévia|musica|música|audio|áudio|pedido|comprei|paguei|encomend)/.test(t)
+    && /(cade|cadê|onde|nao recebi|não recebi|nao chegou|não chegou|demora|demorando|ainda|quando|esperando|aguardando|sumiu|perdi)/.test(t);
+}
+
 function isSendingInProgress(orderData) {
   if (!orderData) return false;
   if (orderData.readyTemplateSendingAt) {
@@ -654,7 +664,31 @@ Assim que a renderização terminar, eu te envio os arquivos e o link direto aqu
       return NextResponse.json({ success: true, error: `agent_error: ${agentErr.message}` }, { status: 200 });
     }
 
-    // 3. Se não for gatilho de atendimento nem houver sessão ativa, ignora silenciosamente para não atrapalhar conversas pessoais
+    // 3. Cliente cobrando a música, mas não achamos o pedido dele.
+    //
+    // Acontece quando o WhatsApp entrega um LID no lugar do número (o identificador interno, com
+    // mais dígitos que um telefone brasileiro) — aí nenhuma das variantes bate com o customerPhone
+    // gravado no pedido e a mensagem morre em silêncio. Como o robô pode estar desligado no painel
+    // (estava, desde 15/09/2026), o cliente ficava sem resposta nenhuma enquanto a música existia.
+    //
+    // Esta resposta é fixa, não passa por IA e não depende do robô: só pede o dado que destrava a
+    // busca. Restrita a quem está claramente cobrando a música, para nunca escrever primeiro a
+    // quem não pediu nada (regra anti-ban do projeto: nada de mensagem a quem não iniciou conversa).
+    if (!matchedOrder && senderPhone && pareceCobrancaDeMusica(messageText)) {
+      try {
+        await sendWApiTextMessage(
+          senderPhone,
+          'Oi! Achei sua mensagem aqui, mas não localizei seu pedido por este número. 🙏\n\n'
+          + 'Me manda o *número do pedido* (aquele NS-... que aparece no site) ou o *link da sua página de entrega*, que eu te mando a música na hora.',
+          envVars
+        );
+        return NextResponse.json({ success: true, action: 'pediu_identificacao_do_pedido' }, { status: 200 });
+      } catch (e) {
+        console.warn('[WhatsApp Webhook] Falha ao pedir identificação do pedido:', e.message);
+      }
+    }
+
+    // 4. Se não for gatilho de atendimento nem houver sessão ativa, ignora silenciosamente para não atrapalhar conversas pessoais
     return NextResponse.json({ success: true, ignored: 'regular_conversation' }, { status: 200 });
 
   } catch (err) {
