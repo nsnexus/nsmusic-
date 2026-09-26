@@ -16,7 +16,7 @@ O NSMusic é uma plataforma de músicas personalizadas com IA (Suno AI via Kie.a
 
 ## 3. Regras Obrigatórias para Next.js
 - **Estilização**: NUNCA utilize classes do Tailwind CSS (ex: `flex`, `hidden`, `z-50`, `fixed`, `inset-0`). Usar apenas CSS inline e classes de `globals.css`.
-- NUNCA use `export const runtime = 'edge'` em páginas `'use client'`. Isso é válido APENAS para Route Handlers (rotas em `src/app/api/`).
+- NUNCA use `export const runtime = 'edge'` em páginas `'use client'` estáticas. Rotas dinâmicas (com segmento `[id]`) e todas as rotas API DEVEM ter `export const runtime = 'edge'` para o Cloudflare Pages.
 - Preferir Server Components quando a página não precisa de interatividade (ex: termos de uso, política de privacidade).
 - Usar `'use client'` apenas quando necessário (hooks, event handlers, browser APIs).
 - Não criar middleware que dependa de Node.js APIs (o runtime é Edge/Cloudflare).

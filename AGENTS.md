@@ -44,8 +44,7 @@ docs/               CODEBASE_MAP.md (índice) · ARCHITECTURE.md · audit/
 - Datas: sempre `new Date().toISOString()` (string ISO 8601).
 - Banco: operações via `@/lib/supabaseDb.js` ou `@/lib/supabase-edge.js`. Zero Firebase.
 - Armazenamento: Cloudflare R2 via binding `nsmusic_media` e `R2_PUBLIC_URL`.
-- Toda rota em `src/app/api/` precisa de `export const runtime = 'edge'`.
-- Nunca `export const runtime` em arquivo com `'use client'`.
+- Toda rota em `src/app/api/` e páginas dinâmicas com segmento `[id]` (como `/admin/pedidos/[id]`) precisam de `export const runtime = 'edge'` (exigência do `@cloudflare/next-on-pages`).
 - Português nas mensagens de UI e de erro.
 
 ## Regras obrigatórias
