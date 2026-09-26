@@ -794,11 +794,33 @@ export default function CriarMusica() {
             return;
           }
           try {
-            const fileName = `draft_${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
-            const fileRef = ref(storage, `covers/${fileName}`);
-            await uploadBytes(fileRef, blob);
-            const url = await getDownloadURL(fileRef);
+            // 1. Tenta upload direto no Cloudflare R2 (egress zero)
+            let url = null;
+            try {
+              const uploadData = new FormData();
+              uploadData.append('file', blob, 'cover.jpg');
+              const uploadRes = await fetch('/api/media/upload?folder=covers', {
+                method: 'POST',
+                body: uploadData
+              });
+              if (uploadRes.ok) {
+                const resJson = await uploadRes.json();
+                if (resJson?.url) url = resJson.url;
+              }
+            } catch (r2Err) {
+              console.warn('[criar] Falha no upload R2, caindo para Firebase:', r2Err.message);
+            }
+
+            // 2. Fallback no Firebase Storage
+            if (!url) {
+              const fileName = `draft_${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
+              const fileRef = ref(storage, `covers/${fileName}`);
+              await uploadBytes(fileRef, blob);
+              url = await getDownloadURL(fileRef);
+            }
+
             updateField('coverUrl', url);
+
           } catch (err) {
             console.error("Erro ao enviar capa para o Storage:", err);
             alert("Falha ao enviar a foto de capa. Tente novamente.");

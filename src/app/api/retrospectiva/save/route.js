@@ -30,6 +30,21 @@ function limparData(valor) {
   return /^\d{4}-\d{2}-\d{2}$/.test(str) ? str : '';
 }
 
+function isAllowedMediaUrl(u) {
+  if (typeof u !== 'string') return false;
+  const str = u.trim();
+  if (!str.startsWith('https://')) return false;
+  return (
+    str.startsWith('https://firebasestorage.googleapis.com/') ||
+    str.includes('.r2.dev') ||
+    str.includes('nsnexus.com.br') ||
+    str.includes('cloudflare') ||
+    str.includes('/retrospectiva/') ||
+    str.includes('/photos/') ||
+    str.includes('/slideshow/')
+  );
+}
+
 export async function POST(req) {
   try {
     const body = await req.json().catch(() => ({}));
@@ -42,13 +57,29 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Conteúdo da retrospectiva ausente.' }, { status: 400 });
     }
 
-    const orderRef = doc(db, 'orders', orderId);
-    const snap = await getDoc(orderRef);
-    if (!snap.exists()) {
+    let order = null;
+    let orderRef = null;
+    try {
+      orderRef = doc(db, 'orders', orderId);
+      const snap = await getDoc(orderRef);
+      if (snap.exists()) {
+        order = snap.data();
+      }
+    } catch (e) {
+      console.warn('[api/retrospectiva/save] Erro ao consultar Firestore:', e.message);
+    }
+
+    if (!order) {
+      try {
+        const { getOrder } = await import('@/lib/supabaseDb');
+        order = await getOrder(orderId);
+      } catch (e) {}
+    }
+
+    if (!order) {
       return NextResponse.json({ error: 'Pedido não encontrado.' }, { status: 404 });
     }
 
-    const order = snap.data();
     if (!order.hasRetrospectivaAccess && !order.retrospectivaAddonPaid) {
       return NextResponse.json({ error: 'Retrospectiva não liberada para este pedido.' }, { status: 403 });
     }
@@ -56,22 +87,19 @@ export async function POST(req) {
     const momentos = Array.isArray(retrospectiva.momentos) ? retrospectiva.momentos : [];
     const quiz = Array.isArray(retrospectiva.quiz) ? retrospectiva.quiz : [];
     // Fotos PRÓPRIAS da retrospectiva — independentes das fotos do Vídeo Homenagem
-    // (order.slideshowImages). Sem isso, quem não comprou o vídeo não tinha NENHUMA foto pra
-    // colocar na retrospectiva (achado 03/09/2026, relatado pelo dono do estúdio). O upload em si
-    // acontece no navegador (Firebase Storage, ver RetrospectivaAddonCard.jsx); aqui só persiste a
-    // lista de URLs já enviadas.
+    // (order.slideshowImages). Suporta URLs do Cloudflare R2 e Firebase Storage.
     const fotos = Array.isArray(retrospectiva.fotos) ? retrospectiva.fotos : [];
 
     const limpa = {
       titulo: limparTexto(retrospectiva.titulo, MAX_TITULO),
       contadorLabel: limparTexto(retrospectiva.contadorLabel, 60),
       dataInicio: limparData(retrospectiva.dataInicio),
-      fotos: fotos.slice(0, MAX_FOTOS).filter((u) => typeof u === 'string' && u.startsWith('https://firebasestorage.googleapis.com/')).map((u) => u.slice(0, 600)),
+      fotos: fotos.slice(0, MAX_FOTOS).filter(isAllowedMediaUrl).map((u) => u.slice(0, 600)),
       momentos: momentos.slice(0, MAX_MOMENTOS).map((m) => ({
         data: limparData(m?.data),
         titulo: limparTexto(m?.titulo, MAX_TITULO),
         texto: limparTexto(m?.texto, MAX_TEXTO),
-        fotoUrl: typeof m?.fotoUrl === 'string' ? m.fotoUrl.slice(0, 600) : '',
+        fotoUrl: isAllowedMediaUrl(m?.fotoUrl) ? m.fotoUrl.slice(0, 600) : '',
       })).filter((m) => m.titulo || m.texto || m.fotoUrl),
       quiz: quiz.slice(0, MAX_QUIZ).map((q) => {
         const opcoes = (Array.isArray(q?.opcoes) ? q.opcoes : [])
@@ -88,11 +116,24 @@ export async function POST(req) {
       }).filter((q) => q.pergunta && q.opcoes.length >= 2),
     };
 
-    await updateDoc(orderRef, {
-      retrospectiva: limpa,
-      retrospectivaAtualizadaEm: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
+    const nowIso = new Date().toISOString();
+    if (orderRef) {
+      await updateDoc(orderRef, {
+        retrospectiva: limpa,
+        retrospectivaAtualizadaEm: nowIso,
+        updatedAt: nowIso,
+      }).catch(e => console.warn('[api/retrospectiva/save] Falha Firestore:', e.message));
+    }
+
+    try {
+      const { updateOrder } = await import('@/lib/supabaseDb');
+      await updateOrder(orderId, {
+        retrospectiva: limpa,
+        updatedAt: nowIso,
+      });
+    } catch (sbErr) {
+      console.warn('[api/retrospectiva/save] Falha ao espelhar Supabase:', sbErr.message);
+    }
 
     return NextResponse.json({ ok: true, retrospectiva: limpa });
   } catch (error) {

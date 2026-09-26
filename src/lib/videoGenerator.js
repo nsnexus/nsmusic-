@@ -523,13 +523,27 @@ export async function createSlideshowVideo(orderId, imageUrls, audioUrl, orderDa
     }
 
     // 6. Atualiza o pedido com a URL do vídeo concluído
+    const nowIso = new Date().toISOString();
     await updateDoc(orderRef, {
       videoUrl: videoUrl,
       videoStatus: 'CONCLUIDO',
       videoProgress: 100,
-      videoCreatedAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      videoCreatedAt: nowIso,
+      updatedAt: nowIso
     });
+
+    try {
+      await fetch('/api/orders/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId,
+          videoUrl,
+          videoStatus: 'CONCLUIDO',
+          updatedAt: nowIso
+        })
+      });
+    } catch {}
 
     return videoUrl;
 
@@ -537,11 +551,24 @@ export async function createSlideshowVideo(orderId, imageUrls, audioUrl, orderDa
     console.error("Erro na geração do vídeo:", err);
     // Limpa o listener de visibilidade caso tenha sido registrado antes do erro
     try { document.removeEventListener('visibilitychange', onVisibilityChange); } catch (_) {}
+    const errIso = new Date().toISOString();
     await updateDoc(orderRef, {
       videoStatus: 'ERRO',
       videoError: err.message,
-      updatedAt: new Date().toISOString()
+      updatedAt: errIso
     });
+    try {
+      await fetch('/api/orders/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId,
+          videoStatus: 'ERRO',
+          videoError: err.message,
+          updatedAt: errIso
+        })
+      });
+    } catch {}
     throw err;
   }
 }

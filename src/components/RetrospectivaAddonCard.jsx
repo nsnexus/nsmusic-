@@ -78,9 +78,28 @@ export default function RetrospectivaAddonCard({ orderId, order }) {
       for (let i = 0; i < selecionados.length; i++) {
         // Comprime antes de subir (upload mais rápido, menos Storage — ver imageCompress.js).
         const arquivo = await compressImage(selecionados[i]);
-        const fileRef = ref(storage, `orders/${orderId}/retrospectiva/${Date.now()}_${i}_${arquivo.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`);
-        await uploadBytes(fileRef, arquivo);
-        novasUrls.push(await getDownloadURL(fileRef));
+        let url = null;
+        try {
+          const uploadData = new FormData();
+          uploadData.append('file', arquivo, `foto_${i}.jpg`);
+          const uploadRes = await fetch(`/api/media/upload?folder=retrospectiva&orderId=${encodeURIComponent(orderId)}`, {
+            method: 'POST',
+            body: uploadData
+          });
+          if (uploadRes.ok) {
+            const resJson = await uploadRes.json();
+            if (resJson?.url) url = resJson.url;
+          }
+        } catch (r2Err) {
+          console.warn('[RetrospectivaAddonCard] Falha no upload R2, caindo para Firebase:', r2Err.message);
+        }
+
+        if (!url) {
+          const fileRef = ref(storage, `orders/${orderId}/retrospectiva/${Date.now()}_${i}_${arquivo.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`);
+          await uploadBytes(fileRef, arquivo);
+          url = await getDownloadURL(fileRef);
+        }
+        novasUrls.push(url);
       }
       // Salva junto (não separado) para o cliente nunca perder o upload se fechar a aba antes de
       // clicar em "Salvar retrospectiva" mais abaixo.

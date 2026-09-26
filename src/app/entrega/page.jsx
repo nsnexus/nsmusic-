@@ -118,16 +118,42 @@ function EntregaContent() {
       // Mesmo tratamento de imagem já usado pra fotos da retrospectiva/vídeo — nunca falha o upload
       // por causa disso, devolve o arquivo original se a compressão der errado (ver imageCompress.js).
       const arquivo = await compressImage(file);
-      const safeName = arquivo.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-      // orders/{orderId}/photos/ já é liberado pra escrita anônima no storage.rules — reaproveita o
-      // mesmo prefixo em vez de pedir uma regra nova.
-      const fileRef = ref(storage, `orders/${orderId}/photos/capa_${Date.now()}_${safeName}`);
-      await uploadBytes(fileRef, arquivo);
-      const url = await getDownloadURL(fileRef);
+      let url = null;
+      try {
+        const uploadData = new FormData();
+        uploadData.append('file', arquivo, 'capa.jpg');
+        const uploadRes = await fetch(`/api/media/upload?folder=photos&orderId=${encodeURIComponent(orderId)}`, {
+          method: 'POST',
+          body: uploadData
+        });
+        if (uploadRes.ok) {
+          const resJson = await uploadRes.json();
+          if (resJson?.url) url = resJson.url;
+        }
+      } catch (r2Err) {
+        console.warn('[entrega] Falha no upload R2, caindo para Firebase:', r2Err.message);
+      }
+
+      if (!url) {
+        const safeName = arquivo.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+        const fileRef = ref(storage, `orders/${orderId}/photos/capa_${Date.now()}_${safeName}`);
+        await uploadBytes(fileRef, arquivo);
+        url = await getDownloadURL(fileRef);
+      }
+
       await updateDoc(doc(db, 'orders', orderId), {
         coverUrl: url,
         updatedAt: new Date().toISOString(),
       });
+
+      try {
+        await fetch('/api/orders/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderId, coverUrl: url })
+        });
+      } catch {}
+
       // Sem setOrder manual aqui: o onSnapshot da página já atualiza `order.coverUrl` sozinho assim
       // que a escrita acima confirma no Firestore.
     } catch (err) {
@@ -1766,21 +1792,47 @@ function EntregaContent() {
                                         // Nunca falha o upload por causa disso — em erro devolve o
                                         // arquivo original (ver src/lib/imageCompress.js).
                                         const arquivo = await compressImage(file);
-                                        const fileRef = ref(storage, `orders/${orderId}/photos/${Date.now()}_${i}_${arquivo.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`);
-                                        await uploadBytes(fileRef, arquivo);
-                                        const url = await getDownloadURL(fileRef);
+                                        let url = null;
+                                        try {
+                                          const uploadData = new FormData();
+                                          uploadData.append('file', arquivo, `photo_${i}.jpg`);
+                                          const uploadRes = await fetch(`/api/media/upload?folder=slideshow&orderId=${encodeURIComponent(orderId)}`, {
+                                            method: 'POST',
+                                            body: uploadData
+                                          });
+                                          if (uploadRes.ok) {
+                                            const resJson = await uploadRes.json();
+                                            if (resJson?.url) url = resJson.url;
+                                          }
+                                        } catch (r2Err) {
+                                          console.warn('[entrega] Falha no upload R2 da foto, caindo para Firebase:', r2Err.message);
+                                        }
+
+                                        if (!url) {
+                                          const fileRef = ref(storage, `orders/${orderId}/photos/${Date.now()}_${i}_${arquivo.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`);
+                                          await uploadBytes(fileRef, arquivo);
+                                          url = await getDownloadURL(fileRef);
+                                        }
                                         finalUrls.push(url);
                                       }
                                       setExistingPhotos(finalUrls);
                                       setNewPhotoFiles([]);
                                     }
 
-                                    // Salva lista final no Firestore
+                                    // Salva lista final no Firestore e Supabase
                                     await updateDoc(doc(db, 'orders', orderId), {
                                       slideshowImages: finalUrls,
                                       videoStatus: 'GERANDO',
                                       updatedAt: new Date().toISOString()
                                     }).catch(e => console.warn(e));
+
+                                    try {
+                                      await fetch('/api/orders/update', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ orderId, slideshowImages: finalUrls, videoStatus: 'GERANDO' })
+                                      });
+                                    } catch {}
 
                                     setUploadProgressMsg('Gerando vídeo slideshow MP4 HD em silêncio... 10%');
 

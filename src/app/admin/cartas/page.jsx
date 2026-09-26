@@ -70,10 +70,29 @@ export default function CartaTemasAdmin() {
     setEnviandoId(slotId);
     setMsg('');
     try {
-      const nomeArquivo = `${Date.now()}_${file.name}`.replace(/[^\w.\-]/g, '_');
-      const arquivoRef = ref(storage, `cartaTemas/${slotId}/${nomeArquivo}`);
-      await uploadBytes(arquivoRef, file);
-      const url = await getDownloadURL(arquivoRef);
+      let url = null;
+      try {
+        const uploadData = new FormData();
+        uploadData.append('file', file);
+        const uploadRes = await fetch(`/api/media/upload?folder=cartaTemas&orderId=${encodeURIComponent(slotId)}`, {
+          method: 'POST',
+          body: uploadData
+        });
+        if (uploadRes.ok) {
+          const resJson = await uploadRes.json();
+          if (resJson?.url) url = resJson.url;
+        }
+      } catch (r2Err) {
+        console.warn('[admin/cartas] Falha no upload R2, caindo para Firebase:', r2Err.message);
+      }
+
+      if (!url) {
+        const nomeArquivo = `${Date.now()}_${file.name}`.replace(/[^\w.\-]/g, '_');
+        const arquivoRef = ref(storage, `cartaTemas/${slotId}/${nomeArquivo}`);
+        await uploadBytes(arquivoRef, file);
+        url = await getDownloadURL(arquivoRef);
+      }
+
       setTemas((prev) => ({ ...prev, [slotId]: { ...prev[slotId], imagemUrl: url } }));
     } catch (e) {
       setMsg(`❌ Falha ao enviar imagem: ${e.message}`);
