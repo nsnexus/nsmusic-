@@ -1,7 +1,7 @@
 # Regras do Projeto NSMusic
 
 ## 1. Visão Geral
-O NSMusic é uma plataforma de músicas personalizadas com IA (Suno AI via Kie.ai + Gemini/OpenAI), pagamento via Efí Bank / Mercado Pago (PIX), notificações WhatsApp (W-API), Supabase (Postgres) como banco de dados e Cloudflare R2 para armazenamento de mídias. Deploy automático no Cloudflare Pages via Edge Runtime.
+O NSMusic é uma plataforma de músicas personalizadas com IA (Suno AI via Kie.ai + Gemini/OpenAI), pagamento via Efí Bank (PIX), notificações WhatsApp (W-API), Supabase (Postgres) como banco de dados e Cloudflare R2 para armazenamento de mídias. Deploy automático no Cloudflare Pages via Edge Runtime.
 
 ## 2. Stack Principal
 - **Framework**: Next.js 14 (App Router, JavaScript, sem TypeScript)
@@ -9,7 +9,7 @@ O NSMusic é uma plataforma de músicas personalizadas com IA (Suno AI via Kie.a
 - **Banco de dados**: Supabase Postgres (tabelas: `orders`, `suno_tasks`) via PostgREST Edge (`@/lib/supabaseDb.js`, `@/lib/supabase-edge.js`)
 - **Storage**: Cloudflare R2 (bucket binding: `nsmusic_media`, fotos de vídeo/retrospectiva e áudios)
 - **Autenticação**: Supabase Auth (GoTrue REST API `/auth/v1/user`)
-- **Pagamento**: Efí Bank / Mercado Pago (PIX dinâmico + estático)
+- **Pagamento**: Efí Bank (PIX dinâmico + estático)
 - **IA**: Kie.ai (Suno AI) para música, OpenAI/Gemini para letras
 - **WhatsApp**: W-API (api.w-api.app)
 - **Estilização**: CSS inline (`style={{}}`) + classes globais em `globals.css`
@@ -33,8 +33,8 @@ O NSMusic é uma plataforma de músicas personalizadas com IA (Suno AI via Kie.a
 ## 5. Regras de Segurança
 - **NUNCA hardcodar secrets, tokens, API keys ou credenciais** no código-fonte. Usar SEMPRE `process.env.NOME_DA_VARIAVEL`.
 - NUNCA usar fallback hardcoded para secrets (ex: `process.env.TOKEN || 'valor-real-aqui'`).
-- Rotas API sensíveis DEVEM validar autenticação (Firebase Auth token no header) antes de processar.
-- Webhooks externos (Mercado Pago, Kie.ai) DEVEM validar a autenticidade da requisição (assinatura, re-consulta à API de origem).
+- Rotas API sensíveis DEVEM validar autenticação (Supabase Auth token no header) antes de processar.
+- Webhooks externos (Efí Bank, Kie.ai) DEVEM validar a autenticidade da requisição (assinatura, re-consulta à API de origem).
 - NUNCA expor dados do pagador, tokens de pagamento ou informações pessoais em logs de console.
 - Validar e sanitizar TODOS os inputs do usuário no backend antes de persistir.
 
@@ -43,15 +43,14 @@ O NSMusic é uma plataforma de músicas personalizadas com IA (Suno AI via Kie.a
 - No frontend, chamadas assíncronas devem obrigatoriamente tratar cenários onde `!res.ok` e exibir feedback visual (como `alert()` ou mensagem na tela) em vez de travar o estado em um carregamento infinito (`loading = true`).
 - Webhooks devem retornar `status: 200` mesmo em caso de erro para evitar retentativas infinitas.
 
-## 7. Regras para Fluxos de Pagamento (Mercado Pago & Firebase)
+## 7. Regras para Fluxos de Pagamento (Efí Bank & Supabase)
 - Isolar claramente o pagamento principal do áudio (R$ 9,99) do pagamento adicional do Vídeo Homenagem (R$ 6,90).
-- NUNCA conceder acesso a recursos pagos (como upload de fotos para o vídeo) antes da confirmação real do pagamento (seja PIX ou Cartão).
-- Sanitizar sempre dados do pagador (`payer`: `email`, `first_name`, `last_name`) para prevenir rejeição do Mercado Pago por campos vazios ou sem sobrenome.
+- NUNCA conceder acesso a recursos pagos (como upload de fotos para o vídeo) antes da confirmação real do pagamento PIX.
+- Sanitizar sempre dados do pagador antes de enviar para a Efí Bank.
 - Comparações de valores monetários devem usar tolerância (`Math.abs(a - b) < 0.01`), NUNCA comparação direta de floats (`===`).
 - O campo `paymentStatus` deve seguir os valores padronizados: `PENDENTE`, `PAGAMENTO_APROVADO`, `PAGO`.
-- **Webhooks (POST & GET IPN)**: Webhooks do Mercado Pago DEVEM tratar requisições tanto `POST` (body JSON `data.id`) quanto `GET` (IPN `?topic=payment&id=...` ou `?type=payment`).
-- **Sanitização de `paymentId` por Regex**: Sempre extrair os dígitos numéricos do `paymentId` via regex (`String(id).match(/\d+/)[0]`) antes de consultar a API do Mercado Pago, eliminando sufixos ou caracteres de formatação (ex: `:1`).
-- **Busca de Fallback (`external_reference`)**: Se o `paymentId` específico estiver `pending`, a consulta DEVE realizar busca alternativa no Mercado Pago por `external_reference=${orderId}&sort=date_created&criteria=desc&limit=5`. Se QUALQUER pagamento gerado para aquele pedido foi aprovado, o pedido DEVE ser aprovado imediatamente.
+- **Webhooks PIX da Efí**: Webhooks da Efí DEVEM ser processados de forma idempotente em `/api/webhooks/efi` usando `applyPaymentApproval` em `@/lib/payments.js`.
+- **Sanitização de `txid`**: Sempre validar o `txid` da cobrança antes de consultar a API da Efí Bank.
 - **Isolamento de Notificações**: Envios de mensagens (WhatsApp) na aprovação do pagamento DEVEM estar isolados em `try/catch` próprios para que uma falha de envio nunca impeça a resposta de sucesso do webhook ou da rota de status.
 
 ## 8. Regras para Banco de Dados (Supabase Postgres)
@@ -80,7 +79,7 @@ O NSMusic é uma plataforma de músicas personalizadas com IA (Suno AI via Kie.a
 
 ## 12. Regras para Variáveis de Ambiente
 - Secrets de servidor (API keys, tokens): usar `process.env.NOME` sem prefixo `NEXT_PUBLIC_`.
-- Configurações públicas (Firebase client config, site URL): usar `NEXT_PUBLIC_` prefix.
+- Configurações públicas (Supabase client config, site URL): usar `NEXT_PUBLIC_` prefix.
 - Sempre documentar novas variáveis no `.env.example`.
 - NUNCA commitar `.env.local` no repositório.
 

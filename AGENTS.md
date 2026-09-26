@@ -8,7 +8,7 @@ Add-on de vídeo slideshow: + R$ 6,90.
 
 Next.js 14 App Router · JavaScript puro (sem TypeScript) · React 18 · npm
 Cloudflare Pages **Edge Runtime** (`@cloudflare/next-on-pages`) · Supabase (Postgres) + Cloudflare R2
-Integrações: Kie.ai/Suno (música) · OpenAI→Gemini (letra) · Efí Bank/Mercado Pago (PIX) · W-API (WhatsApp)
+Integrações: Kie.ai/Suno (música) · OpenAI→Gemini (letra) · Efí Bank (PIX) · W-API (WhatsApp)
 
 ## Arquitetura em uma frase
 
@@ -64,16 +64,16 @@ O sistema tem **11 vulnerabilidades críticas abertas**, concentradas em pagamen
 Não existe autenticação de servidor em nenhuma rota de API. Ao mexer nessas áreas, verifique se está
 corrigindo ou agravando um item já catalogado.
 
-- Pagamento: `api/payments/*`, `api/webhooks/mercadopago`, `entrega/page.jsx:69`
+- Pagamento: `api/payments/*`, `api/webhooks/efi`, `entrega/page.jsx`
 - Autorização: todas as rotas de `api/orders/*`, páginas de `admin/`
 - Geração: `api/suno/*`, `src/lib/db.js`
 
 ## Fluxo de pagamento (resumido)
 
-Preço calculado no **cliente** (`criar/page.jsx:getTotalPrice`) → `POST /api/payments/create` gera um
-BR Code PIX **estático** (sem `txid`) → o cliente faz polling em `GET /api/payments/status` → a
-aprovação real é gravada por `webhooks/mercadopago:processPayment` **ou** por
-`payments/status:markOrderApproved` (lógica duplicada nos dois arquivos — alterar sempre os dois).
+Preço calculado no servidor e validado por SKU → `POST /api/payments/create` gera cobrança PIX
+dinâmica via Efí Bank (com fallback para PIX estático se a Efí estiver fora) → o cliente faz polling em
+`GET /api/payments/status` → a aprovação real é processada por `api/webhooks/efi` **ou** por
+`api/payments/status` através da função central `applyPaymentApproval` em `@/lib/payments.js`.
 
 `paymentStatus` hoje tem 4 valores em uso: `AGUARDANDO_PAGAMENTO`, `PAGAMENTO_APROVADO`, `PAGO`,
 e `PENDENTE` (documentado mas nunca escrito). Trate `PAGAMENTO_APROVADO` e `PAGO` como equivalentes.
@@ -90,7 +90,7 @@ que também dispara o WhatsApp. **A música é gerada antes do pagamento.**
 Não há suíte automatizada. O mínimo aceitável hoje:
 1. `npm run build` verde.
 2. Percorrer manualmente o caminho crítico: criar → gerar letra → gerar música → checkout → `/entrega`.
-3. Mudanças em pagamento: verificar o pedido no Firestore e no painel `/admin` após cada transição.
+3. Mudanças em pagamento: verificar o pedido no Supabase e no painel `/admin` após cada transição.
 4. Nunca testar contra pedidos reais de clientes — criar um pedido próprio.
 
 ## Documentação
