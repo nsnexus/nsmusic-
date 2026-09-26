@@ -83,6 +83,35 @@ class SupabaseTableQuery {
   }
 
   /**
+   * Atualização parcial de registros existentes (PATCH).
+   * Ex: supabase.from('orders').eq('id', orderId).update({ audio_url: '...' })
+   */
+  async update(data, options = {}) {
+    const url = `${this.baseUrl}/rest/v1/${this.tableName}?${this.queryParams.toString()}`;
+    try {
+      const res = await fetch(url, {
+        method: 'PATCH',
+        headers: {
+          ...this.headers,
+          'Prefer': 'return=representation',
+        },
+        body: JSON.stringify(data),
+        signal: AbortSignal.timeout(options.timeout || 12000),
+      });
+
+      if (!res.ok) {
+        const errorText = await res.text().catch(() => '');
+        return { data: null, error: { message: `HTTP ${res.status}: ${errorText}` } };
+      }
+
+      const resData = await res.json().catch(() => null);
+      return { data: resData, error: null };
+    } catch (err) {
+      return { data: null, error: { message: err.message } };
+    }
+  }
+
+  /**
    * Leitura de dados (select).
    */
   select(columns = '*') {

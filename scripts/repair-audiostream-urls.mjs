@@ -122,15 +122,14 @@ async function run() {
       console.warn(`Erro ao atualizar Firestore no pedido ${orderId}:`, err.message);
     }
 
-    // Grava no Supabase
+    // Grava no Supabase via update (PATCH) para não violar not-null constraints de colunas não incluídas
     try {
-      await supabase.from('orders').upsert({
-        id: orderId,
+      await supabase.from('orders').eq('id', orderId).update({
         audio_url: finalAudioUrl,
         audio_files: finalAudioFiles,
         updated_at: updates.updatedAt,
         ...(updates.audioArchivedAt ? { audio_archived_at: updates.audioArchivedAt } : {})
-      }, { onConflict: 'id' });
+      });
     } catch (err) {
       console.warn(`Erro ao atualizar Supabase no pedido ${orderId}:`, err.message);
     }
