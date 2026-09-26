@@ -101,12 +101,16 @@ function extractSenderPhone(body) {
     // o número puro fica em sender.id (senderLid/chat.id usam o formato novo "@lid" da Meta, que não
     // é o telefone). body.sender sozinho (candidato abaixo) vira "[object Object]" e é descartado.
     body.sender?.id,
+    body.chat?.id,
+    body.chat?.phone,
     body.phone,
     body.from,
     body.sender,
     body.data?.phone,
     body.data?.from,
     body.data?.sender,
+    body.data?.chat?.id,
+    body.data?.chat?.phone,
     body.data?.key?.remoteJid,
     body.data?.key?.participant,
     body.key?.remoteJid,
@@ -116,8 +120,8 @@ function extractSenderPhone(body) {
   ];
 
   const candidateNames = [
-    'sender.id', 'phone', 'from', 'sender', 'data.phone', 'data.from', 'data.sender',
-    'data.key.remoteJid', 'data.key.participant', 'key.remoteJid', 'key.participant',
+    'sender.id', 'chat.id', 'chat.phone', 'phone', 'from', 'sender', 'data.phone', 'data.from', 'data.sender',
+    'data.chat.id', 'data.chat.phone', 'data.key.remoteJid', 'data.key.participant', 'key.remoteJid', 'key.participant',
     'chatId', 'data.chatId',
   ];
 
@@ -242,6 +246,21 @@ function sentWithinCooldown(sentAtIso) {
   const ts = Date.parse(sentAtIso);
   if (Number.isNaN(ts)) return false;
   return Date.now() - ts < TEMPLATE_RESEND_COOLDOWN_MS;
+}
+
+// Verifica se há um envio em andamento neste exato momento (janela curta de até 60s).
+// Evita que um boolean legado ou falha de rede trave o pedido para sempre.
+function isSendingInProgress(orderData) {
+  if (!orderData) return false;
+  if (orderData.readyTemplateSendingAt) {
+    const ts = Date.parse(orderData.readyTemplateSendingAt);
+    if (!Number.isNaN(ts) && Date.now() - ts < 60000) return true;
+  }
+  if (orderData.readyTemplateSending === true) {
+    const ts = Date.parse(orderData.updatedAt || '');
+    if (!Number.isNaN(ts) && Date.now() - ts < 60000) return true;
+  }
+  return false;
 }
 
 function isIgnoredEvent(body) {
@@ -518,21 +537,19 @@ export async function POST(req) {
         const recentlySent = sentWithinCooldown(freshData.readyTemplateSentAt)
           || sentWithinCooldown(freshData.whatsappSentAt)
           || sentWithinCooldown(freshData.paymentWhatsappSentAt)
-          || Boolean(freshData.readyTemplateSending);
+          || isSendingInProgress(freshData);
 
         if (recentlySent) {
           console.log(`[WhatsApp Webhook] Template de música pronta enviado (ou sendo enviado) há pouco para o pedido #${matchedOrderId} — não repete.`);
           return NextResponse.json({ success: true, ignored: 'ready_template_cooldown' }, { status: 200 });
         }
 
-        // Reserva o envio ANTES de mandar a mensagem — é isso que fecha a corrida, não a checagem
-        // acima sozinha. A escrita de "enviado" só acontecia DEPOIS do envio completar, deixando uma
-        // janela do tamanho da chamada inteira (rede até a W-API incluída) em que uma segunda entrega
-        // do mesmo evento passava pela checagem sem ver nada ainda gravado. Reservar aqui reduz a
-        // janela para dois round-trips de Firestore bem próximos — mesma limitação de sempre (sem
-        // runTransaction no SDK Edge, ver payments.js), mas fecha o caso real observado.
+        // Reserva o envio ANTES de mandar a mensagem — janela curta de até 60s
         try {
-          await updateDoc(doc(db, 'orders', matchedOrderId), { readyTemplateSending: true });
+          await updateDoc(doc(db, 'orders', matchedOrderId), {
+            readyTemplateSending: true,
+            readyTemplateSendingAt: new Date().toISOString(),
+          });
         } catch (e) {}
 
         const isPaid = freshData.paymentStatus === 'PAGAMENTO_APROVADO' || freshData.paymentStatus === 'PAGO';
@@ -577,27 +594,27 @@ ${deliveryUrl}
 🎵 *Quer criar uma NOVA música do zero?* Basta responder *NOVO PEDIDO*.`;
         }
 
-        await sendWApiTextMessage(senderPhone, replyMsg, envVars);
         try {
-          await updateDoc(doc(db, 'orders', matchedOrderId), {
-            readyTemplateSent: true,
-            readyTemplateSentAt: new Date().toISOString(),
-          });
-        } catch (e) {}
+          await sendWApiTextMessage(senderPhone, replyMsg, envVars);
+          try {
+            await updateDoc(doc(db, 'orders', matchedOrderId), {
+              readyTemplateSent: true,
+              readyTemplateSentAt: new Date().toISOString(),
+              readyTemplateSending: false,
+            });
+          } catch (e) {}
+        } finally {
+          try {
+            await updateDoc(doc(db, 'orders', matchedOrderId), {
+              readyTemplateSending: false,
+            });
+          } catch (e) {}
+        }
 
         return NextResponse.json({ success: true, action: 'sent_ready_link' }, { status: 200 });
       } else {
         // A música ainda está sendo gerada pela IA:
-        // Se o cliente já recebeu o aviso de espera (whatsappWaitAckSent) e não mandou um ID novo explícito,
-        // NÃO repete a mensagem de espera para qualquer mensagem de texto subsequente.
-        if (matchedOrder.whatsappWaitAckSent && !isExplicitId) {
-          console.log(`[WhatsApp Webhook] Mensagem de espera já enviada para o pedido #${matchedOrderId}. Silêncio para mensagem "${messageText}".`);
-          return NextResponse.json({ success: true, ignored: 'wait_ack_already_sent' }, { status: 200 });
-        }
-
-        // Mesmo COM ID explícito: não repete o que o cliente acabou de receber (ver
-        // TEMPLATE_RESEND_COOLDOWN_MS). Sem isso, duas mensagens seguidas vindas do botão do site —
-        // que sempre carrega o ID — geravam duas respostas idênticas.
+        // Não repete se já avisou dentro do cooldown de 10 min
         if (sentWithinCooldown(matchedOrder.whatsappWaitAckSentAt)) {
           console.log(`[WhatsApp Webhook] Aviso de espera enviado há pouco para o pedido #${matchedOrderId} — não repete.`);
           return NextResponse.json({ success: true, ignored: 'wait_ack_cooldown' }, { status: 200 });

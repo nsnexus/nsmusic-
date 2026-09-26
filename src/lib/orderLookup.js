@@ -6,12 +6,13 @@ import { dbEdge as db } from './firebase-edge.js';
  * (com/sem 55, com/sem o 9º dígito) para busca precisa no banco de dados.
  */
 export function generatePhoneVariants(phone) {
-  const rawInput = String(phone || '');
+  const rawInput = String(phone || '').trim();
   const digits = rawInput.replace(/\D/g, '');
   if (!digits || digits.length < 8) return [];
 
   const variants = new Set();
   variants.add(digits);
+  variants.add(rawInput);
 
   // LID (identificador de privacidade do WhatsApp — ver route.js:extractSenderPhone, achado
   // 28/08/2026) não é telefone: nenhuma variante de DDI/9º dígito faz sentido pra ele. Inclui as duas
@@ -24,32 +25,52 @@ export function generatePhoneVariants(phone) {
     return Array.from(variants);
   }
 
-  // Se começa com DDI 55
+  // Identifica DDD e número local (sem DDI 55)
+  let localDigits = digits;
   if (digits.startsWith('55') && digits.length >= 12) {
-    const without55 = digits.substring(2);
-    variants.add(without55);
+    localDigits = digits.substring(2);
+    variants.add(localDigits);
+    variants.add(`55${localDigits}`);
+  } else if (digits.length >= 10 && digits.length <= 11) {
+    variants.add(`55${digits}`);
+  }
 
-    // DDD + 9 dígitos (ex: 94 9 91064043)
-    if (without55.length === 11 && without55[2] === '9') {
-      const withoutNine = without55.substring(0, 2) + without55.substring(3);
-      variants.add(withoutNine);
-      variants.add('55' + withoutNine);
-    } else if (without55.length === 10) {
-      // DDD + 8 dígitos (ex: 94 91064043)
-      const withNine = without55.substring(0, 2) + '9' + without55.substring(2);
-      variants.add(withNine);
-      variants.add('55' + withNine);
+  // Formata variações de 10 e 11 dígitos (DDD + 8 ou 9 dígitos)
+  if (localDigits.length === 11 || localDigits.length === 10) {
+    const ddd = localDigits.substring(0, 2);
+    let num9 = '';
+    let num8 = '';
+
+    if (localDigits.length === 11 && localDigits[2] === '9') {
+      num9 = localDigits.substring(2);
+      num8 = localDigits.substring(3);
+    } else if (localDigits.length === 10) {
+      num8 = localDigits.substring(2);
+      num9 = '9' + num8;
     }
-  } else if (digits.length === 11 && digits[2] === '9') {
-    variants.add('55' + digits);
-    const withoutNine = digits.substring(0, 2) + digits.substring(3);
-    variants.add(withoutNine);
-    variants.add('55' + withoutNine);
-  } else if (digits.length === 10) {
-    variants.add('55' + digits);
-    const withNine = digits.substring(0, 2) + '9' + digits.substring(2);
-    variants.add(withNine);
-    variants.add('55' + withNine);
+
+    if (num9 && num9.length === 9) {
+      const p1 = num9.substring(0, 5);
+      const p2 = num9.substring(5);
+      // Padrão exato salvo pelo formulário do site: '(XX) XXXXX-XXXX'
+      variants.add(`(${ddd}) ${p1}-${p2}`);
+      variants.add(`(${ddd}) ${num9}`);
+      variants.add(`${ddd} ${p1}-${p2}`);
+      variants.add(`${ddd}${num9}`);
+      variants.add(`55${ddd}${num9}`);
+      variants.add(`+55 (${ddd}) ${p1}-${p2}`);
+    }
+
+    if (num8 && num8.length === 8) {
+      const p1 = num8.substring(0, 4);
+      const p2 = num8.substring(4);
+      variants.add(`(${ddd}) ${p1}-${p2}`);
+      variants.add(`(${ddd}) ${num8}`);
+      variants.add(`${ddd} ${p1}-${p2}`);
+      variants.add(`${ddd}${num8}`);
+      variants.add(`55${ddd}${num8}`);
+      variants.add(`+55 (${ddd}) ${p1}-${p2}`);
+    }
   }
 
   return Array.from(variants);
@@ -181,7 +202,7 @@ export async function findRecentOrderByPhone(phone) {
   try {
     const ordersRef = collection(db, 'orders');
     const candidates = [];
-    const searchVariants = variants.slice(0, 10);
+    const searchVariants = variants.slice(0, 25);
 
     // 1. Busca por customerPhone
     const q1 = query(ordersRef, where('customerPhone', 'in', searchVariants));

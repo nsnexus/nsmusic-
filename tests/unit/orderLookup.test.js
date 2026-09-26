@@ -159,6 +159,20 @@ describe('orderLookup — findRecentOrderByPhone', () => {
     expect(found.orderNumber).toBe('1002');
   });
 
+  it('localiza pedido quando customerPhone está salvo com máscara de formulário (ex: (94) 99106-4043)', async () => {
+    store['orderMasked'] = {
+      orderNumber: '1003',
+      customerPhone: '(94) 99106-4043',
+      customerName: 'Mariana',
+      createdAt: '2026-08-25T12:00:00.000Z',
+    };
+
+    const found = await findRecentOrderByPhone('5594991064043');
+    expect(found).not.toBeNull();
+    expect(found.id).toBe('orderMasked');
+    expect(found.customerName).toBe('Mariana');
+  });
+
   it('ignora sessões temporárias de rascunho', async () => {
     store['session_5594991064043'] = {
       productionStatus: 'RASCUNHO',
