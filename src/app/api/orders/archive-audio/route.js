@@ -58,7 +58,7 @@ function isPaidOrder(order) {
   );
 }
 
-async function runArchive(env, { dryRun }) {
+async function runArchive(env, { dryRun, incluirNaoPagos = false }) {
   // R2 (binding nsmusic_media) primeiro, Firebase Storage como fallback — mesmo critério de
   // src/lib/payments.js, pra não arquivar num destino diferente dependendo de qual caminho rodou.
   const r2Bucket = env?.nsmusic_media;
@@ -95,19 +95,33 @@ async function runArchive(env, { dryRun }) {
   for (const d of snap.docs) {
     result.scanned++;
     const data = d.data();
-    if (!isPaidOrder(data)) continue;
-    if (data.audioArchivedAt) continue; // já arquivado
 
     const files = Array.isArray(data.audioFiles) && data.audioFiles.length
       ? data.audioFiles
       : [data.audioUrl].filter(Boolean);
 
-    // Já está tudo no nosso Storage (pedido antigo migrado à mão, por exemplo).
-    if (files.length > 0 && files.every(isOurStorage)) continue;
     if (files.length === 0) continue;
+    // Já está tudo no nosso Storage: nada a fazer.
+    if (files.every(isOurStorage)) continue;
+
+    // O pedido aponta para uma origem que morre (audiostream/musicfile da Kie.ai).
+    const temUrlEfemera = files.some((u) => typeof u === 'string' && (u.includes('audiostream.kie.ai') || u.includes('musicfile.kie.ai')));
+
+    // `audioArchivedAt` preenchido NÃO significa mais "resolvido": entre 20:12 e 22:01 de
+    // 25/09/2026, updateTaskResult regravava a URL da Kie.ai por cima da nossa a cada ciclo do
+    // polling, e o pedido terminava marcado como arquivado apontando para um stream que morre em
+    // horas. Quem está nesse estado precisa ser copiado de novo.
+    if (data.audioArchivedAt && !temUrlEfemera) continue;
+
+    // Pedido não pago entra só quando pedido explicitamente (?incluirNaoPagos=true): é o resgate
+    // dos que ficaram com áudio prestes a expirar, não o comportamento de rotina.
+    if (!isPaidOrder(data) && !incluirNaoPagos) continue;
 
     candidates.push({ id: d.id, data, files });
   }
+
+  // Pago primeiro: produto já entregue não espera atrás de prévia que talvez nunca converta.
+  candidates.sort((a, b) => Number(isPaidOrder(b.data)) - Number(isPaidOrder(a.data)));
 
   result.pending = candidates.length;
 
@@ -179,8 +193,10 @@ export async function POST(req) {
     const auth = await authorize(req, env);
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
-    const dryRun = new URL(req.url).searchParams.get('dryRun') === 'true';
-    const result = await runArchive(env, { dryRun });
+    const params = new URL(req.url).searchParams;
+    const dryRun = params.get('dryRun') === 'true';
+    const incluirNaoPagos = params.get('incluirNaoPagos') === 'true';
+    const result = await runArchive(env, { dryRun, incluirNaoPagos });
 
     console.log('[archive-audio] Resultado:', JSON.stringify(result));
     return NextResponse.json(result);
