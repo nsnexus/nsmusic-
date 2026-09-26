@@ -19,21 +19,23 @@ export async function POST(req) {
     }
 
     const body = await req.json();
-    const { orderId, audioUrl, audioFiles, paymentStatus, productionStatus } = body;
+    const { orderId, ...fields } = body;
 
     if (!orderId) {
       return NextResponse.json({ error: 'orderId é obrigatório' }, { status: 400 });
     }
 
     const updateData = { updatedAt: new Date().toISOString() };
-    if (audioUrl !== undefined) updateData.audioUrl = audioUrl;
-    if (audioFiles !== undefined) updateData.audioFiles = audioFiles;
-    if (paymentStatus !== undefined) updateData.paymentStatus = paymentStatus;
-    if (productionStatus !== undefined) updateData.productionStatus = productionStatus;
+    for (const [key, val] of Object.entries(fields)) {
+      if (val !== undefined) {
+        updateData[key] = val;
+      }
+    }
 
     await updateOrder(orderId, updateData, env);
 
     return NextResponse.json({ success: true, orderId, updated: updateData }, { status: 200 });
+
   } catch (error) {
     console.error("Erro na API /api/orders/update:", error);
     return NextResponse.json({ error: error.message || 'Erro ao atualizar pedido' }, { status: 500 });

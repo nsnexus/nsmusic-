@@ -121,46 +121,94 @@ export default function AdminDashboard() {
   const localDayStartIso = (dateStr) => (dateStr ? new Date(`${dateStr}T00:00:00`).toISOString() : null);
   const localDayEndIso = (dateStr) => (dateStr ? new Date(`${dateStr}T23:59:59.999`).toISOString() : null);
 
-  // Load orders — sem limite quando loadAll=true, senão usa pageSize.
+  // Load orders — consulta rápida via Supabase (Postgres) com fallback resiliente no Firestore
   useEffect(() => {
     if (!user) return;
 
-    // Filtro de data já entra na query do Firestore (onde() sobre createdAt) — não só no cliente
-    // depois do fetch. Padrão é "hoje" (ver todayLocalStr), então o carregamento comum lê poucos
-    // documentos em vez da base inteira.
-    const constraints = [];
-    if (dateFrom) constraints.push(where('createdAt', '>=', localDayStartIso(dateFrom)));
-    if (dateTo) constraints.push(where('createdAt', '<=', localDayEndIso(dateTo)));
-    constraints.push(orderBy('createdAt', 'desc'));
-    if (!loadAll) constraints.push(fbLimit(pageSize + 1));
+    let cancelado = false;
+    let unsubFirestore = null;
 
-    const q = query(collection(db, 'orders'), ...constraints);
+    const carregar = async () => {
+      setLoadingOrders(true);
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const ordersData = [];
-      snapshot.forEach((doc) => {
-        const data = doc.data();
-        // Exclusão lógica e de sistema — pedidos excluídos, sessões e configs não aparecem na listagem.
-        if (data.deletedAt || doc.id.startsWith('config_') || doc.id.startsWith('session_') || data.productionStatus === 'CONFIG' || data.productionStatus === 'RASCUNHO') return;
-        ordersData.push({ id: doc.id, ...data });
-      });
-      if (loadAll) {
-        setHasMoreOrders(false);
-        setOrders(ordersData);
-      } else {
-        setHasMoreOrders(ordersData.length > pageSize);
-        setOrders(ordersData.slice(0, pageSize));
+      // 1. Tenta consulta rápida via API Edge (Supabase PostgREST)
+      try {
+        const token = await auth.currentUser?.getIdToken();
+        if (token) {
+          const params = new URLSearchParams();
+          if (dateFrom) params.set('dateFrom', localDayStartIso(dateFrom));
+          if (dateTo) params.set('dateTo', localDayEndIso(dateTo));
+          params.set('limit', String(loadAll ? 1000 : pageSize + 1));
+
+          const res = await fetch(`/api/admin/orders?${params.toString()}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+
+          if (res.ok) {
+            const json = await res.json();
+            if (json?.ok && Array.isArray(json.orders)) {
+              if (cancelado) return;
+              if (loadAll) {
+                setHasMoreOrders(false);
+                setOrders(json.orders);
+              } else {
+                setHasMoreOrders(json.orders.length > pageSize);
+                setOrders(json.orders.slice(0, pageSize));
+              }
+              setLoadingOrders(false);
+              setLoadingMore(false);
+              return;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[admin] Falha na busca rápida via Supabase, ativando fallback Firestore:', err.message);
       }
-      setLoadingOrders(false);
-      setLoadingMore(false);
-    }, (error) => {
-      console.error("Erro ao escutar pedidos:", error);
-      setLoadingOrders(false);
-      setLoadingMore(false);
-    });
 
-    return () => unsubscribe();
+      // 2. Fallback resiliente no Firestore
+      if (cancelado) return;
+      const constraints = [];
+      if (dateFrom) constraints.push(where('createdAt', '>=', localDayStartIso(dateFrom)));
+      if (dateTo) constraints.push(where('createdAt', '<=', localDayEndIso(dateTo)));
+      constraints.push(orderBy('createdAt', 'desc'));
+      if (!loadAll) constraints.push(fbLimit(pageSize + 1));
+
+      const q = query(collection(db, 'orders'), ...constraints);
+
+      unsubFirestore = onSnapshot(q, (snapshot) => {
+        if (cancelado) return;
+        const ordersData = [];
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          if (data.deletedAt || doc.id.startsWith('config_') || doc.id.startsWith('session_') || data.productionStatus === 'CONFIG' || data.productionStatus === 'RASCUNHO') return;
+          ordersData.push({ id: doc.id, ...data });
+        });
+        if (loadAll) {
+          setHasMoreOrders(false);
+          setOrders(ordersData);
+        } else {
+          setHasMoreOrders(ordersData.length > pageSize);
+          setOrders(ordersData.slice(0, pageSize));
+        }
+        setLoadingOrders(false);
+        setLoadingMore(false);
+      }, (error) => {
+        console.error("Erro ao escutar pedidos no Firestore:", error);
+        if (!cancelado) {
+          setLoadingOrders(false);
+          setLoadingMore(false);
+        }
+      });
+    };
+
+    carregar();
+
+    return () => {
+      cancelado = true;
+      if (unsubFirestore) unsubFirestore();
+    };
   }, [user, loadAll, pageSize, dateFrom, dateTo]);
+
 
   // Escuta configurações do WhatsApp (Master Switch do Agente)
   useEffect(() => {

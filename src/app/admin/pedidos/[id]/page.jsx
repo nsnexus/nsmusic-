@@ -1,5 +1,5 @@
 'use client';
-export const runtime = 'edge';
+
 
 import React, { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
@@ -87,10 +87,22 @@ export default function OrderDetailsAdmin() {
 
     const fetchOrder = async () => {
       try {
-        const docRef = doc(db, 'orders', orderId);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          const data = docSnap.data();
+        let data = null;
+        try {
+          const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}`);
+          if (res.ok) {
+            const json = await res.json();
+            if (json?.order) data = json.order;
+          }
+        } catch {}
+
+        if (!data) {
+          const docRef = doc(db, 'orders', orderId);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) data = docSnap.data();
+        }
+
+        if (data) {
           setOrder(data);
           setProductionStatus(data.productionStatus || 'LETRA_APROVADA');
           setPaymentStatus(data.paymentStatus || 'PENDENTE');
@@ -144,30 +156,51 @@ export default function OrderDetailsAdmin() {
     setUpdating(true);
     setSuccessMsg('');
 
+    const updatePayload = {
+      orderId,
+      productionStatus,
+      paymentStatus,
+      hasVideoAccess,
+      videoAddonPaid: hasVideoAccess,
+      hasPlaybackAccess,
+      playbackAddonPaid: hasPlaybackAccess,
+      hasCartaAccess,
+      cartaAddonPaid: hasCartaAccess,
+      hasRetrospectivaAccess,
+      retrospectivaAddonPaid: hasRetrospectivaAccess,
+      lyrics,
+      audioUrl,
+      audioFiles: [audioUrl, audioUrl2].filter(Boolean),
+      wavUrl,
+      wavFiles: wavUrl ? [wavUrl] : [],
+      videoFile: videoUrl,
+      videoUrl: videoUrl,
+      qrCodeFile: qrCodeUrl,
+      sunoPrompt,
+      updatedAt: new Date().toISOString()
+    };
+
     try {
-      const docRef = doc(db, 'orders', orderId);
-      await updateDoc(docRef, {
-        productionStatus,
-        paymentStatus,
-        hasVideoAccess,
-        videoAddonPaid: hasVideoAccess,
-        hasPlaybackAccess,
-        playbackAddonPaid: hasPlaybackAccess,
-        hasCartaAccess,
-        cartaAddonPaid: hasCartaAccess,
-        hasRetrospectivaAccess,
-        retrospectivaAddonPaid: hasRetrospectivaAccess,
-        lyrics,
-        audioUrl,
-        audioFiles: [audioUrl, audioUrl2].filter(Boolean),
-        wavUrl,
-        wavFiles: wavUrl ? [wavUrl] : [],
-        videoFile: videoUrl,
-        videoUrl: videoUrl,
-        qrCodeFile: qrCodeUrl,
-        sunoPrompt,
-        updatedAt: new Date().toISOString()
-      });
+      let savedViaApi = false;
+      try {
+        const token = await auth.currentUser?.getIdToken();
+        const res = await fetch('/api/orders/update', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          },
+          body: JSON.stringify(updatePayload)
+        });
+        if (res.ok) savedViaApi = true;
+      } catch (apiErr) {
+        console.warn('[admin/pedidos/[id]] Falha na API /api/orders/update:', apiErr.message);
+      }
+
+      if (!savedViaApi) {
+        const docRef = doc(db, 'orders', orderId);
+        await updateDoc(docRef, updatePayload);
+      }
       setOrder(prev => ({
         ...prev,
         productionStatus,
