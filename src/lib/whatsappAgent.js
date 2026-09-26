@@ -5,6 +5,7 @@ import { sendWApiTextMessage, sendWApiPresence, resolveDeliveryUrl, resolveCriar
 import { requestSunoGeneration } from './suno.js';
 import { generateUniqueOrderNumber } from './orderNumber.js';
 import { buildSunoPayload } from './sunoPayload.js';
+import { tentarAtenderSuporte } from './agentSuporte.js';
 
 // Cache em memória para resposta instantânea e resiliência total
 const memorySessions = new Map();
@@ -309,6 +310,31 @@ Ou me conta agora mesmo: pra quem vai ser essa música, e um pouco da história 
     textLower.includes('como funciona') ||
     textLower.includes('quanto custa') ||
     /(criar|fazer|quero|queria|gostaria|preciso).{0,20}(musica|música)/.test(textLower);
+
+  // ATENDIMENTO DE QUEM JÁ TEM PEDIDO.
+  //
+  // Vem ANTES do fluxo de coleta e só roda quando não há conversa de pedido novo em andamento: a
+  // maior parte das mensagens que chegam é de cliente que já comprou ("paguei e não recebi", "cadê
+  // minha música", "quero mudar a letra"), e até 25/09/2026 tudo isso caía no silêncio — o agente
+  // só sabia coletar dados de pedido novo. Ver src/lib/agentSuporte.js.
+  if (!session || session.step === 'DONE') {
+    let suporte = { atendido: false };
+    try {
+      suporte = await tentarAtenderSuporte(cleanPhone, messageText, envVars);
+    } catch (err) {
+      console.warn('[WhatsApp Agent] Falha no atendimento de suporte:', err.message);
+    }
+
+    if (suporte.atendido) {
+      await sendWApiPresence(cleanPhone, 'composing', envVars);
+      await sleep(1200);
+      await sendWApiTextMessage(cleanPhone, suporte.resposta, envVars);
+
+      // Pedido explícito de humano (ou falha nossa): a IA sai de cena e não volta sozinha.
+      if (suporte.entregarHumano) await pauseAgentForPhone(cleanPhone);
+      return true;
+    }
+  }
 
   if (!session) {
     if (!isTriggerMessage) {
