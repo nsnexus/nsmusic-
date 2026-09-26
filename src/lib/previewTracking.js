@@ -27,7 +27,16 @@ export function hasPreviewTrackingData(order) {
 export function markPreviewListened(orderId) {
   if (!orderId || jaMarcadoNestaVisita.has(orderId)) return;
   jaMarcadoNestaVisita.add(orderId);
+  const nowIso = new Date().toISOString();
   updateDoc(doc(db, 'orders', orderId), {
-    previewListenedAt: new Date().toISOString(),
+    previewListenedAt: nowIso,
   }).catch((e) => console.warn('[previewTracking] Falha ao marcar prévia ouvida:', e?.message));
+
+  try {
+    fetch('/api/orders/update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orderId, previewListenedAt: nowIso }),
+    }).catch(() => {});
+  } catch {}
 }

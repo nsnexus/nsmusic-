@@ -281,6 +281,50 @@ export class NativeSupabaseClient {
   from(tableName) {
     return new SupabaseTableQuery(this.url, this.apiKey, tableName);
   }
+
+  get auth() {
+    return {
+      signInWithPassword: async ({ email, password }) => {
+        try {
+          const res = await fetch(`${this.url.replace(/\/$/, '')}/auth/v1/token?grant_type=password`, {
+            method: 'POST',
+            headers: {
+              'apikey': this.apiKey,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ email, password })
+          });
+          const json = await res.json().catch(() => null);
+          if (!res.ok) {
+            return { data: null, error: { message: json?.error_description || json?.msg || 'Falha ao autenticar' } };
+          }
+          if (typeof window !== 'undefined' && json?.access_token) {
+            localStorage.setItem('supabase_admin_token', json.access_token);
+            localStorage.setItem('supabase_admin_user', JSON.stringify(json.user || {}));
+          }
+          return { data: { session: json, user: json?.user }, error: null };
+        } catch (e) {
+          return { data: null, error: { message: e.message } };
+        }
+      },
+      getSession: async () => {
+        if (typeof window === 'undefined') return { data: { session: null }, error: null };
+        const token = localStorage.getItem('supabase_admin_token');
+        const user = JSON.parse(localStorage.getItem('supabase_admin_user') || 'null');
+        if (token && user) {
+          return { data: { session: { access_token: token, user } }, error: null };
+        }
+        return { data: { session: null }, error: null };
+      },
+      signOut: async () => {
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('supabase_admin_token');
+          localStorage.removeItem('supabase_admin_user');
+        }
+        return { error: null };
+      }
+    };
+  }
 }
 
 let cachedClient = null;

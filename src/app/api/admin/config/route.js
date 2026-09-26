@@ -46,3 +46,23 @@ export async function POST(req) {
     return NextResponse.json({ error: 'Não foi possível salvar a configuração.' }, { status: 500 });
   }
 }
+
+export async function GET(req) {
+  try {
+    let whatsappSuporte = '';
+    try {
+      const { getDoc } = await import('firebase/firestore/lite');
+      const snap = await getDoc(doc(db, CONFIG_DOC.colecao, CONFIG_DOC.id));
+      if (snap.exists()) {
+        whatsappSuporte = snap.data()?.whatsappSuporte || '';
+      }
+    } catch (e) {}
+
+    return NextResponse.json(
+      { ok: true, whatsappSuporte: whatsappSuporte || '5594991064043' },
+      { headers: { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300' } }
+    );
+  } catch (err) {
+    return NextResponse.json({ ok: true, whatsappSuporte: '5594991064043' });
+  }
+}

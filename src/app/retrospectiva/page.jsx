@@ -159,17 +159,31 @@ function RetrospectivaContent() {
     let ativo = true;
     (async () => {
       try {
-        const snap = await getDoc(doc(db, 'orders', orderId));
-        if (!ativo) return;
-        if (!snap.exists()) {
-          setErro('Retrospectiva não encontrada.');
-        } else {
-          const data = snap.data();
-          if (!data.hasRetrospectivaAccess && !data.retrospectivaAddonPaid) {
-            setErro('Esta retrospectiva ainda não foi liberada.');
-          } else {
-            setOrder(data);
+        let data = null;
+        try {
+          const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}`, { cache: 'no-store' });
+          if (res.ok) {
+            const json = await res.json();
+            if (json?.order) data = json.order;
           }
+        } catch (apiErr) {
+          console.warn('[retrospectiva] Fallback para Firestore:', apiErr.message);
+        }
+
+        if (!data) {
+          const snap = await getDoc(doc(db, 'orders', orderId));
+          if (snap.exists()) {
+            data = snap.data();
+          }
+        }
+
+        if (!ativo) return;
+        if (!data) {
+          setErro('Retrospectiva não encontrada.');
+        } else if (!data.hasRetrospectivaAccess && !data.retrospectivaAddonPaid) {
+          setErro('Esta retrospectiva ainda não foi liberada.');
+        } else {
+          setOrder(data);
         }
       } catch (e) {
         console.error('Erro ao carregar retrospectiva:', e);

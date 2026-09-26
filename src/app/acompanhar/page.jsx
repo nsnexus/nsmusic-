@@ -23,10 +23,26 @@ function AcompanharContent() {
         return;
       }
       try {
-        const docRef = doc(db, 'orders', orderId);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          const data = docSnap.data();
+        let data = null;
+        try {
+          const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}`, { cache: 'no-store' });
+          if (res.ok) {
+            const json = await res.json();
+            if (json?.order) data = json.order;
+          }
+        } catch (apiErr) {
+          console.warn('[acompanhar] Fallback para Firestore:', apiErr.message);
+        }
+
+        if (!data) {
+          const docRef = doc(db, 'orders', orderId);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            data = docSnap.data();
+          }
+        }
+
+        if (data) {
           const addons = [];
           if (data.hasVideoAccess) addons.push('Vídeo Homenagem Animado (+R$6,90)');
           
@@ -36,7 +52,7 @@ function AcompanharContent() {
           const isDone = data.productionStatus === 'CONCLUIDO';
           
           setOrder({
-            id: docSnap.id,
+            id: data.id || orderId,
             orderNumber: data.orderNumber || 'NS-XXXXX-2026',
             customerName: data.customerName || 'Cliente',
             honoreeName: data.honoreeName || '',

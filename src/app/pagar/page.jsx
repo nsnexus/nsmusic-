@@ -58,24 +58,40 @@ function PagarContent() {
   // modo com pedido — no modo avulso não há documento nenhum pra escutar.
   useEffect(() => {
     if (standalone) return;
+    let ativo = true;
+
+    // 1. Busca rápida primária via Edge API (Supabase)
+    fetch(`/api/orders/${encodeURIComponent(orderId)}`, { cache: 'no-store' })
+      .then(res => res.ok ? res.json() : null)
+      .then(json => {
+        if (!ativo) return;
+        if (json?.order) {
+          setOrder(json.order);
+          setOrderLoading(false);
+        }
+      })
+      .catch(() => {});
+
+    // 2. Snapshot de tempo real / fallback no Firestore
     const unsub = onSnapshot(
       doc(db, 'orders', orderId),
       (snap) => {
-        if (!snap.exists()) {
-          setOrderError('Pedido não encontrado.');
-          setOrder(null);
-        } else {
+        if (!ativo) return;
+        if (snap.exists()) {
           setOrder({ id: snap.id, ...snap.data() });
         }
         setOrderLoading(false);
       },
       (err) => {
-        console.error('Erro ao carregar pedido:', err);
-        setOrderError('Não foi possível carregar o pedido agora.');
+        if (!ativo) return;
+        console.warn('[pagar] Aviso no Firestore snapshot:', err.message);
         setOrderLoading(false);
       }
     );
-    return () => unsub();
+    return () => {
+      ativo = false;
+      unsub();
+    };
   }, [standalone, orderId]);
 
   const isPaid = Boolean(order?.paymentStatus === 'PAGAMENTO_APROVADO' || order?.paymentStatus === 'PAGO' || approved);

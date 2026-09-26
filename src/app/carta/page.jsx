@@ -38,19 +38,33 @@ function CartaContent() {
     let ativo = true;
     (async () => {
       try {
-        const snap = await getDoc(doc(db, 'orders', orderId));
-        if (!ativo) return;
-        if (!snap.exists()) {
-          setErro('Carta não encontrada.');
-        } else {
-          const data = snap.data();
-          if (!data.hasCartaAccess && !data.cartaAddonPaid) {
-            setErro('Esta carta ainda não foi liberada.');
-          } else if (!data.cartaTexto) {
-            setErro('Esta carta ainda está sendo escrita. Volte em instantes.');
-          } else {
-            setOrder(data);
+        let data = null;
+        try {
+          const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}`, { cache: 'no-store' });
+          if (res.ok) {
+            const json = await res.json();
+            if (json?.order) data = json.order;
           }
+        } catch (apiErr) {
+          console.warn('[carta] Fallback para Firestore:', apiErr.message);
+        }
+
+        if (!data) {
+          const snap = await getDoc(doc(db, 'orders', orderId));
+          if (snap.exists()) {
+            data = snap.data();
+          }
+        }
+
+        if (!ativo) return;
+        if (!data) {
+          setErro('Carta não encontrada.');
+        } else if (!data.hasCartaAccess && !data.cartaAddonPaid) {
+          setErro('Esta carta ainda não foi liberada.');
+        } else if (!data.cartaTexto) {
+          setErro('Esta carta ainda está sendo escrita. Volte em instantes.');
+        } else {
+          setOrder(data);
         }
       } catch (e) {
         console.error('Erro ao carregar carta:', e);

@@ -30,6 +30,16 @@ export function normalizarNumeroWhatsapp(valor) {
 
 export async function lerConfigSite() {
   try {
+    if (typeof window !== 'undefined') {
+      try {
+        const res = await fetch('/api/admin/config');
+        if (res.ok) {
+          const json = await res.json();
+          if (json?.whatsappSuporte) return { whatsappSuporte: json.whatsappSuporte };
+        }
+      } catch {}
+    }
+
     const snap = await getDoc(doc(db, CONFIG_DOC.colecao, CONFIG_DOC.id));
     if (!snap.exists()) return {};
     return snap.data() || {};
