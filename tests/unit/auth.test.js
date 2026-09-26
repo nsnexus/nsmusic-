@@ -102,4 +102,49 @@ describe('requireAdmin', () => {
     expect(result.ok).toBe(false);
     expect(result.status).toBe(403);
   });
+
+  it('aceita autenticação via Supabase Auth quando token é válido e e-mail é admin', async () => {
+    const supabaseEnv = {
+      ...ENV,
+      NEXT_PUBLIC_SUPABASE_URL: 'https://test.supabase.co',
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: 'test-anon-key'
+    };
+
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        id: 'sb-uid-123',
+        email: 'admin@example.com',
+        email_confirmed_at: '2026-09-25T10:00:00Z',
+        app_metadata: { role: 'authenticated' }
+      })
+    });
+
+    const result = await requireAdmin(makeRequest('sb-token-valido'), supabaseEnv);
+    expect(result.ok).toBe(true);
+    expect(result.uid).toBe('sb-uid-123');
+    expect(result.email).toBe('admin@example.com');
+  });
+
+  it('aceita via Supabase Auth quando tem role admin no app_metadata', async () => {
+    const supabaseEnv = {
+      ...ENV,
+      NEXT_PUBLIC_SUPABASE_URL: 'https://test.supabase.co',
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: 'test-anon-key'
+    };
+
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        id: 'sb-uid-admin-role',
+        email: 'qualquer@example.com',
+        email_confirmed_at: '2026-09-25T10:00:00Z',
+        app_metadata: { role: 'admin' }
+      })
+    });
+
+    const result = await requireAdmin(makeRequest('sb-token-valido'), supabaseEnv);
+    expect(result.ok).toBe(true);
+    expect(result.uid).toBe('sb-uid-admin-role');
+  });
 });

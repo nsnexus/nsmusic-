@@ -17,6 +17,37 @@
 
 const IDENTITY_TOOLKIT_URL = 'https://identitytoolkit.googleapis.com/v1/accounts:lookup';
 
+export async function verifySupabaseToken(token, env = {}) {
+  const url = env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!token || !url || !anonKey) return null;
+
+  try {
+    const res = await fetch(`${url.replace(/\/$/, '')}/auth/v1/user`, {
+      method: 'GET',
+      headers: {
+        'apikey': anonKey,
+        'Authorization': `Bearer ${token}`
+      },
+      signal: AbortSignal.timeout(8000),
+    });
+
+    if (!res.ok) return null;
+    const user = await res.json().catch(() => null);
+    if (!user || !user.id) return null;
+
+    return {
+      uid: user.id,
+      email: user.email || null,
+      emailVerified: Boolean(user.email_confirmed_at),
+      isAdminClaim: user.app_metadata?.role === 'admin' || user.user_metadata?.role === 'admin',
+    };
+  } catch (err) {
+    console.warn('[auth] Falha ao verificar token Supabase:', err.message);
+    return null;
+  }
+}
+
 export async function verifyIdToken(idToken, firebaseApiKey) {
   if (!idToken || !firebaseApiKey) return null;
 
@@ -70,8 +101,8 @@ function extractBearerToken(req) {
 }
 
 /**
- * Exige que a requisição traga um ID token de Firebase válido, pertencente a uma conta com o custom
- * claim `admin: true` OU cujo e-mail está na allowlist `ADMIN_EMAILS`.
+ * Exige que a requisição traga um ID token de Supabase ou Firebase válido, pertencente a uma conta com
+ * o role `admin` OU cujo e-mail está na allowlist `ADMIN_EMAILS`.
  * Retorna { ok: true, uid, email } ou { ok: false, status, error }.
  */
 export async function requireAdmin(req, env = {}) {
@@ -80,8 +111,15 @@ export async function requireAdmin(req, env = {}) {
     return { ok: false, status: 401, error: 'Token de autenticação ausente.' };
   }
 
-  const firebaseApiKey = env.NEXT_PUBLIC_FIREBASE_API_KEY || process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
-  const account = await verifyIdToken(idToken, firebaseApiKey);
+  // 1. Tenta validar via Supabase Auth
+  let account = await verifySupabaseToken(idToken, env);
+
+  // 2. Se falhar, tenta validar via Firebase Identity Toolkit
+  if (!account) {
+    const firebaseApiKey = env.NEXT_PUBLIC_FIREBASE_API_KEY || process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
+    account = await verifyIdToken(idToken, firebaseApiKey);
+  }
+
   if (!account) {
     return { ok: false, status: 401, error: 'Token de autenticação inválido ou expirado.' };
   }
