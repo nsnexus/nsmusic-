@@ -1,20 +1,41 @@
-// Confere se uma URL de áudio REALMENTE entrega áudio antes de ela ser gravada no pedido.
+// Confere se uma URL de áudio REALMENTE entrega música antes de ela ser gravada no pedido.
 //
-// Achado em 25/09/2026, poucas horas depois de a troca automática entrar no ar: o endpoint
-// `record-info` da Kie.ai devolve a URL do MP3 final ANTES de o arquivo existir. Trocamos a URL de
-// streaming (que estava tocando) por uma que respondia 404 — a resposta tem 27.150 bytes de página
-// de erro HTML, então "veio conteúdo" não prova nada. Resultado: cliente com player mudo, pior do
-// que antes da correção.
+// Regra, em uma frase: arquivo vazio não é arquivo — não salva, não usa, não grava no pedido.
 //
-// Regra: a origem tem que responder 200/206 E com Content-Type de áudio. Sem as duas coisas, a URL
-// antiga fica onde está — um stream que morre em horas ainda é melhor que um link morto agora.
+// Histórico curto e caro (25/09/2026): a troca automática da URL de streaming pela definitiva foi
+// ao ar sem conferir nada e gravou 404 por cima de streams que estavam tocando. A primeira correção
+// passou a exigir status 200/206 e Content-Type de áudio — e ainda deixou passar, porque pedia
+// `Range: bytes=0-1` e olhava só o cabeçalho: uma resposta de 2 bytes passava como "saudável".
+//
+// Agora o tamanho TOTAL do arquivo é obrigatório e precisa bater com o de uma música de verdade:
+//   - `Content-Range: bytes 0-1/6101709` → total 6.101.709 (resposta 206, servidor respeitou Range);
+//   - `Content-Length` → total, quando o servidor ignora Range e manda o arquivo inteiro (200).
+// Sem nenhum dos dois, a URL é recusada: sem saber o tamanho, não dá para afirmar que tem música.
+// É o mesmo piso usado no arquivamento (MIN_AUDIO_BYTES em src/lib/audioArchive.js).
 const TIMEOUT_MS = 8000;
+const MIN_AUDIO_BYTES = 100 * 1024; // 100 KB — abaixo disso não é música
+
+function tamanhoTotal(res) {
+  // 206 com Range respeitado: "bytes 0-1/6101709".
+  const contentRange = res.headers.get('content-range');
+  if (contentRange) {
+    const total = Number(String(contentRange).split('/')[1]);
+    if (Number.isFinite(total)) return total;
+  }
+
+  // 200 com o arquivo inteiro: Content-Length é o tamanho do arquivo.
+  if (res.status === 200) {
+    const len = Number(res.headers.get('content-length'));
+    if (Number.isFinite(len)) return len;
+  }
+
+  return null;
+}
 
 export async function audioUrlSaudavel(url) {
   if (typeof url !== 'string' || !url.startsWith('http')) return false;
 
   try {
-    // Range de 1 byte: prova que o arquivo existe sem baixar os ~6 MB dentro do Worker.
     const res = await fetch(url, {
       headers: { Range: 'bytes=0-1' },
       signal: AbortSignal.timeout(TIMEOUT_MS),
@@ -23,14 +44,14 @@ export async function audioUrlSaudavel(url) {
     if (res.status !== 200 && res.status !== 206) return false;
 
     const tipo = String(res.headers.get('content-type') || '').toLowerCase();
+    // A CDN da Kie.ai já devolveu página de erro HTML com status 200 (27 KB de texto).
+    if (tipo.includes('text/') || tipo.includes('xml') || tipo.includes('json')) return false;
     if (tipo && !tipo.startsWith('audio/') && !tipo.includes('octet-stream')) return false;
 
-    // Servidor que ignora Range devolve 200 com o arquivo inteiro; nesse caso o tamanho declarado
-    // é o do arquivo. Zero byte é o modo de falha do audiostream.kie.ai depois que ele expira.
-    const tamanho = Number(res.headers.get('content-length'));
-    if (Number.isFinite(tamanho) && tamanho === 0) return false;
+    const total = tamanhoTotal(res);
+    if (total === null) return false;
 
-    return true;
+    return total >= MIN_AUDIO_BYTES;
   } catch (e) {
     return false;
   }
