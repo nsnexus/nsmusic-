@@ -54,15 +54,29 @@ export { readEnvValue };
 
 // Grava no pedido que a geração falhou, para o admin ver o motivo e reprocessar em lote — sem isso
 // o pedido só fica preso em EM_PRODUCAO/LETRA_CRIADA/GERANDO_AUDIO sem nenhum rastro do que aconteceu.
-export async function recordSunoFailure(orderId, reason) {
+export async function recordSunoFailure(orderId, reason, env = {}) {
   if (!orderId) return;
+  const nowIso = new Date().toISOString();
   try {
     await updateDoc(doc(db, 'orders', orderId), {
       sunoError: reason,
-      sunoErrorAt: new Date().toISOString(),
+      sunoErrorAt: nowIso,
       sunoErrorCount: increment(1),
-      updatedAt: new Date().toISOString()
+      updatedAt: nowIso
     });
+
+    try {
+      const { mirrorOrderToSupabase } = await import('./supabaseSync.js');
+      const { findOrderByIdOrNumber } = await import('./orderLookup.js');
+      const existing = await findOrderByIdOrNumber(orderId, env);
+      await mirrorOrderToSupabase(orderId, {
+        ...(existing || {}),
+        sunoError: reason,
+        sunoErrorAt: nowIso,
+        sunoErrorCount: (Number(existing?.sunoErrorCount) || 0) + 1,
+        updatedAt: nowIso
+      }, env);
+    } catch {}
   } catch (err) {
     console.error('[suno] Erro ao registrar falha de geração no pedido:', err.message);
   }
@@ -85,27 +99,47 @@ export async function requestSunoGeneration({ orderId, prompt, tags }, env) {
  * Grava o vínculo tarefa->pedido das duas pontas (suno_tasks e orders) — o resto do sistema
  * (webhook, polling, reconciliação, arquivamento) lê sempre daqui, nunca do provedor.
  */
-async function persistirGeracao({ orderId, taskId, provider }) {
+async function persistirGeracao({ orderId, taskId, provider }, env = {}) {
   const salvo = await saveTask(taskId, 'PROCESSING', null, orderId, { provider });
   if (!salvo) {
-    await recordSunoFailure(orderId, 'save_task_failed');
+    await recordSunoFailure(orderId, 'save_task_failed', env);
     return { ok: false, error: 'A geração foi iniciada, mas houve uma falha ao registrar o pedido. A equipe será notificada.', status: 502 };
   }
 
   if (orderId) {
+    const nowIso = new Date().toISOString();
     try {
       await updateDoc(doc(db, 'orders', orderId), {
         productionStatus: 'GERANDO_AUDIO',
-        sunoRequestedAt: new Date().toISOString(),
+        sunoRequestedAt: nowIso,
         sunoError: null,
         sunoTaskId: taskId,
         sunoProvider: provider,
         sunoGenerationCount: increment(1),
-        updatedAt: new Date().toISOString(),
+        updatedAt: nowIso,
       });
+
+      // Persistência imediata no Supabase
+      try {
+        const { mirrorOrderToSupabase } = await import('./supabaseSync.js');
+        const { findOrderByIdOrNumber } = await import('./orderLookup.js');
+        const existing = await findOrderByIdOrNumber(orderId, env);
+        await mirrorOrderToSupabase(orderId, {
+          ...(existing || {}),
+          productionStatus: 'GERANDO_AUDIO',
+          sunoRequestedAt: nowIso,
+          sunoError: null,
+          sunoTaskId: taskId,
+          sunoProvider: provider,
+          sunoGenerationCount: (Number(existing?.sunoGenerationCount) || 0) + 1,
+          updatedAt: nowIso,
+        }, env);
+      } catch (sbErr) {
+        console.warn('[suno] Falha ao espelhar GERANDO_AUDIO no Supabase:', sbErr.message);
+      }
     } catch (err) {
       console.error('[suno] Erro ao atualizar status do pedido para GERANDO_AUDIO:', err.message);
-      await recordSunoFailure(orderId, 'order_update_failed');
+      await recordSunoFailure(orderId, 'order_update_failed', env);
       return { ok: false, error: 'A geração foi iniciada, mas houve uma falha ao registrar o pedido. A equipe será notificada.', status: 502 };
     }
   }
@@ -196,7 +230,7 @@ async function gerarPelaKie({ orderId, prompt, tags }, env) {
   // identifica a faixa por taskId+audioId da geração original (ver src/lib/playback.js).
   // sunoGenerationCount conta cada chamada que o provedor de fato aceitou (e portanto cobrou),
   // para o painel admin estimar gasto; increment() sobrevive a retentativas concorrentes.
-  const persistido = await persistirGeracao({ orderId, taskId, provider: PROVIDER_KIE });
+  const persistido = await persistirGeracao({ orderId, taskId, provider: PROVIDER_KIE }, env);
   if (!persistido.ok) return persistido;
 
   return { ok: true, taskId, provider: PROVIDER_KIE };

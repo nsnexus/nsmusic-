@@ -19,7 +19,27 @@ function isValidSecret(req, env) {
   return searchParams.get('secret') === expected;
 }
 
-async function findOrderIdByTxid(txid) {
+async function findOrderIdByTxid(txid, env = {}) {
+  // 1. Tenta consulta no Supabase (Postgres)
+  try {
+    const { getSupabaseEdge } = await import('@/lib/supabase-edge');
+    const supabase = getSupabaseEdge(env);
+    if (supabase) {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('id')
+        .eq('extras->>paymentIntentId', txid)
+        .limit(1);
+
+      if (!error && Array.isArray(data) && data.length > 0) {
+        return data[0].id;
+      }
+    }
+  } catch (sbErr) {
+    console.warn('[Webhook Efí] Erro ao buscar pedido no Supabase por txid:', sbErr.message);
+  }
+
+  // 2. Fallback no Firestore
   try {
     const ordersRef = collection(dbEdge, 'orders');
     const q = query(ordersRef, where('paymentIntentId', '==', txid), limit(1));
@@ -57,7 +77,7 @@ async function processPixItem(item, env) {
   if (!charge || charge.status !== 'CONCLUIDA') return;
 
   const transactionAmount = Number(charge.valor?.original);
-  const orderId = await findOrderIdByTxid(txid);
+  const orderId = await findOrderIdByTxid(txid, env);
 
   if (orderId) {
     await applyPaymentApproval(orderId, txid, { status: 'approved', transaction_amount: transactionAmount }, env);

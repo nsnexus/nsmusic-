@@ -1,5 +1,7 @@
 import { collection, query, where, limit, getDocs, doc, getDoc } from 'firebase/firestore/lite';
 import { dbEdge as db } from './firebase-edge.js';
+import { getSupabaseEdge } from './supabase-edge.js';
+import { mapSupabaseOrderToFirestore } from './supabaseSync.js';
 
 /**
  * Gera todas as variações possíveis de um número de telefone brasileiro
@@ -165,11 +167,30 @@ export function isShortAckMessage(text) {
 /**
  * Busca pedido no Firestore por ID do documento direto ou pelo orderNumber (ex: NS-...)
  */
-export async function findOrderByIdOrNumber(candidate) {
+export async function findOrderByIdOrNumber(candidate, env = {}) {
   if (!candidate) return null;
   const trimmed = String(candidate).trim();
   if (!trimmed) return null;
 
+  // 1. Tenta consulta direta no Supabase (Postgres)
+  try {
+    const supabase = getSupabaseEdge(env);
+    if (supabase) {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('*')
+        .or(`id.eq.${trimmed},order_number.eq.${trimmed}`)
+        .limit(1);
+
+      if (!error && Array.isArray(data) && data.length > 0) {
+        return mapSupabaseOrderToFirestore(data[0]);
+      }
+    }
+  } catch (sbErr) {
+    console.warn('[OrderLookup] Falha na busca Supabase por ID/número:', sbErr.message);
+  }
+
+  // 2. Fallback resiliente no Firestore
   try {
     // 1. Tenta buscar por ID de documento direto
     const docSnap = await getDoc(doc(db, 'orders', trimmed)).catch(() => null);
@@ -195,14 +216,38 @@ export async function findOrderByIdOrNumber(candidate) {
 /**
  * Busca o pedido mais recente feito por um número de telefone no Firestore
  */
-export async function findRecentOrderByPhone(phone) {
+export async function findRecentOrderByPhone(phone, env = {}) {
   const variants = generatePhoneVariants(phone);
   if (variants.length === 0) return null;
 
+  const searchVariants = variants.slice(0, 25);
+
+  // 1. Tenta consulta direta no Supabase (Postgres indexado)
+  try {
+    const supabase = getSupabaseEdge(env);
+    if (supabase) {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('*')
+        .in('customer_phone', searchVariants)
+        .is('deleted_at', 'null')
+        .neq('production_status', 'RASCUNHO')
+        .neq('production_status', 'CONFIG')
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (!error && Array.isArray(data) && data.length > 0) {
+        return mapSupabaseOrderToFirestore(data[0]);
+      }
+    }
+  } catch (sbErr) {
+    console.warn('[OrderLookup] Falha na busca Supabase por telefone:', sbErr.message);
+  }
+
+  // 2. Fallback resiliente no Firestore
   try {
     const ordersRef = collection(db, 'orders');
     const candidates = [];
-    const searchVariants = variants.slice(0, 25);
 
     // 1. Busca por customerPhone
     const q1 = query(ordersRef, where('customerPhone', 'in', searchVariants));

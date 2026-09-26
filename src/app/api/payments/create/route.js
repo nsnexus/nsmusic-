@@ -106,6 +106,27 @@ export async function POST(req) {
         updates.previousPaymentIntentIds = arrayUnion(existingOrderData.paymentIntentId);
       }
       await updateDoc(orderRef, updates);
+
+      // Persistência imediata no Supabase
+      try {
+        const { mirrorOrderToSupabase } = await import('@/lib/supabaseSync');
+        const prevIds = Array.isArray(existingOrderData.previousPaymentIntentIds)
+          ? [...existingOrderData.previousPaymentIntentIds]
+          : [];
+        if (existingOrderData.paymentIntentId && existingOrderData.paymentIntentId !== charge.txid) {
+          prevIds.push(existingOrderData.paymentIntentId);
+        }
+        await mirrorOrderToSupabase(orderId, {
+          ...existingOrderData,
+          ...updates,
+          paymentIntentId: charge.txid,
+          paymentIntentSku: sku,
+          expectedAmount: amount,
+          previousPaymentIntentIds: prevIds,
+        }, env);
+      } catch (sbErr) {
+        console.warn('[api/payments/create] Falha ao espelhar paymentIntent no Supabase:', sbErr.message);
+      }
     } catch (err) {
       console.error('[api/payments/create] Falha ao persistir paymentIntent no pedido:', err.message);
       return NextResponse.json({ error: 'Falha ao registrar a intenção de pagamento. Tente novamente.' }, { status: 500 });

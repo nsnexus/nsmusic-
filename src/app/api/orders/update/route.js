@@ -32,6 +32,24 @@ export async function POST(req) {
     if (paymentStatus !== undefined) updateData.paymentStatus = paymentStatus;
     if (productionStatus !== undefined) updateData.productionStatus = productionStatus;
 
+    // 1. Atualiza no Supabase (Postgres)
+    try {
+      const { getSupabaseEdge } = await import('@/lib/supabase-edge');
+      const supabase = getSupabaseEdge(env);
+      if (supabase) {
+        const sbUpdates = { updated_at: updateData.updatedAt };
+        if (audioUrl !== undefined) sbUpdates.audio_url = audioUrl;
+        if (audioFiles !== undefined) sbUpdates.audio_files = audioFiles;
+        if (paymentStatus !== undefined) sbUpdates.payment_status = paymentStatus;
+        if (productionStatus !== undefined) sbUpdates.production_status = productionStatus;
+
+        await supabase.from('orders').eq('id', orderId).update(sbUpdates);
+      }
+    } catch (sbErr) {
+      console.warn('[API /orders/update] Aviso ao atualizar Supabase:', sbErr.message);
+    }
+
+    // 2. Dual-Write de transição no Firestore
     await updateDoc(doc(db, 'orders', orderId), updateData);
 
     return NextResponse.json({ success: true, orderId, updated: updateData }, { status: 200 });

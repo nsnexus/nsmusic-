@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
-import { doc, getDoc } from 'firebase/firestore/lite';
-import { dbEdge } from '@/lib/firebase-edge';
+import { findOrderByIdOrNumber } from '@/lib/orderLookup';
 import { applyPaymentApproval } from '@/lib/payments';
 import { getChargeStatus } from '@/lib/efi';
 
@@ -30,14 +29,12 @@ export async function GET(req) {
     const paymentId = searchParams.get('paymentId');
     const orderId = searchParams.get('orderId');
 
-    // ── 1. Verificação rápida no Firestore ──
+    // ── 1. Verificação rápida no Banco (Supabase como primário, Firestore como fallback) ──
     let orderData = null;
     if (orderId) {
       try {
-        const orderSnap = await getDoc(doc(dbEdge, 'orders', orderId));
-        if (orderSnap.exists()) {
-          orderData = orderSnap.data();
-
+        orderData = await findOrderByIdOrNumber(orderId, env);
+        if (orderData) {
           // Atalho só é seguro quando o paymentId consultado é EXATAMENTE o que já foi
           // verificado e aprovado antes (guardado em paymentId/videoPaymentId por
           // applyPaymentApproval). Um pedido já aprovado (paymentStatus) não significa que

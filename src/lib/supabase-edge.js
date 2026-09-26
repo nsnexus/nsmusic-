@@ -112,10 +112,59 @@ class SupabaseTableQuery {
   }
 
   /**
+   * Remoção de registros (DELETE).
+   */
+  async delete(options = {}) {
+    const url = `${this.baseUrl}/rest/v1/${this.tableName}?${this.queryParams.toString()}`;
+    try {
+      const res = await fetch(url, {
+        method: 'DELETE',
+        headers: {
+          ...this.headers,
+          'Prefer': 'return=representation',
+        },
+        signal: AbortSignal.timeout(options.timeout || 12000),
+      });
+
+      if (!res.ok) {
+        const errorText = await res.text().catch(() => '');
+        return { data: null, error: { message: `HTTP ${res.status}: ${errorText}` } };
+      }
+
+      const resData = await res.json().catch(() => null);
+      return { data: resData, error: null };
+    } catch (err) {
+      return { data: null, error: { message: err.message } };
+    }
+  }
+
+  /**
    * Leitura de dados (select).
    */
   select(columns = '*') {
     this.queryParams.set('select', columns);
+    return this;
+  }
+
+  single() {
+    this.isSingle = true;
+    this.limit(1);
+    return this;
+  }
+
+  maybeSingle() {
+    this.isMaybeSingle = true;
+    this.limit(1);
+    return this;
+  }
+
+  ilike(column, pattern) {
+    this.queryParams.append(column, `ilike.${pattern}`);
+    return this;
+  }
+
+  like(column, pattern) {
+    this.queryParams.append(column, `like.${pattern}`);
     return this;
   }
 
@@ -196,6 +245,26 @@ class SupabaseTableQuery {
       }
 
       const data = await res.json().catch(() => null);
+      if (this.isSingle) {
+        if (Array.isArray(data)) {
+          if (data.length === 0) {
+            resolve({ data: null, error: { message: 'Row not found' } });
+            return;
+          }
+          resolve({ data: data[0], error: null });
+          return;
+        }
+        resolve({ data, error: null });
+        return;
+      }
+      if (this.isMaybeSingle) {
+        if (Array.isArray(data)) {
+          resolve({ data: data[0] || null, error: null });
+          return;
+        }
+        resolve({ data: data || null, error: null });
+        return;
+      }
       resolve({ data, error: null });
     } catch (err) {
       resolve({ data: null, error: { message: err.message } });

@@ -1,7 +1,30 @@
 import { describe, it, expect, vi } from 'vitest';
-import { mapFirestoreOrderToSupabase, mirrorOrderToSupabase, mirrorPaymentToSupabase } from '../../src/lib/supabaseSync.js';
+import { mapFirestoreOrderToSupabase, mapSupabaseOrderToFirestore, mapSupabaseTaskToFirestore, mirrorOrderToSupabase, mirrorPaymentToSupabase } from '../../src/lib/supabaseSync.js';
 
 describe('supabaseSync', () => {
+  it('converte corretamente campos de snake_case do Postgres de volta para camelCase', () => {
+    const row = {
+      id: 'doc-id-456',
+      order_number: 'NS-9999-2026',
+      customer_name: 'João Souza',
+      customer_phone: '(11) 98888-7777',
+      payment_status: 'PAGO',
+      audio_files: ['https://r2.dev/audio1.mp3'],
+      has_video_access: true,
+      extras: { campoLegado: 'abc' }
+    };
+
+    const mapped = mapSupabaseOrderToFirestore(row);
+
+    expect(mapped.id).toBe('doc-id-456');
+    expect(mapped.orderNumber).toBe('NS-9999-2026');
+    expect(mapped.customerName).toBe('João Souza');
+    expect(mapped.customerPhone).toBe('(11) 98888-7777');
+    expect(mapped.paymentStatus).toBe('PAGO');
+    expect(mapped.audioFiles).toEqual(['https://r2.dev/audio1.mp3']);
+    expect(mapped.hasVideoAccess).toBe(true);
+    expect(mapped.campoLegado).toBe('abc');
+  });
   it('converte corretamente campos de camelCase para snake_case e preserva id', () => {
     const firestoreData = {
       orderNumber: 'NS-12345-2026',
@@ -62,5 +85,27 @@ describe('supabaseSync', () => {
     }, {});
     expect(res.success).toBe(false);
     expect(res.reason).toBe('not_configured');
+  });
+
+  it('mapSupabaseTaskToFirestore converte corretamente registro de suno_tasks', () => {
+    const row = {
+      id: 'task-abc-123',
+      order_id: 'order-xyz-789',
+      status: 'COMPLETED',
+      provider: 'kie',
+      clip_ids: ['clip-1', 'clip-2'],
+      result: { data: [{ audio_url: 'https://cdn.example.com/audio.mp3' }] },
+      retry_task_id: null,
+      created_at: '2026-09-25T12:00:00.000Z',
+      updated_at: '2026-09-25T12:01:00.000Z'
+    };
+
+    const mapped = mapSupabaseTaskToFirestore(row);
+    expect(mapped.id).toBe('task-abc-123');
+    expect(mapped.orderId).toBe('order-xyz-789');
+    expect(mapped.status).toBe('COMPLETED');
+    expect(mapped.provider).toBe('kie');
+    expect(mapped.clipIds).toEqual(['clip-1', 'clip-2']);
+    expect(mapped.result).toEqual(row.result);
   });
 });

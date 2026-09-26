@@ -3,7 +3,30 @@ import { dbEdge as db } from './firebase-edge.js';
 import { sendMusicReadyTemplate } from './whatsapp.js';
 import { resolveDeliveryUrl } from './whatsappTemplates.js';
 
-export const getTask = async (taskId) => {
+export const getTask = async (taskId, env = {}) => {
+  if (!taskId) return null;
+
+  // 1. Tenta buscar no Supabase como primário
+  try {
+    const { getSupabaseEdge } = await import('./supabase-edge.js');
+    const { mapSupabaseTaskToFirestore } = await import('./supabaseSync.js');
+    const supabase = getSupabaseEdge(env);
+    if (supabase) {
+      const { data, error } = await supabase
+        .from('suno_tasks')
+        .select('*')
+        .eq('id', taskId)
+        .maybeSingle();
+
+      if (!error && data) {
+        return mapSupabaseTaskToFirestore(data);
+      }
+    }
+  } catch (err) {
+    console.warn("[db] Falha ao consultar task no Supabase:", err.message);
+  }
+
+  // 2. Fallback no Firestore
   try {
     const docRef = doc(db, 'suno_tasks', taskId);
     const docSnap = await getDoc(docRef);
@@ -24,7 +47,8 @@ export const getTask = async (taskId) => {
  * @param {object} [extra] campos além do básico. Hoje só `provider` ('kie'), gravado desde que o
  *   projeto experimentou um segundo provedor de geração em 24/09/2026.
  */
-export const saveTask = async (taskId, status, result = null, orderId = null, extra = {}) => {
+export const saveTask = async (taskId, status, result = null, orderId = null, extra = {}, env = {}) => {
+  const nowIso = new Date().toISOString();
   try {
     const docRef = doc(db, 'suno_tasks', taskId);
     // merge:true padronizado com updateTaskResult (ver M-06 no AUDIT_REPORT.md) — sem isso, uma
@@ -34,19 +58,19 @@ export const saveTask = async (taskId, status, result = null, orderId = null, ex
       result,
       orderId,
       ...(extra.provider ? { provider: extra.provider } : {}),
-      updatedAt: new Date().toISOString()
+      updatedAt: nowIso
     }, { merge: true });
 
-    // Dual-Write seguro para o Supabase
+    // Persistência imediata no Supabase
     try {
       const { mirrorTaskToSupabase } = await import('./supabaseSync.js');
-      mirrorTaskToSupabase(taskId, {
+      await mirrorTaskToSupabase(taskId, {
         status,
         result,
         orderId,
         provider: extra.provider || null,
-        updatedAt: new Date().toISOString()
-      }).catch(() => {});
+        updatedAt: nowIso
+      }, env);
     } catch {}
 
     return true;
@@ -134,29 +158,38 @@ export const extractAudioTracks = (result) => {
 
 export const updateTaskResult = async (taskId, result, overrideOrderId = null, env = {}) => {
   try {
+    const nowIso = new Date().toISOString();
     const docRef = doc(db, 'suno_tasks', taskId);
     const docSnap = await getDoc(docRef);
     let orderId = overrideOrderId;
     if (!orderId && docSnap.exists()) {
       orderId = docSnap.data().orderId;
     }
+    if (!orderId) {
+      try {
+        const task = await getTask(taskId, env);
+        if (task?.orderId) {
+          orderId = task.orderId;
+        }
+      } catch {}
+    }
 
     await setDoc(docRef, {
       status: 'COMPLETED',
       result,
       orderId: orderId || null,
-      updatedAt: new Date().toISOString()
+      updatedAt: nowIso
     }, { merge: true });
 
-    // Dual-Write seguro para o Supabase
+    // Persistência imediata no Supabase
     try {
       const { mirrorTaskToSupabase } = await import('./supabaseSync.js');
-      mirrorTaskToSupabase(taskId, {
+      await mirrorTaskToSupabase(taskId, {
         status: 'COMPLETED',
         result,
         orderId: orderId || null,
-        updatedAt: new Date().toISOString()
-      }).catch(() => {});
+        updatedAt: nowIso
+      }, env);
     } catch {}
 
     // Extrai as faixas de qualquer estrutura da Kie.ai
@@ -217,10 +250,10 @@ export const updateTaskResult = async (taskId, result, overrideOrderId = null, e
         }
       }
 
-      // Dual-Write seguro para o Supabase
+      // Persistência imediata no Supabase
       try {
         const { mirrorOrderToSupabase } = await import('./supabaseSync.js');
-        mirrorOrderToSupabase(orderId, { ...orderData, ...finalUpdates }, env).catch(() => {});
+        await mirrorOrderToSupabase(orderId, { ...orderData, ...finalUpdates }, env);
       } catch {}
 
       // Contador da vitrine da home (stats/_live). Só soma se o pedido AINDA NÃO tinha áudio: esta

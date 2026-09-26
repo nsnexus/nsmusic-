@@ -186,10 +186,10 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
 
         await updateDoc(orderRef, updates);
 
-        // Dual-Write seguro para Supabase (atualiza pedido e registra transação na tabela payments)
+        // Sincronização imediata no Supabase (atualiza pedido e registra transação na tabela payments)
         try {
           const { mirrorOrderToSupabase, mirrorPaymentToSupabase } = await import('./supabaseSync.js');
-          mirrorOrderToSupabase(orderId, { ...orderData, ...updates }, env).catch(() => {});
+          await mirrorOrderToSupabase(orderId, { ...orderData, ...updates }, env);
 
           let paymentKind = 'musica';
           if (isVideoOnly) paymentKind = 'video';
@@ -198,14 +198,14 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
           else if (isRetroOnly) paymentKind = 'retrospectiva';
 
           const confirmedAmount = Number(payment.transaction_amount) || getPriceForSku(sku) || 9.99;
-          mirrorPaymentToSupabase({
+          await mirrorPaymentToSupabase({
             orderId,
             kind: paymentKind,
             sku,
             txid: String(paymentId),
             amount: confirmedAmount,
             paidAt: nowIso
-          }, env).catch(() => {});
+          }, env);
         } catch {}
 
         const grantedCartaViaCombo = skuGrantsCartaAccess(sku);

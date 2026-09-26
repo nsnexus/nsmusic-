@@ -9,6 +9,25 @@ export const runtime = 'edge';
 // M-07 no AUDIT_REPORT.md: exclusão de pedido agora é lógica (deletedAt) em vez de apagar o
 // documento, e remove as suno_tasks relacionadas (que antes ficavam órfãs para sempre).
 async function softDeleteOrder(id, deletedAtIso) {
+  // 1. Marca exclusão lógica no Supabase
+  try {
+    const { getSupabaseEdge } = await import('@/lib/supabase-edge');
+    const supabase = getSupabaseEdge();
+    if (supabase) {
+      await supabase.from('orders').eq('id', id).update({
+        deleted_at: deletedAtIso,
+        updated_at: deletedAtIso
+      });
+      await supabase.from('suno_tasks').eq('order_id', id).update({
+        status: 'DELETED',
+        updated_at: deletedAtIso
+      });
+    }
+  } catch (e) {
+    console.warn('[API /orders/delete] Aviso ao marcar exclusão no Supabase:', e.message);
+  }
+
+  // 2. Dual-Write de transição no Firestore
   await updateDoc(doc(db, 'orders', id), { deletedAt: deletedAtIso, updatedAt: deletedAtIso });
 
   const tasksRef = collection(db, 'suno_tasks');

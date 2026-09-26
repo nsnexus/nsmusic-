@@ -114,6 +114,78 @@ export function mapFirestoreOrderToSupabase(id, data = {}) {
   };
 }
 
+// Mapeia uma linha do Supabase (snake_case) de volta para o formato padrão do objeto de pedido (camelCase)
+export function mapSupabaseOrderToFirestore(row) {
+  if (!row || typeof row !== 'object') return null;
+
+  return {
+    id: row.id,
+    orderNumber: row.order_number,
+    customerName: row.customer_name || 'Cliente',
+    customerPhone: row.customer_phone || '',
+    customerEmail: row.customer_email || '',
+    userId: row.user_id || null,
+    honoreeName: row.honoree_name || '',
+    recipientType: row.recipient_type || '',
+    relationship: row.relationship || '',
+    occasion: row.occasion || '',
+    story: row.story || '',
+    importantMoments: row.important_moments || '',
+    musicStyle: row.music_style || '',
+    musicMood: row.music_mood || '',
+    voiceType: row.voice_type || '',
+    lyrics: row.lyrics || '',
+    sunoPrompt: row.suno_prompt || '',
+    productionStatus: row.production_status || 'RASCUNHO',
+    sunoTaskId: row.suno_task_id || null,
+    sunoProvider: row.suno_provider || null,
+    sunoGenerationCount: Number(row.suno_generation_count) || 0,
+    sunoRequestedAt: row.suno_requested_at || null,
+    sunoError: row.suno_error || null,
+    audioUrl: row.audio_url || null,
+    audioFiles: Array.isArray(row.audio_files) ? row.audio_files : [],
+    audioIds: Array.isArray(row.audio_ids) ? row.audio_ids : [],
+    coverUrl: row.cover_url || null,
+    audioArchivedAt: row.audio_archived_at || null,
+    audioArchiveFailedAt: row.audio_archive_failed_at || null,
+    audioRefreshedAt: row.audio_refreshed_at || null,
+    audioRefreshFailed: row.audio_refresh_failed || null,
+    paymentStatus: row.payment_status || 'AGUARDANDO_PAGAMENTO',
+    paidAt: row.paid_at || null,
+    hasVideoAccess: Boolean(row.has_video_access),
+    hasCartaAccess: Boolean(row.has_carta_access),
+    hasRetrospectivaAccess: Boolean(row.has_retrospectiva_access),
+    hasPlaybackAccess: Boolean(row.has_playback_access),
+    videoUrl: row.video_url || null,
+    videoStatus: row.video_status || null,
+    videoError: row.video_error || null,
+    playbackUrl: row.playback_url || null,
+    playbackStatus: row.playback_status || null,
+    playbackError: row.playback_error || null,
+    cartaTexto: row.carta_texto || null,
+    cartaTemaEscolhido: row.carta_tema_escolhido || null,
+    cartaMusicaUrl: row.carta_musica_url || null,
+    homenagemMusicaUrl: row.homenagem_musica_url || null,
+    retrospectiva: row.retrospectiva || null,
+    slideshowImages: Array.isArray(row.slideshow_images) ? row.slideshow_images : [],
+    whatsappRequested: Boolean(row.whatsapp_requested),
+    whatsappSent: Boolean(row.whatsapp_sent),
+    whatsappSentAt: row.whatsapp_sent_at || null,
+    readyTemplateSent: Boolean(row.ready_template_sent),
+    readyTemplateSentAt: row.ready_template_sent_at || null,
+    paymentWhatsappSent: Boolean(row.payment_whatsapp_sent),
+    recoveryStage: Number(row.recovery_stage) || 0,
+    humanTakeover: Boolean(row.human_takeover),
+    previewListenedAt: row.preview_listened_at || null,
+    termsAccepted: Boolean(row.terms_accepted),
+    termsAcceptedAt: row.terms_accepted_at || null,
+    createdAt: row.created_at || null,
+    updatedAt: row.updated_at || null,
+    deletedAt: row.deleted_at || null,
+    ...(row.extras && typeof row.extras === 'object' ? row.extras : {}),
+  };
+}
+
 /**
  * Espelha um pedido para o Supabase (Dual-Write seguro).
  * NUNCA lança erro: falhas no Supabase são registradas apenas como log de aviso
@@ -211,3 +283,22 @@ export async function mirrorTaskToSupabase(taskId, taskData = {}, env = {}) {
     return { success: false, error: err.message };
   }
 }
+
+/**
+ * Mapeia uma linha da tabela suno_tasks do Supabase de volta para o formato Firestore
+ */
+export function mapSupabaseTaskToFirestore(row) {
+  if (!row || typeof row !== 'object') return null;
+  return {
+    id: row.id,
+    orderId: row.order_id || null,
+    status: row.status,
+    provider: row.provider || null,
+    clipIds: Array.isArray(row.clip_ids) ? row.clip_ids : [],
+    result: row.result || null,
+    retryTaskId: row.retry_task_id || null,
+    createdAt: row.created_at || null,
+    updatedAt: row.updated_at || null
+  };
+}
+

@@ -128,14 +128,13 @@ export async function POST(req) {
 
     console.log(`[API /orders/create] Pedido criado com sucesso no Firebase! ID: ${docRef.id}, Número: ${orderNumber}`);
 
-    // Dual-Write seguro: espelha o pedido no Supabase sem travar a resposta do Firebase
+    // Dual-Write: grava no Supabase com confirmação garantida
     try {
       const { mirrorOrderToSupabase } = await import('@/lib/supabaseSync');
-      mirrorOrderToSupabase(docRef.id, orderPayload).catch((err) => {
-        console.warn('[API /orders/create] Aviso ao espelhar no Supabase:', err?.message);
-      });
+      await mirrorOrderToSupabase(docRef.id, orderPayload);
+      console.log(`[API /orders/create] Pedido gravado no Supabase com sucesso! ID: ${docRef.id}`);
     } catch (e) {
-      // Ignora falhas no espelhamento para proteger a operação principal
+      console.warn('[API /orders/create] Aviso ao gravar no Supabase:', e?.message);
     }
 
     return NextResponse.json({
