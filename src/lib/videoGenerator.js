@@ -1,9 +1,18 @@
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { doc, updateDoc } from 'firebase/firestore';
-import { db, storage } from '@/lib/firebase';
 // O AudioContext vive em módulo próprio porque precisa ser destravado de forma síncrona no clique
 // do usuário, e este arquivo só é carregado por import dinâmico — ver src/lib/audioContext.js.
 import { primeAudioContext } from '@/lib/audioContext';
+
+async function updateOrderClient(orderId, updates) {
+  try {
+    await fetch('/api/orders/client-update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orderId, ...updates }),
+    });
+  } catch (err) {
+    console.warn('[VideoGen] Falha ao atualizar pedido via client-update:', err?.message);
+  }
+}
 
 // Baixa os bytes do MP3 pelo proxy do próprio domínio. Devolver bytes (em vez de apontar um
 // <audio src>) é o que elimina de vez a segunda causa de vídeo mudo: um elemento de mídia
@@ -53,9 +62,8 @@ export async function createSlideshowVideo(orderId, imageUrls, audioUrl, orderDa
     throw new Error('Mínimo de 10 fotos necessárias para gerar o vídeo.');
   }
 
-  // Atualiza status no Firestore para GERANDO
-  const orderRef = doc(db, 'orders', orderId);
-  await updateDoc(orderRef, {
+  // Atualiza status para GERANDO
+  await updateOrderClient(orderId, {
     videoStatus: 'GERANDO',
     videoProgress: 10,
     updatedAt: new Date().toISOString()
@@ -493,57 +501,32 @@ export async function createSlideshowVideo(orderId, imageUrls, audioUrl, orderDa
       console.warn('[VideoGen] Vídeo gerado com sucesso, mas o usuário trocou de aba durante a gravação. O áudio pode estar dessincronizado.');
     }
 
-    // 5. Upload do vídeo — R2 primeiro (07/09/2026: egress zero, vídeo é o maior arquivo do produto),
-    // com fallback pro Firebase Storage direto do navegador se a rota falhar (binding ausente,
-    // instabilidade momentânea, etc.) — nunca bloqueia a entrega por causa do destino de storage.
-    // Extensão e Content-Type batem com o container real gravado (ver fileExtension acima), para o
-    // arquivo baixado/compartilhado ser reconhecido corretamente pelo WhatsApp e outros apps.
+    // 5. Upload do vídeo — Cloudflare R2 direto via Edge
     let videoUrl = null;
-    try {
-      const uploadRes = await fetch(`/api/video/upload?orderId=${encodeURIComponent(orderId)}&ext=${fileExtension}`, {
-        method: 'POST',
-        headers: { 'Content-Type': mimeType },
-        body: videoBlob,
-        signal: AbortSignal.timeout(120000),
-      });
-      if (uploadRes.ok) {
-        const data = await uploadRes.json();
-        videoUrl = data?.url || null;
-      } else {
-        console.warn(`[VideoGen] Upload R2 respondeu HTTP ${uploadRes.status} — caindo pro Firebase Storage.`);
-      }
-    } catch (err) {
-      console.warn('[VideoGen] Falha ao enviar vídeo pro R2 — caindo pro Firebase Storage:', err?.message);
+    const uploadRes = await fetch(`/api/video/upload?orderId=${encodeURIComponent(orderId)}&ext=${fileExtension}`, {
+      method: 'POST',
+      headers: { 'Content-Type': mimeType },
+      body: videoBlob,
+      signal: AbortSignal.timeout(120000),
+    });
+    if (!uploadRes.ok) {
+      throw new Error(`Falha no upload do vídeo para o R2 (HTTP ${uploadRes.status})`);
     }
-
+    const data = await uploadRes.json();
+    videoUrl = data?.url || null;
     if (!videoUrl) {
-      const storageRef = ref(storage, `orders/${orderId}/video_homenagem.${fileExtension}`);
-      await uploadBytes(storageRef, videoBlob, { contentType: mimeType });
-      videoUrl = await getDownloadURL(storageRef);
+      throw new Error('URL do vídeo não foi retornada pelo servidor');
     }
 
     // 6. Atualiza o pedido com a URL do vídeo concluído
     const nowIso = new Date().toISOString();
-    await updateDoc(orderRef, {
+    await updateOrderClient(orderId, {
       videoUrl: videoUrl,
       videoStatus: 'CONCLUIDO',
       videoProgress: 100,
       videoCreatedAt: nowIso,
       updatedAt: nowIso
     });
-
-    try {
-      await fetch('/api/orders/update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          orderId,
-          videoUrl,
-          videoStatus: 'CONCLUIDO',
-          updatedAt: nowIso
-        })
-      });
-    } catch {}
 
     return videoUrl;
 
@@ -552,23 +535,11 @@ export async function createSlideshowVideo(orderId, imageUrls, audioUrl, orderDa
     // Limpa o listener de visibilidade caso tenha sido registrado antes do erro
     try { document.removeEventListener('visibilitychange', onVisibilityChange); } catch (_) {}
     const errIso = new Date().toISOString();
-    await updateDoc(orderRef, {
+    await updateOrderClient(orderId, {
       videoStatus: 'ERRO',
       videoError: err.message,
       updatedAt: errIso
     });
-    try {
-      await fetch('/api/orders/update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          orderId,
-          videoStatus: 'ERRO',
-          videoError: err.message,
-          updatedAt: errIso
-        })
-      });
-    } catch {}
     throw err;
   }
 }

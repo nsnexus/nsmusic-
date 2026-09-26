@@ -2,8 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { auth, onAuthStateChanged, signOut } from '@/lib/authClient';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePedidosDoMes } from '@/lib/usePedidosDoMes';

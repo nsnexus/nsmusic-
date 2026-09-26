@@ -2,8 +2,6 @@
 
 import { Suspense, useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { buildAudioProxySrc } from '@/lib/audioProxy';
 import MedidorAmor from '@/components/MedidorAmor';
 import ReelsViewer from '@/components/ReelsViewer';
@@ -160,21 +158,10 @@ function RetrospectivaContent() {
     (async () => {
       try {
         let data = null;
-        try {
-          const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}`, { cache: 'no-store' });
-          if (res.ok) {
-            const json = await res.json();
-            if (json?.order) data = json.order;
-          }
-        } catch (apiErr) {
-          console.warn('[retrospectiva] Fallback para Firestore:', apiErr.message);
-        }
-
-        if (!data) {
-          const snap = await getDoc(doc(db, 'orders', orderId));
-          if (snap.exists()) {
-            data = snap.data();
-          }
+        const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}`, { cache: 'no-store' });
+        if (res.ok) {
+          const json = await res.json();
+          if (json?.order) data = json.order;
         }
 
         if (!ativo) return;

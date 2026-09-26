@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore/lite';
-import { dbEdge as db } from '@/lib/firebase-edge';
+import { getOrder, updateOrder } from '@/lib/supabaseDb';
 import { sendWApiTextMessage, resolveDeliveryUrl, isVideoPurchased, buildAudioDownloadLink } from '@/lib/whatsapp';
 import { handleWhatsAppAgentMessage, pauseAgentForPhone, resumeAgentForPhone } from '@/lib/whatsappAgent';
 import { findRecentOrderByPhone, isNewSongIntent, findOrderByIdOrNumber, isShortAckMessage } from '@/lib/orderLookup';
@@ -347,38 +346,42 @@ function sanitizeDedupKey(raw) {
   return String(raw).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 200);
 }
 
-async function isDuplicateMessage(msgId) {
+async function isDuplicateMessage(msgId, env = {}) {
   if (!msgId) return false;
-  const ref = doc(db, DEDUP_COLLECTION, `msg_${sanitizeDedupKey(msgId)}`);
   try {
-    const snap = await getDoc(ref);
-    if (snap.exists()) {
-      const at = Date.parse(snap.data()?.at || '');
+    const { getSupabaseEdge } = await import('@/lib/supabase-edge');
+    const supabase = getSupabaseEdge(env);
+    if (!supabase) return false;
+    const chave = `dedup_msg_${sanitizeDedupKey(msgId)}`;
+    const { data } = await supabase.from('config').select('valor').eq('chave', chave).maybeSingle();
+    if (data?.valor?.at) {
+      const at = Date.parse(data.valor.at);
       if (!Number.isNaN(at) && Date.now() - at < MESSAGE_DEDUP_WINDOW_MS) return true;
     }
-    await setDoc(ref, { at: new Date().toISOString() });
+    await supabase.from('config').upsert({ chave, valor: { at: new Date().toISOString() }, updated_at: new Date().toISOString() });
     return false;
   } catch (err) {
-    // Falha ao consultar/gravar a trava nunca pode travar a mensagem — melhor arriscar duplicata
-    // (que já era o comportamento de hoje) do que silenciar cliente por um erro do Firestore.
-    console.warn('[WhatsApp Webhook] Erro na deduplicação por Firestore:', err.message);
+    console.warn('[WhatsApp Webhook] Erro na deduplicação por Supabase:', err.message);
     return false;
   }
 }
 
-async function isPhoneLocked(phone) {
+async function isPhoneLocked(phone, env = {}) {
   if (!phone) return false;
-  const ref = doc(db, DEDUP_COLLECTION, `lock_${sanitizeDedupKey(phone)}`);
   try {
-    const snap = await getDoc(ref);
-    if (snap.exists()) {
-      const at = Date.parse(snap.data()?.at || '');
+    const { getSupabaseEdge } = await import('@/lib/supabase-edge');
+    const supabase = getSupabaseEdge(env);
+    if (!supabase) return false;
+    const chave = `lock_phone_${sanitizeDedupKey(phone)}`;
+    const { data } = await supabase.from('config').select('valor').eq('chave', chave).maybeSingle();
+    if (data?.valor?.at) {
+      const at = Date.parse(data.valor.at);
       if (!Number.isNaN(at) && Date.now() - at < PHONE_LOCK_WINDOW_MS) return true;
     }
-    await setDoc(ref, { at: new Date().toISOString() });
+    await supabase.from('config').upsert({ chave, valor: { at: new Date().toISOString() }, updated_at: new Date().toISOString() });
     return false;
   } catch (err) {
-    console.warn('[WhatsApp Webhook] Erro na trava de concorrência por Firestore:', err.message);
+    console.warn('[WhatsApp Webhook] Erro na trava de concorrência por Supabase:', err.message);
     return false;
   }
 }
@@ -533,34 +536,24 @@ export async function POST(req) {
 
       // Marca que o cliente solicitou o envio pelo WhatsApp
       try {
-        await updateDoc(doc(db, 'orders', matchedOrderId), {
+        await updateOrder(matchedOrderId, {
           whatsappRequested: true,
           whatsappSenderPhone: senderPhone,
           updatedAt: new Date().toISOString(),
-        });
+        }, envVars);
       } catch (e) {}
 
       // Se a música já estiver pronta:
       if (matchedOrder.audioUrl || matchedOrder.audioFiles?.length) {
-        // Estado FRESCO, não o `matchedOrder` capturado no início da requisição — é o que permite a
-        // reserva abaixo fechar a corrida (achado 30/08/2026: mesma mensagem de espera chegando 2x
-        // pro cliente no mesmo minuto, quando a W-API reentrega o evento e a segunda chamada chega
-        // antes da primeira terminar de enviar).
+        // Estado FRESCO
         let freshData = matchedOrder;
         try {
-          const freshSnap = await getDoc(doc(db, 'orders', matchedOrderId));
-          if (freshSnap.exists()) freshData = freshSnap.data();
+          const freshOrder = await getOrder(matchedOrderId, envVars);
+          if (freshOrder) freshData = freshOrder;
         } catch (e) {}
 
         // Se foi só um "ok"/"obrigado"/emoji (isShortAckMessage) sem ID explícito e o cliente JÁ foi
         // notificado antes, não reenvia o template completo — não precisa.
-        //
-        // ACHADO 02/09/2026: por 8 dias (commit 1661f5c, 25/08) esta checagem silenciava QUALQUER
-        // mensagem nessas condições, não só as curtas — `isShortAck` era calculado e nunca usado na
-        // condição. Resultado: cliente perguntando de verdade "cadê minha música?", "já ficou
-        // pronta?" etc. depois de já ter recebido o link uma vez (o caso comum, já que o pagamento
-        // dispara esse link automaticamente) não recebia resposta nenhuma — só as mensagens 100%
-        // automáticas (aprovação de pagamento) continuavam saindo. Restaurado o gate por isShortAck.
         const alreadyNotified = Boolean(
           freshData.whatsappSent ||
           freshData.paymentWhatsappSent ||
@@ -594,9 +587,6 @@ export async function POST(req) {
           }
         }
 
-        // Se for o clique explícito com o ID, dedup curto (15s) para evitar clique duplo acidental.
-        // A notificação automática de música pronta disparada pelo worker (whatsappSentAt) NUNCA bloqueia
-        // o cliente que ativamente clica no botão do site.
         const EXPLICIT_CLICK_COOLDOWN_MS = 15000;
         const recentlySent = isExplicitId
           ? (freshData.readyTemplateSentAt && (Date.now() - Date.parse(freshData.readyTemplateSentAt) < EXPLICIT_CLICK_COOLDOWN_MS))
@@ -609,16 +599,14 @@ export async function POST(req) {
 
         // Reserva o envio ANTES de mandar a mensagem — janela curta de até 60s
         try {
-          await updateDoc(doc(db, 'orders', matchedOrderId), {
+          await updateOrder(matchedOrderId, {
             readyTemplateSending: true,
             readyTemplateSendingAt: new Date().toISOString(),
-          });
+          }, envVars);
         } catch (e) {}
 
         const isPaid = freshData.paymentStatus === 'PAGAMENTO_APROVADO' || freshData.paymentStatus === 'PAGO';
         const urls = (freshData.audioFiles?.length ? freshData.audioFiles : [freshData.audioUrl]).filter(Boolean);
-        // Link CRU da CDN da Kie.ai/tempfile não toca nem baixa no navegador do celular — passa pelo
-        // proxy próprio com `?download=` (achado 31/08/2026, mesma correção de sendPaymentApprovedTemplate).
         const audiosList = urls
           .map((link, idx) => `• *Versão ${idx + 1}:* ${buildAudioDownloadLink(link, `NS-Music-${honoreeName}-Versao-${idx + 1}.mp3`)}`)
           .join('\n');
@@ -660,24 +648,23 @@ ${deliveryUrl}
         try {
           await sendWApiTextMessage(senderPhone, replyMsg, envVars);
           try {
-            await updateDoc(doc(db, 'orders', matchedOrderId), {
+            await updateOrder(matchedOrderId, {
               readyTemplateSent: true,
               readyTemplateSentAt: new Date().toISOString(),
               readyTemplateSending: false,
-            });
+            }, envVars);
           } catch (e) {}
         } finally {
           try {
-            await updateDoc(doc(db, 'orders', matchedOrderId), {
+            await updateOrder(matchedOrderId, {
               readyTemplateSending: false,
-            });
+            }, envVars);
           } catch (e) {}
         }
 
         return NextResponse.json({ success: true, action: 'sent_ready_link' }, { status: 200 });
       } else {
         // A música ainda está sendo gerada pela IA:
-        // Se o cliente clicou explicitamente, dedup curto de 15s para evitar envio duplo de clique rápido:
         const waitCooldownMs = isExplicitId ? 15000 : TEMPLATE_RESEND_COOLDOWN_MS;
         const waitSentAt = Date.parse(matchedOrder.whatsappWaitAckSentAt || '');
         if (!Number.isNaN(waitSentAt) && Date.now() - waitSentAt < waitCooldownMs) {
@@ -698,10 +685,10 @@ Assim que a renderização terminar, eu te envio os arquivos e o link direto aqu
 
         await sendWApiTextMessage(senderPhone, replyMsg, envVars);
         try {
-          await updateDoc(doc(db, 'orders', matchedOrderId), {
+          await updateOrder(matchedOrderId, {
             whatsappWaitAckSent: true,
             whatsappWaitAckSentAt: new Date().toISOString(),
-          });
+          }, envVars);
         } catch (e) {}
 
         return NextResponse.json({ success: true, action: 'sent_wait_acknowledgment' }, { status: 200 });

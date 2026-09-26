@@ -1,21 +1,11 @@
-// Verificação de identidade de administrador no servidor.
+// Verificação de identidade de administrador no servidor (Supabase Auth).
 //
-// O projeto é Edge-only e não usa o Firebase Admin SDK (ver docs/ARCHITECTURE.md), então não há
-// verificação local de assinatura de ID token. Em vez disso, o token é validado pelo próprio Google
-// através do endpoint público `accounts:lookup` do Identity Toolkit — ele confirma assinatura,
-// expiração e devolve os dados da conta. É o mesmo tipo de validação que o Firebase Admin SDK faria,
-// só que via HTTP em vez de biblioteca local, o que funciona no runtime Edge da Cloudflare.
+// O projeto é Edge-only. O token de sessão JWT do Supabase é validado via endpoint /auth/v1/user
+// da API do Supabase, que confirma assinatura e expiração e devolve os dados da conta.
 //
-// A identidade de admin usa DOIS mecanismos, em ordem de preferência:
-//   1. Custom claim `admin: true` no Firebase Auth (definido via scripts/set-admin-claim.mjs, que
-//      precisa do Admin SDK e não roda nesta sessão — requer credenciais reais e execução manual).
-//   2. Allowlist de e-mail `ADMIN_EMAILS`, mantida só como caminho de transição enquanto a claim não
-//      estiver configurada. Qualquer um dos dois concede acesso (OR), nunca substituindo verificação
-//      no servidor por checagem no browser — ver `.claude/rules/security.md`.
-// O endpoint `accounts:lookup` do Identity Toolkit devolve `customAttributes` (JSON com as custom
-// claims) junto da validação de assinatura/expiração do token — não precisa de uma chamada extra.
-
-const IDENTITY_TOOLKIT_URL = 'https://identitytoolkit.googleapis.com/v1/accounts:lookup';
+// A identidade de admin usa:
+//   1. Role 'admin' nos metadados do usuário (app_metadata ou user_metadata).
+//   2. Allowlist de e-mail `ADMIN_EMAILS`. Qualquer um dos dois concede acesso.
 
 export async function verifySupabaseToken(token, env = {}) {
   const url = env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -48,44 +38,6 @@ export async function verifySupabaseToken(token, env = {}) {
   }
 }
 
-export async function verifyIdToken(idToken, firebaseApiKey) {
-  if (!idToken || !firebaseApiKey) return null;
-
-  try {
-    const res = await fetch(`${IDENTITY_TOOLKIT_URL}?key=${firebaseApiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ idToken }),
-      signal: AbortSignal.timeout(8000),
-    });
-
-    if (!res.ok) return null;
-
-    const data = await res.json().catch(() => null);
-    const account = data?.users?.[0];
-    if (!account) return null;
-
-    let customClaims = {};
-    if (account.customAttributes) {
-      try {
-        customClaims = JSON.parse(account.customAttributes) || {};
-      } catch (e) {
-        console.warn('[auth] customAttributes inválido:', e.message);
-      }
-    }
-
-    return {
-      uid: account.localId,
-      email: account.email || null,
-      emailVerified: account.emailVerified === true,
-      isAdminClaim: customClaims.admin === true,
-    };
-  } catch (err) {
-    console.warn('[auth] Falha ao verificar ID token:', err.message);
-    return null;
-  }
-}
-
 function getAdminEmails(env = {}) {
   const raw = env.ADMIN_EMAILS || process.env.ADMIN_EMAILS || '';
   return raw
@@ -101,7 +53,7 @@ function extractBearerToken(req) {
 }
 
 /**
- * Exige que a requisição traga um ID token de Supabase ou Firebase válido, pertencente a uma conta com
+ * Exige que a requisição traga um token de Supabase válido, pertencente a uma conta com
  * o role `admin` OU cujo e-mail está na allowlist `ADMIN_EMAILS`.
  * Retorna { ok: true, uid, email } ou { ok: false, status, error }.
  */
@@ -111,14 +63,7 @@ export async function requireAdmin(req, env = {}) {
     return { ok: false, status: 401, error: 'Token de autenticação ausente.' };
   }
 
-  // 1. Tenta validar via Supabase Auth
-  let account = await verifySupabaseToken(idToken, env);
-
-  // 2. Se falhar, tenta validar via Firebase Identity Toolkit
-  if (!account) {
-    const firebaseApiKey = env.NEXT_PUBLIC_FIREBASE_API_KEY || process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
-    account = await verifyIdToken(idToken, firebaseApiKey);
-  }
+  const account = await verifySupabaseToken(idToken, env);
 
   if (!account) {
     return { ok: false, status: 401, error: 'Token de autenticação inválido ou expirado.' };

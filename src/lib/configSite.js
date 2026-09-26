@@ -1,19 +1,6 @@
 // Configuração editável pelo painel, sem deploy.
-//
-// Pedido 21/09/2026: o número de WhatsApp do suporte estava escrito à mão em 10 lugares do código.
-// Quando o número principal foi suspenso, os botões "Falar no WhatsApp" continuaram mandando o
-// cliente para o número antigo — a mensagem chegava num aparelho que a automação não atende. E o
-// dono do estúdio vai alternar de volta em dois dias, então trocar isso não pode exigir deploy.
-//
-// Mora em `config/site` no Firestore. Escrita só pela rota /api/admin/config, com requireAdmin —
-// número de suporte é decisão de negócio, e decisão de negócio não se escreve a partir do browser
-// (.claude/rules/security.md).
+// Mora em `config` (chave: 'site') no Supabase. Escrita só pela rota /api/admin/config, com requireAdmin.
 
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from './firebase';
-
-// Usado enquanto a leitura não volta e se a configuração nunca tiver sido salva. Nunca renderizar
-// link de WhatsApp vazio: o cliente clica, não acontece nada, e ele desiste achando que quebrou.
 export const WHATSAPP_SUPORTE_PADRAO = '5594991064043';
 
 export const CONFIG_DOC = { colecao: 'config', id: 'site' };
@@ -28,24 +15,46 @@ export function normalizarNumeroWhatsapp(valor) {
   return '';
 }
 
-export async function lerConfigSite() {
+export async function lerConfigSite(env = {}) {
   try {
     if (typeof window !== 'undefined') {
       try {
         const res = await fetch('/api/admin/config');
         if (res.ok) {
           const json = await res.json();
-          if (json?.whatsappSuporte) return { whatsappSuporte: json.whatsappSuporte };
+          if (json?.whatsappSuporte) {
+            return {
+              whatsappSuporte: json.whatsappSuporte,
+              agentEnabled: json.agentEnabled !== false
+            };
+          }
         }
       } catch {}
     }
 
-    const snap = await getDoc(doc(db, CONFIG_DOC.colecao, CONFIG_DOC.id));
-    if (!snap.exists()) return {};
-    return snap.data() || {};
+    const { getSupabaseEdge } = await import('./supabase-edge.js');
+    const supabase = getSupabaseEdge(env);
+    if (supabase) {
+      const { data } = await supabase
+        .from('config')
+        .select('valor')
+        .eq('chave', 'site')
+        .maybeSingle();
+
+      if (data?.valor) {
+        return data.valor;
+      }
+    }
+
+    return {
+      whatsappSuporte: WHATSAPP_SUPORTE_PADRAO,
+      agentEnabled: true
+    };
   } catch (e) {
-    // Falha de leitura não pode derrubar a página — cai no padrão.
     console.warn('[config] não foi possível ler config/site:', e.message);
-    return {};
+    return {
+      whatsappSuporte: WHATSAPP_SUPORTE_PADRAO,
+      agentEnabled: true
+    };
   }
 }

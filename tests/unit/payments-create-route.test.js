@@ -7,22 +7,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // txid substituído é preservado em `previousPaymentIntentIds`.
 
 let store;
-let updateDocCalls;
+let updateOrderCalls;
 
-vi.mock('@/lib/firebase-edge', () => ({ dbEdge: {} }));
-
-const ARRAY_UNION = Symbol('arrayUnion');
-vi.mock('firebase/firestore/lite', () => ({
-  doc: (_db, _collection, id) => ({ id }),
-  getDoc: async (ref) => ({
-    exists: () => Object.prototype.hasOwnProperty.call(store, ref.id),
-    data: () => store[ref.id],
-  }),
-  updateDoc: async (ref, updates) => {
-    updateDocCalls.push({ id: ref.id, updates });
-    Object.assign(store[ref.id], updates);
+vi.mock('@/lib/supabaseDb', () => ({
+  getOrder: async (id) => store[id] || null,
+  updateOrder: async (id, updates) => {
+    updateOrderCalls.push({ id, updates });
+    if (!store[id]) store[id] = {};
+    Object.assign(store[id], updates);
+    return store[id];
   },
-  arrayUnion: (...values) => ({ __arrayUnion: values, [ARRAY_UNION]: true }),
 }));
 
 const createPixChargeMock = vi.fn();
@@ -38,20 +32,20 @@ function makeRequest(body) {
 
 beforeEach(() => {
   store = {};
-  updateDocCalls = [];
+  updateOrderCalls = [];
   createPixChargeMock.mockReset();
 });
 
 describe('POST /api/payments/create — histórico de paymentIntentId', () => {
-  it('não grava previousPaymentIntentIds na primeira cobrança do pedido', async () => {
+  it('não acumula previousPaymentIntentIds na primeira cobrança do pedido', async () => {
     store['order1'] = {};
     createPixChargeMock.mockResolvedValue({ txid: 'txid-1', pixCopiaECola: 'copia-cola-1' });
 
     await POST(makeRequest({ orderId: 'order1', sku: 'audio_only' }));
 
-    const call = updateDocCalls.find((c) => c.id === 'order1');
+    const call = updateOrderCalls.find((c) => c.id === 'order1');
     expect(call.updates.paymentIntentId).toBe('txid-1');
-    expect(call.updates.previousPaymentIntentIds).toBeUndefined();
+    expect(call.updates.previousPaymentIntentIds).toEqual([]);
   });
 
   it('preserva o txid anterior em previousPaymentIntentIds ao trocar de pacote antes de pagar', async () => {
@@ -60,9 +54,9 @@ describe('POST /api/payments/create — histórico de paymentIntentId', () => {
 
     await POST(makeRequest({ orderId: 'order2', sku: 'combo' }));
 
-    const call = updateDocCalls.find((c) => c.id === 'order2');
+    const call = updateOrderCalls.find((c) => c.id === 'order2');
     expect(call.updates.paymentIntentId).toBe('txid-novo-combo');
-    expect(call.updates.previousPaymentIntentIds.__arrayUnion).toEqual(['txid-antigo-audio-only']);
+    expect(call.updates.previousPaymentIntentIds).toEqual(['txid-antigo-audio-only']);
   });
 
   it('não duplica o histórico quando o txid gerado é o mesmo já persistido', async () => {
@@ -71,7 +65,8 @@ describe('POST /api/payments/create — histórico de paymentIntentId', () => {
 
     await POST(makeRequest({ orderId: 'order3', sku: 'audio_only' }));
 
-    const call = updateDocCalls.find((c) => c.id === 'order3');
-    expect(call.updates.previousPaymentIntentIds).toBeUndefined();
+    const call = updateOrderCalls.find((c) => c.id === 'order3');
+    expect(call.updates.paymentIntentId).toBe('txid-mesmo');
+    expect(call.updates.previousPaymentIntentIds).toEqual([]);
   });
 });

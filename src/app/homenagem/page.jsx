@@ -2,8 +2,6 @@
 
 import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { AUDIO_CACHE_VERSION } from '@/lib/audioCacheVersion';
 
 function HomenagemContent() {
@@ -22,27 +20,10 @@ function HomenagemContent() {
         return;
       }
       try {
-        let orderData = null;
-        try {
-          const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}`, { cache: 'no-store' });
-          if (res.ok) {
-            const json = await res.json();
-            if (json?.order) orderData = json.order;
-          }
-        } catch (apiErr) {
-          console.warn('[homenagem] Fallback para Firestore:', apiErr.message);
-        }
-
-        if (!orderData) {
-          const docRef = doc(db, 'orders', orderId);
-          const docSnap = await getDoc(docRef);
-          if (docSnap.exists()) {
-            orderData = docSnap.data();
-          }
-        }
-
-        if (orderData) {
-          setOrder(orderData);
+        const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}`, { cache: 'no-store' });
+        if (res.ok) {
+          const json = await res.json();
+          if (json?.order) setOrder(json.order);
         }
       } catch (err) {
         console.error("Erro ao carregar homenagem:", err);

@@ -7,33 +7,33 @@ Add-on de vídeo slideshow: + R$ 6,90.
 ## Stack
 
 Next.js 14 App Router · JavaScript puro (sem TypeScript) · React 18 · npm
-Cloudflare Pages **Edge Runtime** (`@cloudflare/next-on-pages`) · Firebase Firestore + Storage
-Integrações: Kie.ai/Suno (música) · OpenAI→Gemini (letra) · Mercado Pago (PIX) · W-API (WhatsApp)
+Cloudflare Pages **Edge Runtime** (`@cloudflare/next-on-pages`) · Supabase (Postgres) + Cloudflare R2
+Integrações: Kie.ai/Suno (música) · OpenAI→Gemini (letra) · Efí Bank/Mercado Pago (PIX) · W-API (WhatsApp)
 
 ## Arquitetura em uma frase
 
-App monolítico Edge-only que acessa o Firestore com o **SDK cliente** tanto no browser quanto nas
-rotas de API — não existe Firebase Admin SDK, portanto **as rotas de API não têm privilégio nenhum**
-sobre o banco. Detalhes: `docs/ARCHITECTURE.md`.
+App monolítico Edge-only que acessa o Supabase via PostgREST Edge (`@/lib/supabaseDb.js`, `@/lib/supabase-edge.js`)
+e armazena mídias diretamente no Cloudflare R2 (`env.nsmusic_media` via `/api/media/upload` e `/api/video/upload`).
 
 ## Comandos
 
 ```bash
-npm ci          # restaurar dependências (node_modules costuma quebrar neste repo)
+npm ci          # restaurar dependências
 npm run dev     # desenvolvimento
 npm run build   # DEVE passar antes de qualquer commit
+npm test        # testes unitários (vitest)
 npm run lint
 ```
 
-Não existem `test` nem `typecheck`. Deploy é **automático no push para `master`** (Cloudflare Pages) —
+Deploy é **automático no push para `master`** (Cloudflare Pages) —
 todo merge vai direto a produção.
 
 ## Estrutura
 
 ```
 src/app/            páginas (/criar, /entrega, /admin, /homenagem, /acompanhar, /minhas-musicas)
-src/app/api/        15 route handlers, todos `runtime = 'edge'`
-src/lib/            db.js · firebase.js · firebase-edge.js · gemini.js · whatsapp.js · videoGenerator.js
+src/app/api/        route handlers, todos `runtime = 'edge'`
+src/lib/            supabaseDb.js · supabase-edge.js · orderLookup.js · gemini.js · whatsapp.js · videoGenerator.js
 docs/               CODEBASE_MAP.md (índice) · ARCHITECTURE.md · audit/
 .Codex/rules/      regras por área, com escopo de caminho
 ```
@@ -41,8 +41,9 @@ docs/               CODEBASE_MAP.md (índice) · ARCHITECTURE.md · audit/
 ## Convenções
 
 - Estilo: **CSS inline** (`style={{}}`) + classes de `globals.css`. **Nunca Tailwind.**
-- Datas: sempre `new Date().toISOString()` (string), nunca `Timestamp` nativo.
-- Imports do Firebase sempre modulares. Em rotas Edge, usar `firebase/firestore/lite` via `@/lib/firebase-edge`.
+- Datas: sempre `new Date().toISOString()` (string ISO 8601).
+- Banco: operações via `@/lib/supabaseDb.js` ou `@/lib/supabase-edge.js`. Zero Firebase.
+- Armazenamento: Cloudflare R2 via binding `nsmusic_media` e `R2_PUBLIC_URL`.
 - Toda rota em `src/app/api/` precisa de `export const runtime = 'edge'`.
 - Nunca `export const runtime` em arquivo com `'use client'`.
 - Português nas mensagens de UI e de erro.

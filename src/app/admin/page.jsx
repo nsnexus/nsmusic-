@@ -2,9 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { collection, query, orderBy, onSnapshot, limit as fbLimit, doc, setDoc, where } from 'firebase/firestore';
-import { auth, db } from '@/lib/firebase';
+import { auth, onAuthStateChanged, signOut } from '@/lib/authClient';
 import { lerConfigSite, normalizarNumeroWhatsapp, WHATSAPP_SUPORTE_PADRAO } from '@/lib/configSite';
 import { getPriceForSku } from '@/lib/pricing';
 import { buildSunoPayload } from '@/lib/sunoPayload';
@@ -121,17 +119,15 @@ export default function AdminDashboard() {
   const localDayStartIso = (dateStr) => (dateStr ? new Date(`${dateStr}T00:00:00`).toISOString() : null);
   const localDayEndIso = (dateStr) => (dateStr ? new Date(`${dateStr}T23:59:59.999`).toISOString() : null);
 
-  // Load orders — consulta rápida via Supabase (Postgres) com fallback resiliente no Firestore
+  // Load orders — consulta via API Edge (Supabase PostgREST)
   useEffect(() => {
     if (!user) return;
 
     let cancelado = false;
-    let unsubFirestore = null;
 
     const carregar = async () => {
       setLoadingOrders(true);
 
-      // 1. Tenta consulta rápida via API Edge (Supabase PostgREST)
       try {
         const token = await auth.currentUser?.getIdToken();
         if (token) {
@@ -162,77 +158,59 @@ export default function AdminDashboard() {
           }
         }
       } catch (err) {
-        console.warn('[admin] Falha na busca rápida via Supabase, ativando fallback Firestore:', err.message);
+        console.warn('[admin] Falha na busca de pedidos:', err.message);
       }
 
-      // 2. Fallback resiliente no Firestore
-      if (cancelado) return;
-      const constraints = [];
-      if (dateFrom) constraints.push(where('createdAt', '>=', localDayStartIso(dateFrom)));
-      if (dateTo) constraints.push(where('createdAt', '<=', localDayEndIso(dateTo)));
-      constraints.push(orderBy('createdAt', 'desc'));
-      if (!loadAll) constraints.push(fbLimit(pageSize + 1));
-
-      const q = query(collection(db, 'orders'), ...constraints);
-
-      unsubFirestore = onSnapshot(q, (snapshot) => {
-        if (cancelado) return;
-        const ordersData = [];
-        snapshot.forEach((doc) => {
-          const data = doc.data();
-          if (data.deletedAt || doc.id.startsWith('config_') || doc.id.startsWith('session_') || data.productionStatus === 'CONFIG' || data.productionStatus === 'RASCUNHO') return;
-          ordersData.push({ id: doc.id, ...data });
-        });
-        if (loadAll) {
-          setHasMoreOrders(false);
-          setOrders(ordersData);
-        } else {
-          setHasMoreOrders(ordersData.length > pageSize);
-          setOrders(ordersData.slice(0, pageSize));
-        }
+      if (!cancelado) {
         setLoadingOrders(false);
         setLoadingMore(false);
-      }, (error) => {
-        console.error("Erro ao escutar pedidos no Firestore:", error);
-        if (!cancelado) {
-          setLoadingOrders(false);
-          setLoadingMore(false);
-        }
-      });
+      }
     };
 
     carregar();
 
     return () => {
       cancelado = true;
-      if (unsubFirestore) unsubFirestore();
     };
   }, [user, loadAll, pageSize, dateFrom, dateTo]);
 
 
-  // Escuta configurações do WhatsApp (Master Switch do Agente)
+  // Configurações do WhatsApp (Master Switch do Agente e Suporte)
   useEffect(() => {
     if (!user) return;
-    const unsub = onSnapshot(doc(db, 'orders', 'config_whatsapp'), (snap) => {
-      if (snap.exists()) {
-        const data = snap.data();
-        setAgentEnabled(data.agentEnabled !== false);
-      } else {
-        setAgentEnabled(true);
-      }
-    });
-    return () => unsub();
+    let ativo = true;
+
+    fetch('/api/admin/config')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (ativo && data) {
+          if (data.agentEnabled !== undefined) setAgentEnabled(data.agentEnabled);
+          if (data.whatsappSuporte) setNumeroSuporte(data.whatsappSuporte);
+        }
+      })
+      .catch(() => {});
+
+    return () => { ativo = false; };
   }, [user]);
 
   const handleToggleAgent = async () => {
     setTogglingAgent(true);
     try {
-      await setDoc(doc(db, 'orders', 'config_whatsapp'), {
-        orderNumber: 'CONFIG-WHATSAPP',
-        productionStatus: 'CONFIG',
-        agentEnabled: !agentEnabled,
-        updatedAt: new Date().toISOString(),
-      }, { merge: true });
+      const token = await auth.currentUser?.getIdToken();
+      const res = await fetch('/api/admin/config', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ agentEnabled: !agentEnabled })
+      });
+      if (res.ok) {
+        setAgentEnabled(!agentEnabled);
+      } else {
+        const json = await res.json().catch(() => ({}));
+        alert('Erro ao alterar status do robô: ' + (json.error || 'Erro desconhecido'));
+      }
     } catch (err) {
       alert('Erro ao alterar status do robô: ' + err.message);
     } finally {

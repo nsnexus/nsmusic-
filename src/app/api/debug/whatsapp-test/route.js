@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
-import { doc, getDoc } from 'firebase/firestore/lite';
-import { dbEdge as db } from '@/lib/firebase-edge';
+import { getOrder } from '@/lib/supabaseDb';
 import { sendMusicReadyTemplate, resolveDeliveryUrl } from '@/lib/whatsapp';
 
 export const runtime = 'edge';
@@ -23,11 +22,10 @@ export async function GET(req) {
       return NextResponse.json({ error: 'Informe orderId.' }, { status: 400 });
     }
 
-    const snap = await getDoc(doc(db, 'orders', orderId));
-    if (!snap.exists()) {
+    const order = await getOrder(orderId, env);
+    if (!order) {
       return NextResponse.json({ error: 'Pedido não encontrado.' }, { status: 404 });
     }
-    const order = snap.data();
 
     const deliveryUrl = resolveDeliveryUrl(orderId);
     const result = await sendMusicReadyTemplate(order.customerPhone, {

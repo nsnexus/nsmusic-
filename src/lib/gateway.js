@@ -1,5 +1,4 @@
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore/lite';
-import { dbEdge as db } from './firebase-edge';
+import { getSupabaseEdge } from './supabase-edge.js';
 import { createPixCharge, generateTxid } from './efi';
 
 /**
@@ -31,7 +30,7 @@ export function authenticateGatewayRequest(req, env = {}) {
 
 /**
  * Cria uma nova cobrança Pix de Gateway para um produto/sistema externo.
- * Persiste os dados na coleção `gateway_charges` do Firestore.
+ * Persiste os dados no Supabase.
  */
 export async function createGatewayPixCharge(params, env = {}) {
   const {
@@ -86,8 +85,18 @@ export async function createGatewayPixCharge(params, env = {}) {
     updatedAt: nowIso,
   };
 
-  const chargeRef = doc(db, 'gateway_charges', charge.txid);
-  await setDoc(chargeRef, chargeDoc);
+  try {
+    const supabase = getSupabaseEdge(env);
+    if (supabase) {
+      await supabase.from('config').upsert({
+        chave: `gateway_${charge.txid}`,
+        valor: chargeDoc,
+        updated_at: nowIso,
+      });
+    }
+  } catch (err) {
+    console.warn('[gateway] Falha ao persistir cobrança no Supabase:', err.message);
+  }
 
   return {
     txid: charge.txid,
@@ -103,28 +112,62 @@ export async function createGatewayPixCharge(params, env = {}) {
 /**
  * Busca uma cobrança do gateway pelo txid.
  */
-export async function getGatewayCharge(txid) {
+export async function getGatewayCharge(txid, env = {}) {
   if (!txid) return null;
-  const chargeRef = doc(db, 'gateway_charges', String(txid));
-  const snap = await getDoc(chargeRef);
-  if (!snap.exists()) return null;
-  return snap.data();
+  try {
+    const supabase = getSupabaseEdge(env);
+    if (supabase) {
+      const { data, error } = await supabase
+        .from('config')
+        .select('valor')
+        .eq('chave', `gateway_${txid}`)
+        .maybeSingle();
+
+      if (!error && data?.valor) {
+        return data.valor;
+      }
+    }
+  } catch (err) {
+    console.warn('[gateway] Falha ao consultar cobrança no Supabase:', err.message);
+  }
+  return null;
+}
+
+/**
+ * Atualiza campos de uma cobrança de gateway.
+ */
+export async function updateGatewayCharge(txid, updates = {}, env = {}) {
+  if (!txid) return null;
+  const nowIso = new Date().toISOString();
+  try {
+    const current = await getGatewayCharge(txid, env) || {};
+    const updated = { ...current, ...updates, updatedAt: nowIso };
+    const supabase = getSupabaseEdge(env);
+    if (supabase) {
+      await supabase.from('config').upsert({
+        chave: `gateway_${txid}`,
+        valor: updated,
+        updated_at: nowIso,
+      });
+      return updated;
+    }
+  } catch (err) {
+    console.warn('[gateway] Falha ao atualizar cobrança no Supabase:', err.message);
+  }
+  return null;
 }
 
 /**
  * Processa a aprovação de uma cobrança de gateway (chamado pelo webhook da Efí ou consulta de status).
- * Atualiza o status no Firestore e despacha o webhook para o sistema de origem com retry/timeout.
+ * Atualiza o status no Supabase e despacha o webhook para o sistema de origem com retry/timeout.
  */
 export async function applyGatewayPaymentApproval(txid, payment, env = {}) {
   if (!txid) return { applied: false, reason: 'missing_txid' };
 
-  const chargeRef = doc(db, 'gateway_charges', String(txid));
-  const snap = await getDoc(chargeRef);
-  if (!snap.exists()) {
+  const chargeData = await getGatewayCharge(txid, env);
+  if (!chargeData) {
     return { applied: false, reason: 'charge_not_found' };
   }
-
-  const chargeData = snap.data();
 
   // Idempotência: não processa nem redispara webhook se já foi aprovado
   if (chargeData.status === 'PAID') {
@@ -134,12 +177,11 @@ export async function applyGatewayPaymentApproval(txid, payment, env = {}) {
   const nowIso = new Date().toISOString();
   const paidAmount = Number(payment?.transaction_amount) || chargeData.amount;
 
-  await updateDoc(chargeRef, {
+  await updateGatewayCharge(txid, {
     status: 'PAID',
     paidAmount,
     paidAt: nowIso,
-    updatedAt: nowIso,
-  });
+  }, env);
 
   // Dispara notificação de webhook para o sistema cliente
   if (chargeData.webhookUrl) {
@@ -171,8 +213,6 @@ export async function dispatchGatewayWebhook(chargeData, env = {}) {
     paidAt: paidAt || new Date().toISOString(),
   };
 
-  const chargeRef = doc(db, 'gateway_charges', String(txid));
-
   try {
     const headers = {
       'Content-Type': 'application/json',
@@ -193,33 +233,25 @@ export async function dispatchGatewayWebhook(chargeData, env = {}) {
     });
 
     if (response.ok) {
-      try {
-        await updateDoc(chargeRef, {
-          webhookSent: true,
-          webhookSentAt: new Date().toISOString(),
-          webhookHttpStatus: response.status,
-        });
-      } catch (e) {
-        console.warn('[Gateway Webhook] Falha ao gravar status do webhook:', e.message);
-      }
+      await updateGatewayCharge(txid, {
+        webhookSent: true,
+        webhookSentAt: new Date().toISOString(),
+        webhookHttpStatus: response.status,
+      }, env);
     } else {
       const errText = await response.text().catch(() => '');
       console.warn(`[Gateway Webhook] Cliente retornou status ${response.status}: ${errText.slice(0, 100)}`);
-      try {
-        await updateDoc(chargeRef, {
-          webhookSent: false,
-          webhookHttpStatus: response.status,
-          webhookError: errText.slice(0, 200),
-        });
-      } catch (e) {}
+      await updateGatewayCharge(txid, {
+        webhookSent: false,
+        webhookHttpStatus: response.status,
+        webhookError: errText.slice(0, 200),
+      }, env);
     }
   } catch (err) {
     console.warn(`[Gateway Webhook] Falha ao disparar webhook para ${webhookUrl}:`, err.message);
-    try {
-      await updateDoc(chargeRef, {
-        webhookSent: false,
-        webhookError: err.message,
-      });
-    } catch (e) {}
+    await updateGatewayCharge(txid, {
+      webhookSent: false,
+      webhookError: err.message,
+    }, env);
   }
 }

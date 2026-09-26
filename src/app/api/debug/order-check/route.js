@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
-import { collection, query, where, orderBy, limit, getDocs, doc, getDoc } from 'firebase/firestore/lite';
-import { dbEdge as db } from '@/lib/firebase-edge';
+import { getRequestContext } from '@cloudflare/next-on-pages';
+import { getSupabaseEdge } from '@/lib/supabase-edge';
+import { getOrder } from '@/lib/supabaseDb';
+import { mapSupabaseOrderToFirestore } from '@/lib/supabaseSync';
 
 export const runtime = 'edge';
 
@@ -18,6 +20,13 @@ function classifyPhoneDigits(raw) {
 // formato do orderNumber. Remover depois de checado.
 export async function GET(req) {
   try {
+    let env = {};
+    try {
+      const ctx = getRequestContext();
+      if (ctx?.env) env = ctx.env;
+    } catch (e) {}
+
+    const supabase = getSupabaseEdge(env);
     const { searchParams } = new URL(req.url);
     const orderNumber = searchParams.get('orderNumber');
     const orderId = searchParams.get('orderId') || searchParams.get('id');
@@ -29,24 +38,35 @@ export async function GET(req) {
     // alguma foi marcada como paga sem o pagamento ter caído de fato. Não expõe dados do pagador.
     if (gatewayParam) {
       const n = Math.min(Math.max(parseInt(gatewayParam, 10) || 30, 1), 100);
-      const gSnap = await getDocs(query(collection(db, 'gateway_charges'), orderBy('createdAt', 'desc'), limit(n)));
-      const rows = [];
-      gSnap.forEach((d) => {
-        const data = d.data();
-        rows.push({
-          txid: d.id,
-          appId: data.appId || null,
-          externalOrderId: data.externalOrderId || null,
-          amount: data.amount ?? null,
-          status: data.status || null,
-          paidAmount: data.paidAmount ?? null,
-          createdAt: data.createdAt || null,
-          paidAt: data.paidAt || null,
-          webhookSent: Boolean(data.webhookSent),
-          webhookHttpStatus: data.webhookHttpStatus ?? null,
-          temWebhookUrl: Boolean(data.webhookUrl),
-        });
-      });
+      let rows = [];
+      if (supabase) {
+        const { data } = await supabase
+          .from('config')
+          .select('chave, valor, created_at, updated_at')
+          .like('chave', 'gateway_%')
+          .order('updated_at', { ascending: false })
+          .limit(n);
+
+        if (Array.isArray(data)) {
+          rows = data.map((d) => {
+            const val = typeof d.valor === 'object' ? d.valor : {};
+            return {
+              txid: d.chave.replace('gateway_', ''),
+              appId: val.appId || null,
+              externalOrderId: val.externalOrderId || null,
+              amount: val.amount ?? null,
+              status: val.status || null,
+              paidAmount: val.paidAmount ?? null,
+              createdAt: val.createdAt || d.created_at || null,
+              paidAt: val.paidAt || null,
+              webhookSent: Boolean(val.webhookSent),
+              webhookHttpStatus: val.webhookHttpStatus ?? null,
+              temWebhookUrl: Boolean(val.webhookUrl),
+            };
+          });
+        }
+      }
+
       const pagas = rows.filter((r) => r.status === 'PAID');
       return NextResponse.json({
         total: rows.length,
@@ -59,29 +79,36 @@ export async function GET(req) {
 
     if (recentParam) {
       const n = Math.min(Math.max(parseInt(recentParam, 10) || 20, 1), 50);
-      const snap = await getDocs(query(collection(db, 'orders'), orderBy('createdAt', 'desc'), limit(n * 2)));
-      const rows = [];
-      snap.forEach((d) => {
-        if (rows.length >= n) return;
-        const data = d.data();
-        // Mesmo filtro do painel admin — sessões de WhatsApp em rascunho e docs de config não são pedidos reais.
-        if (d.id.startsWith('config_') || d.id.startsWith('session_') || data.productionStatus === 'CONFIG' || data.productionStatus === 'RASCUNHO') return;
-        rows.push({
-          id: d.id,
-          orderNumber: data.orderNumber || null,
-          createdAt: data.createdAt || null,
-          productionStatus: data.productionStatus || null,
-          paymentStatus: data.paymentStatus || null,
-          whatsappRequested: Boolean(data.whatsappRequested),
-          whatsappSenderPhone: classifyPhoneDigits(data.whatsappSenderPhone),
-          whatsappWaitAckSent: Boolean(data.whatsappWaitAckSent),
-          whatsappSent: Boolean(data.whatsappSent),
-          whatsappSending: Boolean(data.whatsappSending),
-          readyTemplateSent: Boolean(data.readyTemplateSent),
-          paymentWhatsappSent: Boolean(data.paymentWhatsappSent),
-          paymentWhatsappSending: Boolean(data.paymentWhatsappSending),
-        });
-      });
+      let rows = [];
+      if (supabase) {
+        const { data } = await supabase
+          .from('orders')
+          .select('*')
+          .is('deleted_at', null)
+          .order('created_at', { ascending: false })
+          .limit(n);
+
+        if (Array.isArray(data)) {
+          rows = data.map((row) => {
+            const d = mapSupabaseOrderToFirestore(row);
+            return {
+              id: d.id,
+              orderNumber: d.orderNumber || null,
+              createdAt: d.createdAt || null,
+              productionStatus: d.productionStatus || null,
+              paymentStatus: d.paymentStatus || null,
+              whatsappRequested: Boolean(d.whatsappRequested),
+              whatsappSenderPhone: classifyPhoneDigits(d.whatsappSenderPhone),
+              whatsappWaitAckSent: Boolean(d.whatsappWaitAckSent),
+              whatsappSent: Boolean(d.whatsappSent),
+              whatsappSending: Boolean(d.whatsappSending),
+              readyTemplateSent: Boolean(d.readyTemplateSent),
+              paymentWhatsappSent: Boolean(d.paymentWhatsappSent),
+              paymentWhatsappSending: Boolean(d.paymentWhatsappSending),
+            };
+          });
+        }
+      }
       return NextResponse.json({ count: rows.length, orders: rows });
     }
 
@@ -89,39 +116,31 @@ export async function GET(req) {
       return NextResponse.json({ error: 'Informe orderNumber, orderId, phoneLast4 ou recent.' }, { status: 400 });
     }
 
-    const ordersRef = collection(db, 'orders');
-    let snap;
     let found = null;
 
     if (orderId) {
-      const docSnap = await getDoc(doc(db, 'orders', orderId));
-      if (docSnap.exists()) {
-        found = { id: docSnap.id, data: docSnap.data() };
-      }
+      found = await getOrder(orderId, env);
     } else if (orderNumber) {
-      snap = await getDocs(query(ordersRef, where('orderNumber', '==', orderNumber), limit(1)));
-    } else {
-      // Sem índice em customerPhone terminando em X — varre só os mais recentes via createdAt seria
-      // ideal, mas sem orderBy+where combinado sem índice composto; aceitável pra debug pontual.
-      snap = await getDocs(query(ordersRef, limit(500)));
-    }
+      found = await getOrder(orderNumber, env);
+    } else if (phoneLast4 && supabase) {
+      const { data } = await supabase
+        .from('orders')
+        .select('*')
+        .is('deleted_at', null)
+        .ilike('customer_phone', `%${phoneLast4}`)
+        .order('created_at', { ascending: false })
+        .limit(1);
 
-    if (!found && snap) {
-      snap.forEach((d) => {
-        const data = d.data();
-        if (orderNumber) {
-          found = { id: d.id, data };
-        } else if (String(data.customerPhone || '').endsWith(phoneLast4)) {
-          found = { id: d.id, data };
-        }
-      });
+      if (data && data[0]) {
+        found = mapSupabaseOrderToFirestore(data[0]);
+      }
     }
 
     if (!found) {
       return NextResponse.json({ error: 'Pedido não encontrado.' }, { status: 404 });
     }
 
-    const { customerPhone, customerEmail, customerName, honoreeName, ...safe } = found.data;
+    const { customerPhone, customerEmail, customerName, honoreeName, ...safe } = found;
 
     return NextResponse.json({
       id: found.id,

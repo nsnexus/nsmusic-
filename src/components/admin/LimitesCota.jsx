@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { getAuth } from 'firebase/auth';
+import { getAdminAuthToken } from '@/lib/authClient';
 
 export default function LimitesCota() {
   const [dados, setDados] = useState(null);
@@ -17,8 +17,7 @@ export default function LimitesCota() {
   const [novoMotivo, setNovoMotivo] = useState('Gerou mais de 9 músicas sem pagar');
 
   const chamar = useCallback(async (metodo, corpo) => {
-    const user = getAuth().currentUser;
-    const token = user ? await user.getIdToken() : '';
+    const token = await getAdminAuthToken();
     const res = await fetch('/api/admin/cotas', {
       method: metodo,
       headers: {

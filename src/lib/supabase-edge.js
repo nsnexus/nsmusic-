@@ -283,6 +283,22 @@ export class NativeSupabaseClient {
   }
 
   get auth() {
+    const notifyAuthChange = (event, session) => {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('supabase_auth_change', { detail: { event, session } }));
+      }
+    };
+
+    const normalizeUser = (user, token) => {
+      if (!user) return null;
+      return {
+        ...user,
+        uid: user.id,
+        email: user.email || '',
+        getIdToken: async () => token || (typeof window !== 'undefined' ? localStorage.getItem('supabase_auth_token') : ''),
+      };
+    };
+
     return {
       signInWithPassword: async ({ email, password }) => {
         try {
@@ -296,32 +312,146 @@ export class NativeSupabaseClient {
           });
           const json = await res.json().catch(() => null);
           if (!res.ok) {
-            return { data: null, error: { message: json?.error_description || json?.msg || 'Falha ao autenticar' } };
+            return { data: null, error: { message: json?.error_description || json?.msg || json?.message || 'Falha ao autenticar' } };
           }
-          if (typeof window !== 'undefined' && json?.access_token) {
-            localStorage.setItem('supabase_admin_token', json.access_token);
-            localStorage.setItem('supabase_admin_user', JSON.stringify(json.user || {}));
+          const token = json?.access_token;
+          const user = normalizeUser(json?.user, token);
+          const session = token ? { access_token: token, user } : null;
+
+          if (typeof window !== 'undefined' && token) {
+            localStorage.setItem('supabase_auth_token', token);
+            localStorage.setItem('supabase_auth_user', JSON.stringify(user));
+            localStorage.setItem('supabase_admin_token', token);
+            localStorage.setItem('supabase_admin_user', JSON.stringify(user));
           }
-          return { data: { session: json, user: json?.user }, error: null };
+          notifyAuthChange('SIGNED_IN', session);
+          return { data: { session, user }, error: null };
         } catch (e) {
           return { data: null, error: { message: e.message } };
         }
       },
+
+      signUp: async ({ email, password, options = {} }) => {
+        try {
+          const res = await fetch(`${this.url.replace(/\/$/, '')}/auth/v1/signup`, {
+            method: 'POST',
+            headers: {
+              'apikey': this.apiKey,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ email, password, data: options.data || {} })
+          });
+          const json = await res.json().catch(() => null);
+          if (!res.ok) {
+            return { data: null, error: { message: json?.error_description || json?.msg || json?.message || 'Falha ao criar conta' } };
+          }
+          const token = json?.access_token;
+          const user = normalizeUser(json?.user || json, token);
+          const session = token ? { access_token: token, user } : null;
+
+          if (typeof window !== 'undefined' && token) {
+            localStorage.setItem('supabase_auth_token', token);
+            localStorage.setItem('supabase_auth_user', JSON.stringify(user));
+          }
+          notifyAuthChange('SIGNED_UP', session);
+          return { data: { session, user }, error: null };
+        } catch (e) {
+          return { data: null, error: { message: e.message } };
+        }
+      },
+
+      resetPasswordForEmail: async (email, options = {}) => {
+        try {
+          const res = await fetch(`${this.url.replace(/\/$/, '')}/auth/v1/recover`, {
+            method: 'POST',
+            headers: {
+              'apikey': this.apiKey,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ email, ...options })
+          });
+          if (!res.ok) {
+            const json = await res.json().catch(() => null);
+            return { data: null, error: { message: json?.error_description || json?.msg || json?.message || 'Falha ao redefinir senha' } };
+          }
+          return { data: {}, error: null };
+        } catch (e) {
+          return { data: null, error: { message: e.message } };
+        }
+      },
+
       getSession: async () => {
         if (typeof window === 'undefined') return { data: { session: null }, error: null };
-        const token = localStorage.getItem('supabase_admin_token');
-        const user = JSON.parse(localStorage.getItem('supabase_admin_user') || 'null');
+        const token = localStorage.getItem('supabase_auth_token') || localStorage.getItem('supabase_admin_token');
+        const rawUser = localStorage.getItem('supabase_auth_user') || localStorage.getItem('supabase_admin_user');
+        const user = normalizeUser(rawUser ? JSON.parse(rawUser) : null, token);
         if (token && user) {
           return { data: { session: { access_token: token, user } }, error: null };
         }
         return { data: { session: null }, error: null };
       },
+
+      getUser: async () => {
+        const { data: { session } } = await this.auth.getSession();
+        return { data: { user: session?.user || null }, error: null };
+      },
+
       signOut: async () => {
         if (typeof window !== 'undefined') {
+          localStorage.removeItem('supabase_auth_token');
+          localStorage.removeItem('supabase_auth_user');
           localStorage.removeItem('supabase_admin_token');
           localStorage.removeItem('supabase_admin_user');
         }
+        notifyAuthChange('SIGNED_OUT', null);
         return { error: null };
+      },
+
+      onAuthStateChange: (callback) => {
+        if (typeof window === 'undefined') {
+          return { data: { subscription: { unsubscribe: () => {} } } };
+        }
+
+        // Emite imediatamente o estado atual
+        const token = localStorage.getItem('supabase_auth_token') || localStorage.getItem('supabase_admin_token');
+        const rawUser = localStorage.getItem('supabase_auth_user') || localStorage.getItem('supabase_admin_user');
+        const user = normalizeUser(rawUser ? JSON.parse(rawUser) : null, token);
+        const initialSession = (token && user) ? { access_token: token, user } : null;
+        try {
+          callback(initialSession ? 'INITIAL_SESSION' : 'SIGNED_OUT', initialSession);
+        } catch {}
+
+        const handler = (evt) => {
+          try {
+            callback(evt.detail?.event || 'AUTH_CHANGE', evt.detail?.session || null);
+          } catch {}
+        };
+
+        const storageHandler = (evt) => {
+          if (evt.key === 'supabase_auth_token' || evt.key === 'supabase_admin_token') {
+            const currentToken = localStorage.getItem('supabase_auth_token') || localStorage.getItem('supabase_admin_token');
+            const currentUser = localStorage.getItem('supabase_auth_user') || localStorage.getItem('supabase_admin_user');
+            const parsedUser = normalizeUser(currentUser ? JSON.parse(currentUser) : null, currentToken);
+            const currentSession = (currentToken && parsedUser) ? { access_token: currentToken, user: parsedUser } : null;
+            try {
+              callback(currentSession ? 'TOKEN_REFRESHED' : 'SIGNED_OUT', currentSession);
+            } catch {}
+          }
+        };
+
+        window.addEventListener('supabase_auth_change', handler);
+        window.addEventListener('storage', storageHandler);
+
+        return {
+          data: {
+            subscription: {
+              unsubscribe: () => {
+                window.removeEventListener('supabase_auth_change', handler);
+                window.removeEventListener('storage', storageHandler);
+              }
+            }
+          }
+        };
       }
     };
   }

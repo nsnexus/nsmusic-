@@ -3,7 +3,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // Webhook da Efí: primeira barreira é o segredo na URL (?secret=), a segunda e mais importante é
 // nunca confiar no valor do corpo — sempre reconsultar a cobrança na API antes de aprovar.
 
-vi.mock('@/lib/firebase-edge', () => ({ dbEdge: {} }));
 
 const applyPaymentApprovalMock = vi.fn().mockResolvedValue({ applied: true });
 vi.mock('@/lib/payments', () => ({
@@ -20,20 +19,29 @@ vi.mock('@/lib/efi', () => ({
   getChargeStatus: (...args) => getChargeStatusMock(...args),
 }));
 
-// ordersByPaymentIntentId simula a query where('paymentIntentId','==',txid); ordersByPreviousIntent
-// simula o fallback where('previousPaymentIntentIds','array-contains',txid) (ver achado #4 da
-// auditoria de fechamento, 2026-08-02).
 let ordersByPaymentIntentId;
 let ordersByPreviousIntent;
-vi.mock('firebase/firestore/lite', () => ({
-  collection: () => ({}),
-  query: (_ref, whereClause) => whereClause,
-  where: (field) => field,
-  limit: () => ({}),
-  getDocs: async (whereField) => {
-    const ids = whereField === 'previousPaymentIntentIds' ? ordersByPreviousIntent : ordersByPaymentIntentId;
-    return { empty: ids.length === 0, docs: ids.map((id) => ({ id })) };
-  },
+vi.mock('@/lib/supabase-edge', () => ({
+  getSupabaseEdge: vi.fn(() => ({
+    from: () => {
+      let filterMode = '';
+      return {
+        select: function () { return this; },
+        eq: function () {
+          filterMode = 'eq';
+          return this;
+        },
+        contains: function () {
+          filterMode = 'contains';
+          return this;
+        },
+        limit: function () {
+          const ids = filterMode === 'contains' ? ordersByPreviousIntent : ordersByPaymentIntentId;
+          return Promise.resolve({ data: ids.map((id) => ({ id })), error: null });
+        }
+      };
+    }
+  }))
 }));
 
 const { POST } = await import('@/app/api/webhooks/efi/route');

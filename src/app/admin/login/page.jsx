@@ -2,14 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { 
-  signInWithEmailAndPassword, 
-  onAuthStateChanged, 
-  GoogleAuthProvider, 
-  signInWithRedirect, 
-  getRedirectResult 
-} from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { signInWithEmailAndPassword, onAuthStateChanged, auth } from '@/lib/authClient';
 import Link from 'next/link';
 import Image from 'next/image';
 
@@ -56,21 +49,6 @@ export default function AdminLogin() {
     setLoading(true);
 
     try {
-      // 1. Tenta autenticar no Supabase Auth
-      try {
-        const { supabase } = await import('@/lib/supabase');
-        if (supabase?.auth) {
-          const { data, error: sbErr } = await supabase.auth.signInWithPassword({ email, password });
-          if (!sbErr && data?.session) {
-            router.push('/admin');
-            return;
-          }
-        }
-      } catch (sbE) {
-        console.warn('[AdminLogin] Supabase Auth ignorado/falhou:', sbE.message);
-      }
-
-      // 2. Fallback no Firebase Auth
       await signInWithEmailAndPassword(auth, email, password);
       router.push('/admin');
     } catch (err) {

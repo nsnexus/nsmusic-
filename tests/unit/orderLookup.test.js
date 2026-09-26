@@ -3,44 +3,62 @@ import { generatePhoneVariants, isNewSongIntent, isShortAckMessage } from '@/lib
 
 let store;
 
-vi.mock('@/lib/firebase-edge', () => ({ dbEdge: {} }));
-
-vi.mock('firebase/firestore/lite', () => ({
-  collection: (_db, name) => ({ name }),
-  doc: (_db, col, id) => ({ col, id }),
-  getDoc: async (d) => ({
-    exists: () => Boolean(store[d.id]),
-    id: d.id,
-    data: () => store[d.id] || {},
-  }),
-  limit: (n) => ({ limit: n }),
-  query: (ref, ...constraints) => ({ ref, constraints }),
-  where: (field, op, val) => ({ field, op, val }),
-  getDocs: async (q) => {
-    const inConstraint = q.constraints.find((c) => c.op === 'in');
-    const eqConstraint = q.constraints.find((c) => c.op === '==');
-
-    let matches = [];
-    if (inConstraint) {
-      const field = inConstraint.field;
-      const values = inConstraint.val || [];
-      matches = Object.entries(store)
-        .filter(([id, data]) => values.includes(data[field]))
-        .map(([id, data]) => ({ id, data: () => data }));
-    } else if (eqConstraint) {
-      const field = eqConstraint.field;
-      const val = eqConstraint.val;
-      matches = Object.entries(store)
-        .filter(([id, data]) => data[field] === val)
-        .map(([id, data]) => ({ id, data: () => data }));
+vi.mock('@/lib/supabase-edge', () => ({
+  getSupabaseEdge: vi.fn(() => ({
+    from: () => {
+      let filterIn = null;
+      let filterOr = null;
+      let filterLike = null;
+      const filterNeq = [];
+      return {
+        select: function () { return this; },
+        in: function (col, vals) {
+          filterIn = { col, vals };
+          return this;
+        },
+        is: function () { return this; },
+        neq: function (col, val) {
+          filterNeq.push({ col, val });
+          return this;
+        },
+        order: function () { return this; },
+        like: function (col, val) {
+          filterLike = { col, val };
+          return this;
+        },
+        or: function (expr) {
+          filterOr = expr;
+          return this;
+        },
+        limit: async function () {
+          let rows = Object.entries(store).map(([id, d]) => ({
+            id,
+            order_number: d.orderNumber || id,
+            customer_name: d.customerName || 'Cliente',
+            customer_phone: d.customerPhone || '',
+            created_at: d.createdAt || new Date().toISOString(),
+            ...d
+          }));
+          if (filterIn) {
+            rows = rows.filter((r) => filterIn.vals.includes(r[filterIn.col]) || filterIn.vals.includes(r.customerPhone));
+          }
+          if (filterOr) {
+            const parts = filterOr.split(',').map((p) => p.split('.eq.')[1]);
+            rows = rows.filter((r) => parts.includes(r.id) || parts.includes(r.order_number) || parts.includes(r.orderNumber));
+          }
+          if (filterLike) {
+            const rawSub = filterLike.val.replace(/%/g, '');
+            rows = rows.filter((r) => String(r.order_number || '').includes(rawSub));
+          }
+          for (const { col, val } of filterNeq) {
+            rows = rows.filter((r) => r[col] !== val && r.productionStatus !== val);
+          }
+          rows.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+          return { data: rows, error: null };
+        }
+      };
     }
-
-    return {
-      empty: matches.length === 0,
-      docs: matches,
-      forEach: (cb) => matches.forEach(cb),
-    };
-  },
+  }))
 }));
 
 const { findRecentOrderByPhone, findOrderByIdOrNumber } = await import('@/lib/orderLookup');

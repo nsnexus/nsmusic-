@@ -4,10 +4,7 @@
 // de status (retry em tempo real, enquanto o cliente ainda está na página) e a reconciliação por
 // cron (retry para quem já fechou a aba) — ver docs/CODEBASE_MAP.md.
 //
-// Import de firebase/firestore/lite é seguro aqui: este módulo só é usado a partir de rotas Edge.
-
-import { doc, getDoc, updateDoc, increment } from 'firebase/firestore/lite';
-import { dbEdge as db } from './firebase-edge.js';
+import { getOrder, updateOrder } from './supabaseDb.js';
 import { saveTask, getTask } from './db.js';
 import { buildSunoPayload } from './sunoPayload.js';
 import { resolverSiteUrl } from './siteUrl.js';
@@ -58,25 +55,14 @@ export async function recordSunoFailure(orderId, reason, env = {}) {
   if (!orderId) return;
   const nowIso = new Date().toISOString();
   try {
-    await updateDoc(doc(db, 'orders', orderId), {
+    const existing = await getOrder(orderId, env);
+    const sunoErrorCount = (Number(existing?.sunoErrorCount) || 0) + 1;
+    await updateOrder(orderId, {
       sunoError: reason,
       sunoErrorAt: nowIso,
-      sunoErrorCount: increment(1),
+      sunoErrorCount,
       updatedAt: nowIso
-    });
-
-    try {
-      const { mirrorOrderToSupabase } = await import('./supabaseSync.js');
-      const { findOrderByIdOrNumber } = await import('./orderLookup.js');
-      const existing = await findOrderByIdOrNumber(orderId, env);
-      await mirrorOrderToSupabase(orderId, {
-        ...(existing || {}),
-        sunoError: reason,
-        sunoErrorAt: nowIso,
-        sunoErrorCount: (Number(existing?.sunoErrorCount) || 0) + 1,
-        updatedAt: nowIso
-      }, env);
-    } catch {}
+    }, env);
   } catch (err) {
     console.error('[suno] Erro ao registrar falha de geração no pedido:', err.message);
   }
@@ -100,7 +86,7 @@ export async function requestSunoGeneration({ orderId, prompt, tags }, env) {
  * (webhook, polling, reconciliação, arquivamento) lê sempre daqui, nunca do provedor.
  */
 async function persistirGeracao({ orderId, taskId, provider }, env = {}) {
-  const salvo = await saveTask(taskId, 'PROCESSING', null, orderId, { provider });
+  const salvo = await saveTask(taskId, 'PROCESSING', null, orderId, { provider }, env);
   if (!salvo) {
     await recordSunoFailure(orderId, 'save_task_failed', env);
     return { ok: false, error: 'A geração foi iniciada, mas houve uma falha ao registrar o pedido. A equipe será notificada.', status: 502 };
@@ -109,34 +95,17 @@ async function persistirGeracao({ orderId, taskId, provider }, env = {}) {
   if (orderId) {
     const nowIso = new Date().toISOString();
     try {
-      await updateDoc(doc(db, 'orders', orderId), {
+      const existing = await getOrder(orderId, env);
+      const sunoGenerationCount = (Number(existing?.sunoGenerationCount) || 0) + 1;
+      await updateOrder(orderId, {
         productionStatus: 'GERANDO_AUDIO',
         sunoRequestedAt: nowIso,
         sunoError: null,
         sunoTaskId: taskId,
         sunoProvider: provider,
-        sunoGenerationCount: increment(1),
+        sunoGenerationCount,
         updatedAt: nowIso,
-      });
-
-      // Persistência imediata no Supabase
-      try {
-        const { mirrorOrderToSupabase } = await import('./supabaseSync.js');
-        const { findOrderByIdOrNumber } = await import('./orderLookup.js');
-        const existing = await findOrderByIdOrNumber(orderId, env);
-        await mirrorOrderToSupabase(orderId, {
-          ...(existing || {}),
-          productionStatus: 'GERANDO_AUDIO',
-          sunoRequestedAt: nowIso,
-          sunoError: null,
-          sunoTaskId: taskId,
-          sunoProvider: provider,
-          sunoGenerationCount: (Number(existing?.sunoGenerationCount) || 0) + 1,
-          updatedAt: nowIso,
-        }, env);
-      } catch (sbErr) {
-        console.warn('[suno] Falha ao espelhar GERANDO_AUDIO no Supabase:', sbErr.message);
-      }
+      }, env);
     } catch (err) {
       console.error('[suno] Erro ao atualizar status do pedido para GERANDO_AUDIO:', err.message);
       await recordSunoFailure(orderId, 'order_update_failed', env);
@@ -273,12 +242,10 @@ export async function resolveLatestTaskId(taskId) {
 export async function maybeAutoRetrySunoFailure({ taskId, orderId, env, reason }) {
   if (!orderId) return { retried: false, reason: 'sem_order_id' };
 
-  const orderRef = doc(db, 'orders', orderId);
   let orderData;
   try {
-    const snap = await getDoc(orderRef);
-    if (!snap.exists()) return { retried: false, reason: 'pedido_nao_encontrado' };
-    orderData = snap.data();
+    orderData = await getOrder(orderId, env);
+    if (!orderData) return { retried: false, reason: 'pedido_nao_encontrado' };
   } catch (err) {
     console.warn('[suno] Falha ao ler pedido para decidir retentativa:', err.message);
     return { retried: false, reason: 'falha_leitura_pedido' };
@@ -291,19 +258,18 @@ export async function maybeAutoRetrySunoFailure({ taskId, orderId, env, reason }
 
   const retriesUsados = Number(orderData.sunoAutoRetryCount) || 0;
   if (retriesUsados >= MAX_AUTO_RETRIES) {
-    await recordSunoFailure(orderId, `kie_falhou_${reason}_limite_retry_esgotado`);
+    await recordSunoFailure(orderId, `kie_falhou_${reason}_limite_retry_esgotado`, env);
     return { retried: false, reason: 'limite_esgotado' };
   }
 
   // Reserva sequencial: evita que polling do cliente e cron de reconciliação disparem duas
   // retentativas para a mesma falha ao colidir na mesma janela de tempo.
   try {
-    const freshSnap = await getDoc(orderRef);
-    const freshData = freshSnap.exists() ? freshSnap.data() : null;
+    const freshData = await getOrder(orderId, env);
     if (!freshData || freshData.sunoRetryReserved || freshData.productionStatus !== 'GERANDO_AUDIO') {
       return { retried: false, reason: 'reservado_por_outra_chamada' };
     }
-    await updateDoc(orderRef, { sunoRetryReserved: true, updatedAt: new Date().toISOString() });
+    await updateOrder(orderId, { sunoRetryReserved: true, updatedAt: new Date().toISOString() }, env);
   } catch (err) {
     console.warn('[suno] Falha ao reservar retentativa automática:', err.message);
     return { retried: false, reason: 'falha_reserva' };
@@ -311,36 +277,37 @@ export async function maybeAutoRetrySunoFailure({ taskId, orderId, env, reason }
 
   const payload = buildSunoPayload(orderData);
   if (!payload.prompt?.trim() || !payload.tags?.trim()) {
-    await updateDoc(orderRef, { sunoRetryReserved: false, updatedAt: new Date().toISOString() }).catch(() => {});
-    await recordSunoFailure(orderId, `kie_falhou_${reason}_sem_dados_para_retry`);
+    await updateOrder(orderId, { sunoRetryReserved: false, updatedAt: new Date().toISOString() }, env).catch(() => {});
+    await recordSunoFailure(orderId, `kie_falhou_${reason}_sem_dados_para_retry`, env);
     return { retried: false, reason: 'payload_incompleto' };
   }
 
   const result = await requestSunoGeneration({ orderId, prompt: payload.prompt, tags: payload.tags }, env);
 
   if (!result.ok) {
-    await updateDoc(orderRef, { sunoRetryReserved: false, updatedAt: new Date().toISOString() }).catch(() => {});
-    // requestSunoGeneration já chamou recordSunoFailure com o motivo específico.
+    await updateOrder(orderId, { sunoRetryReserved: false, updatedAt: new Date().toISOString() }, env).catch(() => {});
     return { retried: false, reason: 'nova_tentativa_falhou' };
   }
 
   try {
-    await updateDoc(doc(db, 'suno_tasks', taskId), {
-      retryTaskId: result.taskId,
-      updatedAt: new Date().toISOString(),
-    });
+    const { getSupabaseEdge } = await import('./supabase-edge.js');
+    const supabase = getSupabaseEdge(env);
+    if (supabase) {
+      await supabase.from('suno_tasks').update({
+        retry_task_id: result.taskId,
+        updated_at: new Date().toISOString()
+      }).eq('id', taskId);
+    }
   } catch (err) {
-    // Não desfaz a retentativa (a Kie.ai já foi chamada e já cobrou) — só perde o encadeamento
-    // automático; o polling por este taskId antigo passa a depender da reconciliação achar a nova
-    // tarefa por orderId, o que ainda acontece.
     console.warn('[suno] Falha ao encadear taskId de retentativa:', err.message);
   }
 
-  await updateDoc(orderRef, {
-    sunoAutoRetryCount: increment(1),
+  const autoRetryCount = (Number(orderData.sunoAutoRetryCount) || 0) + 1;
+  await updateOrder(orderId, {
+    sunoAutoRetryCount: autoRetryCount,
     sunoRetryReserved: false,
     updatedAt: new Date().toISOString(),
-  }).catch((err) => console.warn('[suno] Falha ao atualizar contador de retentativas:', err.message));
+  }, env).catch((err) => console.warn('[suno] Falha ao atualizar contador de retentativas:', err.message));
 
   return { retried: true, newTaskId: result.taskId };
 }

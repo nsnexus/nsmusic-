@@ -7,17 +7,31 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 let phoneMatches;
 let emailMatches;
 
-vi.mock('@/lib/firebase-edge', () => ({ dbEdge: {} }));
-
-vi.mock('firebase/firestore/lite', () => ({
-  collection: () => ({}),
-  where: (field, _op, value) => ({ field, value }),
-  query: (_ref, whereClause) => whereClause,
-  getDocs: async (whereClause) => {
-    const docs = whereClause.field === 'customerPhone' ? phoneMatches : emailMatches;
-    return { forEach: (cb) => docs.forEach((data) => cb({ data: () => data })) };
-  },
-  addDoc: async () => ({ id: 'mock-doc-id' }),
+vi.mock('@/lib/supabase-edge', () => ({
+  getSupabaseEdge: vi.fn(() => ({
+    from: () => ({
+      select: () => ({
+        is: () => ({
+          or: async () => {
+            const all = [...phoneMatches, ...emailMatches];
+            const unique = [];
+            const seen = new Set();
+            for (const item of all) {
+              if (!seen.has(item.orderNumber)) {
+                seen.add(item.orderNumber);
+                unique.push({
+                  order_number: item.orderNumber,
+                  payment_status: item.paymentStatus || 'AGUARDANDO_PAGAMENTO',
+                  created_at: item.createdAt || new Date().toISOString()
+                });
+              }
+            }
+            return { data: unique, error: null };
+          }
+        })
+      })
+    })
+  }))
 }));
 
 const { isBlockedByFreeLimit } = await import('@/app/api/orders/create/route');

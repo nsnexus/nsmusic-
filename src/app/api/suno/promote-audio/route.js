@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
-import { doc, getDoc, updateDoc, collection, query, where, limit, getDocs } from 'firebase/firestore/lite';
-import { dbEdge as db } from '@/lib/firebase-edge';
+import { getOrder, updateOrder } from '@/lib/supabaseDb';
 import { extractAudioTracks } from '@/lib/db';
 import { readEnvValue } from '@/lib/envValue';
 import { audioUrlSaudavel } from '@/lib/audioUrlSaudavel';
@@ -9,27 +8,6 @@ import { isOurStorage } from '@/lib/audioArchive';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
-
-// Troca a URL EFÊMERA de um pedido pela definitiva, na hora, para UM pedido só.
-//
-// Por que existe, e por que é pública:
-//
-// A Kie.ai entrega primeiro um endpoint de streaming (`audiostream.kie.ai`) e só depois o MP3
-// final. O polling do cliente para no primeiro sucesso — que é justamente o stream — então a URL
-// que fica salva no pedido é a temporária. Medido em 25/09/2026: com 10 minutos ela ainda servia
-// 3,84 MB; com 185, 341, 806 e 1070 minutos, respondia 200 com 0 byte. O cliente ouve a prévia ao
-// gerar, volta no dia seguinte e encontra uma música muda.
-//
-// O cron (api/orders/refresh-audio, de 10 em 10 minutos, 25 pedidos por vez) cobre quem fechou a
-// aba, mas chega tarde para quem está na tela agora. Esta rota é o outro lado: o cliente continua
-// ouvindo o stream imediatamente e a própria página fica pedindo a troca por trás, até a definitiva
-// existir. Quando existe, o onSnapshot atualiza o player sozinho.
-//
-// Sem segredo de propósito: quem abre a página de entrega não tem credencial nenhuma, e é ele quem
-// precisa disso. O que a rota faz é limitado e não destrutivo: só age quando a URL salva é efêmera,
-// e só grava o que a própria Kie.ai devolve para a tarefa daquele pedido. Não aceita URL do cliente
-// (ver .claude/rules/security.md: orderId é alegação, nunca permissão — aqui ele só escolhe QUAL
-// pedido reconsultar, e a resposta vem inteira do provedor).
 
 const DOMINIOS_EFEMEROS = ['audiostream.kie.ai', 'musicfile.kie.ai'];
 
@@ -42,11 +20,15 @@ function precisaTrocar(order) {
   return urls.some(urlEfemera);
 }
 
-async function resolverTaskId(order, orderId) {
+async function resolverTaskId(order, orderId, env = {}) {
   if (order?.sunoTaskId) return order.sunoTaskId;
   try {
-    const snap = await getDocs(query(collection(db, 'suno_tasks'), where('orderId', '==', orderId), limit(1)));
-    if (!snap.empty) return snap.docs[0].id;
+    const { getSupabaseEdge } = await import('@/lib/supabase-edge');
+    const supabase = getSupabaseEdge(env);
+    if (supabase) {
+      const { data } = await supabase.from('suno_tasks').select('id').eq('order_id', orderId).limit(1).maybeSingle();
+      if (data?.id) return data.id;
+    }
   } catch (err) {
     console.warn('[promote-audio] Falha ao buscar taskId:', err.message);
   }
@@ -73,20 +55,17 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Configuração ausente no servidor.' }, { status: 500 });
     }
 
-    const orderRef = doc(db, 'orders', orderId);
-    const snap = await getDoc(orderRef);
-    if (!snap.exists()) {
+    const order = await getOrder(orderId, env);
+    if (!order) {
       return NextResponse.json({ error: 'Pedido não encontrado' }, { status: 404 });
     }
-
-    const order = snap.data();
 
     // Já está com URL definitiva (o cron chegou antes, ou o áudio já foi arquivado): nada a fazer.
     if (!precisaTrocar(order)) {
       return NextResponse.json({ ok: true, estado: 'ja_definitiva' });
     }
 
-    const taskId = await resolverTaskId(order, orderId);
+    const taskId = await resolverTaskId(order, orderId, env);
     if (!taskId) {
       return NextResponse.json({ ok: false, estado: 'sem_task' });
     }
@@ -103,29 +82,18 @@ export async function POST(req) {
     const tracks = data ? extractAudioTracks(data) : [];
     const definitivas = tracks.filter((t) => t.audio_url && !urlEfemera(t.audio_url));
 
-    // A Kie.ai ainda não terminou o MP3: devolveu o stream de novo. O cliente continua ouvindo o
-    // que já está tocando, e a página tenta de novo daqui a pouco.
     if (definitivas.length === 0) {
       return NextResponse.json({ ok: false, estado: 'ainda_processando' });
     }
 
-    // A Kie.ai publica a URL do MP3 final ANTES de o arquivo existir: sem esta checagem, trocamos
-    // um stream que estava tocando por um 404 e o cliente ficava sem áudio nenhum (achado
-    // 25/09/2026, poucas horas depois da troca automática entrar no ar).
     const saude = await Promise.all(definitivas.map((t) => audioUrlSaudavel(t.audio_url)));
     const prontas = definitivas.filter((_, i) => saude[i]);
 
-    // NUNCA reduzir o número de faixas: a Suno entrega duas versões e o cliente pagou pelas duas.
-    // Gravar só a que já está pronta apagaria a segunda do pedido — foi o que aconteceu com 6
-    // pedidos logo depois da checagem de saúde entrar (25/09/2026). Se a segunda ainda não serve,
-    // melhor deixar tudo como está e tentar de novo na próxima rodada.
     const faixasAtuais = Array.isArray(order.audioFiles) ? order.audioFiles.filter(Boolean).length : (order.audioUrl ? 1 : 0);
     if (prontas.length === 0 || prontas.length < faixasAtuais) {
       return NextResponse.json({ ok: false, estado: 'definitiva_ainda_nao_serve', prontas: prontas.length, atuais: faixasAtuais });
     }
 
-    // URL do nosso storage nunca e substituida por uma da Kie.ai: o R2 e permanente, o tempfile
-    // expira em ~14 dias (ver mesclarPreservandoNosso em api/orders/refresh-audio).
     const atuais = Array.isArray(order.audioFiles) && order.audioFiles.length
       ? order.audioFiles.filter(Boolean)
       : [order.audioUrl].filter(Boolean);
@@ -142,22 +110,14 @@ export async function POST(req) {
     if (audioIds.length > 0) updates.audioIds = audioIds;
     if (!order.sunoTaskId) updates.sunoTaskId = taskId;
 
-    await updateDoc(orderRef, updates);
+    await updateOrder(orderId, updates, env);
 
     // Dispara arquivamento imediato para R2 se disponível
     try {
       const { arquivarAudioDoPedido } = await import('@/lib/audioArchive');
-      await arquivarAudioDoPedido({ orderRef, orderId, env, getDoc, updateDoc });
+      await arquivarAudioDoPedido({ orderId, env });
     } catch {}
 
-    // Dual-write seguro para Supabase
-    try {
-      const { mirrorOrderToSupabase } = await import('@/lib/supabaseSync');
-      mirrorOrderToSupabase(orderId, { ...order, ...updates }, env).catch(() => {});
-    } catch {}
-
-    // Devolve as URLs: a tela de geracao (/criar) guarda as faixas em estado local, sem
-    // onSnapshot, entao precisa trocar a fonte do player por conta propria.
     return NextResponse.json({ ok: true, estado: 'trocada', audioFiles });
   } catch (error) {
     console.error('[promote-audio] Erro:', error.message);

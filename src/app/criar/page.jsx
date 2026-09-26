@@ -3,9 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { doc, getDoc, collection, addDoc, updateDoc, query, where, getDocs } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { db, auth, storage } from '@/lib/firebase';
+import { auth } from '@/lib/authClient';
 import { AUDIO_CACHE_VERSION } from '@/lib/audioCacheVersion';
 import { buildSunoPayload } from '@/lib/sunoPayload';
 import { pushAdvancedMatching } from '@/lib/metaPixel';
@@ -132,14 +130,14 @@ export default function CriarMusica() {
           console.warn("Erro no fetch do status do PIX (tentando fallback Firestore):", err);
         }
 
-        // 2. Fallback: verifica diretamente no Firestore se o webhook já atualizou o status
-        // Executa SEMPRE, independentemente do resultado do fetch acima
+        // 2. Fallback: verifica se o pedido foi aprovado
         try {
           if (orderId) {
-            const orderSnap = await getDoc(doc(db, 'orders', orderId));
-            if (orderSnap.exists()) {
-              const orderData = orderSnap.data();
-              if (orderData.paymentStatus === 'PAGAMENTO_APROVADO' || orderData.paymentStatus === 'PAGO') {
+            const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}`, { cache: 'no-store' });
+            if (res.ok) {
+              const json = await res.json();
+              const orderData = json?.order;
+              if (orderData && (orderData.paymentStatus === 'PAGAMENTO_APROVADO' || orderData.paymentStatus === 'PAGO')) {
                 clearInterval(interval);
                 setPixInfo(prev => ({ ...prev, status: 'approved' }));
                 window.location.href = `/entrega?orderId=${orderId}`;
@@ -147,9 +145,7 @@ export default function CriarMusica() {
               }
             }
           }
-        } catch (fbErr) {
-          console.warn("Erro no fallback Firestore do PIX:", fbErr);
-        }
+        } catch (fbErr) {}
       }, 4000);
     }
     return () => clearInterval(interval);
@@ -355,11 +351,11 @@ export default function CriarMusica() {
 
   const checkOrderStatusInFirestore = async (targetOrderId, activeTaskId) => {
     try {
-      const docRef = doc(db, 'orders', targetOrderId);
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        if (data.audioFiles && data.audioFiles.length > 0) {
+      const res = await fetch(`/api/orders/${encodeURIComponent(targetOrderId)}`, { cache: 'no-store' });
+      if (res.ok) {
+        const json = await res.json();
+        const data = json?.order;
+        if (data?.audioFiles && data.audioFiles.length > 0) {
           const tracks = data.audioFiles.map(url => ({ audio_url: url }));
           setFormData(prev => ({
             ...prev,
@@ -370,7 +366,7 @@ export default function CriarMusica() {
         }
       }
     } catch (err) {
-      console.warn("Erro ao verificar Firestore no recarregamento:", err);
+      console.warn("Erro ao verificar status no recarregamento:", err);
     }
     if (activeTaskId) {
       pollSunoStatus(activeTaskId, targetOrderId);
@@ -794,35 +790,22 @@ export default function CriarMusica() {
             return;
           }
           try {
-            // 1. Tenta upload direto no Cloudflare R2 (egress zero)
-            let url = null;
-            try {
-              const uploadData = new FormData();
-              uploadData.append('file', blob, 'cover.jpg');
-              const uploadRes = await fetch('/api/media/upload?folder=covers', {
-                method: 'POST',
-                body: uploadData
-              });
-              if (uploadRes.ok) {
-                const resJson = await uploadRes.json();
-                if (resJson?.url) url = resJson.url;
-              }
-            } catch (r2Err) {
-              console.warn('[criar] Falha no upload R2, caindo para Firebase:', r2Err.message);
+            const uploadData = new FormData();
+            uploadData.append('file', blob, 'cover.jpg');
+            const uploadRes = await fetch('/api/media/upload?folder=covers', {
+              method: 'POST',
+              body: uploadData
+            });
+            if (!uploadRes.ok) {
+              throw new Error('Falha no upload da foto de capa');
             }
-
-            // 2. Fallback no Firebase Storage
-            if (!url) {
-              const fileName = `draft_${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
-              const fileRef = ref(storage, `covers/${fileName}`);
-              await uploadBytes(fileRef, blob);
-              url = await getDownloadURL(fileRef);
+            const resJson = await uploadRes.json();
+            if (!resJson?.url) {
+              throw new Error('URL da foto não retornada');
             }
-
-            updateField('coverUrl', url);
-
+            updateField('coverUrl', resJson.url);
           } catch (err) {
-            console.error("Erro ao enviar capa para o Storage:", err);
+            console.error("Erro ao enviar foto de capa para o R2:", err);
             alert("Falha ao enviar a foto de capa. Tente novamente.");
           } finally {
             setIsUploadingCover(false);
@@ -852,47 +835,11 @@ export default function CriarMusica() {
       }
 
       let totalCount = Array.isArray(localGenerated) ? localGenerated.length : 0;
-      let pedidosDaPessoa = [];
-
-      if (db) {
-        const ordersRef = collection(db, 'orders');
-        let fetchedOrders = [];
-
-        if (phone && phone.replace(/\D/g, '').length >= 10) {
-          const qPhone = query(ordersRef, where('customerPhone', '==', phone));
-          const snap = await getDocs(qPhone).catch(() => null);
-          if (snap && !snap.empty) {
-            snap.forEach(d => { if (!d.data().deletedAt) fetchedOrders.push(d.data()); });
-          }
-        }
-
-        if (email && email.includes('@')) {
-          const qEmail = query(ordersRef, where('customerEmail', '==', email));
-          const snapEmail = await getDocs(qEmail).catch(() => null);
-          if (snapEmail && !snapEmail.empty) {
-            snapEmail.forEach(d => {
-              const data = d.data();
-              if (data.deletedAt) return;
-              if (!fetchedOrders.some(o => o.orderNumber === data.orderNumber)) {
-                fetchedOrders.push(data);
-              }
-            });
-          }
-        }
-
-        if (fetchedOrders.length > 0) {
-          totalCount = Math.max(totalCount, fetchedOrders.length);
-          pedidosDaPessoa = fetchedOrders;
-        }
-      }
-
       // Mesma conta do servidor (src/lib/cotaGeracoes.js): 5 grátis + 5 por compra paga. Aqui é só
       // para a tela avisar antes de o cliente preencher tudo — quem bloqueia de verdade é
       // /api/orders/create.
       const cota = calcularCota(
-        pedidosDaPessoa.length > 0
-          ? pedidosDaPessoa
-          : Array.from({ length: totalCount }, () => ({}))
+        Array.from({ length: totalCount }, () => ({}))
       );
 
       return { totalCount, hasPaid: cota.pagos > 0, restantes: cota.restantes, cota: cota.cota, isBlocked: cota.bloqueado };
@@ -1048,10 +995,14 @@ export default function CriarMusica() {
           // productionStatus separa "letra pronta, aguardando aprovação" de EM_PRODUCAO (que hoje é
           // só o estado inicial do pedido) — sem isso não dá pra distinguir cliente que desistiu antes
           // da letra de cliente que chegou até aqui e não avançou (achado da auditoria, 2026-08-07).
-          await updateDoc(doc(db, 'orders', currentOrderId), {
-            lyrics: data.lyrics,
-            productionStatus: 'LETRA_CRIADA',
-            updatedAt: new Date().toISOString()
+          await fetch('/api/orders/client-update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              orderId: currentOrderId,
+              lyrics: data.lyrics,
+              productionStatus: 'LETRA_CRIADA'
+            })
           }).catch(e => console.warn(e));
         }
 
@@ -1101,9 +1052,13 @@ export default function CriarMusica() {
           lyricsVersion: prev.lyricsVersion + 1,
           lyricsComment: ''
         }));
-        // Update lyrics version in Firestore
+        // Update lyrics version in Supabase
         if (orderId) {
-          await updateDoc(doc(db, 'orders', orderId), { lyrics: data.lyrics });
+          await fetch('/api/orders/client-update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ orderId, lyrics: data.lyrics })
+          }).catch(e => console.warn(e));
         }
       } else {
         throw new Error('Falha ao ajustar');
@@ -1223,12 +1178,16 @@ export default function CriarMusica() {
             if (targetOrder) {
               const primaryAudio = getRawAudioUrl(statusData.tracks[0]);
               const audioFiles = statusData.tracks.map(getRawAudioUrl).filter(Boolean);
-              await updateDoc(doc(db, 'orders', targetOrder), {
-                audioUrl: primaryAudio,
-                audioFiles: audioFiles,
-                productionStatus: 'AUDIO_GERADO',
-                updatedAt: new Date().toISOString()
-              }).catch(e => console.warn("Aviso ao atualizar ordem no Firebase:", e));
+              await fetch('/api/orders/client-update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  orderId: targetOrder,
+                  audioUrl: primaryAudio,
+                  audioFiles: audioFiles,
+                  productionStatus: 'AUDIO_GERADO'
+                })
+              }).catch(e => console.warn("Aviso ao atualizar ordem:", e));
 
               // Dispara a notificação de WhatsApp via backend
               fetch('/api/whatsapp/notify', {
@@ -1879,10 +1838,14 @@ export default function CriarMusica() {
                               // e só pode ser concedido pelo servidor após confirmação de pagamento
                               // (ver C-09/A-07 em docs/audit/AUDIT_REPORT.md).
                               try {
-                                await updateDoc(doc(db, 'orders', orderId), {
-                                  total: getTotalPrice(),
-                                  package: formData.selectedPackage,
-                                  updatedAt: new Date().toISOString()
+                                await fetch('/api/orders/client-update', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({
+                                    orderId,
+                                    total: getTotalPrice(),
+                                    package: formData.selectedPackage
+                                  })
                                 });
                               } catch (e) {
                                 console.warn(e);
@@ -2005,12 +1968,13 @@ export default function CriarMusica() {
                                 }
                               }
 
-                              // 2. Fallback: verifica diretamente no Firestore
+                              // 2. Fallback: verifica se o pedido foi aprovado via API
                               if (orderId) {
-                                const orderSnap = await getDoc(doc(db, 'orders', orderId));
-                                if (orderSnap.exists()) {
-                                  const orderData = orderSnap.data();
-                                  if (orderData.paymentStatus === 'PAGAMENTO_APROVADO' || orderData.paymentStatus === 'PAGO') {
+                                const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}`, { cache: 'no-store' });
+                                if (res.ok) {
+                                  const json = await res.json();
+                                  const orderData = json?.order;
+                                  if (orderData && (orderData.paymentStatus === 'PAGAMENTO_APROVADO' || orderData.paymentStatus === 'PAGO')) {
                                     setPixInfo(prev => ({ ...prev, status: 'approved' }));
                                     window.location.href = `/entrega?orderId=${orderId}`;
                                     return;

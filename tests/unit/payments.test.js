@@ -9,38 +9,19 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 let store;
 
-vi.mock('@/lib/firebase-edge', () => ({ dbEdge: {} }));
+vi.mock('@/lib/supabaseDb', () => ({
+  getOrder: vi.fn(async (id) => (store[id] ? { id, ...store[id] } : null)),
+  updateOrder: vi.fn(async (id, data) => {
+    store[id] = { ...(store[id] || {}), ...data };
+    return { success: true };
+  }),
+}));
 
 const sendPaymentApprovedTemplateMock = vi.fn().mockResolvedValue({ success: true });
 vi.mock('@/lib/whatsapp', () => ({
   sendPaymentApprovedTemplate: (...args) => sendPaymentApprovedTemplateMock(...args),
   isVideoPurchased: (orderData) => Boolean(orderData?.hasVideoAccess || orderData?.paymentIntentSku === 'combo'),
 }));
-
-vi.mock('firebase/firestore/lite', () => {
-  return {
-    doc: (_db, _collection, id) => ({ id }),
-    getDoc: async (ref) => ({
-      exists: () => Object.prototype.hasOwnProperty.call(store, ref.id),
-      data: () => store[ref.id],
-    }),
-    updateDoc: async (ref, data) => {
-      store[ref.id] = { ...(store[ref.id] || {}), ...data };
-    },
-    runTransaction: async (_db, updateFunction) => {
-      const tx = {
-        get: async (ref) => ({
-          exists: () => Object.prototype.hasOwnProperty.call(store, ref.id),
-          data: () => store[ref.id],
-        }),
-        update: (ref, data) => {
-          store[ref.id] = { ...(store[ref.id] || {}), ...data };
-        },
-      };
-      return updateFunction(tx);
-    },
-  };
-});
 
 const { applyPaymentApproval } = await import('@/lib/payments');
 

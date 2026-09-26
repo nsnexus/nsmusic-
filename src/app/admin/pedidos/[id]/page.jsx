@@ -3,9 +3,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { auth, db } from '@/lib/firebase';
+import { onAuthStateChanged, auth, getAdminAuthToken } from '@/lib/authClient';
 import { formatToWhatsAppNumber } from '@/lib/whatsappTemplates';
 import { AUDIO_CACHE_VERSION } from '@/lib/audioCacheVersion';
 import { hasPreviewTrackingData } from '@/lib/previewTracking';
@@ -88,18 +86,10 @@ export default function OrderDetailsAdmin() {
     const fetchOrder = async () => {
       try {
         let data = null;
-        try {
-          const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}`);
-          if (res.ok) {
-            const json = await res.json();
-            if (json?.order) data = json.order;
-          }
-        } catch {}
-
-        if (!data) {
-          const docRef = doc(db, 'orders', orderId);
-          const docSnap = await getDoc(docRef);
-          if (docSnap.exists()) data = docSnap.data();
+        const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}`);
+        if (res.ok) {
+          const json = await res.json();
+          if (json?.order) data = json.order;
         }
 
         if (data) {
@@ -181,25 +171,17 @@ export default function OrderDetailsAdmin() {
     };
 
     try {
-      let savedViaApi = false;
-      try {
-        const token = await auth.currentUser?.getIdToken();
-        const res = await fetch('/api/orders/update', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {})
-          },
-          body: JSON.stringify(updatePayload)
-        });
-        if (res.ok) savedViaApi = true;
-      } catch (apiErr) {
-        console.warn('[admin/pedidos/[id]] Falha na API /api/orders/update:', apiErr.message);
-      }
-
-      if (!savedViaApi) {
-        const docRef = doc(db, 'orders', orderId);
-        await updateDoc(docRef, updatePayload);
+      const token = await getAdminAuthToken();
+      const res = await fetch('/api/orders/update', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify(updatePayload)
+      });
+      if (!res.ok) {
+        throw new Error('Falha ao atualizar pedido via API');
       }
       setOrder(prev => ({
         ...prev,
@@ -279,15 +261,18 @@ export default function OrderDetailsAdmin() {
       if (data.status === 'approved') {
         // A rota já rodou applyPaymentApproval (paymentStatus/paymentId/paidAt gravados de verdade)
         // — só falta refletir aqui na tela sem precisar recarregar a página inteira.
-        const docSnap = await getDoc(doc(db, 'orders', orderId));
-        if (docSnap.exists()) {
-          const freshData = docSnap.data();
-          setOrder(freshData);
-          setPaymentStatus(freshData.paymentStatus || 'PENDENTE');
-          setHasVideoAccess(Boolean(freshData.hasVideoAccess || freshData.videoAddonPaid));
-          setHasPlaybackAccess(Boolean(freshData.hasPlaybackAccess || freshData.playbackAddonPaid));
-          setHasCartaAccess(Boolean(freshData.hasCartaAccess || freshData.cartaAddonPaid));
-          setHasRetrospectivaAccess(Boolean(freshData.hasRetrospectivaAccess || freshData.retrospectivaAddonPaid));
+        const freshRes = await fetch(`/api/orders/${encodeURIComponent(orderId)}`);
+        if (freshRes.ok) {
+          const freshJson = await freshRes.json();
+          const freshData = freshJson?.order;
+          if (freshData) {
+            setOrder(freshData);
+            setPaymentStatus(freshData.paymentStatus || 'PENDENTE');
+            setHasVideoAccess(Boolean(freshData.hasVideoAccess || freshData.videoAddonPaid));
+            setHasPlaybackAccess(Boolean(freshData.hasPlaybackAccess || freshData.playbackAddonPaid));
+            setHasCartaAccess(Boolean(freshData.hasCartaAccess || freshData.cartaAddonPaid));
+            setHasRetrospectivaAccess(Boolean(freshData.hasRetrospectivaAccess || freshData.retrospectivaAddonPaid));
+          }
         }
         setCheckPaymentMsg('✅ Pagamento confirmado na Efí e aprovado agora!');
       } else if (data.status === 'pending') {
@@ -354,14 +339,21 @@ export default function OrderDetailsAdmin() {
     setUpdating(true);
     setSuccessMsg('');
     try {
-      const docRef = doc(db, 'orders', orderId);
-      await updateDoc(docRef, {
-        videoUrl: '',
-        videoFile: '',
-        slideshowImages: [],
-        videoStatus: '',
-        videoProgress: 0,
-        updatedAt: new Date().toISOString()
+      const token = await getAdminAuthToken();
+      await fetch('/api/orders/update', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({
+          orderId,
+          videoUrl: '',
+          videoFile: '',
+          slideshowImages: [],
+          videoStatus: '',
+          videoProgress: 0
+        })
       });
       setVideoUrl('');
       setOrder(prev => ({
@@ -394,16 +386,20 @@ export default function OrderDetailsAdmin() {
     setPollingStatus('Enviando solicitação ao Suno API...');
     setGeneratedTracks([]);
 
-    // Achado 04/09/2026: o Prompt de Estilo só era gravado no pedido pelo botão "Salvar Alterações",
-    // separado deste. Quem editava aqui e clicava direto em "Gerar Áudio" via essa edição pra gerar,
-    // mas ela nunca chegava a persistir — ao recarregar a página, o campo voltava pro valor antigo
-    // ("eu mexo e ele volta pro que estava"). Grava o valor realmente usado ANTES de chamar a Suno.
     const tagsFinal = sunoPrompt || getSunoStylePrompt();
     try {
-      await updateDoc(doc(db, 'orders', orderId), {
-        sunoPrompt: tagsFinal,
-        productionStatus: 'GERANDO_AUDIO',
-        updatedAt: new Date().toISOString()
+      const token = await getAdminAuthToken();
+      await fetch('/api/orders/update', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({
+          orderId,
+          sunoPrompt: tagsFinal,
+          productionStatus: 'GERANDO_AUDIO'
+        })
       });
       setProductionStatus('GERANDO_AUDIO');
     } catch (err) {
@@ -480,18 +476,21 @@ export default function OrderDetailsAdmin() {
             // Recarrega os dados consolidados do pedido para que o estado do React
             // reflita a substituição automática das faixas e a URL definitiva do R2
             try {
-              const freshSnap = await getDoc(doc(db, 'orders', orderId));
-              if (freshSnap.exists()) {
-                const freshData = freshSnap.data();
-                setOrder(freshData);
-                if (freshData.audioFiles?.[0] || freshData.audioUrl) {
-                  setAudioUrl(freshData.audioFiles?.[0] || freshData.audioUrl);
-                }
-                if (freshData.audioFiles?.[1]) {
-                  setAudioUrl2(freshData.audioFiles[1]);
-                }
-                if (freshData.productionStatus) {
-                  setProductionStatus(freshData.productionStatus);
+              const freshRes = await fetch(`/api/orders/${encodeURIComponent(orderId)}`);
+              if (freshRes.ok) {
+                const freshJson = await freshRes.json();
+                const freshData = freshJson?.order;
+                if (freshData) {
+                  setOrder(freshData);
+                  if (freshData.audioFiles?.[0] || freshData.audioUrl) {
+                    setAudioUrl(freshData.audioFiles?.[0] || freshData.audioUrl);
+                  }
+                  if (freshData.audioFiles?.[1]) {
+                    setAudioUrl2(freshData.audioFiles[1]);
+                  }
+                  if (freshData.productionStatus) {
+                    setProductionStatus(freshData.productionStatus);
+                  }
                 }
               }
             } catch (freshErr) {

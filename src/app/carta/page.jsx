@@ -2,22 +2,10 @@
 
 import { Suspense, useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { buildAudioProxySrc } from '@/lib/audioProxy';
 import CartaCartao from '@/components/CartaCartao';
 
-// Página PÚBLICA da Carta Virtual (add-on, ver src/lib/pricing.js:carta_addon) — link próprio que o
-// cliente compartilha com o homenageado, separado da página da música/vídeo (/homenagem) e da
-// Retrospectiva (/retrospectiva). Pedido 04/09/2026: antes a carta só aparecia embutida dentro de
-// /homenagem, sem link/experiência própria, e sem música nenhuma tocando.
-//
-// Sem segmento dinâmico ([id]) — usa `?orderId=` em query string, então não precisa de
-// `export const runtime = 'edge'` (ver .claude/rules/frontend.md).
-//
-// SEGURANÇA: só exibe quando o add-on está pago (hasCartaAccess/cartaAddonPaid). Conteúdo é público
-// por natureza (é pra ser compartilhado), mas nunca expõe dado de pagamento nem contato do cliente.
-
+// Página PÚBLICA da Carta Virtual (add-on, ver src/lib/pricing.js:carta_addon)
 function CartaContent() {
   const searchParams = useSearchParams();
   const orderId = searchParams.get('orderId') || searchParams.get('id') || '';
@@ -39,21 +27,10 @@ function CartaContent() {
     (async () => {
       try {
         let data = null;
-        try {
-          const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}`, { cache: 'no-store' });
-          if (res.ok) {
-            const json = await res.json();
-            if (json?.order) data = json.order;
-          }
-        } catch (apiErr) {
-          console.warn('[carta] Fallback para Firestore:', apiErr.message);
-        }
-
-        if (!data) {
-          const snap = await getDoc(doc(db, 'orders', orderId));
-          if (snap.exists()) {
-            data = snap.data();
-          }
+        const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}`, { cache: 'no-store' });
+        if (res.ok) {
+          const json = await res.json();
+          if (json?.order) data = json.order;
         }
 
         if (!ativo) return;

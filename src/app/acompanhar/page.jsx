@@ -4,9 +4,6 @@ import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useSearchParams } from 'next/navigation';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
-
 function AcompanharContent() {
   const searchParams = useSearchParams();
   const orderId = searchParams.get('orderId') || searchParams.get('id');
@@ -31,15 +28,7 @@ function AcompanharContent() {
             if (json?.order) data = json.order;
           }
         } catch (apiErr) {
-          console.warn('[acompanhar] Fallback para Firestore:', apiErr.message);
-        }
-
-        if (!data) {
-          const docRef = doc(db, 'orders', orderId);
-          const docSnap = await getDoc(docRef);
-          if (docSnap.exists()) {
-            data = docSnap.data();
-          }
+          console.warn('[acompanhar] Falha na consulta de pedido:', apiErr.message);
         }
 
         if (data) {

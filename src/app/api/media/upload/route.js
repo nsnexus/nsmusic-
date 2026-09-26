@@ -89,3 +89,33 @@ export async function POST(req) {
     return NextResponse.json({ error: 'Falha ao processar upload de imagem.' }, { status: 500 });
   }
 }
+
+export async function DELETE(req) {
+  let env = {};
+  try {
+    const ctx = getRequestContext();
+    if (ctx?.env) env = ctx.env;
+  } catch (e) {}
+
+  const r2Bucket = env?.nsmusic_media;
+  if (!r2Bucket) {
+    return NextResponse.json({ ok: false, error: 'R2 não disponível' }, { status: 503 });
+  }
+
+  try {
+    const body = await req.json().catch(() => ({}));
+    const targetUrl = body?.url;
+    if (targetUrl) {
+      try {
+        const parsed = new URL(targetUrl);
+        const key = parsed.pathname.replace(/^\/+/, '');
+        await r2Bucket.delete(key);
+      } catch (parseErr) {
+        await r2Bucket.delete(String(targetUrl));
+      }
+    }
+    return NextResponse.json({ ok: true }, { status: 200 });
+  } catch (err) {
+    return NextResponse.json({ ok: false, error: err.message }, { status: 500 });
+  }
+}

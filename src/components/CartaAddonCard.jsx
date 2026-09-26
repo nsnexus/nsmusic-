@@ -1,8 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { collection, getDocs } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { requestPixCharge } from '@/lib/pixCheckout';
 import { buildAudioProxySrc } from '@/lib/audioProxy';
 import { cartaTemaId, CARTA_TEMA_SLOTS } from '@/lib/cartaModelo';

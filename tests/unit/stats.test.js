@@ -5,33 +5,43 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // reconstruído — o pedido não existe mais.
 
 let store;
-let colecoesUsadas;
+let tabelasUsadas;
 
-vi.mock('@/lib/firebase-edge', () => ({ dbEdge: {} }));
-
-vi.mock('firebase/firestore/lite', () => ({
-  doc: (_db, collection, id) => { colecoesUsadas.push(collection); return { id }; },
-  // increment é representado por um marcador para o mock somar como o Firestore faria.
-  increment: (n) => ({ __increment: n }),
-  setDoc: async (ref, data) => {
-    const current = store[ref.id] || {};
-    const merged = { ...current };
-    for (const [key, value] of Object.entries(data)) {
-      if (value && typeof value === 'object' && '__increment' in value) {
-        merged[key] = (current[key] || 0) + value.__increment;
-      } else {
-        merged[key] = value;
-      }
+vi.mock('@/lib/supabase-edge', () => ({
+  getSupabaseEdge: vi.fn(() => ({
+    from: (table) => {
+      tabelasUsadas.push(table);
+      let filterCol = null;
+      let filterVal = null;
+      return {
+        select: function () { return this; },
+        eq: function (col, val) {
+          filterCol = col;
+          filterVal = val;
+          return this;
+        },
+        maybeSingle: async function () {
+          if (filterCol === 'chave' && filterVal) {
+            return { data: store[filterVal] ? { valor: store[filterVal] } : null, error: null };
+          }
+          return { data: null, error: null };
+        },
+        upsert: async function (row) {
+          if (row.chave) {
+            store[row.chave] = row.valor;
+          }
+          return { data: [row], error: null };
+        }
+      };
     }
-    store[ref.id] = merged;
-  },
+  }))
 }));
 
 const { consolidateOrders, buildOrderMetrics, statsDayKey } = await import('@/lib/stats');
 
 beforeEach(() => {
   store = {};
-  colecoesUsadas = [];
+  tabelasUsadas = [];
 });
 
 describe('statsDayKey', () => {
@@ -137,9 +147,8 @@ describe('consolidateOrders', () => {
   // `stats` (403 PERMISSION_DENIED, medido em 03/09 e de novo em 25/09/2026) e o projeto não tem
   // Admin SDK. Enquanto isso valer, escrever em `stats` faz a consolidação falhar — e a limpeza
   // aborta quando a consolidação falha, então nenhum pedido antigo era apagado.
-  it('escreve na coleção gravável, nunca na coleção stats', async () => {
+  it('escreve na tabela config do Supabase', async () => {
     await consolidateOrders([{ createdAt: '2026-08-27T10:00:00.000Z', paymentStatus: 'PAGO', expectedAmount: 9.99 }]);
-    expect(colecoesUsadas).not.toContain('stats');
-    expect(new Set(colecoesUsadas)).toEqual(new Set(['orders']));
+    expect(tabelasUsadas).toContain('config');
   });
 });

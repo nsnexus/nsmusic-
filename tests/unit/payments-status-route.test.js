@@ -8,14 +8,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 let store;
 
-vi.mock('@/lib/firebase-edge', () => ({ dbEdge: {} }));
-
-vi.mock('firebase/firestore/lite', () => ({
-  doc: (_db, _collection, id) => ({ id }),
-  getDoc: async (ref) => ({
-    exists: () => Object.prototype.hasOwnProperty.call(store, ref.id),
-    data: () => store[ref.id],
-  }),
+vi.mock('@/lib/orderLookup', () => ({
+  findOrderByIdOrNumber: async (id) => store[id] || null,
 }));
 
 const getChargeStatusMock = vi.fn();

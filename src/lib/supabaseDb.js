@@ -1,5 +1,3 @@
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore/lite';
-import { dbEdge } from './firebase-edge.js';
 import { getSupabaseEdge } from './supabase-edge.js';
 import {
   mapFirestoreOrderToSupabase,
@@ -11,8 +9,7 @@ import { findOrderByIdOrNumber } from './orderLookup.js';
 import { generateUniqueOrderNumber } from './orderNumber.js';
 
 /**
- * Gera um ID de 20 caracteres alfanuméricos com alta entropia
- * idêntico ao formato padrão de IDs do Firestore, sem depender de nenhum SDK externo.
+ * Gera um ID de 20 caracteres alfanuméricos com alta entropia.
  */
 export function generateOrderId() {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -33,15 +30,13 @@ export function generateOrderId() {
 
 /**
  * Busca um pedido por ID do documento ou por orderNumber (ex: NS-...).
- * Consulta primeiro o Supabase (Postgres) e usa Firestore como fallback resiliente.
  */
 export async function getOrder(idOrNumber, env = {}) {
   return findOrderByIdOrNumber(idOrNumber, env);
 }
 
 /**
- * Cria um novo pedido persistindo primeiramente no Supabase (Postgres)
- * e realizando dual-write para o Firestore durante o período de transição.
+ * Cria um novo pedido persistindo no Supabase (Postgres).
  */
 export async function createOrder(orderData = {}, env = {}) {
   const orderId = orderData.id || generateOrderId();
@@ -56,7 +51,6 @@ export async function createOrder(orderData = {}, env = {}) {
     updatedAt: orderData.updatedAt || nowIso
   };
 
-  // 1. Gravação primária no Supabase (Postgres)
   try {
     const supabase = getSupabaseEdge(env);
     if (supabase) {
@@ -70,20 +64,11 @@ export async function createOrder(orderData = {}, env = {}) {
     console.warn(`[supabaseDb] Exceção ao gravar no Supabase para pedido ${orderId}:`, sbErr.message);
   }
 
-  // 2. Dual-write resiliente no Firestore
-  try {
-    const orderRef = doc(dbEdge, 'orders', orderId);
-    await setDoc(orderRef, fullOrder, { merge: true });
-  } catch (fsErr) {
-    console.warn(`[supabaseDb] Aviso no dual-write do Firestore para pedido ${orderId}:`, fsErr.message);
-  }
-
   return fullOrder;
 }
 
 /**
- * Atualiza campos específicos de um pedido existente no Supabase (Postgres)
- * e realiza dual-write para o Firestore.
+ * Atualiza campos específicos de um pedido existente no Supabase (Postgres).
  */
 export async function updateOrder(orderId, updates = {}, env = {}) {
   if (!orderId) {
@@ -96,7 +81,6 @@ export async function updateOrder(orderId, updates = {}, env = {}) {
     updatedAt: updates.updatedAt || nowIso
   };
 
-  // 1. Atualização primária no Supabase (Postgres)
   try {
     const supabase = getSupabaseEdge(env);
     if (supabase) {
@@ -110,29 +94,16 @@ export async function updateOrder(orderId, updates = {}, env = {}) {
     console.warn(`[supabaseDb] Exceção ao atualizar Supabase para pedido ${orderId}:`, sbErr.message);
   }
 
-  // 2. Dual-write no Firestore
-  try {
-    const orderRef = doc(dbEdge, 'orders', orderId);
-    await updateDoc(orderRef, normalizedUpdates);
-  } catch (fsErr) {
-    try {
-      await setDoc(doc(dbEdge, 'orders', orderId), normalizedUpdates, { merge: true });
-    } catch (e2) {
-      console.warn(`[supabaseDb] Aviso no dual-write do Firestore ao atualizar ${orderId}:`, e2.message);
-    }
-  }
-
   return { success: true, orderId, updated: normalizedUpdates };
 }
 
 /**
- * Marca exclusão lógica de um pedido e suas tarefas associadas.
+ * Marca exclusão lógica de um pedido e suas tarefas associadas no Supabase.
  */
 export async function softDeleteOrder(orderId, env = {}) {
   if (!orderId) return { success: false, error: 'orderId_obrigatorio' };
   const nowIso = new Date().toISOString();
 
-  // 1. Marca exclusão no Supabase
   try {
     const supabase = getSupabaseEdge(env);
     if (supabase) {
@@ -149,26 +120,15 @@ export async function softDeleteOrder(orderId, env = {}) {
     console.warn(`[supabaseDb] Erro ao marcar exclusão no Supabase:`, sbErr.message);
   }
 
-  // 2. Marca exclusão no Firestore
-  try {
-    await updateDoc(doc(dbEdge, 'orders', orderId), {
-      deletedAt: nowIso,
-      updatedAt: nowIso
-    });
-  } catch (fsErr) {
-    console.warn(`[supabaseDb] Erro ao marcar exclusão no Firestore:`, fsErr.message);
-  }
-
   return { success: true, orderId, deletedAt: nowIso };
 }
 
 /**
- * Busca uma tarefa da Suno/Kie no banco (Supabase primário, Firestore fallback).
+ * Busca uma tarefa da Suno/Kie no Supabase.
  */
 export async function getSunoTask(taskId, env = {}) {
   if (!taskId) return null;
 
-  // 1. Supabase como primário
   try {
     const supabase = getSupabaseEdge(env);
     if (supabase) {
@@ -186,28 +146,16 @@ export async function getSunoTask(taskId, env = {}) {
     console.warn(`[supabaseDb] Falha ao consultar task no Supabase:`, sbErr.message);
   }
 
-  // 2. Fallback no Firestore
-  try {
-    const docRef = doc(dbEdge, 'suno_tasks', taskId);
-    const docSnap = await getDoc(docRef);
-    if (docSnap.exists()) {
-      return docSnap.data();
-    }
-    return null;
-  } catch (err) {
-    console.error(`[supabaseDb] Erro ao buscar task no Firestore:`, err.message);
-    return null;
-  }
+  return null;
 }
 
 /**
- * Salva ou atualiza uma tarefa da Suno/Kie no Supabase (primário) e Firestore (dual-write).
+ * Salva ou atualiza uma tarefa da Suno/Kie no Supabase.
  */
 export async function saveSunoTask(taskId, status, result = null, orderId = null, extra = {}, env = {}) {
   if (!taskId) return false;
   const nowIso = new Date().toISOString();
 
-  // 1. Persistência primária no Supabase
   try {
     const supabase = getSupabaseEdge(env);
     if (supabase) {
@@ -220,28 +168,15 @@ export async function saveSunoTask(taskId, status, result = null, orderId = null
         updated_at: nowIso
       };
       await supabase.from('suno_tasks').upsert(payload, { onConflict: 'id' });
+      return true;
     }
   } catch (sbErr) {
     console.warn(`[supabaseDb] Aviso ao salvar task no Supabase:`, sbErr.message);
-  }
-
-  // 2. Dual-write no Firestore
-  try {
-    const docRef = doc(dbEdge, 'suno_tasks', taskId);
-    await setDoc(docRef, {
-      status,
-      result,
-      orderId,
-      ...(extra.provider ? { provider: extra.provider } : {}),
-      updatedAt: nowIso
-    }, { merge: true });
-    return true;
-  } catch (err) {
-    console.error(`[supabaseDb] Erro ao salvar task no Firestore:`, err.message);
     return false;
   }
+  return false;
 }
 
-// Aliases para retrocompatibilidade com db.js
+// Aliases para compatibilidade com db.js
 export const getTask = getSunoTask;
 export const saveTask = saveSunoTask;

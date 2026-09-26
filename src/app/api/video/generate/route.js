@@ -1,11 +1,17 @@
 import { NextResponse } from 'next/server';
-import { doc, getDoc, updateDoc } from 'firebase/firestore/lite';
-import { dbEdge as db } from '@/lib/firebase-edge';
+import { getRequestContext } from '@cloudflare/next-on-pages';
+import { getOrder, updateOrder } from '@/lib/supabaseDb';
 
 export const runtime = 'edge';
 
 export async function POST(req) {
   try {
+    let env = {};
+    try {
+      const ctx = getRequestContext();
+      if (ctx?.env) env = ctx.env;
+    } catch (e) {}
+
     const { orderId, imageUrls } = await req.json();
 
     if (!orderId || !Array.isArray(imageUrls)) {
@@ -16,25 +22,21 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Você precisa enviar entre 10 e 20 fotos para gerar o vídeo.' }, { status: 400 });
     }
 
-    const orderRef = doc(db, 'orders', orderId);
-    const orderSnap = await getDoc(orderRef);
-
-    if (!orderSnap.exists()) {
+    const orderData = await getOrder(orderId, env);
+    if (!orderData) {
       return NextResponse.json({ error: 'Pedido não encontrado.' }, { status: 404 });
     }
 
-    const orderData = orderSnap.data();
     if (!orderData.hasVideoAccess && !orderData.videoAddonPaid) {
       return NextResponse.json({ error: 'O add-on de vídeo ainda não foi pago para este pedido.' }, { status: 403 });
     }
 
-    // Atualiza o registro no Firestore
-    await updateDoc(orderRef, {
+    await updateOrder(orderId, {
       slideshowImages: imageUrls,
       videoStatus: 'SOLICITADO',
       videoProgress: 0,
       updatedAt: new Date().toISOString()
-    });
+    }, env);
 
     return NextResponse.json({
       success: true,

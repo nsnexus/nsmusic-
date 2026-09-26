@@ -1,19 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { cartaTemaId, CARTA_ASPECT_RATIO, CAIXA_TEXTO_PADRAO } from '@/lib/cartaModelo';
 
 // Cartão da carta em si (foto + texto + assinatura) — usado tanto na página pública (/carta) quanto
-// no editor (CartaAddonCard). Extraído em componente próprio pra não duplicar a busca do tema e o
-// layout nos dois lugares (ver .claude/rules/frontend.md).
-//
-// Se o admin já configurou uma imagem pro modelo deste pedido (ver /admin/cartas), o texto fica
-// posicionado dentro da caixa marcada ali, com rolagem própria se não couber — nunca vaza pra fora
-// da imagem (pedido 04/09/2026). Sem tema configurado, cai no cartão de papel simples de sempre.
+// no editor (CartaAddonCard).
 export default function CartaCartao({ order, texto, remetente, honoree }) {
-  const [tema, setTema] = useState(null); // undefined = ainda carregando, null = sem tema, {} = com tema
+  const [tema, setTema] = useState(null);
   const [carregado, setCarregado] = useState(false);
 
   useEffect(() => {
@@ -21,9 +14,16 @@ export default function CartaCartao({ order, texto, remetente, honoree }) {
     (async () => {
       try {
         const temaId = cartaTemaId(order || {});
-        const snap = await getDoc(doc(db, 'cartaTemas', temaId));
-        if (!ativo) return;
-        setTema(snap.exists() && snap.data().imagemUrl ? snap.data() : null);
+        const res = await fetch('/api/carta/temas');
+        if (res.ok) {
+          const json = await res.json();
+          const temaData = json?.temas?.[temaId];
+          if (!ativo) return;
+          setTema(temaData?.imagemUrl ? temaData : null);
+        } else {
+          if (!ativo) return;
+          setTema(null);
+        }
       } catch (e) {
         if (ativo) setTema(null);
       } finally {

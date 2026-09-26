@@ -1,15 +1,15 @@
 # Regras do Projeto NSMusic
 
 ## 1. Visão Geral
-O NSMusic é uma plataforma de músicas personalizadas com IA (Suno AI via Kie.ai + Gemini/OpenAI), pagamento via Mercado Pago (PIX), notificações WhatsApp (W-API), Firebase Firestore como banco e Firebase Storage para arquivos. Deploy automático no Cloudflare Pages via Edge Runtime.
+O NSMusic é uma plataforma de músicas personalizadas com IA (Suno AI via Kie.ai + Gemini/OpenAI), pagamento via Efí Bank / Mercado Pago (PIX), notificações WhatsApp (W-API), Supabase (Postgres) como banco de dados e Cloudflare R2 para armazenamento de mídias. Deploy automático no Cloudflare Pages via Edge Runtime.
 
 ## 2. Stack Principal
 - **Framework**: Next.js 14 (App Router, JavaScript, sem TypeScript)
 - **Runtime**: Cloudflare Pages Edge (`@cloudflare/next-on-pages`)
-- **Banco de dados**: Firebase Firestore (coleções: `orders`, `suno_tasks`)
-- **Storage**: Firebase Storage (fotos de vídeo homenagem)
-- **Autenticação**: Firebase Auth (admin + área "Minhas Músicas")
-- **Pagamento**: Mercado Pago API (PIX direto + Preferência)
+- **Banco de dados**: Supabase Postgres (tabelas: `orders`, `suno_tasks`) via PostgREST Edge (`@/lib/supabaseDb.js`, `@/lib/supabase-edge.js`)
+- **Storage**: Cloudflare R2 (bucket binding: `nsmusic_media`, fotos de vídeo/retrospectiva e áudios)
+- **Autenticação**: Supabase Auth (GoTrue REST API `/auth/v1/user`)
+- **Pagamento**: Efí Bank / Mercado Pago (PIX dinâmico + estático)
 - **IA**: Kie.ai (Suno AI) para música, OpenAI/Gemini para letras
 - **WhatsApp**: W-API (api.w-api.app)
 - **Estilização**: CSS inline (`style={{}}`) + classes globais em `globals.css`
@@ -54,15 +54,14 @@ O NSMusic é uma plataforma de músicas personalizadas com IA (Suno AI via Kie.a
 - **Busca de Fallback (`external_reference`)**: Se o `paymentId` específico estiver `pending`, a consulta DEVE realizar busca alternativa no Mercado Pago por `external_reference=${orderId}&sort=date_created&criteria=desc&limit=5`. Se QUALQUER pagamento gerado para aquele pedido foi aprovado, o pedido DEVE ser aprovado imediatamente.
 - **Isolamento de Notificações**: Envios de mensagens (WhatsApp) na aprovação do pagamento DEVEM estar isolados em `try/catch` próprios para que uma falha de envio nunca impeça a resposta de sucesso do webhook ou da rota de status.
 
-## 8. Regras para Banco de Dados (Firestore)
-- Sempre usar `new Date().toISOString()` para campos de data (nunca `new Date()` que gera Timestamp nativo).
-- Ao ler datas, sempre tratar ambos os formatos: Firestore Timestamp (`.toDate()`) e string ISO.
-- Não criar queries sem filtro em coleções grandes (usar `where`, `limit`).
-- Usar `runTransaction` para operações que precisam de atomicidade (ex: envio de WhatsApp, atualização de status).
+## 8. Regras para Banco de Dados (Supabase Postgres)
+- Sempre usar `new Date().toISOString()` para campos de data (formato ISO 8601).
+- Tratar datas tanto em string ISO quanto data formatada.
+- Acessar o banco exclusivamente via `@/lib/supabaseDb.js` ou `@/lib/supabase-edge.js`.
 - O campo `orderNumber` deve ser único — usar timestamp + random para evitar colisões.
 
 ## 9. Regras para Performance
-- Não importar o Firebase SDK inteiro — usar imports modulares (`import { doc, getDoc } from 'firebase/firestore'`).
+- Não importar bibliotecas pesadas desnecessárias no runtime Edge.
 - Considerar `dynamic()` do Next.js para componentes pesados que não são necessários no carregamento inicial.
 - Usar `next/image` para imagens quando possível.
 - Minimizar código client-side — mover lógica de dados para Server Components ou Route Handlers.

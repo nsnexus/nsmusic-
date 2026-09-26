@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { requireAdmin } from '@/lib/auth';
+import { requireAdmin, verifySupabaseToken } from '@/lib/auth';
 
-// requireAdmin substitui a checagem de admin por comparação de e-mail no browser (A-08 no
-// AUDIT_REPORT.md) por um token de Firebase validado no servidor. Aceita dois mecanismos (OR):
-// custom claim `admin: true` (definitivo, ver scripts/set-admin-claim.mjs) ou allowlist de e-mail
-// `ADMIN_EMAILS` (transição, enquanto a claim não estiver configurada em produção).
+// requireAdmin substitui a checagem legada de admin no browser por um token de Supabase Auth
+// validado no servidor via GoTrue (/auth/v1/user). Aceita dois mecanismos (OR):
+// 1. Role 'admin' nos metadados (app_metadata ou user_metadata)
+// 2. Allowlist de e-mail `ADMIN_EMAILS`
 
 function makeRequest(bearer) {
   const headers = new Headers();
@@ -12,7 +12,11 @@ function makeRequest(bearer) {
   return { headers };
 }
 
-const ENV = { ADMIN_EMAILS: 'admin@example.com', NEXT_PUBLIC_FIREBASE_API_KEY: 'fake-key' };
+const ENV = {
+  ADMIN_EMAILS: 'admin@example.com',
+  NEXT_PUBLIC_SUPABASE_URL: 'https://test.supabase.co',
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: 'test-anon-key'
+};
 
 describe('requireAdmin', () => {
   const originalFetch = global.fetch;
@@ -32,7 +36,7 @@ describe('requireAdmin', () => {
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
-  it('rejeita com 401 quando o token é inválido/expirado (Google recusa)', async () => {
+  it('rejeita com 401 quando o token é inválido/expirado (Supabase recusa)', async () => {
     global.fetch.mockResolvedValue({ ok: false });
     const result = await requireAdmin(makeRequest('token-invalido'), ENV);
     expect(result.ok).toBe(false);
@@ -42,7 +46,7 @@ describe('requireAdmin', () => {
   it('rejeita com 403 quando o e-mail da conta não está na allowlist', async () => {
     global.fetch.mockResolvedValue({
       ok: true,
-      json: async () => ({ users: [{ localId: 'uid1', email: 'nao-admin@example.com', emailVerified: true }] }),
+      json: async () => ({ id: 'uid1', email: 'nao-admin@example.com', email_confirmed_at: '2026-09-25T10:00:00Z' }),
     });
     const result = await requireAdmin(makeRequest('token-valido'), ENV);
     expect(result.ok).toBe(false);
@@ -52,7 +56,7 @@ describe('requireAdmin', () => {
   it('aceita quando o token é válido e o e-mail está na allowlist', async () => {
     global.fetch.mockResolvedValue({
       ok: true,
-      json: async () => ({ users: [{ localId: 'uid-admin', email: 'admin@example.com', emailVerified: true }] }),
+      json: async () => ({ id: 'uid-admin', email: 'admin@example.com', email_confirmed_at: '2026-09-25T10:00:00Z' }),
     });
     const result = await requireAdmin(makeRequest('token-valido'), ENV);
     expect(result.ok).toBe(true);
@@ -63,22 +67,20 @@ describe('requireAdmin', () => {
   it('comparação de e-mail na allowlist é case-insensitive', async () => {
     global.fetch.mockResolvedValue({
       ok: true,
-      json: async () => ({ users: [{ localId: 'uid-admin', email: 'ADMIN@EXAMPLE.COM', emailVerified: true }] }),
+      json: async () => ({ id: 'uid-admin', email: 'ADMIN@EXAMPLE.COM', email_confirmed_at: '2026-09-25T10:00:00Z' }),
     });
     const result = await requireAdmin(makeRequest('token-valido'), ENV);
     expect(result.ok).toBe(true);
   });
 
-  it('aceita via custom claim admin:true mesmo com e-mail fora da allowlist', async () => {
+  it('aceita via role admin no app_metadata mesmo com e-mail fora da allowlist', async () => {
     global.fetch.mockResolvedValue({
       ok: true,
       json: async () => ({
-        users: [{
-          localId: 'uid-claim',
-          email: 'outra-conta@example.com',
-          emailVerified: true,
-          customAttributes: JSON.stringify({ admin: true }),
-        }],
+        id: 'uid-claim',
+        email: 'outra-conta@example.com',
+        email_confirmed_at: '2026-09-25T10:00:00Z',
+        app_metadata: { role: 'admin' },
       }),
     });
     const result = await requireAdmin(makeRequest('token-valido'), ENV);
@@ -86,16 +88,29 @@ describe('requireAdmin', () => {
     expect(result.uid).toBe('uid-claim');
   });
 
-  it('customAttributes com admin:false não concede acesso (precisa da allowlist)', async () => {
+  it('aceita via role admin no user_metadata mesmo com e-mail fora da allowlist', async () => {
     global.fetch.mockResolvedValue({
       ok: true,
       json: async () => ({
-        users: [{
-          localId: 'uid2',
-          email: 'nao-admin@example.com',
-          emailVerified: true,
-          customAttributes: JSON.stringify({ admin: false }),
-        }],
+        id: 'uid-claim-user',
+        email: 'outra-conta@example.com',
+        email_confirmed_at: '2026-09-25T10:00:00Z',
+        user_metadata: { role: 'admin' },
+      }),
+    });
+    const result = await requireAdmin(makeRequest('token-valido'), ENV);
+    expect(result.ok).toBe(true);
+    expect(result.uid).toBe('uid-claim-user');
+  });
+
+  it('role diferente de admin não concede acesso sem allowlist', async () => {
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        id: 'uid2',
+        email: 'nao-admin@example.com',
+        email_confirmed_at: '2026-09-25T10:00:00Z',
+        app_metadata: { role: 'user' },
       }),
     });
     const result = await requireAdmin(makeRequest('token-valido'), ENV);
@@ -103,48 +118,10 @@ describe('requireAdmin', () => {
     expect(result.status).toBe(403);
   });
 
-  it('aceita autenticação via Supabase Auth quando token é válido e e-mail é admin', async () => {
-    const supabaseEnv = {
-      ...ENV,
-      NEXT_PUBLIC_SUPABASE_URL: 'https://test.supabase.co',
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: 'test-anon-key'
-    };
-
-    global.fetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        id: 'sb-uid-123',
-        email: 'admin@example.com',
-        email_confirmed_at: '2026-09-25T10:00:00Z',
-        app_metadata: { role: 'authenticated' }
-      })
-    });
-
-    const result = await requireAdmin(makeRequest('sb-token-valido'), supabaseEnv);
-    expect(result.ok).toBe(true);
-    expect(result.uid).toBe('sb-uid-123');
-    expect(result.email).toBe('admin@example.com');
-  });
-
-  it('aceita via Supabase Auth quando tem role admin no app_metadata', async () => {
-    const supabaseEnv = {
-      ...ENV,
-      NEXT_PUBLIC_SUPABASE_URL: 'https://test.supabase.co',
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: 'test-anon-key'
-    };
-
-    global.fetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        id: 'sb-uid-admin-role',
-        email: 'qualquer@example.com',
-        email_confirmed_at: '2026-09-25T10:00:00Z',
-        app_metadata: { role: 'admin' }
-      })
-    });
-
-    const result = await requireAdmin(makeRequest('sb-token-valido'), supabaseEnv);
-    expect(result.ok).toBe(true);
-    expect(result.uid).toBe('sb-uid-admin-role');
+  it('rejeita com 401 se variáveis do Supabase não estiverem configuradas', async () => {
+    const emptyEnv = { ADMIN_EMAILS: 'admin@example.com' };
+    const result = await requireAdmin(makeRequest('token-valido'), emptyEnv);
+    expect(result.ok).toBe(false);
+    expect(result.status).toBe(401);
   });
 });

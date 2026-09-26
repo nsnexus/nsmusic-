@@ -13,21 +13,6 @@ vi.mock('@cloudflare/next-on-pages', () => ({
   getRequestContext: () => ({ env: {} })
 }));
 
-vi.mock('@/lib/firebase-edge', () => ({ dbEdge: {} }));
-
-vi.mock('firebase/firestore/lite', () => ({
-  collection: () => ({}),
-  query: () => ({}),
-  where: () => ({}),
-  orderBy: () => ({}),
-  limit: () => ({}),
-  getDocs: async () => ({
-    forEach: (cb) => {
-      mockSupabaseData.forEach((d) => cb({ id: d.id, data: () => d }));
-    }
-  })
-}));
-
 vi.mock('@/lib/supabase-edge', () => ({
   getSupabaseEdge: vi.fn(() => ({
     from: () => ({

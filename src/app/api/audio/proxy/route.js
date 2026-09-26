@@ -1,18 +1,16 @@
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
 import { isAllowedMediaUrl } from '@/lib/proxyAllowlist';
-import { doc, getDoc } from 'firebase/firestore/lite';
-import { dbEdge } from '@/lib/firebase-edge';
+import { getOrder } from '@/lib/supabaseDb';
 
 export const runtime = 'edge';
 
 // Resolve o endereço real do áudio a partir do pedido, para que o cliente nunca precise receber a
 // URL da CDN para tocar a música. `faixa` é o índice em audioFiles (0 = primeira versão).
-async function resolveAudioUrlDoPedido(orderId, faixaRaw) {
+async function resolveAudioUrlDoPedido(orderId, faixaRaw, env = {}) {
   try {
-    const snap = await getDoc(doc(dbEdge, 'orders', orderId));
-    if (!snap.exists()) return '';
-    const data = snap.data() || {};
+    const data = await getOrder(orderId, env);
+    if (!data) return '';
     const arquivos = Array.isArray(data.audioFiles) ? data.audioFiles.filter(Boolean) : [];
     const indice = Number.parseInt(faixaRaw, 10);
     if (Number.isFinite(indice) && indice >= 0 && arquivos[indice]) return arquivos[indice];
@@ -45,7 +43,7 @@ export async function GET(req) {
     if (!rawUrl) {
       const orderId = searchParams.get('orderId') || '';
       if (orderId) {
-        rawUrl = await resolveAudioUrlDoPedido(orderId, searchParams.get('faixa'));
+        rawUrl = await resolveAudioUrlDoPedido(orderId, searchParams.get('faixa'), env);
       }
     }
 

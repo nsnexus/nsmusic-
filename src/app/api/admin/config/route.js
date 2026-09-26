@@ -1,17 +1,13 @@
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
-import { doc, setDoc } from 'firebase/firestore/lite';
-import { dbEdge as db } from '@/lib/firebase-edge';
 import { requireAdmin } from '@/lib/auth';
-import { CONFIG_DOC, normalizarNumeroWhatsapp } from '@/lib/configSite';
+import { normalizarNumeroWhatsapp, WHATSAPP_SUPORTE_PADRAO } from '@/lib/configSite';
+import { getSupabaseEdge } from '@/lib/supabase-edge';
 
 export const runtime = 'edge';
 
-// Escrita da configuração editável pelo painel (hoje só o número de WhatsApp do suporte).
-//
-// Passa por aqui, e não direto do browser, porque para onde o cliente é mandado ao pedir ajuda é
-// decisão de negócio: escrever isso a partir de código 'use client' seria confiar no navegador
-// (.claude/rules/security.md). requireAdmin verifica o ID token no servidor.
+// Escrita da configuração editável pelo painel (número de WhatsApp do suporte e master switch do agente).
+// Salva exclusivamente na tabela `config` do Supabase (chave: 'site').
 export async function POST(req) {
   try {
     let env = {};
@@ -26,21 +22,53 @@ export async function POST(req) {
     }
 
     const body = await req.json().catch(() => ({}));
-    const numero = normalizarNumeroWhatsapp(body?.whatsappSuporte);
-    if (!numero) {
-      return NextResponse.json(
-        { error: 'Número inválido. Use DDD + número, por exemplo 94991064043.' },
-        { status: 400 },
-      );
+    const supabase = getSupabaseEdge(env);
+    if (!supabase) {
+      return NextResponse.json({ error: 'Supabase não configurado' }, { status: 500 });
     }
 
-    await setDoc(
-      doc(db, CONFIG_DOC.colecao, CONFIG_DOC.id),
-      { whatsappSuporte: numero, whatsappSuporteAtualizadoEm: new Date().toISOString() },
-      { merge: true },
-    );
+    // Lê valor atual
+    const { data: currentRecord } = await supabase
+      .from('config')
+      .select('valor')
+      .eq('chave', 'site')
+      .maybeSingle();
 
-    return NextResponse.json({ ok: true, whatsappSuporte: numero });
+    const currentValor = currentRecord?.valor || {};
+    const updates = {};
+
+    if (body?.whatsappSuporte !== undefined) {
+      const numero = normalizarNumeroWhatsapp(body.whatsappSuporte);
+      if (!numero) {
+        return NextResponse.json(
+          { error: 'Número inválido. Use DDD + número, por exemplo 94991064043.' },
+          { status: 400 },
+        );
+      }
+      updates.whatsappSuporte = numero;
+      updates.whatsappSuporteAtualizadoEm = new Date().toISOString();
+    }
+
+    if (body?.agentEnabled !== undefined) {
+      updates.agentEnabled = Boolean(body.agentEnabled);
+      updates.agentEnabledAtualizadoEm = new Date().toISOString();
+    }
+
+    const newValor = { ...currentValor, ...updates };
+
+    await supabase
+      .from('config')
+      .upsert({
+        chave: 'site',
+        valor: newValor,
+        updated_at: new Date().toISOString()
+      });
+
+    return NextResponse.json({
+      ok: true,
+      whatsappSuporte: newValor.whatsappSuporte || WHATSAPP_SUPORTE_PADRAO,
+      agentEnabled: newValor.agentEnabled !== false
+    });
   } catch (err) {
     console.error('[admin/config] falha ao salvar configuração:', err.message);
     return NextResponse.json({ error: 'Não foi possível salvar a configuração.' }, { status: 500 });
@@ -49,20 +77,38 @@ export async function POST(req) {
 
 export async function GET(req) {
   try {
-    let whatsappSuporte = '';
+    let env = {};
     try {
-      const { getDoc } = await import('firebase/firestore/lite');
-      const snap = await getDoc(doc(db, CONFIG_DOC.colecao, CONFIG_DOC.id));
-      if (snap.exists()) {
-        whatsappSuporte = snap.data()?.whatsappSuporte || '';
-      }
+      const ctx = getRequestContext();
+      if (ctx?.env) env = ctx.env;
     } catch (e) {}
 
+    const supabase = getSupabaseEdge(env);
+    let configData = {};
+    if (supabase) {
+      const { data } = await supabase
+        .from('config')
+        .select('valor')
+        .eq('chave', 'site')
+        .maybeSingle();
+      if (data?.valor) {
+        configData = data.valor;
+      }
+    }
+
     return NextResponse.json(
-      { ok: true, whatsappSuporte: whatsappSuporte || '5594991064043' },
+      {
+        ok: true,
+        whatsappSuporte: configData.whatsappSuporte || WHATSAPP_SUPORTE_PADRAO,
+        agentEnabled: configData.agentEnabled !== false
+      },
       { headers: { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300' } }
     );
   } catch (err) {
-    return NextResponse.json({ ok: true, whatsappSuporte: '5594991064043' });
+    return NextResponse.json({
+      ok: true,
+      whatsappSuporte: WHATSAPP_SUPORTE_PADRAO,
+      agentEnabled: true
+    });
   }
 }

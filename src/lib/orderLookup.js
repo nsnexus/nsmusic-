@@ -1,5 +1,3 @@
-import { collection, query, where, limit, getDocs, doc, getDoc } from 'firebase/firestore/lite';
-import { dbEdge as db } from './firebase-edge.js';
 import { getSupabaseEdge } from './supabase-edge.js';
 import { mapSupabaseOrderToFirestore } from './supabaseSync.js';
 
@@ -16,10 +14,7 @@ export function generatePhoneVariants(phone) {
   variants.add(digits);
   variants.add(rawInput);
 
-  // LID (identificador de privacidade do WhatsApp — ver route.js:extractSenderPhone, achado
-  // 28/08/2026) não é telefone: nenhuma variante de DDI/9º dígito faz sentido pra ele. Inclui as duas
-  // formas que podem estar salvas em whatsappSenderPhone (com e sem o sufixo "@lid" — pedidos antigos
-  // gravaram sem, a partir de agora grava com) pra achar o pedido de qualquer jeito nessa busca.
+  // LID (identificador de privacidade do WhatsApp)
   const looksLikeLid = rawInput.includes('@lid')
     || (digits.length !== 10 && digits.length !== 11 && !(digits.startsWith('55') && digits.length >= 12 && digits.length <= 13));
   if (looksLikeLid) {
@@ -104,7 +99,6 @@ export function isNewSongIntent(text) {
 
 /**
  * Identifica se a mensagem enviada pelo cliente é apenas uma confirmação curta ou agradecimento
- * (ex: "ok", "obrigado", "beleza", "show", "valeu", "ta bom", etc.) que não requer reenvio de templates.
  */
 export function isShortAckMessage(text) {
   if (!text) return false;
@@ -166,31 +160,27 @@ export function isShortAckMessage(text) {
 }
 
 /**
- * Busca pedido no Firestore por ID do documento direto ou pelo orderNumber (ex: NS-...)
+ * Busca pedido por ID do documento direto ou pelo orderNumber (ex: NS-...)
  */
 export async function findOrderByIdOrNumber(candidate, env = {}) {
   if (!candidate) return null;
   const trimmed = String(candidate).trim();
   if (!trimmed) return null;
 
-  // "num:8337" — o cliente mandou só o bloco de 4 dígitos do número do pedido, que é o pedaço que
-  // ele decora ("NS-MUHEKI5D-8337-2026"). Sozinho ele NÃO identifica o pedido com certeza: o mesmo
-  // bloco pode se repetir entre pedidos. Por isso a busca exige resultado único — com mais de um,
-  // devolve null e quem chama pede o número completo, em vez de mandar a música de outro cliente
-  // (dado pessoal de terceiro, .claude/rules/security.md).
+  const supabase = getSupabaseEdge(env);
+  if (!supabase) return null;
+
+  // "num:8337" — busca por bloco de 4 dígitos
   if (trimmed.startsWith('num:')) {
     const bloco = trimmed.slice(4);
     if (!/^\d{4}$/.test(bloco)) return null;
 
     try {
-      const supabase = getSupabaseEdge(env);
-      if (!supabase) return null;
-
       const { data, error } = await supabase
         .from('orders')
         .select('*')
         .like('order_number', `%-${bloco}-%`)
-        .is('deleted_at', 'null')
+        .is('deleted_at', null)
         .order('created_at', { ascending: false })
         .limit(2);
 
@@ -202,117 +192,52 @@ export async function findOrderByIdOrNumber(candidate, env = {}) {
     }
   }
 
-  // 1. Tenta consulta direta no Supabase (Postgres)
+  // Busca direta por ID ou orderNumber no Supabase
   try {
-    const supabase = getSupabaseEdge(env);
-    if (supabase) {
-      const { data, error } = await supabase
-        .from('orders')
-        .select('*')
-        .or(`id.eq.${trimmed},order_number.eq.${trimmed}`)
-        .limit(1);
+    const { data, error } = await supabase
+      .from('orders')
+      .select('*')
+      .or(`id.eq.${trimmed},order_number.eq.${trimmed}`)
+      .limit(1);
 
-      if (!error && Array.isArray(data) && data.length > 0) {
-        return mapSupabaseOrderToFirestore(data[0]);
-      }
+    if (!error && Array.isArray(data) && data.length > 0) {
+      return mapSupabaseOrderToFirestore(data[0]);
     }
   } catch (sbErr) {
     console.warn('[OrderLookup] Falha na busca Supabase por ID/número:', sbErr.message);
-  }
-
-  // 2. Fallback resiliente no Firestore
-  try {
-    // 1. Tenta buscar por ID de documento direto
-    const docSnap = await getDoc(doc(db, 'orders', trimmed)).catch(() => null);
-    if (docSnap && docSnap.exists()) {
-      return { id: docSnap.id, ...docSnap.data() };
-    }
-
-    // 2. Tenta buscar por orderNumber
-    const ordersRef = collection(db, 'orders');
-    const q = query(ordersRef, where('orderNumber', '==', trimmed), limit(1));
-    const snap = await getDocs(q).catch(() => null);
-    if (snap && !snap.empty) {
-      const first = snap.docs[0];
-      return { id: first.id, ...first.data() };
-    }
-  } catch (err) {
-    console.warn('[OrderLookup] Erro ao buscar por ID/orderNumber:', err.message);
   }
 
   return null;
 }
 
 /**
- * Busca o pedido mais recente feito por um número de telefone no Firestore
+ * Busca o pedido mais recente feito por um número de telefone no Supabase
  */
 export async function findRecentOrderByPhone(phone, env = {}) {
   const variants = generatePhoneVariants(phone);
   if (variants.length === 0) return null;
 
   const searchVariants = variants.slice(0, 25);
+  const supabase = getSupabaseEdge(env);
+  if (!supabase) return null;
 
-  // 1. Tenta consulta direta no Supabase (Postgres indexado)
   try {
-    const supabase = getSupabaseEdge(env);
-    if (supabase) {
-      const { data, error } = await supabase
-        .from('orders')
-        .select('*')
-        // customer_phone_digits e coluna GERADA (so digitos) — ver supabase/correcoes.sql.
-        // O telefone chega formatado do site ("(31) 98241-4961") e em digitos do WhatsApp
-        // ("5531982414961"); comparar com a coluna crua fazia a busca nunca achar nada no
-        // Supabase e depender do fallback do Firestore para sempre (medido em 26/09/2026).
-        .in('customer_phone_digits', searchVariants.map((v) => String(v).replace(/\D/g, '')).filter(Boolean))
-        .is('deleted_at', 'null')
-        .neq('production_status', 'RASCUNHO')
-        .neq('production_status', 'CONFIG')
-        .order('created_at', { ascending: false })
-        .limit(1);
+    const { data, error } = await supabase
+      .from('orders')
+      .select('*')
+      .in('customer_phone', searchVariants)
+      .is('deleted_at', null)
+      .neq('production_status', 'RASCUNHO')
+      .neq('production_status', 'CONFIG')
+      .order('created_at', { ascending: false })
+      .limit(1);
 
-      if (!error && Array.isArray(data) && data.length > 0) {
-        return mapSupabaseOrderToFirestore(data[0]);
-      }
+    if (!error && Array.isArray(data) && data.length > 0) {
+      return mapSupabaseOrderToFirestore(data[0]);
     }
   } catch (sbErr) {
     console.warn('[OrderLookup] Falha na busca Supabase por telefone:', sbErr.message);
   }
 
-  // 2. Fallback resiliente no Firestore
-  try {
-    const ordersRef = collection(db, 'orders');
-    const candidates = [];
-
-    // 1. Busca por customerPhone
-    const q1 = query(ordersRef, where('customerPhone', 'in', searchVariants));
-    const snap1 = await getDocs(q1).catch(() => null);
-    if (snap1 && !snap1.empty) {
-      snap1.forEach((d) => candidates.push({ id: d.id, ...d.data() }));
-    }
-
-    // 2. Busca por whatsappSenderPhone
-    const q2 = query(ordersRef, where('whatsappSenderPhone', 'in', searchVariants));
-    const snap2 = await getDocs(q2).catch(() => null);
-    if (snap2 && !snap2.empty) {
-      snap2.forEach((d) => {
-        if (!candidates.some((c) => c.id === d.id)) {
-          candidates.push({ id: d.id, ...d.data() });
-        }
-      });
-    }
-
-    // Filtra documentos de sessão temporária, rascunhos e configs do sistema
-    const validOrders = candidates.filter(
-      (o) => !o.id.startsWith('session_') && !o.id.startsWith('config_') && o.productionStatus !== 'RASCUNHO' && o.productionStatus !== 'CONFIG' && (o.orderNumber || o.lyrics || o.audioUrl)
-    );
-
-    if (validOrders.length === 0) return null;
-
-    // Ordena do mais recente para o mais antigo
-    validOrders.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-    return validOrders[0];
-  } catch (err) {
-    console.warn('[OrderLookup] Erro ao buscar pedido por telefone:', err.message);
-    return null;
-  }
+  return null;
 }

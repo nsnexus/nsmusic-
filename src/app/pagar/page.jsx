@@ -2,8 +2,6 @@
 
 import { Suspense, useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { doc, onSnapshot } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { getPriceForSku, faixasDeImpacto } from '@/lib/pricing';
 import { requestPixCharge } from '@/lib/pixCheckout';
 import PixQrCode from '@/components/PixQrCode';
@@ -53,44 +51,36 @@ function PagarContent() {
   const [mensagemConferencia, setMensagemConferencia] = useState('');
   const [pixCopied, setPixCopied] = useState(false);
 
-  // Estado do pedido ao vivo — mesmo padrão de /entrega, pra refletir aprovação assim que o
-  // webhook/polling do servidor gravar, mesmo sem depender só do polling local abaixo. Só roda no
-  // modo com pedido — no modo avulso não há documento nenhum pra escutar.
+  // Estado do pedido ao vivo via API Edge (Supabase)
   useEffect(() => {
-    if (standalone) return;
+    if (standalone || !orderId) return;
     let ativo = true;
 
-    // 1. Busca rápida primária via Edge API (Supabase)
-    fetch(`/api/orders/${encodeURIComponent(orderId)}`, { cache: 'no-store' })
-      .then(res => res.ok ? res.json() : null)
-      .then(json => {
-        if (!ativo) return;
-        if (json?.order) {
-          setOrder(json.order);
-          setOrderLoading(false);
+    const carregarPedido = async () => {
+      try {
+        const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}`, { cache: 'no-store' });
+        if (res.ok) {
+          const json = await res.json();
+          if (ativo && json?.order) {
+            setOrder(json.order);
+            setOrderLoading(false);
+          }
         }
-      })
-      .catch(() => {});
-
-    // 2. Snapshot de tempo real / fallback no Firestore
-    const unsub = onSnapshot(
-      doc(db, 'orders', orderId),
-      (snap) => {
-        if (!ativo) return;
-        if (snap.exists()) {
-          setOrder({ id: snap.id, ...snap.data() });
-        }
-        setOrderLoading(false);
-      },
-      (err) => {
-        if (!ativo) return;
-        console.warn('[pagar] Aviso no Firestore snapshot:', err.message);
-        setOrderLoading(false);
+      } catch (err) {
+        if (ativo) setOrderLoading(false);
       }
-    );
+    };
+
+    carregarPedido();
+
+    // Polling a cada 3.5s se não estiver pago
+    const interval = setInterval(() => {
+      if (ativo) carregarPedido();
+    }, 3500);
+
     return () => {
       ativo = false;
-      unsub();
+      clearInterval(interval);
     };
   }, [standalone, orderId]);
 

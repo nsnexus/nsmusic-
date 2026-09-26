@@ -1,16 +1,31 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('@/lib/firebase-edge', () => ({ dbEdge: {} }));
+let mockConfig = {};
+const mockUpsert = vi.fn();
 
-const mockSetDoc = vi.fn();
-const mockUpdateDoc = vi.fn();
-let mockDocSnap = { exists: () => false, data: () => ({}) };
-
-vi.mock('firebase/firestore/lite', () => ({
-  doc: (_db, col, id) => ({ col, id }),
-  getDoc: async () => mockDocSnap,
-  setDoc: (...args) => mockSetDoc(...args),
-  updateDoc: (...args) => mockUpdateDoc(...args),
+vi.mock('@/lib/supabase-edge', () => ({
+  getSupabaseEdge: vi.fn(() => ({
+    from: () => {
+      let filterChave = '';
+      return {
+        select: function () { return this; },
+        eq: function (col, val) {
+          filterChave = val;
+          return this;
+        },
+        maybeSingle: async function () {
+          return { data: mockConfig[filterChave] ? { valor: mockConfig[filterChave] } : null, error: null };
+        },
+        upsert: async function (row) {
+          mockUpsert(row);
+          if (row.chave) {
+            mockConfig[row.chave] = row.valor;
+          }
+          return { data: [row], error: null };
+        }
+      };
+    }
+  }))
 }));
 
 const mockCreatePixCharge = vi.fn();
@@ -28,10 +43,9 @@ const {
 } = await import('@/lib/gateway');
 
 beforeEach(() => {
-  mockSetDoc.mockClear();
-  mockUpdateDoc.mockClear();
+  mockConfig = {};
+  mockUpsert.mockClear();
   mockCreatePixCharge.mockReset();
-  mockDocSnap = { exists: () => false, data: () => ({}) };
   delete process.env.GATEWAY_API_KEY;
 });
 
@@ -73,7 +87,7 @@ describe('Gateway - createGatewayPixCharge', () => {
     await expect(createGatewayPixCharge({ appId: 'test', externalOrderId: '123', amount: 0 })).rejects.toThrow(/amount deve ser um número positivo/);
   });
 
-  it('cria cobrança na Efí e persiste no Firestore', async () => {
+  it('cria cobrança na Efí e persiste no Supabase', async () => {
     mockCreatePixCharge.mockResolvedValue({
       txid: 'TXID_TEST_123',
       pixCopiaECola: '000201...',
@@ -93,14 +107,16 @@ describe('Gateway - createGatewayPixCharge', () => {
       expect.anything()
     );
 
-    expect(mockSetDoc).toHaveBeenCalledWith(
-      expect.objectContaining({ col: 'gateway_charges' }),
+    expect(mockUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        appId: 'metodo-21-dias',
-        externalOrderId: 'PED_100',
-        amount: 49.90,
-        status: 'PENDING',
-        webhookUrl: 'https://cliente.com/webhook',
+        chave: 'gateway_TXID_TEST_123',
+        valor: expect.objectContaining({
+          appId: 'metodo-21-dias',
+          externalOrderId: 'PED_100',
+          amount: 49.90,
+          status: 'PENDING',
+          webhookUrl: 'https://cliente.com/webhook',
+        })
       })
     );
 
@@ -111,45 +127,39 @@ describe('Gateway - createGatewayPixCharge', () => {
 
 describe('Gateway - applyGatewayPaymentApproval', () => {
   it('retorna não aplicado se cobrança não existir', async () => {
-    mockDocSnap = { exists: () => false, data: () => ({}) };
     const result = await applyGatewayPaymentApproval('TXID_INEXISTENTE', { transaction_amount: 50 });
     expect(result.applied).toBe(false);
     expect(result.reason).toBe('charge_not_found');
   });
 
   it('idempotência: não reprocessa se status já for PAID', async () => {
-    mockDocSnap = {
-      exists: () => true,
-      data: () => ({ txid: 'TXID_1', status: 'PAID', amount: 50 }),
-    };
+    mockConfig['gateway_TXID_1'] = { txid: 'TXID_1', status: 'PAID', amount: 50 };
 
     const result = await applyGatewayPaymentApproval('TXID_1', { transaction_amount: 50 });
     expect(result.applied).toBe(false);
     expect(result.reason).toBe('already_processed');
-    expect(mockUpdateDoc).not.toHaveBeenCalled();
   });
 
   it('atualiza status para PAID e despacha webhook', async () => {
     const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue({ ok: true, status: 200, text: async () => 'OK' });
 
-    mockDocSnap = {
-      exists: () => true,
-      data: () => ({
-        txid: 'TXID_1',
-        appId: 'metodo-21',
-        externalOrderId: 'PED_1',
-        status: 'PENDING',
-        amount: 49.90,
-        webhookUrl: 'https://cliente.com/webhook',
-      }),
+    mockConfig['gateway_TXID_1'] = {
+      txid: 'TXID_1',
+      appId: 'metodo-21',
+      externalOrderId: 'PED_1',
+      status: 'PENDING',
+      amount: 49.90,
+      webhookUrl: 'https://cliente.com/webhook',
     };
 
     const result = await applyGatewayPaymentApproval('TXID_1', { transaction_amount: 49.90 });
     expect(result.applied).toBe(true);
 
-    expect(mockUpdateDoc).toHaveBeenCalledWith(
-      expect.objectContaining({ col: 'gateway_charges' }),
-      expect.objectContaining({ status: 'PAID', paidAmount: 49.90 })
+    expect(mockUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chave: 'gateway_TXID_1',
+        valor: expect.objectContaining({ status: 'PAID', paidAmount: 49.90 })
+      })
     );
 
     expect(fetchSpy).toHaveBeenCalledWith(

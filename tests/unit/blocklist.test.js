@@ -1,20 +1,26 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-let mockFirestoreDocData = null;
+let mockBlockedContacts = [];
 
-vi.mock('@/lib/firebase-edge', () => ({ dbEdge: {} }));
-vi.mock('@/lib/supabase-edge', () => ({ getSupabaseEdge: () => null }));
-
-vi.mock('firebase/firestore/lite', () => ({
-  doc: (_db, _coll, id) => ({ id }),
-  getDoc: async () => ({
-    exists: () => mockFirestoreDocData !== null,
-    data: () => mockFirestoreDocData,
-  }),
-  setDoc: async (_ref, data) => {
-    mockFirestoreDocData = data;
-    return {};
-  },
+vi.mock('@/lib/supabase-edge', () => ({
+  getSupabaseEdge: vi.fn(() => ({
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          maybeSingle: async () => ({
+            data: { valor: { blockedContacts: mockBlockedContacts } },
+            error: null
+          })
+        })
+      }),
+      upsert: async ({ valor }) => {
+        if (valor?.blockedContacts) {
+          mockBlockedContacts = valor.blockedContacts;
+        }
+        return { data: null, error: null };
+      }
+    })
+  }))
 }));
 
 const {
@@ -29,7 +35,7 @@ const {
 } = await import('@/lib/blocklist');
 
 beforeEach(() => {
-  mockFirestoreDocData = null;
+  mockBlockedContacts = [];
 });
 
 describe('blocklist', () => {

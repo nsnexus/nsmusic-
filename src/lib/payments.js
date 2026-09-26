@@ -4,15 +4,12 @@
 // hoje montado a partir da consulta à API Pix da Efí (antes, do Mercado Pago).
 //
 // Garante, nesta ordem:
-//   - idempotência por paymentId via checagem sequencial getDoc + updateDoc (A-09) — webhook e
-//     polling podem chegar juntos; runTransaction não é usado porque não existe em
-//     firebase/firestore/lite, o SDK deste arquivo no Edge Runtime;
+//   - idempotência por paymentId via checagem sequencial getOrder + updateOrder (A-09);
 //   - paymentStatus só é escrito quando o SKU realmente aprova a música (C-09), nunca no add-on isolado;
 //   - o SKU vem do paymentIntent persistido em /api/payments/create, não de uma heurística de valor (A-13);
 //   - estados de estorno/cancelamento revogam acesso já concedido, o que nunca era tratado antes.
 
-import { doc, getDoc, updateDoc } from 'firebase/firestore/lite';
-import { dbEdge as db } from './firebase-edge';
+import { getOrder, updateOrder } from './supabaseDb.js';
 import { skuApprovesMusic, skuGrantsVideoAccess, skuGrantsCartaAccess, skuGrantsRetrospectivaAccess, getPriceForSku, brindesPorValorPago } from './pricing';
 import { resolveDeliveryUrl } from './whatsappTemplates';
 import { sendMetaPurchaseEvent } from './metaCapi';
@@ -34,50 +31,26 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
     return { applied: false, reason: 'missing_arguments' };
   }
 
-  const orderRef = doc(db, 'orders', orderId);
   const status = payment.status;
 
   if (REVOKING_STATUSES.has(status)) {
-    return revokeApproval(orderRef, paymentId, status);
+    return revokeApproval(orderId, paymentId, status, env);
   }
 
   if (status !== 'approved') {
     return { applied: false, reason: 'not_approved', status };
   }
 
-  // Edge Runtime (Cloudflare) roda em firebase/firestore/lite, que não expõe runTransaction —
-  // toda vez que era chamada aqui, a promise rejeitava e a aprovação inteira falhava (silenciosa,
-  // só visível no log). Substituída por checagem sequencial: getDoc para ler o estado atual e
-  // idempotência, updateDoc para gravar. Numa corrida bem apertada entre webhook e polling, as duas
-  // chamadas podem passar pela checagem de "já processado" antes de qualquer updateDoc acontecer —
-  // pior caso é reescrever os mesmos campos uma vez a mais, nunca uma dupla cobrança (o paymentId
-  // gravado é sempre o mesmo, então a segunda escrita apenas repete o primeiro resultado).
   let txResult;
   try {
-    const snap = await getDoc(orderRef);
-    if (!snap.exists()) {
+    const orderData = await getOrder(orderId, env);
+    if (!orderData) {
       txResult = { applied: false, reason: 'order_not_found' };
     } else {
-      const orderData = snap.data();
-
       // O SKU tem que ser o da cobrança QUE ESTÁ SENDO PAGA (identificada pelo txid), não o da
       // última cobrança criada no pedido.
-      //
-      // Achado 30/08/2026: `paymentIntentSku` guarda só a cobrança mais recente. Quando a aprovação
-      // chegava de uma cobrança anterior — retentativa de webhook da Efí, cron de reconciliação, ou
-      // cliente pagando um QR Code antigo — ela era creditada ao produto errado. Na prática: quem
-      // pagou a música e depois apenas ABRIU a oferta de playback (o que já cria a cobrança e
-      // sobrescreve paymentIntentSku) ganhava o playback de graça assim que qualquer notificação
-      // atrasada da música chegasse. O mesmo valia para o add-on de vídeo.
-      //
-      // paymentIntentSkuByTxid é o mapa txid -> SKU gravado por /api/payments/create. Só caímos no
-      // paymentIntentSku quando o txid pago é mesmo o da cobrança atual (pedido criado antes do mapa
-      // existir), e na heurística de valor para os mais antigos ainda.
       const skuByTxid = orderData.paymentIntentSkuByTxid || {};
       const skuForThisTxid = skuByTxid[String(paymentId)];
-      // Sem paymentIntentId registrado não há como afirmar que este txid é de OUTRA cobrança — nesse
-      // caso mantém o comportamento anterior (confiar em paymentIntentSku). O bloqueio só vale
-      // quando existe evidência de que a cobrança paga é diferente da última criada.
       const hasIntentId = Boolean(orderData.paymentIntentId);
       const isCurrentIntent = !hasIntentId || String(orderData.paymentIntentId) === String(paymentId);
 
@@ -86,8 +59,6 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
         || (Math.abs(Number(payment.transaction_amount) - 6.90) < 0.01 ? 'video_addon' : 'audio_only');
 
       if (!skuForThisTxid && !isCurrentIntent) {
-        // Cobrança antiga sem registro próprio: o SKU acima veio da heurística de valor. Fica no log
-        // para dar rastro caso um pedido antigo seja creditado ao produto errado.
         console.warn(`[payments] txid sem SKU registrado e diferente do intent atual — SKU inferido por valor: ${sku}`);
       }
 
@@ -107,21 +78,12 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
       } else {
         const nowIso = new Date().toISOString();
         const updates = { updatedAt: nowIso };
-
-        // Valor REALMENTE confirmado pela Efí nesta transação. Até 25/09/2026 nada disso era
-        // gravado: o painel tentava adivinhar o faturamento a partir de `expectedAmount`, que é a
-        // ÚLTIMA cobrança criada no pedido — quem pagasse a música e depois um add-on tinha a
-        // música recontada pelo preço do add-on. Com o SKU 'impacto' (valor escolhido pelo cliente)
-        // a adivinhação ficou impossível. Cada ramo abaixo grava o seu próprio valor, e o relatório
-        // passa a somar fato, não estimativa.
         const valorPago = Number(payment.transaction_amount) || 0;
 
         if (isVideoOnly) {
           updates.hasVideoAccess = true;
           updates.videoAddonPaid = true;
           updates.videoPaymentId = String(paymentId);
-          // Timestamp do pagamento do add-on, independente de videoStatus (que só existe depois da
-          // renderização no navegador do cliente, um evento não confiável de servidor).
           updates.videoPaidAt = nowIso;
           updates.videoPaidAmount = valorPago;
         } else if (isPlaybackOnly) {
@@ -147,21 +109,9 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
           updates.paymentStatus = 'PAGAMENTO_APROVADO';
           updates.paymentId = String(paymentId);
           updates.paidAt = nowIso;
-          // Inclui o que veio junto no mesmo checkout (combo, ou a faixa escolhida no SKU
-          // 'impacto'): é uma transação só, e é esse o valor que entrou na conta do estúdio.
           updates.paidAmount = valorPago;
           updates.paidSku = sku || null;
 
-          // 'impacto' ("pague conforme o impacto emocional", ver /pagar e /api/payments/create) tem
-          // preço variável — o vídeo é liberado por FAIXA do valor realmente pago na Efí (nunca do
-          // que o cliente alegou pedir), a partir do mesmo preço do combo normal (getPriceForSku),
-          // pra não existir um segundo número "quase igual" flutuando pelo sistema. -0.01 é a mesma
-          // tolerância usada em toda comparação monetária do projeto (nunca ===, ver payments.md).
-          // Escada de brindes do SKU 'impacto' ("pague o quanto quiser"): a faixa é decidida pelo
-          // valor REALMENTE confirmado pela Efí (`transaction_amount`), nunca pelo que o cliente
-          // pediu ao gerar a cobrança. Cumulativa e definida em src/lib/pricing.js. Até 21/09/2026
-          // só o vídeo era concedido assim; carta e retrospectiva entraram na mesma lógica quando
-          // a escada virou a tela de pagamento da entrega.
           const brindes = sku === 'impacto' ? brindesPorValorPago(valorPago) : { carta: false, video: false, retrospectiva: false };
 
           if (skuGrantsVideoAccess(sku) || brindes.video) {
@@ -170,8 +120,6 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
             updates.videoPaidAt = nowIso;
           }
 
-          // Combos música+carta e música+retrospectiva (pop-up de extras dinâmico, 04/09/2026) —
-          // mesmo padrão do vídeo acima: aprovam a música E liberam o add-on na mesma transação.
           if (skuGrantsCartaAccess(sku) || brindes.carta) {
             updates.hasCartaAccess = true;
             updates.cartaAddonPaid = true;
@@ -184,12 +132,11 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
           }
         }
 
-        await updateDoc(orderRef, updates);
+        await updateOrder(orderId, updates, env);
 
-        // Sincronização imediata no Supabase (atualiza pedido e registra transação na tabela payments)
+        // Registra transação na tabela payments do Supabase
         try {
-          const { mirrorOrderToSupabase, mirrorPaymentToSupabase } = await import('./supabaseSync.js');
-          await mirrorOrderToSupabase(orderId, { ...orderData, ...updates }, env);
+          const { mirrorPaymentToSupabase } = await import('./supabaseSync.js');
 
           let paymentKind = 'musica';
           if (isVideoOnly) paymentKind = 'video';
@@ -217,17 +164,11 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
     return { applied: false, reason: 'update_failed' };
   }
 
-  // Efeitos colaterais isolados (payments.md: nunca podem impedir a gravação da aprovação, que já
-  // aconteceu acima). WhatsApp só pra pagamento da música; Purchase da Meta pros dois casos (a venda
-  // do add-on isolado é receita real, tem que contar também — ver src/lib/metaCapi.js).
   if (txResult.applied) {
     if (!txResult.isVideoOnly && !txResult.isPlaybackOnly && !txResult.isCartaOnly && !txResult.isRetroOnly) {
-      await notifyPaymentApproved(orderRef, txResult.orderData);
+      await notifyPaymentApproved(orderId, txResult.orderData, {}, env);
 
-      // Contador de vendas da vitrine da home (stats/_live). Só neste ramo: add-on isolado é receita,
-      // mas não é cliente novo — contá-lo inflaria o número de clientes com a mesma pessoa.
-      // A idempotência já está garantida acima: este bloco só roda quando a aprovação foi de fato
-      // aplicada (paymentId novo), nunca em reentrega de webhook.
+      // Contador de vendas da vitrine da home (stats/_live)
       try {
         const { addSale } = await import('./liveStats.js');
         await addSale();
@@ -235,38 +176,29 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
         console.warn('[payments] Falha ao somar venda no contador da home:', err.message);
       }
 
-      // Arquiva o áudio no NOSSO Storage assim que a música é aprovada (achado 04/09/2026: o cron
-      // horário que fazia isso nunca rodou de verdade em produção — 0 de 43 pedidos pagos recentes
-      // tinham audioArchivedAt. Em vez de só depender de destravar o cron, o arquivamento acontece
-      // aqui também, na hora — o cron em api/orders/archive-audio vira rede de segurança pros casos
-      // em que este bloco falhar). Mesma reserva sequencial usada pro playback/CAPI logo abaixo,
-      // pra não copiar duas vezes se webhook e polling chegarem juntos.
+      // Arquiva o áudio no R2 assim que a música é aprovada
       try {
         let deveArquivar = false;
         let filesParaArquivar = [];
-        const freshSnap = await getDoc(orderRef);
-        if (freshSnap.exists()) {
-          const freshData = freshSnap.data();
+        const freshData = await getOrder(orderId, env);
+        if (freshData) {
           filesParaArquivar = Array.isArray(freshData.audioFiles) && freshData.audioFiles.length
             ? freshData.audioFiles
             : [freshData.audioUrl].filter(Boolean);
           if (filesParaArquivar.length > 0 && !freshData.audioArchivedAt && !freshData.audioArchiving) {
-            await updateDoc(orderRef, { audioArchiving: true });
+            await updateOrder(orderId, { audioArchiving: true }, env);
             deveArquivar = true;
           }
         }
 
         if (deveArquivar) {
-          // R2 primeiro (env.nsmusic_media, binding do projeto Pages — só existe no runtime real da
-          // Cloudflare, nunca em process.env); Firebase Storage é fallback se o binding faltar.
           const r2Bucket = env?.nsmusic_media;
           const r2PublicUrl = env?.R2_PUBLIC_URL || process.env.R2_PUBLIC_URL;
-          const firebaseBucket = env?.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
 
-          if ((r2Bucket && r2PublicUrl) || firebaseBucket) {
+          if (r2Bucket && r2PublicUrl) {
             const files = filesParaArquivar;
             const { archiveAudioFiles } = await import('./audioArchive.js');
-            const { files: archived, anyFailure } = await archiveAudioFiles(orderId, files, { r2Bucket, r2PublicUrl, firebaseBucket });
+            const { files: archived, anyFailure } = await archiveAudioFiles(orderId, files, { r2Bucket, r2PublicUrl });
 
             const nowIso = new Date().toISOString();
             const archivePayload = {
@@ -277,58 +209,37 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
                 ? { audioArchiveFailedAt: nowIso }
                 : { audioArchivedAt: nowIso, audioArchiveFailedAt: null }),
             };
-            await updateDoc(orderRef, archivePayload);
-
-            try {
-              const { mirrorOrderToSupabase } = await import('./supabaseSync.js');
-              mirrorOrderToSupabase(orderId, archivePayload, env).catch(() => {});
-            } catch {}
+            await updateOrder(orderId, archivePayload, env);
           } else {
-            console.warn('[payments] Nem R2 (nsmusic_media) nem NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET configurados — áudio não arquivado.');
-            await updateDoc(orderRef, { audioArchiving: false }).catch(() => {});
+            console.warn('[payments] Nem R2 nem Storage configurados — áudio não arquivado.');
+            await updateOrder(orderId, { audioArchiving: false }, env).catch(() => {});
           }
         }
       } catch (err) {
-        console.warn('[payments] Falha ao arquivar áudio no Storage:', err.message);
-        await updateDoc(orderRef, { audioArchiving: false }).catch(() => {});
+        console.warn('[payments] Falha ao arquivar áudio:', err.message);
+        await updateOrder(orderId, { audioArchiving: false }, env).catch(() => {});
       }
     }
 
-    // Playback (instrumental): o pagamento é automático, a ENTREGA é manual pelo WhatsApp.
-    //
-    // A separação vocal era feita na Kie.ai e falhava quase sempre — 10 dos 11 playbacks pagos
-    // entre 04/09 e 23/09/2026 terminaram em FAILED com `kie_callback_200`: a Kie.ai aceitava a
-    // tarefa e mandava callback de sucesso, mas a URL do instrumental vinha num campo que o webhook
-    // não reconhecia (já eram duas variantes de nome antes dessa). O cliente pagava e não recebia.
-    //
-    // Decisão do dono do estúdio em 24/09/2026: tirar a Kie.ai desse caminho. O pedido fica marcado
-    // como aguardando contato e o cliente pede o arquivo no WhatsApp (ver
-    // src/components/PlaybackAddonCard.jsx). Nada é gerado por aqui, então não há efeito colateral
-    // que possa falhar depois da aprovação já gravada.
     if (txResult.isPlaybackOnly) {
       try {
-        await updateDoc(orderRef, {
+        await updateOrder(orderId, {
           playbackStatus: 'AGUARDANDO_CONTATO',
           playbackRequesting: false,
           updatedAt: new Date().toISOString(),
-        });
+        }, env);
       } catch (err) {
         console.warn('[payments] Erro ao marcar playback como aguardando contato:', err.message);
       }
     }
 
-    // Carta Virtual: mesma reserva sequencial do playback, pelo mesmo motivo (webhook e polling do
-    // pagamento podem chegar juntos e gerar duas vezes). Diferente do playback, aqui não há tarefa
-    // assíncrona externa — o texto sai na própria chamada, então já grava pronto. Se falhar, o
-    // cliente ainda pode gerar pelo botão em /entrega (api/carta/generate), então não é perda.
     if (txResult.isCartaOnly || txResult.grantedCartaViaCombo) {
       try {
         let shouldGenerate = false;
-        const freshSnap = await getDoc(orderRef);
-        if (freshSnap.exists()) {
-          const freshData = freshSnap.data();
+        const freshData = await getOrder(orderId, env);
+        if (freshData) {
           if (!freshData.cartaTexto && !freshData.cartaGenerating) {
-            await updateDoc(orderRef, { cartaGenerating: true });
+            await updateOrder(orderId, { cartaGenerating: true }, env);
             shouldGenerate = true;
           }
         }
@@ -337,46 +248,36 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
           const { generateCartaText } = await import('./carta.js');
           const resultado = await generateCartaText(txResult.orderData || {});
           if (resultado.ok) {
-            await updateDoc(orderRef, {
+            await updateOrder(orderId, {
               cartaTexto: resultado.texto,
               cartaStatus: 'READY',
               cartaGeneratedAt: new Date().toISOString(),
               cartaGenerating: false,
-            });
+            }, env);
           } else {
             console.warn(`[payments] Carta paga mas não gerada — pedido ${orderId}:`, resultado.error);
-            await updateDoc(orderRef, { cartaGenerating: false, cartaStatus: 'FAILED' });
+            await updateOrder(orderId, { cartaGenerating: false, cartaStatus: 'FAILED' }, env);
           }
         }
       } catch (err) {
         console.warn('[payments] Erro ao gerar a carta:', err.message);
-        await updateDoc(orderRef, { cartaGenerating: false }).catch(() => {});
+        await updateOrder(orderId, { cartaGenerating: false }, env).catch(() => {});
       }
     }
 
-    // Reserva com o mesmo padrão do WhatsApp (getDoc fresco + updateDoc antes de enviar) — sem isso,
-    // chamadas concorrentes de applyPaymentApproval (webhook + polling + os dois crons de
-    // reconciliação, que hoje rodam em paralelo) podiam todas passar pela checagem de idempotência
-    // ANTES de qualquer updateDoc acontecer, e cada uma disparava seu próprio evento de Purchase pra
-    // Meta — a escrita em si é idempotente (resultado final correto), mas o efeito colateral não era
-    // (achado real em produção: 2 vendas genuínas geraram 15 eventos de Compra em ~5h, 19-20/08/2026).
     const sentField = txResult.isVideoOnly ? 'metaVideoPurchaseSent' : txResult.isPlaybackOnly ? 'metaPlaybackPurchaseSent' : txResult.isCartaOnly ? 'metaCartaPurchaseSent' : txResult.isRetroOnly ? 'metaRetroPurchaseSent' : 'metaPurchaseSent';
     const sendingField = txResult.isVideoOnly ? 'metaVideoPurchaseSending' : txResult.isPlaybackOnly ? 'metaPlaybackPurchaseSending' : txResult.isCartaOnly ? 'metaCartaPurchaseSending' : txResult.isRetroOnly ? 'metaRetroPurchaseSending' : 'metaPurchaseSending';
     try {
       let shouldSend = false;
-      const freshSnap = await getDoc(orderRef);
-      if (freshSnap.exists()) {
-        const freshData = freshSnap.data();
+      const freshData = await getOrder(orderId, env);
+      if (freshData) {
         if (!freshData[sentField] && !freshData[sendingField]) {
-          await updateDoc(orderRef, { [sendingField]: true });
+          await updateOrder(orderId, { [sendingField]: true }, env);
           shouldSend = true;
         }
       }
 
       if (shouldSend) {
-        // Mesmo cuidado do SKU: `expectedAmount` guarda só a última cobrança criada, então usar o
-        // valor registrado PARA ESTE txid evita reportar à Meta a receita do produto errado quando a
-        // aprovação chega de uma cobrança anterior (ver comentário do SKU, achado 30/08/2026).
         const amountByTxid = txResult.orderData?.paymentIntentAmountByTxid || {};
         const amountForThisTxid = Number(amountByTxid[String(paymentId)]);
         const value = amountForThisTxid
@@ -397,10 +298,10 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
         }, env);
 
         if (sendResult.sent) {
-          await updateDoc(orderRef, { [sentField]: true, [sendingField]: false })
+          await updateOrder(orderId, { [sentField]: true, [sendingField]: false }, env)
             .catch((e) => console.warn('[payments] Erro ao marcar Purchase enviado:', e.message));
         } else {
-          await updateDoc(orderRef, { [sendingField]: false }).catch((e) => console.warn(e.message));
+          await updateOrder(orderId, { [sendingField]: false }, env).catch((e) => console.warn(e.message));
           console.warn(`[payments] Falha ao enviar Purchase (Meta CAPI) — pedido ${orderId}:`, sendResult.reason);
         }
       }
@@ -413,68 +314,62 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
   return publicResult;
 }
 
-// Exportada para permitir reenvio manual pelo admin (api/admin/notify-payment-approved) quando o
-// pedido é aprovado manualmente no painel — updateDoc direto do browser (admin/pedidos/[id]/page.jsx)
-// não passa por applyPaymentApproval, então o WhatsApp automático nunca dispararia sem isso.
-export async function notifyPaymentApproved(orderRef, orderData, opts = {}) {
-  if (!orderData?.customerPhone) return;
-  // REGRA ANTI-BAN: só manda mensagem de "pagamento aprovado" pra quem já iniciou conversa pelo
-  // WhatsApp (whatsappRequested === true) — mesma regra de src/lib/db.js:notifyMusicReady e
-  // src/app/api/cron/recover/route.js. force=true (reenvio manual do admin) ignora a checagem —
-  // decisão humana deliberada, não mensagem fria automática.
-  if (!opts.force && !orderData.whatsappRequested) return;
+/**
+ * Notifica o cliente via WhatsApp que o pagamento foi aprovado.
+ */
+export async function notifyPaymentApproved(orderRefOrId, orderData, opts = {}, env = {}) {
+  const orderId = typeof orderRefOrId === 'string' ? orderRefOrId : orderRefOrId?.id;
+  if (!orderId) return;
+
+  const currentOrder = orderData || await getOrder(orderId, env);
+  if (!currentOrder?.customerPhone) return;
+  if (!opts.force && !currentOrder.whatsappRequested) return;
 
   try {
     let shouldSend = false;
-    const snap = await getDoc(orderRef);
-    let freshData = {};
-    if (snap.exists()) {
-      freshData = snap.data();
+    const freshData = await getOrder(orderId, env);
+    if (freshData) {
       if (!freshData.paymentWhatsappSent && !freshData.paymentWhatsappSending) {
-        await updateDoc(orderRef, { paymentWhatsappSending: true });
+        await updateOrder(orderId, { paymentWhatsappSending: true }, env);
         shouldSend = true;
       }
     }
 
     if (!shouldSend) return;
 
-    const mergedData = { ...orderData, ...freshData };
+    const mergedData = { ...currentOrder, ...(freshData || {}) };
     const { sendPaymentApprovedTemplate, isVideoPurchased } = await import('./whatsapp.js');
-    const deliveryUrl = resolveDeliveryUrl(orderRef.id);
-    // Prioriza quem de fato escreveu no WhatsApp sobre o telefone digitado no formulário do site —
-    // podem ser números diferentes (ver incidente 25/08/2026, mesma correção de src/lib/db.js).
+    const deliveryUrl = resolveDeliveryUrl(orderId);
     const targetPhone = mergedData.whatsappSenderPhone || mergedData.customerPhone;
     const sendResult = await sendPaymentApprovedTemplate(targetPhone, {
       customerName: mergedData.customerName,
       honoreeName: mergedData.honoreeName,
       deliveryUrl,
-      // audioFiles já inclui audioUrl como primeiro item (ver src/lib/db.js:updateTaskResult) —
-      // audioUrl só como fallback pra pedidos antigos sem audioFiles gravado.
       audioUrls: (mergedData.audioFiles?.length ? mergedData.audioFiles : [mergedData.audioUrl]).filter(Boolean),
       hasVideoAccess: isVideoPurchased(mergedData),
       orderData: mergedData,
     });
 
     if (sendResult.success) {
-      await updateDoc(orderRef, {
+      await updateOrder(orderId, {
         paymentWhatsappSent: true,
         paymentWhatsappSentAt: new Date().toISOString(),
         paymentWhatsappSending: false,
-      }).catch((e) => console.warn('[payments] Erro ao marcar WhatsApp enviado:', e.message));
+      }, env).catch((e) => console.warn('[payments] Erro ao marcar WhatsApp enviado:', e.message));
     } else {
-      await updateDoc(orderRef, { paymentWhatsappSending: false }).catch((e) => console.warn(e.message));
-      console.warn(`Falha ao enviar WhatsApp (pagamento aprovado) — pedido ${orderRef.id}`);
+      await updateOrder(orderId, { paymentWhatsappSending: false }, env).catch((e) => console.warn(e.message));
+      console.warn(`Falha ao enviar WhatsApp (pagamento aprovado) — pedido ${orderId}`);
     }
   } catch (err) {
     console.error('[payments] Erro geral no envio de WhatsApp:', err.message);
   }
 }
 
-async function revokeApproval(orderRef, paymentId, status) {
+async function revokeApproval(orderRefOrId, paymentId, status, env = {}) {
+  const orderId = typeof orderRefOrId === 'string' ? orderRefOrId : orderRefOrId?.id;
   try {
-    const snap = await getDoc(orderRef);
-    if (!snap.exists()) return { applied: false, reason: 'order_not_found', status };
-    const orderData = snap.data();
+    const orderData = await getOrder(orderId, env);
+    if (!orderData) return { applied: false, reason: 'order_not_found', status };
 
     const updates = { updatedAt: new Date().toISOString() };
     let revoked = false;
@@ -498,11 +393,6 @@ async function revokeApproval(orderRef, paymentId, status) {
       updates.paymentStatus = 'AGUARDANDO_PAGAMENTO';
       revoked = true;
 
-      // Achado 04/09/2026, ao adicionar combo_carta/combo_retrospectiva: combo (música+vídeo) já
-      // tinha esse mesmo buraco — o vídeo é concedido nesta MESMA transação (não grava
-      // videoPaymentId, só o `combo`/carta/retrospectiva fazem isso pros add-ons ISOLADOS), então um
-      // estorno nunca revogava o acesso já dado junto. Resolve o SKU da cobrança do mesmo jeito que
-      // a aprovação faz, pra saber o que foi concedido junto e desfazer tudo.
       const skuByTxid = orderData.paymentIntentSkuByTxid || {};
       const skuDaCobranca = skuByTxid[String(paymentId)] || orderData.paymentIntentSku || '';
       if (skuGrantsVideoAccess(skuDaCobranca)) {
@@ -519,7 +409,7 @@ async function revokeApproval(orderRef, paymentId, status) {
       }
     }
 
-    if (revoked) await updateDoc(orderRef, updates);
+    if (revoked) await updateOrder(orderId, updates, env);
     return { applied: revoked, revoked, status };
   } catch (err) {
     console.error('[payments] Falha ao revogar aprovação:', err.message);

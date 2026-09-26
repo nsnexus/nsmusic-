@@ -1,5 +1,6 @@
-import { doc, getDoc, setDoc, deleteDoc, addDoc, collection } from 'firebase/firestore/lite';
-import { dbEdge as db } from './firebase-edge.js';
+import { getSupabaseEdge } from './supabase-edge.js';
+import { createOrder, getOrder } from './supabaseDb.js';
+import { lerConfigSite } from './configSite.js';
 import { runGeminiWithFailover, runJsonCompletion } from './gemini.js';
 import { sendWApiTextMessage, sendWApiPresence, resolveDeliveryUrl, resolveCriarUrl, cleanWhatsAppId } from './whatsapp.js';
 import { requestSunoGeneration } from './suno.js';
@@ -68,53 +69,62 @@ Responda SEMPRE e SOMENTE em JSON válido, neste formato exato, sem nenhum texto
 "readyToCompose" só é true quando honoreeName, story (com substância real, ver regra acima) e musicStyle já estiverem preenchidos (relationship, occasion, musicMood e voiceType não bloqueiam — preencha os que faltarem com sua melhor inferência a partir da história quando chegar esse ponto).`;
 
 /**
- * Lê a sessão atual da memória ou do Firestore
+ * Lê a sessão atual da memória ou do Supabase
  */
-async function loadSession(phone) {
+async function loadSession(phone, envVars = {}) {
   if (memorySessions.has(phone)) {
     return memorySessions.get(phone);
   }
   try {
-    const snap = await getDoc(doc(db, 'orders', `session_${phone}`));
-    if (snap.exists()) {
-      const data = snap.data();
-      memorySessions.set(phone, data);
-      return data;
+    const supabase = getSupabaseEdge(envVars);
+    if (supabase) {
+      const { data } = await supabase
+        .from('agent_sessions')
+        .select('*')
+        .eq('phone', phone)
+        .maybeSingle();
+
+      if (data?.data) {
+        memorySessions.set(phone, data.data);
+        return data.data;
+      }
     }
   } catch (e) {
-    console.warn('[WhatsApp Agent] Fallback para memória:', e.message);
+    console.warn('[WhatsApp Agent] Erro ao carregar sessão do Supabase:', e.message);
   }
   return null;
 }
 
 /**
- * Salva a sessão na memória e no Firestore com campos padrão de orders
+ * Salva a sessão na memória e no Supabase
  */
-async function saveSession(phone, data) {
+async function saveSession(phone, data, envVars = {}) {
   memorySessions.set(phone, data);
   try {
-    const docRef = doc(db, 'orders', `session_${phone}`);
-    await setDoc(docRef, {
-      orderNumber: `SESSION-${phone}`,
-      customerPhone: phone,
-      productionStatus: 'RASCUNHO',
-      paymentStatus: 'PENDENTE',
-      createdAt: data.startedAt || new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      ...data,
-    });
+    const supabase = getSupabaseEdge(envVars);
+    if (supabase) {
+      await supabase.from('agent_sessions').upsert({
+        phone,
+        step: data.step || 'COLLECTING',
+        data,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'phone' });
+    }
   } catch (e) {
-    console.warn('[WhatsApp Agent] Erro ao sincronizar sessão no Firestore:', e.message);
+    console.warn('[WhatsApp Agent] Erro ao sincronizar sessão no Supabase:', e.message);
   }
 }
 
 /**
  * Remove a sessão
  */
-async function clearSession(phone) {
+async function clearSession(phone, envVars = {}) {
   memorySessions.delete(phone);
   try {
-    await deleteDoc(doc(db, 'orders', `session_${phone}`));
+    const supabase = getSupabaseEdge(envVars);
+    if (supabase) {
+      await supabase.from('agent_sessions').delete().eq('phone', phone);
+    }
   } catch (e) {}
 }
 
@@ -168,33 +178,33 @@ ${historyText ? `Histórico da conversa:\n${historyText}\n\n` : ''}Cliente: ${us
 /**
  * Verifica se o Agente de IA está ativado globalmente nas configurações do sistema
  */
-export async function isWhatsAppAgentGloballyEnabled() {
+export async function isWhatsAppAgentGloballyEnabled(envVars = {}) {
   try {
-    const snap = await getDoc(doc(db, 'orders', 'config_whatsapp'));
-    if (snap.exists()) {
-      const data = snap.data();
-      if (data.agentEnabled === false) return false;
-    }
+    const config = await lerConfigSite(envVars);
+    return config.agentEnabled !== false;
   } catch (e) {
-    console.warn('[WhatsApp Agent] Erro ao consultar config_whatsapp:', e.message);
+    console.warn('[WhatsApp Agent] Erro ao consultar status global do agente:', e.message);
+    return true;
   }
-  return true;
 }
 
 /**
  * Altera o status global do Agente de IA
  */
-export async function setWhatsAppAgentGloballyEnabled(enabled) {
+export async function setWhatsAppAgentGloballyEnabled(enabled, envVars = {}) {
   try {
-    await setDoc(doc(db, 'orders', 'config_whatsapp'), {
-      orderNumber: 'CONFIG-WHATSAPP',
-      productionStatus: 'CONFIG',
-      agentEnabled: Boolean(enabled),
-      updatedAt: new Date().toISOString(),
-    }, { merge: true });
-    return true;
+    const supabase = getSupabaseEdge(envVars);
+    if (supabase) {
+      const { data } = await supabase.from('config').select('valor').eq('chave', 'site').maybeSingle();
+      const current = data?.valor || {};
+      current.agentEnabled = Boolean(enabled);
+      current.agentEnabledAtualizadoEm = new Date().toISOString();
+      await supabase.from('config').upsert({ chave: 'site', valor: current, updated_at: new Date().toISOString() });
+      return true;
+    }
+    return false;
   } catch (e) {
-    console.error('[WhatsApp Agent] Erro ao salvar config_whatsapp:', e.message);
+    console.error('[WhatsApp Agent] Erro ao salvar status global do agente:', e.message);
     return false;
   }
 }
@@ -545,8 +555,8 @@ E aí, o que você achou? Se curtiu, me responde *SIM* que eu já mando gravar a
           updatedAt: new Date().toISOString(),
         };
 
-        const docRef = await addDoc(collection(db, 'orders'), orderPayload);
-        orderId = docRef.id;
+        const created = await createOrder(orderPayload, envVars);
+        orderId = created?.id;
 
         // Dispara a geração na Suno (Kie.ai) — mesmo buildSunoPayload que o wizard do site usa (ver
         // M-12 no AUDIT_REPORT.md: montar o payload à mão aqui divergia do site, ex. ignorava
@@ -663,8 +673,7 @@ Ficou do jeitinho que você queria? Quer que nosso estúdio grave as *2 versões
     let orderData = null;
     if (session.orderId) {
       try {
-        const snap = await getDoc(doc(db, 'orders', session.orderId));
-        if (snap.exists()) orderData = snap.data();
+        orderData = await getOrder(session.orderId, envVars);
       } catch (e) {}
     }
 

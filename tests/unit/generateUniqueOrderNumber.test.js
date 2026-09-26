@@ -6,19 +6,20 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 let callCount;
 let collisionsBeforeSuccess;
 
-vi.mock('@/lib/firebase-edge', () => ({ dbEdge: {} }));
-
-vi.mock('firebase/firestore/lite', () => ({
-  collection: () => ({}),
-  where: () => ({}),
-  query: () => ({}),
-  limit: () => ({}),
-  getDocs: async () => {
-    callCount++;
-    const isCollision = callCount <= collisionsBeforeSuccess;
-    return { empty: !isCollision };
-  },
-  addDoc: async () => ({ id: 'mock-doc-id' }),
+vi.mock('@/lib/supabase-edge', () => ({
+  getSupabaseEdge: vi.fn(() => ({
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          limit: async () => {
+            callCount++;
+            const isCollision = callCount <= collisionsBeforeSuccess;
+            return { data: isCollision ? [{ id: 'colidiu' }] : [], error: null };
+          }
+        })
+      })
+    })
+  }))
 }));
 
 const { generateUniqueOrderNumber } = await import('@/app/api/orders/create/route');

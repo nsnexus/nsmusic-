@@ -1,15 +1,12 @@
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
-import { doc, getDoc } from 'firebase/firestore/lite';
-import { dbEdge as db } from '@/lib/firebase-edge';
+import { getOrder } from '@/lib/supabaseDb';
 import { requireAdmin } from '@/lib/auth';
 import { notifyMusicReady } from '@/lib/db';
 
 export const runtime = 'edge';
 
-// Reenvio manual do WhatsApp "música pronta" — criado no incidente de 14-19/08/2026 (export sem
-// import local em src/lib/whatsapp.js quebrava o envio automático sem deixar whatsappSending
-// consistente). force:true ignora whatsappSent/whatsappSending, pra destravar pedidos presos.
+// Reenvio manual do WhatsApp "música pronta"
 export async function POST(req) {
   try {
     let env = {};
@@ -28,18 +25,16 @@ export async function POST(req) {
       return NextResponse.json({ error: 'orderId é obrigatório.' }, { status: 400 });
     }
 
-    const orderRef = doc(db, 'orders', orderId);
-    const snap = await getDoc(orderRef);
-    if (!snap.exists()) {
+    const orderData = await getOrder(orderId, env);
+    if (!orderData) {
       return NextResponse.json({ error: 'Pedido não encontrado.' }, { status: 404 });
     }
 
-    const orderData = snap.data();
     if (!orderData.audioUrl) {
       return NextResponse.json({ error: 'Pedido ainda não tem música gerada.' }, { status: 400 });
     }
 
-    const result = await notifyMusicReady(orderRef, orderData, orderId, { force: true });
+    const result = await notifyMusicReady(orderId, orderData, orderId, { force: true }, env);
 
     if (result.sent) {
       return NextResponse.json({ success: true });

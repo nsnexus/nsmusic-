@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
-import { collection, query, where, orderBy, limit, getDocs, deleteDoc } from 'firebase/firestore/lite';
-import { dbEdge as db } from '@/lib/firebase-edge';
+import { getSupabaseEdge } from '@/lib/supabase-edge';
+import { mapSupabaseOrderToFirestore } from '@/lib/supabaseSync';
 import { updateTaskResult, extractAudioTracks } from '@/lib/db';
 import { applyPaymentApproval } from '@/lib/payments';
 import { getChargeStatus } from '@/lib/efi';
@@ -11,33 +11,9 @@ import { resolveLatestTaskId, maybeAutoRetrySunoFailure, recordSunoFailure } fro
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
-// Reconciliação de pedidos travados.
-//
-// Motivo: hoje o resultado da Kie.ai e a confirmação de pagamento dependem de duas vias — o webhook
-// do provedor e o polling feito pelo NAVEGADOR DO CLIENTE. Quando o webhook falha (ou nunca chega) e
-// o cliente fecha a aba, ninguém mais converge o pedido: ele fica preso em GERANDO_AUDIO para
-// sempre, ou o cliente paga e o produto nunca é liberado. Esta rota é a terceira via, rodando no
-// servidor e independente da aba do cliente.
-//
-// Não duplica regra de negócio: só reusa updateTaskResult (áudio + WhatsApp) e applyPaymentApproval
-// (aprovação de pagamento), exatamente os mesmos pontos de convergência das outras duas vias.
-
-// Limites por execução: cada pedido de pagamento custa uma autenticação + uma consulta na Efí, e o
-// Edge Runtime tem teto de CPU por requisição. Números baixos de propósito — a rota é feita para
-// rodar de tempos em tempos, não para varrer a base inteira de uma vez.
 const MAX_AUDIO_ORDERS = 10;
 const MAX_PAYMENT_ORDERS = 10;
-
-// Só reconcilia o que já teve tempo de suceder pelo caminho normal — sem essa carência, a rota
-// competiria com o polling do cliente que ainda está com a aba aberta e funcionando.
 const MIN_AGE_MINUTES = 5;
-
-// Quando a Kie.ai não devolve nem sucesso nem falha (HTTP com erro na consulta, ou status
-// pendente/desconhecido que não converge), o pedido antes ficava preso em GERANDO_AUDIO pra
-// sempre — cada rodada do cron só marcava "stillProcessing" e nunca tentava de novo (achado
-// 30/08/2026: cliente reportou pedido morto em "gerando música"). A partir de MIN_AGE_MINUTES já
-// dá margem suficiente pro tempo normal de gravação (1-2 min pela doc da Kie.ai); retenta pelo
-// mesmo caminho automático usado para falha explícita, respeitando o mesmo limite de tentativas.
 const STUCK_RETRY_MINUTES = 8;
 
 function readEnv(env, name) {
@@ -45,14 +21,12 @@ function readEnv(env, name) {
 }
 
 function isOlderThan(isoDate, minutes) {
-  if (!isoDate) return true; // sem carimbo de tempo, assume antigo (pedido de antes deste campo existir)
+  if (!isoDate) return true;
   const ts = Date.parse(isoDate);
   if (Number.isNaN(ts)) return true;
   return Date.now() - ts > minutes * 60 * 1000;
 }
 
-// Autoriza por token de admin (uso manual pelo painel) OU por segredo compartilhado no cabeçalho
-// (uso automático por cron/agendador, que não tem conta de usuário).
 async function authorize(req, env) {
   const expectedSecret = readEnv(env, 'RECONCILE_SECRET');
   if (expectedSecret) {
@@ -61,28 +35,18 @@ async function authorize(req, env) {
   }
 
   const admin = await requireAdmin(req, env);
-  if (admin.ok) return { ok: true, via: 'admin' };
+  if (admin.ok) return { ok: true, via: 'admin_token' };
 
   return { ok: false, status: admin.status || 401, error: admin.error || 'Não autorizado.' };
 }
 
-// Descreve a falha de forma útil para o admin sem vazar mensagem de serviço externo: o `code` do
-// Firestore ('permission-denied', 'failed-precondition' para índice faltando, etc.) é o que diz o
-// que fazer a seguir, e é informação da nossa própria infraestrutura.
-function describeFirestoreError(err) {
-  return err?.code ? String(err.code) : 'erro_desconhecido';
-}
-
-// Retentativa automática compartilhada pelos dois gatilhos: falha explícita reportada pela Kie.ai e
-// timeout de pedido travado sem status conclusivo (STUCK_RETRY_MINUTES). Mesma reserva sequencial de
-// maybeAutoRetrySunoFailure evita disparo duplo com o polling do cliente.
 async function forceStuckRetry(orderId, effectiveTaskId, env, result, motivo) {
   const retry = await maybeAutoRetrySunoFailure({ taskId: effectiveTaskId, orderId, env, reason: motivo });
   if (retry.retried) {
     result.retried++;
   } else {
     result.failed++;
-    await recordSunoFailure(orderId, `${motivo}_${retry.reason}`);
+    await recordSunoFailure(orderId, `${motivo}_${retry.reason}`, env);
   }
 }
 
@@ -94,57 +58,59 @@ async function reconcileStuckAudio(env) {
     return result;
   }
 
-  // Cada fase falha por conta própria: sem isso, uma query recusada derrubava a rota inteira num 500
-  // genérico e escondia qual das duas quebrou.
-  let snap;
-  try {
-    snap = await getDocs(query(
-      collection(db, 'orders'),
-      where('productionStatus', '==', 'GERANDO_AUDIO'),
-      limit(MAX_AUDIO_ORDERS)
-    ));
-  } catch (err) {
-    console.warn('[reconcile] Falha ao listar pedidos em GERANDO_AUDIO:', err.message);
-    result.error = `consulta_orders: ${describeFirestoreError(err)}`;
+  const supabase = getSupabaseEdge(env);
+  if (!supabase) {
+    result.error = 'Supabase não inicializado';
     return result;
   }
 
-  for (const orderDoc of snap.docs) {
-    const orderData = orderDoc.data();
+  let orders = [];
+  try {
+    const { data, error } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('production_status', 'GERANDO_AUDIO')
+      .is('deleted_at', null)
+      .limit(MAX_AUDIO_ORDERS);
+
+    if (error) throw error;
+    orders = (data || []).map(mapSupabaseOrderToFirestore);
+  } catch (err) {
+    console.warn('[reconcile] Falha ao listar pedidos em GERANDO_AUDIO:', err.message);
+    result.error = `consulta_orders: ${err.message}`;
+    return result;
+  }
+
+  for (const orderData of orders) {
     if (!isOlderThan(orderData.sunoRequestedAt, MIN_AGE_MINUTES)) continue;
 
     result.checked++;
 
-    // O vínculo taskId -> orderId mora em suno_tasks (ver saveTask em src/lib/db.js); o pedido não
-    // guarda o taskId, então a busca é pelo caminho inverso. Se houver mais de uma tarefa para o
-    // mesmo pedido (uma retentativa automática já rodou e criou uma segunda), não importa qual das
-    // duas esta query encontra primeiro — resolveLatestTaskId, logo abaixo, segue a cadeia de
-    // retryTaskId a partir de QUALQUER ponto dela e sempre converge na mais recente.
-    let taskId = null;
-    try {
-      const taskSnap = await getDocs(query(
-        collection(db, 'suno_tasks'),
-        where('orderId', '==', orderDoc.id),
-        limit(1)
-      ));
-      if (!taskSnap.empty) taskId = taskSnap.docs[0].id;
-    } catch (err) {
-      console.warn('[reconcile] Falha ao buscar a tarefa do pedido:', err.message);
+    let taskId = orderData.sunoTaskId || null;
+    if (!taskId) {
+      try {
+        const { data: taskData } = await supabase
+          .from('suno_tasks')
+          .select('id')
+          .eq('order_id', orderData.id)
+          .limit(1);
+
+        if (taskData && taskData[0]) {
+          taskId = taskData[0].id;
+        }
+      } catch (err) {
+        console.warn('[reconcile] Falha ao buscar a tarefa do pedido:', err.message);
+      }
     }
 
     if (!taskId) {
-      // Sem taskId não há o que consultar: a chamada à Kie.ai nunca chegou a ser registrada.
-      // Marcar o motivo é o que permite ao admin reprocessar o lote pelo painel.
       result.failed++;
-      await recordSunoFailure(orderDoc.id, 'reconcile_sem_taskid');
+      await recordSunoFailure(orderData.id, 'reconcile_sem_taskid', env);
       continue;
     }
 
     try {
-      // Segue a cadeia de retentativas automáticas até a tarefa mais recente (ver
-      // src/lib/suno.js) — o taskId achado acima pode já ter sido substituído por uma retentativa
-      // disparada em tempo real por /api/suno/status enquanto o cliente ainda estava na página.
-      const effectiveTaskId = await resolveLatestTaskId(taskId);
+      const effectiveTaskId = await resolveLatestTaskId(taskId, env);
 
       const kieRes = await fetch(`https://api.kie.ai/api/v1/generate/record-info?taskId=${effectiveTaskId}`, {
         headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
@@ -153,7 +119,7 @@ async function reconcileStuckAudio(env) {
 
       if (!kieRes.ok) {
         if (isOlderThan(orderData.sunoRequestedAt, STUCK_RETRY_MINUTES)) {
-          await forceStuckRetry(orderDoc.id, effectiveTaskId, env, result, `kie_http_${kieRes.status}`);
+          await forceStuckRetry(orderData.id, effectiveTaskId, env, result, `kie_http_${kieRes.status}`);
         } else {
           result.stillProcessing++;
         }
@@ -165,8 +131,6 @@ async function reconcileStuckAudio(env) {
 
       if (rawStatus.includes('SUCCESS') || rawStatus.includes('COMPLETE')) {
         if (extractAudioTracks(kieData).length > 0) {
-          // Mesmo ponto de convergência do webhook e do polling: grava os áudios, marca
-          // AUDIO_GERADO e dispara o WhatsApp de "música pronta" (com a própria idempotência dele).
           await updateTaskResult(effectiveTaskId, kieData, null, env);
           result.completed++;
           continue;
@@ -174,16 +138,12 @@ async function reconcileStuckAudio(env) {
       }
 
       if (rawStatus.includes('FAIL') || rawStatus.includes('ERROR')) {
-        // O cliente já fechou a aba (é por isso que o pedido chegou até aqui) — a retentativa
-        // automática é a única chance de recuperar sem intervenção manual do admin.
-        await forceStuckRetry(orderDoc.id, effectiveTaskId, env, result, `kie_status_${rawStatus}`);
+        await forceStuckRetry(orderData.id, effectiveTaskId, env, result, `kie_status_${rawStatus}`);
         continue;
       }
 
-      // Nem sucesso, nem falha explícita — status pendente/desconhecido que não converge. Sem o
-      // timeout abaixo, esse pedido ficava marcado "stillProcessing" pra sempre, rodada após rodada.
       if (isOlderThan(orderData.sunoRequestedAt, STUCK_RETRY_MINUTES)) {
-        await forceStuckRetry(orderDoc.id, effectiveTaskId, env, result, `kie_status_travado_${rawStatus || 'vazio'}`);
+        await forceStuckRetry(orderData.id, effectiveTaskId, env, result, `kie_status_travado_${rawStatus || 'vazio'}`);
       } else {
         result.stillProcessing++;
       }
@@ -196,11 +156,6 @@ async function reconcileStuckAudio(env) {
   return result;
 }
 
-// Reconsulta uma cobrança na Efí e aplica a aprovação se estiver CONCLUIDA — núcleo compartilhado
-// pelas duas fases de pagamento abaixo (música/combo e add-on de vídeo avulso). O txid vem do
-// próprio documento do pedido, então já é por construção uma cobrança deste pedido — a checagem de
-// posse que /api/payments/status faz contra o paymentId da query string não se aplica aqui. O valor
-// continua vindo sempre da consulta à Efí, nunca do cliente.
 async function checkAndApplyCharge(orderId, txid, env, result) {
   try {
     const charge = await getChargeStatus(txid, env);
@@ -219,157 +174,108 @@ async function checkAndApplyCharge(orderId, txid, env, result) {
   }
 }
 
-// ACHADO 20/09/2026 (4 pagamentos confirmados na Efí e nunca computados, um deles preso há 34h):
-// esta varredura buscava `where(paymentStatus == AGUARDANDO_PAGAMENTO)` com `limit(10)` e SEM
-// `orderBy`. Como a base tem ~140 pedidos nesse estado a qualquer momento (a maioria é gente que
-// gerou o QR e nunca pagou, o que é normal), o Firestore devolvia sempre a MESMA fatia arbitrária de
-// 10 — e quem pagou de verdade, se não caísse nela, nunca seria verificado. O cron rodava, gastava
-// as consultas e não achava nada: uma rede de segurança que nunca pegava ninguém.
-//
-// Correção em duas frentes:
-//   1. `orderBy('updatedAt', 'desc')` — quem mexeu no checkout por último é quem tem mais chance de
-//      ter acabado de pagar, e a janela anda com o tempo em vez de ficar travada.
-//   2. Passada dedicada a quem copiou o código Pix (`pixCopiedAt`, ver api/payments/pix-copied):
-//      é o sinal de intenção mais forte que temos, então esses são verificados primeiro e sempre.
 async function reconcilePendingPayments(env) {
   const result = { checked: 0, approved: 0, stillPending: 0, viaPixCopiado: 0 };
   const jaVerificados = new Set();
 
-  const verificar = async (orderDoc) => {
-    if (jaVerificados.has(orderDoc.id)) return;
-    jaVerificados.add(orderDoc.id);
+  const supabase = getSupabaseEdge(env);
+  if (!supabase) {
+    result.error = 'Supabase não inicializado';
+    return result;
+  }
 
-    const orderData = orderDoc.data();
-    const txid = orderData.paymentIntentId;
-    // Sem cobrança gerada não há nada a confirmar — o cliente nem chegou no checkout.
+  const verificar = async (orderData) => {
+    if (jaVerificados.has(orderData.id)) return;
+    jaVerificados.add(orderData.id);
+
+    const txid = orderData.paymentIntentId || orderData.extras?.paymentIntentId;
     if (!txid) return;
     if (!isOlderThan(orderData.updatedAt, MIN_AGE_MINUTES)) return;
 
     result.checked++;
-    await checkAndApplyCharge(orderDoc.id, txid, env, result);
+    await checkAndApplyCharge(orderData.id, txid, env, result);
   };
 
-  // 1ª passada: quem copiou o código Pix (intenção declarada de pagar).
   try {
-    const snapCopiado = await getDocs(query(
-      collection(db, 'orders'),
-      where('paymentStatus', '==', 'AGUARDANDO_PAGAMENTO'),
-      orderBy('pixCopiedAt', 'desc'),
-      limit(MAX_PAYMENT_ORDERS)
-    ));
-    for (const orderDoc of snapCopiado.docs) {
-      const antes = result.checked;
-      await verificar(orderDoc);
-      if (result.checked > antes) result.viaPixCopiado++;
+    const { data: rows, error } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('payment_status', 'AGUARDANDO_PAGAMENTO')
+      .is('deleted_at', null)
+      .order('updated_at', { ascending: false })
+      .limit(MAX_PAYMENT_ORDERS);
+
+    if (error) throw error;
+
+    const orders = (rows || []).map(mapSupabaseOrderToFirestore);
+    for (const orderData of orders) {
+      await verificar(orderData);
     }
   } catch (err) {
-    // Índice composto ainda não criado no Firestore, por exemplo — não pode derrubar a 2ª passada.
-    console.warn('[reconcile] Passada por pixCopiedAt indisponível:', err.message);
-    result.pixCopiadoError = describeFirestoreError(err);
-  }
-
-  // 2ª passada: os mais recentemente atualizados, independente de terem copiado o código.
-  let snap;
-  try {
-    snap = await getDocs(query(
-      collection(db, 'orders'),
-      where('paymentStatus', '==', 'AGUARDANDO_PAGAMENTO'),
-      orderBy('updatedAt', 'desc'),
-      limit(MAX_PAYMENT_ORDERS)
-    ));
-  } catch (err) {
     console.warn('[reconcile] Falha ao listar pedidos aguardando pagamento:', err.message);
-    result.error = `consulta_orders: ${describeFirestoreError(err)}`;
-    return result;
-  }
-
-  for (const orderDoc of snap.docs) {
-    await verificar(orderDoc);
+    result.error = `consulta_orders: ${err.message}`;
   }
 
   return result;
 }
 
-// Add-on de vídeo comprado EM SEPARADO (depois da música já paga) nunca escreve `paymentStatus`
-// (regra C-09 — o add-on isolado não pode mexer nesse campo). Isso significa que
-// reconcilePendingPayments, que só olha `paymentStatus === 'AGUARDANDO_PAGAMENTO'`, NUNCA enxerga
-// um pagamento de vídeo avulso que ficou preso — o pedido já está com paymentStatus aprovado (da
-// música) muito antes de o vídeo ser comprado. Achado real: "venda só do vídeo que não
-// contabilizou" (2026-08-12). Esta é a via de reconciliação equivalente, para essa cobrança.
 async function reconcilePendingVideoAddons(env) {
   const result = { checked: 0, approved: 0, stillPending: 0 };
+  const supabase = getSupabaseEdge(env);
+  if (!supabase) return result;
 
-  // paymentIntentSku é campo único (sem where composto) — índice automático, sem entrada em
-  // firestore.indexes.json. O filtro de "ainda não liberado" (!videoAddonPaid) e o de idade
-  // ficam em memória: a maioria das cobranças com este sku já foi paga com sucesso pela via normal
-  // (polling do cliente em /entrega), então a lista só de fato revisada é sempre pequena.
-  let snap;
   try {
-    snap = await getDocs(query(
-      collection(db, 'orders'),
-      where('paymentIntentSku', '==', 'video_addon'),
-      limit(MAX_PAYMENT_ORDERS * 4)
-    ));
+    const { data: rows, error } = await supabase
+      .from('orders')
+      .select('*')
+      .is('deleted_at', null)
+      .limit(MAX_PAYMENT_ORDERS * 4);
+
+    if (error) throw error;
+
+    const orders = (rows || []).map(mapSupabaseOrderToFirestore);
+    for (const orderData of orders) {
+      if (result.checked >= MAX_PAYMENT_ORDERS) break;
+
+      const sku = orderData.paymentIntentSku || orderData.extras?.paymentIntentSku;
+      if (sku !== 'video_addon') continue;
+      if (orderData.videoAddonPaid || orderData.extras?.videoAddonPaid) continue;
+      const txid = orderData.paymentIntentId || orderData.extras?.paymentIntentId;
+      if (!txid) continue;
+      if (!isOlderThan(orderData.updatedAt, MIN_AGE_MINUTES)) continue;
+
+      result.checked++;
+      await checkAndApplyCharge(orderData.id, txid, env, result);
+    }
   } catch (err) {
     console.warn('[reconcile] Falha ao listar pedidos com add-on de vídeo pendente:', err.message);
-    result.error = `consulta_orders: ${describeFirestoreError(err)}`;
-    return result;
-  }
-
-  for (const orderDoc of snap.docs) {
-    if (result.checked >= MAX_PAYMENT_ORDERS) break;
-
-    const orderData = orderDoc.data();
-    if (orderData.videoAddonPaid) continue; // já liberado — nada a fazer
-    const txid = orderData.paymentIntentId;
-    if (!txid) continue;
-    if (!isOlderThan(orderData.updatedAt, MIN_AGE_MINUTES)) continue;
-
-    result.checked++;
-    await checkAndApplyCharge(orderDoc.id, txid, env, result);
+    result.error = `consulta_orders: ${err.message}`;
   }
 
   return result;
 }
-
-// Rascunho de sessão do agente de WhatsApp (src/lib/whatsappAgent.js) — documento
-// `session_{telefone}` gravado em `orders` com orderNumber SESSION-* e productionStatus RASCUNHO
-// enquanto o cliente ainda tá conversando, sem prazo de expiração. Se ele nunca voltar, o rascunho
-// fica pra sempre solto na coleção. Exclusão física (não lógica) de propósito: nunca virou pedido
-// de verdade, não tem suno_tasks nem pagamento associado — não é o "pedido" que a regra de
-// database.md pede pra soft-delete.
-const ABANDONED_SESSION_MAX_AGE_HOURS = 24;
-const MAX_SESSIONS_CLEANED = 30;
 
 async function cleanupAbandonedWhatsAppSessions(env) {
   const result = { checked: 0, deleted: 0 };
+  const supabase = getSupabaseEdge(env);
+  if (!supabase) return result;
 
-  let snap;
   try {
-    snap = await getDocs(query(
-      collection(db, 'orders'),
-      where('productionStatus', '==', 'RASCUNHO'),
-      limit(MAX_SESSIONS_CLEANED * 2)
-    ));
-  } catch (err) {
-    console.warn('[reconcile] Falha ao listar sessões de WhatsApp em rascunho:', err.message);
-    result.error = `consulta_orders: ${describeFirestoreError(err)}`;
-    return result;
-  }
+    const cutoffDate = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { data, error } = await supabase
+      .from('orders')
+      .delete()
+      .eq('production_status', 'RASCUNHO')
+      .ilike('order_number', 'SESSION-%')
+      .lt('updated_at', cutoffDate)
+      .select('id');
 
-  for (const orderDoc of snap.docs) {
-    if (result.deleted >= MAX_SESSIONS_CLEANED) break;
-    const data = orderDoc.data();
-    if (!String(data.orderNumber || '').startsWith('SESSION-')) continue;
-    if (!isOlderThan(data.updatedAt, ABANDONED_SESSION_MAX_AGE_HOURS * 60)) continue;
-
-    result.checked++;
-    try {
-      await deleteDoc(orderDoc.ref);
-      result.deleted++;
-    } catch (err) {
-      console.warn('[reconcile] Falha ao excluir sessão de WhatsApp abandonada:', err.message);
+    if (!error && Array.isArray(data)) {
+      result.deleted = data.length;
+      result.checked = data.length;
     }
+  } catch (err) {
+    console.warn('[reconcile] Falha ao excluir sessão de WhatsApp abandonada:', err.message);
   }
 
   return result;
@@ -388,41 +294,25 @@ export async function POST(req) {
       return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
 
-    // `?fase=` divide o trabalho em requisições separadas.
-    //
-    // Achado 21/09/2026, com o cron finalmente rodando: a resposta vinha com
-    // `payments: {error: "consulta_orders: unknown"}` e `videoAddon` igual, SEMPRE nessa ordem,
-    // enquanto as mesmas consultas rodavam sem erro nenhum fora do Edge (testado com o SDK
-    // cliente em Node: 5 de 5 OK, índices corretos). O que diferencia produção é o orçamento de
-    // sub-requisições por requisição: a fase de música roda antes e gasta até 10 pedidos × (Kie.ai
-    // + Firestore), e o que vem depois não consegue mais sair para a rede. Por isso a fase de
-    // pagamento — a que envolve dinheiro do cliente — não pode dividir requisição com ela.
-    //
-    // 'pagamentos' e 'audio' são chamadas separadamente pelo agendador (workers/efi-proxy-fly).
-    // Sem o parâmetro, roda tudo, que é como o botão do painel sempre funcionou.
     const fase = new URL(req.url).searchParams.get('fase') || 'tudo';
     const fazPagamentos = fase === 'tudo' || fase === 'pagamentos';
     const fazAudio = fase === 'tudo' || fase === 'audio';
 
     const resposta = { fase };
 
-    // Pagamento primeiro, sempre. Se algum orçamento estourar no meio, que estoure no que é
-    // recuperável depois, não no dinheiro que o cliente já pagou.
     if (fazPagamentos) {
       try {
         resposta.payments = await reconcilePendingPayments(env);
       } catch (err) {
         console.error('[reconcile] Falha inesperada na fase de pagamento:', err.message);
-        resposta.payments = { checked: 0, approved: 0, stillPending: 0, error: `inesperado: ${describeFirestoreError(err)}` };
+        resposta.payments = { checked: 0, approved: 0, stillPending: 0, error: `inesperado: ${err.message}` };
       }
 
-      // Fase própria porque o add-on de vídeo avulso nunca toca paymentStatus (C-09) — teria que
-      // ser encontrado de um jeito diferente de qualquer forma.
       try {
         resposta.videoAddon = await reconcilePendingVideoAddons(env);
       } catch (err) {
         console.error('[reconcile] Falha inesperada na fase de add-on de vídeo:', err.message);
-        resposta.videoAddon = { checked: 0, approved: 0, stillPending: 0, error: `inesperado: ${describeFirestoreError(err)}` };
+        resposta.videoAddon = { checked: 0, approved: 0, stillPending: 0, error: `inesperado: ${err.message}` };
       }
     }
 
@@ -431,14 +321,14 @@ export async function POST(req) {
         resposta.audio = await reconcileStuckAudio(env);
       } catch (err) {
         console.error('[reconcile] Falha inesperada na fase de música:', err.message);
-        resposta.audio = { checked: 0, completed: 0, retried: 0, stillProcessing: 0, failed: 0, error: `inesperado: ${describeFirestoreError(err)}` };
+        resposta.audio = { checked: 0, completed: 0, retried: 0, stillProcessing: 0, failed: 0, error: `inesperado: ${err.message}` };
       }
 
       try {
         resposta.abandonedSessions = await cleanupAbandonedWhatsAppSessions(env);
       } catch (err) {
         console.error('[reconcile] Falha inesperada na limpeza de sessões de WhatsApp:', err.message);
-        resposta.abandonedSessions = { checked: 0, deleted: 0, error: `inesperado: ${describeFirestoreError(err)}` };
+        resposta.abandonedSessions = { checked: 0, deleted: 0, error: `inesperado: ${err.message}` };
       }
     }
 

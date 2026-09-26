@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
-import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore/lite';
-import { dbEdge as db } from '@/lib/firebase-edge';
+import { getSupabaseEdge } from '@/lib/supabase-edge';
+import { updateOrder } from '@/lib/supabaseDb';
+import { mapSupabaseOrderToFirestore } from '@/lib/supabaseSync';
 import { sendRecoveryTemplate, sendPreviewNudgeTemplate } from '@/lib/whatsapp';
 import { DOMINIO_CANONICO } from '@/lib/siteUrl';
 
@@ -48,17 +49,23 @@ export async function GET(req) {
     const cut4h = now - (4 * HOUR_IN_MS);
     const cut72h = now - (72 * HOUR_IN_MS);
 
-    const ordersRef = collection(db, 'orders');
-    
-    // Busca pedidos pendentes. (Índice simples em paymentStatus já funciona no Firestore)
-    const q1 = query(ordersRef, where('paymentStatus', '==', 'PENDENTE'));
-    const q2 = query(ordersRef, where('paymentStatus', '==', 'AGUARDANDO_PAGAMENTO'));
-    
-    const [snap1, snap2] = await Promise.all([getDocs(q1), getDocs(q2)]);
-    
-    const pendingOrders = [];
-    snap1.forEach(d => pendingOrders.push({ id: d.id, ...d.data() }));
-    snap2.forEach(d => pendingOrders.push({ id: d.id, ...d.data() }));
+    const supabase = getSupabaseEdge(env);
+    if (!supabase) {
+      return NextResponse.json({ error: 'Supabase não inicializado.' }, { status: 500 });
+    }
+
+    // Busca pedidos pendentes no Supabase
+    const { data: rows, error: qErr } = await supabase
+      .from('orders')
+      .select('*')
+      .in('payment_status', ['PENDENTE', 'AGUARDANDO_PAGAMENTO'])
+      .is('deleted_at', null);
+
+    if (qErr) {
+      throw new Error(`Erro ao buscar pedidos no Supabase: ${qErr.message}`);
+    }
+
+    const pendingOrders = (rows || []).map(mapSupabaseOrderToFirestore);
 
     // ?dryRun=true simula sem enviar WhatsApp nem gravar recoveryStage — só conta quantos
     // disparariam. Usado pra medir o tamanho do primeiro lote antes de ligar de vez (nenhum pedido
@@ -121,10 +128,10 @@ export async function GET(req) {
         const waRes = await sendRecoveryTemplate(targetPhone, templateName, params);
 
         if (waRes.success) {
-          await updateDoc(doc(db, 'orders', order.id), {
+          await updateOrder(order.id, {
             recoveryStage: targetStage,
             updatedAt: new Date().toISOString()
-          });
+          }, env);
           results.processed++;
           results.sent.push({ id: order.id, stage: targetStage });
         } else {
@@ -172,10 +179,10 @@ export async function GET(req) {
           });
 
           if (waRes.success) {
-            await updateDoc(doc(db, 'orders', order.id), {
+            await updateOrder(order.id, {
               previewNudgeSentAt: new Date().toISOString(),
               updatedAt: new Date().toISOString()
-            });
+            }, env);
             results.previewNudgeSent.push({ id: order.id });
           } else {
             console.error(`Falha no envio do lembrete de prévia (Cron) para pedido ${order.id}:`, waRes.error);

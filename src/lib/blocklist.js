@@ -1,5 +1,3 @@
-import { doc, getDoc, setDoc } from 'firebase/firestore/lite';
-import { dbEdge as db } from './firebase-edge.js';
 import { getSupabaseEdge } from './supabase-edge.js';
 
 export const BLOCKLIST_DOC_ID = 'config_blocklist';
@@ -56,85 +54,78 @@ export function gerarIdBloqueio(tipo, valor) {
 }
 
 /**
- * Lê a lista completa de bloqueados (com fallback entre Supabase e Firestore).
+ * Lê a lista completa de bloqueados no Supabase (config ou orders).
  * @returns {Promise<Array<{id: string, type: 'phone'|'email', value: string, displayValue?: string, name?: string, reason?: string, blockedAt: string, blockedBy?: string}>>}
  */
 export async function getBlocklist(env = {}) {
-  // 1. Tenta Supabase
   const supabase = getSupabaseEdge(env);
-  if (supabase) {
-    try {
-      const { data, error } = await supabase
-        .from('orders')
-        .select('extras, updated_at')
-        .eq('id', BLOCKLIST_DOC_ID)
-        .limit(1);
+  if (!supabase) return [];
 
-      if (!error && Array.isArray(data) && data.length > 0) {
-        const rawBlocked = data[0]?.extras?.blockedContacts;
-        if (Array.isArray(rawBlocked)) {
-          return rawBlocked;
-        }
-      }
-    } catch (e) {
-      console.warn('[blocklist] Falha ao ler do Supabase, tentando Firestore:', e.message);
+  // 1. Tenta tabela config (chave: 'blocklist')
+  try {
+    const { data } = await supabase
+      .from('config')
+      .select('valor')
+      .eq('chave', 'blocklist')
+      .maybeSingle();
+
+    if (Array.isArray(data?.valor?.blockedContacts)) {
+      return data.valor.blockedContacts;
     }
+  } catch (e) {
+    console.warn('[blocklist] Erro ao ler config table:', e.message);
   }
 
-  // 2. Fallback Firestore
+  // 2. Fallback na tabela orders com id 'config_blocklist'
   try {
-    const snap = await getDoc(doc(db, 'orders', BLOCKLIST_DOC_ID));
-    if (snap.exists()) {
-      const rawBlocked = snap.data()?.blockedContacts;
+    const { data } = await supabase
+      .from('orders')
+      .select('extras')
+      .eq('id', BLOCKLIST_DOC_ID)
+      .limit(1);
+
+    if (Array.isArray(data) && data.length > 0) {
+      const rawBlocked = data[0]?.extras?.blockedContacts;
       if (Array.isArray(rawBlocked)) {
         return rawBlocked;
       }
     }
-  } catch (err) {
-    console.warn('[blocklist] Falha ao ler do Firestore:', err.message);
+  } catch (e) {
+    console.warn('[blocklist] Erro ao ler fallback orders:', e.message);
   }
 
   return [];
 }
 
 /**
- * Salva a lista de bloqueados atualizada no Firestore e Supabase.
+ * Salva a lista de bloqueados atualizada no Supabase.
  */
 async function salvarBlocklist(blockedContacts, env = {}) {
   const agora = new Date().toISOString();
-  let salvouEmAlgumLugar = false;
-
-  // 1. Grava no Supabase
   const supabase = getSupabaseEdge(env);
-  if (supabase) {
-    try {
-      await supabase.from('orders').upsert({
-        id: BLOCKLIST_DOC_ID,
-        order_number: 'CONFIG-BLOCKLIST',
-        production_status: 'CONFIG',
-        extras: { blockedContacts },
-        updated_at: agora,
-      }, { onConflict: 'id' });
-      salvouEmAlgumLugar = true;
-    } catch (e) {
-      console.warn('[blocklist] Falha ao salvar no Supabase:', e.message);
-    }
-  }
+  if (!supabase) return false;
 
-  // 2. Grava no Firestore
   try {
-    await setDoc(doc(db, 'orders', BLOCKLIST_DOC_ID), {
-      productionStatus: 'CONFIG',
-      orderNumber: 'CONFIG-BLOCKLIST',
-      blockedContacts,
-      updatedAt: agora,
-    }, { merge: true });
-    salvouEmAlgumLugar = true;
-  } catch (err) {
-    console.warn('[blocklist] Falha ao salvar no Firestore:', err.message);
-  }
+    await supabase.from('config').upsert({
+      chave: 'blocklist',
+      valor: { blockedContacts },
+      updated_at: agora,
+    });
 
-  return salvouEmAlgumLugar;
+    // Mantém espelhado em orders para compatibilidade
+    await supabase.from('orders').upsert({
+      id: BLOCKLIST_DOC_ID,
+      order_number: 'CONFIG-BLOCKLIST',
+      production_status: 'CONFIG',
+      extras: { blockedContacts },
+      updated_at: agora,
+    }, { onConflict: 'id' }).catch(() => {});
+
+    return true;
+  } catch (e) {
+    console.warn('[blocklist] Falha ao salvar no Supabase:', e.message);
+    return false;
+  }
 }
 
 /**

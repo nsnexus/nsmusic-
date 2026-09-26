@@ -1,15 +1,12 @@
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
-import { doc, getDoc } from 'firebase/firestore/lite';
-import { dbEdge as db } from '@/lib/firebase-edge';
+import { getOrder } from '@/lib/supabaseDb';
 import { requireAdmin } from '@/lib/auth';
 import { notifyPaymentApproved } from '@/lib/payments';
 
 export const runtime = 'edge';
 
-// Reenvio manual da mensagem "pagamento aprovado" — para pedidos aprovados manualmente no painel
-// admin (updateDoc direto do browser em admin/pedidos/[id]/page.jsx, que não passa por
-// applyPaymentApproval e por isso nunca dispara o WhatsApp automático).
+// Reenvio manual da mensagem "pagamento aprovado"
 export async function POST(req) {
   try {
     let env = {};
@@ -28,18 +25,16 @@ export async function POST(req) {
       return NextResponse.json({ error: 'orderId é obrigatório.' }, { status: 400 });
     }
 
-    const orderRef = doc(db, 'orders', orderId);
-    const snap = await getDoc(orderRef);
-    if (!snap.exists()) {
+    const orderData = await getOrder(orderId, env);
+    if (!orderData) {
       return NextResponse.json({ error: 'Pedido não encontrado.' }, { status: 404 });
     }
 
-    const orderData = snap.data();
     if (orderData.paymentStatus !== 'PAGAMENTO_APROVADO' && orderData.paymentStatus !== 'PAGO') {
       return NextResponse.json({ error: 'Pedido ainda não está com pagamento aprovado.' }, { status: 400 });
     }
 
-    await notifyPaymentApproved(orderRef, orderData, { force: true });
+    await notifyPaymentApproved(orderId, orderData, { force: true }, env);
 
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -1,30 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-let mockFirestoreOrders = {};
-let mockSupabaseOrders = {};
-
-vi.mock('@/lib/firebase-edge', () => ({
-  dbEdge: {}
-}));
-
-vi.mock('firebase/firestore/lite', () => ({
-  doc: (_db, col, id) => ({ col, id }),
-  getDoc: async (docRef) => ({
-    exists: () => Boolean(mockFirestoreOrders[docRef.id]),
-    data: () => mockFirestoreOrders[docRef.id] || null
-  }),
-  updateDoc: async (docRef, data) => {
-    if (mockFirestoreOrders[docRef.id]) {
-      mockFirestoreOrders[docRef.id] = { ...mockFirestoreOrders[docRef.id], ...data };
-    }
-  }
-}));
+let mockOrders = {};
 
 vi.mock('@/lib/supabaseDb', () => ({
-  getOrder: async (id) => mockSupabaseOrders[id] || null,
+  getOrder: async (id) => mockOrders[id] || null,
   updateOrder: async (id, data) => {
-    mockSupabaseOrders[id] = { ...(mockSupabaseOrders[id] || {}), ...data };
-    return mockSupabaseOrders[id];
+    mockOrders[id] = { ...(mockOrders[id] || {}), ...data };
+    return mockOrders[id];
   }
 }));
 
@@ -32,7 +14,7 @@ const { POST } = await import('@/app/api/retrospectiva/save/route');
 
 describe('POST /api/retrospectiva/save', () => {
   beforeEach(() => {
-    mockFirestoreOrders = {
+    mockOrders = {
       'order-liberado': {
         id: 'order-liberado',
         hasRetrospectivaAccess: true,
@@ -44,7 +26,6 @@ describe('POST /api/retrospectiva/save', () => {
         retrospectivaAddonPaid: false
       }
     };
-    mockSupabaseOrders = {};
   });
 
   it('rejeita requisições sem orderId ou retrospectiva com 400', async () => {
@@ -85,9 +66,9 @@ describe('POST /api/retrospectiva/save', () => {
     expect(res.status).toBe(403);
   });
 
-  it('aceita e sanitiza fotos tanto do Cloudflare R2 quanto do Firebase Storage, gravando no Firestore e Supabase', async () => {
+  it('aceita e sanitiza fotos tanto do Cloudflare R2 quanto legadas, gravando no Supabase', async () => {
     const r2Url = 'https://media.nsnexus.com.br/retrospectiva/order-liberado/123_abc.jpg';
-    const firebaseUrl = 'https://firebasestorage.googleapis.com/v0/b/nsmusic.appspot.com/o/foto.jpg?alt=media';
+    const legacyUrl = 'https://firebasestorage.googleapis.com/v0/b/nsmusic.appspot.com/o/foto.jpg?alt=media';
     const invalidUrl = 'https://site-malicioso.com/imagem.jpg';
 
     const req = new Request('http://localhost/api/retrospectiva/save', {
@@ -99,7 +80,7 @@ describe('POST /api/retrospectiva/save', () => {
           titulo: 'Nossa História',
           contadorLabel: 'Casados há',
           dataInicio: '2020-05-15',
-          fotos: [r2Url, firebaseUrl, invalidUrl],
+          fotos: [r2Url, legacyUrl, invalidUrl],
           momentos: [
             { titulo: 'Primeiro Beijo', texto: 'Inesquecível', data: '2020-05-15', fotoUrl: r2Url },
             { titulo: 'Viagem', texto: 'Praia', data: '2021-01-10', fotoUrl: invalidUrl }
@@ -118,12 +99,11 @@ describe('POST /api/retrospectiva/save', () => {
     expect(data.ok).toBe(true);
 
     // Fotos permitidas foram mantidas; URL não autorizada foi filtrada
-    expect(data.retrospectiva.fotos).toEqual([r2Url, firebaseUrl]);
+    expect(data.retrospectiva.fotos).toEqual([r2Url, legacyUrl]);
     expect(data.retrospectiva.momentos[0].fotoUrl).toBe(r2Url);
     expect(data.retrospectiva.momentos[1].fotoUrl).toBe('');
 
-    // Verificação de sincronização nos bancos
-    expect(mockFirestoreOrders['order-liberado'].retrospectiva.fotos).toEqual([r2Url, firebaseUrl]);
-    expect(mockSupabaseOrders['order-liberado'].retrospectiva.fotos).toEqual([r2Url, firebaseUrl]);
+    // Verificação de persistência
+    expect(mockOrders['order-liberado'].retrospectiva.fotos).toEqual([r2Url, legacyUrl]);
   });
 });

@@ -1,12 +1,9 @@
-import { collection, query, where, limit, getDocs } from 'firebase/firestore/lite';
-import { dbEdge as db } from './firebase-edge.js';
 import { getSupabaseEdge } from './supabase-edge.js';
 
 /**
- * Gera um número de pedido único com alta entropia e confirma unicidade no Supabase e Firestore.
+ * Gera um número de pedido único com alta entropia e confirma unicidade no Supabase.
  */
 export async function generateUniqueOrderNumber(env = {}) {
-  const ordersRef = collection(db, 'orders');
   const year = new Date().getFullYear();
 
   for (let attempt = 0; attempt < 5; attempt++) {
@@ -14,7 +11,6 @@ export async function generateUniqueOrderNumber(env = {}) {
     const randomPart = Math.floor(1000 + Math.random() * 9000);
     const candidate = `NS-${timePart}-${randomPart}-${year}`;
 
-    // 1. Checa unicidade no Supabase (se configurado)
     try {
       const supabase = getSupabaseEdge(env);
       if (supabase) {
@@ -28,15 +24,14 @@ export async function generateUniqueOrderNumber(env = {}) {
           if (data.length > 0) continue; // Colidiu, tenta próximo candidato
           return candidate; // Único no Supabase
         }
+      } else {
+        return candidate;
       }
-    } catch {}
-
-    // 2. Fallback resiliente no Firestore
-    const snap = await getDocs(query(ordersRef, where('orderNumber', '==', candidate), limit(1))).catch(() => null);
-    if (!snap || snap.empty) return candidate;
+    } catch {
+      return candidate;
+    }
   }
 
   // Praticamente impossível de colidir: timestamp em milissegundos + aleatório de alta entropia.
   return `NS-${Date.now()}-${Math.floor(Math.random() * 1_000_000)}-${year}`;
 }
-

@@ -4,9 +4,6 @@ import React, { useState, useEffect, useRef, Suspense } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useSearchParams } from 'next/navigation';
-import { doc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
-import { db, storage } from '@/lib/firebase';
 import { primeAudioContext } from '@/lib/audioContext';
 import { AUDIO_CACHE_VERSION } from '@/lib/audioCacheVersion';
 import ExtrasOfferModal from '@/components/ExtrasOfferModal';
@@ -118,44 +115,27 @@ function EntregaContent() {
       // Mesmo tratamento de imagem já usado pra fotos da retrospectiva/vídeo — nunca falha o upload
       // por causa disso, devolve o arquivo original se a compressão der errado (ver imageCompress.js).
       const arquivo = await compressImage(file);
-      let url = null;
-      try {
-        const uploadData = new FormData();
-        uploadData.append('file', arquivo, 'capa.jpg');
-        const uploadRes = await fetch(`/api/media/upload?folder=photos&orderId=${encodeURIComponent(orderId)}`, {
-          method: 'POST',
-          body: uploadData
-        });
-        if (uploadRes.ok) {
-          const resJson = await uploadRes.json();
-          if (resJson?.url) url = resJson.url;
-        }
-      } catch (r2Err) {
-        console.warn('[entrega] Falha no upload R2, caindo para Firebase:', r2Err.message);
-      }
-
-      if (!url) {
-        const safeName = arquivo.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-        const fileRef = ref(storage, `orders/${orderId}/photos/capa_${Date.now()}_${safeName}`);
-        await uploadBytes(fileRef, arquivo);
-        url = await getDownloadURL(fileRef);
-      }
-
-      await updateDoc(doc(db, 'orders', orderId), {
-        coverUrl: url,
-        updatedAt: new Date().toISOString(),
+      const uploadData = new FormData();
+      uploadData.append('file', arquivo, 'capa.jpg');
+      const uploadRes = await fetch(`/api/media/upload?folder=photos&orderId=${encodeURIComponent(orderId)}`, {
+        method: 'POST',
+        body: uploadData
       });
+      if (!uploadRes.ok) {
+        throw new Error('Falha no upload da foto de capa');
+      }
+      const resJson = await uploadRes.json();
+      if (!resJson?.url) {
+        throw new Error('URL da foto não retornada');
+      }
+      const url = resJson.url;
 
-      try {
-        await fetch('/api/orders/update', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ orderId, coverUrl: url })
-        });
-      } catch {}
-
-      // Sem setOrder manual aqui: o onSnapshot da página já atualiza `order.coverUrl` sozinho assim
-      // que a escrita acima confirma no Firestore.
+      await fetch('/api/orders/client-update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId, coverUrl: url })
+      });
+      setOrder(prev => prev ? { ...prev, coverUrl: url } : prev);
     } catch (err) {
       console.error('[entrega] Falha ao trocar a foto de capa:', err?.message);
       setCoverUploadError('Não foi possível trocar a foto agora. Tente novamente.');
@@ -360,15 +340,6 @@ function EntregaContent() {
           }
         } catch (apiErr) {
           console.warn("[entrega] Fallback para leitura direta:", apiErr.message);
-        }
-
-        // 2. Fallback: leitura no Firestore
-        if (!data) {
-          const docRef = doc(db, 'orders', orderId);
-          const docSnap = await fetchWithTimeout(getDoc(docRef));
-          if (docSnap.exists()) {
-            data = docSnap.data();
-          }
         }
 
         if (!cancelled && data) {
@@ -656,28 +627,12 @@ function EntregaContent() {
         console.warn("Erro no fetch do status do PIX (tentando fallback Firestore):", e);
       }
 
-      // 2. Fallback: verifica diretamente no Firestore se o webhook já atualizou
-      // Executa SEMPRE, independentemente do resultado do fetch acima
-      try {
-        const orderSnap = await getDoc(doc(db, 'orders', orderId));
-        if (orderSnap.exists()) {
-          const orderData = orderSnap.data();
-          if (orderData.paymentStatus === 'PAGAMENTO_APROVADO' || orderData.paymentStatus === 'PAGO') {
-            setIsPaidState(true);
-            setOrder(orderData);
-            clearInterval(interval);
-            return;
-          }
-        }
-      } catch (fbErr) {
-        console.warn("Erro no fallback Firestore do PIX:", fbErr);
-      }
     }, 4000);
 
     return () => clearInterval(interval);
   }, [orderId, isPaid, pixInfo.paymentId]);
 
-  // Polling em tempo real para confirmação de pagamento do VÍDEO ADDON (R$ 6,90) com fallback Firestore
+  // Polling em tempo real para confirmação de pagamento do VÍDEO ADDON (R$ 6,90)
   useEffect(() => {
     if (!orderId || !videoPixInfo.paymentId) return;
 
@@ -691,14 +646,12 @@ function EntregaContent() {
         return;
       }
 
-      // 1. Tenta via API backend
+      // Tenta via API backend
       try {
         const res = await fetch(`/api/payments/status?orderId=${orderId}&paymentId=${videoPixInfo.paymentId}`);
         if (res.ok) {
           const data = await res.json();
           if (data.status === 'approved' || data.status === 'PAGO' || data.status === 'PAGAMENTO_APROVADO') {
-            // Idem ao polling da música: a gravação de hasVideoAccess/videoAddonPaid já aconteceu no
-            // servidor — o cliente nunca concede acesso a produto pago diretamente (ver C-09/A-07).
             setHasVideoAccessState(true);
             setPendingVideoPix(false);
             setVideoPixInfo({ qrCode: '', qrCodeBase64: '', paymentId: '' });
@@ -708,51 +661,50 @@ function EntregaContent() {
           }
         }
       } catch (e) {
-        console.warn("Erro no fetch do status do PIX do vídeo (tentando fallback Firestore):", e);
-      }
-
-      // 2. Fallback: verifica diretamente no Firestore se o webhook já atualizou o acesso ao vídeo
-      // Executa SEMPRE, independentemente do resultado do fetch acima
-      try {
-        const orderSnap = await getDoc(doc(db, 'orders', orderId));
-        if (orderSnap.exists()) {
-          const orderData = orderSnap.data();
-          if (orderData.hasVideoAccess || orderData.videoAddonPaid) {
-            setHasVideoAccessState(true);
-            setPendingVideoPix(false);
-            setVideoPixInfo({ qrCode: '', qrCodeBase64: '', paymentId: '' });
-            setOrder(orderData);
-            clearInterval(interval);
-            return;
-          }
-        }
-      } catch (fbErr) {
-        console.warn("Erro no fallback Firestore do PIX do vídeo:", fbErr);
+        console.warn("Erro no fetch do status do PIX do vídeo:", e);
       }
     }, 4000);
 
     return () => clearInterval(interval);
   }, [orderId, videoPixInfo.paymentId]);
 
-  // Escuta atualizações do Firestore em tempo real para o pedido (garante sincronia instantânea do webhook)
+  // Polling leve para atualizações do pedido em tempo real enquanto não estiver aprovado/concluído
   useEffect(() => {
     if (!orderId) return;
-    const unsubscribe = onSnapshot(doc(db, 'orders', orderId), (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        setOrder(data);
-        if (data.paymentStatus === 'PAGAMENTO_APROVADO' || data.paymentStatus === 'PAGO') {
-          setIsPaidState(true);
+    let active = true;
+
+    const checkStatus = async () => {
+      try {
+        const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}`, { cache: 'no-store' });
+        if (res.ok) {
+          const json = await res.json();
+          if (active && json?.order) {
+            const data = json.order;
+            setOrder(data);
+            if (data.paymentStatus === 'PAGAMENTO_APROVADO' || data.paymentStatus === 'PAGO') {
+              setIsPaidState(true);
+            }
+            if (data.hasVideoAccess || data.videoAddonPaid) {
+              setHasVideoAccessState(true);
+              setPendingVideoPix(false);
+              setVideoPixInfo({ qrCode: '', qrCodeBase64: '', paymentId: '' });
+            }
+          }
         }
-        if (data.hasVideoAccess || data.videoAddonPaid) {
-          setHasVideoAccessState(true);
-          setPendingVideoPix(false);
-          setVideoPixInfo({ qrCode: '', qrCodeBase64: '', paymentId: '' });
-        }
+      } catch (e) {}
+    };
+
+    const interval = setInterval(() => {
+      if (!isPaid || !order?.audioUrl || (hasVideoAccess && !order?.videoUrl)) {
+        checkStatus();
       }
-    });
-    return () => unsubscribe();
-  }, [orderId]);
+    }, 3500);
+
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [orderId, isPaid, order?.audioUrl, hasVideoAccess, order?.videoUrl]);
 
   // Prévia de 60 segundos para quem não pagou.
   //
@@ -1611,9 +1563,10 @@ function EntregaContent() {
                                           const updated = existingPhotos.filter((_, i) => i !== idx);
                                           setExistingPhotos(updated);
                                           if (orderId) {
-                                            await updateDoc(doc(db, 'orders', orderId), {
-                                              slideshowImages: updated,
-                                              updatedAt: new Date().toISOString()
+                                            await fetch('/api/orders/client-update', {
+                                              method: 'POST',
+                                              headers: { 'Content-Type': 'application/json' },
+                                              body: JSON.stringify({ orderId, slideshowImages: updated })
                                             }).catch(e => console.warn(e));
                                           }
                                         }}
@@ -1792,47 +1745,31 @@ function EntregaContent() {
                                         // Nunca falha o upload por causa disso — em erro devolve o
                                         // arquivo original (ver src/lib/imageCompress.js).
                                         const arquivo = await compressImage(file);
-                                        let url = null;
-                                        try {
-                                          const uploadData = new FormData();
-                                          uploadData.append('file', arquivo, `photo_${i}.jpg`);
-                                          const uploadRes = await fetch(`/api/media/upload?folder=slideshow&orderId=${encodeURIComponent(orderId)}`, {
-                                            method: 'POST',
-                                            body: uploadData
-                                          });
-                                          if (uploadRes.ok) {
-                                            const resJson = await uploadRes.json();
-                                            if (resJson?.url) url = resJson.url;
-                                          }
-                                        } catch (r2Err) {
-                                          console.warn('[entrega] Falha no upload R2 da foto, caindo para Firebase:', r2Err.message);
+                                        const uploadData = new FormData();
+                                        uploadData.append('file', arquivo, `photo_${i}.jpg`);
+                                        const uploadRes = await fetch(`/api/media/upload?folder=slideshow&orderId=${encodeURIComponent(orderId)}`, {
+                                          method: 'POST',
+                                          body: uploadData
+                                        });
+                                        if (!uploadRes.ok) {
+                                          throw new Error(`Falha no upload da foto ${i + 1}`);
                                         }
-
-                                        if (!url) {
-                                          const fileRef = ref(storage, `orders/${orderId}/photos/${Date.now()}_${i}_${arquivo.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`);
-                                          await uploadBytes(fileRef, arquivo);
-                                          url = await getDownloadURL(fileRef);
+                                        const resJson = await uploadRes.json();
+                                        if (!resJson?.url) {
+                                          throw new Error(`URL da foto ${i + 1} não retornada`);
                                         }
-                                        finalUrls.push(url);
+                                        finalUrls.push(resJson.url);
                                       }
                                       setExistingPhotos(finalUrls);
                                       setNewPhotoFiles([]);
                                     }
 
-                                    // Salva lista final no Firestore e Supabase
-                                    await updateDoc(doc(db, 'orders', orderId), {
-                                      slideshowImages: finalUrls,
-                                      videoStatus: 'GERANDO',
-                                      updatedAt: new Date().toISOString()
+                                    // Salva lista final no Supabase
+                                    await fetch('/api/orders/client-update', {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ orderId, slideshowImages: finalUrls, videoStatus: 'GERANDO' })
                                     }).catch(e => console.warn(e));
-
-                                    try {
-                                      await fetch('/api/orders/update', {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({ orderId, slideshowImages: finalUrls, videoStatus: 'GERANDO' })
-                                      });
-                                    } catch {}
 
                                     setUploadProgressMsg('Gerando vídeo slideshow MP4 HD em silêncio... 10%');
 
@@ -1855,19 +1792,22 @@ function EntregaContent() {
                                     setExistingPhotos([]);
 
                                     // Com o vídeo já gerado e salvo, as fotos originais não servem mais
-                                    // pra nada — apaga da Storage pra não acumular espaço. Falha aqui não
-                                    // pode derrubar o sucesso da geração do vídeo (por isso o catch próprio
-                                    // e sem re-throw).
+                                    // pra nada — apaga do R2 pra não acumular espaço.
                                     try {
                                       await Promise.all(
-                                        finalUrls.map((url) => deleteObject(ref(storage, url)).catch((e) => {
+                                        finalUrls.map((url) => fetch('/api/media/upload', {
+                                          method: 'DELETE',
+                                          headers: { 'Content-Type': 'application/json' },
+                                          body: JSON.stringify({ url })
+                                        }).catch((e) => {
                                           console.warn('Falha ao apagar foto do slideshow:', e?.message);
                                         }))
                                       );
-                                      await updateDoc(doc(db, 'orders', orderId), {
-                                        slideshowImages: [],
-                                        updatedAt: new Date().toISOString()
-                                      });
+                                      await fetch('/api/orders/client-update', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ orderId, slideshowImages: [] })
+                                      }).catch(e => console.warn(e));
                                     } catch (cleanupErr) {
                                       console.warn('Falha ao limpar fotos do slideshow:', cleanupErr?.message);
                                     }

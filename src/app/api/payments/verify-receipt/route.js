@@ -1,29 +1,34 @@
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
-import { doc, getDoc, collection, query, where, limit, getDocs } from 'firebase/firestore/lite';
-import { dbEdge as db } from '@/lib/firebase-edge';
+import { getOrder } from '@/lib/supabaseDb';
 import { getPriceForSku } from '@/lib/pricing';
 import { extractReceiptData, isValidE2eIdFormat } from '@/lib/receiptVerification';
 import { applyPaymentApproval } from '@/lib/payments';
 
 export const runtime = 'edge';
 
-// Liberação automática PROVISÓRIA a partir de comprovante Pix (ver aviso completo em
-// src/lib/receiptVerification.js) — enquanto a integração com a Efí está bloqueada. Qualquer falha
-// de extração/validação devolve approved:false com um motivo seguro; o cliente cai no botão manual
-// de WhatsApp já existente em entrega/page.jsx.
-const MAX_FILE_BASE64_CHARS = 8_000_000; // ~6MB decodificado, folga sobre uma foto de comprovante
+const MAX_FILE_BASE64_CHARS = 8_000_000;
 
 function isAlreadyApproved(order) {
   return order.paymentStatus === 'PAGAMENTO_APROVADO' || order.paymentStatus === 'PAGO';
 }
 
-async function findOrderIdByPaymentId(paymentId) {
-  const ordersRef = collection(db, 'orders');
-  const q = query(ordersRef, where('paymentId', '==', paymentId), limit(1));
-  const snap = await getDocs(q);
-  if (snap.empty) return null;
-  return snap.docs[0].id;
+async function findOrderIdByPaymentId(paymentId, env = {}) {
+  try {
+    const { getSupabaseEdge } = await import('@/lib/supabase-edge');
+    const supabase = getSupabaseEdge(env);
+    if (supabase) {
+      const { data } = await supabase.from('orders')
+        .select('id')
+        .or(`extras->>paymentId.eq.${paymentId},extras->>videoPaymentId.eq.${paymentId}`)
+        .limit(1)
+        .maybeSingle();
+      if (data?.id) return data.id;
+    }
+  } catch (err) {
+    console.warn('[verify-receipt] Falha ao buscar pedido por paymentId:', err.message);
+  }
+  return null;
 }
 
 export async function POST(req) {
@@ -58,14 +63,12 @@ export async function POST(req) {
       return NextResponse.json({ error: `SKU de produto inválido: ${sku}` }, { status: 400 });
     }
 
-    const orderRef = doc(db, 'orders', orderId);
-    const orderSnap = await getDoc(orderRef);
-    if (!orderSnap.exists()) {
+    const order = await getOrder(orderId, env);
+    if (!order) {
       return NextResponse.json({ error: 'Pedido não encontrado.' }, { status: 404 });
     }
-    const order = orderSnap.data();
 
-    // Idempotência: já aprovado (por qualquer via) — não gasta chamada de IA à toa.
+    // Idempotência: já aprovado (por qualquer via)
     if (isAlreadyApproved(order)) {
       return NextResponse.json({ approved: true, reason: 'already_approved' });
     }
@@ -86,10 +89,7 @@ export async function POST(req) {
       return NextResponse.json({ approved: false, reason: 'amount_mismatch' });
     }
 
-    // Mesmo ID já usado em OUTRO pedido — bloqueia reenvio do mesmo comprovante (real ou forjado)
-    // para liberar múltiplos pedidos. Não impede um ID inédito forjado (ver aviso em
-    // receiptVerification.js) — só o reuso.
-    const existingOrderId = await findOrderIdByPaymentId(extracted.e2eId);
+    const existingOrderId = await findOrderIdByPaymentId(extracted.e2eId, env);
     if (existingOrderId && existingOrderId !== orderId) {
       console.warn('[verify-receipt] ID de transação já usado em outro pedido, bloqueado.');
       return NextResponse.json({ approved: false, reason: 'duplicate_receipt' });
@@ -98,7 +98,7 @@ export async function POST(req) {
     const result = await applyPaymentApproval(orderId, extracted.e2eId, {
       status: 'approved',
       transaction_amount: extracted.valor,
-    });
+    }, env);
 
     if (result.applied) {
       return NextResponse.json({ approved: true });

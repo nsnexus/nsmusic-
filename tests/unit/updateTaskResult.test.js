@@ -7,33 +7,19 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 let store;
 
-vi.mock('@/lib/firebase-edge', () => ({ dbEdge: {} }));
 vi.mock('@/lib/whatsapp', () => ({ sendMusicReadyTemplate: vi.fn().mockResolvedValue({ success: true }) }));
 
-vi.mock('firebase/firestore/lite', () => ({
-  doc: (_db, _collection, id) => ({ id }),
-  getDoc: async (ref) => ({
-    exists: () => Object.prototype.hasOwnProperty.call(store, ref.id),
-    data: () => store[ref.id],
+vi.mock('@/lib/supabaseDb', () => ({
+  getOrder: vi.fn(async (id) => (store[id] ? { id, ...store[id] } : null)),
+  updateOrder: vi.fn(async (id, updates) => {
+    store[id] = { ...(store[id] || {}), ...updates };
+    return { success: true };
   }),
-  setDoc: async (ref, data, opts) => {
-    store[ref.id] = opts?.merge ? { ...(store[ref.id] || {}), ...data } : data;
-  },
-  updateDoc: async (ref, data) => {
-    store[ref.id] = { ...(store[ref.id] || {}), ...data };
-  },
-  runTransaction: async (_db, updateFunction) => {
-    const tx = {
-      get: async (ref) => ({
-        exists: () => Object.prototype.hasOwnProperty.call(store, ref.id),
-        data: () => store[ref.id],
-      }),
-      update: (ref, data) => {
-        store[ref.id] = { ...(store[ref.id] || {}), ...data };
-      },
-    };
-    return updateFunction(tx);
-  },
+  getSunoTask: vi.fn(async (id) => (store[id] ? { id, ...store[id] } : null)),
+  saveSunoTask: vi.fn(async (id, status, result, orderId, extra) => {
+    store[id] = { ...(store[id] || {}), id, status, result, orderId, ...extra };
+    return true;
+  }),
 }));
 
 const { updateTaskResult, saveTask } = await import('@/lib/db');

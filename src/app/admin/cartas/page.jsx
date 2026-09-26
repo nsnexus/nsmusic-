@@ -2,18 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { auth, db, storage } from '@/lib/firebase';
+import { onAuthStateChanged, auth, getAdminAuthToken } from '@/lib/authClient';
 import { CARTA_TEMA_SLOTS, CAIXA_TEXTO_PADRAO } from '@/lib/cartaModelo';
 import CartaTemaEditor from '@/components/admin/CartaTemaEditor';
 import Link from 'next/link';
 
-// Painel de temas da Carta Virtual (pedido 04/09/2026) — 7 slots fixos (Romântica + Aniversário/
-// Homenagem/Padrão em masculino e feminino, ver src/lib/cartaModelo.js), cada um com sua própria
-// imagem de fundo e caixa de texto ajustável. Mesmo padrão de autenticação do resto do /admin
-// (e-mail fixo, sem custom claim — ver src/app/admin/page.jsx).
+// Painel de temas da Carta Virtual — 7 slots fixos salvos no Supabase.
 export default function CartaTemasAdmin() {
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [autorizado, setAutorizado] = useState(false);
@@ -50,18 +44,20 @@ export default function CartaTemasAdmin() {
     if (!autorizado) return;
     let ativo = true;
     (async () => {
-      const dados = {};
-      for (const slot of CARTA_TEMA_SLOTS) {
-        try {
-          const snap = await getDoc(doc(db, 'cartaTemas', slot.id));
-          dados[slot.id] = snap.exists()
-            ? { imagemUrl: snap.data().imagemUrl || '', caixaTexto: snap.data().caixaTexto || CAIXA_TEXTO_PADRAO }
+      try {
+        const res = await fetch('/api/carta/temas');
+        const json = res.ok ? await res.json() : null;
+        const dados = {};
+        for (const slot of CARTA_TEMA_SLOTS) {
+          const item = json?.temas?.[slot.id];
+          dados[slot.id] = item?.imagemUrl
+            ? { imagemUrl: item.imagemUrl, caixaTexto: item.caixaTexto || CAIXA_TEXTO_PADRAO }
             : { imagemUrl: '', caixaTexto: CAIXA_TEXTO_PADRAO };
-        } catch (e) {
-          dados[slot.id] = { imagemUrl: '', caixaTexto: CAIXA_TEXTO_PADRAO };
         }
+        if (ativo) { setTemas(dados); setLoading(false); }
+      } catch (err) {
+        if (ativo) setLoading(false);
       }
-      if (ativo) { setTemas(dados); setLoading(false); }
     })();
     return () => { ativo = false; };
   }, [autorizado]);
@@ -70,28 +66,20 @@ export default function CartaTemasAdmin() {
     setEnviandoId(slotId);
     setMsg('');
     try {
-      let url = null;
-      try {
-        const uploadData = new FormData();
-        uploadData.append('file', file);
-        const uploadRes = await fetch(`/api/media/upload?folder=cartaTemas&orderId=${encodeURIComponent(slotId)}`, {
-          method: 'POST',
-          body: uploadData
-        });
-        if (uploadRes.ok) {
-          const resJson = await uploadRes.json();
-          if (resJson?.url) url = resJson.url;
-        }
-      } catch (r2Err) {
-        console.warn('[admin/cartas] Falha no upload R2, caindo para Firebase:', r2Err.message);
+      const uploadData = new FormData();
+      uploadData.append('file', file);
+      const uploadRes = await fetch(`/api/media/upload?folder=cartaTemas&orderId=${encodeURIComponent(slotId)}`, {
+        method: 'POST',
+        body: uploadData
+      });
+      if (!uploadRes.ok) {
+        throw new Error('Falha ao enviar imagem para o R2');
       }
-
-      if (!url) {
-        const nomeArquivo = `${Date.now()}_${file.name}`.replace(/[^\w.\-]/g, '_');
-        const arquivoRef = ref(storage, `cartaTemas/${slotId}/${nomeArquivo}`);
-        await uploadBytes(arquivoRef, file);
-        url = await getDownloadURL(arquivoRef);
+      const resJson = await uploadRes.json();
+      if (!resJson?.url) {
+        throw new Error('URL da imagem não retornada');
       }
+      const url = resJson.url;
 
       setTemas((prev) => ({ ...prev, [slotId]: { ...prev[slotId], imagemUrl: url } }));
     } catch (e) {
@@ -113,11 +101,23 @@ export default function CartaTemasAdmin() {
     setMsg('');
     try {
       const tema = temas[slotId];
-      await setDoc(doc(db, 'cartaTemas', slotId), {
-        imagemUrl: tema.imagemUrl || '',
-        caixaTexto: tema.caixaTexto || CAIXA_TEXTO_PADRAO,
-        updatedAt: new Date().toISOString(),
+      const token = await getAdminAuthToken();
+      const res = await fetch('/api/carta/temas', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({
+          slotId,
+          imagemUrl: tema?.imagemUrl || '',
+          caixaTexto: tema?.caixaTexto || CAIXA_TEXTO_PADRAO
+        })
       });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json.error || `HTTP ${res.status}`);
+      }
       setMsg(`✅ Tema salvo!`);
       setTimeout(() => setMsg(''), 3000);
     } catch (e) {

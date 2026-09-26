@@ -1,53 +1,23 @@
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
-import { collection, query, where, limit, getDocs, doc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore/lite';
-import { dbEdge as db } from '@/lib/firebase-edge';
+import { getSupabaseEdge } from '@/lib/supabase-edge';
+import { updateOrder } from '@/lib/supabaseDb';
+import { mapSupabaseOrderToFirestore } from '@/lib/supabaseSync';
 import { consolidateOrders } from '@/lib/stats';
 import { requireAdmin } from '@/lib/auth';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
-// Limpeza de pedidos antigos.
-//
-// Decisão de negócio (28/08/2026): pedido NÃO PAGO com mais de RETENTION_DAYS dias é apagado DE
-// VERDADE (documento, suno_tasks e arquivos no Storage). É esse o volume que pesa — prévia gerada e
-// abandonada, que ninguém vai acessar de novo. QUEM PAGOU FICA: o cliente continua conseguindo abrir
-// a entrega e baixar meses depois. Exceção consciente à regra de exclusão lógica de
-// .claude/rules/database.md, que existe para exclusão pontual feita pelo admin — aqui o objetivo é
-// parar de pagar armazenamento, e um `deletedAt` continuaria custando.
-//
-// O FATURAMENTO não se perde: antes de apagar, os números vão para a coleção `stats`
-// (ver src/lib/stats.js) — quantas músicas geradas/pagas, vídeos, playbacks e receita, por dia.
-//
-// IRREVERSÍVEL: não há como recuperar o que esta rota apaga. Por isso ela roda em modo simulação
-// (?dryRun=true) sem apagar nada, e o cron abaixo é o único que executa de verdade.
-
 const RETENTION_DAYS = 10;
-
-// Fotos do slideshow (upload feito pelo cliente pra gerar o Vídeo Homenagem, ver entrega/page.jsx)
-// já são apagadas do Storage pelo PRÓPRIO NAVEGADOR assim que o vídeo termina de renderizar — mas
-// isso só acontece no caminho feliz. Se o cliente fecha a aba, a conexão cai, ou a renderização
-// falha no meio (videoStatus fica 'GERANDO' ou 'ERRO'), as fotos ficam órfãs no Storage pra sempre —
-// ninguém mais aponta pra elas, e o cliente normalmente nem volta pra tentar de novo (pedido do
-// admin, 02/09/2026). Retenção bem mais curta que RETENTION_DAYS: são fotos de terceiros
-// (homenageado), não o produto pago em si, e não faz sentido guardar por 10 dias uma tentativa
-// abandonada de vídeo.
 const STALE_PHOTO_HOURS = 48;
 const MAX_PHOTO_ORDERS_PER_RUN = 30;
-
-// Teto por execução: cada pedido custa leitura + escrita + chamadas ao Storage, e o Edge Runtime tem
-// limite de CPU e de subrequests por requisição. O cron roda diariamente, então o backlog é
-// consumido em algumas execuções em vez de tentar tudo de uma vez e estourar no meio.
 const MAX_ORDERS_PER_RUN = 40;
 
 function readEnv(env, name) {
   return String((env && env[name]) || process.env[name] || '').trim();
 }
 
-// Quem pagou nunca é apagado. Considera pago também quem comprou só um add-on (vídeo ou playback)
-// sem que o pagamento principal tenha sido registrado — é dinheiro que entrou, o cliente tem
-// conteúdo liberado esperando por ele. PAGO e PAGAMENTO_APROVADO são equivalentes (ver CLAUDE.md).
 function isPaidOrder(order) {
   return Boolean(
     order?.paymentStatus === 'PAGAMENTO_APROVADO' ||
@@ -60,8 +30,6 @@ function isPaidOrder(order) {
   );
 }
 
-// Autoriza por segredo compartilhado (cron, que não tem conta de usuário) OU por token de admin
-// (uso manual pelo painel) — mesmo padrão de api/orders/reconcile.
 async function authorize(req, env) {
   const expectedSecret = readEnv(env, 'CLEANUP_SECRET') || readEnv(env, 'RECONCILE_SECRET');
   if (expectedSecret) {
@@ -75,57 +43,58 @@ async function authorize(req, env) {
   return { ok: false, status: admin.status || 401, error: admin.error || 'Não autorizado.' };
 }
 
-// Apaga um arquivo do Firebase Storage pela URL pública salva no pedido.
-//
-// Usa a REST API em vez do SDK `firebase/storage`: aquele pacote não tem build `lite` e importá-lo
-// numa rota Edge quebra o build do Cloudflare (ver .claude/rules/backend.md). A URL pública tem o
-// formato .../v0/b/BUCKET/o/CAMINHO_ESCAPADO?alt=media&token=..., e o DELETE é no mesmo caminho sem
-// a query string.
-async function deleteStorageFile(rawUrl) {
+async function deleteStorageFile(rawUrl, env = {}) {
   if (!rawUrl || typeof rawUrl !== 'string') return false;
-  if (!rawUrl.includes('firebasestorage.googleapis.com')) return false;
 
-  try {
-    const parsed = new URL(rawUrl);
-    const deleteUrl = `${parsed.origin}${parsed.pathname}`;
-    const res = await fetch(deleteUrl, { method: 'DELETE', signal: AbortSignal.timeout(10000) });
-    // 404 = já não existe: para o objetivo (não pagar por ele) é o mesmo que sucesso.
-    return res.ok || res.status === 404;
-  } catch (err) {
-    console.warn('[cleanup] Falha ao apagar arquivo do Storage:', err.message);
-    return false;
+  // Cloudflare R2
+  if (env?.nsmusic_media && rawUrl.includes(readEnv(env, 'R2_PUBLIC_URL'))) {
+    try {
+      const parsed = new URL(rawUrl);
+      const key = parsed.pathname.replace(/^\/+/, '');
+      await env.nsmusic_media.delete(key);
+      return true;
+    } catch (e) {
+      console.warn('[cleanup] Erro ao deletar de R2:', e.message);
+      return false;
+    }
   }
+
+  // Firebase legacy
+  if (rawUrl.includes('firebasestorage.googleapis.com')) {
+    try {
+      const parsed = new URL(rawUrl);
+      const deleteUrl = `${parsed.origin}${parsed.pathname}`;
+      const res = await fetch(deleteUrl, { method: 'DELETE', signal: AbortSignal.timeout(10000) });
+      return res.ok || res.status === 404;
+    } catch (err) {
+      console.warn('[cleanup] Falha ao apagar arquivo do Storage:', err.message);
+      return false;
+    }
+  }
+
+  return false;
 }
 
-// Todos os campos do pedido que podem apontar para um arquivo no nosso Storage.
 function collectStorageUrls(order) {
   const urls = [];
   if (order?.coverUrl) urls.push(order.coverUrl);
   if (order?.videoUrl) urls.push(order.videoUrl);
   if (Array.isArray(order?.slideshowImages)) urls.push(...order.slideshowImages);
   if (Array.isArray(order?.existingPhotos)) urls.push(...order.existingPhotos);
-  return urls.filter((u) => typeof u === 'string' && u.includes('firebasestorage.googleapis.com'));
+  return urls.filter((u) => typeof u === 'string');
 }
 
-async function deleteRelatedTasks(orderId) {
-  let removed = 0;
+async function deleteRelatedTasks(orderId, supabase) {
+  if (!supabase) return 0;
   try {
-    const snap = await getDocs(query(collection(db, 'suno_tasks'), where('orderId', '==', orderId), limit(10)));
-    for (const taskDoc of snap.docs) {
-      await deleteDoc(doc(db, 'suno_tasks', taskDoc.id))
-        .then(() => { removed++; })
-        .catch((e) => console.warn(`[cleanup] Erro ao remover suno_task ${taskDoc.id}:`, e.message));
-    }
+    const { data } = await supabase.from('suno_tasks').delete().eq('order_id', orderId).select('id');
+    return Array.isArray(data) ? data.length : 0;
   } catch (err) {
     console.warn('[cleanup] Erro ao listar suno_tasks do pedido:', err.message);
+    return 0;
   }
-  return removed;
 }
 
-// O nome do arquivo no Storage começa com Date.now() no momento do upload (ver
-// `orders/${orderId}/photos/${Date.now()}_${i}_${nome}` em entrega/page.jsx) — dá pra saber a idade
-// real de cada foto sem precisar de uma chamada de metadata extra por arquivo. A URL pública tem a
-// barra do path escapada (%2F), por isso decodeURIComponent antes de casar o padrão.
 function extractPhotoTimestamp(rawUrl) {
   try {
     const decodedPath = decodeURIComponent(new URL(rawUrl).pathname);
@@ -136,41 +105,35 @@ function extractPhotoTimestamp(rawUrl) {
   }
 }
 
-// Limpa fotos de slideshow órfãs (upload feito, vídeo nunca terminou de gerar) com mais de
-// STALE_PHOTO_HOURS. Não apaga o pedido nem toca em `paymentStatus`/áudio — só o array
-// `slideshowImages` e os arquivos que ele aponta. `videoStatus` cobre os dois jeitos de travar: preso
-// em 'GERANDO' (aba fechada no meio) ou 'ERRO' (falhou e o cliente nunca tentou de novo).
 async function cleanupStalePhotos(env, { dryRun }) {
   const result = { checked: 0, ordersCleaned: 0, filesDeleted: 0, errors: 0, dryRun };
+  const supabase = getSupabaseEdge(env);
+  if (!supabase) return { ...result, error: 'Supabase não inicializado' };
 
-  let snap;
+  let orders = [];
   try {
-    snap = await getDocs(query(
-      collection(db, 'orders'),
-      where('videoStatus', 'in', ['GERANDO', 'ERRO']),
-      limit(MAX_PHOTO_ORDERS_PER_RUN)
-    ));
+    const { data, error } = await supabase
+      .from('orders')
+      .select('*')
+      .in('video_status', ['GERANDO', 'ERRO'])
+      .is('deleted_at', null)
+      .limit(MAX_PHOTO_ORDERS_PER_RUN);
+
+    if (error) throw error;
+    orders = (data || []).map(mapSupabaseOrderToFirestore);
   } catch (err) {
     console.warn('[cleanup] Falha ao listar pedidos com fotos pendentes:', err.message);
-    return { ...result, error: err?.code || 'consulta_falhou' };
+    return { ...result, error: err?.message || 'consulta_falhou' };
   }
 
   const cutoffMs = Date.now() - STALE_PHOTO_HOURS * 60 * 60 * 1000;
 
-  for (const d of snap.docs) {
-    const data = d.data();
+  for (const data of orders) {
     const photos = Array.isArray(data.slideshowImages) ? data.slideshowImages.filter((u) => typeof u === 'string') : [];
     if (photos.length === 0) continue;
 
-    // Retrospectiva paga EXIBE essas fotos para sempre, numa página pública compartilhável (ver
-    // /retrospectiva). Diferente do vídeo — que consome as fotos uma vez e gera um MP4 — aqui elas
-    // são o produto. Apagar quebraria a página de um cliente que pagou, então esses pedidos nunca
-    // entram nesta limpeza.
     if (data.hasRetrospectivaAccess || data.retrospectivaAddonPaid) continue;
 
-    // Sem timestamp legível no nome (pedido bem antigo, formato mudou), trata como antiga — mesma
-    // postura conservadora de isOlderThan em api/orders/reconcile: preferir limpar a acumular pra
-    // sempre um caso que não deveria existir no fluxo atual.
     const isStale = photos.every((url) => {
       const ts = extractPhotoTimestamp(url);
       return ts === null || ts < cutoffMs;
@@ -182,20 +145,20 @@ async function cleanupStalePhotos(env, { dryRun }) {
 
     let allDeleted = true;
     for (const url of photos) {
-      const ok = await deleteStorageFile(url);
+      const ok = await deleteStorageFile(url, env);
       if (ok) result.filesDeleted++; else allDeleted = false;
     }
 
     if (allDeleted) {
       try {
-        await updateDoc(doc(db, 'orders', d.id), {
+        await updateOrder(data.id, {
           slideshowImages: [],
           updatedAt: new Date().toISOString(),
-        });
+        }, env);
         result.ordersCleaned++;
       } catch (err) {
         result.errors++;
-        console.warn(`[cleanup] Falha ao limpar slideshowImages do pedido ${d.id}:`, err.message);
+        console.warn(`[cleanup] Falha ao limpar slideshowImages do pedido ${data.id}:`, err.message);
       }
     } else {
       result.errors++;
@@ -221,43 +184,40 @@ async function runCleanup(env, { dryRun }) {
     errors: 0,
   };
 
-  // createdAt é gravado como string ISO em todo o sistema (convenção do CLAUDE.md), e comparação
-  // lexicográfica de ISO é equivalente à cronológica — campo único, índice automático do Firestore.
-  let snap;
+  const supabase = getSupabaseEdge(env);
+  if (!supabase) {
+    return { ...result, error: 'Supabase não inicializado' };
+  }
+
+  let orders = [];
   try {
-    snap = await getDocs(query(
-      collection(db, 'orders'),
-      where('createdAt', '<', cutoffIso),
-      limit(MAX_ORDERS_PER_RUN)
-    ));
+    const { data, error } = await supabase
+      .from('orders')
+      .select('*')
+      .lt('created_at', cutoffIso)
+      .is('deleted_at', null)
+      .limit(MAX_ORDERS_PER_RUN);
+
+    if (error) throw error;
+    orders = (data || []).map(mapSupabaseOrderToFirestore);
   } catch (err) {
     console.error('[cleanup] Falha ao listar pedidos antigos:', err.message);
-    return { ...result, error: err?.code || 'consulta_falhou' };
+    return { ...result, error: err?.message || 'consulta_falhou' };
   }
 
   const candidates = [];
-  for (const d of snap.docs) {
-    const data = d.data();
-    // Documentos de sistema (config_whatsapp, session_* do agente) não são pedidos e têm ciclo de
-    // vida próprio — as sessões abandonadas já são limpas por api/orders/reconcile.
-    if (d.id.startsWith('config_') || d.id.startsWith('session_')) continue;
+  for (const data of orders) {
+    if (data.id.startsWith('config_') || data.id.startsWith('session_')) continue;
     if (data.productionStatus === 'CONFIG' || data.productionStatus === 'RASCUNHO') continue;
-    candidates.push({ id: d.id, data, paid: isPaidOrder(data) });
+    candidates.push({ id: data.id, data, paid: isPaidOrder(data) });
   }
 
   result.found = candidates.length;
   if (candidates.length === 0) return result;
 
-  // QUEM PAGOU FICA. Só o pedido não pago é apagado — é ele que representa a maior parte do volume
-  // (prévia gerada e abandonada) e não tem cliente esperando acessar depois. Cliente que pagou
-  // continua conseguindo abrir a página de entrega e baixar meses depois.
   const toDelete = candidates.filter((c) => !c.paid);
   result.paidKept = candidates.length - toDelete.length;
 
-  // Consolida TODOS os antigos (pagos e não pagos), não só os que serão apagados: assim a coleção
-  // `stats` reflete o período inteiro, e não uma fatia enviesada só de quem não pagou. A flag
-  // statsConsolidated impede que o pedido pago — que continua no banco e reaparece nesta consulta
-  // todo dia — seja somado de novo a cada execução.
   const toConsolidate = candidates.filter((c) => !c.data.statsConsolidated);
 
   if (dryRun) {
@@ -274,31 +234,29 @@ async function runCleanup(env, { dryRun }) {
   }
 
   if (toConsolidate.length > 0) {
-    const stats = await consolidateOrders(toConsolidate.map((c) => c.data));
+    const stats = await consolidateOrders(toConsolidate.map((c) => c.data), env);
     if (stats.error) {
-      // Sem métricas gravadas, apagar seria perder o faturamento do período — aborta e tenta amanhã.
       console.error('[cleanup] Consolidação falhou; nada será apagado nesta execução.');
       return { ...result, error: 'consolidacao_falhou', errors: 1 };
     }
     result.consolidated = stats.consolidated;
 
     for (const c of toConsolidate) {
-      await updateDoc(doc(db, 'orders', c.id), { statsConsolidated: true })
+      await updateOrder(c.id, { statsConsolidated: true }, env)
         .catch((e) => console.warn(`[cleanup] Erro ao marcar pedido consolidado:`, e.message));
     }
   }
 
-  // toDelete, não candidates: pedido pago é preservado por completo (documento, arquivos e tasks).
   for (const c of toDelete) {
     try {
       for (const url of collectStorageUrls(c.data)) {
-        const ok = await deleteStorageFile(url);
+        const ok = await deleteStorageFile(url, env);
         if (ok) result.filesDeleted++;
       }
 
-      result.tasksDeleted += await deleteRelatedTasks(c.id);
+      result.tasksDeleted += await deleteRelatedTasks(c.id, supabase);
 
-      await deleteDoc(doc(db, 'orders', c.id));
+      await supabase.from('orders').delete().eq('id', c.id);
       result.ordersDeleted++;
     } catch (err) {
       result.errors++;
@@ -309,7 +267,6 @@ async function runCleanup(env, { dryRun }) {
   return result;
 }
 
-// GET = simulação sempre (nunca apaga), para conferir pelo navegador o que seria removido.
 export async function GET(req) {
   let env = {};
   try {
@@ -328,7 +285,6 @@ export async function GET(req) {
   return NextResponse.json({ orders, photos });
 }
 
-// POST = execução real, salvo com ?dryRun=true.
 export async function POST(req) {
   try {
     let env = {};
@@ -343,8 +299,6 @@ export async function POST(req) {
     const dryRun = new URL(req.url).searchParams.get('dryRun') === 'true';
     const orders = await runCleanup(env, { dryRun });
 
-    // Fase independente (mesmo padrão de api/orders/reconcile): uma falha aqui nunca pode impedir a
-    // limpeza de pedidos antigos, que já rodou e é a que mais pesa no custo de armazenamento.
     let photos;
     try {
       photos = await cleanupStalePhotos(env, { dryRun });

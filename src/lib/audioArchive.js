@@ -140,51 +140,17 @@ export async function copyAudioToR2(sourceUrl, destPath, r2Bucket, publicBaseUrl
 }
 
 /**
- * Fallback: copia pro Firebase Storage via REST API (usado só quando o binding R2 não está
- * disponível no ambiente). Body repassado como ArrayBuffer porque o upload precisa do tamanho
- * conhecido; SDK `firebase/storage` não tem build `lite` e quebraria o build Edge se importado aqui.
- */
-export async function copyAudioToStorage(sourceUrl, destPath, bucket) {
-  const fetched = await fetchSourceAudio(sourceUrl);
-  if (!fetched.ok) return fetched;
-  const buffer = fetched.buffer;
-
-  const uploadUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket}/o?uploadType=media&name=${encodeURIComponent(destPath)}`;
-  const upload = await fetch(uploadUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'audio/mpeg' },
-    body: buffer,
-    signal: AbortSignal.timeout(60000),
-  });
-
-  if (!upload.ok) {
-    const detail = await upload.text().catch(() => '');
-    return { ok: false, reason: `upload_http_${upload.status}`, detail: detail.slice(0, 200) };
-  }
-
-  const meta = await upload.json().catch(() => null);
-  const token = meta?.downloadTokens;
-  const publicUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodeURIComponent(destPath)}?alt=media${token ? `&token=${token}` : ''}`;
-  return { ok: true, url: publicUrl, bytes: buffer.byteLength };
-}
-
-/**
- * Arquiva TODAS as faixas de um pedido (audioFiles, ou audioUrl como única faixa) e devolve o novo
- * array pronto pra gravar em orders/{id}.audioFiles/audioUrl. Faixa já no nosso storage é
- * preservada como está — não recopia. Faixa que falhar mantém a URL antiga (a origem ainda pode
- * estar de pé; melhor um link que talvez funcione do que nenhum).
- *
- * Prefere R2 (`opts.r2Bucket` = binding `env.nsmusic_media`, `opts.r2PublicUrl` = env R2_PUBLIC_URL);
- * cai pro Firebase Storage (`opts.firebaseBucket`) só se o binding R2 não estiver disponível nesse
- * ambiente — nunca deixa de arquivar por falta de um dos dois.
+ * Arquiva TODAS as faixas de um pedido no Cloudflare R2 e devolve o novo array
+ * pronto pra gravar em orders/{id}.audioFiles/audioUrl. Faixa já no nosso storage é
+ * preservada como está — não recopia.
  *
  * @param {string} orderId
  * @param {string[]} files URLs atuais das faixas (Kie.ai/Suno ou já nossas)
- * @param {{r2Bucket?: object, r2PublicUrl?: string, firebaseBucket?: string}} opts
+ * @param {{r2Bucket?: object, r2PublicUrl?: string}} opts
  * @returns {Promise<{files: string[], anyFailure: boolean, filesCopied: number, bytesCopied: number, destino: string}>}
  */
 export async function archiveAudioFiles(orderId, files, opts = {}) {
-  const { r2Bucket, r2PublicUrl, firebaseBucket } = opts;
+  const { r2Bucket, r2PublicUrl } = opts;
   const usaR2 = Boolean(r2Bucket && r2PublicUrl);
   const archived = [];
   let anyFailure = false;
@@ -201,9 +167,7 @@ export async function archiveAudioFiles(orderId, files, opts = {}) {
     const destPath = `audios/${orderId}/versao-${i + 1}.mp3`;
     const copy = usaR2
       ? await copyAudioToR2(source, destPath, r2Bucket, r2PublicUrl)
-      : firebaseBucket
-        ? await copyAudioToStorage(source, destPath, firebaseBucket)
-        : { ok: false, reason: 'sem_destino_configurado' };
+      : { ok: false, reason: 'r2_nao_configurado' };
 
     if (copy.ok) {
       archived.push(copy.url);
@@ -216,7 +180,7 @@ export async function archiveAudioFiles(orderId, files, opts = {}) {
     }
   }
 
-  return { files: archived, anyFailure, filesCopied, bytesCopied, destino: usaR2 ? 'r2' : 'firebase' };
+  return { files: archived, anyFailure, filesCopied, bytesCopied, destino: 'r2' };
 }
 
 /**
@@ -233,14 +197,24 @@ export async function archiveAudioFiles(orderId, files, opts = {}) {
  *
  * @returns {Promise<{arquivou: boolean, motivo?: string, files?: string[]}>}
  */
-export async function arquivarAudioDoPedido({ orderRef, orderId, env, doc: docRef, getDoc, updateDoc }) {
+import { getOrder, updateOrder } from './supabaseDb.js';
+
+export async function arquivarAudioDoPedido({ orderRef, orderId: explicitOrderId, env = {}, doc: docRef, getDoc, updateDoc }) {
+  const orderId = explicitOrderId || (typeof orderRef === 'string' ? orderRef : orderRef?.id);
+  if (!orderId) return { arquivou: false, motivo: 'sem_order_id' };
   try {
     let filesParaArquivar = [];
     let deveArquivar = false;
 
-    const freshSnap = await getDoc(orderRef);
-    if (freshSnap.exists()) {
-      const freshData = freshSnap.data();
+    let freshData = null;
+    if (getDoc && orderRef) {
+      const freshSnap = await getDoc(orderRef);
+      if (freshSnap.exists()) freshData = freshSnap.data();
+    } else {
+      freshData = await getOrder(orderId, env);
+    }
+
+    if (freshData) {
       filesParaArquivar = Array.isArray(freshData.audioFiles) && freshData.audioFiles.length
         ? freshData.audioFiles
         : [freshData.audioUrl].filter(Boolean);
@@ -248,31 +222,29 @@ export async function arquivarAudioDoPedido({ orderRef, orderId, env, doc: docRe
       // Reserva sequencial: webhook e polling chegam em paralelo e copiariam os mesmos MB duas vezes.
       const temArquivosExternos = filesParaArquivar.some((u) => !isOurStorage(u));
       if (filesParaArquivar.length > 0 && temArquivosExternos && !freshData.audioArchiving) {
-        await updateDoc(orderRef, { audioArchiving: true });
+        await updateOrder(orderId, { audioArchiving: true }, env);
         deveArquivar = true;
       }
     }
 
     if (!deveArquivar) return { arquivou: false, motivo: 'nada_a_fazer' };
 
-    // R2 primeiro (binding `nsmusic_media`, só existe no runtime real da Cloudflare); Firebase
-    // Storage como reserva quando o binding falta.
     const r2Bucket = env?.nsmusic_media;
     const r2PublicUrl = env?.R2_PUBLIC_URL || process.env.R2_PUBLIC_URL;
-    const firebaseBucket = env?.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
 
-    if (!((r2Bucket && r2PublicUrl) || firebaseBucket)) {
-      console.warn('[audioArchive] Nem R2 nem Firebase Storage configurados — áudio não arquivado.');
-      await updateDoc(orderRef, { audioArchiving: false }).catch(() => {});
+    if (!(r2Bucket && r2PublicUrl)) {
+      console.warn('[audioArchive] R2 não configurado — áudio não arquivado.');
+      await updateOrder(orderId, { audioArchiving: false }, env).catch(() => {});
       return { arquivou: false, motivo: 'sem_destino' };
     }
 
-    const { files: archived, anyFailure } = await archiveAudioFiles(orderId, filesParaArquivar, { r2Bucket, r2PublicUrl, firebaseBucket });
+    const { files: archived, anyFailure } = await archiveAudioFiles(orderId, filesParaArquivar, { r2Bucket, r2PublicUrl });
 
     // Nunca gravar menos faixas do que o pedido já tinha: a Suno entrega duas versões e o cliente
     // pagou pelas duas (mesma trava de api/orders/refresh-audio, 25/09/2026).
     if (archived.length < filesParaArquivar.length) {
-      await updateDoc(orderRef, { audioArchiving: false, audioArchiveFailedAt: new Date().toISOString() }).catch(() => {});
+      const failPayload = { audioArchiving: false, audioArchiveFailedAt: new Date().toISOString() };
+      await updateOrder(orderId, failPayload, env).catch(() => {});
       return { arquivou: false, motivo: 'copia_parcial' };
     }
 
@@ -285,18 +257,15 @@ export async function arquivarAudioDoPedido({ orderRef, orderId, env, doc: docRe
         ? { audioArchiveFailedAt: nowIso }
         : { audioArchivedAt: nowIso, audioArchiveFailedAt: null }),
     };
-    await updateDoc(orderRef, archivePayload);
 
-    // Espelha a URL definitiva do R2 para o Supabase
-    try {
-      const { mirrorOrderToSupabase } = await import('./supabaseSync.js');
-      mirrorOrderToSupabase(orderId, archivePayload, env).catch(() => {});
-    } catch {}
+    await updateOrder(orderId, archivePayload, env);
 
     return { arquivou: !anyFailure, files: archived };
   } catch (err) {
     console.warn('[audioArchive] Falha ao arquivar áudio na chegada:', err.message);
-    try { await updateDoc(orderRef, { audioArchiving: false }); } catch (e) {}
+    try {
+      await updateOrder(orderId, { audioArchiving: false }, env);
+    } catch (e) {}
     return { arquivou: false, motivo: 'erro' };
   }
 }

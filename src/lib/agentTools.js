@@ -1,5 +1,4 @@
-import { doc, getDoc, updateDoc } from 'firebase/firestore/lite';
-import { dbEdge as db } from './firebase-edge.js';
+import { getOrder, updateOrder } from './supabaseDb.js';
 import { findRecentOrderByPhone } from './orderLookup.js';
 import { resolveDeliveryUrl, buildAudioDownloadLink } from './whatsappTemplates.js';
 import { getChargeStatus } from './efi.js';
@@ -159,11 +158,11 @@ ${pedido.lyrics}`;
     const letra = String(nova || '').trim();
     if (!letra || letra.length < 40) return { ok: false, motivo: 'resposta_invalida' };
 
-    await updateDoc(doc(db, 'orders', pedido.id), {
+    await updateOrder(pedido.id, {
       lyrics: letra,
       lyricsAjustadaEm: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-    });
+    }, env);
 
     return { ok: true, letra };
   } catch (err) {
@@ -189,15 +188,12 @@ export async function regerarMusica(pedido, { novoEstilo = null } = {}, env = {}
   }
 
   try {
-    const orderRef = doc(db, 'orders', pedido.id);
-
     if (novoEstilo) {
-      await updateDoc(orderRef, { musicStyle: novoEstilo, updatedAt: new Date().toISOString() });
+      await updateOrder(pedido.id, { musicStyle: novoEstilo, updatedAt: new Date().toISOString() }, env);
     }
 
     // Relê o pedido para montar o payload com a letra/estilo já atualizados por este mesmo turno.
-    const snap = await getDoc(orderRef);
-    const atual = snap.exists() ? { id: pedido.id, ...snap.data() } : pedido;
+    const atual = (await getOrder(pedido.id, env)) || pedido;
 
     const { buildSunoPayload } = await import('./sunoPayload.js');
     const { requestSunoGeneration } = await import('./suno.js');
@@ -211,11 +207,11 @@ export async function regerarMusica(pedido, { novoEstilo = null } = {}, env = {}
 
     if (!resultado.ok) return { ok: false, motivo: 'falha_na_geracao' };
 
-    await updateDoc(orderRef, {
+    await updateOrder(pedido.id, {
       regeracoesPeloBot: jaRegerou + 1,
       productionStatus: 'GERANDO_AUDIO',
       updatedAt: new Date().toISOString(),
-    });
+    }, env);
 
     return { ok: true, taskId: resultado.taskId, estilo: novoEstilo || atual.musicStyle || null };
   } catch (err) {

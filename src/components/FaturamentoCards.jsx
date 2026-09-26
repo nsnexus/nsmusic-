@@ -1,10 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { where } from 'firebase/firestore';
-import { auth } from '@/lib/firebase';
+import { getAdminAuthToken } from '@/lib/authClient';
 import { getPriceForSku } from '@/lib/pricing';
-import { buscarPedidosPaginado } from '@/lib/buscarPedidosPaginado';
 
 // Cards de faturamento do topo do dashboard admin — extraído de admin/page.jsx (pedido 12/09/2026:
 // "os valores não estão batendo" com a tabela Vendas por dia, ver VendasPorDiaTable.jsx).
@@ -49,46 +47,25 @@ export default function FaturamentoCards({ dateFrom, dateTo }) {
 
       // 1. Tenta buscar direto os totais calculados no Supabase (alta performance)
       try {
-        const token = await auth.currentUser?.getIdToken();
-        if (token) {
-          const params = new URLSearchParams({ tipo: 'faturamento' });
-          if (dateFrom) params.set('dateFrom', dateFrom);
-          if (dateTo) params.set('dateTo', dateTo);
+        const token = await getAdminAuthToken();
+        const params = new URLSearchParams({ tipo: 'faturamento' });
+        if (dateFrom) params.set('dateFrom', dateFrom);
+        if (dateTo) params.set('dateTo', dateTo);
 
-          const res = await fetch(`/api/admin/reports?${params.toString()}`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          if (res.ok) {
-            const json = await res.json().catch(() => null);
-            if (json?.ok && typeof json.faturamentoTotal === 'number') {
-              if (!ativo) return;
-              setSupaStats(json);
-              setLoading(false);
-              return;
-            }
+        const res = await fetch(`/api/admin/reports?${params.toString()}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (res.ok) {
+          const json = await res.json().catch(() => null);
+          if (json?.ok && typeof json.faturamentoTotal === 'number') {
+            if (!ativo) return;
+            setSupaStats(json);
+            setLoading(false);
+            return;
           }
         }
       } catch (err) {
-        console.warn('[FaturamentoCards] Falha ao consultar Supabase, caindo para Firestore:', err.message);
-      }
-
-      // 2. Fallback resiliente no Firestore
-      try {
-        const constraints = [];
-        if (dateFrom) {
-          const inicio = localDayStart(dateFrom);
-          inicio.setDate(inicio.getDate() - LOOKBACK_DAYS);
-          constraints.unshift(where('createdAt', '>=', inicio.toISOString()));
-        }
-        if (dateTo) {
-          constraints.unshift(where('createdAt', '<=', localDayEnd(dateTo).toISOString()));
-        }
-
-        const { pedidos: validos } = await buscarPedidosPaginado(constraints);
-        if (!ativo) return;
-        setPedidos(validos);
-      } catch (e) {
-        console.error('[FaturamentoCards] Erro ao buscar pedidos do período:', e.message);
+        console.warn('[FaturamentoCards] Falha ao consultar relatórios:', err.message);
         if (ativo) setErro('Não foi possível carregar os valores do período.');
       } finally {
         if (ativo) setLoading(false);

@@ -6,29 +6,38 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // aqui cobrem a política de quantas vezes retentar e o encadeamento de taskId, não o transporte HTTP
 // em si (isso já é coberto indiretamente pelos mocks de fetch abaixo).
 
-let store; // um único mapa por id, compartilhado entre "orders" e "suno_tasks" (mesmo padrão de
-           // tests/unit/payments.test.js) — os ids usados nos testes nunca colidem entre as duas.
+let store;
 
-vi.mock('@/lib/firebase-edge', () => ({ dbEdge: {} }));
+vi.mock('@/lib/supabase-edge', () => ({
+  getSupabaseEdge: vi.fn(() => ({
+    from: () => ({
+      update: (data) => ({
+        eq: (_col, val) => {
+          if (store[val]) {
+            store[val] = { ...store[val], retryTaskId: data.retry_task_id || data.retryTaskId };
+          } else {
+            store[val] = { retryTaskId: data.retry_task_id || data.retryTaskId };
+          }
+          return Promise.resolve({ data: null, error: null });
+        }
+      })
+    })
+  }))
+}));
 
-vi.mock('firebase/firestore/lite', () => ({
-  doc: (_db, _collection, id) => ({ id }),
-  getDoc: async (ref) => ({
-    exists: () => Object.prototype.hasOwnProperty.call(store, ref.id),
-    data: () => store[ref.id],
-  }),
-  updateDoc: async (ref, data) => {
-    const current = store[ref.id] || {};
+vi.mock('@/lib/supabaseDb', () => ({
+  getOrder: vi.fn(async (id) => (store[id] ? { id, ...store[id] } : null)),
+  updateOrder: vi.fn(async (id, data) => {
+    const current = store[id] || {};
     const merged = { ...current };
     for (const [key, value] of Object.entries(data)) {
-      // increment() real do Firestore é resolvido no servidor; aqui simulamos aplicando na hora.
       merged[key] = (value && typeof value === 'object' && '__increment' in value)
         ? (Number(current[key]) || 0) + value.__increment
         : value;
     }
-    store[ref.id] = merged;
-  },
-  increment: (n) => ({ __increment: n }),
+    store[id] = merged;
+    return { success: true };
+  }),
 }));
 
 const saveTaskMock = vi.fn(async (taskId, status, result, orderId) => {
@@ -72,7 +81,7 @@ describe('requestSunoGeneration', () => {
     expect(result).toEqual({ ok: true, taskId: 'task-abc', provider: 'kie' });
     expect(store['order1'].productionStatus).toBe('GERANDO_AUDIO');
     expect(store['order1'].sunoGenerationCount).toBe(1); // increment() a partir de undefined
-    expect(saveTaskMock).toHaveBeenCalledWith('task-abc', 'PROCESSING', null, 'order1', { provider: 'kie' });
+    expect(saveTaskMock).toHaveBeenCalledWith('task-abc', 'PROCESSING', null, 'order1', { provider: 'kie' }, expect.anything());
   });
 
   it('sem KIE_API_KEY: falha sem chamar a Kie.ai', async () => {

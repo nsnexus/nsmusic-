@@ -1,23 +1,20 @@
 import { NextResponse } from 'next/server';
-import { doc, getDoc, updateDoc } from 'firebase/firestore/lite';
-import { dbEdge as db } from '@/lib/firebase-edge';
+import { getRequestContext } from '@cloudflare/next-on-pages';
+import { getOrder, updateOrder } from '@/lib/supabaseDb';
 import { generateCartaText } from '@/lib/carta';
 
 export const runtime = 'edge';
 
-// Gera (ou regera) o texto da Carta Virtual, e também salva a versão editada pelo cliente.
-//
-// A carta normalmente já vem pronta do próprio applyPaymentApproval assim que o add-on é pago —
-// esta rota existe para o "gerar de novo" e para persistir a edição feita em /entrega.
-//
-// AUTORIZAÇÃO: o acesso é verificado NO SERVIDOR contra o pedido (hasCartaAccess/cartaAddonPaid,
-// escritos só por applyPaymentApproval). O orderId que chega do cliente é uma alegação, não uma
-// permissão — sem esta checagem, qualquer um com um orderId geraria carta de graça
-// (ver .claude/rules/security.md e C-01 no AUDIT_REPORT.md).
 const MAX_TEXTO_CHARS = 2200;
 
 export async function POST(req) {
   try {
+    let env = {};
+    try {
+      const ctx = getRequestContext();
+      if (ctx?.env) env = ctx.env;
+    } catch (e) {}
+
     const body = await req.json().catch(() => ({}));
     const { orderId, texto } = body;
 
@@ -25,13 +22,11 @@ export async function POST(req) {
       return NextResponse.json({ error: 'orderId é obrigatório.' }, { status: 400 });
     }
 
-    const orderRef = doc(db, 'orders', orderId);
-    const snap = await getDoc(orderRef);
-    if (!snap.exists()) {
+    const order = await getOrder(orderId, env);
+    if (!order) {
       return NextResponse.json({ error: 'Pedido não encontrado.' }, { status: 404 });
     }
 
-    const order = snap.data();
     const temAcesso = Boolean(order.hasCartaAccess || order.cartaAddonPaid);
     if (!temAcesso) {
       return NextResponse.json({ error: 'Carta não liberada para este pedido.' }, { status: 403 });
@@ -40,12 +35,12 @@ export async function POST(req) {
     // Modo "salvar edição": o cliente mandou o texto dele, não pede geração nenhuma.
     if (typeof texto === 'string' && texto.trim()) {
       const limpo = texto.trim().slice(0, MAX_TEXTO_CHARS);
-      await updateDoc(orderRef, {
+      await updateOrder(orderId, {
         cartaTexto: limpo,
         cartaStatus: 'READY',
         cartaEditedAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-      });
+      }, env);
       return NextResponse.json({ ok: true, texto: limpo, editada: true });
     }
 
@@ -58,13 +53,13 @@ export async function POST(req) {
       return NextResponse.json({ error: motivo }, { status: 422 });
     }
 
-    await updateDoc(orderRef, {
+    await updateOrder(orderId, {
       cartaTexto: resultado.texto,
       cartaStatus: 'READY',
       cartaGeneratedAt: new Date().toISOString(),
       cartaGenerating: false,
       updatedAt: new Date().toISOString(),
-    });
+    }, env);
 
     return NextResponse.json({ ok: true, texto: resultado.texto });
   } catch (error) {

@@ -1,39 +1,21 @@
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
-import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore/lite';
-import { dbEdge as db } from '@/lib/firebase-edge';
 import { requireAdmin } from '@/lib/auth';
 import { calcularCota } from '@/lib/cotaGeracoes';
 import { registrarResetDeCota, normalizarTelefone, idDoReset, lerTodosOsResets } from '@/lib/cotaReset';
-
-export const runtime = 'edge';
+import { getSupabaseEdge } from '@/lib/supabase-edge';
 import { getBlocklist, addBlockContact, removeBlockContact, obterVariacoesTelefone } from '@/lib/blocklist';
 
-// Quem estourou a cota de gerações, e o botão para liberar.
-//
-// GET  → lista os telefones bloqueados no período recente, com quantas gerações usaram, quantas
-//        compras têm e qual a cota atual.
-// POST → registra o reset daquele telefone: os pedidos anteriores deixam de contar (ver
-//        src/lib/cotaReset.js). Nenhum pedido é apagado.
-//
-// Só admin verificado no servidor (.claude/rules/security.md: identidade de admin nunca vem do
-// cliente). O telefone aparece na resposta porque o painel já lista pedidos com telefone e é por
-// ele que o estúdio identifica a pessoa — mas nunca vai para log nem para id de documento.
+export const runtime = 'edge';
 
-// Janela de varredura. Cota é acumulada sobre o histórico inteiro da pessoa, mas quem interessa ao
-// estúdio é quem esbarrou no limite agora — e ler a coleção inteira custa uma leitura por documento.
-import { getSupabaseEdge } from '@/lib/supabase-edge';
-
-// 15 dias e o suficiente: quem estourou a cota gerou pelo menos 5 musicas em sequencia, e isso
-// acontece em dias, nao em meses. Janela maior faz a rota ler milhares de documentos por abertura
-// da aba — com ~145 pedidos criados por dia, 45 dias passavam de 6 mil.
+// Janela de varredura.
 const DIAS_DE_VARREDURA = 15;
 const MAX_PEDIDOS = 2500;
 
 async function carregarPedidos(env) {
   const desde = new Date(Date.now() - DIAS_DE_VARREDURA * 24 * 60 * 60 * 1000).toISOString();
+  const porTelefone = new Map();
 
-  // 1. Tenta consulta direta no Supabase
   const supabase = getSupabaseEdge(env);
   if (supabase) {
     try {
@@ -46,7 +28,6 @@ async function carregarPedidos(env) {
         .limit(MAX_PEDIDOS);
 
       if (!error && Array.isArray(data)) {
-        const porTelefone = new Map();
         for (const row of data) {
           if (row.production_status === 'CONFIG' || row.production_status === 'RASCUNHO') continue;
           const telefone = normalizarTelefone(row.customer_phone);
@@ -59,38 +40,11 @@ async function carregarPedidos(env) {
             customerName: row.customer_name || '',
           });
         }
-        return porTelefone;
       }
     } catch (e) {
-      console.warn('[admin/cotas] Fallback para Firestore devido a erro no Supabase:', e.message);
+      console.warn('[admin/cotas] Erro na consulta do Supabase:', e.message);
     }
   }
-
-  // 2. Fallback Firestore
-  const snap = await getDocs(query(
-    collection(db, 'orders'),
-    where('createdAt', '>=', desde),
-    orderBy('createdAt', 'desc'),
-    limit(MAX_PEDIDOS)
-  ));
-
-  const porTelefone = new Map();
-  snap.forEach((d) => {
-    const data = d.data();
-    if (data.deletedAt) return;
-    if (d.id.startsWith('config_') || d.id.startsWith('session_')) return;
-    if (data.productionStatus === 'CONFIG' || data.productionStatus === 'RASCUNHO') return;
-
-    const telefone = normalizarTelefone(data.customerPhone);
-    if (!telefone || telefone.length < 10) return;
-
-    if (!porTelefone.has(telefone)) porTelefone.set(telefone, []);
-    porTelefone.get(telefone).push({
-      createdAt: data.createdAt || null,
-      paymentStatus: data.paymentStatus || null,
-      customerName: data.customerName || '',
-    });
-  });
 
   return porTelefone;
 }

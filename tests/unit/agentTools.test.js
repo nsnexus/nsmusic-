@@ -7,13 +7,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 const getChargeStatusMock = vi.fn();
 const applyPaymentApprovalMock = vi.fn();
 const requestSunoGenerationMock = vi.fn();
-const updateDocMock = vi.fn();
+const updateOrderMock = vi.fn();
+const getOrderMock = vi.fn(async (id) => ({ id, musicStyle: 'sertanejo', lyrics: '[Verse]\nalgo' }));
 
-vi.mock('@/lib/firebase-edge', () => ({ dbEdge: {} }));
-vi.mock('firebase/firestore/lite', () => ({
-  doc: (_db, _c, id) => ({ id }),
-  getDoc: async (ref) => ({ exists: () => true, data: () => ({ id: ref.id, musicStyle: 'sertanejo', lyrics: '[Verse]\nalgo' }) }),
-  updateDoc: (...args) => updateDocMock(...args),
+vi.mock('@/lib/supabaseDb', () => ({
+  getOrder: (...a) => getOrderMock(...a),
+  updateOrder: (...a) => updateOrderMock(...a),
 }));
 vi.mock('@/lib/efi', () => ({ getChargeStatus: (...a) => getChargeStatusMock(...a) }));
 vi.mock('@/lib/payments', () => ({ applyPaymentApproval: (...a) => applyPaymentApprovalMock(...a) }));
@@ -27,7 +26,7 @@ beforeEach(() => {
   getChargeStatusMock.mockReset();
   applyPaymentApprovalMock.mockReset();
   requestSunoGenerationMock.mockReset();
-  updateDocMock.mockReset();
+  updateOrderMock.mockReset();
 });
 afterEach(() => { vi.restoreAllMocks(); });
 
@@ -81,7 +80,7 @@ describe('regerarMusica', () => {
 
     expect(r.ok).toBe(true);
     expect(requestSunoGenerationMock).toHaveBeenCalled();
-    const gravou = updateDocMock.mock.calls.some(([, dados]) => dados.regeracoesPeloBot === 1);
+    const gravou = updateOrderMock.mock.calls.some(([, dados]) => dados.regeracoesPeloBot === 1);
     expect(gravou).toBe(true);
   });
 
