@@ -91,16 +91,19 @@ para o que ainda depende de rate limiting externo (A-04/A-12, não implementado 
 | `POST /api/orders/reconcile` | `orders/reconcile/route.js:POST` | Terceira via de convergência (webhook/polling do cliente + esta): recupera música pronta e pagamento confirmado que ficaram presos porque o cliente fechou a aba; retenta geração automaticamente via `src/lib/suno.js`. Acionável pelo painel ou por cron no Worker `efi-proxy` | Admin ou segredo (`RECONCILE_SECRET`) |
 | `POST /api/lyrics/generate` | `lyrics/generate/route.js:POST` | Compõe a letra | Pública |
 | `POST /api/lyrics/improve` | `lyrics/improve/route.js:POST` | Ajusta a letra | Pública |
+| `POST /api/media/upload` | `media/upload/route.js:POST` | Upload direto de imagens/fotos para o Cloudflare R2 com egress zero e cache imutável | Pública / Admin |
 | `POST /api/video/generate` | `video/generate/route.js:POST` | Registra fotos do slideshow; exige `hasVideoAccess` (A-07) | Pública (gate por acesso pago) |
 | `POST /api/whatsapp/send` | `whatsapp/send/route.js:POST` | Reenvio manual pelo admin | Admin |
 | `POST /api/whatsapp/{notify,verify}` | `whatsapp/*/route.js:POST` | Notificação automática e verificação de número | Pública |
 | `GET /api/admin/reports` | `admin/reports/route.js:GET` | Relatórios agregados (faturamento, vendas por dia, pedidos do mês) acelerados via Supabase com fallback | Admin |
+| `GET /api/admin/orders` | `admin/orders/route.js:GET` | Busca paginada e indexada no Supabase PostgREST com fallback no Firestore | Admin |
 | `GET /api/audio/proxy`, `GET /api/image-proxy` | `audio/proxy`, `image-proxy` | Proxies de mídia — só domínios da allowlist (`src/lib/proxyAllowlist.js`, A-05/A-06) | Pública |
 
 ## `src/lib/` — módulos compartilhados
 
 | Arquivo | Responsabilidade |
 |---|---|
+| `supabaseDb.js` | Operações CRUD e geração de pedidos nativas no Supabase PostgREST (`generateOrderId`, `getOrder`, `createOrder`, `updateOrder`, `softDeleteOrder`, `getSunoTask`, `saveSunoTask`) |
 | `supabase-edge.js` | Cliente PostgREST Supabase nativo com zero dependências externas — compatível com Edge Runtime da Cloudflare e Node |
 | `supabase.js` | Re-export do cliente Supabase para o front-end e utilitários públicos |
 | `supabaseSync.js` | Mapeador Firestore -> Postgres e helpers de espelhamento não-bloqueante (`mirrorOrderToSupabase`, `mirrorPaymentToSupabase`, `mirrorTaskToSupabase`) |
