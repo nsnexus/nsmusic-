@@ -206,18 +206,42 @@ export const updateTaskResult = async (taskId, result, overrideOrderId = null, e
       const orderSnap = await getDoc(orderRef);
       const orderData = orderSnap.exists() ? orderSnap.data() : {};
 
-      // Se o pedido já tem áudio definitivo salvo no nosso Storage (R2 ou Firebase), NUNCA sobrescreve com áudio externo!
+      // Verifica se o resultado recebido é referente à MESMA música que já foi salva e arquivada
+      // no nosso Storage (R2/Firebase). Só preservamos a URL do nosso Storage se for a MESMA música
+      // já concluída (evitando que webhook atrasado reverta para link efêmero da Kie).
+      // Se for uma NOVA geração (admin pediu regerar, status GERANDO_AUDIO, nova tarefa ou novo trackId),
+      // a nova música gerada DEVE substituir a anterior e ser arquivada no nosso storage!
       const { isOurStorage } = await import('./audioArchive.js');
-      const jaTemAudioNosso = isOurStorage(orderData.audioUrl)
+      const orderTemAudioNosso = isOurStorage(orderData.audioUrl)
         || (Array.isArray(orderData.audioFiles) && orderData.audioFiles.length > 0 && isOurStorage(orderData.audioFiles[0]));
 
+      const isNovoTrack = Boolean(
+        audioIds.length > 0 &&
+        Array.isArray(orderData.audioIds) &&
+        orderData.audioIds.length > 0 &&
+        orderData.audioIds[0] !== audioIds[0]
+      );
+
+      const isAguardandoNovaGeracao = orderData.productionStatus === 'GERANDO_AUDIO' || orderData.productionStatus === 'EM_PRODUCAO';
+      const isNovaTarefa = Boolean(orderData.sunoTaskId && orderData.sunoTaskId !== taskId);
+
+      const isRegeracao = isAguardandoNovaGeracao || isNovoTrack || isNovaTarefa;
+      const isMesmaMusicaJaArquivada = orderTemAudioNosso && !isRegeracao;
+
       const updates = {
-        audioUrl: jaTemAudioNosso ? orderData.audioUrl : primaryAudio,
-        audioFiles: jaTemAudioNosso ? orderData.audioFiles : audioFiles,
+        audioUrl: isMesmaMusicaJaArquivada ? orderData.audioUrl : primaryAudio,
+        audioFiles: isMesmaMusicaJaArquivada ? orderData.audioFiles : audioFiles,
         audioIds: audioIds.length > 0 ? audioIds : (orderData.audioIds || []),
         productionStatus: 'AUDIO_GERADO',
+        sunoTaskId: taskId,
         updatedAt: new Date().toISOString()
       };
+
+      if (!isMesmaMusicaJaArquivada) {
+        updates.audioArchivedAt = null;
+        updates.audioArchiveFailedAt = null;
+        updates.audioArchiving = false;
+      }
 
       // Capa gerada pela Kie.ai substitui a capa padrão (Unsplash) só quando o cliente NÃO subiu foto
       // própria — coverUrl vazio é o sinal disso em todo o resto do app (ver criar/page.jsx,
@@ -229,9 +253,9 @@ export const updateTaskResult = async (taskId, result, overrideOrderId = null, e
       await updateDoc(orderRef, updates);
       console.log(`Ordem ${orderId} no Firebase atualizada com sucesso com ${audioFiles.length} áudios!`);
 
-      // Copia o áudio para o NOSSO storage imediatamente, antes de qualquer pagamento (se ainda não for nosso).
+      // Copia o áudio para o NOSSO storage imediatamente, antes de qualquer pagamento (se ainda não for nosso ou se for nova geração).
       let archiveResult = null;
-      if (!jaTemAudioNosso) {
+      if (!isMesmaMusicaJaArquivada) {
         try {
           const { arquivarAudioDoPedido } = await import('./audioArchive.js');
           archiveResult = await arquivarAudioDoPedido({ orderRef, orderId, env, getDoc, updateDoc });

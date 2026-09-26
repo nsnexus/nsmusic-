@@ -366,7 +366,12 @@ export default function OrderDetailsAdmin() {
     // ("eu mexo e ele volta pro que estava"). Grava o valor realmente usado ANTES de chamar a Suno.
     const tagsFinal = sunoPrompt || getSunoStylePrompt();
     try {
-      await updateDoc(doc(db, 'orders', orderId), { sunoPrompt: tagsFinal, updatedAt: new Date().toISOString() });
+      await updateDoc(doc(db, 'orders', orderId), {
+        sunoPrompt: tagsFinal,
+        productionStatus: 'GERANDO_AUDIO',
+        updatedAt: new Date().toISOString()
+      });
+      setProductionStatus('GERANDO_AUDIO');
     } catch (err) {
       console.warn('Falha ao salvar o prompt de estilo antes de gerar:', err.message);
     }
@@ -436,6 +441,27 @@ export default function OrderDetailsAdmin() {
             }
             if (validTracks[1]) {
               setAudioUrl2(validTracks[1].audio_url);
+            }
+
+            // Recarrega os dados consolidados do pedido para que o estado do React
+            // reflita a substituição automática das faixas e a URL definitiva do R2
+            try {
+              const freshSnap = await getDoc(doc(db, 'orders', orderId));
+              if (freshSnap.exists()) {
+                const freshData = freshSnap.data();
+                setOrder(freshData);
+                if (freshData.audioFiles?.[0] || freshData.audioUrl) {
+                  setAudioUrl(freshData.audioFiles?.[0] || freshData.audioUrl);
+                }
+                if (freshData.audioFiles?.[1]) {
+                  setAudioUrl2(freshData.audioFiles[1]);
+                }
+                if (freshData.productionStatus) {
+                  setProductionStatus(freshData.productionStatus);
+                }
+              }
+            } catch (freshErr) {
+              console.warn('[admin] Falha ao recarregar dados do pedido após nova geração:', freshErr?.message);
             }
           }
         }

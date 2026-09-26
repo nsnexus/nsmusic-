@@ -100,3 +100,82 @@ describe('saveTask', () => {
     expect(store['task3'].status).toBe('PROCESSING');
   });
 });
+
+describe('updateTaskResult — regeração e substituição de áudio', () => {
+  it('substitui automaticamente o áudio anterior quando admin regera música (status GERANDO_AUDIO), mesmo se já havia áudio no R2', async () => {
+    store['task_nova'] = { orderId: 'order_regerada' };
+    store['order_regerada'] = {
+      customerPhone: '5511999999999',
+      productionStatus: 'GERANDO_AUDIO',
+      sunoTaskId: 'task_nova',
+      audioUrl: 'https://pub-r2.dev/audios/order_regerada/versao-1.mp3',
+      audioFiles: ['https://pub-r2.dev/audios/order_regerada/versao-1.mp3'],
+      audioIds: ['track_antigo_1'],
+      audioArchivedAt: '2026-09-20T10:00:00.000Z'
+    };
+
+    const result = {
+      data: [
+        { id: 'track_novo_1', audio_url: 'https://tempfile.aiquickdraw.com/r/track_novo_1.mp3' },
+        { id: 'track_novo_2', audio_url: 'https://tempfile.aiquickdraw.com/r/track_novo_2.mp3' }
+      ]
+    };
+
+    await updateTaskResult('task_nova', result);
+
+    expect(store['order_regerada'].audioUrl).toBe('https://tempfile.aiquickdraw.com/r/track_novo_1.mp3');
+    expect(store['order_regerada'].audioFiles).toEqual([
+      'https://tempfile.aiquickdraw.com/r/track_novo_1.mp3',
+      'https://tempfile.aiquickdraw.com/r/track_novo_2.mp3'
+    ]);
+    expect(store['order_regerada'].audioIds).toEqual(['track_novo_1', 'track_novo_2']);
+    expect(store['order_regerada'].productionStatus).toBe('AUDIO_GERADO');
+  });
+
+  it('substitui automaticamente o áudio se os IDs das novas faixas forem diferentes (novo trackId)', async () => {
+    store['task_nova_2'] = { orderId: 'order_regerada_2' };
+    store['order_regerada_2'] = {
+      customerPhone: '5511999999999',
+      productionStatus: 'AUDIO_GERADO',
+      sunoTaskId: 'task_antiga',
+      audioUrl: 'https://pub-r2.dev/audios/order_regerada_2/versao-1.mp3',
+      audioFiles: ['https://pub-r2.dev/audios/order_regerada_2/versao-1.mp3'],
+      audioIds: ['track_antigo_1'],
+    };
+
+    const result = {
+      data: [
+        { id: 'track_diferente_1', audio_url: 'https://tempfile.aiquickdraw.com/r/track_diferente_1.mp3' }
+      ]
+    };
+
+    await updateTaskResult('task_nova_2', result);
+
+    expect(store['order_regerada_2'].audioUrl).toBe('https://tempfile.aiquickdraw.com/r/track_diferente_1.mp3');
+    expect(store['order_regerada_2'].audioIds).toEqual(['track_diferente_1']);
+  });
+
+  it('preserva a URL do R2 quando chega webhook atrasado com a MESMA faixa já arquivada', async () => {
+    store['task_mesma'] = { orderId: 'order_mesma' };
+    store['order_mesma'] = {
+      customerPhone: '5511999999999',
+      productionStatus: 'AUDIO_GERADO',
+      sunoTaskId: 'task_mesma',
+      audioUrl: 'https://pub-r2.dev/audios/order_mesma/versao-1.mp3',
+      audioFiles: ['https://pub-r2.dev/audios/order_mesma/versao-1.mp3'],
+      audioIds: ['track_mesmo_1'],
+      audioArchivedAt: '2026-09-20T10:00:00.000Z'
+    };
+
+    const result = {
+      data: [
+        { id: 'track_mesmo_1', audio_url: 'https://tempfile.aiquickdraw.com/r/track_mesmo_1.mp3' }
+      ]
+    };
+
+    await updateTaskResult('task_mesma', result);
+
+    // Como é a MESMA faixa e já está arquivada no R2, preserva o R2 e não reverte para tempfile
+    expect(store['order_mesma'].audioUrl).toBe('https://pub-r2.dev/audios/order_mesma/versao-1.mp3');
+  });
+});
