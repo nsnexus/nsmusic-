@@ -116,4 +116,23 @@ describe('extractAudioTracks', () => {
     const tracks = extractAudioTracks(result);
     expect(tracks[0].imageUrl).toBe('');
   });
+
+  it('troca audiostream.kie.ai pela URL estável do tempfile quando há UUID', () => {
+    const result = [{
+      id: 'e7e35cdb-7225-4496-92b0-28db417e82e6',
+      audioUrl: '',
+      streamAudioUrl: 'https://audiostream.kie.ai/stream/e7e35cdb-7225-4496-92b0-28db417e82e6.mp3',
+    }];
+    const tracks = extractAudioTracks(result);
+    expect(tracks[0].audio_url).toBe('https://tempfile.aiquickdraw.com/r/e7e35cdb-7225-4496-92b0-28db417e82e6.mp3');
+  });
+
+  it('extrai UUID do path de audiostream e usa tempfile mesmo sem id explícito', () => {
+    const result = [{
+      stream_audio_url: 'https://audiostream.kie.ai/stream/aae474c5-6548-4a67-a82e-3ac2040710f2.mp3',
+    }];
+    const tracks = extractAudioTracks(result);
+    expect(tracks[0].audio_url).toBe('https://tempfile.aiquickdraw.com/r/aae474c5-6548-4a67-a82e-3ac2040710f2.mp3');
+    expect(tracks[0].trackId).toBe('aae474c5-6548-4a67-a82e-3ac2040710f2');
+  });
 });

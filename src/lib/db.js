@@ -81,36 +81,39 @@ export const extractAudioTracks = (result) => {
       return { audio_url: t, audioUrl: t };
     }
 
-    // Ordem de preferência entre os campos que a Kie.ai manda para a mesma faixa. `audio_url`/
-    // `audioUrl` é o arquivo definitivo; `stream_audio_url`/`streamAudioUrl` é o stream de preview.
-    //
-    // Achado 29/08/2026: o stream é servido pelo domínio musicfile.kie.ai, que parou de entregar os
-    // arquivos (403 quando o path tem sufixo, 200 com corpo VAZIO quando não tem) — enquanto o
-    // `audioUrl` do MESMO pedido, servido por outro domínio, devolvia os 5 MB normalmente. Por isso
-    // qualquer URL de musicfile.kie.ai é rebaixada para última opção: só é usada quando o payload
-    // não trouxe nenhuma alternativa. Sem isso, um payload com os dois campos podia gravar no pedido
-    // justamente a URL que não funciona — e ela vai crua para o cliente na mensagem de WhatsApp.
+    // Ordem de preferência entre os campos que a Kie.ai manda para a mesma faixa.
+    // Achado 29/08/2026: o stream é servido por musicfile.kie.ai, que parou de entregar arquivos.
+    // Achado 25/09/2026: audiostream.kie.ai é apenas um stream de preview que expira em poucos minutos (0 byte).
+    // O arquivo MP3 estático e completo da CDN da Kie.ai fica em `https://tempfile.aiquickdraw.com/r/<uuid>.mp3`.
+    const rawCandidates = [
+      t.audio_url, t.audioUrl,
+      t.source_audio_url, t.sourceAudioUrl,
+      t.stream_audio_url, t.streamAudioUrl,
+      t.sourceStreamAudioUrl, t.source_stream_audio_url
+    ].filter((u) => typeof u === 'string' && u.trim());
+
+    // Extrai o UUID da faixa de qualquer campo presente
+    const uuidMatch = rawCandidates.join(' ').match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
+    const trackId = (t.id && /^[a-f0-9-]{36}$/i.test(t.id)) ? t.id : (uuidMatch ? uuidMatch[1] : (t.id || ''));
+
+    // Deriva a URL estável do tempfile quando há UUID e candidatos de áudio
+    const hasAudiostream = rawCandidates.some(u => u.includes('audiostream.kie.ai'));
+    const tempUrl = (trackId && (hasAudiostream || rawCandidates.length > 0) && /^[a-f0-9-]{36}$/i.test(trackId))
+      ? `https://tempfile.aiquickdraw.com/r/${trackId}.mp3`
+      : '';
+
     const urlCandidates = [
       t.audio_url, t.audioUrl,
+      tempUrl,
       t.source_audio_url, t.sourceAudioUrl,
       t.stream_audio_url, t.streamAudioUrl,
     ].filter((u) => typeof u === 'string' && u.trim());
 
-    let url = urlCandidates.find((u) => !u.includes('musicfile.kie.ai')) || urlCandidates[0] || '';
+    let url = urlCandidates.find((u) => !u.includes('musicfile.kie.ai') && !u.includes('audiostream.kie.ai'))
+      || urlCandidates.find((u) => !u.includes('musicfile.kie.ai'))
+      || urlCandidates[0] || '';
 
-    // Removido o "adiciona .mp3 automaticamente" que existia aqui desde 01/08/2026: a Kie.ai passou a
-    // servir musicfile.kie.ai atrás de CloudFront com assinatura por path exato — qualquer sufixo
-    // extra no path (mesmo só ".mp3") quebra a assinatura e a CDN responde 403 (confirmado ao vivo em
-    // 28/08/2026: a MESMA URL sem o sufixo respondeu 200 com Content-Type: audio/mp3 já correto; com
-    // o sufixo, 403 "MissingKey"). O Content-Type já vem certo do servidor deles — nunca foi
-    // necessário pra reprodução, só quebrava. Pedidos antigos que já gravaram a URL com o sufixo
-    // continuam funcionando via src/app/api/audio/proxy/route.js, que agora tenta a versão sem
-    // sufixo primeiro.
-
-    // Extrai o UUID da faixa para o proxy usar nas CDNs de fallback
-    const trackId = t.id || (url.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i) || [])[1];
-
-    // Se não tem URL válida mas tem trackId, gera a URL da CDN do Suno como principal
+    // Se não tem URL válida mas tem trackId, gera a URL da CDN do Suno como fallback
     if (!url && trackId) {
       url = `https://cdn1.suno.ai/${trackId}.mp3`;
     }
@@ -170,10 +173,15 @@ export const updateTaskResult = async (taskId, result, overrideOrderId = null, e
       const orderSnap = await getDoc(orderRef);
       const orderData = orderSnap.exists() ? orderSnap.data() : {};
 
+      // Se o pedido já tem áudio definitivo salvo no nosso Storage (R2 ou Firebase), NUNCA sobrescreve com áudio externo!
+      const { isOurStorage } = await import('./audioArchive.js');
+      const jaTemAudioNosso = isOurStorage(orderData.audioUrl)
+        || (Array.isArray(orderData.audioFiles) && orderData.audioFiles.length > 0 && isOurStorage(orderData.audioFiles[0]));
+
       const updates = {
-        audioUrl: primaryAudio,
-        audioFiles: audioFiles,
-        audioIds: audioIds,
+        audioUrl: jaTemAudioNosso ? orderData.audioUrl : primaryAudio,
+        audioFiles: jaTemAudioNosso ? orderData.audioFiles : audioFiles,
+        audioIds: audioIds.length > 0 ? audioIds : (orderData.audioIds || []),
         productionStatus: 'AUDIO_GERADO',
         updatedAt: new Date().toISOString()
       };
@@ -188,22 +196,15 @@ export const updateTaskResult = async (taskId, result, overrideOrderId = null, e
       await updateDoc(orderRef, updates);
       console.log(`Ordem ${orderId} no Firebase atualizada com sucesso com ${audioFiles.length} áudios!`);
 
-      // Copia o áudio para o NOSSO storage imediatamente, antes de qualquer pagamento.
-      //
-      // A Kie.ai entrega a prévia num endpoint de streaming que serve o arquivo por poucas horas e
-      // depois responde 200 com 0 byte (medido em 25/09/2026: 3,84 MB com 10 minutos de vida, 0
-      // byte com 185 minutos). Todo o resto — proxy com fallback, troca da URL pela definitiva,
-      // cron de renovação — é remendo em cima de um arquivo que já está sumindo. Copiando aqui, a
-      // música existe no nosso storage desde o primeiro minuto e nada mais depende do prazo deles.
-      //
-      // Isolado: se a cópia falhar, a música JÁ está entregue e o cron (api/orders/archive-audio)
-      // tenta de novo. Arquivamento nunca pode derrubar a entrega.
+      // Copia o áudio para o NOSSO storage imediatamente, antes de qualquer pagamento (se ainda não for nosso).
       let archiveResult = null;
-      try {
-        const { arquivarAudioDoPedido } = await import('./audioArchive.js');
-        archiveResult = await arquivarAudioDoPedido({ orderRef, orderId, env, getDoc, updateDoc });
-      } catch (err) {
-        console.warn('[db] Falha ao arquivar áudio na chegada:', err.message);
+      if (!jaTemAudioNosso) {
+        try {
+          const { arquivarAudioDoPedido } = await import('./audioArchive.js');
+          archiveResult = await arquivarAudioDoPedido({ orderRef, orderId, env, getDoc, updateDoc });
+        } catch (err) {
+          console.warn('[db] Falha ao arquivar áudio na chegada:', err.message);
+        }
       }
 
       // Se o R2 arquivou com sucesso na hora, atualiza as URLs espelhadas para o Supabase

@@ -245,7 +245,8 @@ export async function arquivarAudioDoPedido({ orderRef, orderId, env, doc: docRe
         : [freshData.audioUrl].filter(Boolean);
 
       // Reserva sequencial: webhook e polling chegam em paralelo e copiariam os mesmos MB duas vezes.
-      if (filesParaArquivar.length > 0 && !freshData.audioArchivedAt && !freshData.audioArchiving) {
+      const temArquivosExternos = filesParaArquivar.some((u) => !isOurStorage(u));
+      if (filesParaArquivar.length > 0 && temArquivosExternos && !freshData.audioArchiving) {
         await updateDoc(orderRef, { audioArchiving: true });
         deveArquivar = true;
       }

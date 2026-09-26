@@ -40,3 +40,4 @@ next-env.d.ts
 
 # logs de migrações executadas manualmente (scripts/*.mjs)
 /scripts/migration-logs/
+/scratch/

@@ -20,6 +20,16 @@ import { getFirestore, collection, getDocs, query, orderBy, limit as firestoreLi
 import { NativeSupabaseClient } from '../src/lib/supabase-edge.js';
 import { mapFirestoreOrderToSupabase } from '../src/lib/supabaseSync.js';
 
+function toIsoDate(val) {
+  if (!val) return null;
+  if (typeof val === 'string') return val;
+  if (typeof val.toDate === 'function') {
+    try { return val.toDate().toISOString(); } catch { return null; }
+  }
+  if (val instanceof Date) return val.toISOString();
+  return null;
+}
+
 function loadEnvLocal() {
   const path = '.env.local';
   if (!existsSync(path)) return;
@@ -110,58 +120,75 @@ async function run() {
     const mappedOrder = mapFirestoreOrderToSupabase(orderId, data);
     ordersBatch.push(mappedOrder);
 
-    // Extrai pagamentos históricos a partir dos mapas e campos do pedido
-    const skuByTxid = data.paymentIntentSkuByTxid || {};
-    const amountByTxid = data.paymentIntentAmountByTxid || {};
-    const paidAt = mappedOrder.paid_at || mappedOrder.created_at;
+    // Extrai pagamentos históricos APENAS para pedidos que foram realmente pagos
+    const isPaid = (data.paymentStatus === 'PAGO' || data.paymentStatus === 'PAGAMENTO_APROVADO' || data.paymentStatus === 'approved');
 
-    // Se temos o mapa estruturado txid -> SKU
-    for (const [txid, sku] of Object.entries(skuByTxid)) {
-      if (!txid || !sku) continue;
+    if (isPaid) {
+      const confirmedTxid = String(data.paymentId || data.mpPaymentId || data.paymentIntentId || `legacy_${orderId}`);
+      const skuByTxid = data.paymentIntentSkuByTxid || {};
+      const amountByTxid = data.paymentIntentAmountByTxid || {};
+      const sku = data.paidSku 
+        || skuByTxid[confirmedTxid] 
+        || data.paymentIntentSku 
+        || 'audio_only';
+
       let kind = 'musica';
-      if (sku.includes('video')) kind = 'video';
+      if (sku.includes('video') && !sku.includes('combo')) kind = 'video';
       else if (sku.includes('carta')) kind = 'carta';
       else if (sku.includes('retrospectiva')) kind = 'retrospectiva';
       else if (sku.includes('playback')) kind = 'playback';
 
-      const amount = Number(amountByTxid[txid]) || (kind === 'video' ? 6.90 : 9.99);
+      const amount = Number(data.paidAmount) 
+        || Number(amountByTxid[confirmedTxid]) 
+        || (sku === 'combo' ? 16.89 : (Number(data.total) || 9.99));
+
+      const paidAt = mappedOrder.paid_at || toIsoDate(data.paidAt) || mappedOrder.created_at;
 
       paymentsBatch.push({
         order_id: orderId,
         kind,
         sku,
-        txid: String(txid),
+        txid: confirmedTxid,
         amount,
         paid_at: paidAt
       });
     }
 
-    // Se não tem mapa txid mas o pedido está pago (pedidos mais antigos)
-    if (Object.keys(skuByTxid).length === 0 && (data.paymentStatus === 'PAGO' || data.paymentStatus === 'PAGAMENTO_APROVADO')) {
-      const fallbackTxid = String(data.paymentId || data.mpPaymentId || `legacy_${orderId}`);
-      paymentsBatch.push({
-        order_id: orderId,
-        kind: 'musica',
-        sku: 'musica_completa',
-        txid: fallbackTxid,
-        amount: Number(data.total) || 9.99,
-        paid_at: paidAt
-      });
+    // Addons comprados separadamente (avulsos após a compra da música)
+    const confirmedMusicTxid = String(data.paymentId || data.mpPaymentId || data.paymentIntentId || '');
+    const addons = [
+      { key: 'video', flag: Boolean(data.videoAddonPaid || data.hasVideoAccess), id: data.videoPaymentId, amount: data.videoPaidAmount || 6.90, at: data.videoPaidAt },
+      { key: 'playback', flag: Boolean(data.playbackAddonPaid || data.hasPlaybackAccess), id: data.playbackPaymentId, amount: data.playbackPaidAmount || 6.90, at: data.playbackPaidAt },
+      { key: 'carta', flag: Boolean(data.cartaAddonPaid || data.hasCartaAccess), id: data.cartaPaymentId, amount: data.cartaPaidAmount || 6.90, at: data.cartaPaidAt },
+      { key: 'retrospectiva', flag: Boolean(data.retrospectivaAddonPaid || data.hasRetrospectivaAccess), id: data.retrospectivaPaymentId, amount: data.retrospectivaPaidAmount || 6.90, at: data.retrospectivaPaidAt },
+    ];
 
-      if (data.hasVideoAccess || data.videoAddonPaid) {
+    for (const a of addons) {
+      if (a.flag && a.id && String(a.id) !== confirmedMusicTxid) {
         paymentsBatch.push({
           order_id: orderId,
-          kind: 'video',
-          sku: 'addon_video',
-          txid: `${fallbackTxid}_video`,
-          amount: 6.90,
-          paid_at: data.videoPaidAt || paidAt
+          kind: a.key,
+          sku: `${a.key}_addon`,
+          txid: String(a.id),
+          amount: Number(a.amount) || 6.90,
+          paid_at: toIsoDate(a.at) || mappedOrder.paid_at || mappedOrder.created_at
         });
       }
     }
   }
 
-  console.log(`-> Mapeados ${ordersBatch.length} pedidos e ${paymentsBatch.length} transações.`);
+  // Deduplicação estrita de pagamentos por (txid, kind)
+  const seenPayments = new Set();
+  const dedupedPaymentsBatch = [];
+  for (const p of paymentsBatch) {
+    if (!p.txid || !p.paid_at) continue;
+    const key = `${p.txid}:${p.kind}`;
+    if (seenPayments.has(key)) continue;
+    seenPayments.add(key);
+    dedupedPaymentsBatch.push(p);
+  }
+
+  console.log(`-> Mapeados ${ordersBatch.length} pedidos e ${dedupedPaymentsBatch.length} transações pagas confirmadas.`);
 
   // Gravação em lotes (chunks de 50)
   const CHUNK_SIZE = 50;
@@ -181,17 +208,17 @@ async function run() {
     }
     console.log('\nPedidos concluídos!');
 
-    if (paymentsBatch.length > 0) {
+    if (dedupedPaymentsBatch.length > 0) {
       console.log('\nGravando pagamentos no Supabase...');
       let paymentsSuccess = 0;
-      for (let i = 0; i < paymentsBatch.length; i += CHUNK_SIZE) {
-        const chunk = paymentsBatch.slice(i, i + CHUNK_SIZE);
+      for (let i = 0; i < dedupedPaymentsBatch.length; i += CHUNK_SIZE) {
+        const chunk = dedupedPaymentsBatch.slice(i, i + CHUNK_SIZE);
         const { error } = await supabase.from('payments').upsert(chunk, { onConflict: 'txid,kind' });
         if (error) {
           console.warn(`Aviso no lote de pagamentos ${i}:`, error.message);
         } else {
           paymentsSuccess += chunk.length;
-          process.stdout.write(`\rPagamentos gravados: ${paymentsSuccess}/${paymentsBatch.length}`);
+          process.stdout.write(`\rPagamentos gravados: ${paymentsSuccess}/${dedupedPaymentsBatch.length}`);
         }
       }
       console.log('\nPagamentos concluídos!');

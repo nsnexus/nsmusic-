@@ -138,6 +138,18 @@ export async function POST(req) {
 
     await updateDoc(orderRef, updates);
 
+    // Dispara arquivamento imediato para R2 se disponível
+    try {
+      const { arquivarAudioDoPedido } = await import('@/lib/audioArchive');
+      await arquivarAudioDoPedido({ orderRef, orderId, env, getDoc, updateDoc });
+    } catch {}
+
+    // Dual-write seguro para Supabase
+    try {
+      const { mirrorOrderToSupabase } = await import('@/lib/supabaseSync');
+      mirrorOrderToSupabase(orderId, { ...order, ...updates }, env).catch(() => {});
+    } catch {}
+
     // Devolve as URLs: a tela de geracao (/criar) guarda as faixas em estado local, sem
     // onSnapshot, entao precisa trocar a fonte do player por conta propria.
     return NextResponse.json({ ok: true, estado: 'trocada', audioFiles });
