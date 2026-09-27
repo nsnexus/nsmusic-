@@ -327,12 +327,11 @@ function pareceCobrancaDeMusica(texto) {
 
 function isSendingInProgress(orderData) {
   if (!orderData) return false;
+  if (orderData.readyTemplateSending === true || orderData.whatsappSending === true || orderData.paymentWhatsappSending === true) {
+    return true;
+  }
   if (orderData.readyTemplateSendingAt) {
     const ts = Date.parse(orderData.readyTemplateSendingAt);
-    if (!Number.isNaN(ts) && Date.now() - ts < 60000) return true;
-  }
-  if (orderData.readyTemplateSending === true) {
-    const ts = Date.parse(orderData.updatedAt || '');
     if (!Number.isNaN(ts) && Date.now() - ts < 60000) return true;
   }
   return false;
@@ -469,7 +468,7 @@ export async function POST(req) {
 
     // 2. Deduplicação por ID da mensagem (evita processamento duplicado de retries do webhook)
     const messageId = extractMessageId(body);
-    if (messageId && await isDuplicateMessage(messageId)) {
+    if (messageId && await isDuplicateMessage(messageId, envVars)) {
       console.log(`[WhatsApp Webhook] Mensagem duplicada ignorada (ID: ${messageId})`);
       return NextResponse.json({ success: true, ignored: 'duplicate_message_id' }, { status: 200 });
     }
@@ -517,7 +516,7 @@ export async function POST(req) {
     console.log(`[WhatsApp Webhook] De: ${senderPhone || 'Desconhecido'} | Texto: "${messageText || ''}" | Audio: ${Boolean(audioSource)}`);
 
     // 4. Trava de concorrência por telefone (evita disparos paralelos dentro de 3 segundos para o mesmo número)
-    if (senderPhone && await isPhoneLocked(senderPhone)) {
+    if (senderPhone && await isPhoneLocked(senderPhone, envVars)) {
       console.log(`[WhatsApp Webhook] Processamento concorrente descartado para: ${senderPhone}`);
       return NextResponse.json({ success: true, ignored: 'concurrent_lock' }, { status: 200 });
     }
@@ -547,16 +546,23 @@ export async function POST(req) {
       return NextResponse.json({ success: true, warning: 'Nenhum remetente identificado' }, { status: 200 });
     }
 
-    // A. Master switch: se o robô estiver desativado no painel Admin (Atendimento 100% Humano), silêncio absoluto
+    // Identifica se a mensagem é especificamente a solicitação de envio da prévia (botão do site ou frase explícita)
+    const candidateId = extractCandidateOrderId(messageText);
+    const isDefaultSiteButtonText = messageText.includes('Quero receber a prévia da música do meu pedido');
+    const isExplicitPreviewRequest = isDefaultSiteButtonText || /(?:quero|manda|enviar?|receber).{0,20}pr[eé]via/i.test(messageText) || Boolean(candidateId && /pr[eé]via/i.test(messageText));
+
+    // A. Master switch: se o robô estiver desativado no painel Admin (Atendimento 100% Humano),
+    // só responde se for a solicitação explícita de receber a prévia do pedido. Qualquer outra mensagem fica em silêncio.
     const isGloballyActive = await isWhatsAppAgentGloballyEnabled(envVars);
-    if (!isGloballyActive) {
+    if (!isGloballyActive && !isExplicitPreviewRequest) {
       console.log(`[WhatsApp Webhook] Robô WhatsApp desativado globalmente no Admin (Atendimento 100% Humano). Silêncio para ${senderPhone}.`);
       return NextResponse.json({ success: true, ignored: 'agent_globally_disabled' }, { status: 200 });
     }
 
     // B. Atendimento humano: se o atendente humano assumiu este chat e ainda não se passaram 12h, IA em silêncio
+    // exceto se for a solicitação explícita de receber a prévia do pedido.
     const isPaused = await isAgentPausedForPhone(senderPhone, envVars);
-    if (isPaused) {
+    if (isPaused && !isExplicitPreviewRequest) {
       const lower = (messageText || '').toLowerCase();
       const isReactivationCommand = ['#ia', '#bot', '#reativar', 'ligar bot', 'ativar bot'].includes(lower);
       if (isReactivationCommand) {
@@ -572,7 +578,6 @@ export async function POST(req) {
     let matchedOrder = null;
     let matchedOrderId = '';
 
-    const candidateId = extractCandidateOrderId(messageText);
     if (candidateId) {
       const found = await findOrderByIdOrNumber(candidateId, envVars);
       if (found) {
@@ -611,8 +616,7 @@ export async function POST(req) {
       const isShortAck = isShortAckMessage(messageText);
       const isExplicitId = Boolean(candidateId);
       const isMusicInquiry = pareceCobrancaDeMusica(messageText);
-      const isDefaultSiteButtonText = messageText.includes('Quero receber a prévia da música do meu pedido');
-      const isDirectMusicRequest = isExplicitId || isMusicInquiry || isDefaultSiteButtonText;
+      const isDirectMusicRequest = isExplicitId || isMusicInquiry || isDefaultSiteButtonText || isExplicitPreviewRequest;
 
       // Primeiro nome só. Ninguém chama a pessoa pelo nome completo no WhatsApp, e "Olá,
       // Cliente!" (o padrão antigo quando o nome faltava) é a assinatura de mensagem automática.
@@ -643,9 +647,8 @@ export async function POST(req) {
         return NextResponse.json({ success: true, ignored: 'already_notified_short_ack_silence' }, { status: 200 });
       }
 
-      // Se o cliente enviou uma mensagem com dúvida ou suporte (não só o clique automático do botão),
-      // atende primeiro com o suporte inteligente:
-      if (!isShortAck && !isDefaultSiteButtonText) {
+      // Se o robô estiver ativo globalmente, atende com o suporte inteligente se houver dúvida:
+      if (isGloballyActive && !isShortAck && !isDefaultSiteButtonText) {
         try {
           const { tentarAtenderSuporte } = await import('@/lib/agentSuporte');
           const suporte = await tentarAtenderSuporte(senderPhone, messageText, envVars);
@@ -660,8 +663,14 @@ export async function POST(req) {
       }
 
       // Se NÃO foi um pedido direto da música (clique do botão do site com ID, envio de ID, ou pergunta sobre o áudio),
-      // e o suporte não atendeu, NÃO despenca o link do pedido antigo! Passa para o agente conversacional tratar a mensagem.
+      // e o suporte não atendeu:
+      // - Se o bot estiver desativado: silêncio absoluto!
+      // - Se o bot estiver ativo: passa para o agente conversacional tratar a mensagem naturalmente.
       if (!isDirectMusicRequest) {
+        if (!isGloballyActive) {
+          console.log(`[WhatsApp Webhook] Robô desativado e mensagem não é pedido direto de música. Silêncio para ${senderPhone}.`);
+          return NextResponse.json({ success: true, ignored: 'agent_globally_disabled' }, { status: 200 });
+        }
         console.log(`[WhatsApp Webhook] Mensagem de ${senderPhone} não é pedido direto de música. Encaminhando para Agente Conversacional.`);
       } else if (matchedOrder.audioUrl || matchedOrder.audioFiles?.length) {
         // Se a música já estiver pronta e o cliente solicitou diretamente:
@@ -676,9 +685,9 @@ export async function POST(req) {
           return NextResponse.json({ success: true, ignored: 'sending_in_progress' }, { status: 200 });
         }
 
-        const EXPLICIT_CLICK_COOLDOWN_MS = 15000;
+        const lastSentAt = freshData.readyTemplateSentAt || freshData.whatsappSentAt || freshData.paymentWhatsappSentAt;
         const recentlySent = isExplicitId
-          ? (freshData.readyTemplateSentAt && (Date.now() - Date.parse(freshData.readyTemplateSentAt) < EXPLICIT_CLICK_COOLDOWN_MS))
+          ? (lastSentAt && (Date.now() - Date.parse(lastSentAt) < 60000))
           : (sentWithinCooldown(freshData.readyTemplateSentAt) || sentWithinCooldown(freshData.whatsappSentAt) || sentWithinCooldown(freshData.paymentWhatsappSentAt));
 
         if (recentlySent) {
@@ -690,6 +699,7 @@ export async function POST(req) {
         try {
           await updateOrder(matchedOrderId, {
             readyTemplateSending: true,
+            whatsappSending: true,
             readyTemplateSendingAt: new Date().toISOString(),
           }, envVars);
         } catch (e) {}
@@ -727,14 +737,18 @@ Se precisar de qualquer coisa, é só me chamar.`;
           try {
             await updateOrder(matchedOrderId, {
               readyTemplateSent: true,
+              whatsappSent: true,
               readyTemplateSentAt: new Date().toISOString(),
+              whatsappSentAt: new Date().toISOString(),
               readyTemplateSending: false,
+              whatsappSending: false,
             }, envVars);
           } catch (e) {}
         } finally {
           try {
             await updateOrder(matchedOrderId, {
               readyTemplateSending: false,
+              whatsappSending: false,
             }, envVars);
           } catch (e) {}
         }
@@ -742,7 +756,7 @@ Se precisar de qualquer coisa, é só me chamar.`;
         return NextResponse.json({ success: true, action: 'sent_ready_link' }, { status: 200 });
       } else {
         // A música ainda está sendo gerada pela IA e o cliente solicitou diretamente:
-        const waitCooldownMs = isExplicitId ? 15000 : TEMPLATE_RESEND_COOLDOWN_MS;
+        const waitCooldownMs = 60000;
         const waitSentAt = Date.parse(matchedOrder.whatsappWaitAckSentAt || '');
         if (!Number.isNaN(waitSentAt) && Date.now() - waitSentAt < waitCooldownMs) {
           console.log(`[WhatsApp Webhook] Aviso de espera enviado há pouco para o pedido #${matchedOrderId} — não repete.`);

@@ -193,7 +193,7 @@ export const notifyMusicReady = async (orderRefOrId, orderData, orderIdParam, op
 
   const currentOrder = orderData || await getOrder(orderId, env);
   if (!currentOrder?.customerPhone) return { sent: false, reason: 'no_phone' };
-  if (!force && currentOrder.whatsappSent) return { sent: false, reason: 'already_sent' };
+  if (!force && (currentOrder.whatsappSent || currentOrder.readyTemplateSent)) return { sent: false, reason: 'already_sent' };
   if (!force && !currentOrder.whatsappRequested) return { sent: false, reason: 'not_requested' };
 
   let shouldSend = force;
@@ -201,8 +201,8 @@ export const notifyMusicReady = async (orderRefOrId, orderData, orderIdParam, op
     try {
       const freshData = await getOrder(orderId, env);
       if (freshData) {
-        if (!freshData.whatsappSent && !freshData.whatsappSending) {
-          await updateOrder(orderId, { whatsappSending: true }, env);
+        if (!freshData.whatsappSent && !freshData.readyTemplateSent && !freshData.whatsappSending && !freshData.readyTemplateSending) {
+          await updateOrder(orderId, { whatsappSending: true, readyTemplateSending: true }, env);
           shouldSend = true;
         }
       }
@@ -224,14 +224,17 @@ export const notifyMusicReady = async (orderRefOrId, orderData, orderIdParam, op
   if (sendResult.success) {
     await updateOrder(orderId, {
       whatsappSent: true,
+      readyTemplateSent: true,
       whatsappSentAt: new Date().toISOString(),
-      whatsappSending: false
+      readyTemplateSentAt: new Date().toISOString(),
+      whatsappSending: false,
+      readyTemplateSending: false,
     }, env).catch(e => console.warn("Erro ao atualizar whatsappSent:", e));
     console.log(`Mensagem do WhatsApp (música pronta) enviada com sucesso — pedido ${orderId}`);
     return { sent: true };
   }
 
-  await updateOrder(orderId, { whatsappSending: false }, env).catch(e => console.warn(e));
+  await updateOrder(orderId, { whatsappSending: false, readyTemplateSending: false }, env).catch(e => console.warn(e));
   console.warn(`Falha ao enviar WhatsApp (música pronta) — pedido ${orderId}`);
   return { sent: false, reason: sendResult.error || 'send_failed' };
 };
