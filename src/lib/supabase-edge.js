@@ -275,6 +275,22 @@ class SupabaseTableQuery {
   }
 }
 
+export function isJwtExpiredOrExpiring(token, bufferSeconds = 120) {
+  if (!token || typeof token !== 'string') return true;
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return true;
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const jsonStr = typeof atob === 'function' ? atob(base64) : Buffer.from(base64, 'base64').toString('utf8');
+    const payload = JSON.parse(jsonStr);
+    if (!payload.exp) return false;
+    const nowSec = Math.floor(Date.now() / 1000);
+    return payload.exp <= (nowSec + bufferSeconds);
+  } catch {
+    return true;
+  }
+}
+
 export class NativeSupabaseClient {
   constructor(url, apiKey) {
     this.url = url;
@@ -296,13 +312,69 @@ export class NativeSupabaseClient {
       if (!user) return null;
       return {
         ...user,
-        uid: user.id,
+        uid: user.id || user.uid,
         email: user.email || '',
-        getIdToken: async () => token || (typeof window !== 'undefined' ? localStorage.getItem('supabase_auth_token') : ''),
+        getIdToken: async (force = false) => {
+          if (typeof window === 'undefined') return token || '';
+          let currentToken = localStorage.getItem('supabase_auth_token') || localStorage.getItem('supabase_admin_token') || token || '';
+          if (force || isJwtExpiredOrExpiring(currentToken)) {
+            const refreshRes = await this.auth.refreshSession();
+            if (refreshRes?.data?.session?.access_token) {
+              currentToken = refreshRes.data.session.access_token;
+            }
+          }
+          return currentToken;
+        },
       };
     };
 
     return {
+      refreshSession: async () => {
+        try {
+          if (typeof window === 'undefined') return { data: { session: null }, error: null };
+          const refreshToken = localStorage.getItem('supabase_auth_refresh_token') || localStorage.getItem('supabase_admin_refresh_token');
+          if (!refreshToken) {
+            return { data: { session: null }, error: { message: 'Nenhum refresh token disponível.' } };
+          }
+
+          const res = await fetch(`${this.url.replace(/\/$/, '')}/auth/v1/token?grant_type=refresh_token`, {
+            method: 'POST',
+            headers: {
+              'apikey': this.apiKey,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ refresh_token: refreshToken })
+          });
+
+          const json = await res.json().catch(() => null);
+          if (!res.ok || !json?.access_token) {
+            localStorage.removeItem('supabase_auth_token');
+            localStorage.removeItem('supabase_auth_refresh_token');
+            localStorage.removeItem('supabase_admin_token');
+            localStorage.removeItem('supabase_admin_refresh_token');
+            notifyAuthChange('SIGNED_OUT', null);
+            return { data: { session: null }, error: { message: json?.msg || json?.message || 'Sessão expirada' } };
+          }
+
+          const newToken = json.access_token;
+          const newRefreshToken = json.refresh_token || refreshToken;
+          const user = normalizeUser(json.user, newToken);
+          const session = { access_token: newToken, refresh_token: newRefreshToken, user };
+
+          localStorage.setItem('supabase_auth_token', newToken);
+          localStorage.setItem('supabase_auth_user', JSON.stringify(user));
+          localStorage.setItem('supabase_auth_refresh_token', newRefreshToken);
+          localStorage.setItem('supabase_admin_token', newToken);
+          localStorage.setItem('supabase_admin_user', JSON.stringify(user));
+          localStorage.setItem('supabase_admin_refresh_token', newRefreshToken);
+
+          notifyAuthChange('TOKEN_REFRESHED', session);
+          return { data: { session, user }, error: null };
+        } catch (e) {
+          return { data: { session: null }, error: { message: e.message } };
+        }
+      },
+
       signInWithPassword: async ({ email, password }) => {
         try {
           const res = await fetch(`${this.url.replace(/\/$/, '')}/auth/v1/token?grant_type=password`, {
@@ -318,14 +390,19 @@ export class NativeSupabaseClient {
             return { data: null, error: { message: json?.error_description || json?.msg || json?.message || 'Falha ao autenticar' } };
           }
           const token = json?.access_token;
+          const refreshToken = json?.refresh_token;
           const user = normalizeUser(json?.user, token);
-          const session = token ? { access_token: token, user } : null;
+          const session = token ? { access_token: token, refresh_token: refreshToken, user } : null;
 
           if (typeof window !== 'undefined' && token) {
             localStorage.setItem('supabase_auth_token', token);
             localStorage.setItem('supabase_auth_user', JSON.stringify(user));
             localStorage.setItem('supabase_admin_token', token);
             localStorage.setItem('supabase_admin_user', JSON.stringify(user));
+            if (refreshToken) {
+              localStorage.setItem('supabase_auth_refresh_token', refreshToken);
+              localStorage.setItem('supabase_admin_refresh_token', refreshToken);
+            }
           }
           notifyAuthChange('SIGNED_IN', session);
           return { data: { session, user }, error: null };
@@ -349,12 +426,16 @@ export class NativeSupabaseClient {
             return { data: null, error: { message: json?.error_description || json?.msg || json?.message || 'Falha ao criar conta' } };
           }
           const token = json?.access_token;
+          const refreshToken = json?.refresh_token;
           const user = normalizeUser(json?.user || json, token);
-          const session = token ? { access_token: token, user } : null;
+          const session = token ? { access_token: token, refresh_token: refreshToken, user } : null;
 
           if (typeof window !== 'undefined' && token) {
             localStorage.setItem('supabase_auth_token', token);
             localStorage.setItem('supabase_auth_user', JSON.stringify(user));
+            if (refreshToken) {
+              localStorage.setItem('supabase_auth_refresh_token', refreshToken);
+            }
           }
           notifyAuthChange('SIGNED_UP', session);
           return { data: { session, user }, error: null };
@@ -385,7 +466,14 @@ export class NativeSupabaseClient {
 
       getSession: async () => {
         if (typeof window === 'undefined') return { data: { session: null }, error: null };
-        const token = localStorage.getItem('supabase_auth_token') || localStorage.getItem('supabase_admin_token');
+        let token = localStorage.getItem('supabase_auth_token') || localStorage.getItem('supabase_admin_token');
+        if (isJwtExpiredOrExpiring(token)) {
+          const refreshRes = await this.auth.refreshSession();
+          if (refreshRes?.data?.session) {
+            return refreshRes;
+          }
+        }
+        token = localStorage.getItem('supabase_auth_token') || localStorage.getItem('supabase_admin_token');
         const rawUser = localStorage.getItem('supabase_auth_user') || localStorage.getItem('supabase_admin_user');
         const user = normalizeUser(rawUser ? JSON.parse(rawUser) : null, token);
         if (token && user) {
@@ -403,8 +491,10 @@ export class NativeSupabaseClient {
         if (typeof window !== 'undefined') {
           localStorage.removeItem('supabase_auth_token');
           localStorage.removeItem('supabase_auth_user');
+          localStorage.removeItem('supabase_auth_refresh_token');
           localStorage.removeItem('supabase_admin_token');
           localStorage.removeItem('supabase_admin_user');
+          localStorage.removeItem('supabase_admin_refresh_token');
         }
         notifyAuthChange('SIGNED_OUT', null);
         return { error: null };

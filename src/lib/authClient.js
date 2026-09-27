@@ -1,10 +1,20 @@
 'use client';
 
 import { supabase } from './supabase.js';
+import { isJwtExpiredOrExpiring } from './supabase-edge.js';
 
-export async function getAdminAuthToken() {
+export async function getAdminAuthToken(force = false) {
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem('supabase_admin_token') || localStorage.getItem('supabase_auth_token') || null;
+  let token = localStorage.getItem('supabase_admin_token') || localStorage.getItem('supabase_auth_token') || null;
+  if (force || isJwtExpiredOrExpiring(token)) {
+    if (supabase?.auth?.refreshSession) {
+      const res = await supabase.auth.refreshSession();
+      if (res?.data?.session?.access_token) {
+        token = res.data.session.access_token;
+      }
+    }
+  }
+  return token;
 }
 
 export async function signInWithEmailAndPassword(_unusedAuth, email, password) {
@@ -79,7 +89,18 @@ export const auth = {
       return {
         ...user,
         uid: user.id || user.uid,
-        getIdToken: async () => token
+        getIdToken: async (force = false) => {
+          let currentToken = localStorage.getItem('supabase_auth_token') || localStorage.getItem('supabase_admin_token') || token;
+          if (force || isJwtExpiredOrExpiring(currentToken)) {
+            if (supabase?.auth?.refreshSession) {
+              const res = await supabase.auth.refreshSession();
+              if (res?.data?.session?.access_token) {
+                currentToken = res.data.session.access_token;
+              }
+            }
+          }
+          return currentToken;
+        }
       };
     } catch {
       return null;

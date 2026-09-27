@@ -20,13 +20,18 @@ export default function AdminLogin() {
       setCheckingAuth(false);
     }, 1200);
 
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       clearTimeout(timeout);
       if (user && user.email === 'narcisofelizardo@gmail.com') {
-        router.push('/admin');
-      } else {
-        setCheckingAuth(false);
+        try {
+          const token = await user.getIdToken?.();
+          if (token) {
+            router.push('/admin');
+            return;
+          }
+        } catch {}
       }
+      setCheckingAuth(false);
     }, (error) => {
       clearTimeout(timeout);
       setCheckingAuth(false);

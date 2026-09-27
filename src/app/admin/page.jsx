@@ -37,6 +37,11 @@ export default function AdminDashboard() {
   const [productionStatusFilter, setProductionStatusFilter] = useState('ALL');
   const [sortBy, setSortBy] = useState('createdAt_desc'); // 'createdAt_desc'|'createdAt_asc'|'paidAt_desc'|'paidAt_asc'
 
+  // Controle de auto-atualização em tempo real e renovação de token
+  const [reloadTrigger, setReloadTrigger] = useState(0);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState(() => new Date());
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
   // Linhas da tabela com o detalhamento de produtos (Valor) expandido — ver getOrderProductBreakdown.
   const [expandedValueRows, setExpandedValueRows] = useState(() => new Set());
   const toggleValueExpanded = (orderId) => {
@@ -124,17 +129,21 @@ export default function AdminDashboard() {
   const localDayStartIso = (dateStr) => (dateStr ? new Date(`${dateStr}T00:00:00`).toISOString() : null);
   const localDayEndIso = (dateStr) => (dateStr ? new Date(`${dateStr}T23:59:59.999`).toISOString() : null);
 
-  // Load orders — consulta via API Edge (Supabase PostgREST)
+  // Load orders — consulta via API Edge (Supabase PostgREST) com auto-renovação de sessão
   useEffect(() => {
     if (!user) return;
 
     let cancelado = false;
 
     const carregar = async () => {
-      setLoadingOrders(true);
+      if (orders.length === 0) {
+        setLoadingOrders(true);
+      } else {
+        setIsRefreshing(true);
+      }
 
       try {
-        const token = await auth.currentUser?.getIdToken();
+        let token = await auth.currentUser?.getIdToken();
         if (token) {
           const params = new URLSearchParams();
           if (debouncedSearch && debouncedSearch.trim().length >= 2) {
@@ -145,9 +154,25 @@ export default function AdminDashboard() {
           }
           params.set('limit', String(loadAll ? 1000 : pageSize + 1));
 
-          const res = await fetch(`/api/admin/orders?${params.toString()}`, {
+          let res = await fetch(`/api/admin/orders?${params.toString()}`, {
             headers: { Authorization: `Bearer ${token}` }
           });
+
+          // Se a sessão expirou (401), força renovação automática do token e repete
+          if (res.status === 401) {
+            const freshToken = await auth.currentUser?.getIdToken(true);
+            if (freshToken && freshToken !== token) {
+              token = freshToken;
+              res = await fetch(`/api/admin/orders?${params.toString()}`, {
+                headers: { Authorization: `Bearer ${freshToken}` }
+              });
+            } else {
+              console.warn('[Admin] Sessão expirada definitivamente. Redirecionando para login...');
+              await signOut(auth);
+              router.push('/admin/login');
+              return;
+            }
+          }
 
           if (res.ok) {
             const json = await res.json();
@@ -160,7 +185,9 @@ export default function AdminDashboard() {
                 setHasMoreOrders(json.orders.length > pageSize);
                 setOrders(json.orders.slice(0, pageSize));
               }
+              setLastRefreshedAt(new Date());
               setLoadingOrders(false);
+              setIsRefreshing(false);
               setLoadingMore(false);
               return;
             }
@@ -172,6 +199,7 @@ export default function AdminDashboard() {
 
       if (!cancelado) {
         setLoadingOrders(false);
+        setIsRefreshing(false);
         setLoadingMore(false);
       }
     };
@@ -181,7 +209,31 @@ export default function AdminDashboard() {
     return () => {
       cancelado = true;
     };
-  }, [user, loadAll, pageSize, dateFrom, dateTo, debouncedSearch]);
+  }, [user, loadAll, pageSize, dateFrom, dateTo, debouncedSearch, reloadTrigger]);
+
+  // Auto-atualização periódica (a cada 25 segundos) e ao focar na janela do painel
+  useEffect(() => {
+    if (!user) return;
+
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        setReloadTrigger((prev) => prev + 1);
+      }
+    }, 25000);
+
+    const handleFocus = () => {
+      setReloadTrigger((prev) => prev + 1);
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleFocus);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleFocus);
+    };
+  }, [user]);
 
 
   // Configurações do WhatsApp (Master Switch do Agente e Suporte)
@@ -706,6 +758,29 @@ export default function AdminDashboard() {
           </div>
 
           <div style={styles.userInfo}>
+            <button
+              type="button"
+              onClick={() => setReloadTrigger((prev) => prev + 1)}
+              disabled={loadingOrders || isRefreshing}
+              style={{
+                background: '#f8fafc',
+                border: '1px solid #cbd5e1',
+                borderRadius: '8px',
+                padding: '6px 12px',
+                fontSize: '0.8rem',
+                fontWeight: '700',
+                color: '#475569',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                transition: 'all 0.2s',
+              }}
+              title={lastRefreshedAt ? `Última atualização: ${lastRefreshedAt.toLocaleTimeString('pt-BR')}` : 'Atualizar'}
+            >
+              <span style={{ display: 'inline-block', transform: isRefreshing ? 'rotate(180deg)' : 'none', transition: 'transform 0.5s' }}>🔄</span>
+              {isRefreshing ? 'Atualizando...' : 'Atualizar'}
+            </button>
             <span style={{ fontSize: '0.9rem', color: '#334155', fontWeight: '600' }}>{user.email}</span>
             <button onClick={handleLogout} style={styles.logoutBtn}>Sair ➔</button>
           </div>
@@ -835,7 +910,7 @@ export default function AdminDashboard() {
             <div>
               {/* Cards de faturamento/vendas/pedidos do período — pedido 12/09/2026, ver comentário
                   em src/components/FaturamentoCards.jsx pro porquê de ser consulta própria. */}
-              <FaturamentoCards dateFrom={dateFrom} dateTo={dateTo} />
+              <FaturamentoCards dateFrom={dateFrom} dateTo={dateTo} reloadTrigger={reloadTrigger} />
 
               {/* Tabela por dia, mapa de calor por horário e mapa por estado moraram aqui até
                   12/09/2026 — pedido do dono pra ficarem em /admin/dashboard junto do resto da

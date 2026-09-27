@@ -32,7 +32,7 @@ function localDayEnd(dateStr) {
   return dateStr ? new Date(`${dateStr}T23:59:59.999`) : null;
 }
 
-export default function FaturamentoCards({ dateFrom, dateTo }) {
+export default function FaturamentoCards({ dateFrom, dateTo, reloadTrigger }) {
   const [pedidos, setPedidos] = useState([]);
   const [supaStats, setSupaStats] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -41,20 +41,31 @@ export default function FaturamentoCards({ dateFrom, dateTo }) {
   useEffect(() => {
     let ativo = true;
     (async () => {
-      setLoading(true);
+      if (!supaStats) setLoading(true);
       setErro('');
-      setSupaStats(null);
 
       // 1. Tenta buscar direto os totais calculados no Supabase (alta performance)
       try {
-        const token = await getAdminAuthToken();
+        let token = await getAdminAuthToken();
         const params = new URLSearchParams({ tipo: 'faturamento' });
         if (dateFrom) params.set('dateFrom', dateFrom);
         if (dateTo) params.set('dateTo', dateTo);
 
-        const res = await fetch(`/api/admin/reports?${params.toString()}`, {
+        let res = await fetch(`/api/admin/reports?${params.toString()}`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
+
+        // Se 401, tenta renovar o token e repetir
+        if (res.status === 401) {
+          const freshToken = await getAdminAuthToken(true);
+          if (freshToken && freshToken !== token) {
+            token = freshToken;
+            res = await fetch(`/api/admin/reports?${params.toString()}`, {
+              headers: { Authorization: `Bearer ${freshToken}` }
+            });
+          }
+        }
+
         if (res.ok) {
           const json = await res.json().catch(() => null);
           if (json?.ok && typeof json.faturamentoTotal === 'number') {
@@ -66,13 +77,13 @@ export default function FaturamentoCards({ dateFrom, dateTo }) {
         }
       } catch (err) {
         console.warn('[FaturamentoCards] Falha ao consultar relatórios:', err.message);
-        if (ativo) setErro('Não foi possível carregar os valores do período.');
+        if (ativo && !supaStats) setErro('Não foi possível carregar os valores do período.');
       } finally {
         if (ativo) setLoading(false);
       }
     })();
     return () => { ativo = false; };
-  }, [dateFrom, dateTo]);
+  }, [dateFrom, dateTo, reloadTrigger]);
 
   const AUDIO_PRICE = getPriceForSku('audio_only');
   const VIDEO_PRICE = getPriceForSku('video_addon');
