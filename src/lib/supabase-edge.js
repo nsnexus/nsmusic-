@@ -204,7 +204,10 @@ class SupabaseTableQuery {
   }
 
   in(column, values) {
-    const list = Array.isArray(values) ? values.join(',') : String(values);
+    const arr = Array.isArray(values) ? values : [values];
+    const list = arr
+      .map((v) => (typeof v === 'number' ? v : `"${String(v).replace(/"/g, '""')}"`))
+      .join(',');
     this.queryParams.append(column, `in.(${list})`);
     return this;
   }

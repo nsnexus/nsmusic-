@@ -39,6 +39,7 @@ export default function MinhasMusicasPage() {
   const [searchTab, setSearchTab] = useState('phone'); // 'phone' | 'email' | 'login'
   const [searchPhone, setSearchPhone] = useState('');
   const [searchEmail, setSearchEmail] = useState('');
+  const [searchError, setSearchError] = useState('');
 
   // Login / Register Form State
   const [email, setEmail] = useState('');
@@ -81,30 +82,28 @@ export default function MinhasMusicasPage() {
     return () => unsubscribe();
   }, []);
 
-  // Busca rápida por WhatsApp ou E-mail sem exigir senha via Edge API /api/orders/my-orders
+  // Busca rápida por WhatsApp ou Nº do Pedido sem exigir senha via Edge API /api/orders/my-orders
   const handleQuickSearch = async (e) => {
     e.preventDefault();
+    setSearchError('');
     setLoadingOrders(true);
     setHasSearched(true);
 
     try {
+      const rawInput = (searchPhone || '').trim();
       let queryParam = '';
-      if (searchTab === 'phone') {
-        const clean = (searchPhone || '').replace(/\D/g, '');
+
+      if (rawInput.toUpperCase().startsWith('NS-') || (rawInput.length >= 18 && rawInput.length <= 24 && !rawInput.includes(' '))) {
+        queryParam = `order=${encodeURIComponent(rawInput)}`;
+      } else {
+        const clean = rawInput.replace(/\D/g, '');
         if (clean.length < 10) {
+          setSearchError('Por favor, digite o WhatsApp completo com DDD (ex: 11 99999-9999).');
           setOrders([]);
           setLoadingOrders(false);
           return;
         }
         queryParam = `phone=${encodeURIComponent(clean)}`;
-      } else {
-        const typedEmail = searchEmail.trim();
-        if (!typedEmail) {
-          setOrders([]);
-          setLoadingOrders(false);
-          return;
-        }
-        queryParam = `email=${encodeURIComponent(typedEmail)}`;
       }
 
       const res = await fetch(`/api/orders/my-orders?${queryParam}`);
@@ -267,13 +266,21 @@ export default function MinhasMusicasPage() {
                   dúvida na hora de reencontrar a própria música. */}
               <form onSubmit={handleQuickSearch} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                 <input
-                  type="tel"
-                  placeholder="Seu WhatsApp (ex: 94 99106-4040)"
+                  type="text"
+                  placeholder="Seu WhatsApp com DDD (ex: 19 99218-1903) ou nº do pedido"
                   required
                   value={searchPhone}
-                  onChange={(e) => setSearchPhone(e.target.value)}
+                  onChange={(e) => {
+                    setSearchPhone(e.target.value);
+                    if (searchError) setSearchError('');
+                  }}
                   style={styles.input}
                 />
+                {searchError && (
+                  <p style={{ color: '#ef4444', fontSize: '0.85rem', margin: '-4px 0 0 0', textAlign: 'left', fontWeight: '500' }}>
+                    ⚠️ {searchError}
+                  </p>
+                )}
                 <button type="submit" disabled={loadingOrders} className="btn btn-primary" style={{ width: '100%', padding: '12px', fontSize: '0.95rem' }}>
                   {loadingOrders ? '🔍 Buscando...' : '📱 Localizar Minhas Músicas'}
                 </button>

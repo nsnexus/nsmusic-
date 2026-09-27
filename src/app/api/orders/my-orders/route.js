@@ -18,9 +18,10 @@ export async function GET(req) {
     const phone = searchParams.get('phone')?.trim() || '';
     const email = searchParams.get('email')?.trim() || '';
     const userId = searchParams.get('userId')?.trim() || '';
+    const order = searchParams.get('order')?.trim() || searchParams.get('orderNumber')?.trim() || searchParams.get('orderId')?.trim() || '';
 
-    if (!phone && !email && !userId) {
-      return NextResponse.json({ error: 'Informe telefone, e-mail ou userId para busca' }, { status: 400 });
+    if (!phone && !email && !userId && !order) {
+      return NextResponse.json({ error: 'Informe telefone, e-mail, pedido ou userId para busca' }, { status: 400 });
     }
 
     const supabase = getSupabaseEdge(env);
@@ -30,7 +31,9 @@ export async function GET(req) {
 
     let q = supabase.from('orders').select('*').is('deleted_at', null);
 
-    if (phone) {
+    if (order) {
+      q = q.or(`id.eq.${order},order_number.eq.${order}`);
+    } else if (phone) {
       const variants = generatePhoneVariants(phone);
       if (variants.length > 0) {
         q = q.in('customer_phone', variants.slice(0, 25));

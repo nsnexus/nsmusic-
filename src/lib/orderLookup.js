@@ -225,9 +225,6 @@ export async function findOrdersByPhone(phone, env = {}, limite = 10) {
   const variants = generatePhoneVariants(phone);
   if (variants.length === 0) return [];
 
-  const digitos = variants.map((v) => String(v).replace(/\D/g, '')).filter(Boolean);
-  if (digitos.length === 0) return [];
-
   const supabase = getSupabaseEdge(env);
   if (!supabase) return [];
 
@@ -235,7 +232,7 @@ export async function findOrdersByPhone(phone, env = {}, limite = 10) {
     const { data, error } = await supabase
       .from('orders')
       .select('*')
-      .in('customer_phone_digits', digitos.slice(0, 25))
+      .in('customer_phone', variants.slice(0, 25))
       .is('deleted_at', null)
       .neq('production_status', 'RASCUNHO')
       .neq('production_status', 'CONFIG')
