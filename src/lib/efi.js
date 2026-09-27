@@ -13,7 +13,7 @@
 //
 // Doc oficial: https://dev.efipay.com.br/docs/api-pix/credenciais
 
-import { fetchWithRetry } from './httpRetry';
+import { fetchWithRetry } from './httpRetry.js';
 
 function readEnvValue(env, name) {
   return String((env && env[name]) || process.env[name] || '').trim();

@@ -2,7 +2,13 @@ import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
 import { getOrder, updateOrder } from '@/lib/supabaseDb';
 import { sendWApiTextMessage, resolveDeliveryUrl, isVideoPurchased, buildAudioDownloadLink } from '@/lib/whatsapp';
-import { handleWhatsAppAgentMessage, pauseAgentForPhone, resumeAgentForPhone } from '@/lib/whatsappAgent';
+import {
+  handleWhatsAppAgentMessage,
+  pauseAgentForPhone,
+  resumeAgentForPhone,
+  isWhatsAppAgentGloballyEnabled,
+  isAgentPausedForPhone,
+} from '@/lib/whatsappAgent';
 import { findRecentOrderByPhone, isNewSongIntent, findOrderByIdOrNumber, isShortAckMessage } from '@/lib/orderLookup';
 import { extractAudioFromWebhook, transcribeAudioWithFailover } from '@/lib/transcribeAudio';
 
@@ -526,12 +532,12 @@ export async function POST(req) {
         const lower = (messageText || '').toLowerCase();
         // Se o atendente humano enviou comando explícito para reativar o bot:
         if (lower.includes('#ia') || lower.includes('#bot') || lower.includes('#ligar')) {
-          await resumeAgentForPhone(targetPhone);
+          await resumeAgentForPhone(targetPhone, envVars);
           return NextResponse.json({ success: true, action: 'agent_resumed_by_human' }, { status: 200 });
         }
 
         // Caso contrário, qualquer mensagem enviada manualmente pelo WhatsApp pausa a IA automaticamente para este cliente:
-        await pauseAgentForPhone(targetPhone);
+        await pauseAgentForPhone(targetPhone, envVars);
         console.log('[WhatsApp Webhook] fromMe detectado — IA pausada para cliente:', targetPhone);
       }
       return NextResponse.json({ success: true, ignored: 'from_me_human_takeover' }, { status: 200 });
@@ -539,6 +545,27 @@ export async function POST(req) {
 
     if (!senderPhone || senderPhone.length < 8) {
       return NextResponse.json({ success: true, warning: 'Nenhum remetente identificado' }, { status: 200 });
+    }
+
+    // A. Master switch: se o robô estiver desativado no painel Admin (Atendimento 100% Humano), silêncio absoluto
+    const isGloballyActive = await isWhatsAppAgentGloballyEnabled(envVars);
+    if (!isGloballyActive) {
+      console.log(`[WhatsApp Webhook] Robô WhatsApp desativado globalmente no Admin (Atendimento 100% Humano). Silêncio para ${senderPhone}.`);
+      return NextResponse.json({ success: true, ignored: 'agent_globally_disabled' }, { status: 200 });
+    }
+
+    // B. Atendimento humano: se o atendente humano assumiu este chat e ainda não se passaram 12h, IA em silêncio
+    const isPaused = await isAgentPausedForPhone(senderPhone, envVars);
+    if (isPaused) {
+      const lower = (messageText || '').toLowerCase();
+      const isReactivationCommand = ['#ia', '#bot', '#reativar', 'ligar bot', 'ativar bot'].includes(lower);
+      if (isReactivationCommand) {
+        await resumeAgentForPhone(senderPhone, envVars);
+        console.log(`[WhatsApp Webhook] IA reativada pelo cliente ${senderPhone} com comando.`);
+      } else {
+        console.log(`[WhatsApp Webhook] Cliente ${senderPhone} em atendimento humano ativo. Silêncio da IA.`);
+        return NextResponse.json({ success: true, ignored: 'human_takeover_active' }, { status: 200 });
+      }
     }
 
     // 1. Tentar encontrar ID ou número de pedido no texto
@@ -568,7 +595,7 @@ export async function POST(req) {
     // verifica se o telefone do cliente já possui algum pedido realizado no sistema:
     if (!matchedOrder && senderPhone && !isNewSongIntent(messageText)) {
       try {
-        const existingOrder = await findRecentOrderByPhone(senderPhone);
+        const existingOrder = await findRecentOrderByPhone(senderPhone, envVars);
         if (existingOrder) {
           matchedOrderId = existingOrder.id;
           matchedOrder = existingOrder;
@@ -583,13 +610,15 @@ export async function POST(req) {
     if (matchedOrder && matchedOrderId) {
       const isShortAck = isShortAckMessage(messageText);
       const isExplicitId = Boolean(candidateId);
+      const isMusicInquiry = pareceCobrancaDeMusica(messageText);
+      const isDefaultSiteButtonText = messageText.includes('Quero receber a prévia da música do meu pedido');
+      const isDirectMusicRequest = isExplicitId || isMusicInquiry || isDefaultSiteButtonText;
 
       // Primeiro nome só. Ninguém chama a pessoa pelo nome completo no WhatsApp, e "Olá,
       // Cliente!" (o padrão antigo quando o nome faltava) é a assinatura de mensagem automática.
       const nomeCompleto = String(matchedOrder.customerName || '').trim();
       const customerName = nomeCompleto ? nomeCompleto.split(/\s+/)[0] : '';
       const honoreeName = matchedOrder.honoreeName || 'alguém especial';
-      const orderNum = matchedOrder.orderNumber ? `#${matchedOrder.orderNumber}` : '';
       const deliveryUrl = resolveDeliveryUrl(matchedOrderId);
 
       // Marca que o cliente solicitou o envio pelo WhatsApp
@@ -601,48 +630,50 @@ export async function POST(req) {
         }, envVars);
       } catch (e) {}
 
-      // Se a música já estiver pronta:
-      if (matchedOrder.audioUrl || matchedOrder.audioFiles?.length) {
-        // Estado FRESCO
+      // Se foi só um "ok"/"obrigado"/emoji (isShortAckMessage) sem ID explícito e o cliente JÁ foi
+      // notificado antes, não reenvia nada — silêncio cortês.
+      const alreadyNotified = Boolean(
+        matchedOrder.whatsappSent ||
+        matchedOrder.paymentWhatsappSent ||
+        matchedOrder.readyTemplateSent
+      );
+
+      if (isShortAck && !isExplicitId && alreadyNotified) {
+        console.log(`[WhatsApp Webhook] Confirmação curta ("${messageText}") e pedido #${matchedOrderId} já notificado. Silêncio.`);
+        return NextResponse.json({ success: true, ignored: 'already_notified_short_ack_silence' }, { status: 200 });
+      }
+
+      // Se o cliente enviou uma mensagem com dúvida ou suporte (não só o clique automático do botão),
+      // atende primeiro com o suporte inteligente:
+      if (!isShortAck && !isDefaultSiteButtonText) {
+        try {
+          const { tentarAtenderSuporte } = await import('@/lib/agentSuporte');
+          const suporte = await tentarAtenderSuporte(senderPhone, messageText, envVars);
+          if (suporte?.atendido) {
+            await sendWApiTextMessage(senderPhone, suporte.resposta, envVars);
+            if (suporte.entregarHumano) await pauseAgentForPhone(senderPhone, envVars);
+            return NextResponse.json({ success: true, action: 'suporte_atendeu' }, { status: 200 });
+          }
+        } catch (supErr) {
+          console.warn('[WhatsApp Webhook] Falha ao tentar suporte para pedido existente:', supErr.message);
+        }
+      }
+
+      // Se NÃO foi um pedido direto da música (clique do botão do site com ID, envio de ID, ou pergunta sobre o áudio),
+      // e o suporte não atendeu, NÃO despenca o link do pedido antigo! Passa para o agente conversacional tratar a mensagem.
+      if (!isDirectMusicRequest) {
+        console.log(`[WhatsApp Webhook] Mensagem de ${senderPhone} não é pedido direto de música. Encaminhando para Agente Conversacional.`);
+      } else if (matchedOrder.audioUrl || matchedOrder.audioFiles?.length) {
+        // Se a música já estiver pronta e o cliente solicitou diretamente:
         let freshData = matchedOrder;
         try {
           const freshOrder = await getOrder(matchedOrderId, envVars);
           if (freshOrder) freshData = freshOrder;
         } catch (e) {}
 
-        // Se foi só um "ok"/"obrigado"/emoji (isShortAckMessage) sem ID explícito e o cliente JÁ foi
-        // notificado antes, não reenvia o template completo — não precisa.
-        const alreadyNotified = Boolean(
-          freshData.whatsappSent ||
-          freshData.paymentWhatsappSent ||
-          freshData.readyTemplateSent
-        );
-
-        if (isShortAck && !isExplicitId && alreadyNotified) {
-          console.log(`[WhatsApp Webhook] Confirmação curta ("${messageText}") e pedido #${matchedOrderId} já notificado. Silêncio.`);
-          return NextResponse.json({ success: true, ignored: 'already_notified_short_ack_silence' }, { status: 200 });
-        }
-
         // Se há um envio em andamento neste exato momento (janela de até 60s), evita disparo duplicado concorrente:
         if (isSendingInProgress(freshData)) {
           return NextResponse.json({ success: true, ignored: 'sending_in_progress' }, { status: 200 });
-        }
-
-        // Se o cliente enviou uma mensagem com dúvida ou suporte (não só o clique automático do botão),
-        // atende primeiro com o suporte inteligente antes de disparar o template fixo:
-        const isDefaultSiteButtonText = messageText.includes('Quero receber a prévia da música do meu pedido');
-        if (!isShortAck && !isDefaultSiteButtonText) {
-          try {
-            const { tentarAtenderSuporte } = await import('@/lib/agentSuporte');
-            const suporte = await tentarAtenderSuporte(senderPhone, messageText, envVars);
-            if (suporte?.atendido) {
-              await sendWApiTextMessage(senderPhone, suporte.resposta, envVars);
-              if (suporte.entregarHumano) await pauseAgentForPhone(senderPhone);
-              return NextResponse.json({ success: true, action: 'suporte_atendeu' }, { status: 200 });
-            }
-          } catch (supErr) {
-            console.warn('[WhatsApp Webhook] Falha ao tentar suporte para pedido existente:', supErr.message);
-          }
         }
 
         const EXPLICIT_CLICK_COOLDOWN_MS = 15000;
@@ -672,8 +703,6 @@ export async function POST(req) {
         let replyMsg = '';
         if (isPaid) {
           const userHasVideo = isVideoPurchased(matchedOrder);
-          // Quem já pagou o vídeo precisa saber como usar; quem não pagou recebe UMA linha, não um
-          // anúncio. A oferta completa já está na própria página de entrega.
           const videoBlock = userHasVideo
             ? `\nO vídeo também tá liberado — é só mandar de 10 a 20 fotos nessa mesma página que eu sincronizo com a música. 📸\n`
             : `\nSe quiser, dá pra transformar em vídeo com as fotos de ${honoreeName} por R$ 6,90 — tá na mesma página. 🎬\n`;
@@ -712,7 +741,7 @@ Se precisar de qualquer coisa, é só me chamar.`;
 
         return NextResponse.json({ success: true, action: 'sent_ready_link' }, { status: 200 });
       } else {
-        // A música ainda está sendo gerada pela IA:
+        // A música ainda está sendo gerada pela IA e o cliente solicitou diretamente:
         const waitCooldownMs = isExplicitId ? 15000 : TEMPLATE_RESEND_COOLDOWN_MS;
         const waitSentAt = Date.parse(matchedOrder.whatsappWaitAckSentAt || '');
         if (!Number.isNaN(waitSentAt) && Date.now() - waitSentAt < waitCooldownMs) {

@@ -213,35 +213,56 @@ export async function setWhatsAppAgentGloballyEnabled(enabled, envVars = {}) {
 /**
  * Pausa o Agente para um telefone específico (quando o atendente humano assume a conversa)
  */
-export async function pauseAgentForPhone(phone) {
+export async function pauseAgentForPhone(phone, envVars = {}) {
   // cleanWhatsAppId (não replace(/\D/g,'') ingênuo) preserva o sufixo "@lid" quando o contato só tem
   // LID disponível — ver src/lib/whatsappTemplates.js e route.js:extractSenderPhone (achado 28/08/2026).
   const cleanPhone = cleanWhatsAppId(phone);
   if (!cleanPhone) return;
 
-  const current = (await loadSession(cleanPhone)) || {};
+  const current = (await loadSession(cleanPhone, envVars)) || {};
   await saveSession(cleanPhone, {
     ...current,
     humanTakeover: true,
     pausedAt: new Date().toISOString(),
-  });
+  }, envVars);
   console.log('[WhatsApp Agent] Atendimento humano assumido. IA pausada.');
 }
 
 /**
  * Reativa o Agente para um telefone específico
  */
-export async function resumeAgentForPhone(phone) {
+export async function resumeAgentForPhone(phone, envVars = {}) {
   const cleanPhone = cleanWhatsAppId(phone);
   if (!cleanPhone) return;
 
-  const current = (await loadSession(cleanPhone)) || {};
+  const current = (await loadSession(cleanPhone, envVars)) || {};
   await saveSession(cleanPhone, {
     ...current,
     humanTakeover: false,
     resumedAt: new Date().toISOString(),
-  });
+  }, envVars);
   console.log('[WhatsApp Agent] IA reativada.');
+}
+
+/**
+ * Verifica se o Agente está pausado para um telefone específico (em atendimento humano)
+ */
+export async function isAgentPausedForPhone(phone, envVars = {}) {
+  const cleanPhone = cleanWhatsAppId(phone);
+  if (!cleanPhone) return false;
+  try {
+    const session = await loadSession(cleanPhone, envVars);
+    if (session?.humanTakeover === true) {
+      const pausedAtTs = Date.parse(session.pausedAt || '');
+      // Se foi pausado nas últimas 12 horas, considera em atendimento humano:
+      if (!Number.isNaN(pausedAtTs) && (Date.now() - pausedAtTs < 12 * 60 * 60 * 1000)) {
+        return true;
+      }
+    }
+  } catch (e) {
+    console.warn('[WhatsApp Agent] Erro ao verificar pausa do agente:', e.message);
+  }
+  return false;
 }
 
 /**
@@ -256,13 +277,13 @@ export async function handleWhatsAppAgentMessage(senderPhone, messageText, envVa
   // 1. Comando de pausa explícita pelo chat
   const isPauseCommand = ['#pausar', '#pausa', '#desligar', '#parar', '#stop', '#off', '#humano', '#atendente'].includes(textLower);
   if (isPauseCommand) {
-    await pauseAgentForPhone(cleanPhone);
+    await pauseAgentForPhone(cleanPhone, envVars);
     await sendWApiTextMessage(cleanPhone, '🛑 *Atendimento com a IA pausado!*\nNossa equipe humana já vai te responder por aqui.', envVars);
     return true;
   }
 
   // 2. Verifica se o Agente de IA está desativado globalmente pelo Painel Admin
-  const isGloballyActive = await isWhatsAppAgentGloballyEnabled();
+  const isGloballyActive = await isWhatsAppAgentGloballyEnabled(envVars);
   if (!isGloballyActive) {
     console.log(`[WhatsApp Agent] Agente desativado globalmente no Admin. Silêncio para ${cleanPhone}.`);
     return false;

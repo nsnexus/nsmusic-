@@ -10,9 +10,9 @@
 //   - estados de estorno/cancelamento revogam acesso já concedido, o que nunca era tratado antes.
 
 import { getOrder, updateOrder } from './supabaseDb.js';
-import { skuApprovesMusic, skuGrantsVideoAccess, skuGrantsCartaAccess, skuGrantsRetrospectivaAccess, getPriceForSku, brindesPorValorPago } from './pricing';
-import { resolveDeliveryUrl } from './whatsappTemplates';
-import { sendMetaPurchaseEvent } from './metaCapi';
+import { skuApprovesMusic, skuGrantsVideoAccess, skuGrantsCartaAccess, skuGrantsRetrospectivaAccess, getPriceForSku, brindesPorValorPago } from './pricing.js';
+import { resolveDeliveryUrl } from './whatsappTemplates.js';
+import { sendMetaPurchaseEvent } from './metaCapi.js';
 
 const REVOKING_STATUSES = new Set(['cancelled', 'refunded', 'charged_back']);
 
