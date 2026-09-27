@@ -23,7 +23,7 @@ vi.mock('@/lib/whatsapp', () => ({
   isVideoPurchased: (orderData) => Boolean(orderData?.hasVideoAccess || orderData?.paymentIntentSku === 'combo'),
 }));
 
-const { applyPaymentApproval } = await import('@/lib/payments');
+const { applyPaymentApproval, notifyPaymentApproved } = await import('@/lib/payments');
 
 beforeEach(() => {
   store = {};
@@ -470,5 +470,59 @@ describe('applyPaymentApproval — SKU vem do txid pago, não da última cobran�
     expect(result.sku).toBe('audio_only');
     expect(store['order24'].hasPlaybackAccess).toBeUndefined();
     expect(store['order24'].paymentStatus).toBe('PAGAMENTO_APROVADO');
+  });
+
+  it('anti-duplicata: chamadas concorrentes a notifyPaymentApproved disparam apenas 1 mensagem', async () => {
+    store['orderConcurrent'] = {
+      customerName: 'Cliente Teste',
+      honoreeName: 'Homenageado',
+      customerPhone: '5511999998888',
+      whatsappRequested: true,
+      paymentStatus: 'PAGAMENTO_APROVADO',
+      paymentWhatsappSent: false,
+    };
+
+    // Dispara 5 chamadas em paralelo para o mesmo pedido
+    await Promise.all([
+      notifyPaymentApproved('orderConcurrent', store['orderConcurrent']),
+      notifyPaymentApproved('orderConcurrent', store['orderConcurrent']),
+      notifyPaymentApproved('orderConcurrent', store['orderConcurrent']),
+      notifyPaymentApproved('orderConcurrent', store['orderConcurrent']),
+      notifyPaymentApproved('orderConcurrent', store['orderConcurrent']),
+    ]);
+
+    expect(sendPaymentApprovedTemplateMock).toHaveBeenCalledTimes(1);
+    expect(store['orderConcurrent'].paymentWhatsappSent).toBe(true);
+  });
+
+  it('anti-duplicata: se paymentWhatsappSent já é true, notifyPaymentApproved não envia novamente', async () => {
+    store['orderSent'] = {
+      customerName: 'Cliente Já Enviado',
+      customerPhone: '5511999998888',
+      whatsappRequested: true,
+      paymentStatus: 'PAGAMENTO_APROVADO',
+      paymentWhatsappSent: true,
+    };
+
+    await notifyPaymentApproved('orderSent', store['orderSent']);
+
+    expect(sendPaymentApprovedTemplateMock).not.toHaveBeenCalled();
+  });
+
+  it('anti-duplicata: applyPaymentApproval em pedido já aprovado (PAGAMENTO_APROVADO) não chama notifyPaymentApproved', async () => {
+    store['orderAlreadyApproved'] = {
+      paymentIntentSku: 'audio_only',
+      paymentStatus: 'PAGAMENTO_APROVADO',
+      paymentId: 'txid-original',
+      customerPhone: '5511999998888',
+      whatsappRequested: true,
+      paymentWhatsappSent: true,
+    };
+
+    const res = await applyPaymentApproval('orderAlreadyApproved', 'txid-outro', { status: 'approved', transaction_amount: 9.99 });
+
+    expect(res.applied).toBe(false);
+    expect(res.reason).toBe('already_processed');
+    expect(sendPaymentApprovedTemplateMock).not.toHaveBeenCalled();
   });
 });

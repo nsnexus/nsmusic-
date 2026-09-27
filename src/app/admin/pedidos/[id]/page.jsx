@@ -37,6 +37,7 @@ export default function OrderDetailsAdmin() {
   const [hasCartaAccess, setHasCartaAccess] = useState(false);
   const [hasRetrospectivaAccess, setHasRetrospectivaAccess] = useState(false);
   const [notifying, setNotifying] = useState(false);
+  const [notifyCooldown, setNotifyCooldown] = useState(0);
   const [notifyMsg, setNotifyMsg] = useState('');
   const [checkingPayment, setCheckingPayment] = useState(false);
   const [checkPaymentMsg, setCheckPaymentMsg] = useState('');
@@ -80,6 +81,14 @@ export default function OrderDetailsAdmin() {
       unsubscribe();
     };
   }, [router]);
+
+  useEffect(() => {
+    if (notifyCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setNotifyCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [notifyCooldown]);
 
   useEffect(() => {
     if (!user || !orderId) return;
@@ -219,6 +228,7 @@ export default function OrderDetailsAdmin() {
   // aqui no painel, porque esse updateDoc é feito direto do browser e não passa por
   // applyPaymentApproval (único lugar que dispara o WhatsApp automático).
   const handleNotifyPayment = async () => {
+    if (notifying || notifyCooldown > 0) return;
     setNotifying(true);
     setNotifyMsg('');
     try {
@@ -229,7 +239,12 @@ export default function OrderDetailsAdmin() {
         body: JSON.stringify({ orderId }),
       });
       const data = await res.json().catch(() => ({}));
-      setNotifyMsg(res.ok ? '✅ Cliente notificado no WhatsApp!' : `❌ ${data.error || 'Falha ao notificar.'}`);
+      if (res.ok) {
+        setNotifyMsg('✅ Cliente notificado no WhatsApp!');
+        setNotifyCooldown(15);
+      } else {
+        setNotifyMsg(`❌ ${data.error || 'Falha ao notificar.'}`);
+      }
     } catch (err) {
       setNotifyMsg('❌ Falha ao notificar cliente.');
     } finally {
@@ -681,10 +696,15 @@ export default function OrderDetailsAdmin() {
                         <button
                           type="button"
                           onClick={handleNotifyPayment}
-                          disabled={notifying}
-                          style={{ ...styles.quickActionBtn, background: notifying ? '#94a3b8' : '#25D366', color: '#fff', cursor: notifying ? 'default' : 'pointer' }}
+                          disabled={notifying || notifyCooldown > 0}
+                          style={{
+                            ...styles.quickActionBtn,
+                            background: (notifying || notifyCooldown > 0) ? '#94a3b8' : '#25D366',
+                            color: '#fff',
+                            cursor: (notifying || notifyCooldown > 0) ? 'default' : 'pointer',
+                          }}
                         >
-                          {notifying ? '⏳ Enviando...' : '📲 Notificar cliente (pagamento aprovado)'}
+                          {notifying ? '⏳ Enviando...' : notifyCooldown > 0 ? `⏳ Aguarde (${notifyCooldown}s)` : '📲 Notificar cliente (pagamento aprovado)'}
                         </button>
                         {notifyMsg && <p style={{ fontSize: '0.8rem', marginTop: '6px', color: notifyMsg.startsWith('✅') ? '#059669' : '#dc2626' }}>{notifyMsg}</p>}
                       </div>

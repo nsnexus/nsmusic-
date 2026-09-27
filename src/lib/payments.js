@@ -16,6 +16,9 @@ import { sendMetaPurchaseEvent } from './metaCapi.js';
 
 const REVOKING_STATUSES = new Set(['cancelled', 'refunded', 'charged_back']);
 
+// Trava em memória para impedir aprovações simultâneas do mesmo pedido e txid no mesmo isolate
+const activePaymentApprovals = new Set();
+
 /**
  * Aplica uma transição de estado de pagamento a um pedido.
  * @param {string} orderId
@@ -40,6 +43,13 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
   if (status !== 'approved') {
     return { applied: false, reason: 'not_approved', status };
   }
+
+  const approvalLockKey = `${orderId}_${paymentId}`;
+  if (activePaymentApprovals.has(approvalLockKey)) {
+    console.log(`[payments] Aprovação concorrente em andamento para ${orderId} (${paymentId}). Ignorando.`);
+    return { applied: false, reason: 'concurrent_approval_in_progress' };
+  }
+  activePaymentApprovals.add(approvalLockKey);
 
   let txResult;
   try {
@@ -66,14 +76,21 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
       const isPlaybackOnly = sku === 'playback_addon';
       const isCartaOnly = sku === 'carta_addon';
       const isRetroOnly = sku === 'retrospectiva_addon';
+      const isAddonOnly = isVideoOnly || isPlaybackOnly || isCartaOnly || isRetroOnly;
       const dedupKey = isVideoOnly ? 'videoPaymentId'
         : isPlaybackOnly ? 'playbackPaymentId'
         : isCartaOnly ? 'cartaPaymentId'
         : isRetroOnly ? 'retrospectivaPaymentId'
         : 'paymentId';
 
+      const existingPaymentId = String(orderData[dedupKey] || '').trim().toUpperCase();
+      const currentTxid = String(paymentId).trim().toUpperCase();
+
       // Idempotência: mesmo paymentId já aplicado antes (webhook e polling correndo em paralelo).
-      if (String(orderData[dedupKey] || '') === String(paymentId)) {
+      if (existingPaymentId && existingPaymentId === currentTxid) {
+        txResult = { applied: false, reason: 'already_processed', sku };
+      } else if (!isAddonOnly && (orderData.paymentStatus === 'PAGAMENTO_APROVADO' || orderData.paymentStatus === 'PAGO')) {
+        console.log(`[payments] Pedido ${orderId} já aprovado no banco de dados. Ignorando re-aprovação concorrente da música.`);
         txResult = { applied: false, reason: 'already_processed', sku };
       } else {
         const nowIso = new Date().toISOString();
@@ -162,6 +179,8 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
   } catch (err) {
     console.error('[payments] Falha ao aplicar aprovação:', err.message);
     return { applied: false, reason: 'update_failed' };
+  } finally {
+    activePaymentApprovals.delete(approvalLockKey);
   }
 
   if (txResult.applied) {
@@ -314,33 +333,98 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
   return publicResult;
 }
 
+// Trava em memória no Edge isolate para evitar rajadas e reentrâncias (orderId -> timestamp)
+const inMemoryNotifyLocks = new Map();
+
 /**
  * Notifica o cliente via WhatsApp que o pagamento foi aprovado.
+ * Implementa 3 camadas de trava para impedir múltiplos envios mesmo sob concorrência intensa:
+ * 1. Trava em memória no runtime Edge.
+ * 2. Trava distribuída na tabela config do Supabase.
+ * 3. Atualização otimista de paymentWhatsappSent=true no pedido ANTES do envio de rede.
  */
 export async function notifyPaymentApproved(orderRefOrId, orderData, opts = {}, env = {}) {
   const orderId = typeof orderRefOrId === 'string' ? orderRefOrId : orderRefOrId?.id;
   if (!orderId) return;
+
+  const now = Date.now();
+  const lastMemoryLock = inMemoryNotifyLocks.get(orderId);
+  const debounceWindowMs = opts.force ? 15000 : 10 * 60 * 1000;
+  if (lastMemoryLock && (now - lastMemoryLock < debounceWindowMs)) {
+    console.log(`[payments] Notificação de pagamento aprovado enviada recentemente para ${orderId} (${now - lastMemoryLock}ms atrás). Ignorando duplicata.`);
+    return;
+  }
 
   const currentOrder = orderData || await getOrder(orderId, env);
   if (!currentOrder?.customerPhone) return;
   if (!opts.force && !currentOrder.whatsappRequested) return;
 
   try {
-    let shouldSend = false;
     const freshData = await getOrder(orderId, env);
-    if (freshData) {
-      if (!freshData.paymentWhatsappSent && !freshData.paymentWhatsappSending) {
-        await updateOrder(orderId, { paymentWhatsappSending: true }, env);
-        shouldSend = true;
+    if (!freshData) return;
+
+    if (freshData.paymentWhatsappSent && !opts.force) {
+      console.log(`[payments] Pedido ${orderId} já possui paymentWhatsappSent=true no banco. Ignorando envio duplicado.`);
+      return;
+    }
+
+    if (freshData.paymentWhatsappSending && !opts.force) {
+      console.log(`[payments] Pedido ${orderId} já está com paymentWhatsappSending=true. Ignorando envio concorrente.`);
+      return;
+    }
+
+    // Trava distribuída na tabela config do Supabase
+    let supabase = null;
+    try {
+      const { getSupabaseEdge } = await import('./supabase-edge.js');
+      supabase = getSupabaseEdge(env);
+    } catch {}
+
+    const lockKey = `lock_payment_notify_${orderId}`;
+    if (supabase) {
+      try {
+        const { data: lockRow } = await supabase
+          .from('config')
+          .select('valor')
+          .eq('chave', lockKey)
+          .maybeSingle();
+
+        if (lockRow?.valor?.at) {
+          const lockAt = Date.parse(lockRow.valor.at);
+          if (!Number.isNaN(lockAt) && (now - lockAt < debounceWindowMs)) {
+            console.log(`[payments] Trava ativa no banco (config) para ${orderId}. Ignorando envio concorrente.`);
+            return;
+          }
+        }
+
+        // Grava a trava no banco ANTES de chamar a API
+        await supabase.from('config').upsert({
+          chave: lockKey,
+          valor: { at: new Date().toISOString(), status: 'sending' },
+          updated_at: new Date().toISOString()
+        });
+      } catch (lockErr) {
+        console.warn('[payments] Erro ao verificar/gravar trava distribuída em config:', lockErr.message);
       }
     }
 
-    if (!shouldSend) return;
+    // Marca na memória imediatamente
+    inMemoryNotifyLocks.set(orderId, now);
+
+    // Marca no banco que foi enviado / está enviando ANTES de chamar a API de envio externa (Optimistic lock)
+    const nowIso = new Date().toISOString();
+    await updateOrder(orderId, {
+      paymentWhatsappSent: true,
+      paymentWhatsappSentAt: nowIso,
+      paymentWhatsappSending: true,
+    }, env);
 
     const mergedData = { ...currentOrder, ...(freshData || {}) };
     const { sendPaymentApprovedTemplate, isVideoPurchased } = await import('./whatsapp.js');
     const deliveryUrl = resolveDeliveryUrl(orderId);
     const targetPhone = mergedData.whatsappSenderPhone || mergedData.customerPhone;
+
+    console.log(`[payments] Enviando mensagem de pagamento aprovado para ${targetPhone} (pedido #${orderId})...`);
     const sendResult = await sendPaymentApprovedTemplate(targetPhone, {
       customerName: mergedData.customerName,
       honoreeName: mergedData.honoreeName,
@@ -350,18 +434,19 @@ export async function notifyPaymentApproved(orderRefOrId, orderData, opts = {}, 
       orderData: mergedData,
     });
 
-    if (sendResult.success) {
-      await updateOrder(orderId, {
-        paymentWhatsappSent: true,
-        paymentWhatsappSentAt: new Date().toISOString(),
-        paymentWhatsappSending: false,
-      }, env).catch((e) => console.warn('[payments] Erro ao marcar WhatsApp enviado:', e.message));
+    // Finaliza a flag de sending
+    await updateOrder(orderId, {
+      paymentWhatsappSending: false,
+    }, env).catch(() => {});
+
+    if (sendResult?.success) {
+      console.log(`[payments] ✅ Mensagem de pagamento aprovado enviada com sucesso para ${targetPhone} (pedido #${orderId})`);
     } else {
-      await updateOrder(orderId, { paymentWhatsappSending: false }, env).catch((e) => console.warn(e.message));
-      console.warn(`Falha ao enviar WhatsApp (pagamento aprovado) — pedido ${orderId}`);
+      console.warn(`[payments] ⚠️ Falha ao enviar WhatsApp (pagamento aprovado) para ${targetPhone} — pedido ${orderId}:`, sendResult?.error);
     }
   } catch (err) {
     console.error('[payments] Erro geral no envio de WhatsApp:', err.message);
+    await updateOrder(orderId, { paymentWhatsappSending: false }, env).catch(() => {});
   }
 }
 

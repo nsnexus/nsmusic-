@@ -54,6 +54,12 @@ export async function GET(req) {
           ) {
             return jsonNoCache({ status: "approved" });
           }
+          if (
+            !paymentId &&
+            (orderData.paymentStatus === 'PAGAMENTO_APROVADO' || orderData.paymentStatus === 'PAGO')
+          ) {
+            return jsonNoCache({ status: "approved" });
+          }
           if (paymentId && String(paymentId) === String(orderData.videoPaymentId) &&
               (orderData.hasVideoAccess || orderData.videoAddonPaid)) {
             return jsonNoCache({ status: "approved" });
