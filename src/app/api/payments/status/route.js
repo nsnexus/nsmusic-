@@ -47,20 +47,24 @@ export async function GET(req) {
           // realmente aprovado no banco. O campo paymentId só deveria existir em orderData depois
           // de applyPaymentApproval gravá-lo — mas se algum ponto do frontend voltar a gravá-lo
           // antes da hora (bug da aprovação falsa, achado da auditoria de fechamento 2026-08-02),
-          // esta linha garante que o atalho não aprove um pagamento que nunca foi confirmado.
+          const cleanQueryPaymentId = String(paymentId || '').trim().toUpperCase();
+          const cleanSavedPaymentId = String(orderData.paymentId || '').trim().toUpperCase();
+          const cleanVideoPaymentId = String(orderData.videoPaymentId || '').trim().toUpperCase();
+          const isMainSongApproved = orderData.paymentStatus === 'PAGAMENTO_APROVADO' || orderData.paymentStatus === 'PAGO';
+
           if (
-            paymentId && String(paymentId) === String(orderData.paymentId) &&
-            (orderData.paymentStatus === 'PAGAMENTO_APROVADO' || orderData.paymentStatus === 'PAGO')
+            cleanQueryPaymentId && cleanSavedPaymentId && cleanQueryPaymentId === cleanSavedPaymentId &&
+            isMainSongApproved
           ) {
             return jsonNoCache({ status: "approved" });
           }
           if (
             !paymentId &&
-            (orderData.paymentStatus === 'PAGAMENTO_APROVADO' || orderData.paymentStatus === 'PAGO')
+            isMainSongApproved
           ) {
             return jsonNoCache({ status: "approved" });
           }
-          if (paymentId && String(paymentId) === String(orderData.videoPaymentId) &&
+          if (cleanQueryPaymentId && cleanVideoPaymentId && cleanQueryPaymentId === cleanVideoPaymentId &&
               (orderData.hasVideoAccess || orderData.videoAddonPaid)) {
             return jsonNoCache({ status: "approved" });
           }

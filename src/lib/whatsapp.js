@@ -5,8 +5,92 @@ import { resolveDeliveryUrl, resolveCriarUrl, formatToWhatsAppNumber, cleanWhats
 export { resolveDeliveryUrl, resolveCriarUrl, formatToWhatsAppNumber, cleanWhatsAppId, buildAudioDownloadLink };
 
 const WAPI_BASE_URL = 'https://api.w-api.app/v1';
-const DEFAULT_INSTANCE_ID = 'LITE-34O7BP-59EWJO';
-const DEFAULT_TOKEN = 'xVm8wbENzXq1UAicisSshnAPGVQE6yedr';
+
+// Memória local de processos Edge para proteção anti-rajada e anti-spam imediata
+const inMemoryPhoneMessageLocks = new Map();
+const inMemoryPaymentConfirmedLocks = new Map();
+const PAYMENT_CONFIRMED_COOLDOWN_MS = 15 * 60 * 1000; // 15 minutos de proteção por cliente
+const GENERAL_DUPLICATE_COOLDOWN_MS = 30 * 1000; // 30 segundos para a mesma mensagem exata
+
+/**
+ * Identifica se a execução atual é de teste unitário ou se o número é fictício/mock de teste.
+ * NUNCA permite disparo de rede real para a W-API ou Evolution API durante testes.
+ */
+export function isTestOrMockPhone(phone) {
+  if (
+    process.env.NODE_ENV === 'test' ||
+    process.env.VITEST ||
+    Boolean(process.env.CI) ||
+    process.env.IS_TEST === 'true'
+  ) {
+    return true;
+  }
+  const clean = String(phone || '').replace(/\D/g, '');
+  if (!clean || clean === '5511999998888' || clean === '5511998887777' || clean.includes('999998888')) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Trava central de deduplicação e limite de taxa de disparos para WhatsApp.
+ * Protege contra envio em loop, rajadas concorrentes de múltiplos workers e testes automatizados.
+ */
+export async function shouldBlockWhatsAppMessage(phone, message, env = {}) {
+  if (isTestOrMockPhone(phone)) {
+    console.log(`[WhatsApp Guard] Bloqueado disparo para ambiente ou telefone de teste: ${phone}`);
+    return { block: true, reason: 'test_environment_or_mock_number' };
+  }
+
+  const cleanPhone = String(phone || '').replace(/\D/g, '');
+  const now = Date.now();
+  const isPaymentMsg = /pagamento.*(?:confirmado|aprovado|caiu)|🎉.*pagamento/i.test(message);
+
+  if (isPaymentMsg) {
+    const lastSentPayment = inMemoryPaymentConfirmedLocks.get(cleanPhone);
+    if (lastSentPayment && (now - lastSentPayment < PAYMENT_CONFIRMED_COOLDOWN_MS)) {
+      console.warn(`[WhatsApp Anti-Spam] Mensagem de confirmação de pagamento para ${cleanPhone} descartada (cooldown de 15min ativo, enviado há ${Math.round((now - lastSentPayment) / 1000)}s).`);
+      return { block: true, reason: 'payment_confirmed_cooldown' };
+    }
+    // Trava imediatamente na memória de forma síncrona
+    inMemoryPaymentConfirmedLocks.set(cleanPhone, now);
+
+    // Trava distribuída na tabela config do Supabase (para proteger entre múltiplos workers da Cloudflare)
+    try {
+      const { getSupabaseEdge } = await import('./supabase-edge.js');
+      const supabase = getSupabaseEdge(env);
+      if (supabase) {
+        const lockKey = `lock_payment_sent_${cleanPhone}`;
+        const { data: existingLock } = await supabase.from('config').select('valor').eq('chave', lockKey).maybeSingle();
+        if (existingLock?.valor?.at) {
+          const sentAt = Date.parse(existingLock.valor.at);
+          if (!Number.isNaN(sentAt) && (now - sentAt < PAYMENT_CONFIRMED_COOLDOWN_MS)) {
+            console.warn(`[WhatsApp Anti-Spam] Trava distribuída ativa no Supabase para ${cleanPhone}. Descartando disparo repetido.`);
+            return { block: true, reason: 'payment_confirmed_distributed_lock' };
+          }
+        }
+        await supabase.from('config').upsert({
+          chave: lockKey,
+          valor: { at: new Date().toISOString() },
+          updated_at: new Date().toISOString()
+        });
+      }
+    } catch (e) {
+      console.warn('[WhatsApp Anti-Spam] Erro ao verificar trava distribuída em config:', e.message);
+    }
+  } else {
+    // Para mensagens comuns, descarta se a exata mesma mensagem foi enviada ao mesmo número há menos de 30s
+    const hash = `${cleanPhone}:${String(message).slice(0, 60)}`;
+    const lastSentGeneral = inMemoryPhoneMessageLocks.get(hash);
+    if (lastSentGeneral && (now - lastSentGeneral < GENERAL_DUPLICATE_COOLDOWN_MS)) {
+      console.warn(`[WhatsApp Anti-Spam] Mensagem idêntica para ${cleanPhone} descartada (enviada há ${Math.round((now - lastSentGeneral) / 1000)}s).`);
+      return { block: true, reason: 'duplicate_message_cooldown' };
+    }
+    inMemoryPhoneMessageLocks.set(hash, now);
+  }
+
+  return { block: false };
+}
 
 export const getEvolutionConfig = (env = {}) => {
   let ctxEnv = {};
@@ -29,8 +113,8 @@ export const getWApiConfig = (env = {}) => {
     if (ctx?.env) ctxEnv = ctx.env;
   } catch (e) {}
 
-  const instanceId = env.WAPI_INSTANCE_ID || ctxEnv.WAPI_INSTANCE_ID || process.env.WAPI_INSTANCE_ID || DEFAULT_INSTANCE_ID;
-  const token = env.WAPI_TOKEN || ctxEnv.WAPI_TOKEN || process.env.WAPI_TOKEN || DEFAULT_TOKEN;
+  const instanceId = env.WAPI_INSTANCE_ID || ctxEnv.WAPI_INSTANCE_ID || process.env.WAPI_INSTANCE_ID || '';
+  const token = env.WAPI_TOKEN || ctxEnv.WAPI_TOKEN || process.env.WAPI_TOKEN || '';
 
   return { instanceId, token, baseUrl: WAPI_BASE_URL };
 };
@@ -39,6 +123,7 @@ export const getWApiConfig = (env = {}) => {
  * Simula status de presença ("composing" = digitando..., "recording" = gravando áudio...)
  */
 export const sendWApiPresence = async (phone, presence = 'composing', env = {}) => {
+  if (isTestOrMockPhone(phone)) return;
   const formattedNumber = formatToWhatsAppNumber(phone);
   if (!formattedNumber) return;
 
@@ -59,8 +144,8 @@ export const sendWApiPresence = async (phone, presence = 'composing', env = {}) 
         }),
         signal: AbortSignal.timeout(4000),
       }).catch(() => {});
-      return;
     } catch (e) {}
+    return;
   }
 
   // 2. Fallback W-API
@@ -68,7 +153,7 @@ export const sendWApiPresence = async (phone, presence = 'composing', env = {}) 
   if (!instanceId || !token) return;
 
   try {
-    await fetch(`${baseUrl}/message/send-presence?instanceId=${instanceId}`, {
+    await fetch(`${baseUrl}/chat/send-presence?instanceId=${instanceId}`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -77,6 +162,7 @@ export const sendWApiPresence = async (phone, presence = 'composing', env = {}) 
       body: JSON.stringify({
         phone: formattedNumber,
         presence: presence,
+        delay: 1200,
       }),
       signal: AbortSignal.timeout(4000),
     }).catch(() => {});
@@ -87,6 +173,10 @@ export const sendWApiPresence = async (phone, presence = 'composing', env = {}) 
  * Envia uma mensagem de texto via Evolution API (VPS própria)
  */
 export const sendEvolutionTextMessage = async (phone, message, env = {}) => {
+  if (isTestOrMockPhone(phone)) {
+    return { success: true, mocked: true };
+  }
+
   const { baseUrl, instanceName, token, enabled } = getEvolutionConfig(env);
   const formattedNumber = formatToWhatsAppNumber(phone);
 
@@ -142,6 +232,12 @@ export const sendWApiTextMessage = async (phone, message, env = {}) => {
   const formattedNumber = formatToWhatsAppNumber(phone);
   if (!formattedNumber) {
     return { success: false, error: 'Telefone inválido ou não informado.' };
+  }
+
+  // Trava central anti-spam / anti-loop / ambiente de teste
+  const guard = await shouldBlockWhatsAppMessage(phone, message, env);
+  if (guard.block) {
+    return { success: true, ignored: guard.reason, phoneUsed: formattedNumber };
   }
 
   // 1. Tenta Evolution API (VPS própria) primeiro se configurada
@@ -251,17 +347,12 @@ export const sendPaymentApprovedTemplate = async (phone, { customerName, honoree
 
   let audiosList = '';
   if (Array.isArray(audioUrls) && audioUrls.length > 0) {
-    // Nunca manda o link CRU da CDN da Kie.ai/tempfile direto no WhatsApp — passa pelo nosso
-    // /api/audio/proxy com `?download=`, que baixa o MP3 na hora ao tocar no link, em vez de abrir
-    // aba em branco (achado 31/08/2026, ver comentário em buildAudioDownloadLink).
     audiosList = audioUrls
       .filter(Boolean)
       .map((link, idx) => `• *Versão ${idx + 1}:* ${buildAudioDownloadLink(link, `NS-Music-${honoree}-Versao-${idx + 1}.mp3`)}`)
       .join('\n');
   }
 
-  // Se o cliente comprou o vídeo (combo ou add-on), orienta sobre o envio das fotos.
-  // Se NÃO comprou o vídeo, exibe a oferta de upsell por R$ 6,90.
   const videoBlock = userHasVideo
     ? `━━━━━━━━━━━━━━━━━━━━
 🎬 Seu *vídeo homenagem* também já está liberado! Pra gerar, é só enviar de 10 a 20 fotos na sua página de entrega (mesmo link acima) que a gente sincroniza tudo com a música. 📸
@@ -311,11 +402,7 @@ Qualquer dúvida, estamos por aqui! 💜`;
 };
 
 /**
- * Achado 09/09/2026, pedido do dono do estúdio: cliente gera a música, some da tela (fecha a aba, cai
- * a conexão, etc.) sem nunca dar play — não ouve a prévia nem manda mensagem pedindo ajuda, e o
- * pedido morre aí. Esse lembrete avisa que a música já está pronta e manda o link direto. Ver
- * src/app/api/cron/recover/route.js (bloco "lembrete de prévia não ouvida") pra quem dispara e com
- * qual filtro — usa previewListenedAt (src/lib/previewTracking.js) pra nunca mandar pra quem já ouviu.
+ * Lembrete de prévia não ouvida
  */
 export const sendPreviewNudgeTemplate = async (phone, { customerName, honoreeName, deliveryUrl }, env = {}) => {
   const name = customerName || 'Cliente';

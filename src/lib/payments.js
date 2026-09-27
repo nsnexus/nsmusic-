@@ -349,11 +349,14 @@ export async function notifyPaymentApproved(orderRefOrId, orderData, opts = {}, 
 
   const now = Date.now();
   const lastMemoryLock = inMemoryNotifyLocks.get(orderId);
-  const debounceWindowMs = opts.force ? 15000 : 10 * 60 * 1000;
+  const debounceWindowMs = opts.force ? 15000 : 15 * 60 * 1000;
   if (lastMemoryLock && (now - lastMemoryLock < debounceWindowMs)) {
     console.log(`[payments] Notificação de pagamento aprovado enviada recentemente para ${orderId} (${now - lastMemoryLock}ms atrás). Ignorando duplicata.`);
     return;
   }
+
+  // Trava na memória IMEDIATAMENTE (síncrona, antes de qualquer await)
+  inMemoryNotifyLocks.set(orderId, now);
 
   const currentOrder = orderData || await getOrder(orderId, env);
   if (!currentOrder?.customerPhone) return;
@@ -408,9 +411,6 @@ export async function notifyPaymentApproved(orderRefOrId, orderData, opts = {}, 
       }
     }
 
-    // Marca na memória imediatamente
-    inMemoryNotifyLocks.set(orderId, now);
-
     // Marca no banco que foi enviado / está enviando ANTES de chamar a API de envio externa (Optimistic lock)
     const nowIso = new Date().toISOString();
     await updateOrder(orderId, {
@@ -420,7 +420,7 @@ export async function notifyPaymentApproved(orderRefOrId, orderData, opts = {}, 
     }, env);
 
     const mergedData = { ...currentOrder, ...(freshData || {}) };
-    const { sendPaymentApprovedTemplate, isVideoPurchased } = await import('./whatsapp.js');
+    const { sendPaymentApprovedTemplate, isVideoPurchased } = await import('@/lib/whatsapp');
     const deliveryUrl = resolveDeliveryUrl(orderId);
     const targetPhone = mergedData.whatsappSenderPhone || mergedData.customerPhone;
 
