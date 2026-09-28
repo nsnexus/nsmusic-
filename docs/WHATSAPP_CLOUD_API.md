@@ -37,7 +37,7 @@ Gravei 2 versões, com arranjos diferentes, pra você escolher. Ouça aqui:
 {{3}}
 
 Se precisar de qualquer coisa, chame nosso suporte no WhatsApp:
-https://wa.me/5594991081351
+https://nsmusic.ia.br/whatsapp
 ```
 
 Variáveis: `{{1}}` primeiro nome do cliente · `{{2}}` homenageado · `{{3}}` link da entrega.
@@ -51,7 +51,7 @@ A página completa para ouvir e baixar as 2 versões fica aqui:
 {{3}}
 
 Qualquer dúvida ou suporte, é só nos chamar no WhatsApp:
-https://wa.me/5594991081351 💜
+https://nsmusic.ia.br/whatsapp 💜
 ```
 
 Variáveis: as mesmas.
