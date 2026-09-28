@@ -49,9 +49,10 @@ export function getCloudApiConfig(env = {}) {
  * @param {string} phone telefone do cliente
  * @param {string} templateName nome exato do template aprovado
  * @param {string[]} variaveis valores das variáveis {{1}}, {{2}}... na ordem
+ * @param {{ buttonParam?: string }} opcoes opções extras como parâmetro de botão dinâmico
  * @returns {Promise<{success: boolean, provider?: string, error?: string}>}
  */
-export async function sendCloudApiTemplate(phone, templateName, variaveis = [], env = {}) {
+export async function sendCloudApiTemplate(phone, templateName, variaveis = [], { buttonParam } = {}, env = {}) {
   const config = getCloudApiConfig(env);
   if (!config.enabled) {
     return { success: false, error: 'Cloud API não configurada (WHATSAPP_ACCESS_TOKEN/WHATSAPP_PHONE_NUMBER_ID).' };
@@ -60,6 +61,23 @@ export async function sendCloudApiTemplate(phone, templateName, variaveis = [], 
   const numero = formatToWhatsAppNumber(phone);
   if (!numero) return { success: false, error: 'Telefone inválido.' };
 
+  const components = [];
+  if (variaveis.length > 0) {
+    components.push({
+      type: 'body',
+      parameters: variaveis.map((v) => ({ type: 'text', text: String(v ?? '') })),
+    });
+  }
+
+  if (buttonParam) {
+    components.push({
+      type: 'button',
+      sub_type: 'url',
+      index: '0',
+      parameters: [{ type: 'text', text: String(buttonParam) }],
+    });
+  }
+
   const corpo = {
     messaging_product: 'whatsapp',
     to: numero,
@@ -67,14 +85,7 @@ export async function sendCloudApiTemplate(phone, templateName, variaveis = [], 
     template: {
       name: templateName,
       language: { code: 'pt_BR' },
-      ...(variaveis.length > 0
-        ? {
-          components: [{
-            type: 'body',
-            parameters: variaveis.map((v) => ({ type: 'text', text: String(v ?? '') })),
-          }],
-        }
-        : {}),
+      ...(components.length > 0 ? { components } : {}),
     },
   };
 
@@ -95,6 +106,19 @@ export async function sendCloudApiTemplate(phone, templateName, variaveis = [], 
       return { success: true, provider: 'cloud_api', phoneUsed: numero };
     }
 
+    // Se falhou por causa do botão dinâmico (ex: template cadastrado sem botão dinâmico na Meta),
+    // tenta reenviar apenas com o body:
+    if (!res.ok && buttonParam) {
+      console.warn('[CloudAPI] Falha com componente de botão, tentando envio direto só com body...', data?.error?.message);
+      return sendCloudApiTemplate(phone, templateName, variaveis, {}, env);
+    }
+
+    // Se falhou com 4 variáveis e o template na Meta tiver 3:
+    if (!res.ok && variaveis.length > 3 && data?.error?.message?.includes('parameters')) {
+      console.warn('[CloudAPI] Falha de contagem de parâmetros, tentando com 3 variáveis...', data?.error?.message);
+      return sendCloudApiTemplate(phone, templateName, [variaveis[0], variaveis[1], variaveis[2]], {}, env);
+    }
+
     // A mensagem de erro da Meta é específica e vale no log: template não aprovado, número não
     // cadastrado e token expirado dão erros bem diferentes, e adivinhar qual foi custa horas.
     const motivo = data?.error?.message || `HTTP ${res.status}`;
@@ -111,13 +135,25 @@ export async function sendCloudApiTemplate(phone, templateName, variaveis = [], 
  */
 export async function enviarMusicaProntaCloud(phone, { cliente, homenageado, link }, env = {}) {
   const config = getCloudApiConfig(env);
-  return sendCloudApiTemplate(phone, config.templateMusicaPronta, [cliente, homenageado, link], env);
+  const idDoPedido = (link ? String(link).match(/orderId=([^&]+)/)?.[1] : '') || '';
+  return sendCloudApiTemplate(phone, config.templateMusicaPronta, [cliente, homenageado, link], { buttonParam: idDoPedido }, env);
 }
 
 /**
- * "Pagamento confirmado" — variáveis: nome do cliente, nome do homenageado, link da entrega.
+ * "Pagamento confirmado" — variáveis: nome do cliente, nome do homenageado, link versão 1, link versão 2.
+ * Botão dinâmico opcional com o orderId.
  */
-export async function enviarPagamentoConfirmadoCloud(phone, { cliente, homenageado, link }, env = {}) {
+export async function enviarPagamentoConfirmadoCloud(phone, { cliente, homenageado, link, orderId, audio1, audio2 }, env = {}) {
   const config = getCloudApiConfig(env);
-  return sendCloudApiTemplate(phone, config.templatePagamento, [cliente, homenageado, link], env);
+  const safeV1 = audio1 || link;
+  const safeV2 = audio2 || audio1 || link;
+  const idDoPedido = orderId || (link ? String(link).match(/orderId=([^&]+)/)?.[1] : '') || '';
+
+  return sendCloudApiTemplate(
+    phone,
+    config.templatePagamento,
+    [cliente, homenageado, safeV1, safeV2],
+    { buttonParam: idDoPedido },
+    env,
+  );
 }

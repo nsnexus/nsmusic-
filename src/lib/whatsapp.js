@@ -413,10 +413,22 @@ ${url}
 
 ${videoBlock}Muito obrigado por escolher o *NS Music* para fazer parte desse momento tão especial! 💜`;
 
+  const urls = Array.isArray(audioUrls) ? audioUrls.filter(Boolean) : [];
+  const v1 = urls[0] ? buildAudioDownloadLink(urls[0], `NS-Music-${honoree}-Versao-1.mp3`) : url;
+  const v2 = urls[1] ? buildAudioDownloadLink(urls[1], `NS-Music-${honoree}-Versao-2.mp3`) : v1;
+  const orderId = orderData?.id || orderData?.orderNumber || (url.match(/orderId=([^&]+)/)?.[1]) || '';
+
   const resultado = await sendWApiTextMessage(phone, message, env);
   return await comFallbackCloudApi(
     resultado,
-    () => enviarPagamentoConfirmadoCloud(phone, { cliente: primeiroNome(name), homenageado: honoree, link: url }, env),
+    () => enviarPagamentoConfirmadoCloud(phone, {
+      cliente: primeiroNome(name),
+      homenageado: honoree,
+      link: url,
+      orderId,
+      audio1: v1,
+      audio2: v2,
+    }, env),
     env,
   );
 };
