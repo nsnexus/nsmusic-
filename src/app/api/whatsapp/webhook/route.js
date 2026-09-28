@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { readEnvValue } from '@/lib/envValue';
 import { getRequestContext } from '@cloudflare/next-on-pages';
 import { getOrder, updateOrder } from '@/lib/supabaseDb';
 import { sendWApiTextMessage, resolveDeliveryUrl, isVideoPurchased, buildAudioDownloadLink } from '@/lib/whatsapp';
@@ -17,7 +18,27 @@ export const runtime = 'edge';
 export async function GET(req) {
   const { searchParams } = new URL(req.url);
   const challenge = searchParams.get('hub.challenge');
+
+  // Verificacao do webhook da Meta (WhatsApp Cloud API): ela chama este GET com hub.mode,
+  // hub.verify_token e hub.challenge, e espera o challenge de volta em texto puro.
+  //
+  // O token e conferido quando WHATSAPP_WEBHOOK_VERIFY_TOKEN esta configurado: sem isso, qualquer
+  // um que descubra a URL consegue validar o endpoint como se fosse o dono do app.
   if (challenge) {
+    let env = {};
+    try {
+      const ctx = getRequestContext();
+      if (ctx?.env) env = ctx.env;
+    } catch (e) {}
+
+    const esperado = readEnvValue(env, 'WHATSAPP_WEBHOOK_VERIFY_TOKEN');
+    const recebido = searchParams.get('hub.verify_token') || '';
+
+    if (esperado && recebido !== esperado) {
+      console.warn('[WhatsApp Webhook] Verificacao recusada: hub.verify_token nao confere.');
+      return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    }
+
     return new NextResponse(challenge, { status: 200, headers: { 'Content-Type': 'text/plain' } });
   }
 
