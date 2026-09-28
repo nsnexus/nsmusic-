@@ -1,6 +1,7 @@
 import { getRequestContext } from '@cloudflare/next-on-pages';
 import { DOMINIO_CANONICO } from './siteUrl.js';
 import { resolveDeliveryUrl, resolveCriarUrl, formatToWhatsAppNumber, cleanWhatsAppId, buildAudioDownloadLink } from './whatsappTemplates.js';
+import { enviarMusicaProntaCloud, enviarPagamentoConfirmadoCloud, getCloudApiConfig } from './whatsappCloudApi.js';
 
 export { resolveDeliveryUrl, resolveCriarUrl, formatToWhatsAppNumber, cleanWhatsAppId, buildAudioDownloadLink };
 
@@ -298,6 +299,35 @@ export const sendWApiTextMessage = async (phone, message, env = {}) => {
 };
 
 /**
+ * Último recurso de envio: a API oficial da Meta (Cloud API).
+ *
+ * Vale só para as duas mensagens que não podem faltar — "música pronta" e "pagamento confirmado" —
+ * porque são as que envolvem produto entregue e dinheiro recebido. O número da Evolution já foi
+ * suspenso duas vezes; quando isso acontece, quem pagou fica sem receber nada e sem saber por quê.
+ *
+ * Não é migração: a Evolution continua sendo o canal que conversa com o cliente. Aqui só sai
+ * template aprovado, porque a Meta não deixa a empresa iniciar conversa com texto livre.
+ *
+ * @param {object} resultado o resultado da tentativa pelos provedores principais
+ * @param {() => Promise<object>} enviar função que dispara o template correspondente
+ */
+const comFallbackCloudApi = async (resultado, enviar, env = {}) => {
+  // Sucesso ou bloqueio proposital (teste, anti-spam, anti-loop) não acionam a reserva — repetir
+  // pela Meta uma mensagem que a trava acabou de barrar recriaria exatamente o spam que ela evita.
+  if (resultado?.success) return resultado;
+  if (!getCloudApiConfig(env).enabled) return resultado;
+
+  console.warn('[WhatsApp] Evolution e W-API falharam. Acionando Cloud API (Meta)...', resultado?.error);
+  const cloud = await enviar();
+  if (cloud.success) return cloud;
+
+  return { success: false, error: `${resultado?.error || 'falha nos provedores principais'} | cloud_api: ${cloud.error}` };
+};
+
+/** Primeiro nome, porque nenhum template da Meta fica bem com nome completo. */
+const primeiroNome = (nome) => String(nome || '').trim().split(/\s+/)[0] || 'Cliente';
+
+/**
  * Envia a mensagem de "música pronta" avisando que as 2 versões ficaram prontas com o link de entrega.
  */
 export const sendMusicReadyTemplate = async (phone, { customerName, honoreeName, deliveryUrl }, env = {}) => {
@@ -316,7 +346,12 @@ ${url}
 
 Se precisar de qualquer ajuda ou tiver dúvidas, é só me responder por aqui! 💜`;
 
-  return await sendWApiTextMessage(phone, message, env);
+  const resultado = await sendWApiTextMessage(phone, message, env);
+  return await comFallbackCloudApi(
+    resultado,
+    () => enviarMusicaProntaCloud(phone, { cliente: primeiroNome(name), homenageado: honoree, link: url }, env),
+    env,
+  );
 };
 
 /**
@@ -378,7 +413,12 @@ ${url}
 
 ${videoBlock}Muito obrigado por escolher o *NS Music* para fazer parte desse momento tão especial! 💜`;
 
-  return await sendWApiTextMessage(phone, message, env);
+  const resultado = await sendWApiTextMessage(phone, message, env);
+  return await comFallbackCloudApi(
+    resultado,
+    () => enviarPagamentoConfirmadoCloud(phone, { cliente: primeiroNome(name), homenageado: honoree, link: url }, env),
+    env,
+  );
 };
 
 /**
