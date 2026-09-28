@@ -36,7 +36,8 @@ Oi, {{1}}! A música de {{2}} ficou pronta. 🎧
 Gravei 2 versões, com arranjos diferentes, pra você escolher. Ouça aqui:
 {{3}}
 
-Se precisar de qualquer coisa, é só me chamar.
+Se precisar de qualquer coisa, chame nosso suporte no WhatsApp:
+https://wa.me/5594991081351
 ```
 
 Variáveis: `{{1}}` primeiro nome do cliente · `{{2}}` homenageado · `{{3}}` link da entrega.
@@ -46,10 +47,11 @@ Variáveis: `{{1}}` primeiro nome do cliente · `{{2}}` homenageado · `{{3}}` l
 ```
 {{1}}, seu pagamento caiu! 🎉 A música de {{2}} tá liberada.
 
-A página completa fica aqui:
+A página completa para ouvir e baixar as 2 versões fica aqui:
 {{3}}
 
-Qualquer coisa é só me chamar por aqui. 💜
+Qualquer dúvida ou suporte, é só nos chamar no WhatsApp:
+https://wa.me/5594991081351 💜
 ```
 
 Variáveis: as mesmas.

@@ -1,7 +1,7 @@
 // Configuração editável pelo painel, sem deploy.
 // Mora em `config` (chave: 'site') no Supabase. Escrita só pela rota /api/admin/config, com requireAdmin.
 
-export const WHATSAPP_SUPORTE_PADRAO = '5594991064043';
+export const WHATSAPP_SUPORTE_PADRAO = '5594991081351';
 
 export const CONFIG_DOC = { colecao: 'config', id: 'site' };
 
