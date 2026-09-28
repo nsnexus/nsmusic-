@@ -9,6 +9,7 @@ import { usePedidosDoMes } from '@/lib/usePedidosDoMes';
 import VendasPorDiaTable from '@/components/VendasPorDiaTable';
 import VendasPorHoraHeatmap from '@/components/VendasPorHoraHeatmap';
 import VendasPorEstadoMapa from '@/components/VendasPorEstadoMapa';
+import RitmoVendasCard from '@/components/RitmoVendasCard';
 
 // toISOStr precisa lidar com os dois formatos gravados historicamente (Timestamp do Firestore e
 // string ISO) — mesmo utilitário replicado de admin/page.jsx.
@@ -178,6 +179,9 @@ export default function AdminDashboard() {
               <h2 style={{ ...styles.metricValue, color: '#d97706' }}>{overallPercent}%</h2>
             </div>
           </div>
+
+          {/* Ritmo de Ganho Intradiário em Tempo Real (Hoje vs Média de Dias Anteriores) */}
+          <RitmoVendasCard pedidos={orders} />
 
           <div className="glass-card" style={{ marginTop: '24px', padding: '24px', borderRadius: '16px', backgroundColor: '#ffffff', border: '1px solid #e2e8f0' }}>
             <h3 style={{ fontSize: '1.1rem', fontWeight: '700', color: '#0f172a', margin: '0 0 4px' }}>Solicitações x Conversões por dia</h3>
