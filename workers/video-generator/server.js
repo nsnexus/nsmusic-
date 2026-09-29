@@ -1,3 +1,6 @@
+if (typeof globalThis.WebSocket === 'undefined') {
+  globalThis.WebSocket = class WebSocketPolyfill {};
+}
 import 'dotenv/config';
 import express from 'express';
 import path from 'node:path';

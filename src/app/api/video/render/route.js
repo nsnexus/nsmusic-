@@ -71,8 +71,12 @@ export async function POST(req) {
       slideshowImages: cleanUrls,
     }, env).catch(e => console.warn('[VideoRender] Falha ao marcar GERANDO:', e?.message));
 
-    // Dispara chamada HTTP para a VPS
-    const targetEndpoint = `${vpsVideoUrl.replace(/\/+$/, '')}/render`;
+    // Dispara chamada HTTP para a VPS (normaliza porta :3100 para rota /video na porta 80 padrão do Nginx)
+    let cleanBaseUrl = vpsVideoUrl.replace(/\/+$/, '');
+    if (cleanBaseUrl.includes(':3100')) {
+      cleanBaseUrl = cleanBaseUrl.replace(':3100', '/video');
+    }
+    const targetEndpoint = cleanBaseUrl.endsWith('/render') ? cleanBaseUrl : `${cleanBaseUrl}/render`;
     const vpsRes = await fetch(targetEndpoint, {
       method: 'POST',
       headers: {
