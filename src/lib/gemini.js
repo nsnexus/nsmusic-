@@ -1,22 +1,11 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // Modelo da COMPOSIÇÃO DA LETRA (o produto em si — site e agente do WhatsApp usam este caminho).
-//
-// Trocado de gpt-4o-mini para gpt-5.6-luna em 03/09/2026, depois de clientes reclamarem da letra.
-// Comparados lado a lado com a MESMA história real (pai que criou 5 filhos vendendo picolé):
-//   - gpt-4o-mini: erro de concordância no refrão ("no dia que eu me formou", repetido no refrão
-//     final), rimas forçadas ("destreza/beleza") e um fato INVENTADO que não estava na história
-//     ("seis anos de ausência");
-//   - gpt-5.6-luna: português correto e aproveitou os detalhes reais que o cliente deu (as 5h da
-//     manhã, Salinas, a mala amarrada com corda, as 8 horas de ônibus, o choro escondido).
-//
-// ATENÇÃO: a família gpt-5 rejeita `temperature` diferente do padrão com HTTP 400
-// (`unsupported_value`). Se voltar a enviar o parâmetro, TODA composição cai no fallback do Gemini
-// sem ninguém perceber. Por isso o envio é condicional aqui e em runJsonCompletion.
-const LYRICS_MODEL = 'gpt-5.6-luna';
+// Atualizado para gpt-6-luna (família GPT-6 da OpenAI lançada em setembro/2026).
+const LYRICS_MODEL = process.env.OPENAI_LYRICS_MODEL || 'gpt-6-luna';
 
 /**
- * Executes a prompt using OpenAI (ChatGPT gpt-4o-mini) as PRIMARY engine, 
+ * Executes a prompt using OpenAI (ChatGPT) as PRIMARY engine, 
  * with automatic failover to Gemini and fallback models.
  * 
  * @param {string} prompt The text prompt to send to AI
@@ -25,15 +14,9 @@ const LYRICS_MODEL = 'gpt-5.6-luna';
 export async function runGeminiWithFailover(prompt) {
   let lastError = null;
 
-  // 1. PRIMÁRIO: Tenta a API da OpenAI (ChatGPT gpt-4o-mini) primeiro se configurada
+  // 1. PRIMÁRIO: Tenta a API da OpenAI primeiro se configurada
   const openAiKey = process.env.OPENAI_API_KEY;
   if (openAiKey && openAiKey.trim().length > 0) {
-    // Até 2 tentativas extras para erros transitórios (timeout, falha de rede, 5xx, 429). Erros
-    // definitivos (401 chave inválida, 400 payload ruim) não são reexecutados, pois repetir não
-    // resolveria. Cada tentativa cria seu PRÓPRIO AbortSignal.timeout — reaproveitar o mesmo sinal
-    // entre tentativas faria as tentativas seguintes abortarem na hora, já que o relógio do sinal
-    // conta a partir da criação, não de cada chamada (mesma armadilha a evitar caso este padrão
-    // seja copiado em outro lugar).
     const maxOpenAiAttempts = 3;
     for (let attempt = 1; attempt <= maxOpenAiAttempts; attempt++) {
       try {
@@ -53,8 +36,8 @@ export async function runGeminiWithFailover(prompt) {
               },
               { role: "user", content: prompt }
             ],
-            // gpt-5 não aceita temperature customizada (400) — ver comentário em LYRICS_MODEL.
-            ...(LYRICS_MODEL.startsWith('gpt-5') ? {} : { temperature: 0.7 })
+            // gpt-5 e gpt-6 não aceitam temperature customizada (400)
+            ...((LYRICS_MODEL.startsWith('gpt-5') || LYRICS_MODEL.startsWith('gpt-6')) ? {} : { temperature: 0.7 })
           }),
           signal: AbortSignal.timeout(30000)
         });
@@ -164,11 +147,8 @@ export async function runJsonCompletion(systemPrompt, userPrompt, env = {}) {
           // elogio genérico; luna citou o detalhe concreto do cliente ("criou vocês cinco vendendo
           // picolé na praia") e fechou sozinha — e ainda custa uma fração do 4o.
           //
-          // ATENÇÃO: a família gpt-5 NÃO aceita `temperature` diferente do padrão — mandar 0.8
-          // devolve 400 (`unsupported_value`) e derruba a conversa inteira pro fallback do Gemini.
-          // Por isso o parâmetro não é enviado aqui. A composição da letra (runGeminiWithFailover,
-          // acima) segue no gpt-4o-mini: trocar lá é mudança de produto, avaliar em separado.
-          model: 'gpt-5.6-luna',
+          // Atualizado para gpt-6-luna
+          model: process.env.OPENAI_AGENT_MODEL || 'gpt-6-luna',
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt },

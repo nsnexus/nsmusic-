@@ -150,7 +150,7 @@ async function gerarPelaKie({ orderId, prompt, tags }, env) {
           prompt: prompt,
           customMode: true,
           instrumental: false,
-          model: 'V5_5',
+          model: readEnvValue(env, 'SUNO_MODEL') || 'V6',
           style: tags,
           title: `Pedido ${orderId ? orderId.substring(0, 8) : 'Novo'}`.substring(0, 80),
           callBackUrl: callbackUrl,
