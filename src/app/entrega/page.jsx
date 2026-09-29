@@ -333,7 +333,7 @@ function EntregaContent() {
         let data = null;
         // 1. Primário: consulta via Edge API que lê do Supabase
         try {
-          const res = await fetch(`/api/orders/${orderId}`, { cache: 'no-store' });
+          const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}?t=${Date.now()}`, { cache: 'no-store' });
           if (res.ok) {
             const json = await res.json();
             if (json?.order) data = json.order;
@@ -379,6 +379,44 @@ function EntregaContent() {
 
     return () => { cancelled = true; clearTimeout(failsafe); };
   }, [orderId]);
+
+  // Polling automático caso o pedido esteja com vídeo sendo processado na VPS (ex: usuário recarregou a página)
+  useEffect(() => {
+    if (!orderId || order?.videoUrl || order?.videoStatus !== 'GERANDO') return;
+
+    let cancelled = false;
+    let attempts = 0;
+    const interval = setInterval(async () => {
+      attempts += 1;
+      if (attempts >= 60 || cancelled) {
+        clearInterval(interval);
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}?t=${Date.now()}`, { cache: 'no-store' });
+        if (res.ok) {
+          const json = await res.json().catch(() => ({}));
+          const fresh = json?.order;
+          if (fresh?.videoStatus === 'CONCLUIDO' && fresh?.videoUrl) {
+            setOrder(prev => prev ? { ...prev, videoUrl: fresh.videoUrl, videoStatus: 'CONCLUIDO', slideshowImages: [] } : fresh);
+            setExistingPhotos([]);
+            clearInterval(interval);
+          } else if (fresh?.videoStatus === 'ERRO') {
+            setOrder(prev => prev ? { ...prev, videoStatus: 'ERRO' } : fresh);
+            clearInterval(interval);
+          }
+        }
+      } catch (err) {
+        console.warn('[entrega] Erro no polling de vídeo gerando:', err?.message);
+      }
+    }, 3000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [orderId, order?.videoUrl, order?.videoStatus]);
 
 
   // Acrescenta ?download=<nome> à URL do proxy: é o que faz o servidor mandar Content-Disposition e
@@ -1529,14 +1567,14 @@ function EntregaContent() {
                       </div>
                     ) : (
                       <div style={{ marginTop: '16px' }}>
-                        {isUploadingPhotos ? (
+                        {(isUploadingPhotos || order?.videoStatus === 'GERANDO') ? (
                           <div style={{ textAlign: 'center', padding: '24px 14px', backgroundColor: 'rgba(0,0,0,0.25)', borderRadius: '12px' }}>
                             <div style={styles.spinner} />
                             <p style={{ fontSize: '1rem', fontWeight: 'bold', marginTop: '14px', color: '#ffffff' }}>
-                              {uploadProgressMsg || 'Processando e gerando seu vídeo slideshow MP4...'}
+                              {uploadProgressMsg || 'Renderizando seu vídeo slideshow MP4 em alta definição...'}
                             </p>
                             <p style={{ fontSize: '0.82rem', color: '#cbd5e1', marginTop: '6px' }}>
-                              ⚡ Gravação em andamento. Mantenha esta aba aberta por alguns segundos enquanto renderizamos em HD!
+                              ⚡ Processando na VPS com FFmpeg. O vídeo ficará pronto automaticamente em cerca de 40 segundos!
                             </p>
                           </div>
                         ) : (
@@ -1799,7 +1837,7 @@ function EntregaContent() {
                                         const startTime = Date.now();
                                         while (Date.now() - startTime < 120000) {
                                           await new Promise((resolve) => setTimeout(resolve, 3000));
-                                          const checkRes = await fetch(`/api/orders/${encodeURIComponent(orderId)}`);
+                                          const checkRes = await fetch(`/api/orders/${encodeURIComponent(orderId)}?t=${Date.now()}`, { cache: 'no-store' });
                                           if (checkRes.ok) {
                                             const checkData = await checkRes.json().catch(() => ({}));
                                             const updatedOrder = checkData?.order || checkData;
@@ -1811,6 +1849,8 @@ function EntregaContent() {
 
                                             if (vStatus === 'CONCLUIDO' && vUrl) {
                                               generatedVideoUrl = vUrl;
+                                              setOrder(prev => prev ? { ...prev, videoUrl: vUrl, videoStatus: 'CONCLUIDO', slideshowImages: [] } : prev);
+                                              setExistingPhotos([]);
                                               break;
                                             }
                                             if (vStatus === 'ERRO') {
