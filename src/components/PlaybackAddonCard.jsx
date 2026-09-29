@@ -1,29 +1,16 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { requestPixCharge } from '@/lib/pixCheckout';
 import { buildAudioProxySrc } from '@/lib/audioProxy';
 import PixQrCode from './PixQrCode';
 import { useWhatsappSuporte, linkWhatsapp } from '@/lib/useWhatsappSuporte';
 
 const MAX_PIX_ATTEMPTS = 3;
-const PIX_POLLING_MAX_ATTEMPTS = 150; // ~10min a cada 4s, mesmo limite do add-on de vídeo
+const PIX_POLLING_MAX_ATTEMPTS = 150; // ~10min a cada 4s
+const AUDIO_POLLING_MAX_ATTEMPTS = 60; // ~4min a cada 4s
 
-// Add-on "Gerar Playback" (instrumental sem voz, R$ 4,99). O pagamento continua automático aqui; a
-// ENTREGA passou a ser manual, pelo WhatsApp, em 24/09/2026.
-//
-// Por quê: a separação vocal era feita na Kie.ai e falhava quase sempre — 10 dos 11 playbacks pagos
-// entre 04/09 e 23/09 terminaram em `playbackStatus: FAILED` com `kie_callback_200` (a Kie.ai
-// aceitava a tarefa, mandava callback de sucesso, e a URL do instrumental vinha num campo que o
-// webhook não reconhecia; já eram duas variantes de formato antes dessa). Cliente pagava e não
-// recebia. Enquanto isso não for confiável, o estúdio prefere entregar na mão: o cliente paga, fala
-// no WhatsApp com o número do pedido, e recebe o arquivo por lá.
-//
-// Este componente não gera nada e não fala com provedor nenhum: cobra, confirma e mostra o caminho
-// do WhatsApp. `playbackUrl`/`READY` continuam sendo respeitados para quem já tem o arquivo
-// gravado no pedido (os playbacks antigos que deram certo).
 export default function PlaybackAddonCard({ orderId, order }) {
-  // Número do suporte vem da configuração editável no painel (src/lib/configSite.js), não do código.
   const whatsappSuporte = useWhatsappSuporte();
   const [pixInfo, setPixInfo] = useState({ qrCode: '', paymentId: '' });
   const [loading, setLoading] = useState(false);
@@ -32,23 +19,31 @@ export default function PlaybackAddonCard({ orderId, order }) {
   const [pollingTimedOut, setPollingTimedOut] = useState(false);
   const [pixCopied, setPixCopied] = useState(false);
 
-  // Faixa escolhida pelo cliente. Continua sendo gravada no pedido (/api/playback/choose-track)
-  // porque agora ela serve para o estúdio saber QUAL das duas versões transformar em playback.
-  const faixas = Array.isArray(order?.audioIds) ? order.audioIds : [];
-  const arquivosFaixas = Array.isArray(order?.audioFiles) ? order.audioFiles : [];
+  // Estados locais para a separação vocal por IA
+  const [localPlaybackStatus, setLocalPlaybackStatus] = useState(order?.playbackStatus || null);
+  const [localPlaybackUrl, setLocalPlaybackUrl] = useState(order?.playbackUrl || null);
+  const [localVocalUrl, setLocalVocalUrl] = useState(order?.extras?.vocalUrl || order?.vocalUrl || null);
+  const [isTriggering, setIsTriggering] = useState(false);
+  const [generationError, setGenerationError] = useState('');
+
+  // Faixa escolhida pelo cliente
+  const faixas = useMemo(() => Array.isArray(order?.audioIds) ? order.audioIds : [], [order?.audioIds]);
+  const arquivosFaixas = useMemo(() => Array.isArray(order?.audioFiles) ? order.audioFiles : [], [order?.audioFiles]);
   const temEscolha = faixas.length > 1;
   const [faixaEscolhida, setFaixaEscolhida] = useState(0);
 
   const hasAccess = unlocked || order?.hasPlaybackAccess || order?.playbackAddonPaid;
   const identificacao = order?.orderNumber || orderId;
 
+  const currentPlaybackStatus = localPlaybackStatus || order?.playbackStatus;
+  const currentPlaybackUrl = localPlaybackUrl || order?.playbackUrl;
+  const currentVocalUrl = localVocalUrl || order?.extras?.vocalUrl || order?.vocalUrl;
+
   const handleGeneratePix = async () => {
     if (!orderId) return;
     setPixError('');
     setLoading(true);
 
-    // Salva a faixa escolhida ANTES de cobrar — se falhar, segue mesmo assim (nunca bloqueia o
-    // pagamento por causa disso; o cliente ainda informa a faixa na conversa do WhatsApp).
     if (temEscolha && faixas[faixaEscolhida]) {
       try {
         await fetch('/api/playback/choose-track', {
@@ -74,7 +69,7 @@ export default function PlaybackAddonCard({ orderId, order }) {
     }
   };
 
-  // Polling do pagamento — com cleanup obrigatório (ver .claude/rules/frontend.md).
+  // Polling do pagamento PIX
   useEffect(() => {
     if (!orderId || !pixInfo.paymentId || hasAccess) return;
 
@@ -104,6 +99,91 @@ export default function PlaybackAddonCard({ orderId, order }) {
     return () => clearInterval(interval);
   }, [orderId, pixInfo.paymentId, hasAccess]);
 
+  // Função para acionar a separação por IA na VPS
+  const triggerAiSeparation = useCallback(async () => {
+    if (!orderId || isTriggering) return;
+    setIsTriggering(true);
+    setGenerationError('');
+
+    try {
+      const chosenAudioId = temEscolha && faixas[faixaEscolhida] ? faixas[faixaEscolhida] : (order?.playbackChosenAudioId || null);
+      const res = await fetch('/api/playback/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId,
+          audioId: chosenAudioId,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
+        if (data.alreadyReady && data.playbackUrl) {
+          setLocalPlaybackUrl(data.playbackUrl);
+          setLocalPlaybackStatus('READY');
+        } else {
+          setLocalPlaybackStatus('GERANDO');
+        }
+      } else {
+        setGenerationError(data?.error || 'Não foi possível iniciar a separação vocal agora.');
+      }
+    } catch (err) {
+      console.warn('[PlaybackAddonCard] Erro ao disparar separação vocal:', err?.message);
+      setGenerationError('Falha na comunicação com o servidor. Tente novamente.');
+    } finally {
+      setIsTriggering(false);
+    }
+  }, [orderId, isTriggering, temEscolha, faixas, faixaEscolhida, order?.playbackChosenAudioId]);
+
+  // Inicia automaticamente a geração quando o acesso é liberado e ainda não tem áudio pronto ou gerando
+  useEffect(() => {
+    if (!hasAccess || currentPlaybackUrl || currentPlaybackStatus === 'READY' || currentPlaybackStatus === 'GERANDO') {
+      return;
+    }
+    // Dispara a geração se estiver sem status ou em status inicial
+    if (!currentPlaybackStatus || currentPlaybackStatus === 'AGUARDANDO_CONTATO' || currentPlaybackStatus === 'PENDENTE') {
+      triggerAiSeparation();
+    }
+  }, [hasAccess, currentPlaybackUrl, currentPlaybackStatus, triggerAiSeparation]);
+
+  // Polling de status enquanto estiver GERANDO
+  useEffect(() => {
+    if (!hasAccess || currentPlaybackStatus !== 'GERANDO' || (currentPlaybackStatus === 'READY' && currentPlaybackUrl)) {
+      return;
+    }
+
+    let attempts = 0;
+    const interval = setInterval(async () => {
+      attempts += 1;
+      if (attempts >= AUDIO_POLLING_MAX_ATTEMPTS) {
+        clearInterval(interval);
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/orders/${orderId}`, { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          const freshOrder = data?.order;
+          if (freshOrder?.playbackStatus === 'READY' && freshOrder?.playbackUrl) {
+            setLocalPlaybackUrl(freshOrder.playbackUrl);
+            setLocalVocalUrl(freshOrder.extras?.vocalUrl || freshOrder.vocalUrl || null);
+            setLocalPlaybackStatus('READY');
+            clearInterval(interval);
+          } else if (freshOrder?.playbackStatus === 'FAILED') {
+            setLocalPlaybackStatus('FAILED');
+            setGenerationError(freshOrder.playbackError || 'Erro ao processar o áudio.');
+            clearInterval(interval);
+          }
+        }
+      } catch (err) {
+        console.warn('[PlaybackAddonCard] Polling do áudio falhou:', err?.message);
+      }
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [hasAccess, currentPlaybackStatus, currentPlaybackUrl, orderId]);
+
   const estiloCartao = {
     padding: '20px',
     borderRadius: '16px',
@@ -117,6 +197,7 @@ export default function PlaybackAddonCard({ orderId, order }) {
     overflow: 'hidden',
   };
 
+  // 1. Tela de Compra / PIX (Quando ainda não pagou)
   if (!hasAccess) {
     return (
       <div className="glass-card" style={estiloCartao}>
@@ -150,12 +231,12 @@ export default function PlaybackAddonCard({ orderId, order }) {
               {pixCopied ? '✅ Código PIX Copiado!' : '📋 Copiar Código PIX (R$ 4,99)'}
             </button>
             <p style={{ fontSize: '0.78rem', color: '#cbd5e1', marginTop: '10px' }}>
-              Assim que o pagamento cair, aparece aqui o botão pra pedir seu playback no WhatsApp.
+              Assim que o pagamento for identificado, a nossa IA inicia a separação instrumental automaticamente!
             </p>
             {pollingTimedOut && (
               <p style={{ fontSize: '0.8rem', color: '#cbd5e1', marginTop: '10px' }}>
                 Ainda não identificamos o pagamento. Se já pagou, aguarde mais um instante — a confirmação
-                pode demorar um pouco.
+                pode demorar alguns segundos.
               </p>
             )}
           </div>
@@ -165,10 +246,10 @@ export default function PlaybackAddonCard({ orderId, order }) {
               🎧 Gerar Playback (Instrumental)
             </h4>
             <p style={{ fontSize: '0.85rem', color: '#cbd5e1', marginBottom: '14px', lineHeight: '1.4' }}>
-              A versão da sua música sem voz, pronta pra cantar junto — por apenas <strong style={{ color: '#34d399' }}>R$ 4,99</strong>.
+              A versão da sua música sem voz, com arranjo instrumental isolado em estúdio por IA — por apenas <strong style={{ color: '#34d399' }}>R$ 4,99</strong>.
               <br />
-              <span style={{ fontSize: '0.8rem' }}>
-                Depois do pagamento você fala com a gente no WhatsApp e recebe o arquivo por lá.
+              <span style={{ fontSize: '0.8rem', color: '#a78bfa' }}>
+                ✨ Você também ganha o download da faixa vocal acapella isolada!
               </span>
             </p>
             {temEscolha && (
@@ -219,7 +300,7 @@ export default function PlaybackAddonCard({ orderId, order }) {
               className="btn btn-primary"
               style={{ padding: '10px 20px', fontSize: '0.88rem', fontWeight: 'bold', border: 'none', cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.7 : 1 }}
             >
-              {loading ? 'Gerando cobrança...' : 'Gerar Playback — R$ 4,99'}
+              {loading ? 'Gerando cobrança...' : 'Liberar Playback — R$ 4,99'}
             </button>
           </div>
         )}
@@ -227,28 +308,74 @@ export default function PlaybackAddonCard({ orderId, order }) {
     );
   }
 
-  // Playback antigo que ficou pronto antes da entrega virar manual: continua tocando e baixando.
-  if (order?.playbackStatus === 'READY' && order?.playbackUrl) {
+  // 2. Playback Pronto (Sucesso!)
+  if ((currentPlaybackStatus === 'READY' || order?.playbackStatus === 'READY') && currentPlaybackUrl) {
     return (
       <div className="glass-card" style={{ ...estiloCartao, textAlign: 'center' }}>
-        <h4 style={{ fontSize: '1.05rem', marginBottom: '10px', fontFamily: 'var(--font-family-title)', color: '#ffffff' }}>
-          🎧 Seu Playback está pronto!
+        <div style={{ display: 'inline-block', background: 'rgba(52, 211, 153, 0.2)', border: '1px solid #34d399', borderRadius: '20px', padding: '4px 14px', fontSize: '0.8rem', color: '#34d399', fontWeight: '700', marginBottom: '12px' }}>
+          ✨ Playback Concluído
+        </div>
+        <h4 style={{ fontSize: '1.1rem', marginBottom: '8px', fontFamily: 'var(--font-family-title)', color: '#ffffff' }}>
+          🎧 Seu Playback Instrumental está pronto!
         </h4>
-        <audio controls src={buildAudioProxySrc(order.playbackUrl)} style={{ width: '100%', marginBottom: '10px' }} />
+        <p style={{ fontSize: '0.82rem', color: '#cbd5e1', marginBottom: '14px' }}>
+          Áudio sem a voz original, pronto para você cantar junto ou usar como trilha:
+        </p>
+        <audio controls src={buildAudioProxySrc(currentPlaybackUrl)} style={{ width: '100%', marginBottom: '12px' }} />
         <a
-          href={`/api/audio/proxy?url=${encodeURIComponent(order.playbackUrl)}&download=${encodeURIComponent(`playback-${identificacao}.mp3`)}`}
+          href={`/api/audio/proxy?url=${encodeURIComponent(currentPlaybackUrl)}&download=${encodeURIComponent(`playback-${identificacao}.mp3`)}`}
           download={`playback-${identificacao}.mp3`}
-          className="btn btn-secondary"
-          style={{ padding: '8px 14px', fontSize: '0.8rem', textDecoration: 'none' }}
+          className="btn btn-primary"
+          style={{ padding: '10px 18px', fontSize: '0.85rem', textDecoration: 'none', display: 'inline-block', marginBottom: currentVocalUrl ? '16px' : '0' }}
         >
-          💾 Baixar Playback
+          💾 Baixar Playback (Instrumental)
         </a>
+
+        {/* Faixa vocal acapella isolada (bônus de estúdio) */}
+        {currentVocalUrl && (
+          <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.15)', textAlign: 'center' }}>
+            <p style={{ fontSize: '0.85rem', fontWeight: '700', color: '#a78bfa', marginBottom: '6px' }}>
+              🎤 Faixa Vocal Isolada (Acapella Bônus)
+            </p>
+            <audio controls src={buildAudioProxySrc(currentVocalUrl)} style={{ width: '100%', marginBottom: '10px' }} />
+            <a
+              href={`/api/audio/proxy?url=${encodeURIComponent(currentVocalUrl)}&download=${encodeURIComponent(`vocal-${identificacao}.mp3`)}`}
+              download={`vocal-${identificacao}.mp3`}
+              className="btn btn-secondary"
+              style={{ padding: '8px 14px', fontSize: '0.8rem', textDecoration: 'none', display: 'inline-block' }}
+            >
+              💾 Baixar Faixa Vocal
+            </a>
+          </div>
+        )}
       </div>
     );
   }
 
-  // Pago e sem arquivo: o caminho é o WhatsApp. Vale também para os pedidos que ficaram em FAILED
-  // na época da geração automática — para o cliente, a situação é a mesma: pagou e falta receber.
+  // 3. Em Processamento / Gerando na VPS
+  if (currentPlaybackStatus === 'GERANDO' || isTriggering) {
+    return (
+      <div className="glass-card" style={{ ...estiloCartao, textAlign: 'center' }}>
+        <div style={{ fontSize: '2rem', marginBottom: '10px', animation: 'spin 2s linear infinite' }}>
+          ⏳
+        </div>
+        <h4 style={{ fontSize: '1.05rem', marginBottom: '8px', fontFamily: 'var(--font-family-title)', color: '#ffffff' }}>
+          🎧 Separando Voz e Instrumentos...
+        </h4>
+        <p style={{ fontSize: '0.85rem', color: '#cbd5e1', marginBottom: '14px', lineHeight: 1.45 }}>
+          Nossa inteligência artificial de estúdio está processando sua música na VPS para isolar o arranjo instrumental com máxima fidelidade.
+        </p>
+        <div style={{ width: '100%', height: '8px', background: 'rgba(255,255,255,0.15)', borderRadius: '4px', overflow: 'hidden', marginBottom: '12px' }}>
+          <div style={{ width: '70%', height: '100%', background: 'linear-gradient(90deg, #8b5cf6, #ec4899)', borderRadius: '4px', animation: 'pulse 1.5s infinite' }} />
+        </div>
+        <p style={{ fontSize: '0.78rem', color: '#a78bfa' }}>
+          ⏱️ Tempo estimado: cerca de 1 minuto. Esta página atualizará automaticamente assim que estiver pronto!
+        </p>
+      </div>
+    );
+  }
+
+  // 4. Caso tenha falhado ou precise de acionamento manual
   const faixaInformada = temEscolha
     ? ` (faixa ${Math.max(1, faixas.indexOf(order?.playbackChosenAudioId) + 1)})`
     : '';
@@ -256,27 +383,41 @@ export default function PlaybackAddonCard({ orderId, order }) {
   return (
     <div className="glass-card" style={{ ...estiloCartao, textAlign: 'center' }}>
       <h4 style={{ fontSize: '1.05rem', marginBottom: '8px', fontFamily: 'var(--font-family-title)', color: '#ffffff' }}>
-        ✅ Playback pago — só falta pedir
+        ✅ Playback Liberado
       </h4>
       <p style={{ fontSize: '0.85rem', color: '#cbd5e1', marginBottom: '14px', lineHeight: 1.45 }}>
-        Seu pagamento está confirmado. Mande uma mensagem no WhatsApp com o número do seu pedido que a
-        gente prepara o playback e te envia por lá.
+        Seu pagamento está confirmado! Clique abaixo para iniciar a separação vocal por IA de estúdio:
       </p>
-      <p style={{ fontSize: '0.9rem', fontWeight: '700', color: '#ffffff', marginBottom: '14px' }}>
-        Pedido <span style={{ color: '#34d399' }}>{identificacao}</span>
-      </p>
-      <a
-        href={linkWhatsapp(
-          whatsappSuporte,
-          `Olá! Paguei o Playback (Instrumental) do pedido ${identificacao}${faixaInformada} e gostaria de receber o arquivo.`
-        )}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="btn btn-primary"
-        style={{ padding: '12px 20px', fontSize: '0.9rem', fontWeight: 'bold', textDecoration: 'none', display: 'inline-block' }}
-      >
-        💬 Pedir meu playback no WhatsApp
-      </a>
+
+      {generationError && (
+        <p style={{ fontSize: '0.8rem', color: 'var(--error, #ef4444)', marginBottom: '12px' }}>
+          {generationError}
+        </p>
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'center' }}>
+        <button
+          type="button"
+          onClick={triggerAiSeparation}
+          disabled={isTriggering}
+          className="btn btn-primary"
+          style={{ padding: '12px 20px', fontSize: '0.9rem', fontWeight: 'bold', border: 'none', cursor: isTriggering ? 'default' : 'pointer' }}
+        >
+          {isTriggering ? 'Iniciando separação...' : '✨ Gerar Playback com IA de Estúdio'}
+        </button>
+
+        <a
+          href={linkWhatsapp(
+            whatsappSuporte,
+            `Olá! Paguei o Playback do pedido ${identificacao}${faixaInformada} e gostaria de suporte.`
+          )}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ fontSize: '0.8rem', color: '#cbd5e1', textDecoration: 'underline', marginTop: '6px' }}
+        >
+          💬 Falar com suporte no WhatsApp se preferir
+        </a>
+      </div>
     </div>
   );
 }

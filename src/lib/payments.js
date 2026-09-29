@@ -242,13 +242,59 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
 
     if (txResult.isPlaybackOnly) {
       try {
-        await updateOrder(orderId, {
-          playbackStatus: 'AGUARDANDO_CONTATO',
-          playbackRequesting: false,
-          updatedAt: new Date().toISOString(),
-        }, env);
+        const orderData = txResult.orderData || {};
+        const chosenAudioId = orderData.playbackChosenAudioId;
+        const faixas = Array.isArray(orderData.audioIds) ? orderData.audioIds : [];
+        const arquivosFaixas = Array.isArray(orderData.audioFiles) ? orderData.audioFiles : [];
+        let targetAudio = null;
+        if (chosenAudioId && faixas.length > 0) {
+          const idx = faixas.indexOf(chosenAudioId);
+          if (idx !== -1 && arquivosFaixas[idx]) targetAudio = arquivosFaixas[idx];
+        }
+        if (!targetAudio) {
+          targetAudio = orderData.audioUrl || arquivosFaixas[0] || orderData.secondAudioUrl || null;
+        }
+
+        const vpsVideoUrl = String(env?.VPS_VIDEO_URL || process.env.VPS_VIDEO_URL || '').trim();
+        let vpsAudioUrl = String(env?.VPS_AUDIO_URL || process.env.VPS_AUDIO_URL || '').trim();
+        if (!vpsAudioUrl && vpsVideoUrl) {
+          vpsAudioUrl = vpsVideoUrl.replace(/\/video\/?$/, '/audio');
+        } else if (!vpsAudioUrl) {
+          vpsAudioUrl = 'https://evolution.nsnexus.com.br/audio';
+        }
+        const vpsSecret = String(env?.VPS_VIDEO_SECRET || process.env.VPS_VIDEO_SECRET || '').trim();
+
+        if (targetAudio && vpsAudioUrl && vpsSecret) {
+          let cleanAudioUrl = vpsAudioUrl.replace(/\/+$/, '');
+          if (cleanAudioUrl.includes('81.17.98.66')) {
+            cleanAudioUrl = cleanAudioUrl.replace(/https?:\/\/81\.17\.98\.66(\/audio)?/, 'https://evolution.nsnexus.com.br/audio');
+          }
+          const targetEndpoint = cleanAudioUrl.endsWith('/separate') ? cleanAudioUrl : `${cleanAudioUrl}/separate`;
+
+          await updateOrder(orderId, {
+            playbackStatus: 'GERANDO',
+            playbackError: null,
+            updatedAt: new Date().toISOString(),
+          }, env);
+
+          fetch(targetEndpoint, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${vpsSecret}`,
+            },
+            body: JSON.stringify({ orderId, audioUrl: targetAudio }),
+            signal: AbortSignal.timeout(10000),
+          }).catch(e => console.warn('[payments] Disparo assíncrono de playback na VPS falhou:', e?.message));
+        } else {
+          await updateOrder(orderId, {
+            playbackStatus: 'AGUARDANDO_CONTATO',
+            playbackRequesting: false,
+            updatedAt: new Date().toISOString(),
+          }, env);
+        }
       } catch (err) {
-        console.warn('[payments] Erro ao marcar playback como aguardando contato:', err.message);
+        console.warn('[payments] Erro ao iniciar geração de playback:', err.message);
       }
     }
 
