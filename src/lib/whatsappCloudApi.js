@@ -1,5 +1,6 @@
 import { getRequestContext } from '@cloudflare/next-on-pages';
 import { formatToWhatsAppNumber } from './whatsappTemplates.js';
+import { lerConfigSite, normalizarNumeroWhatsapp, WHATSAPP_SUPORTE_PADRAO } from './configSite.js';
 
 // WhatsApp Cloud API (API oficial da Meta) — usada só como RESERVA de envio.
 //
@@ -37,8 +38,8 @@ export function getCloudApiConfig(env = {}) {
     phoneNumberId,
     // Nomes dos templates aprovados, configuráveis por variável para não exigir deploy quando um
     // template for recriado com outro nome (acontece: reprovação da Meta obriga a refazer).
-    templateMusicaPronta: ler('WHATSAPP_TEMPLATE_MUSICA') || 'musica_pronta',
-    templatePagamento: ler('WHATSAPP_TEMPLATE_PAGAMENTO') || 'pagamento_confirmado',
+    templateMusicaPronta: ler('WHATSAPP_TEMPLATE_MUSICA') || 'aviso_musica_pronta',
+    templatePagamento: ler('WHATSAPP_TEMPLATE_PAGAMENTO') || 'confirmacao_pagamento',
     enabled: Boolean(token && phoneNumberId),
   };
 }
@@ -131,29 +132,37 @@ export async function sendCloudApiTemplate(phone, templateName, variaveis = [], 
 }
 
 /**
- * "Sua música ficou pronta" — variáveis: nome do cliente, nome do homenageado, link da entrega.
+ * "Sua música ficou pronta" — variáveis: nome do cliente, nome do homenageado, link da entrega, link dinâmico de suporte.
  */
 export async function enviarMusicaProntaCloud(phone, { cliente, homenageado, link }, env = {}) {
   const config = getCloudApiConfig(env);
-  const idDoPedido = (link ? String(link).match(/orderId=([^&]+)/)?.[1] : '') || '';
-  return sendCloudApiTemplate(phone, config.templateMusicaPronta, [cliente, homenageado, link], { buttonParam: idDoPedido }, env);
+  const cfgSite = await lerConfigSite(env);
+  const numSuporte = normalizarNumeroWhatsapp(cfgSite?.whatsappSuporte) || WHATSAPP_SUPORTE_PADRAO;
+  const linkSuporte = `https://wa.me/${numSuporte}`;
+
+  return sendCloudApiTemplate(
+    phone,
+    config.templateMusicaPronta,
+    [cliente, homenageado, link, linkSuporte],
+    {},
+    env
+  );
 }
 
 /**
- * "Pagamento confirmado" — variáveis: nome do cliente, nome do homenageado, link versão 1, link versão 2.
- * Botão dinâmico opcional com o orderId.
+ * "Pagamento confirmado" — variáveis: nome do cliente, nome do homenageado, link da entrega, link dinâmico de suporte.
  */
 export async function enviarPagamentoConfirmadoCloud(phone, { cliente, homenageado, link, orderId, audio1, audio2 }, env = {}) {
   const config = getCloudApiConfig(env);
-  const safeV1 = audio1 || link;
-  const safeV2 = audio2 || audio1 || link;
-  const idDoPedido = orderId || (link ? String(link).match(/orderId=([^&]+)/)?.[1] : '') || '';
+  const cfgSite = await lerConfigSite(env);
+  const numSuporte = normalizarNumeroWhatsapp(cfgSite?.whatsappSuporte) || WHATSAPP_SUPORTE_PADRAO;
+  const linkSuporte = `https://wa.me/${numSuporte}`;
 
   return sendCloudApiTemplate(
     phone,
     config.templatePagamento,
-    [cliente, homenageado, safeV1, safeV2],
-    { buttonParam: idDoPedido },
-    env,
+    [cliente, homenageado, link, linkSuporte],
+    {},
+    env
   );
 }

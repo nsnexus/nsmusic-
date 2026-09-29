@@ -38,9 +38,9 @@ O script consulta a Graph API da Meta em tempo real e exibe:
 1. Acesse o painel direto da conta WABA:
    [https://business.facebook.com/wa/manage/message-templates/?waba_id=2160994021495241](https://business.facebook.com/wa/manage/message-templates/?waba_id=2160994021495241)
 2. Você verá a tabela com os modelos:
-   * `musica_pronta`
-   * `pagamento_confirmado`
-   * `hello_world`
+   * `aviso_musica_pronta` (UTILITY)
+   * `confirmacao_pagamento` (UTILITY)
+   * `hello_world` (UTILITY)
 3. A coluna **Status** mostrará:
    * 🟢 **Aprovado (Approved)**: Liberado para envio a qualquer cliente.
    * 🟡 **Pendente (Pending)**: Em análise pelo robô da Meta.
@@ -48,41 +48,41 @@ O script consulta a Graph API da Meta em tempo real e exibe:
 
 ---
 
-## Modelos Cadastrados
+## Modelos Cadastrados (Categoria Oficial: UTILITY)
 
-### 1. `musica_pronta` (ID: `4632637260306709`)
+### 1. `aviso_musica_pronta` (ID: `4752931058274399`)
 
 ```text
-Oi, {{1}}! A música de {{2}} ficou pronta. 🎧
+Olá, {{1}}. Informamos que o seu pedido de música personalizada para {{2}} foi concluído com sucesso.
 
-Gravei 2 versões, com arranjos diferentes, pra você escolher. Ouça aqui:
+Você pode ouvir suas versões no link:
 {{3}}
 
-Se precisar de qualquer coisa, chame nosso suporte no WhatsApp:
-https://nsmusic.ia.br/whatsapp
+Caso precise de suporte no WhatsApp, acesse o link {{4}} para falar com nossa equipe.
 ```
 
 * **Variáveis**:
   * `{{1}}`: Primeiro nome do cliente (ex.: *Narciso*)
   * `{{2}}`: Nome do homenageado (ex.: *Maria*)
   * `{{3}}`: Link da entrega/prévia (`https://nsmusic.nsnexus.com.br/entrega?orderId=...`)
+  * `{{4}}`: Link dinâmico de suporte via WhatsApp (`https://wa.me/5594991081351`) lido em tempo real da configuração do Admin
 
-### 2. `pagamento_confirmado` (ID: `1086325714365526`)
+### 2. `confirmacao_pagamento` (ID: `1571410057796129`)
 
 ```text
-Olá {{1}}, seu pagamento caiu! 🎉 A música de {{2}} tá liberada.
+Olá, {{1}}. Confirmamos o pagamento do seu pedido referente à música de {{2}}.
 
-A página completa para ouvir e baixar as 2 versões fica aqui:
+Seus arquivos completos em alta definição estão liberados no link:
 {{3}}
 
-Qualquer dúvida ou suporte, é só nos chamar no WhatsApp:
-https://nsmusic.ia.br/whatsapp 💜
+Caso precise de suporte no WhatsApp, acesse o link {{4}} para falar com nossa equipe.
 ```
 
 * **Variáveis**:
   * `{{1}}`: Primeiro nome do cliente
   * `{{2}}`: Nome do homenageado
   * `{{3}}`: Link permanente da página de entrega liberada
+  * `{{4}}`: Link dinâmico de suporte via WhatsApp (`https://wa.me/5594991081351`) lido em tempo real da configuração do Admin
 
 ---
 
