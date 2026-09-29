@@ -329,29 +329,28 @@ const primeiroNome = (nome) => String(nome || '').trim().split(/\s+/)[0] || 'Cli
 
 /**
  * Envia a mensagem de "música pronta" avisando que as 2 versões ficaram prontas com o link de entrega.
+ * Disparado EXCLUSIVAMENTE via API Oficial da Meta (WhatsApp Cloud API).
  */
 export const sendMusicReadyTemplate = async (phone, { customerName, honoreeName, deliveryUrl }, env = {}) => {
   const name = customerName || 'Cliente';
   const honoree = honoreeName || 'alguém especial';
   const url = deliveryUrl || DOMINIO_CANONICO;
 
-  const message = `🎵 *Olá, ${name}!*
+  // Trava anti-spam / teste / duplicação
+  const guard = await shouldBlockWhatsAppMessage(phone, `musica_pronta_${url}`, env);
+  if (guard.block) {
+    return { success: true, ignored: guard.reason, phoneUsed: formatToWhatsAppNumber(phone) };
+  }
 
-A sua música personalizada para *${honoree}* já foi produzida com sucesso no estúdio *NS Music*! 🎧
+  const cloudConfig = getCloudApiConfig(env);
+  if (cloudConfig.enabled) {
+    console.log(`[WhatsApp] Enviando template de música pronta via Meta Cloud API Oficial para ${phone}...`);
+    const res = await enviarMusicaProntaCloud(phone, { cliente: primeiroNome(name), homenageado: honoree, link: url }, env);
+    if (res.success) return res;
+    return { success: false, error: `cloud_api: ${res.error}` };
+  }
 
-Foram gravadas *2 versões exclusivas* com arranjos diferentes para você escolher ou ficar com as duas.
-
-👉 *Ouça a prévia agora mesmo:*
-${url}
-
-Se precisar de qualquer ajuda ou tiver dúvidas, é só me responder por aqui! 💜`;
-
-  const resultado = await sendWApiTextMessage(phone, message, env);
-  return await comFallbackCloudApi(
-    resultado,
-    () => enviarMusicaProntaCloud(phone, { cliente: primeiroNome(name), homenageado: honoree, link: url }, env),
-    env,
-  );
+  return { success: false, error: 'Cloud API não configurada (WHATSAPP_ACCESS_TOKEN/WHATSAPP_PHONE_NUMBER_ID).' };
 };
 
 /**
@@ -372,65 +371,40 @@ export const isVideoPurchased = (orderData = {}) => {
 
 /**
  * Envia mensagem de confirmação de pagamento aprovado com links diretos de áudio e oferta do vídeo homenagem.
+ * Disparado EXCLUSIVAMENTE via API Oficial da Meta (WhatsApp Cloud API).
  */
 export const sendPaymentApprovedTemplate = async (phone, { customerName, honoreeName, deliveryUrl, audioUrls, hasVideoAccess, orderData }, env = {}) => {
   const name = customerName || 'Cliente';
   const honoree = honoreeName || 'alguém especial';
   const url = deliveryUrl || DOMINIO_CANONICO;
 
-  const userHasVideo = Boolean(hasVideoAccess || isVideoPurchased(orderData));
-
-  let audiosList = '';
-  if (Array.isArray(audioUrls) && audioUrls.length > 0) {
-    audiosList = audioUrls
-      .filter(Boolean)
-      .map((link, idx) => `• *Versão ${idx + 1}:* ${buildAudioDownloadLink(link, `NS-Music-${honoree}-Versao-${idx + 1}.mp3`)}`)
-      .join('\n');
+  // Trava anti-spam / cooldown de 15min para confirmação de pagamento
+  const guard = await shouldBlockWhatsAppMessage(phone, 'pagamento aprovado', env);
+  if (guard.block) {
+    return { success: true, ignored: guard.reason, phoneUsed: formatToWhatsAppNumber(phone) };
   }
-
-  const videoBlock = userHasVideo
-    ? `━━━━━━━━━━━━━━━━━━━━
-🎬 Seu *vídeo homenagem* também já está liberado! Pra gerar, é só enviar de 10 a 20 fotos na sua página de entrega (mesmo link acima) que a gente sincroniza tudo com a música. 📸
-━━━━━━━━━━━━━━━━━━━━
-
-`
-    : `━━━━━━━━━━━━━━━━━━━━
-🎬 *QUE TAL UM VÍDEO HOMENAGEM?*
-Transforme essa música linda em um *vídeo com fotos e legendas sincronizadas* para emocionar ainda mais ${honoree}!
-
-✨ *Adicione o vídeo ao seu pedido por apenas R$ 6,90:*
-${url}
-━━━━━━━━━━━━━━━━━━━━
-
-`;
-
-  const message = `🎉 *PAGAMENTO CONFIRMADO!*
-
-Olá, ${name}! As músicas personalizadas para *${honoree}* já estão 100% liberadas em alta definição (MP3 HD)! 🎶
-
-${audiosList ? `📥 *Baixe seus áudios diretamente:*\n${audiosList}\n\n` : ''}🔗 *Acesse sua página de entrega permanente:*
-${url}
-
-${videoBlock}Muito obrigado por escolher o *NS Music* para fazer parte desse momento tão especial! 💜`;
 
   const urls = Array.isArray(audioUrls) ? audioUrls.filter(Boolean) : [];
   const v1 = urls[0] ? buildAudioDownloadLink(urls[0], `NS-Music-${honoree}-Versao-1.mp3`) : url;
   const v2 = urls[1] ? buildAudioDownloadLink(urls[1], `NS-Music-${honoree}-Versao-2.mp3`) : v1;
   const orderId = orderData?.id || orderData?.orderNumber || (url.match(/orderId=([^&]+)/)?.[1]) || '';
 
-  const resultado = await sendWApiTextMessage(phone, message, env);
-  return await comFallbackCloudApi(
-    resultado,
-    () => enviarPagamentoConfirmadoCloud(phone, {
+  const cloudConfig = getCloudApiConfig(env);
+  if (cloudConfig.enabled) {
+    console.log(`[WhatsApp] Enviando template de pagamento aprovado via Meta Cloud API Oficial para ${phone}...`);
+    const res = await enviarPagamentoConfirmadoCloud(phone, {
       cliente: primeiroNome(name),
       homenageado: honoree,
       link: url,
       orderId,
       audio1: v1,
       audio2: v2,
-    }, env),
-    env,
-  );
+    }, env);
+    if (res.success) return res;
+    return { success: false, error: `cloud_api: ${res.error}` };
+  }
+
+  return { success: false, error: 'Cloud API não configurada (WHATSAPP_ACCESS_TOKEN/WHATSAPP_PHONE_NUMBER_ID).' };
 };
 
 /**

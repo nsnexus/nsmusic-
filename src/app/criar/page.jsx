@@ -19,9 +19,6 @@ import { requestPixCharge } from '@/lib/pixCheckout';
 import { useWhatsappSuporte, linkWhatsapp } from '@/lib/useWhatsappSuporte';
 import { StudioLyricsAnimation, StudioAudioAnimation } from '@/components/StudioAnimations';
 
-// Espera antes de mostrar o convite "receber a música no WhatsApp" na tela de geração: aparecendo
-// de imediato, o cliente clicava e saía da tela antes de ver a música ficar pronta ali mesmo.
-const WHATSAPP_CTA_DELAY_MS = 30000;
 
 // Tempo na tela de produção depois do qual o cliente sempre ganha uma saída (conferir de novo,
 // recomeçar ou chamar no WhatsApp). Maior que o corte de 6 min do polling de propósito: só entra
@@ -465,7 +462,6 @@ export default function CriarMusica() {
 
   // Passos de carregamento dinâmico no estúdio de produção musical (Step 10)
   const [audioStepIdx, setAudioStepIdx] = useState(0);
-  const [showWhatsappCta, setShowWhatsappCta] = useState(false);
   const studioAudioPhrases = [
     "🎸 Compondo arranjos de instrumentos e base harmônica em estúdio...",
     "🎤 Gravando vocais e ajustando afinação e interpretação...",
@@ -521,16 +517,6 @@ export default function CriarMusica() {
     return () => clearInterval(interval);
   }, [formData.sunoStatus]);
 
-  // O convite de receber pelo WhatsApp só aparece depois de WHATSAPP_CTA_DELAY_MS na tela de
-  // geração (pedido do dono do estúdio, 03/09/2026): aparecendo de cara, o cliente clicava e saía
-  // antes mesmo de ver a música ficar pronta ali. Timer com cleanup obrigatório (frontend.md) —
-  // sem ele, sair da etapa antes dos 30s deixaria o setTimeout vivo depois da desmontagem.
-  useEffect(() => {
-    if (formData.sunoStatus === 'generated') return;
-    setShowWhatsappCta(false);
-    const t = setTimeout(() => setShowWhatsappCta(true), WHATSAPP_CTA_DELAY_MS);
-    return () => clearTimeout(t);
-  }, [formData.sunoStatus]);
 
   // Valor promocional dinâmico: R$ 9,99 (só música) ou R$ 16,89 (música + vídeo)
   const getSelectedPackagePrice = () => 9.99;
@@ -1479,42 +1465,47 @@ export default function CriarMusica() {
                   Isso leva cerca de 2 minutos. Aguarde enquanto nosso estúdio sintetiza os vocalistas e a base instrumental.
                 </p>
 
-                {/* Botão de recebimento direto no WhatsApp com proteção anti-ban. Só aparece
-                    depois de WHATSAPP_CTA_DELAY_MS — ver o useEffect que controla showWhatsappCta. */}
-                {showWhatsappCta && (
-                <div style={{ marginTop: '24px', padding: '20px', background: 'rgba(37, 211, 102, 0.08)', border: '1px solid rgba(37, 211, 102, 0.3)', borderRadius: '16px', textAlign: 'center', animation: 'fadeIn 0.5s ease' }}>
-                  <p style={{ fontSize: '0.95rem', color: '#10b981', margin: '0 0 10px 0', lineHeight: '1.5', fontWeight: '600' }}>
-                    💡 <strong>Não precisa ficar esperando nesta tela!</strong>
-                  </p>
-                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '0 0 16px 0', lineHeight: '1.4' }}>
-                    Toque no botão abaixo para receber a prévia dos seus 2 arranjos diretamente no seu WhatsApp assim que o estúdio finalizar:
-                  </p>
-                  <a
-                    href={`${linkWhatsapp(whatsappSuporte, `Olá! Quero receber a prévia da música do meu pedido ${orderId ? `id=${orderId}` : ''}`)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                {/* Informação durante a produção: envio automático pelo WhatsApp oficial */}
+                <div
+                  style={{
+                    marginTop: '22px',
+                    padding: '16px 20px',
+                    background: 'rgba(37, 211, 102, 0.08)',
+                    border: '1px solid rgba(37, 211, 102, 0.28)',
+                    borderRadius: '16px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '14px',
+                    textAlign: 'left',
+                    maxWidth: '520px',
+                    margin: '22px auto 0',
+                    animation: 'fadeIn 0.5s ease',
+                  }}
+                >
+                  <div
                     style={{
-                      display: 'inline-flex',
+                      fontSize: '1.7rem',
+                      width: '44px',
+                      height: '44px',
+                      borderRadius: '50%',
+                      background: 'rgba(37, 211, 102, 0.16)',
+                      display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      gap: '10px',
-                      padding: '14px 22px',
-                      fontSize: '1.02rem',
-                      fontWeight: '700',
-                      borderRadius: '12px',
-                      background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)',
-                      color: '#ffffff',
-                      textDecoration: 'none',
-                      boxShadow: '0 4px 15px rgba(37, 211, 102, 0.35)',
-                      width: '100%',
-                      maxWidth: '420px',
-                      margin: '0 auto'
+                      flexShrink: 0,
                     }}
                   >
-                    <span>💬 Receber Música no meu WhatsApp</span>
-                  </a>
+                    📲
+                  </div>
+                  <div>
+                    <p style={{ margin: '0 0 4px 0', fontSize: '0.92rem', fontWeight: '700', color: 'var(--text-primary)' }}>
+                      Você receberá o link no seu WhatsApp!
+                    </p>
+                    <p style={{ margin: 0, fontSize: '0.84rem', color: 'var(--text-muted)', lineHeight: '1.45' }}>
+                      Assim que seus 2 arranjos ficarem prontos, enviaremos automaticamente uma mensagem no WhatsApp {formData.customerPhone ? <strong style={{ color: '#25D366' }}>{formData.customerPhone}</strong> : 'cadastrado'} com o link exclusivo da prévia. Você pode acompanhar por aqui ou aguardar a notificação!
+                    </p>
+                  </div>
                 </div>
-                )}
                 {/* Passou de AUDIO_WATCHDOG_MS e a música não chegou. Não é o painel de erro: aqui
                     ninguém reportou falha, a tela só ficou parada. A primeira ação é reconsultar o
                     pedido, porque o caso mais comum é o áudio JÁ existir no banco (o webhook
