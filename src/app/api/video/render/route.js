@@ -98,7 +98,7 @@ export async function POST(req) {
       return NextResponse.json({
         success: false,
         vpsEnabled: true,
-        error: `Erro ao comunicar com a VPS de vídeo (HTTP ${vpsRes.status})`,
+        error: `Erro ao comunicar com a VPS de vídeo (HTTP ${vpsRes.status}): ${errText.slice(0, 200)} [endpoint: ${targetEndpoint}]`,
       }, { status: 502 });
     }
 
