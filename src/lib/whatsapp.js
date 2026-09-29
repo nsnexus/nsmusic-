@@ -5,8 +5,6 @@ import { enviarMusicaProntaCloud, enviarPagamentoConfirmadoCloud, getCloudApiCon
 
 export { resolveDeliveryUrl, resolveCriarUrl, formatToWhatsAppNumber, cleanWhatsAppId, buildAudioDownloadLink };
 
-const WAPI_BASE_URL = 'https://api.w-api.app/v1';
-
 // Memória local de processos Edge para proteção anti-rajada e anti-spam imediata
 const inMemoryPhoneMessageLocks = new Map();
 const inMemoryPaymentConfirmedLocks = new Map();
@@ -15,7 +13,7 @@ const GENERAL_DUPLICATE_COOLDOWN_MS = 30 * 1000; // 30 segundos para a mesma men
 
 /**
  * Identifica se a execução atual é de teste unitário ou se o número é fictício/mock de teste.
- * NUNCA permite disparo de rede real para a W-API ou Evolution API durante testes.
+ * NUNCA permite disparo de rede real para o WhatsApp durante testes.
  */
 export function isTestOrMockPhone(phone) {
   if (
@@ -107,28 +105,14 @@ export const getEvolutionConfig = (env = {}) => {
   return { baseUrl, instanceName, token, enabled: Boolean(baseUrl && instanceName && token) };
 };
 
-export const getWApiConfig = (env = {}) => {
-  let ctxEnv = {};
-  try {
-    const ctx = getRequestContext();
-    if (ctx?.env) ctxEnv = ctx.env;
-  } catch (e) {}
-
-  const instanceId = env.WAPI_INSTANCE_ID || ctxEnv.WAPI_INSTANCE_ID || process.env.WAPI_INSTANCE_ID || '';
-  const token = env.WAPI_TOKEN || ctxEnv.WAPI_TOKEN || process.env.WAPI_TOKEN || '';
-
-  return { instanceId, token, baseUrl: WAPI_BASE_URL };
-};
-
 /**
- * Simula status de presença ("composing" = digitando..., "recording" = gravando áudio...)
+ * Simula status de presença ("composing" = digitando..., "recording" = gravando áudio...) via Evolution API
  */
-export const sendWApiPresence = async (phone, presence = 'composing', env = {}) => {
+export const sendWhatsAppPresence = async (phone, presence = 'composing', env = {}) => {
   if (isTestOrMockPhone(phone)) return;
   const formattedNumber = formatToWhatsAppNumber(phone);
   if (!formattedNumber) return;
 
-  // 1. Tenta Evolution API (VPS)
   const evoConfig = getEvolutionConfig(env);
   if (evoConfig.enabled) {
     try {
@@ -146,29 +130,10 @@ export const sendWApiPresence = async (phone, presence = 'composing', env = {}) 
         signal: AbortSignal.timeout(4000),
       }).catch(() => {});
     } catch (e) {}
-    return;
   }
-
-  // 2. Fallback W-API
-  const { instanceId, token, baseUrl } = getWApiConfig(env);
-  if (!instanceId || !token) return;
-
-  try {
-    await fetch(`${baseUrl}/chat/send-presence?instanceId=${instanceId}`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        phone: formattedNumber,
-        presence: presence,
-        delay: 1200,
-      }),
-      signal: AbortSignal.timeout(4000),
-    }).catch(() => {});
-  } catch (e) {}
 };
+
+export const sendWApiPresence = sendWhatsAppPresence;
 
 /**
  * Envia uma mensagem de texto via Evolution API (VPS própria)
@@ -227,9 +192,9 @@ export const sendEvolutionTextMessage = async (phone, message, env = {}) => {
 };
 
 /**
- * Envia mensagem de texto com prioridade na Evolution API (VPS) e fallback para W-API
+ * Envia mensagem de texto via Evolution API (VPS própria)
  */
-export const sendWApiTextMessage = async (phone, message, env = {}) => {
+export const sendWhatsAppTextMessage = async (phone, message, env = {}) => {
   const formattedNumber = formatToWhatsAppNumber(phone);
   if (!formattedNumber) {
     return { success: false, error: 'Telefone inválido ou não informado.' };
@@ -241,62 +206,16 @@ export const sendWApiTextMessage = async (phone, message, env = {}) => {
     return { success: true, ignored: guard.reason, phoneUsed: formattedNumber };
   }
 
-  // 1. Tenta Evolution API (VPS própria) primeiro se configurada
   const evoConfig = getEvolutionConfig(env);
-  if (evoConfig.enabled) {
-    const evoResult = await sendEvolutionTextMessage(phone, message, env);
-    if (evoResult.success) {
-      return evoResult;
-    }
-    console.warn('[WhatsApp] Falha no envio via Evolution API VPS. Acionando fallback W-API...', evoResult.error);
+  if (!evoConfig.enabled) {
+    return { success: false, error: 'Evolution API não configurado na VPS.' };
   }
 
-  // 2. Fallback W-API
-  const { instanceId, token, baseUrl } = getWApiConfig(env);
-  if (!instanceId || !token) {
-    return { success: false, error: 'Nenhum provedor WhatsApp ativo (Evolution / W-API não configurados).' };
-  }
-
-  const numbersToSend = [formattedNumber];
-  if (formattedNumber.startsWith('55') && formattedNumber.length === 13 && formattedNumber[4] === '9') {
-    const withoutNine = `${formattedNumber.substring(0, 4)}${formattedNumber.substring(5)}`;
-    numbersToSend.push(withoutNine);
-  }
-
-  let lastError = '';
-  for (let i = 0; i < numbersToSend.length; i++) {
-    const num = numbersToSend[i];
-    try {
-      console.log(`[W-API] Enviando mensagem (variante ${i + 1}/${numbersToSend.length})...`);
-      const res = await fetch(`${baseUrl}/message/send-text?instanceId=${instanceId}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          phone: num,
-          message: message,
-        }),
-        signal: AbortSignal.timeout(10000),
-      });
-
-      if (res.ok) {
-        console.log('[W-API] ✅ Mensagem enviada com sucesso.');
-        return { success: true, phoneUsed: num };
-      }
-
-      const errData = await res.json().catch(() => ({}));
-      lastError = errData?.message || `HTTP ${res.status}`;
-      console.error(`[W-API] Erro ao enviar (variante ${i + 1}):`, res.status, lastError);
-    } catch (error) {
-      lastError = error.message;
-      console.error(`[W-API] Erro de rede ao enviar (variante ${i + 1}):`, error.message);
-    }
-  }
-
-  return { success: false, error: lastError };
+  return await sendEvolutionTextMessage(phone, message, env);
 };
+
+export const sendWApiTextMessage = sendWhatsAppTextMessage;
+export const sendTextMessage = sendWhatsAppTextMessage;
 
 /**
  * Último recurso de envio: a API oficial da Meta (Cloud API).
@@ -317,7 +236,7 @@ const comFallbackCloudApi = async (resultado, enviar, env = {}) => {
   if (resultado?.success) return resultado;
   if (!getCloudApiConfig(env).enabled) return resultado;
 
-  console.warn('[WhatsApp] Evolution e W-API falharam. Acionando Cloud API (Meta)...', resultado?.error);
+  console.warn('[WhatsApp] Evolution falhou. Acionando Cloud API (Meta)...', resultado?.error);
   const cloud = await enviar();
   if (cloud.success) return cloud;
 

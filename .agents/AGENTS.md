@@ -1,7 +1,7 @@
 # Regras do Projeto NSMusic
 
 ## 1. Visão Geral
-O NSMusic é uma plataforma de músicas personalizadas com IA (Suno AI via Kie.ai + Gemini/OpenAI), pagamento via Efí Bank (PIX), notificações WhatsApp (W-API), Supabase (Postgres) como banco de dados e Cloudflare R2 para armazenamento de mídias. Deploy automático no Cloudflare Pages via Edge Runtime.
+O NSMusic é uma plataforma de músicas personalizadas com IA (Suno AI via Kie.ai + Gemini/OpenAI), pagamento via Efí Bank (PIX), notificações WhatsApp (Evolution API VPS + Meta Cloud API), Supabase (Postgres) como banco de dados e Cloudflare R2 para armazenamento de mídias. Deploy automático no Cloudflare Pages via Edge Runtime.
 
 ## 2. Stack Principal
 - **Framework**: Next.js 14 (App Router, JavaScript, sem TypeScript)
@@ -11,7 +11,7 @@ O NSMusic é uma plataforma de músicas personalizadas com IA (Suno AI via Kie.a
 - **Autenticação**: Supabase Auth (GoTrue REST API `/auth/v1/user`)
 - **Pagamento**: Efí Bank (PIX dinâmico + estático)
 - **IA**: Kie.ai (Suno AI) para música, OpenAI/Gemini para letras
-- **WhatsApp**: W-API (api.w-api.app)
+- **WhatsApp**: Evolution API (VPS própria) + Meta Cloud API
 - **Estilização**: CSS inline (`style={{}}`) + classes globais em `globals.css`
 
 ## 3. Regras Obrigatórias para Next.js
