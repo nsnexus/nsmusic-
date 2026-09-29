@@ -71,10 +71,13 @@ export async function POST(req) {
       slideshowImages: cleanUrls,
     }, env).catch(e => console.warn('[VideoRender] Falha ao marcar GERANDO:', e?.message));
 
-    // Dispara chamada HTTP para a VPS (normaliza porta :3100 para rota /video na porta 80 padrão do Nginx)
+    // Dispara chamada HTTP para a VPS (normaliza porta :3100 e substitui IP direto pelo domínio com HTTPS para evitar Cloudflare Error 1003)
     let cleanBaseUrl = vpsVideoUrl.replace(/\/+$/, '');
     if (cleanBaseUrl.includes(':3100')) {
       cleanBaseUrl = cleanBaseUrl.replace(':3100', '/video');
+    }
+    if (cleanBaseUrl.includes('81.17.98.66')) {
+      cleanBaseUrl = cleanBaseUrl.replace(/https?:\/\/81\.17\.98\.66(\/video)?/, 'https://evolution.nsnexus.com.br/video');
     }
     const targetEndpoint = cleanBaseUrl.endsWith('/render') ? cleanBaseUrl : `${cleanBaseUrl}/render`;
     const vpsRes = await fetch(targetEndpoint, {
