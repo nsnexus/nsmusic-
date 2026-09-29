@@ -1771,22 +1771,70 @@ function EntregaContent() {
                                       body: JSON.stringify({ orderId, slideshowImages: finalUrls, videoStatus: 'GERANDO' })
                                     }).catch(e => console.warn(e));
 
-                                    setUploadProgressMsg('Gerando vídeo slideshow MP4 HD em silêncio... 10%');
+                                    setUploadProgressMsg('Iniciando geração do vídeo slideshow MP4 HD... 10%');
 
                                     // Define a faixa de áudio escolhida pelo usuário
                                     const targetAudioUrl = selectedVideoTrack === 'v2' && secondAudioUrl ? secondAudioUrl : primaryAudioUrl;
 
-                                    // Renderiza o vídeo usando o módulo client-side (silencioso e sem CORS).
-                                    // Import dinâmico: videoGenerator.js só é baixado por quem realmente
-                                    // gera um vídeo, não entra no bundle inicial de /entrega (ver B-08/Lote 6).
-                                    const { createSlideshowVideo } = await import('@/lib/videoGenerator');
-                                    const generatedVideoUrl = await createSlideshowVideo(
-                                      orderId,
-                                      finalUrls,
-                                      targetAudioUrl,
-                                      order,
-                                      (percent) => setUploadProgressMsg(`Renderizando vídeo MP4 HD... ${percent}%`)
-                                    );
+                                    let generatedVideoUrl = null;
+
+                                    // 1. Tenta renderizar via VPS de alta velocidade (FFmpeg dedicado)
+                                    try {
+                                      setUploadProgressMsg('Conectando ao estúdio de renderização rápida... 15%');
+                                      const vpsRes = await fetch('/api/video/render', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({
+                                          orderId,
+                                          imageUrls: finalUrls,
+                                          selectedVideoTrack,
+                                        }),
+                                      });
+
+                                      const vpsData = await vpsRes.json().catch(() => ({}));
+                                      if (vpsRes.ok && vpsData?.vpsEnabled) {
+                                        setUploadProgressMsg('Renderizando seu vídeo com FFmpeg em alta definição... 25%');
+
+                                        // Polling a cada 3s aguardando conclusão na VPS (máx 120s)
+                                        const startTime = Date.now();
+                                        while (Date.now() - startTime < 120000) {
+                                          await new Promise((resolve) => setTimeout(resolve, 3000));
+                                          const checkRes = await fetch(`/api/orders/${encodeURIComponent(orderId)}`);
+                                          if (checkRes.ok) {
+                                            const checkData = await checkRes.json().catch(() => ({}));
+                                            const updatedOrder = checkData?.order || checkData;
+                                            const progress = updatedOrder?.videoProgress || updatedOrder?.video_progress || 35;
+                                            setUploadProgressMsg(`Renderizando com qualidade máxima... ${Math.min(95, progress)}%`);
+
+                                            const vStatus = updatedOrder?.videoStatus || updatedOrder?.video_status;
+                                            const vUrl = updatedOrder?.videoUrl || updatedOrder?.video_url;
+
+                                            if (vStatus === 'CONCLUIDO' && vUrl) {
+                                              generatedVideoUrl = vUrl;
+                                              break;
+                                            }
+                                            if (vStatus === 'ERRO') {
+                                              throw new Error(updatedOrder?.videoError || updatedOrder?.video_error || 'Falha no processador de vídeo.');
+                                            }
+                                          }
+                                        }
+                                      }
+                                    } catch (vpsErr) {
+                                      console.warn('[Video] Falha na VPS, utilizando gerador local de segurança:', vpsErr?.message);
+                                    }
+
+                                    // 2. Fallback de segurança: se a VPS não estiver ativa ou falhar, roda no navegador
+                                    if (!generatedVideoUrl) {
+                                      setUploadProgressMsg('Gerando vídeo slideshow MP4 HD no aparelho... 10%');
+                                      const { createSlideshowVideo } = await import('@/lib/videoGenerator');
+                                      generatedVideoUrl = await createSlideshowVideo(
+                                        orderId,
+                                        finalUrls,
+                                        targetAudioUrl,
+                                        order,
+                                        (percent) => setUploadProgressMsg(`Renderizando vídeo MP4 HD... ${percent}%`)
+                                      );
+                                    }
 
                                     setOrder(prev => prev ? { ...prev, videoUrl: generatedVideoUrl, videoStatus: 'CONCLUIDO', slideshowImages: [] } : prev);
                                     setExistingPhotos([]);
