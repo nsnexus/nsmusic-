@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getPriceForSku, skuGrantsVideoAccess, skuGrantsCartaAccess, skuGrantsRetrospectivaAccess, skuApprovesMusic, SKU_PRICES } from '@/lib/pricing';
+import { getPriceForSku, skuGrantsVideoAccess, skuGrantsCartaAccess, skuGrantsRetrospectivaAccess, skuGrantsKaraokeAccess, skuApprovesMusic, SKU_PRICES } from '@/lib/pricing';
 
 // Catálogo único de preços no servidor (ver C-05 no AUDIT_REPORT.md).
 
@@ -9,6 +9,7 @@ describe('getPriceForSku', () => {
     expect(getPriceForSku('combo')).toBe(16.89);
     expect(getPriceForSku('video_addon')).toBe(6.90);
     expect(getPriceForSku('playback_addon')).toBe(4.99);
+    expect(getPriceForSku('karaoke_addon')).toBe(9.90);
     expect(getPriceForSku('carta_addon')).toBe(3.99);
     expect(getPriceForSku('retrospectiva_addon')).toBe(9.99);
     expect(getPriceForSku('combo_carta')).toBe(13.98);
@@ -22,7 +23,7 @@ describe('getPriceForSku', () => {
   });
 
   it('não é influenciável por um valor arbitrário — só existe o que está no catálogo', () => {
-    expect(Object.keys(SKU_PRICES)).toEqual(['audio_only', 'combo', 'video_addon', 'playback_addon', 'carta_addon', 'retrospectiva_addon', 'combo_carta', 'combo_retrospectiva', 'recovery_combo_24h', 'recovery_combo_48h']);
+    expect(Object.keys(SKU_PRICES)).toEqual(['audio_only', 'combo', 'video_addon', 'playback_addon', 'karaoke_addon', 'carta_addon', 'retrospectiva_addon', 'combo_carta', 'combo_retrospectiva', 'recovery_combo_24h', 'recovery_combo_48h']);
   });
 });
 
@@ -82,5 +83,12 @@ describe('skuApprovesMusic', () => {
   it('carta_addon isolado NUNCA aprova a música nem concede vídeo (C-09)', () => {
     expect(skuApprovesMusic('carta_addon')).toBe(false);
     expect(skuGrantsVideoAccess('carta_addon')).toBe(false);
+  });
+
+  it('karaoke_addon isolado NUNCA aprova a música nem concede vídeo de fotos', () => {
+    expect(skuApprovesMusic('karaoke_addon')).toBe(false);
+    expect(skuGrantsVideoAccess('karaoke_addon')).toBe(false);
+    expect(skuGrantsKaraokeAccess('karaoke_addon')).toBe(true);
+    expect(skuGrantsKaraokeAccess('audio_only')).toBe(false);
   });
 });

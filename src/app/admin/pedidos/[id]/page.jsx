@@ -36,6 +36,7 @@ export default function OrderDetailsAdmin() {
   const [hasPlaybackAccess, setHasPlaybackAccess] = useState(false);
   const [hasCartaAccess, setHasCartaAccess] = useState(false);
   const [hasRetrospectivaAccess, setHasRetrospectivaAccess] = useState(false);
+  const [hasKaraokeAccess, setHasKaraokeAccess] = useState(false);
   const [notifying, setNotifying] = useState(false);
   const [notifyCooldown, setNotifyCooldown] = useState(0);
   const [notifyMsg, setNotifyMsg] = useState('');
@@ -110,6 +111,7 @@ export default function OrderDetailsAdmin() {
           setHasPlaybackAccess(Boolean(data.hasPlaybackAccess || data.playbackAddonPaid));
           setHasCartaAccess(Boolean(data.hasCartaAccess || data.cartaAddonPaid));
           setHasRetrospectivaAccess(Boolean(data.hasRetrospectivaAccess || data.retrospectivaAddonPaid));
+          setHasKaraokeAccess(Boolean(data.hasKaraokeAccess || data.karaokeAddonPaid));
           setAudioUrl(data.audioFiles?.[0] || data.audioUrl || '');
           setAudioUrl2(data.audioFiles?.[1] || '');
           setWavUrl(data.wavFiles?.[0] || data.wavUrl || '');
@@ -168,6 +170,8 @@ export default function OrderDetailsAdmin() {
       cartaAddonPaid: hasCartaAccess,
       hasRetrospectivaAccess,
       retrospectivaAddonPaid: hasRetrospectivaAccess,
+      hasKaraokeAccess,
+      karaokeAddonPaid: hasKaraokeAccess,
       lyrics,
       audioUrl,
       audioFiles: [audioUrl, audioUrl2].filter(Boolean),
@@ -205,6 +209,8 @@ export default function OrderDetailsAdmin() {
         cartaAddonPaid: hasCartaAccess,
         hasRetrospectivaAccess,
         retrospectivaAddonPaid: hasRetrospectivaAccess,
+        hasKaraokeAccess,
+        karaokeAddonPaid: hasKaraokeAccess,
         lyrics,
         audioUrl,
         audioFiles: [audioUrl, audioUrl2].filter(Boolean),
@@ -296,6 +302,7 @@ export default function OrderDetailsAdmin() {
             setHasPlaybackAccess(Boolean(freshData.hasPlaybackAccess || freshData.playbackAddonPaid));
             setHasCartaAccess(Boolean(freshData.hasCartaAccess || freshData.cartaAddonPaid));
             setHasRetrospectivaAccess(Boolean(freshData.hasRetrospectivaAccess || freshData.retrospectivaAddonPaid));
+            setHasKaraokeAccess(Boolean(freshData.hasKaraokeAccess || freshData.karaokeAddonPaid));
           }
         }
         setCheckPaymentMsg('✅ Pagamento confirmado na Efí e aprovado agora!');
@@ -772,6 +779,21 @@ export default function OrderDetailsAdmin() {
                     <p style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '4px' }}>
                       Libera o acesso; o cliente monta o conteúdo (fotos, linha do tempo, quiz) pelo
                       card de Retrospectiva em /entrega.
+                    </p>
+                  </div>
+
+                  <div style={styles.formGroup}>
+                    <label style={{ ...styles.label, display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={hasKaraokeAccess}
+                        onChange={(e) => setHasKaraokeAccess(e.target.checked)}
+                        style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                      />
+                      Liberar Vídeo Karaokê (Widescreen 16:9) 🎤
+                    </label>
+                    <p style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '4px' }}>
+                      Libera o acesso ao vídeo karaokê; o cliente gera pelo card de Karaokê em /entrega.
                     </p>
                   </div>
 

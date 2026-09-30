@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { extractSenderPhone } from '@/app/api/whatsapp/webhook/route';
+import { extractSenderPhone, extractCandidateOrderId } from '@/app/api/whatsapp/webhook/route';
 
 // O agente ficou respondendo a SI MESMO em laço (relatado em 26/09/2026, logo depois da troca para
 // a Evolution API). Causa: a Evolution manda no nível raiz do payload um campo `sender` com o
@@ -52,5 +52,22 @@ describe('extractSenderPhone — payload da Evolution API', () => {
   it('formato antigo da W-API continua funcionando', () => {
     const body = { sender: { id: `${CLIENTE}@s.whatsapp.net`, pushName: 'Cliente' } };
     expect(extractSenderPhone(body)).toContain(CLIENTE);
+  });
+});
+
+describe('extractCandidateOrderId — extração de identificadores de pedido', () => {
+  it('identifica orderNumber canônico completo', () => {
+    expect(extractCandidateOrderId('NS-MUL83L99-6308-2026')).toBe('NS-MUL83L99-6308-2026');
+    expect(extractCandidateOrderId('olá meu pedido é o NS-MUL83L99-6308-2026 obrigado')).toBe('NS-MUL83L99-6308-2026');
+  });
+
+  it('identifica bloco de 4 dígitos com prefixo num:', () => {
+    expect(extractCandidateOrderId('6308')).toBe('num:6308');
+    expect(extractCandidateOrderId('#6308')).toBe('num:6308');
+  });
+
+  it('identifica prefixos com id ou pedido', () => {
+    expect(extractCandidateOrderId('pedido: 123456')).toBe('123456');
+    expect(extractCandidateOrderId('id=w4misqMQd27xN3XVIExj')).toBe('w4misqMQd27xN3XVIExj');
   });
 });

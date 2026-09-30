@@ -121,4 +121,36 @@ describe('Cloud API como reserva de envio', () => {
     expect(r.success).toBe(false);
     expect(r.error).toContain('cloud_api: template não aprovado');
   });
+
+  it('quando Cloud API falha, faz fallback automático para Evolution API se configurada', async () => {
+    const telefone = novoTelefone();
+    fingirProducao();
+    enviarPagamentoConfirmadoCloudMock.mockResolvedValue({ success: false, error: 'template não aprovado' });
+
+    const fetchOriginal = global.fetch;
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ status: 'success' }),
+    });
+
+    try {
+      const r = await sendPaymentApprovedTemplate(telefone, {
+        customerName: 'João',
+        honoreeName: 'Vovó Ana',
+        deliveryUrl: 'https://nsmusic.ia.br/entrega?orderId=xyz',
+        audioUrls: ['https://cdn/1.mp3'],
+      }, {
+        EVOLUTION_API_URL: 'https://evolution.teste.com',
+        EVOLUTION_INSTANCE_NAME: 'instancia_teste',
+        EVOLUTION_API_KEY: 'chave_teste',
+      });
+
+      expect(r.success).toBe(true);
+      expect(r.provider).toBe('evolution');
+      expect(global.fetch).toHaveBeenCalled();
+    } finally {
+      global.fetch = fetchOriginal;
+    }
+  });
 });

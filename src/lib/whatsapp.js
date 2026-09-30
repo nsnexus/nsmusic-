@@ -261,15 +261,32 @@ export const sendMusicReadyTemplate = async (phone, { customerName, honoreeName,
     return { success: true, ignored: guard.reason, phoneUsed: formatToWhatsAppNumber(phone) };
   }
 
+  let cloudError = '';
   const cloudConfig = getCloudApiConfig(env);
   if (cloudConfig.enabled) {
-    console.log(`[WhatsApp] Enviando template de música pronta via Meta Cloud API Oficial para ${phone}...`);
+    console.log(`[WhatsApp] Tentando template de música pronta via Meta Cloud API Oficial para ${phone}...`);
     const res = await enviarMusicaProntaCloud(phone, { cliente: primeiroNome(name), homenageado: honoree, link: url }, env);
     if (res.success) return res;
-    return { success: false, error: `cloud_api: ${res.error}` };
+    cloudError = res.error || 'falha';
+    console.warn(`[WhatsApp] Meta Cloud API não conseguiu enviar música pronta (${cloudError}). Tentando contingência via Evolution API...`);
   }
 
-  return { success: false, error: 'Cloud API não configurada (WHATSAPP_ACCESS_TOKEN/WHATSAPP_PHONE_NUMBER_ID).' };
+  // Contingência / Envio via Evolution API (VPS própria)
+  const evoConfig = getEvolutionConfig(env);
+  if (evoConfig.enabled) {
+    console.log(`[WhatsApp] Enviando aviso de música pronta via Evolution API para ${phone}...`);
+    const message = `${primeiroNome(name) ? `Oi, ${primeiroNome(name)}! ` : 'Oi! '}A música de ${honoree} ficou pronta. 🎧
+
+Gravei 2 versões, com arranjos diferentes, pra você escolher. Ouça aqui:
+${url}
+
+Se precisar de qualquer coisa, é só me chamar.`;
+    const evoRes = await sendEvolutionTextMessage(phone, message, env);
+    if (evoRes.success) return evoRes;
+    return { success: false, error: `${cloudError ? `cloud_api: ${cloudError} | ` : ''}evolution: ${evoRes.error}` };
+  }
+
+  return { success: false, error: cloudError ? `cloud_api: ${cloudError}` : 'Nenhum provedor de WhatsApp configurado (Cloud API / Evolution).' };
 };
 
 /**
@@ -290,7 +307,7 @@ export const isVideoPurchased = (orderData = {}) => {
 
 /**
  * Envia mensagem de confirmação de pagamento aprovado com links diretos de áudio e oferta do vídeo homenagem.
- * Disparado EXCLUSIVAMENTE via API Oficial da Meta (WhatsApp Cloud API).
+ * Dispara via Meta Cloud API Oficial com contingência automática para Evolution API na VPS.
  */
 export const sendPaymentApprovedTemplate = async (phone, { customerName, honoreeName, deliveryUrl, audioUrls, hasVideoAccess, orderData }, env = {}) => {
   const name = customerName || 'Cliente';
@@ -308,9 +325,10 @@ export const sendPaymentApprovedTemplate = async (phone, { customerName, honoree
   const v2 = urls[1] ? buildAudioDownloadLink(urls[1], `NS-Music-${honoree}-Versao-2.mp3`) : v1;
   const orderId = orderData?.id || orderData?.orderNumber || (url.match(/orderId=([^&]+)/)?.[1]) || '';
 
+  let cloudError = '';
   const cloudConfig = getCloudApiConfig(env);
   if (cloudConfig.enabled) {
-    console.log(`[WhatsApp] Enviando template de pagamento aprovado via Meta Cloud API Oficial para ${phone}...`);
+    console.log(`[WhatsApp] Tentando template de pagamento aprovado via Meta Cloud API Oficial para ${phone}...`);
     const res = await enviarPagamentoConfirmadoCloud(phone, {
       cliente: primeiroNome(name),
       homenageado: honoree,
@@ -320,10 +338,35 @@ export const sendPaymentApprovedTemplate = async (phone, { customerName, honoree
       audio2: v2,
     }, env);
     if (res.success) return res;
-    return { success: false, error: `cloud_api: ${res.error}` };
+    cloudError = res.error || 'falha';
+    console.warn(`[WhatsApp] Meta Cloud API não conseguiu enviar pagamento aprovado (${cloudError}). Tentando contingência via Evolution API...`);
   }
 
-  return { success: false, error: 'Cloud API não configurada (WHATSAPP_ACCESS_TOKEN/WHATSAPP_PHONE_NUMBER_ID).' };
+  // Contingência / Envio via Evolution API (VPS própria)
+  const evoConfig = getEvolutionConfig(env);
+  if (evoConfig.enabled) {
+    console.log(`[WhatsApp] Enviando confirmação de pagamento via Evolution API para ${phone}...`);
+    const audiosList = urls
+      .map((link, idx) => `• *Versão ${idx + 1}:* ${buildAudioDownloadLink(link, `NS-Music-${honoree}-Versao-${idx + 1}.mp3`)}`)
+      .join('\n');
+    const userHasVideo = Boolean(hasVideoAccess);
+    const videoBlock = userHasVideo
+      ? `\nO vídeo também tá liberado — é só mandar de 10 a 20 fotos nessa mesma página que eu sincronizo com a música. 📸\n`
+      : `\nSe quiser, dá pra transformar em vídeo com as fotos de ${honoree} por R$ 6,90 — tá na mesma página. 🎬\n`;
+
+    const message = `${primeiroNome(name) ? `${primeiroNome(name)}, s` : 'S'}eu pagamento caiu! 🎉 A música de ${honoree} tá liberada.
+
+${audiosList ? `${audiosList}\n\n` : ''}A página completa fica aqui:
+${url}
+${videoBlock}
+Qualquer coisa é só me chamar por aqui. 💜`;
+
+    const evoRes = await sendEvolutionTextMessage(phone, message, env);
+    if (evoRes.success) return evoRes;
+    return { success: false, error: `${cloudError ? `cloud_api: ${cloudError} | ` : ''}evolution: ${evoRes.error}` };
+  }
+
+  return { success: false, error: cloudError ? `cloud_api: ${cloudError}` : 'Nenhum provedor de WhatsApp configurado (Cloud API / Evolution).' };
 };
 
 /**

@@ -300,6 +300,22 @@ describe('applyPaymentApproval', () => {
     expect(store['order15'].playbackPaymentId).toBe('1515');
   });
 
+  it('karaoke_addon isolado NUNCA escreve paymentStatus, só hasKaraokeAccess', async () => {
+    store['order-karaoke-1'] = {
+      paymentIntentSku: 'karaoke_addon',
+      paymentStatus: 'PAGAMENTO_APROVADO',
+      karaokePaymentId: null,
+    };
+
+    const result = await applyPaymentApproval('order-karaoke-1', 'tx-karaoke-1', { status: 'approved', transaction_amount: 9.90 });
+
+    expect(result.applied).toBe(true);
+    expect(store['order-karaoke-1'].paymentStatus).toBe('PAGAMENTO_APROVADO');
+    expect(store['order-karaoke-1'].hasKaraokeAccess).toBe(true);
+    expect(store['order-karaoke-1'].karaokeAddonPaid).toBe(true);
+    expect(store['order-karaoke-1'].karaokePaymentId).toBe('tx-karaoke-1');
+  });
+
   // Desde 24/09/2026 o playback não é mais gerado na Kie.ai: o pagamento libera o acesso e o
   // cliente pede o arquivo pelo WhatsApp (a geração automática falhava em 10 de 11 pedidos pagos).
   it('playback_addon aprovado marca o pedido como aguardando contato, sem gerar nada', async () => {

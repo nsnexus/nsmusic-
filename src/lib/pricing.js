@@ -16,6 +16,7 @@ export const SKU_PRICES = {
   combo: 16.89,
   video_addon: 6.90,
   playback_addon: 4.99,
+  karaoke_addon: 9.90,
   carta_addon: 3.99,
   retrospectiva_addon: 9.99,
   // Combos música+carta e música+retrospectiva (pop-up de extras dinâmico, pedido 04/09/2026) —
@@ -44,6 +45,10 @@ export function skuGrantsCartaAccess(sku) {
 
 export function skuGrantsRetrospectivaAccess(sku) {
   return sku === 'combo_retrospectiva';
+}
+
+export function skuGrantsKaraokeAccess(sku) {
+  return sku === 'karaoke_addon';
 }
 
 // Um SKU "aprova a música" quando confirma o pagamento principal (paymentStatus). O video_addon

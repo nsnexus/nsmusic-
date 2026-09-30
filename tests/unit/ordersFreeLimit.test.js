@@ -11,6 +11,9 @@ vi.mock('@/lib/supabase-edge', () => ({
   getSupabaseEdge: vi.fn(() => ({
     from: () => ({
       select: () => ({
+        eq: () => ({
+          maybeSingle: async () => ({ data: null })
+        }),
         is: () => ({
           or: async () => {
             const all = [...phoneMatches, ...emailMatches];

@@ -15,6 +15,7 @@ const EXTRAS = [
   { sku: 'video_addon', icone: '🎬', titulo: 'Vídeo Homenagem', desc: 'Suas fotos sincronizadas com a música.' },
   { sku: 'retrospectiva_addon', icone: '📖', titulo: 'Retrospectiva', desc: 'Uma página só de vocês, com a música tocando, linha do tempo e contador ao vivo.' },
   { sku: 'carta_addon', icone: '💌', titulo: 'Carta Virtual', desc: 'Escrita a partir da mesma história, com envelope e assinatura.' },
+  { sku: 'karaoke_addon', icone: '🎤', titulo: 'Vídeo Karaokê', desc: 'Vídeo 16:9 HD com playback e letra sincronizada estilo karaokê pra soltar a voz.' },
   { sku: 'playback_addon', icone: '🎧', titulo: 'Playback', desc: 'A versão instrumental, sem voz, pra cantar junto.' },
 ];
 

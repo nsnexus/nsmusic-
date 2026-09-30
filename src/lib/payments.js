@@ -76,11 +76,13 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
       const isPlaybackOnly = sku === 'playback_addon';
       const isCartaOnly = sku === 'carta_addon';
       const isRetroOnly = sku === 'retrospectiva_addon';
-      const isAddonOnly = isVideoOnly || isPlaybackOnly || isCartaOnly || isRetroOnly;
+      const isKaraokeOnly = sku === 'karaoke_addon';
+      const isAddonOnly = isVideoOnly || isPlaybackOnly || isCartaOnly || isRetroOnly || isKaraokeOnly;
       const dedupKey = isVideoOnly ? 'videoPaymentId'
         : isPlaybackOnly ? 'playbackPaymentId'
         : isCartaOnly ? 'cartaPaymentId'
         : isRetroOnly ? 'retrospectivaPaymentId'
+        : isKaraokeOnly ? 'karaokePaymentId'
         : 'paymentId';
 
       const existingPaymentId = String(orderData[dedupKey] || '').trim().toUpperCase();
@@ -121,6 +123,12 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
           updates.cartaPaymentId = String(paymentId);
           updates.cartaPaidAt = nowIso;
           updates.cartaPaidAmount = valorPago;
+        } else if (isKaraokeOnly) {
+          updates.hasKaraokeAccess = true;
+          updates.karaokeAddonPaid = true;
+          updates.karaokePaymentId = String(paymentId);
+          updates.karaokePaidAt = nowIso;
+          updates.karaokePaidAmount = valorPago;
         } else {
           // C-09: paymentStatus só é escrito neste ramo — os add-ons isolados nunca o alteram.
           updates.paymentStatus = 'PAGAMENTO_APROVADO';
@@ -160,6 +168,7 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
           else if (isCartaOnly) paymentKind = 'carta';
           else if (isPlaybackOnly) paymentKind = 'playback';
           else if (isRetroOnly) paymentKind = 'retrospectiva';
+          else if (isKaraokeOnly) paymentKind = 'karaoke';
 
           const confirmedAmount = Number(payment.transaction_amount) || getPriceForSku(sku) || 9.99;
           await mirrorPaymentToSupabase({
@@ -173,7 +182,7 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
         } catch {}
 
         const grantedCartaViaCombo = skuGrantsCartaAccess(sku);
-        txResult = { applied: true, sku, isVideoOnly, isPlaybackOnly, isCartaOnly, isRetroOnly, grantedCartaViaCombo, orderData };
+        txResult = { applied: true, sku, isVideoOnly, isPlaybackOnly, isCartaOnly, isRetroOnly, isKaraokeOnly, grantedCartaViaCombo, orderData };
       }
     }
   } catch (err) {
@@ -184,7 +193,7 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
   }
 
   if (txResult.applied) {
-    if (!txResult.isVideoOnly && !txResult.isPlaybackOnly && !txResult.isCartaOnly && !txResult.isRetroOnly) {
+    if (!txResult.isVideoOnly && !txResult.isPlaybackOnly && !txResult.isCartaOnly && !txResult.isRetroOnly && !txResult.isKaraokeOnly) {
       await notifyPaymentApproved(orderId, txResult.orderData, {}, env);
 
       // Contador de vendas da vitrine da home (stats/_live)
@@ -330,8 +339,17 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
       }
     }
 
-    const sentField = txResult.isVideoOnly ? 'metaVideoPurchaseSent' : txResult.isPlaybackOnly ? 'metaPlaybackPurchaseSent' : txResult.isCartaOnly ? 'metaCartaPurchaseSent' : txResult.isRetroOnly ? 'metaRetroPurchaseSent' : 'metaPurchaseSent';
-    const sendingField = txResult.isVideoOnly ? 'metaVideoPurchaseSending' : txResult.isPlaybackOnly ? 'metaPlaybackPurchaseSending' : txResult.isCartaOnly ? 'metaCartaPurchaseSending' : txResult.isRetroOnly ? 'metaRetroPurchaseSending' : 'metaPurchaseSending';
+    if (txResult.isKaraokeOnly) {
+      try {
+        const { triggerKaraokeRender } = await import('./karaoke.js');
+        await triggerKaraokeRender(orderId, env);
+      } catch (err) {
+        console.warn('[payments] Erro ao iniciar geração de karaokê:', err.message);
+      }
+    }
+
+    const sentField = txResult.isVideoOnly ? 'metaVideoPurchaseSent' : txResult.isPlaybackOnly ? 'metaPlaybackPurchaseSent' : txResult.isCartaOnly ? 'metaCartaPurchaseSent' : txResult.isRetroOnly ? 'metaRetroPurchaseSent' : txResult.isKaraokeOnly ? 'metaKaraokePurchaseSent' : 'metaPurchaseSent';
+    const sendingField = txResult.isVideoOnly ? 'metaVideoPurchaseSending' : txResult.isPlaybackOnly ? 'metaPlaybackPurchaseSending' : txResult.isCartaOnly ? 'metaCartaPurchaseSending' : txResult.isRetroOnly ? 'metaRetroPurchaseSending' : txResult.isKaraokeOnly ? 'metaKaraokePurchaseSending' : 'metaPurchaseSending';
     try {
       let shouldSend = false;
       const freshData = await getOrder(orderId, env);

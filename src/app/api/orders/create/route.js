@@ -6,6 +6,7 @@ import { getRequestContext } from '@cloudflare/next-on-pages';
 import { createOrder } from '@/lib/supabaseDb';
 import { isContactBlocked } from '@/lib/blocklist';
 import { generateUniqueOrderNumber } from '@/lib/orderNumber';
+import { generatePhoneVariants } from '@/lib/orderLookup';
 
 export const runtime = 'edge';
 export { generateUniqueOrderNumber };
@@ -26,9 +27,13 @@ export async function isBlockedByFreeLimit(phone, email, env = {}) {
     const orParts = [];
     const digits = phone ? phone.replace(/\D/g, '') : '';
     if (digits.length >= 10) {
-      orParts.push(`customer_phone.eq.${phone}`);
-      if (digits !== phone) orParts.push(`customer_phone.eq.${digits}`);
-      orParts.push(`customer_phone.ilike.*${digits.slice(-8)}*`);
+      const variants = generatePhoneVariants(phone);
+      if (variants.length > 0) {
+        const inList = variants.map((v) => `"${v}"`).join(',');
+        orParts.push(`customer_phone.in.(${inList})`);
+      } else {
+        orParts.push(`customer_phone.eq.${phone}`);
+      }
     }
     if (email && email.includes('@')) {
       orParts.push(`customer_email.eq.${email.trim().toLowerCase()}`);

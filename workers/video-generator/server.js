@@ -9,6 +9,7 @@ import { downloadJobAssets } from './src/downloader.js';
 import { renderSlideshowVideo } from './src/ffmpegRunner.js';
 import { uploadVideoToR2 } from './src/r2Uploader.js';
 import { updateOrderStatus } from './src/orderUpdater.js';
+import { alignLyricsWithWhisper, generateAssKaraokeFile, renderKaraokeVideo } from './src/karaokeGenerator.js';
 
 export function createApp(config = process.env) {
   const app = express();
@@ -140,6 +141,114 @@ export function createApp(config = process.env) {
       }
     }).catch(err => {
       console.error(`[Job:${orderId}] Erro geral na execução da fila:`, err?.message);
+    });
+  });
+
+  // Endpoint de renderização do Vídeo Karaokê
+  app.post('/render-karaoke', authMiddleware, async (req, res) => {
+    const { orderId, audioUrl, playbackUrl, coverUrl, lyrics, title } = req.body || {};
+
+    if (!orderId) {
+      return res.status(400).json({ error: 'orderId é obrigatório' });
+    }
+    if (!audioUrl) {
+      return res.status(400).json({ error: 'audioUrl é obrigatório' });
+    }
+
+    if (queue.isOrderProcessing(`karaoke_${orderId}`)) {
+      return res.status(409).json({
+        error: 'O karaokê deste pedido já está sendo processado na fila.',
+        orderId,
+      });
+    }
+
+    res.status(202).json({
+      success: true,
+      message: 'Renderização do karaokê enfileirada com sucesso',
+      orderId,
+      queue: queue.getStats(),
+    });
+
+    queue.enqueue(`karaoke_${orderId}`, async () => {
+      console.log(`[Karaoke:${orderId}] 🎤 Iniciando renderização do Karaokê para "${title || orderId}"...`);
+      let assetContext = null;
+
+      try {
+        await updateOrderStatus(orderId, { karaokeStatus: 'GERANDO', karaokeProgress: 10 }, config);
+
+        // Imagem da capa (ou fallback padrão)
+        const imageList = coverUrl ? [coverUrl] : [];
+        // Se temos playbackUrl (instrumental já separado), baixamos o playback para a trilha final
+        const effectiveAudioUrl = playbackUrl || audioUrl;
+
+        assetContext = await downloadJobAssets(orderId, imageList.length ? imageList : ['https://nsmusic.pages.dev/icon.png'], effectiveAudioUrl);
+        await updateOrderStatus(orderId, { karaokeStatus: 'GERANDO', karaokeProgress: 25 }, config);
+
+        // Baixa o áudio original com voz para o Whisper alinhar a letra
+        let origAudioPath = assetContext.audioFile;
+        if (playbackUrl && playbackUrl !== audioUrl) {
+          const dlRes = await fetch(audioUrl);
+          if (dlRes.ok) {
+            const buf = Buffer.from(await dlRes.arrayBuffer());
+            const origPath = path.join(assetContext.workDir, 'original_vocals.mp3');
+            await (await import('node:fs/promises')).writeFile(origPath, buf);
+            origAudioPath = origPath;
+          }
+        }
+
+        console.log(`[Karaoke:${orderId}] Alinhando letra e timestamps com Whisper...`);
+        const openAiKey = config.OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+        const whisperData = await alignLyricsWithWhisper(origAudioPath, lyrics || '', openAiKey);
+        await updateOrderStatus(orderId, { karaokeStatus: 'GERANDO', karaokeProgress: 50 }, config);
+
+        // Gera o arquivo .ass com efeito de karaokê
+        const assPath = path.join(assetContext.workDir, 'karaoke.ass');
+        const assContent = generateAssKaraokeFile(whisperData, title || 'Karaokê');
+        await (await import('node:fs/promises')).writeFile(assPath, assContent, 'utf8');
+
+        // Renderiza o vídeo com FFmpeg
+        const outputMp4Path = path.join(assetContext.workDir, `karaoke_${orderId}.mp4`);
+        console.log(`[Karaoke:${orderId}] Renderizando MP4 16:9 no FFmpeg com legenda ASS...`);
+
+        await renderKaraokeVideo({
+          imageFilePath: assetContext.imageFiles[0],
+          audioFilePath: assetContext.audioFile,
+          assSubtitleFilePath: assPath,
+          outputFilePath: outputMp4Path,
+          onProgress: async (percent) => {
+            const scaled = 50 + Math.round((percent * 35) / 100);
+            await updateOrderStatus(orderId, { karaokeStatus: 'GERANDO', karaokeProgress: scaled }, config).catch(() => {});
+          },
+        });
+
+        // Upload para o Cloudflare R2
+        console.log(`[Karaoke:${orderId}] Fazendo upload do Karaokê para o Cloudflare R2...`);
+        await updateOrderStatus(orderId, { karaokeStatus: 'GERANDO', karaokeProgress: 90 }, config);
+        const karaokeUrl = await uploadVideoToR2(outputMp4Path, `karaoke_${orderId}`, config);
+
+        // Atualização final no Supabase
+        await updateOrderStatus(orderId, {
+          karaokeStatus: 'CONCLUIDO',
+          karaokeProgress: 100,
+          karaokeUrl,
+          hasKaraokeAccess: true,
+        }, config);
+
+        console.log(`[Karaoke:${orderId}] ✅ Vídeo Karaokê concluído com sucesso! URL: ${karaokeUrl}`);
+
+      } catch (err) {
+        console.error(`[Karaoke:${orderId}] ❌ Erro ao renderizar karaokê:`, err);
+        await updateOrderStatus(orderId, {
+          karaokeStatus: 'ERRO',
+          karaokeError: err?.message || 'Falha ao gerar o karaokê',
+        }, config).catch(() => {});
+      } finally {
+        if (assetContext?.cleanup) {
+          await assetContext.cleanup();
+        }
+      }
+    }).catch(err => {
+      console.error(`[Karaoke:${orderId}] Erro na fila do karaokê:`, err?.message);
     });
   });
 

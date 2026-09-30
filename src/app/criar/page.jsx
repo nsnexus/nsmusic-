@@ -7,6 +7,7 @@ import { auth } from '@/lib/authClient';
 import { AUDIO_CACHE_VERSION } from '@/lib/audioCacheVersion';
 import { buildSunoPayload } from '@/lib/sunoPayload';
 import { pushAdvancedMatching } from '@/lib/metaPixel';
+import { identifyTikTok, trackTikTok } from '@/lib/tiktokPixel';
 import { styles } from './wizardStyles';
 import { occasions } from './wizardOptions';
 import CustomAudioPreview from './CustomAudioPreview';
@@ -83,6 +84,39 @@ export default function CriarMusica() {
     }
   }, [needsReload]);
 
+  // Dispara ViewContent no TikTok Pixel ao acessar a página de criação
+  useEffect(() => {
+    trackTikTok('ViewContent', {
+      contents: [
+        {
+          content_id: 'audio_only',
+          content_type: 'product',
+          content_name: 'Música Personalizada com IA',
+        },
+      ],
+      value: 9.99,
+      currency: 'BRL',
+    });
+  }, []);
+
+  const handlePaymentApproved = (targetOrderId) => {
+    const idToUse = targetOrderId || orderId;
+    identifyTikTok(formData.customerPhone, formData.customerEmail, idToUse);
+    trackTikTok('Purchase', {
+      contents: [
+        {
+          content_id: sku || 'audio_only',
+          content_type: 'product',
+          content_name: 'Música Personalizada com IA',
+        },
+      ],
+      value: getTotalPrice(),
+      currency: 'BRL',
+    });
+    setPixInfo(prev => ({ ...prev, status: 'approved' }));
+    window.location.href = `/entrega?orderId=${idToUse}&justPaid=1`;
+  };
+
   // Estados do Checkout Transparente
   const [pixInfo, setPixInfo] = useState(null);
   const [isGeneratingPix, setIsGeneratingPix] = useState(false);
@@ -121,8 +155,7 @@ export default function CriarMusica() {
               // A gravação em Firestore já aconteceu no servidor, dentro de /api/payments/status
               // (ver src/lib/payments.js) — o cliente nunca escreve paymentStatus (ver C-01/C-09).
               clearInterval(interval);
-              setPixInfo(prev => ({ ...prev, status: 'approved' }));
-              window.location.href = `/entrega?orderId=${orderId}`;
+              handlePaymentApproved(orderId);
               return;
             }
           }
@@ -139,8 +172,7 @@ export default function CriarMusica() {
               const orderData = json?.order;
               if (orderData && (orderData.paymentStatus === 'PAGAMENTO_APROVADO' || orderData.paymentStatus === 'PAGO')) {
                 clearInterval(interval);
-                setPixInfo(prev => ({ ...prev, status: 'approved' }));
-                window.location.href = `/entrega?orderId=${orderId}`;
+                handlePaymentApproved(orderId);
                 return;
               }
             }
@@ -822,41 +854,42 @@ export default function CriarMusica() {
 
   const [showLimitModal, setShowLimitModal] = useState(false);
 
-  // Checa se o usuário que nunca comprou já atingiu o limite de 5 músicas geradas
+  // Checa se o usuário já atingiu o limite de gerações gratuitas consultando a cota real no servidor
   const checkUserLimit = async (phone, email) => {
     try {
-      let localGenerated = [];
-      if (typeof window !== 'undefined') {
-        const saved = localStorage.getItem('nsmusic_generated_orders');
-        if (saved) {
-          try { localGenerated = JSON.parse(saved); } catch (e) {}
-        }
+      const digits = phone ? phone.replace(/\D/g, '') : '';
+      const hasEmail = email && email.includes('@');
+      // Sem telefone ou e-mail identificado, o cliente ainda está rascunhando e não deve ser travado
+      if (digits.length < 10 && !hasEmail) {
+        return { totalCount: 0, hasPaid: false, restantes: 5, cota: 5, isBlocked: false };
       }
 
-      let totalCount = Array.isArray(localGenerated) ? localGenerated.length : 0;
-      // Mesma conta do servidor (src/lib/cotaGeracoes.js): 5 grátis + 5 por compra paga. Aqui é só
-      // para a tela avisar antes de o cliente preencher tudo — quem bloqueia de verdade é
-      // /api/orders/create.
-      const cota = calcularCota(
-        Array.from({ length: totalCount }, () => ({}))
-      );
+      const params = new URLSearchParams();
+      if (phone) params.set('phone', phone);
+      if (email) params.set('email', email);
 
-      return { totalCount, hasPaid: cota.pagos > 0, restantes: cota.restantes, cota: cota.cota, isBlocked: cota.bloqueado };
+      const res = await fetch(`/api/orders/check-limit?${params.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        return {
+          totalCount: data.totalCount || 0,
+          hasPaid: (data.pagos || 0) > 0,
+          restantes: data.restantes,
+          cota: data.cota,
+          isBlocked: Boolean(data.isBlocked),
+          manualBlock: Boolean(data.manualBlock),
+          reason: data.reason || null
+        };
+      }
+      return { totalCount: 0, hasPaid: false, restantes: null, cota: null, isBlocked: false };
     } catch (e) {
       console.warn("Erro ao verificar limite de gerações:", e);
       return { totalCount: 0, hasPaid: false, restantes: null, cota: null, isBlocked: false };
     }
   };
 
-  // Função para reiniciar o formulário e criar uma nova música do zero (com trava de 5 músicas para não pagantes)
+  // Função para reiniciar o formulário e criar uma nova música do zero
   const handleCreateNewSongFromScratch = async () => {
-    const { isBlocked } = await checkUserLimit(formData.customerPhone, formData.customerEmail);
-
-    if (isBlocked) {
-      setShowLimitModal(true);
-      return;
-    }
-
     if (confirm("Deseja criar uma nova música do zero? O progresso da composição atual será limpo.")) {
       if (typeof window !== 'undefined') {
         localStorage.removeItem('nsmusic_order_draft');
@@ -910,16 +943,22 @@ export default function CriarMusica() {
     if (isSubmitting) return;
     setIsSubmitting(true);
     try {
-      // Verifica trava de 5 prévias para usuários que nunca compraram
-      const { isBlocked } = await checkUserLimit(formData.customerPhone, formData.customerEmail);
+      // Verifica trava de cota / blacklist no servidor antes de prosseguir
+      const { isBlocked, manualBlock } = await checkUserLimit(formData.customerPhone, formData.customerEmail);
       if (isBlocked) {
-        setShowLimitModal(true);
+        setIsSubmitting(false);
+        if (manualBlock) {
+          alert('Este contato foi bloqueado para novas gerações na plataforma. Entre em contato com o suporte para mais informações.');
+        } else {
+          setShowLimitModal(true);
+        }
         return;
       }
 
       setStep(9);
       // Se a letra já foi gerada com sucesso anteriormente, apenas exibe a letra existente sem fazer nova requisição
       if (formData.lyricsStatus === 'generated' && formData.lyrics) {
+        setIsSubmitting(false);
         return;
       }
 
@@ -959,6 +998,7 @@ export default function CriarMusica() {
             }
           } else if (orderRes.status === 403) {
             const errData = await orderRes.json().catch(() => ({}));
+            setIsSubmitting(false);
             updateField('lyricsStatus', 'idle');
             if (errData?.blocked) {
               alert(errData.error || 'Este contato foi bloqueado para novas gerações na plataforma. Entre em contato com o suporte.');
@@ -1008,6 +1048,7 @@ export default function CriarMusica() {
         if (typeof window !== 'undefined' && window.fbq) {
           window.fbq('trackCustom', 'GenerateLyrics');
         }
+        trackTikTok('GenerateLyrics');
       } else {
         const errJson = await response.json().catch(() => ({}));
         throw new Error(errJson.error || 'Falha ao gerar letra.');
@@ -1152,6 +1193,7 @@ export default function CriarMusica() {
       if (typeof window !== 'undefined' && window.fbq) {
         window.fbq('trackCustom', 'GenerateMusic');
       }
+      trackTikTok('GenerateMusic');
 
       // Poll status for completing audio rendering
       pollSunoStatus(data.taskId, activeOrderId);
@@ -1922,6 +1964,19 @@ export default function CriarMusica() {
                                 // era subcontado como se fosse sempre a música avulsa.
                                 window.fbq('track', 'InitiateCheckout', { value: getTotalPrice(), currency: 'BRL' });
                               }
+
+                              identifyTikTok(formData.customerPhone, formData.customerEmail, orderId);
+                              trackTikTok('InitiateCheckout', {
+                                contents: [
+                                  {
+                                    content_id: sku || 'audio_only',
+                                    content_type: 'product',
+                                    content_name: 'Música Personalizada com IA',
+                                  },
+                                ],
+                                value: getTotalPrice(),
+                                currency: 'BRL',
+                              });
                             } else {
                               setPaymentErrorMessage(resultado.error);
                             }
@@ -2013,8 +2068,7 @@ export default function CriarMusica() {
                                 const data = await res.json();
                                 if (data.status === 'approved') {
                                   // Gravação já feita no servidor (/api/payments/status) — ver C-01/C-09.
-                                  setPixInfo(prev => ({ ...prev, status: 'approved' }));
-                                  window.location.href = `/entrega?orderId=${orderId}`;
+                                  handlePaymentApproved(orderId);
                                   return;
                                 }
                               }
@@ -2026,8 +2080,7 @@ export default function CriarMusica() {
                                   const json = await res.json();
                                   const orderData = json?.order;
                                   if (orderData && (orderData.paymentStatus === 'PAGAMENTO_APROVADO' || orderData.paymentStatus === 'PAGO')) {
-                                    setPixInfo(prev => ({ ...prev, status: 'approved' }));
-                                    window.location.href = `/entrega?orderId=${orderId}`;
+                                    handlePaymentApproved(orderId);
                                     return;
                                   }
                                 }

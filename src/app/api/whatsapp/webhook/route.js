@@ -101,7 +101,7 @@ function extractMessageText(body) {
   return '';
 }
 
-function extractCandidateOrderId(text) {
+export function extractCandidateOrderId(text) {
   if (!text) return '';
   const str = String(text);
 
@@ -348,11 +348,13 @@ function pareceCobrancaDeMusica(texto) {
 
 function isSendingInProgress(orderData) {
   if (!orderData) return false;
-  if (orderData.readyTemplateSending === true || orderData.whatsappSending === true || orderData.paymentWhatsappSending === true) {
-    return true;
-  }
-  if (orderData.readyTemplateSendingAt) {
-    const ts = Date.parse(orderData.readyTemplateSendingAt);
+  const isSending = orderData.readyTemplateSending === true || orderData.whatsappSending === true || orderData.paymentWhatsappSending === true;
+  if (!isSending) return false;
+
+  // Só trava se o envio começou há menos de 60 segundos (evita travamento eterno por crash de worker)
+  const sendingAt = orderData.readyTemplateSendingAt || orderData.updatedAt || orderData.createdAt;
+  if (sendingAt) {
+    const ts = Date.parse(sendingAt);
     if (!Number.isNaN(ts) && Date.now() - ts < 60000) return true;
   }
   return false;
@@ -567,23 +569,31 @@ export async function POST(req) {
       return NextResponse.json({ success: true, warning: 'Nenhum remetente identificado' }, { status: 200 });
     }
 
-    // Identifica se a mensagem é especificamente a solicitação de envio da prévia (botão do site ou frase explícita)
+    // Identifica se a mensagem é uma referência/pedido de música, prévia, status de pedido ou pagamento
     const candidateId = extractCandidateOrderId(messageText);
     const isDefaultSiteButtonText = messageText.includes('Quero receber a prévia da música do meu pedido');
-    const isExplicitPreviewRequest = isDefaultSiteButtonText || /(?:quero|manda|enviar?|receber).{0,20}pr[eé]via/i.test(messageText) || Boolean(candidateId && /pr[eé]via/i.test(messageText));
+    const isMusicInquiry = pareceCobrancaDeMusica(messageText);
+    const hasOrderReference = Boolean(candidateId);
+    const isPaymentInquiry = /(?:paguei|pagamento|comprovante|pix|pago)/i.test(messageText) || temAnexoDeComprovante(body);
+    const isExplicitMusicOrPreview = /(?:quero|manda|enviar?|receber).{0,20}(?:pr[eé]via|m[uú]sica|audio|[aá]udio)/i.test(messageText);
 
-    // A. Master switch: se o robô estiver desativado no painel Admin (Atendimento 100% Humano),
-    // só responde se for a solicitação explícita de receber a prévia do pedido. Qualquer outra mensagem fica em silêncio.
+    // Mensagens diretas de atendimento ao pedido (envio de código NS-..., botão do site, cobrança de música ou pagamento)
+    // NUNCA devem ser silenciadas pela desativação do robô conversacional nem por atendimento humano anterior.
+    const isDirectOrderRequest = hasOrderReference || isDefaultSiteButtonText || isMusicInquiry || isPaymentInquiry || isExplicitMusicOrPreview;
+    const isExplicitPreviewRequest = isDirectOrderRequest;
+
+    // A. Master switch: se o robô conversacional estiver desativado no Admin (Atendimento 100% Humano),
+    // ele ainda atende consultas de pedido, envio de código ou confirmação de pagamento. Qualquer conversa geral fica em silêncio.
     const isGloballyActive = await isWhatsAppAgentGloballyEnabled(envVars);
-    if (!isGloballyActive && !isExplicitPreviewRequest) {
-      console.log(`[WhatsApp Webhook] Robô WhatsApp desativado globalmente no Admin (Atendimento 100% Humano). Silêncio para ${senderPhone}.`);
+    if (!isGloballyActive && !isDirectOrderRequest) {
+      console.log(`[WhatsApp Webhook] Robô conversacional desativado globalmente. Silêncio para mensagem geral de ${senderPhone}.`);
       return NextResponse.json({ success: true, ignored: 'agent_globally_disabled' }, { status: 200 });
     }
 
-    // B. Atendimento humano: se o atendente humano assumiu este chat e ainda não se passaram 12h, IA em silêncio
-    // exceto se for a solicitação explícita de receber a prévia do pedido.
+    // B. Atendimento humano: se o atendente humano assumiu este chat e ainda não se passaram 12h, IA conversacional em silêncio
+    // exceto se o cliente mandar o código do pedido ou perguntar sobre a música/pagamento.
     const isPaused = await isAgentPausedForPhone(senderPhone, envVars);
-    if (isPaused && !isExplicitPreviewRequest) {
+    if (isPaused && !isDirectOrderRequest) {
       const lower = (messageText || '').toLowerCase();
       const isReactivationCommand = ['#ia', '#bot', '#reativar', 'ligar bot', 'ativar bot'].includes(lower);
       if (isReactivationCommand) {
@@ -706,13 +716,22 @@ export async function POST(req) {
           return NextResponse.json({ success: true, ignored: 'sending_in_progress' }, { status: 200 });
         }
 
-        const lastSentAt = freshData.readyTemplateSentAt || freshData.whatsappSentAt || freshData.paymentWhatsappSentAt;
+        const isPaid = freshData.paymentStatus === 'PAGAMENTO_APROVADO' || freshData.paymentStatus === 'PAGO';
+
+        // Para cliente com pagamento aprovado, o cooldown só se aplica se a confirmação de pagamento já foi enviada há pouco.
+        // Nunca bloqueia o envio do pagamento aprovado por causa do aviso da prévia gratuita enviado anteriormente.
+        const lastSentAt = isPaid
+          ? freshData.paymentWhatsappSentAt
+          : (freshData.readyTemplateSentAt || freshData.whatsappSentAt);
+
         const recentlySent = isExplicitId
           ? (lastSentAt && (Date.now() - Date.parse(lastSentAt) < 60000))
-          : (sentWithinCooldown(freshData.readyTemplateSentAt) || sentWithinCooldown(freshData.whatsappSentAt) || sentWithinCooldown(freshData.paymentWhatsappSentAt));
+          : (isPaid
+              ? (lastSentAt && (Date.now() - Date.parse(lastSentAt) < 120000))
+              : (sentWithinCooldown(freshData.readyTemplateSentAt) || sentWithinCooldown(freshData.whatsappSentAt)));
 
         if (recentlySent) {
-          console.log(`[WhatsApp Webhook] Template de música pronta enviado (ou sendo enviado) há pouco para o pedido #${matchedOrderId} — não repete.`);
+          console.log(`[WhatsApp Webhook] Mensagem de ${isPaid ? 'pagamento aprovado' : 'música pronta'} enviada há pouco para o pedido #${matchedOrderId} — não repete.`);
           return NextResponse.json({ success: true, ignored: 'ready_template_cooldown' }, { status: 200 });
         }
 
@@ -725,7 +744,6 @@ export async function POST(req) {
           }, envVars);
         } catch (e) {}
 
-        const isPaid = freshData.paymentStatus === 'PAGAMENTO_APROVADO' || freshData.paymentStatus === 'PAGO';
         const urls = (freshData.audioFiles?.length ? freshData.audioFiles : [freshData.audioUrl]).filter(Boolean);
         const audiosList = urls
           .map((link, idx) => `• *Versão ${idx + 1}:* ${buildAudioDownloadLink(link, `NS-Music-${honoreeName}-Versao-${idx + 1}.mp3`)}`)
@@ -756,14 +774,20 @@ Se precisar de qualquer coisa, é só me chamar.`;
         try {
           await sendWApiTextMessage(senderPhone, replyMsg, envVars);
           try {
-            await updateOrder(matchedOrderId, {
-              readyTemplateSent: true,
+            const updatePayload = {
               whatsappSent: true,
-              readyTemplateSentAt: new Date().toISOString(),
               whatsappSentAt: new Date().toISOString(),
               readyTemplateSending: false,
               whatsappSending: false,
-            }, envVars);
+            };
+            if (isPaid) {
+              updatePayload.paymentWhatsappSent = true;
+              updatePayload.paymentWhatsappSentAt = new Date().toISOString();
+            } else {
+              updatePayload.readyTemplateSent = true;
+              updatePayload.readyTemplateSentAt = new Date().toISOString();
+            }
+            await updateOrder(matchedOrderId, updatePayload, envVars);
           } catch (e) {}
         } finally {
           try {

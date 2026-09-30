@@ -10,6 +10,7 @@ import ExtrasOfferModal from '@/components/ExtrasOfferModal';
 import PixQrCode from '@/components/PixQrCode';
 import PreviaEncerradaModal from '@/components/PreviaEncerradaModal';
 import PlaybackAddonCard from '@/components/PlaybackAddonCard';
+import KaraokeAddonCard from '@/components/KaraokeAddonCard';
 import CartaAddonCard from '@/components/CartaAddonCard';
 import RetrospectivaAddonCard from '@/components/RetrospectivaAddonCard';
 import { requestPixCharge } from '@/lib/pixCheckout';
@@ -20,6 +21,7 @@ import { isInAppBrowser } from '@/lib/inAppBrowser';
 import { styles } from './entregaStyles';
 import { useWhatsappSuporte, linkWhatsapp } from '@/lib/useWhatsappSuporte';
 import { usePromoverAudio } from '@/lib/usePromoverAudio';
+import { identifyTikTok, trackTikTok } from '@/lib/tiktokPixel';
 
 function EntregaContent() {
   // Número do suporte vem da configuração editável no painel (src/lib/configSite.js), não do código.
@@ -312,6 +314,30 @@ function EntregaContent() {
   // frequentemente reabre no navegador embutido do WhatsApp (contexto diferente de onde pagou), e
   // cada reabertura sem o registro local disparava um Purchase novo. Resultado real (14-19/08/2026):
   // 25 vendas confirmadas no banco, 42 contadas no Pixel. Ver metaCapi.js para o motivo completo.
+
+  // Disparo de Purchase para TikTok Pixel: protegido por localStorage para não duplicar em reloads
+  useEffect(() => {
+    if (!order || !orderId) return;
+    const isPaid = order.paymentStatus === 'PAGO' || order.paymentStatus === 'PAGAMENTO_APROVADO';
+    if (!isPaid) return;
+
+    const purchaseKey = `tt_purchase_${orderId}`;
+    if (typeof window !== 'undefined' && !localStorage.getItem(purchaseKey)) {
+      localStorage.setItem(purchaseKey, '1');
+      identifyTikTok(order.customerPhone, order.customerEmail, orderId);
+      trackTikTok('Purchase', {
+        contents: [
+          {
+            content_id: order.sku || 'audio_only',
+            content_type: 'product',
+            content_name: 'Música Personalizada com IA',
+          },
+        ],
+        value: typeof order.amount === 'number' ? order.amount : 9.99,
+        currency: 'BRL',
+      });
+    }
+  }, [order, orderId]);
 
 
   useEffect(() => {
@@ -1009,6 +1035,7 @@ function EntregaContent() {
             <div className="entrega-tabs" role="tablist">
               {[
                 { id: 'musica', label: '🎵 Música' },
+                { id: 'karaoke', label: '🎤 Vídeo Karaokê', hasBadge: true },
                 { id: 'retrospectiva', label: '📖 Retrospectiva', hasBadge: true },
                 { id: 'carta', label: '💌 Carta', hasBadge: true },
               ].map((aba) => (
@@ -2061,6 +2088,11 @@ function EntregaContent() {
                   <PlaybackAddonCard orderId={orderId} order={order} />
                 )}
 
+                {/* Add-on de Vídeo Karaokê (letra sincronizada estilo karaokê + playback instrumental 16:9 HD) */}
+                {isPaid && Boolean(order?.audioUrl || order?.audioFiles?.length > 0 || order?.audioIds?.length > 0) && (
+                  <KaraokeAddonCard orderId={orderId} order={order} />
+                )}
+
                 {!isPaid && (
                   /* SE PENDENTE: Bloco de Pagamento PIX Instantâneo */
                   <div id="pagamento" className="glass-card" style={{ padding: '24px', borderRadius: '16px', background: 'linear-gradient(135deg, rgba(5, 150, 105, 0.08) 0%, rgba(16, 185, 129, 0.12) 100%)', border: '1.5px solid rgba(16, 185, 129, 0.3)', scrollMarginTop: '80px' }}>
@@ -2514,10 +2546,56 @@ function EntregaContent() {
                     </p>
                   </div>
                 )}
+
+                {/* Banner interativo do Karaokê — só aparece se o cliente AINDA NÃO comprou o karaokê */}
+                {!order?.hasKaraokeAccess && !order?.karaokeAddonPaid && (
+                  <div
+                    onClick={() => {
+                      setAbaProduto('karaoke');
+                      if (typeof window !== 'undefined') {
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    className="glass-card"
+                    style={{
+                      cursor: 'pointer',
+                      padding: '16px',
+                      borderRadius: '16px',
+                      border: '1px solid rgba(168, 85, 247, 0.4)',
+                      background: 'linear-gradient(135deg, rgba(88, 28, 135, 0.3) 0%, rgba(168, 85, 247, 0.15) 100%)',
+                      textAlign: 'center',
+                      boxShadow: '0 10px 30px rgba(0,0,0,0.3)',
+                      transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                      boxSizing: 'border-box',
+                      width: '100%',
+                      maxWidth: '100%',
+                    }}
+                    aria-label="Ir para a aba do Vídeo Karaokê"
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '1.3rem' }}>🎤</span>
+                      <span style={{ fontFamily: 'var(--font-family-gala)', fontWeight: '700', fontSize: '1rem', color: '#e9d5ff', letterSpacing: '0.03em' }}>
+                        Transforme em Vídeo Karaokê para Smart TV
+                      </span>
+                      <span style={{ color: '#c084fc', fontSize: '0.9rem' }}>➔</span>
+                    </div>
+
+                    <p style={{ margin: '8px 0 4px', fontSize: '0.85rem', color: '#fff', fontWeight: '600' }}>
+                      ✨ Toque aqui para ver e liberar seu Vídeo Karaokê Widescreen 16:9
+                    </p>
+                  </div>
+                )}
               </div>
 
             </div>
           </div>
+          )}
+
+          {/* Aba Karaokê — add-on isolado da música, vídeo 16:9 HD com legenda animada */}
+          {isPaid && abaProduto === 'karaoke' && (
+            <div id="card-karaoke"><KaraokeAddonCard orderId={orderId} order={order} /></div>
           )}
 
           {/* Aba Retrospectiva — add-on isolado da música, tem sua própria página compartilhável
