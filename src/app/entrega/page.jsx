@@ -571,7 +571,7 @@ function EntregaContent() {
 
   const handleCopyLink = () => {
     if (typeof window !== 'undefined' && orderId) {
-      const sharePageUrl = `${window.location.origin}/homenagem?orderId=${orderId}`;
+      const sharePageUrl = `${window.location.origin}/h/${orderId}`;
       navigator.clipboard.writeText(sharePageUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 3000);
@@ -982,7 +982,7 @@ function EntregaContent() {
   }
 
   // Safe client-side URLs
-  const sharePageUrl = mounted && typeof window !== 'undefined' ? `${window.location.origin}/homenagem?orderId=${orderId}` : '';
+  const sharePageUrl = mounted && typeof window !== 'undefined' ? `${window.location.origin}/h/${orderId}` : '';
   const qrCodeUrl = sharePageUrl ? `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(sharePageUrl)}` : '';
 
   // Default beautiful dynamic cover
@@ -1582,7 +1582,7 @@ function EntregaContent() {
                             ⬇ Baixar Vídeo HD
                           </button>
                           <a 
-                            href={`/homenagem?orderId=${orderId}`} 
+                            href={`/h/${orderId}`} 
                             target="_blank" 
                             rel="noopener noreferrer" 
                             className="btn btn-secondary" 
@@ -2031,7 +2031,7 @@ function EntregaContent() {
                           {copied ? '✅ Link Copiado!' : '🔗 Copiar Link'}
                         </button>
                         <a
-                          href={`/homenagem?orderId=${orderId}`}
+                          href={`/h/${orderId}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="btn btn-secondary"

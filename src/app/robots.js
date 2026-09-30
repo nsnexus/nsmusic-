@@ -29,6 +29,7 @@ const PRIVADAS = [
   '/pagar',
   '/login',
   '/c/',
+  '/h/',
 ];
 
 export default function robots() {

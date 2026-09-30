@@ -4,9 +4,9 @@ import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { AUDIO_CACHE_VERSION } from '@/lib/audioCacheVersion';
 
-function HomenagemContent() {
+export function HomenagemView({ orderId: propOrderId }) {
   const searchParams = useSearchParams();
-  const orderId = searchParams.get('orderId') || searchParams.get('id');
+  const orderId = propOrderId || searchParams?.get('orderId') || searchParams?.get('id');
 
   const [loading, setLoading] = useState(true);
   const [order, setOrder] = useState(null);
@@ -305,7 +305,7 @@ export default function HomenagemPage() {
         <div style={{ width: '40px', height: '40px', borderRadius: '50%', border: '4px solid #ec4899', borderTopColor: 'transparent', animation: 'spin 1s linear infinite' }} />
       </div>
     }>
-      <HomenagemContent />
+      <HomenagemView />
     </Suspense>
   );
 }
