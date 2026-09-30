@@ -2158,18 +2158,22 @@ function EntregaContent() {
                       </div>
                     </div>
 
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 14px', margin: '14px 0 14px 4px' }}>
-                      {['Atendimento rápido', 'Produções personalizadas', 'Tiramos suas dúvidas'].map((item) => (
-                        <div key={item} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: '#334155', fontWeight: '600' }}>
+                    {/* Os três selos numa linha só. Os rótulos são curtos por necessidade, não por
+                        estilo: medido num card de 375px, "Produções personalizadas" e "Tiramos suas
+                        dúvidas" por extenso somam 308px de texto para 306px de espaço — não cabem
+                        nem a 8px, tamanho em que ninguém leria. Encurtando, cabem a 11,5px. */}
+                    <div style={{ display: 'flex', flexWrap: 'nowrap', justifyContent: 'space-between', gap: '5px', margin: '14px 0 14px 2px' }}>
+                      {['Atendimento rápido', 'Personalizado', 'Tira dúvidas'].map((item) => (
+                        <div key={item} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: 'clamp(0.68rem, 3vw, 0.8rem)', color: '#334155', fontWeight: '600', whiteSpace: 'nowrap' }}>
                           <span
                             aria-hidden="true"
                             style={{
-                              width: '16px',
-                              height: '16px',
+                              width: '14px',
+                              height: '14px',
                               borderRadius: '50%',
                               backgroundColor: '#22c55e',
                               color: '#ffffff',
-                              fontSize: '0.62rem',
+                              fontSize: '0.55rem',
                               fontWeight: '900',
                               display: 'inline-flex',
                               alignItems: 'center',
