@@ -1482,117 +1482,135 @@ export default function CriarMusica() {
         return (
           <div>
             {formData.sunoStatus !== 'generated' ? (
-              <div style={{ padding: '40px 20px', textAlign: 'center', maxWidth: '600px', margin: '0 auto' }} className="glass-card">
+              <div style={{ padding: '36px 20px', textAlign: 'center', maxWidth: '580px', margin: '0 auto', background: '#ffffff', borderRadius: '22px', boxShadow: '0 20px 40px -10px rgba(0,0,0,0.07)', border: '1px solid #f1f5f9' }}>
                 <StudioAudioAnimation />
-                <h3 style={{ fontFamily: 'var(--font-family-title)', fontSize: '1.6rem', color: 'var(--text-primary)' }}>
+                <h3 style={{ fontFamily: 'var(--font-family-title, sans-serif)', fontSize: '1.45rem', fontWeight: '800', color: '#1e293b', margin: '14px 0 10px', lineHeight: 1.3 }}>
                   Produzindo seus 2 Arranjos Musicais 🎧
                 </h3>
-                <p style={{ color: 'var(--secondary)', fontSize: '1.05rem', fontWeight: '600', marginTop: '14px', minHeight: '32px' }}>
-                  {studioAudioPhrases[audioStepIdx]}
-                </p>
 
-                <div style={{ marginTop: '18px' }}>
+                {/* Pill com a frase da etapa do áudio */}
+                <div
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    background: 'rgba(139, 92, 246, 0.08)',
+                    border: '1px solid rgba(139, 92, 246, 0.2)',
+                    color: '#7c3aed',
+                    padding: '6px 16px',
+                    borderRadius: '999px',
+                    fontSize: '0.84rem',
+                    fontWeight: '600',
+                    margin: '4px auto 16px',
+                    maxWidth: '92%',
+                  }}
+                >
+                  <span>🎤</span>
+                  <span>{studioAudioPhrases[audioStepIdx] || 'Gravando vocais e ajustando afinação e interpretações...'}</span>
+                </div>
+
+                {/* Barra de Progresso com Percentual */}
+                <div style={{ maxWidth: '420px', margin: '0 auto' }}>
                   <div
                     role="progressbar"
                     aria-valuenow={Math.round(audioProgressPct)}
                     aria-valuemin={0}
                     aria-valuemax={100}
                     aria-label="Progresso da produção da música"
-                    style={{ width: '100%', height: '10px', borderRadius: '999px', background: 'var(--bg-tertiary)', overflow: 'hidden' }}
+                    style={{ width: '100%', height: '11px', borderRadius: '999px', background: '#f1f5f9', overflow: 'hidden' }}
                   >
                     <div
                       style={{
-                        width: `${audioProgressPct}%`,
+                        width: `${Math.max(audioProgressPct, 6)}%`,
                         height: '100%',
                         borderRadius: '999px',
-                        background: 'linear-gradient(90deg, var(--primary) 0%, var(--secondary) 100%)',
+                        background: 'linear-gradient(90deg, #ec4899 0%, #8b5cf6 100%)',
                         transition: 'width 0.5s ease',
                       }}
                     />
                   </div>
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.78rem', marginTop: '6px', fontWeight: '600' }}>
+                  <div style={{ color: '#475569', fontSize: '0.95rem', marginTop: '6px', fontWeight: '800' }}>
                     {Math.round(audioProgressPct)}%
-                  </p>
+                  </div>
                 </div>
 
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '10px' }}>
-                  Isso leva cerca de 2 minutos. Aguarde enquanto nosso estúdio sintetiza os vocalistas e a base instrumental.
+                <p style={{ color: '#64748b', fontSize: '0.84rem', marginTop: '12px', lineHeight: 1.45, maxWidth: '440px', margin: '12px auto 0' }}>
+                  ⏱️ Isso leva cerca de 2 minutos. Estamos gerando 2 versões diferentes para você escolher sua favorita!
                 </p>
 
-                {/* Informação durante a produção e botão de recebimento via WhatsApp após 30s */}
+                {/* Card verde de notificação WhatsApp (Imagem 2) */}
                 <div
                   style={{
                     marginTop: '22px',
-                    padding: '18px 20px',
-                    background: 'rgba(37, 211, 102, 0.08)',
-                    border: '1px solid rgba(37, 211, 102, 0.28)',
-                    borderRadius: '16px',
-                    maxWidth: '520px',
+                    padding: '18px 16px 16px',
+                    backgroundColor: '#f0fdf4',
+                    border: '1.5px solid #bbf7d0',
+                    borderRadius: '18px',
+                    maxWidth: '460px',
                     margin: '22px auto 0',
                     textAlign: 'center',
-                    animation: 'fadeIn 0.5s ease',
+                    boxShadow: '0 4px 14px rgba(34, 197, 94, 0.08)',
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px', textAlign: 'left' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', textAlign: 'left' }}>
                     <div
                       style={{
-                        fontSize: '1.7rem',
-                        width: '44px',
-                        height: '44px',
+                        fontSize: '1.6rem',
+                        width: '46px',
+                        height: '46px',
                         borderRadius: '50%',
-                        background: 'rgba(37, 211, 102, 0.16)',
+                        backgroundColor: '#dcfce7',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         flexShrink: 0,
+                        boxShadow: '0 2px 8px rgba(34, 197, 94, 0.15)',
                       }}
                     >
-                      📲
+                      📱
                     </div>
                     <div>
-                      <p style={{ margin: '0 0 4px 0', fontSize: '0.92rem', fontWeight: '700', color: 'var(--text-primary)' }}>
+                      <p style={{ margin: '0 0 4px 0', fontSize: '0.94rem', fontWeight: '700', color: '#166534' }}>
                         Você receberá o link no seu WhatsApp!
                       </p>
-                      <p style={{ margin: 0, fontSize: '0.84rem', color: 'var(--text-muted)', lineHeight: '1.45' }}>
-                        Assim que seus 2 arranjos ficarem prontos, enviaremos automaticamente uma mensagem no WhatsApp {formData.customerPhone ? <strong style={{ color: '#25D366' }}>{formData.customerPhone}</strong> : 'cadastrado'} com o link exclusivo da prévia.
+                      <p style={{ margin: 0, fontSize: '0.82rem', color: '#334155', lineHeight: '1.45' }}>
+                        Assim que seus 2 arranjos ficarem prontos, enviaremos automaticamente uma mensagem no WhatsApp {formData.customerPhone ? (
+                          <strong style={{ backgroundColor: '#dcfce7', color: '#15803d', padding: '1px 7px', borderRadius: '6px', border: '1px solid #86efac', display: 'inline-block' }}>
+                            {formData.customerPhone}
+                          </strong>
+                        ) : 'cadastrado'} com o link exclusivo da prévia.
                       </p>
                     </div>
                   </div>
 
-                  {showWhatsappCta && (
-                    <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid rgba(37, 211, 102, 0.2)' }}>
-                      <p style={{ fontSize: '0.86rem', color: '#10b981', margin: '0 0 10px 0', fontWeight: '600' }}>
-                        💡 Não precisa ficar esperando nesta tela!
-                      </p>
-                      <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)', margin: '0 0 14px 0', lineHeight: '1.4' }}>
-                        Toque no botão abaixo para receber a prévia diretamente no seu WhatsApp:
-                      </p>
-                      <a
-                        href={`${linkWhatsapp(whatsappSuporte, `Olá! Quero receber a prévia da música do meu pedido ${orderId ? `id=${orderId}` : ''}`)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '10px',
-                          padding: '14px 22px',
-                          fontSize: '1.02rem',
-                          fontWeight: '700',
-                          borderRadius: '12px',
-                          background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)',
-                          color: '#ffffff',
-                          textDecoration: 'none',
-                          boxShadow: '0 4px 15px rgba(37, 211, 102, 0.35)',
-                          width: '100%',
-                          maxWidth: '420px',
-                          margin: '0 auto',
-                        }}
-                      >
-                        <span>💬 Receber Música no meu WhatsApp</span>
-                      </a>
-                    </div>
-                  )}
+                  <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px solid #dcfce7' }}>
+                    <p style={{ fontSize: '0.86rem', color: '#15803d', margin: '0 0 10px 0', fontWeight: '700' }}>
+                      💡 Não precisa ficar esperando nesta tela!
+                    </p>
+                    <a
+                      href={`${linkWhatsapp(whatsappSuporte, `Olá! Quero receber a prévia da música do meu pedido ${orderId ? `id=${orderId}` : ''}`)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                        padding: '12px 18px',
+                        fontSize: '0.95rem',
+                        fontWeight: '700',
+                        borderRadius: '12px',
+                        background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
+                        color: '#ffffff',
+                        textDecoration: 'none',
+                        boxShadow: '0 4px 14px rgba(22, 163, 74, 0.28)',
+                        width: '100%',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <span>Receber Música no meu WhatsApp →</span>
+                    </a>
+                  </div>
                 </div>
                 {/* Passou de AUDIO_WATCHDOG_MS e a música não chegou. Não é o painel de erro: aqui
                     ninguém reportou falha, a tela só ficou parada. A primeira ação é reconsultar o

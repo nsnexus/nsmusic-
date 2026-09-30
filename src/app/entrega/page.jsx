@@ -258,12 +258,47 @@ function EntregaContent() {
   // pediu a volta no mesmo dia — um clique a mais entre chegar na tela e ver o QR custa venda.
   // Quem puxa para cima agora é o selo MAIS ESCOLHIDO na faixa de R$ 16,89, não a ausência de
   // escolha (ver faixasDeImpacto em src/lib/pricing.js).
-  const [valorEscolhido, setValorEscolhido] = useState(() => getPriceForSku('audio_only'));
-  const [valorDigitado, setValorDigitado] = useState(() => String(getPriceForSku('audio_only')));
+  const pacotesEntrega = [
+    {
+      sku: 'audio_only',
+      icone: '🎵',
+      titulo: '2 versões completas em MP3 HD',
+      desc: 'Músicas completas sem vinheta e em alta qualidade',
+      valor: getPriceForSku('audio_only') || 9.99,
+    },
+    {
+      sku: 'combo_carta',
+      icone: '📄',
+      titulo: '2 versões completas + Carta Virtual',
+      desc: 'Carta virtual personalizada e emocionante',
+      valor: getPriceForSku('combo_carta') || 13.98,
+    },
+    {
+      sku: 'combo',
+      icone: '▶️',
+      titulo: '2 versões completas + Vídeo Homenagem + Carta Virtual',
+      desc: 'Vídeo emocionante com fotos e carta virtual de brinde',
+      valor: getPriceForSku('combo') || 16.89,
+      destaque: '👑 MAIS ESCOLHIDO',
+    },
+    {
+      sku: 'combo_retrospectiva',
+      icone: '🎞️',
+      titulo: '2 versões completas + Retrospectiva + Vídeo Homenagem + Carta Virtual',
+      desc: 'Retrospectiva completa com fotos, vídeo e carta inclusos',
+      valor: getPriceForSku('combo_retrospectiva') || 19.98,
+    },
+  ];
 
-  const escolherFaixa = (valor) => {
+  const [valorEscolhido, setValorEscolhido] = useState(() => getPriceForSku('combo') || 16.89);
+  const [valorDigitado, setValorDigitado] = useState(() => String(getPriceForSku('combo') || 16.89));
+
+  const escolherFaixa = (valor, explicitSku = null) => {
     setValorEscolhido(valor);
     setValorDigitado(String(valor));
+    const pacote = pacotesEntrega.find(p => Math.abs(p.valor - valor) < 0.01);
+    const sku = explicitSku || pacote?.sku || 'combo';
+    setSelectedPackage(sku);
     handleGeneratePix('impacto', false, valor);
   };
 
@@ -962,6 +997,64 @@ function EntregaContent() {
     return () => clearAudioWatchdog('second');
   }, [secondAudioUrl]);
 
+  // Estado e manipuladores dos novos players customizados de áudio (Imagem 4)
+  const [audioProgress, setAudioProgress] = useState({
+    primary: { currentTime: 0, duration: 60, isPlaying: false },
+    second: { currentTime: 0, duration: 60, isPlaying: false },
+  });
+
+  const formatAudioTime = (seconds, capAt60 = false) => {
+    if (!seconds || isNaN(seconds)) return '0:00';
+    let val = Math.floor(seconds);
+    if (capAt60 && val > 60) val = 60;
+    const m = Math.floor(val / 60);
+    const s = val % 60;
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  };
+
+  const toggleAudioPlay = (slot) => {
+    const currentEl = slot === 'primary' ? primaryAudioElRef.current : secondAudioElRef.current;
+    const otherEl = slot === 'primary' ? secondAudioElRef.current : primaryAudioElRef.current;
+    const otherSlot = slot === 'primary' ? 'second' : 'primary';
+
+    if (!currentEl) return;
+
+    if (!currentEl.paused) {
+      currentEl.pause();
+      setAudioProgress((prev) => ({
+        ...prev,
+        [slot]: { ...prev[slot], isPlaying: false },
+      }));
+    } else {
+      if (otherEl && !otherEl.paused) {
+        otherEl.pause();
+        setAudioProgress((prev) => ({
+          ...prev,
+          [otherSlot]: { ...prev[otherSlot], isPlaying: false },
+        }));
+      }
+      currentEl.play().then(() => {
+        setAudioProgress((prev) => ({
+          ...prev,
+          [slot]: { ...prev[slot], isPlaying: true },
+        }));
+      }).catch((err) => {
+        console.warn('Playback error:', err);
+      });
+    }
+  };
+
+  const handleAudioSeek = (slot, value) => {
+    const currentEl = slot === 'primary' ? primaryAudioElRef.current : secondAudioElRef.current;
+    if (!currentEl) return;
+    const newTime = Number(value);
+    currentEl.currentTime = newTime;
+    setAudioProgress((prev) => ({
+      ...prev,
+      [slot]: { ...prev[slot], currentTime: newTime },
+    }));
+  };
+
   if (loading) {
     return (
       <div style={styles.wrapper} className="flex-center">
@@ -1018,12 +1111,16 @@ function EntregaContent() {
           <span 
             className="entrega-status-badge"
             style={{
-              color: isPaid ? 'var(--success)' : 'var(--warning)',
-              borderColor: isPaid ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.2)',
-              backgroundColor: isPaid ? 'rgba(16, 185, 129, 0.05)' : 'rgba(245, 158, 11, 0.05)'
+              color: isPaid ? 'var(--success)' : '#d97706',
+              borderColor: isPaid ? 'rgba(16, 185, 129, 0.2)' : '#fde68a',
+              backgroundColor: isPaid ? 'rgba(16, 185, 129, 0.05)' : '#fffbeb',
+              fontWeight: '700',
+              borderRadius: '999px',
+              padding: '5px 14px',
+              fontSize: '0.82rem',
             }}
           >
-            {isPaid ? '✨ Entrega Liberada' : `⏳ Aguardando Pagamento${valorCobradoTexto ? ` (${valorCobradoTexto})` : ''}`}
+            {isPaid ? '✨ Entrega Liberada' : '⏳ Aguardando pagamento'}
           </span>
         </div>
       </header>
@@ -1375,41 +1472,91 @@ function EntregaContent() {
                     </div>
                   </div>
                 )}
-                {/* Aviso de pendência no topo, com atalho para o pagamento.
-                    Quem chega por /minhas-musicas ou pelo link do WhatsApp cai direto na capa e na
-                    letra, e o bloco do Pix fica bem mais abaixo — dava para navegar a página
-                    inteira sem perceber que faltava pagar (pedido 21/09/2026). */}
+                {/* Hero Card no Topo: Sua música está pronta! (Imagem 5) */}
                 {!isPaid && (
-                  <a
-                    href="#pagamento"
+                  <div
                     style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '10px',
-                      padding: '12px 14px',
-                      marginBottom: '14px',
-                      borderRadius: '12px',
-                      background: 'rgba(245, 158, 11, 0.12)',
-                      border: '1px solid rgba(245, 158, 11, 0.4)',
-                      textDecoration: 'none',
-                      flexWrap: 'wrap',
+                      backgroundColor: '#ffffff',
+                      borderRadius: '20px',
+                      padding: '24px 20px',
+                      textAlign: 'center',
+                      border: '1px solid #f1f5f9',
+                      boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.05)',
+                      marginBottom: '16px',
+                      width: '100%',
+                      boxSizing: 'border-box',
                     }}
                   >
-                    <span style={{ fontSize: '1.2rem' }}>🔒</span>
-                    <span style={{ flex: 1, minWidth: '170px', fontSize: '0.84rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
-                      <strong style={{ color: 'var(--text-primary)' }}>Pagamento pendente.</strong>{' '}
-                      Libere o download em MP3 HD{jaTemRetrospectiva || jaTemCarta ? '' : ' e a página de presente'}.
-                    </span>
-                    <span
-                      className="btn btn-primary"
-                      style={{ padding: '8px 16px', fontSize: '0.85rem', whiteSpace: 'nowrap' }}
+                    <div
+                      style={{
+                        width: '48px',
+                        height: '48px',
+                        borderRadius: '50%',
+                        backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        margin: '0 auto 12px',
+                        fontSize: '1.4rem',
+                      }}
                     >
-                      {valorCobradoTexto ? `Pagar ${valorCobradoTexto}` : 'Pagar agora'}
-                    </span>
-                  </a>
+                      🔒
+                    </div>
+
+                    <h2
+                      style={{
+                        fontFamily: 'var(--font-family-title, sans-serif)',
+                        fontSize: '1.35rem',
+                        fontWeight: '800',
+                        color: '#1e293b',
+                        margin: '0 0 8px',
+                        lineHeight: 1.3,
+                      }}
+                    >
+                      Sua música está pronta!
+                    </h2>
+
+                    <p
+                      style={{
+                        fontSize: '0.86rem',
+                        color: '#64748b',
+                        lineHeight: 1.5,
+                        margin: '0 auto 16px',
+                        maxWidth: '440px',
+                      }}
+                    >
+                      Ouça as prévias de 60s abaixo. Para baixar as versões completas em alta definição (MP3 HD) e liberar todos os recursos, escolha uma opção:
+                    </p>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        document.getElementById('pagamento')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '13px 22px',
+                        borderRadius: '12px',
+                        border: 'none',
+                        background: 'linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)',
+                        color: '#ffffff',
+                        fontSize: '0.98rem',
+                        fontWeight: '700',
+                        cursor: 'pointer',
+                        boxShadow: '0 4px 14px rgba(139, 92, 246, 0.35)',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                      }}
+                    >
+                      Ver opções para liberar ↓
+                    </button>
+                  </div>
                 )}
 
-                <div style={isPaid ? { ...styles.coverWrapper, boxShadow: '0 16px 40px rgba(236,72,153,0.22)', border: '1.5px solid rgba(255,255,255,0.12)' } : styles.coverWrapper}>
+                {/* Card de Capa com Troca e Overlay (Imagens 4 e 5) */}
+                <div style={isPaid ? { ...styles.coverWrapper, boxShadow: '0 16px 40px rgba(236,72,153,0.22)', border: '1.5px solid rgba(255,255,255,0.12)' } : { ...styles.coverWrapper, borderRadius: '18px', overflow: 'hidden' }}>
                   <img src={coverUrl} alt="Capa da música" style={styles.coverImg} />
 
                   <input
@@ -1427,9 +1574,9 @@ function EntregaContent() {
                     title="Trocar foto de capa"
                     style={{
                       position: 'absolute',
-                      top: '10px',
-                      right: '10px',
-                      padding: '7px 12px',
+                      top: '12px',
+                      right: '12px',
+                      padding: '7px 14px',
                       fontSize: '0.78rem',
                       fontWeight: '700',
                       borderRadius: '999px',
@@ -1438,24 +1585,37 @@ function EntregaContent() {
                       color: '#fff',
                       cursor: isUploadingCover ? 'default' : 'pointer',
                       opacity: isUploadingCover ? 0.7 : 1,
-                      backdropFilter: 'blur(4px)',
+                      backdropFilter: 'blur(6px)',
+                      WebkitBackdropFilter: 'blur(6px)',
                       display: 'flex',
                       alignItems: 'center',
                       gap: '5px',
+                      zIndex: 5,
                     }}
                   >
                     {isUploadingCover ? '⏳ Enviando...' : '✏️ Trocar capa'}
                   </button>
 
                   {!isPaid && (
-                    <div style={styles.coverOverlay}>
-                      {/* color precisa ser explícito aqui: a regra global h1-h6 (globals.css) sempre
-                          vence sobre a cor herdada do coverOverlay, deixando o título ilegível em cima
-                          da foto escura (relato do usuário, 2026-08-02). */}
-                      <h2 style={{ fontFamily: 'var(--font-family-title)', fontSize: '1.4rem', color: '#FFFFFF' }}>
+                    <div
+                      style={{
+                        position: 'absolute',
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        background: 'linear-gradient(to top, rgba(15, 23, 42, 0.92) 0%, rgba(15, 23, 42, 0.45) 60%, transparent 100%)',
+                        padding: '24px 16px 16px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '4px',
+                      }}
+                    >
+                      <h2 style={{ fontFamily: 'var(--font-family-title, sans-serif)', fontSize: '1.35rem', fontWeight: '800', color: '#FFFFFF', margin: 0, lineHeight: 1.25 }}>
                         Melodia para {order?.honoreeName}
                       </h2>
-                      <p style={{ fontSize: '0.85rem', opacity: 0.8, color: '#FFFFFF' }}>Uma homenagem de {order?.customerName}</p>
+                      <p style={{ fontSize: '0.85rem', color: 'rgba(255, 255, 255, 0.88)', margin: 0 }}>
+                        Uma homenagem de {order?.customerName}
+                      </p>
                     </div>
                   )}
                 </div>
@@ -1463,36 +1623,46 @@ function EntregaContent() {
                   <p style={{ fontSize: '0.8rem', color: 'var(--error, #ef4444)', textAlign: 'center', margin: '-8px 0 0' }}>{coverUploadError}</p>
                 )}
 
-                {/* Audio Player 1 (Prévia de 60s se pendente, Completo se pago) */}
+                {/* Audio Player 1 (Prévia Versão 1) - Imagem 4 */}
                 {primaryAudioUrl && (
-                  <div style={isPaid ? { ...styles.audioPlayerContainer, backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', backdropFilter: 'blur(6px)' } : styles.audioPlayerContainer} className="glass-card">
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                      <h4 style={{ fontSize: '0.95rem', margin: 0, fontWeight: '700', color: isPaid ? '#f1f5f9' : 'var(--primary)' }}>
-                        🎧 Prévia (Versão 1)
+                  <div
+                    style={isPaid ? {
+                      ...styles.audioPlayerContainer,
+                      backgroundColor: 'rgba(255,255,255,0.05)',
+                      border: '1px solid rgba(255,255,255,0.12)',
+                      backdropFilter: 'blur(6px)',
+                    } : {
+                      backgroundColor: '#ffffff',
+                      borderRadius: '16px',
+                      padding: '16px',
+                      border: '1.5px solid #ede9fe',
+                      boxShadow: '0 4px 14px rgba(139, 92, 246, 0.06)',
+                      width: '100%',
+                      boxSizing: 'border-box',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                      <h4 style={{ fontSize: '0.96rem', margin: 0, fontWeight: '700', color: isPaid ? '#f1f5f9' : '#7c3aed', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span>🎧</span> Prévia (Versão 1)
                       </h4>
-                      {isPaid && (
+                      {isPaid ? (
                         <span style={{ fontSize: '0.7rem', color: '#f472b6', backgroundColor: 'rgba(236,72,153,0.12)', padding: '3px 9px', borderRadius: '10px', border: '1px solid rgba(236,72,153,0.3)', fontWeight: '700' }}>
                           Estúdio NSMusic
                         </span>
+                      ) : (
+                        <span style={{ fontSize: '1.2rem', color: '#7c3aed' }}>🔊</span>
                       )}
                     </div>
-                    {!isPaid && (
-                      <p style={{ fontSize: '0.78rem', color: 'var(--warning)', marginBottom: '8px', fontWeight: '600' }}>
-                        `🔒 Prévia de 60 segundos. O pagamento libera as 2 versões completas em MP3 HD.`
-                      </p>
-                    )}
+
                     {audioReadyState.primary !== 'ready' && (
-                      <div style={{ padding: '20px 0', textAlign: 'center' }}>
+                      <div style={{ padding: '16px 0', textAlign: 'center' }}>
                         {audioReadyState.primary === 'failed' ? (
                           <>
                             <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '10px' }}>
                               Não conseguimos carregar o áudio agora. Isso costuma resolver em instantes.
                             </p>
-                            {/* Achado 09/09/2026: sem um link de WhatsApp bem aqui, do lado do botão,
-                                o cliente via essa mensagem, achava que tinha dado falha de vez e
-                                fechava a aba — o card de WhatsApp mais abaixo na página passava batido. */}
                             <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
-                              <button type="button" onClick={() => handleAudioRetryClick('primary')} className="btn btn-secondary" style={{ padding: '10px 20px', fontSize: '0.85rem' }}>
+                              <button type="button" onClick={() => handleAudioRetryClick('primary')} className="btn btn-secondary" style={{ padding: '8px 16px', fontSize: '0.82rem' }}>
                                 Tentar novamente
                               </button>
                               <a
@@ -1500,42 +1670,130 @@ function EntregaContent() {
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="entrega-whatsapp-btn"
-                                style={{ padding: '10px 20px', fontSize: '0.85rem' }}
+                                style={{ padding: '8px 16px', fontSize: '0.82rem' }}
                               >
                                 Falar no WhatsApp 📲
                               </a>
                             </div>
                           </>
                         ) : (
-                          <>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '10px 0' }}>
                             <div style={styles.spinner} />
-                            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '10px' }}>Preparando sua prévia...</p>
-                          </>
+                            <span style={{ fontSize: '0.84rem', color: '#64748b' }}>Preparando sua prévia...</span>
+                          </div>
                         )}
                       </div>
                     )}
+
+                    {/* Custom Player Controls (Imagem 4) */}
+                    {audioReadyState.primary === 'ready' && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '6px' }}>
+                        {/* Play/Pause Button */}
+                        <button
+                          type="button"
+                          onClick={() => toggleAudioPlay('primary')}
+                          aria-label={audioProgress.primary.isPlaying ? 'Pausar versão 1' : 'Tocar versão 1'}
+                          style={{
+                            width: '44px',
+                            height: '44px',
+                            borderRadius: '50%',
+                            background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+                            border: 'none',
+                            color: '#ffffff',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            boxShadow: '0 3px 10px rgba(124, 58, 237, 0.35)',
+                            flexShrink: 0,
+                          }}
+                        >
+                          {audioProgress.primary.isPlaying ? (
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                            </svg>
+                          ) : (
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style={{ marginLeft: '2px' }}>
+                              <path d="M8 5v14l11-7z" />
+                            </svg>
+                          )}
+                        </button>
+
+                        {/* Scrubber & Timestamps */}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <input
+                            type="range"
+                            min="0"
+                            max={isPaid ? (audioProgress.primary.duration || 60) : 60}
+                            step="0.5"
+                            value={Math.min(audioProgress.primary.currentTime, isPaid ? (audioProgress.primary.duration || 60) : 60)}
+                            onChange={(e) => handleAudioSeek('primary', e.target.value)}
+                            style={{
+                              width: '100%',
+                              height: '6px',
+                              borderRadius: '999px',
+                              accentColor: '#7c3aed',
+                              cursor: 'pointer',
+                              outline: 'none',
+                              display: 'block',
+                            }}
+                          />
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.74rem', color: '#64748b', fontWeight: '600', marginTop: '4px' }}>
+                            <span>{formatAudioTime(audioProgress.primary.currentTime, !isPaid)}</span>
+                            <span>{isPaid ? formatAudioTime(audioProgress.primary.duration) : '0:60'}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     <audio
                       key={primaryAudioUrl}
                       ref={primaryAudioElRef}
-                      controls
                       autoPlay={!isPaid}
                       controlsList={!isPaid ? "nodownload noplaybackrate" : undefined}
                       onContextMenu={(e) => !isPaid && e.preventDefault()}
-                      onTimeUpdate={handleAudioTimeUpdate}
+                      onTimeUpdate={(e) => {
+                        handleAudioTimeUpdate(e);
+                        setAudioProgress((prev) => ({
+                          ...prev,
+                          primary: {
+                            currentTime: e.target.currentTime,
+                            duration: e.target.duration || 60,
+                            isPlaying: !e.target.paused,
+                          },
+                        }));
+                      }}
                       onCanPlay={() => handleAudioReady('primary')}
                       onError={() => handleAudioError('primary')}
-                      onPlay={() => markPreviewListened(orderId)}
-                      style={{ ...styles.audioTag, display: audioReadyState.primary === 'ready' ? 'block' : 'none' }}
+                      onPlay={() => {
+                        markPreviewListened(orderId);
+                        setAudioProgress((prev) => ({
+                          ...prev,
+                          primary: { ...prev.primary, isPlaying: true },
+                          second: { ...prev.second, isPlaying: false },
+                        }));
+                        if (secondAudioElRef.current && !secondAudioElRef.current.paused) {
+                          secondAudioElRef.current.pause();
+                        }
+                      }}
+                      onPause={() => {
+                        setAudioProgress((prev) => ({
+                          ...prev,
+                          primary: { ...prev.primary, isPlaying: false },
+                        }));
+                      }}
+                      onEnded={() => {
+                        setAudioProgress((prev) => ({
+                          ...prev,
+                          primary: { ...prev.primary, isPlaying: false, currentTime: 0 },
+                        }));
+                      }}
+                      style={{ display: 'none' }}
                       src={primaryAudioUrl}
-                    >
-                      Seu navegador não suporta.
-                    </audio>
+                    />
 
                     {isPaid && audioReadyState.primary === 'ready' && (
                       <>
-                        {/* O download é bloqueado pelo navegador embutido do WhatsApp/Instagram sem
-                            nenhum aviso — o cliente toca em "Baixar" e não acontece nada. Só o
-                            navegador de verdade (Chrome/Safari) salva o arquivo. */}
                         {navegadorInApp && (
                           <div style={{ marginTop: '14px', padding: '12px 14px', borderRadius: '10px', background: 'rgba(251, 191, 36, 0.12)', border: '1px solid rgba(251, 191, 36, 0.4)' }}>
                             <p style={{ margin: 0, fontSize: '0.83rem', color: '#fbbf24', fontWeight: '700' }}>
@@ -1573,33 +1831,46 @@ function EntregaContent() {
                   </div>
                 )}
 
-                {/* Audio Player 2 */}
+                {/* Audio Player 2 (Prévia Versão 2) - Imagem 4 */}
                 {secondAudioUrl && (
-                  <div style={isPaid ? { ...styles.audioPlayerContainer, backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', backdropFilter: 'blur(6px)' } : styles.audioPlayerContainer} className="glass-card">
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                      <h4 style={{ fontSize: '0.95rem', margin: 0, fontWeight: '700', color: isPaid ? '#f1f5f9' : 'var(--secondary)' }}>
-                        🎧 Prévia (Versão 2)
+                  <div
+                    style={isPaid ? {
+                      ...styles.audioPlayerContainer,
+                      backgroundColor: 'rgba(255,255,255,0.05)',
+                      border: '1px solid rgba(255,255,255,0.12)',
+                      backdropFilter: 'blur(6px)',
+                    } : {
+                      backgroundColor: '#ffffff',
+                      borderRadius: '16px',
+                      padding: '16px',
+                      border: '1.5px solid #fce7f3',
+                      boxShadow: '0 4px 14px rgba(236, 72, 153, 0.06)',
+                      width: '100%',
+                      boxSizing: 'border-box',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                      <h4 style={{ fontSize: '0.96rem', margin: 0, fontWeight: '700', color: isPaid ? '#f1f5f9' : '#ec4899', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span>🎧</span> Prévia (Versão 2)
                       </h4>
-                      {isPaid && (
+                      {isPaid ? (
                         <span style={{ fontSize: '0.7rem', color: '#c084fc', backgroundColor: 'rgba(168,85,247,0.12)', padding: '3px 9px', borderRadius: '10px', border: '1px solid rgba(168,85,247,0.3)', fontWeight: '700' }}>
                           Estúdio NSMusic
                         </span>
+                      ) : (
+                        <span style={{ fontSize: '1.2rem', color: '#ec4899' }}>🔊</span>
                       )}
                     </div>
-                    {!isPaid && (
-                      <p style={{ fontSize: '0.78rem', color: 'var(--warning)', marginBottom: '8px', fontWeight: '600' }}>
-                        `🔒 Prévia de 60 segundos. O pagamento libera as 2 versões completas em MP3 HD.`
-                      </p>
-                    )}
+
                     {audioReadyState.second !== 'ready' && (
-                      <div style={{ padding: '20px 0', textAlign: 'center' }}>
+                      <div style={{ padding: '16px 0', textAlign: 'center' }}>
                         {audioReadyState.second === 'failed' ? (
                           <>
                             <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '10px' }}>
                               Não conseguimos carregar o áudio agora. Isso costuma resolver em instantes.
                             </p>
                             <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
-                              <button type="button" onClick={() => handleAudioRetryClick('second')} className="btn btn-secondary" style={{ padding: '10px 20px', fontSize: '0.85rem' }}>
+                              <button type="button" onClick={() => handleAudioRetryClick('second')} className="btn btn-secondary" style={{ padding: '8px 16px', fontSize: '0.82rem' }}>
                                 Tentar novamente
                               </button>
                               <a
@@ -1607,35 +1878,126 @@ function EntregaContent() {
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="entrega-whatsapp-btn"
-                                style={{ padding: '10px 20px', fontSize: '0.85rem' }}
+                                style={{ padding: '8px 16px', fontSize: '0.82rem' }}
                               >
                                 Falar no WhatsApp 📲
                               </a>
                             </div>
                           </>
                         ) : (
-                          <>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '10px 0' }}>
                             <div style={styles.spinner} />
-                            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '10px' }}>Preparando sua prévia...</p>
-                          </>
+                            <span style={{ fontSize: '0.84rem', color: '#64748b' }}>Preparando sua prévia...</span>
+                          </div>
                         )}
                       </div>
                     )}
+
+                    {/* Custom Player Controls Versão 2 (Imagem 4) */}
+                    {audioReadyState.second === 'ready' && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '6px' }}>
+                        {/* Play/Pause Button */}
+                        <button
+                          type="button"
+                          onClick={() => toggleAudioPlay('second')}
+                          aria-label={audioProgress.second.isPlaying ? 'Pausar versão 2' : 'Tocar versão 2'}
+                          style={{
+                            width: '44px',
+                            height: '44px',
+                            borderRadius: '50%',
+                            background: 'linear-gradient(135deg, #f472b6 0%, #ec4899 100%)',
+                            border: 'none',
+                            color: '#ffffff',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            boxShadow: '0 3px 10px rgba(236, 72, 153, 0.35)',
+                            flexShrink: 0,
+                          }}
+                        >
+                          {audioProgress.second.isPlaying ? (
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                            </svg>
+                          ) : (
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style={{ marginLeft: '2px' }}>
+                              <path d="M8 5v14l11-7z" />
+                            </svg>
+                          )}
+                        </button>
+
+                        {/* Scrubber & Timestamps */}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <input
+                            type="range"
+                            min="0"
+                            max={isPaid ? (audioProgress.second.duration || 60) : 60}
+                            step="0.5"
+                            value={Math.min(audioProgress.second.currentTime, isPaid ? (audioProgress.second.duration || 60) : 60)}
+                            onChange={(e) => handleAudioSeek('second', e.target.value)}
+                            style={{
+                              width: '100%',
+                              height: '6px',
+                              borderRadius: '999px',
+                              accentColor: '#ec4899',
+                              cursor: 'pointer',
+                              outline: 'none',
+                              display: 'block',
+                            }}
+                          />
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.74rem', color: '#64748b', fontWeight: '600', marginTop: '4px' }}>
+                            <span>{formatAudioTime(audioProgress.second.currentTime, !isPaid)}</span>
+                            <span>{isPaid ? formatAudioTime(audioProgress.second.duration) : '0:60'}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     <audio
                       key={secondAudioUrl}
                       ref={secondAudioElRef}
-                      controls
                       controlsList={!isPaid ? "nodownload noplaybackrate" : undefined}
                       onContextMenu={(e) => !isPaid && e.preventDefault()}
-                      onTimeUpdate={handleAudioTimeUpdate}
+                      onTimeUpdate={(e) => {
+                        handleAudioTimeUpdate(e);
+                        setAudioProgress((prev) => ({
+                          ...prev,
+                          second: {
+                            currentTime: e.target.currentTime,
+                            duration: e.target.duration || 60,
+                            isPlaying: !e.target.paused,
+                          },
+                        }));
+                      }}
                       onCanPlay={() => handleAudioReady('second')}
                       onError={() => handleAudioError('second')}
-                      onPlay={() => markPreviewListened(orderId)}
-                      style={{ ...styles.audioTag, display: audioReadyState.second === 'ready' ? 'block' : 'none' }}
+                      onPlay={() => {
+                        markPreviewListened(orderId);
+                        setAudioProgress((prev) => ({
+                          ...prev,
+                          second: { ...prev.second, isPlaying: true },
+                          primary: { ...prev.primary, isPlaying: false },
+                        }));
+                        if (primaryAudioElRef.current && !primaryAudioElRef.current.paused) {
+                          primaryAudioElRef.current.pause();
+                        }
+                      }}
+                      onPause={() => {
+                        setAudioProgress((prev) => ({
+                          ...prev,
+                          second: { ...prev.second, isPlaying: false },
+                        }));
+                      }}
+                      onEnded={() => {
+                        setAudioProgress((prev) => ({
+                          ...prev,
+                          second: { ...prev.second, isPlaying: false, currentTime: 0 },
+                        }));
+                      }}
+                      style={{ display: 'none' }}
                       src={secondAudioUrl}
-                    >
-                      Seu navegador não suporta.
-                    </audio>
+                    />
 
                     {isPaid && audioReadyState.second === 'ready' && (
                       <div style={{ ...styles.downloadGrid, marginTop: '16px' }}>
@@ -1651,24 +2013,111 @@ function EntregaContent() {
                   </div>
                 )}
 
-                {/* Card: Não gostou do resultado? Chame no WhatsApp */}
+                {/* Avisos abaixo dos players (Imagem 4) */}
                 {!isPaid && (
-                  <div className="entrega-whatsapp-card glass-card">
-                    <div style={{ flex: 1 }}>
-                      <h5 style={{ fontSize: '0.96rem', fontWeight: '700', color: '#10b981', margin: '0 0 4px 0' }}>
-                        🤔 Não gostou do resultado da música?
-                      </h5>
-                      <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.4' }}>
-                        Nos chame no WhatsApp que fazemos do seu jeito com nossos produtores!
+                  <>
+                    <div
+                      style={{
+                        padding: '10px 14px',
+                        backgroundColor: '#fffbeb',
+                        border: '1px solid #fde68a',
+                        borderRadius: '12px',
+                        textAlign: 'center',
+                      }}
+                    >
+                      <p style={{ margin: 0, fontSize: '0.78rem', color: '#92400e', fontWeight: '600', lineHeight: 1.45 }}>
+                        🔒 Prévia de 60 segundos com marca d&apos;água de proteção sonora. As versões completas serão liberadas após o pagamento.
                       </p>
                     </div>
+
+                    <div
+                      style={{
+                        padding: '10px 14px',
+                        backgroundColor: '#f5f3ff',
+                        border: '1px solid #ede9fe',
+                        borderRadius: '12px',
+                        textAlign: 'center',
+                      }}
+                    >
+                      <p style={{ margin: 0, fontSize: '0.80rem', color: '#6d28d9', fontWeight: '600', lineHeight: 1.45 }}>
+                        Escolha o plano de pagamento abaixo para liberar as versões completas sem marca d&apos;água e em alta qualidade.
+                      </p>
+                    </div>
+                  </>
+                )}
+
+                {/* Card WhatsApp: Não encontrou o estilo ideal? (Imagem 1) */}
+                {!isPaid && (
+                  <div
+                    style={{
+                      marginTop: '4px',
+                      backgroundColor: '#f0fdf4',
+                      border: '1.5px solid #bbf7d0',
+                      borderRadius: '18px',
+                      padding: '18px 16px',
+                      boxShadow: '0 4px 14px rgba(34, 197, 94, 0.08)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                      <div
+                        style={{
+                          width: '42px',
+                          height: '42px',
+                          borderRadius: '50%',
+                          backgroundColor: '#dcfce7',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '1.4rem',
+                          flexShrink: 0,
+                        }}
+                      >
+                        💬
+                      </div>
+                      <div>
+                        <h5 style={{ fontSize: '1.02rem', fontWeight: '800', color: '#166534', margin: '0 0 4px 0' }}>
+                          Não encontrou o estilo ideal?
+                        </h5>
+                        <p style={{ fontSize: '0.84rem', color: '#334155', margin: 0, lineHeight: '1.4' }}>
+                          Fale com a nossa equipe no WhatsApp que regeramos para você sem custo adicional!
+                        </p>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 14px', margin: '14px 0 14px 4px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: '#15803d', fontWeight: '600' }}>
+                        <span>✓</span> Atendimento rápido
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: '#15803d', fontWeight: '600' }}>
+                        <span>✓</span> Produções personalizadas
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: '#15803d', fontWeight: '600' }}>
+                        <span>✓</span> Tiramos suas dúvidas
+                      </div>
+                    </div>
+
                     <a
-                      href={`${linkWhatsapp(whatsappSuporte, `Olá! Ouvi a prévia do pedido #${orderId || ''} (${order?.honoreeName || 'música personalizada'}) e gostaria de ajuda para fazer do meu jeito.`)}`}
+                      href={`${linkWhatsapp(whatsappSuporte, `Olá! Ouvi a prévia do pedido #${orderId || ''} (${order?.honoreeName || 'música personalizada'}) e gostaria de falar com a equipe sobre o estilo.`)}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="entrega-whatsapp-btn"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                        padding: '12px 18px',
+                        fontSize: '0.95rem',
+                        fontWeight: '700',
+                        borderRadius: '12px',
+                        background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
+                        color: '#ffffff',
+                        textDecoration: 'none',
+                        boxShadow: '0 4px 14px rgba(22, 163, 74, 0.28)',
+                        width: '100%',
+                        cursor: 'pointer',
+                      }}
                     >
-                      <span>Falar no WhatsApp 📲</span>
+                      <span>Falar no WhatsApp →</span>
                     </a>
                   </div>
                 )}
@@ -2343,20 +2792,23 @@ function EntregaContent() {
                 )}
 
                 {!isPaid && (
-                  /* SE PENDENTE: Bloco de Pagamento PIX Instantâneo */
-                  <div id="pagamento" className="glass-card" style={{ padding: '24px', borderRadius: '16px', background: 'linear-gradient(135deg, rgba(5, 150, 105, 0.08) 0%, rgba(16, 185, 129, 0.12) 100%)', border: '1.5px solid rgba(16, 185, 129, 0.3)', scrollMarginTop: '80px' }}>
+                  /* SE PENDENTE: Bloco de Pagamento PIX Instantâneo (Imagem 1) */
+                  <div
+                    id="pagamento"
+                    style={{
+                      padding: '24px 18px',
+                      borderRadius: '20px',
+                      backgroundColor: '#ffffff',
+                      border: '1.5px solid #e2e8f0',
+                      boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.05)',
+                      scrollMarginTop: '80px',
+                    }}
+                  >
                     <div style={{ textAlign: 'center', marginBottom: '16px' }}>
-                      <span style={{ fontSize: '2rem' }}>⚡</span>
-                      <h3 style={{ fontSize: '1.25rem', fontWeight: '800', marginTop: '6px', color: 'var(--text-primary)' }}>
+                      <h3 style={{ fontSize: '1.25rem', fontWeight: '800', margin: '0 0 6px', color: '#1e293b' }}>
                         {promo ? '🎁 Oferta Especial Liberada!' : 'Libere as músicas completas em MP3 HD'}
                       </h3>
-                      {/* O valor sai do MESMO catálogo que o servidor usa para cobrar
-                          (src/lib/pricing.js), a partir do pacote escolhido. Até 21/09/2026 este
-                          texto era fixo em "R$ 9,99": quem escolhia a Retrospectiva junto via
-                          R$ 9,99 na tela enquanto o banco pedia R$ 19,98 — relatado pelo dono do
-                          estúdio com print. Preço na tela que não bate com o do Pix faz o cliente
-                          desistir achando que é golpe. */}
-                      <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '4px', lineHeight: 1.5 }}>
+                      <p style={{ fontSize: '0.86rem', color: '#64748b', margin: 0, lineHeight: 1.45 }}>
                         {promo ? (
                           <>
                             Pague apenas{' '}
@@ -2366,85 +2818,135 @@ function EntregaContent() {
                             para liberar as 2 versões completas e <strong>ganhe o Vídeo Homenagem de brinde!</strong>
                           </>
                         ) : (
-                          <>
-                            Você ouviu a prévia. O pagamento libera <strong>as 2 versões completas</strong>,
-                            sem corte, em MP3 HD. E{' '}
-                            <strong>cada faixa acima do mínimo vem com um extra de brinde</strong>.
-                          </>
+                          'Escolha o que deseja incluir no seu pedido:'
                         )}
                       </p>
+                    </div>
 
-                      {/* Escada "pague o quanto quiser", com brinde por faixa.
-                          Pedido de 21/09/2026, logo depois de liberarmos a música inteira antes do
-                          pagamento: o cliente decide o valor no auge da emoção, então cada degrau
-                          acima do mínimo entrega um extra a mais. Quem paga a faixa da
-                          Retrospectiva leva Carta e Vídeo junto.
-                          Quem concede é o SERVIDOR, pelo valor confirmado na Efí
-                          (src/lib/pricing.js:brindesPorValorPago) — esta tela só mostra a escada e
-                          pede a cobrança. Trocar de faixa gera cobrança nova, o que é seguro:
-                          api/payments/create guarda o txid antigo em previousPaymentIntentIds e o
-                          webhook ainda encontra o pedido se o cliente pagar a cobrança anterior. */}
-                      {!promo && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '14px', textAlign: 'left' }}>
-                          {faixasDeImpacto().map((faixa) => {
-                            const ativa = valorEscolhido !== null && Math.abs(valorEscolhido - faixa.valor) < 0.01;
-                            const destacada = Boolean(faixa.destaque) && !ativa;
-                            return (
-                              <button
-                                key={faixa.sku}
-                                type="button"
-                                disabled={pixLoading}
-                                onClick={() => escolherFaixa(faixa.valor)}
+                    {!promo && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '9px', marginBottom: '18px' }}>
+                        {pacotesEntrega.map((pacote) => {
+                          const isSelected = valorEscolhido !== null && Math.abs(valorEscolhido - pacote.valor) < 0.01;
+
+                          return (
+                            <div
+                              key={pacote.sku}
+                              role="button"
+                              tabIndex={0}
+                              onClick={() => escolherFaixa(pacote.valor, pacote.sku)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault();
+                                  escolherFaixa(pacote.valor, pacote.sku);
+                                }
+                              }}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '12px',
+                                padding: '12px 14px',
+                                borderRadius: '14px',
+                                border: isSelected ? '2px solid #8b5cf6' : '1.5px solid #e2e8f0',
+                                backgroundColor: isSelected ? 'rgba(139, 92, 246, 0.05)' : '#ffffff',
+                                cursor: pixLoading ? 'default' : 'pointer',
+                                position: 'relative',
+                                textAlign: 'left',
+                                transition: 'all 0.15s ease',
+                                boxShadow: isSelected ? '0 4px 14px rgba(139, 92, 246, 0.15)' : 'none',
+                              }}
+                            >
+                              {/* Badge "👑 MAIS ESCOLHIDO" */}
+                              {pacote.destaque && (
+                                <span
+                                  style={{
+                                    position: 'absolute',
+                                    top: '-10px',
+                                    right: '14px',
+                                    background: 'linear-gradient(90deg, #8b5cf6 0%, #ec4899 100%)',
+                                    color: '#ffffff',
+                                    fontSize: '0.62rem',
+                                    fontWeight: '800',
+                                    padding: '2px 9px',
+                                    borderRadius: '999px',
+                                    boxShadow: '0 2px 8px rgba(139, 92, 246, 0.4)',
+                                    letterSpacing: '0.04em',
+                                  }}
+                                >
+                                  {pacote.destaque}
+                                </span>
+                              )}
+
+                              {/* Radio Circle */}
+                              <div
                                 style={{
+                                  width: '20px',
+                                  height: '20px',
+                                  borderRadius: '50%',
+                                  border: isSelected ? '2px solid #8b5cf6' : '2px solid #cbd5e1',
                                   display: 'flex',
                                   alignItems: 'center',
-                                  gap: '10px',
-                                  padding: '10px 12px',
-                                  borderRadius: '10px',
-                                  border: ativa ? '1.5px solid var(--success)'
-                                    : destacada ? '1.5px solid var(--primary)' : '1px solid var(--border-color)',
-                                  background: ativa ? 'rgba(16, 185, 129, 0.10)'
-                                    : destacada ? 'rgba(124, 58, 237, 0.10)' : 'var(--card-bg)',
-                                  cursor: pixLoading ? 'default' : 'pointer',
-                                  textAlign: 'left',
-                                  width: '100%',
+                                  justifyContent: 'center',
+                                  flexShrink: 0,
+                                  backgroundColor: '#ffffff',
                                 }}
                               >
-                                <span style={{ fontWeight: '800', fontSize: '0.95rem', color: ativa ? 'var(--success)' : 'var(--text-primary)', minWidth: '78px' }}>
-                                  R$ {faixa.valor.toFixed(2).replace('.', ',')}
-                                </span>
-                                <span style={{ flex: 1, fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.35 }}>
-                                  {faixa.ganha.length === 0
-                                    ? 'As 2 versões em MP3 HD'
-                                    : <>As 2 versões <strong>+ {faixa.ganha.join(' + ')}</strong></>}
-                                </span>
-                                {faixa.destaque && (
-                                  <span style={{ fontSize: '0.62rem', fontWeight: '800', letterSpacing: '0.04em', color: '#fff', background: 'var(--primary)', padding: '3px 7px', borderRadius: '999px', whiteSpace: 'nowrap' }}>
-                                    {faixa.destaque}
-                                  </span>
+                                {isSelected && (
+                                  <div
+                                    style={{
+                                      width: '10px',
+                                      height: '10px',
+                                      borderRadius: '50%',
+                                      backgroundColor: '#8b5cf6',
+                                    }}
+                                  />
                                 )}
-                              </button>
-                            );
-                          })}
+                              </div>
 
-                          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                            Outro valor: R$
-                            <input
-                              type="number"
-                              min={getPriceForSku('audio_only')}
-                              step="0.01"
-                              value={valorDigitado}
-                              onChange={(e) => setValorDigitado(e.target.value)}
-                              onBlur={() => {
-                                const v = Number(String(valorDigitado).replace(',', '.'));
-                                if (Number.isFinite(v) && v >= getPriceForSku('audio_only')) escolherFaixa(v);
-                              }}
-                              style={{ width: '90px', padding: '6px 8px', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '0.85rem' }}
-                            />
-                          </label>
-                        </div>
-                      )}
-                    </div>
+                              {/* Conteúdo de Texto */}
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div
+                                  style={{
+                                    fontWeight: '700',
+                                    fontSize: '0.92rem',
+                                    color: '#1e293b',
+                                    lineHeight: 1.3,
+                                    marginBottom: '2px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                  }}
+                                >
+                                  <span>{pacote.icone}</span>
+                                  <span>{pacote.titulo}</span>
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: '0.76rem',
+                                    color: '#64748b',
+                                    lineHeight: 1.35,
+                                  }}
+                                >
+                                  {pacote.desc}
+                                </div>
+                              </div>
+
+                              {/* Preço */}
+                              <div
+                                style={{
+                                  fontWeight: '800',
+                                  fontSize: '0.96rem',
+                                  color: isSelected ? '#7c3aed' : '#334155',
+                                  whiteSpace: 'nowrap',
+                                  flexShrink: 0,
+                                }}
+                              >
+                                R$ {pacote.valor.toFixed(2).replace('.', ',')}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
 
                     {pixLoading ? (
                       <div style={{ textAlign: 'center', padding: '20px' }}>
@@ -2897,21 +3399,28 @@ function EntregaContent() {
                 sessionStorage.setItem(`video_modal_dismissed_${orderId}`, 'true');
               }
 
-              // 'audio_only' = "só a música", a escolha explícita de não levar nenhum extra — segue
-              // o fluxo padrão (que já está rodando por baixo do pop-up) sem gerar nada novo.
-              if (sku === 'audio_only') return;
-
               const combosPreDePagamento = {
                 video_addon: 'combo',
                 carta_addon: 'combo_carta',
                 retrospectiva_addon: 'combo_retrospectiva',
+                combo: 'combo',
+                combo_carta: 'combo_carta',
+                combo_retrospectiva: 'combo_retrospectiva',
+                audio_only: 'audio_only',
               };
 
               if (!isPaid) {
-                // Antes de pagar a música, o extra entra como combo (um pagamento só, mais barato
-                // pro cliente que os dois avulsos) — mesma regra que já existia só pro vídeo.
-                setSelectedPackage(combosPreDePagamento[sku] || 'audio_only');
-                handleGeneratePix(combosPreDePagamento[sku]);
+                const targetSku = combosPreDePagamento[sku] || sku || 'combo';
+                const p = pacotesEntrega.find((x) => x.sku === targetSku);
+                if (p) {
+                  escolherFaixa(p.valor, targetSku);
+                } else {
+                  escolherFaixa(getPriceForSku(targetSku) || 16.89, targetSku);
+                }
+                if (typeof window !== 'undefined') {
+                  const el = document.getElementById('pagamento');
+                  if (el) el.scrollIntoView({ behavior: 'smooth' });
+                }
                 return;
               }
 
