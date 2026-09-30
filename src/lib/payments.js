@@ -13,6 +13,7 @@ import { getOrder, updateOrder } from './supabaseDb.js';
 import { skuApprovesMusic, skuGrantsVideoAccess, skuGrantsCartaAccess, skuGrantsRetrospectivaAccess, getPriceForSku, brindesPorValorPago } from './pricing.js';
 import { resolveDeliveryUrl } from './whatsappTemplates.js';
 import { sendMetaPurchaseEvent } from './metaCapi.js';
+import { sendTikTokPurchaseEvent } from './tiktokCapi.js';
 
 const REVOKING_STATUSES = new Set(['cancelled', 'refunded', 'charged_back']);
 
@@ -387,6 +388,15 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
           await updateOrder(orderId, { [sendingField]: false }, env).catch((e) => console.warn(e.message));
           console.warn(`[payments] Falha ao enviar Purchase (Meta CAPI) — pedido ${orderId}:`, sendResult.reason);
         }
+
+        sendTikTokPurchaseEvent({
+          orderId,
+          value,
+          contentName,
+          sku: txResult.sku,
+          customerPhone: txResult.orderData?.customerPhone,
+          customerEmail: txResult.orderData?.customerEmail,
+        }, env).catch((e) => console.warn('[payments] Erro ao enviar Purchase (TikTok Events API):', e?.message));
       }
     } catch (err) {
       console.warn('[payments] Erro ao enviar evento de Purchase (Meta CAPI):', err.message);
