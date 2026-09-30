@@ -24,6 +24,15 @@ export default function KaraokeAddonCard({ orderId, order }) {
   const [isTriggering, setIsTriggering] = useState(false);
   const [generationError, setGenerationError] = useState('');
 
+  useEffect(() => {
+    if (order?.karaokeUrl && order.karaokeUrl !== localKaraokeUrl) {
+      setLocalKaraokeUrl(order.karaokeUrl);
+    }
+    if (order?.karaokeStatus && order.karaokeStatus !== localKaraokeStatus) {
+      setLocalKaraokeStatus(order.karaokeStatus);
+    }
+  }, [order?.karaokeUrl, order?.karaokeStatus]);
+
   const hasAccess = unlocked || order?.hasKaraokeAccess || order?.karaokeAddonPaid;
   const currentKaraokeStatus = localKaraokeStatus || order?.karaokeStatus;
   const currentKaraokeUrl = localKaraokeUrl || order?.karaokeUrl;

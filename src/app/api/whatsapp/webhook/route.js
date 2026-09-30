@@ -317,15 +317,10 @@ const MESSAGE_DEDUP_WINDOW_MS = 120000;
 // sessão; ver análise completa no histórico da sessão de 27/08/2026.
 const PHONE_LOCK_WINDOW_MS = 10000;
 
-// Janela em que NÃO se repete um template que o cliente acabou de receber, mesmo que ele mande de
-// novo uma mensagem com o ID do pedido (achado 28/08/2026: cliente recebendo a mensagem de espera
-// duplicada). O botão do site abre o WhatsApp com o texto "…do meu pedido id=XXXX" já preenchido,
-// então TODA mensagem vinda dali tem ID explícito — e a checagem de "já enviei" era pulada
-// justamente nesse caso, que é o mais comum de todos. Dedup por messageId e trava por telefone não
-// cobrem isso: são mensagens distintas, com ids distintos, às vezes com minutos de intervalo.
-// Passada a janela, o reenvio volta a ser permitido — cliente que volta mais tarde querendo o link
-// de novo continua sendo atendido.
-const TEMPLATE_RESEND_COOLDOWN_MS = 10 * 60 * 1000;
+// Janela em que NÃO se repete um template que o cliente acabou de receber imediatamente
+// (evita disparo duplicado por retentativas concorrentes do webhook). Reduzido de 10min para 45s
+// para que clientes que peçam a prévia ou o link novamente sejam prontamente atendidos.
+const TEMPLATE_RESEND_COOLDOWN_MS = 45 * 1000;
 
 function sentWithinCooldown(sentAtIso) {
   if (!sentAtIso) return false;
@@ -336,14 +331,15 @@ function sentWithinCooldown(sentAtIso) {
 
 // Verifica se há um envio em andamento neste exato momento (janela curta de até 60s).
 // Evita que um boolean legado ou falha de rede trave o pedido para sempre.
-// Mensagem de quem está cobrando a música que encomendou. Deliberadamente estreita: serve para
-// decidir se respondemos a um número que NÃO conseguimos associar a nenhum pedido, e responder
-// demais aí seria escrever para quem não pediu nada.
+// Mensagem de quem está cobrando ou perguntando pela música/prévia que encomendou.
 function pareceCobrancaDeMusica(texto) {
-  const t = String(texto || '').toLowerCase();
-  if (!t.trim()) return false;
-  return /(previa|prévia|musica|música|audio|áudio|pedido|comprei|paguei|encomend)/.test(t)
-    && /(cade|cadê|onde|nao recebi|não recebi|nao chegou|não chegou|demora|demorando|ainda|quando|esperando|aguardando|sumiu|perdi)/.test(t);
+  const t = String(texto || '').toLowerCase().trim();
+  if (!t) return false;
+  if (/^(?:oi|ol[aá]|bom dia|boa tarde|boa noite)?\s*(?:cad[eê]|kd|onde|como|queria|quero|gostaria|preciso|manda|enviar?|ver|ouvir|escutar|passa|receber)?\s*(?:a|minha|o|meu)?\s*(?:pr[eé]via|m[uú]sica|[aá]udio|link)/i.test(t)) return true;
+  if (/(?:pr[eé]via|m[uú]sica|[aá]udio|pedido|encomend)/i.test(t) && /(?:cad[eê]|kd|onde|nao recebi|não recebi|nao chegou|não chegou|demora|demorando|ainda|quando|qdo|esperando|aguardando|sumiu|perdi|pronta?|saiu|ficou|ouvir|escutar|link)/i.test(t)) return true;
+  if (/^(?:pr[eé]via|m[uú]sica|[aá]udio|link|cad[eê]|kd)\b/i.test(t)) return true;
+  if (/(?:pr[eé]via|m[uú]sica)/i.test(t)) return true;
+  return false;
 }
 
 function isSendingInProgress(orderData) {
@@ -575,7 +571,10 @@ export async function POST(req) {
     const isMusicInquiry = pareceCobrancaDeMusica(messageText);
     const hasOrderReference = Boolean(candidateId);
     const isPaymentInquiry = /(?:paguei|pagamento|comprovante|pix|pago)/i.test(messageText) || temAnexoDeComprovante(body);
-    const isExplicitMusicOrPreview = /(?:quero|manda|enviar?|receber).{0,20}(?:pr[eé]via|m[uú]sica|audio|[aá]udio)/i.test(messageText);
+    const isExplicitMusicOrPreview = /(?:quero|manda|enviar?|receber|ver|ouvir|escutar|passa|cad[eê]|kd).{0,30}(?:pr[eé]via|m[uú]sica|audio|[aá]udio|link)/i.test(messageText)
+      || /(?:pr[eé]via|m[uú]sica|audio|[aá]udio).{0,30}(?:pronta?|saiu|ficou|t[aá] pronta|onde|cad[eê]|kd)/i.test(messageText)
+      || /^(?:oi|ol[aá]|bom dia|boa tarde|boa noite)?\s*(?:a|minha|o|meu)?\s*(?:pr[eé]via|m[uú]sica|[aá]udio|link|cad[eê]|kd)\b/i.test(messageText.trim())
+      || /(?:pr[eé]via|m[uú]sica)/i.test(messageText);
 
     // Mensagens diretas de atendimento ao pedido (envio de código NS-..., botão do site, cobrança de música ou pagamento)
     // NUNCA devem ser silenciadas pela desativação do robô conversacional nem por atendimento humano anterior.
@@ -647,7 +646,8 @@ export async function POST(req) {
       const isShortAck = isShortAckMessage(messageText);
       const isExplicitId = Boolean(candidateId);
       const isMusicInquiry = pareceCobrancaDeMusica(messageText);
-      const isDirectMusicRequest = isExplicitId || isMusicInquiry || isDefaultSiteButtonText || isExplicitPreviewRequest;
+      const hasAudioReady = Boolean(matchedOrder.audioUrl || matchedOrder.audioFiles?.length);
+      const isDirectMusicRequest = isExplicitId || isMusicInquiry || isDefaultSiteButtonText || isExplicitPreviewRequest || hasAudioReady;
 
       // Primeiro nome só. Ninguém chama a pessoa pelo nome completo no WhatsApp, e "Olá,
       // Cliente!" (o padrão antigo quando o nome faltava) é a assinatura de mensagem automática.
@@ -725,9 +725,9 @@ export async function POST(req) {
           : (freshData.readyTemplateSentAt || freshData.whatsappSentAt);
 
         const recentlySent = isExplicitId
-          ? (lastSentAt && (Date.now() - Date.parse(lastSentAt) < 60000))
+          ? (lastSentAt && (Date.now() - Date.parse(lastSentAt) < 30000))
           : (isPaid
-              ? (lastSentAt && (Date.now() - Date.parse(lastSentAt) < 120000))
+              ? (lastSentAt && (Date.now() - Date.parse(lastSentAt) < 60000))
               : (sentWithinCooldown(freshData.readyTemplateSentAt) || sentWithinCooldown(freshData.whatsappSentAt)));
 
         if (recentlySent) {

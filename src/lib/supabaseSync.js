@@ -125,6 +125,7 @@ export function mapSupabaseOrderToFirestore(row) {
   if (!row || typeof row !== 'object') return null;
 
   return {
+    ...(row.extras && typeof row.extras === 'object' ? row.extras : {}),
     id: row.id,
     orderNumber: row.order_number,
     customerName: row.customer_name || 'Cliente',
@@ -194,7 +195,6 @@ export function mapSupabaseOrderToFirestore(row) {
     createdAt: row.created_at || null,
     updatedAt: row.updated_at || null,
     deletedAt: row.deleted_at || null,
-    ...(row.extras && typeof row.extras === 'object' ? row.extras : {}),
   };
 }
 
