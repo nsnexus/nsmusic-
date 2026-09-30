@@ -28,9 +28,19 @@ export default function PlaybackAddonCard({ orderId, order }) {
 
   // Faixa escolhida pelo cliente
   const faixas = useMemo(() => Array.isArray(order?.audioIds) ? order.audioIds : [], [order?.audioIds]);
-  const arquivosFaixas = useMemo(() => Array.isArray(order?.audioFiles) ? order.audioFiles : [], [order?.audioFiles]);
-  const temEscolha = faixas.length > 1;
-  const [faixaEscolhida, setFaixaEscolhida] = useState(0);
+  const arquivosFaixas = useMemo(() => {
+    if (!Array.isArray(order?.audioFiles)) return order?.audioUrl ? [order.audioUrl] : [];
+    return order.audioFiles.map(f => typeof f === 'string' ? f : f?.url).filter(Boolean);
+  }, [order?.audioFiles, order?.audioUrl]);
+  const totalFaixas = Math.max(faixas.length, arquivosFaixas.length);
+  const temEscolha = totalFaixas > 1;
+  const [faixaEscolhida, setFaixaEscolhida] = useState(() => {
+    if (order?.playbackChosenAudioId && Array.isArray(order?.audioIds)) {
+      const idx = order.audioIds.indexOf(order.playbackChosenAudioId);
+      if (idx !== -1) return idx;
+    }
+    return 0;
+  });
 
   const hasAccess = unlocked || order?.hasPlaybackAccess || order?.playbackAddonPaid;
   const identificacao = order?.orderNumber || orderId;
@@ -99,20 +109,23 @@ export default function PlaybackAddonCard({ orderId, order }) {
     return () => clearInterval(interval);
   }, [orderId, pixInfo.paymentId, hasAccess]);
 
-  // Função para acionar a separação por IA na VPS
-  const triggerAiSeparation = useCallback(async () => {
+  // Função para acionar a separação por IA na VPS com a faixa escolhida
+  const triggerAiSeparation = useCallback(async (chosenIdx = faixaEscolhida) => {
     if (!orderId || isTriggering) return;
     setIsTriggering(true);
     setGenerationError('');
 
     try {
-      const chosenAudioId = temEscolha && faixas[faixaEscolhida] ? faixas[faixaEscolhida] : (order?.playbackChosenAudioId || null);
+      const targetAudioId = faixas[chosenIdx] || (temEscolha && faixas[faixaEscolhida] ? faixas[faixaEscolhida] : (order?.playbackChosenAudioId || null));
+      const targetAudioUrl = arquivosFaixas[chosenIdx] || arquivosFaixas[faixaEscolhida] || null;
+
       const res = await fetch('/api/playback/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           orderId,
-          audioId: chosenAudioId,
+          audioId: targetAudioId,
+          audioUrl: targetAudioUrl,
         }),
       });
 
@@ -133,18 +146,7 @@ export default function PlaybackAddonCard({ orderId, order }) {
     } finally {
       setIsTriggering(false);
     }
-  }, [orderId, isTriggering, temEscolha, faixas, faixaEscolhida, order?.playbackChosenAudioId]);
-
-  // Inicia automaticamente a geração quando o acesso é liberado e ainda não tem áudio pronto ou gerando
-  useEffect(() => {
-    if (!hasAccess || currentPlaybackUrl || currentPlaybackStatus === 'READY' || currentPlaybackStatus === 'GERANDO') {
-      return;
-    }
-    // Dispara a geração se estiver sem status ou em status inicial
-    if (!currentPlaybackStatus || currentPlaybackStatus === 'AGUARDANDO_CONTATO' || currentPlaybackStatus === 'PENDENTE') {
-      triggerAiSeparation();
-    }
-  }, [hasAccess, currentPlaybackUrl, currentPlaybackStatus, triggerAiSeparation]);
+  }, [orderId, isTriggering, temEscolha, faixas, faixaEscolhida, arquivosFaixas, order?.playbackChosenAudioId]);
 
   // Polling de status enquanto estiver GERANDO
   useEffect(() => {
@@ -375,19 +377,70 @@ export default function PlaybackAddonCard({ orderId, order }) {
     );
   }
 
-  // 4. Caso tenha falhado ou precise de acionamento manual
+  // 4. Acesso Liberado (aguardando o cliente escolher a versão e acionar)
   const faixaInformada = temEscolha
-    ? ` (faixa ${Math.max(1, faixas.indexOf(order?.playbackChosenAudioId) + 1)})`
+    ? ` (faixa ${faixaEscolhida + 1})`
     : '';
 
   return (
     <div className="glass-card" style={{ ...estiloCartao, textAlign: 'center' }}>
+      <div style={{ display: 'inline-block', background: 'rgba(52, 211, 153, 0.2)', border: '1px solid #34d399', borderRadius: '20px', padding: '4px 14px', fontSize: '0.8rem', color: '#34d399', fontWeight: '700', marginBottom: '12px' }}>
+        ✅ Playback Liberado!
+      </div>
       <h4 style={{ fontSize: '1.05rem', marginBottom: '8px', fontFamily: 'var(--font-family-title)', color: '#ffffff' }}>
-        ✅ Playback Liberado
+        Pronto para separar a voz do instrumental
       </h4>
-      <p style={{ fontSize: '0.85rem', color: '#cbd5e1', marginBottom: '14px', lineHeight: 1.45 }}>
-        Seu pagamento está confirmado! Clique abaixo para iniciar a separação vocal por IA de estúdio:
+      <p style={{ fontSize: '0.85rem', color: '#cbd5e1', marginBottom: '16px', lineHeight: 1.45 }}>
+        {temEscolha
+          ? 'Escolha qual versão da sua música você deseja transformar em Playback Instrumental:'
+          : 'Seu acesso está liberado! Clique abaixo para iniciar a separação vocal por IA de estúdio:'}
       </p>
+
+      {temEscolha && (
+        <div style={{ marginBottom: '16px', textAlign: 'left', maxWidth: '480px', margin: '0 auto 16px auto' }}>
+          {arquivosFaixas.map((audioSrc, i) => (
+            <label
+              key={i}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+                padding: '12px 14px',
+                borderRadius: '12px',
+                border: `1.5px solid ${faixaEscolhida === i ? 'var(--secondary)' : 'rgba(255,255,255,0.18)'}`,
+                backgroundColor: faixaEscolhida === i ? 'rgba(236, 72, 153, 0.22)' : 'rgba(0,0,0,0.3)',
+                marginBottom: '10px',
+                cursor: 'pointer',
+                boxSizing: 'border-box',
+                width: '100%',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <input
+                    type="radio"
+                    name="playback-faixa-paid"
+                    checked={faixaEscolhida === i}
+                    onChange={() => setFaixaEscolhida(i)}
+                  />
+                  <span style={{ fontSize: '0.9rem', fontWeight: '700', color: '#ffffff' }}>
+                    Versão {i + 1}
+                  </span>
+                </div>
+                {faixaEscolhida === i && (
+                  <span style={{ fontSize: '0.75rem', color: '#ec4899', fontWeight: '600' }}>
+                    ✓ Selecionada
+                  </span>
+                )}
+              </div>
+              {audioSrc && (
+                <audio controls src={buildAudioProxySrc(audioSrc)} style={{ width: '100%', maxWidth: '100%', height: '36px' }} />
+              )}
+            </label>
+          ))}
+        </div>
+      )}
 
       {generationError && (
         <p style={{ fontSize: '0.8rem', color: 'var(--error, #ef4444)', marginBottom: '12px' }}>
@@ -398,12 +451,16 @@ export default function PlaybackAddonCard({ orderId, order }) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'center' }}>
         <button
           type="button"
-          onClick={triggerAiSeparation}
+          onClick={() => triggerAiSeparation(faixaEscolhida)}
           disabled={isTriggering}
           className="btn btn-primary"
-          style={{ padding: '12px 20px', fontSize: '0.9rem', fontWeight: 'bold', border: 'none', cursor: isTriggering ? 'default' : 'pointer' }}
+          style={{ padding: '12px 24px', fontSize: '0.95rem', fontWeight: 'bold', border: 'none', cursor: isTriggering ? 'default' : 'pointer' }}
         >
-          {isTriggering ? 'Iniciando separação...' : '✨ Gerar Playback com IA de Estúdio'}
+          {isTriggering
+            ? 'Iniciando separação...'
+            : temEscolha
+              ? `🎧 Gerar Playback (Versão ${faixaEscolhida + 1})`
+              : '✨ Gerar Playback com IA de Estúdio'}
         </button>
 
         <a

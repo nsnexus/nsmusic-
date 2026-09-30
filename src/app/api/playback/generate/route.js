@@ -34,7 +34,7 @@ export async function POST(req) {
     const vpsSecret = String(env?.VPS_VIDEO_SECRET || process.env.VPS_VIDEO_SECRET || '').trim();
 
     const body = await req.json().catch(() => ({}));
-    const { orderId, audioId } = body || {};
+    const { orderId, audioId, audioUrl } = body || {};
 
     if (!orderId || typeof orderId !== 'string') {
       return NextResponse.json({ error: 'orderId obrigatório' }, { status: 400 });
@@ -63,11 +63,16 @@ export async function POST(req) {
 
     // Determina a faixa de áudio selecionada
     const faixas = Array.isArray(order.audioIds) ? order.audioIds : [];
-    const arquivosFaixas = Array.isArray(order.audioFiles) ? order.audioFiles : [];
+    const arquivosFaixas = Array.isArray(order.audioFiles)
+      ? order.audioFiles.map(f => typeof f === 'string' ? f : f?.url).filter(Boolean)
+      : [];
     const targetAudioId = audioId || order.playbackChosenAudioId;
 
     let targetAudioUrl = null;
-    if (targetAudioId && faixas.length > 0) {
+    if (audioUrl && (arquivosFaixas.includes(audioUrl) || audioUrl === order.audioUrl)) {
+      targetAudioUrl = audioUrl;
+    }
+    if (!targetAudioUrl && targetAudioId && faixas.length > 0) {
       const idx = faixas.indexOf(targetAudioId);
       if (idx !== -1 && arquivosFaixas[idx]) {
         targetAudioUrl = arquivosFaixas[idx];
@@ -89,10 +94,12 @@ export async function POST(req) {
       }, { status: 503 });
     }
 
-    // Marca status GERANDO no Supabase
+    // Marca status GERANDO no Supabase e persiste a faixa escolhida
     await updateOrder(orderId, {
       playbackStatus: 'GERANDO',
       playbackError: null,
+      playbackChosenAudioId: targetAudioId || null,
+      playbackChosenAudioUrl: targetAudioUrl || null,
       updatedAt: new Date().toISOString(),
     }, env).catch(err => {
       console.warn('[playback/generate] Falha ao atualizar playbackStatus para GERANDO:', err?.message);

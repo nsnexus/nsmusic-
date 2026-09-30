@@ -14,7 +14,7 @@ export async function POST(req) {
     } catch (e) {}
 
     const body = await req.json().catch(() => ({}));
-    const { orderId } = body || {};
+    const { orderId, audioUrl, trackIndex, audioId } = body || {};
 
     if (!orderId || typeof orderId !== 'string') {
       return NextResponse.json({ error: 'orderId é obrigatório' }, { status: 400 });
@@ -30,7 +30,7 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Este pedido não possui acesso liberado ao Vídeo Karaokê.' }, { status: 403 });
     }
 
-    const result = await triggerKaraokeRender(orderId, env);
+    const result = await triggerKaraokeRender(orderId, { audioUrl, trackIndex, audioId }, env);
     if (!result.ok) {
       return NextResponse.json({ error: result.error || 'Falha ao iniciar geração do karaokê' }, { status: 500 });
     }

@@ -342,8 +342,14 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
 
     if (txResult.isKaraokeOnly) {
       try {
-        const { triggerKaraokeRender } = await import('./karaoke.js');
-        await triggerKaraokeRender(orderId, env);
+        const freshData = await getOrder(orderId, env);
+        const hasMultiple = Array.isArray(freshData?.audioFiles) && freshData.audioFiles.length > 1;
+        const hasChosen = Boolean(freshData?.karaokeChosenAudioUrl || (freshData?.karaokeChosenTrackIndex !== undefined && freshData?.karaokeChosenTrackIndex !== null));
+        // Se houver múltiplas versões e o cliente ainda não escolheu, não auto-renderiza; deixa o cliente escolher na página de entrega!
+        if (!hasMultiple || hasChosen) {
+          const { triggerKaraokeRender } = await import('./karaoke.js');
+          await triggerKaraokeRender(orderId, {}, env);
+        }
       } catch (err) {
         console.warn('[payments] Erro ao iniciar geração de karaokê:', err.message);
       }
