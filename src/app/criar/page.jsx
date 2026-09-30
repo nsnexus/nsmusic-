@@ -20,9 +20,6 @@ import { requestPixCharge } from '@/lib/pixCheckout';
 import { useWhatsappSuporte, linkWhatsapp } from '@/lib/useWhatsappSuporte';
 import { StudioLyricsAnimation, StudioAudioAnimation } from '@/components/StudioAnimations';
 
-// Espera antes de mostrar o convite "receber a música no WhatsApp" na tela de geração
-const WHATSAPP_CTA_DELAY_MS = 30000;
-
 // Tempo na tela de produção depois do qual o cliente sempre ganha uma saída (conferir de novo,
 // recomeçar ou chamar no WhatsApp). Maior que o corte de 6 min do polling de propósito: só entra
 // em cena quando o polling não está dando conta, não em vez dele.
@@ -496,7 +493,6 @@ export default function CriarMusica() {
 
   // Passos de carregamento dinâmico no estúdio de produção musical (Step 10)
   const [audioStepIdx, setAudioStepIdx] = useState(0);
-  const [showWhatsappCta, setShowWhatsappCta] = useState(false);
   const studioAudioPhrases = [
     "🎸 Compondo arranjos de instrumentos e base harmônica em estúdio...",
     "🎤 Gravando vocais e ajustando afinação e interpretação...",
@@ -550,15 +546,6 @@ export default function CriarMusica() {
       setAudioProgressPct(pct);
     }, 500);
     return () => clearInterval(interval);
-  }, [formData.sunoStatus]);
-
-  // O convite de receber pelo WhatsApp só aparece depois de WHATSAPP_CTA_DELAY_MS na tela de
-  // geração: aparecendo de cara, o cliente clicava e saía antes mesmo de ver a música ficar pronta ali.
-  useEffect(() => {
-    if (formData.sunoStatus === 'generated') return;
-    setShowWhatsappCta(false);
-    const t = setTimeout(() => setShowWhatsappCta(true), WHATSAPP_CTA_DELAY_MS);
-    return () => clearTimeout(t);
   }, [formData.sunoStatus]);
 
 
@@ -1583,33 +1570,16 @@ export default function CriarMusica() {
                     </div>
                   </div>
 
-                  <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px solid #dcfce7' }}>
-                    <p style={{ fontSize: '0.86rem', color: '#15803d', margin: '0 0 10px 0', fontWeight: '700' }}>
-                      💡 Não precisa ficar esperando nesta tela!
-                    </p>
-                    <a
-                      href={`${linkWhatsapp(whatsappSuporte, `Olá! Quero receber a prévia da música do meu pedido ${orderId ? `id=${orderId}` : ''}`)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '8px',
-                        padding: '12px 18px',
-                        fontSize: '0.95rem',
-                        fontWeight: '700',
-                        borderRadius: '12px',
-                        background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
-                        color: '#ffffff',
-                        textDecoration: 'none',
-                        boxShadow: '0 4px 14px rgba(22, 163, 74, 0.28)',
-                        width: '100%',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <span>Receber Música no meu WhatsApp →</span>
-                    </a>
+                  <div style={{ marginTop: '12px', paddingTop: '10px', borderTop: '1px solid #dcfce7', display: 'flex', alignItems: 'flex-start', gap: '8px', textAlign: 'left' }}>
+                    <span style={{ fontSize: '1rem', flexShrink: 0, lineHeight: 1.3 }}>💡</span>
+                    <div>
+                      <p style={{ fontSize: '0.86rem', color: '#15803d', margin: '0 0 2px', fontWeight: '800', lineHeight: '1.4' }}>
+                        Não precisa ficar esperando nesta tela!
+                      </p>
+                      <p style={{ fontSize: '0.82rem', color: '#64748b', margin: 0, fontWeight: '500', lineHeight: '1.45' }}>
+                        Assim que a música ficar pronta, a notificação chega sozinha no seu WhatsApp.
+                      </p>
+                    </div>
                   </div>
                 </div>
                 {/* Passou de AUDIO_WATCHDOG_MS e a música não chegou. Não é o painel de erro: aqui

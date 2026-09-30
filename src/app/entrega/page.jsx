@@ -23,6 +23,35 @@ import { useWhatsappSuporte, linkWhatsapp } from '@/lib/useWhatsappSuporte';
 import { usePromoverAudio } from '@/lib/usePromoverAudio';
 import { identifyTikTok, trackTikTok } from '@/lib/tiktokPixel';
 
+/**
+ * Tarja de prévia limitada, exibida DENTRO do card de cada versão.
+ *
+ * Antes existia um aviso único embaixo dos dois players. Quem parava no player da Versão 2 — que é
+ * onde a maioria para, por ser o último — não via que o corte de 60s valia para ela também, e
+ * abria o WhatsApp achando que o arquivo tinha vindo quebrado.
+ */
+function AvisoPrevia60s() {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: '9px',
+        marginTop: '12px',
+        padding: '10px 13px',
+        backgroundColor: '#fffbeb',
+        border: '1px solid #fde68a',
+        borderRadius: '12px',
+      }}
+    >
+      <span style={{ fontSize: '1rem', lineHeight: 1.3, flexShrink: 0 }}>🔒</span>
+      <p style={{ margin: 0, fontSize: '0.79rem', color: '#92400e', fontWeight: '700', lineHeight: 1.4 }}>
+        Prévia de 60 segundos. O pagamento libera as 2 versões completas em MP3 HD.
+      </p>
+    </div>
+  );
+}
+
 function EntregaContent() {
   // Número do suporte vem da configuração editável no painel (src/lib/configSite.js), não do código.
   const whatsappSuporte = useWhatsappSuporte();
@@ -262,30 +291,42 @@ function EntregaContent() {
     {
       sku: 'audio_only',
       icone: '🎵',
-      titulo: '2 versões completas em MP3 HD',
-      desc: 'Músicas completas sem vinheta e em alta qualidade',
+      iconBg: '#dcfce7',
+      iconColor: '#16a34a',
+      priceColor: '#059669',
+      titulo: '2 versões completas',
+      linhas: ['em MP3 HD'],
       valor: getPriceForSku('audio_only') || 9.99,
     },
     {
       sku: 'combo_carta',
       icone: '📄',
-      titulo: '2 versões completas + Carta Virtual',
-      desc: 'Carta virtual personalizada e emocionante',
+      iconBg: '#fce7f3',
+      iconColor: '#ec4899',
+      priceColor: '#1e293b',
+      titulo: '2 versões completas',
+      linhas: ['+ Carta Virtual'],
       valor: getPriceForSku('combo_carta') || 13.98,
     },
     {
       sku: 'combo',
       icone: '▶️',
-      titulo: '2 versões completas + Vídeo Homenagem + Carta Virtual',
-      desc: 'Vídeo emocionante com fotos e carta virtual de brinde',
+      iconBg: '#ede9fe',
+      iconColor: '#8b5cf6',
+      priceColor: '#7c3aed',
+      titulo: '2 versões completas',
+      linhas: ['+ Vídeo Homenagem', '+ Carta Virtual'],
       valor: getPriceForSku('combo') || 16.89,
       destaque: '👑 MAIS ESCOLHIDO',
     },
     {
       sku: 'combo_retrospectiva',
       icone: '🎞️',
-      titulo: '2 versões completas + Retrospectiva + Vídeo Homenagem + Carta Virtual',
-      desc: 'Retrospectiva completa com fotos, vídeo e carta inclusos',
+      iconBg: '#fef3c7',
+      iconColor: '#f59e0b',
+      priceColor: '#1e293b',
+      titulo: '2 versões completas',
+      linhas: ['+ Retrospectiva + Vídeo Homenagem', '+ Carta Virtual'],
       valor: getPriceForSku('combo_retrospectiva') || 19.98,
     },
   ];
@@ -1525,7 +1566,9 @@ function EntregaContent() {
                         maxWidth: '440px',
                       }}
                     >
-                      Ouça as prévias de 60s abaixo. Para baixar as versões completas em alta definição (MP3 HD) e liberar todos os recursos, escolha uma opção:
+                      Você está ouvindo uma prévia de <strong style={{ color: '#1e293b' }}>60</strong> segundos.
+                      {' '}Desbloqueie as <strong style={{ color: '#1e293b' }}>2 versões completas</strong> em MP3 HD
+                      {' '}e escolha os <strong style={{ color: '#1e293b' }}>extras</strong> que quiser.
                     </p>
 
                     <button
@@ -1828,6 +1871,8 @@ function EntregaContent() {
                         </div>
                       </>
                     )}
+
+                    {!isPaid && <AvisoPrevia60s />}
                   </div>
                 )}
 
@@ -2010,40 +2055,60 @@ function EntregaContent() {
                         </button>
                       </div>
                     )}
+
+                    {!isPaid && <AvisoPrevia60s />}
                   </div>
                 )}
 
-                {/* Avisos abaixo dos players (Imagem 4) */}
+                {/* Atalho para a escada de preços. O aviso de prévia limitada saiu daqui e foi para
+                    dentro de cada player (AvisoPrevia60s) — ver o comentário do componente. */}
                 {!isPaid && (
-                  <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      document.getElementById('pagamento')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px',
+                      width: '100%',
+                      padding: '14px 16px',
+                      backgroundColor: '#f5f3ff',
+                      border: '1px solid #ede9fe',
+                      borderRadius: '16px',
+                      textAlign: 'center',
+                      cursor: 'pointer',
+                      boxSizing: 'border-box',
+                    }}
+                  >
                     <div
                       style={{
-                        padding: '10px 14px',
-                        backgroundColor: '#fffbeb',
-                        border: '1px solid #fde68a',
-                        borderRadius: '12px',
-                        textAlign: 'center',
+                        width: '38px',
+                        height: '38px',
+                        borderRadius: '11px',
+                        backgroundColor: '#ede9fe',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '1.05rem',
+                        flexShrink: 0,
                       }}
                     >
-                      <p style={{ margin: 0, fontSize: '0.78rem', color: '#92400e', fontWeight: '600', lineHeight: 1.45 }}>
-                        🔒 Prévia de 60 segundos com marca d&apos;água de proteção sonora. As versões completas serão liberadas após o pagamento.
-                      </p>
+                      🎵
                     </div>
 
-                    <div
-                      style={{
-                        padding: '10px 14px',
-                        backgroundColor: '#f5f3ff',
-                        border: '1px solid #ede9fe',
-                        borderRadius: '12px',
-                        textAlign: 'center',
-                      }}
-                    >
-                      <p style={{ margin: 0, fontSize: '0.80rem', color: '#6d28d9', fontWeight: '600', lineHeight: 1.45 }}>
-                        Escolha o plano de pagamento abaixo para liberar as versões completas sem marca d&apos;água e em alta qualidade.
-                      </p>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '0.88rem', fontWeight: '800', color: '#5b21b6', lineHeight: 1.35 }}>
+                        Escolha o plano de pagamento abaixo
+                      </div>
+                      <div style={{ fontSize: '0.8rem', color: '#6d28d9', fontWeight: '500', lineHeight: 1.4 }}>
+                        e libere as 2 versões completas em MP3 HD com os extras que preferir.
+                      </div>
                     </div>
-                  </>
+
+                    <span style={{ fontSize: '1.1rem', color: '#8b5cf6', flexShrink: 0 }} aria-hidden="true">⌄</span>
+                  </button>
                 )}
 
                 {/* Card WhatsApp: Não encontrou o estilo ideal? (Imagem 1) */}
@@ -2079,21 +2144,35 @@ function EntregaContent() {
                           Não encontrou o estilo ideal?
                         </h5>
                         <p style={{ fontSize: '0.84rem', color: '#334155', margin: 0, lineHeight: '1.4' }}>
-                          Fale com a nossa equipe no WhatsApp que regeramos para você sem custo adicional!
+                          Fale com a nossa equipe no WhatsApp e fazemos a sua música do seu jeito!
                         </p>
                       </div>
                     </div>
 
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 14px', margin: '14px 0 14px 4px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: '#15803d', fontWeight: '600' }}>
-                        <span>✓</span> Atendimento rápido
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: '#15803d', fontWeight: '600' }}>
-                        <span>✓</span> Produções personalizadas
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: '#15803d', fontWeight: '600' }}>
-                        <span>✓</span> Tiramos suas dúvidas
-                      </div>
+                      {['Atendimento rápido', 'Produções personalizadas', 'Tiramos suas dúvidas'].map((item) => (
+                        <div key={item} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: '#334155', fontWeight: '600' }}>
+                          <span
+                            aria-hidden="true"
+                            style={{
+                              width: '16px',
+                              height: '16px',
+                              borderRadius: '50%',
+                              backgroundColor: '#22c55e',
+                              color: '#ffffff',
+                              fontSize: '0.62rem',
+                              fontWeight: '900',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0,
+                            }}
+                          >
+                            ✓
+                          </span>
+                          {item}
+                        </div>
+                      ))}
                     </div>
 
                     <a
@@ -2804,11 +2883,19 @@ function EntregaContent() {
                       scrollMarginTop: '80px',
                     }}
                   >
-                    <div style={{ textAlign: 'center', marginBottom: '16px' }}>
-                      <h3 style={{ fontSize: '1.25rem', fontWeight: '800', margin: '0 0 6px', color: '#1e293b' }}>
-                        {promo ? '🎁 Oferta Especial Liberada!' : 'Libere as músicas completas em MP3 HD'}
+                    <div style={{ textAlign: 'center', marginBottom: '18px' }}>
+                      <div style={{ fontSize: '1.4rem', marginBottom: '4px' }}>⚡</div>
+                      <h3 style={{ fontSize: '1.25rem', fontWeight: '800', margin: '0 0 6px', color: '#1e293b', lineHeight: 1.25 }}>
+                        {promo ? (
+                          '🎁 Oferta Especial Liberada!'
+                        ) : (
+                          <>
+                            Libere as músicas completas<br />
+                            <span style={{ color: '#7c3aed' }}>em MP3 HD</span>
+                          </>
+                        )}
                       </h3>
-                      <p style={{ fontSize: '0.86rem', color: '#64748b', margin: 0, lineHeight: 1.45 }}>
+                      <p style={{ fontSize: '0.84rem', color: '#64748b', margin: '6px 0 0', lineHeight: 1.45 }}>
                         {promo ? (
                           <>
                             Pague apenas{' '}
@@ -2818,7 +2905,7 @@ function EntregaContent() {
                             para liberar as 2 versões completas e <strong>ganhe o Vídeo Homenagem de brinde!</strong>
                           </>
                         ) : (
-                          'Escolha o que deseja incluir no seu pedido:'
+                          'Você ouviu a prévia. O pagamento libera as 2 versões completas, sem corte, em MP3 HD. E cada faixa acima do mínimo vem com um extra de brinde.'
                         )}
                       </p>
                     </div>
@@ -2843,16 +2930,16 @@ function EntregaContent() {
                               style={{
                                 display: 'flex',
                                 alignItems: 'center',
-                                gap: '12px',
+                                gap: '10px',
                                 padding: '12px 14px',
-                                borderRadius: '14px',
+                                borderRadius: '16px',
                                 border: isSelected ? '2px solid #8b5cf6' : '1.5px solid #e2e8f0',
-                                backgroundColor: isSelected ? 'rgba(139, 92, 246, 0.05)' : '#ffffff',
+                                backgroundColor: isSelected ? '#faf5ff' : '#ffffff',
                                 cursor: pixLoading ? 'default' : 'pointer',
                                 position: 'relative',
                                 textAlign: 'left',
                                 transition: 'all 0.15s ease',
-                                boxShadow: isSelected ? '0 4px 14px rgba(139, 92, 246, 0.15)' : 'none',
+                                boxShadow: isSelected ? '0 4px 14px rgba(139, 92, 246, 0.12)' : 'none',
                               }}
                             >
                               {/* Badge "👑 MAIS ESCOLHIDO" */}
@@ -2876,7 +2963,74 @@ function EntregaContent() {
                                 </span>
                               )}
 
-                              {/* Radio Circle */}
+                              {/* Preço na ESQUERDA (Imagem 1) */}
+                              <div
+                                style={{
+                                  fontWeight: '800',
+                                  fontSize: '1.02rem',
+                                  color: isSelected ? '#7c3aed' : (pacote.priceColor || '#1e293b'),
+                                  whiteSpace: 'nowrap',
+                                  minWidth: '78px',
+                                }}
+                              >
+                                R$ {pacote.valor.toFixed(2).replace('.', ',')}
+                              </div>
+
+                              {/* Divisor Vertical */}
+                              <div
+                                style={{
+                                  width: '1px',
+                                  height: '32px',
+                                  backgroundColor: isSelected ? '#e9d5ff' : '#e2e8f0',
+                                  flexShrink: 0,
+                                }}
+                              />
+
+                              {/* Ícone em Soft Square Colorido (Imagem 1) */}
+                              <div
+                                style={{
+                                  width: '36px',
+                                  height: '36px',
+                                  borderRadius: '10px',
+                                  backgroundColor: pacote.iconBg || '#f1f5f9',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  fontSize: '1.1rem',
+                                  flexShrink: 0,
+                                }}
+                              >
+                                {pacote.icone}
+                              </div>
+
+                              {/* Conteúdo de Texto no MEIO */}
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div
+                                  style={{
+                                    fontWeight: '700',
+                                    fontSize: '0.88rem',
+                                    color: '#1e293b',
+                                    lineHeight: 1.25,
+                                    marginBottom: '2px',
+                                  }}
+                                >
+                                  {pacote.titulo}
+                                </div>
+                                {pacote.linhas?.map((linha, idx) => (
+                                  <div
+                                    key={idx}
+                                    style={{
+                                      fontSize: '0.76rem',
+                                      color: '#64748b',
+                                      lineHeight: 1.3,
+                                    }}
+                                  >
+                                    {linha}
+                                  </div>
+                                ))}
+                              </div>
+
+                              {/* Radio Circle na DIREITA (Imagem 1) */}
                               <div
                                 style={{
                                   width: '20px',
@@ -2900,47 +3054,6 @@ function EntregaContent() {
                                     }}
                                   />
                                 )}
-                              </div>
-
-                              {/* Conteúdo de Texto */}
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <div
-                                  style={{
-                                    fontWeight: '700',
-                                    fontSize: '0.92rem',
-                                    color: '#1e293b',
-                                    lineHeight: 1.3,
-                                    marginBottom: '2px',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '6px',
-                                  }}
-                                >
-                                  <span>{pacote.icone}</span>
-                                  <span>{pacote.titulo}</span>
-                                </div>
-                                <div
-                                  style={{
-                                    fontSize: '0.76rem',
-                                    color: '#64748b',
-                                    lineHeight: 1.35,
-                                  }}
-                                >
-                                  {pacote.desc}
-                                </div>
-                              </div>
-
-                              {/* Preço */}
-                              <div
-                                style={{
-                                  fontWeight: '800',
-                                  fontSize: '0.96rem',
-                                  color: isSelected ? '#7c3aed' : '#334155',
-                                  whiteSpace: 'nowrap',
-                                  flexShrink: 0,
-                                }}
-                              >
-                                R$ {pacote.valor.toFixed(2).replace('.', ',')}
                               </div>
                             </div>
                           );
@@ -2982,10 +3095,34 @@ function EntregaContent() {
                             {/* QR Code como caminho principal: parte dos clientes não localizava o
                                 botão de copiar e desistia do pagamento. O copia-e-cola continua
                                 abaixo para quem paga pelo computador. */}
-                            <div style={{ textAlign: 'center', marginBottom: '14px' }}>
-                              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '10px' }}>
-                                Abra o app do seu banco e aponte a câmera para o QR Code:
-                              </p>
+                            {/* O valor aparece colado no QR de propósito: a escada fica acima e sai
+                                da tela quando o cliente rola até aqui, e quem paga sem ver o total
+                                é quem depois manda comprovante de outro valor. */}
+                            <div
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '18px',
+                                flexWrap: 'wrap',
+                                padding: '16px 14px',
+                                marginBottom: '14px',
+                                backgroundColor: '#f5f3ff',
+                                border: '1px solid #ede9fe',
+                                borderRadius: '16px',
+                              }}
+                            >
+                              <div style={{ textAlign: 'center' }}>
+                                <p style={{ fontSize: '0.84rem', color: '#64748b', margin: '0 0 2px' }}>
+                                  Você vai pagar
+                                </p>
+                                <p style={{ fontSize: '1.9rem', fontWeight: '800', color: '#7c3aed', margin: '0 0 10px', lineHeight: 1.1 }}>
+                                  {valorCobradoTexto}
+                                </p>
+                                <p style={{ fontSize: '0.82rem', color: '#64748b', margin: 0, maxWidth: '190px', lineHeight: 1.4 }}>
+                                  Abra o app do seu banco e aponte a câmera para o QR Code:
+                                </p>
+                              </div>
                               <PixQrCode payload={pixInfo.qrCode} />
                             </div>
 
