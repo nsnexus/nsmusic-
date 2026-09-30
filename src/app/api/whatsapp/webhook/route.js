@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { readEnvValue } from '@/lib/envValue';
 import { getRequestContext } from '@cloudflare/next-on-pages';
 import { getOrder, updateOrder } from '@/lib/supabaseDb';
-import { sendWApiTextMessage, resolveDeliveryUrl, isVideoPurchased, buildAudioDownloadLink } from '@/lib/whatsapp';
+import { sendWApiTextMessage, resolveDeliveryUrl, isVideoPurchased, buildAudioDownloadLink, cleanWhatsAppId } from '@/lib/whatsapp';
 import {
   handleWhatsAppAgentMessage,
   pauseAgentForPhone,
@@ -170,13 +170,17 @@ export function temAnexoDeComprovante(body) {
 export function extractSenderPhone(body) {
   if (!body) return '';
 
-  // Formato Evolution API: o remetente real é sempre data.key.remoteJid (ou participant, em grupo).
-  // Vem primeiro de propósito, antes de qualquer campo do nível raiz.
+  // Formato Evolution API: quando a conversa usa LID no WhatsApp moderno, a Evolution coloca
+  // o telefone real em remoteJidAlt (ex: "559884888048@s.whatsapp.net"), enquanto remoteJid fica
+  // com o LID numérico ("183064944721937@lid"). O telefone real DEVE ser priorizado para permitir
+  // localizar o pedido no banco e garantir envio direto!
+  const evolutionAlt = body?.data?.key?.remoteJidAlt || body?.key?.remoteJidAlt;
   const evolutionJid = body?.data?.key?.participant || body?.data?.key?.remoteJid;
 
   const owner = extractInstanceOwner(body);
 
   const candidates = [
+    evolutionAlt,
     evolutionJid,
     // Formato real da W-API — sender é um objeto ({ id, senderLid, pushName, ... }), não uma string;
     // o número puro fica em sender.id (senderLid/chat.id usam o formato novo "@lid" da Meta, que não
@@ -192,8 +196,10 @@ export function extractSenderPhone(body) {
     body.data?.sender,
     body.data?.chat?.id,
     body.data?.chat?.phone,
+    body.data?.key?.remoteJidAlt,
     body.data?.key?.remoteJid,
     body.data?.key?.participant,
+    body.key?.remoteJidAlt,
     body.key?.remoteJid,
     body.key?.participant,
     body.chatId,
@@ -201,10 +207,11 @@ export function extractSenderPhone(body) {
   ];
 
   const candidateNames = [
+    'data.key.remoteJidAlt(evolution)',
     'data.key.remoteJid(evolution)',
     'sender.id', 'chat.id', 'chat.phone', 'phone', 'from', 'sender', 'data.phone', 'data.from', 'data.sender',
-    'data.chat.id', 'data.chat.phone', 'data.key.remoteJid', 'data.key.participant', 'key.remoteJid', 'key.participant',
-    'chatId', 'data.chatId',
+    'data.chat.id', 'data.chat.phone', 'data.key.remoteJidAlt', 'data.key.remoteJid', 'data.key.participant',
+    'key.remoteJidAlt', 'key.remoteJid', 'key.participant', 'chatId', 'data.chatId',
   ];
 
   // Varre TODOS os candidatos (não para no primeiro) e prefere um de formato BR válido (12 ou 13
@@ -772,23 +779,27 @@ Se precisar de qualquer coisa, é só me chamar.`;
         }
 
         try {
-          await sendWApiTextMessage(senderPhone, replyMsg, envVars);
-          try {
-            const updatePayload = {
-              whatsappSent: true,
-              whatsappSentAt: new Date().toISOString(),
-              readyTemplateSending: false,
-              whatsappSending: false,
-            };
-            if (isPaid) {
-              updatePayload.paymentWhatsappSent = true;
-              updatePayload.paymentWhatsappSentAt = new Date().toISOString();
-            } else {
-              updatePayload.readyTemplateSent = true;
-              updatePayload.readyTemplateSentAt = new Date().toISOString();
-            }
-            await updateOrder(matchedOrderId, updatePayload, envVars);
-          } catch (e) {}
+          const sendRes = await sendWApiTextMessage(senderPhone, replyMsg, envVars);
+          if (sendRes?.success) {
+            try {
+              const updatePayload = {
+                whatsappSent: true,
+                whatsappSentAt: new Date().toISOString(),
+                readyTemplateSending: false,
+                whatsappSending: false,
+              };
+              if (isPaid) {
+                updatePayload.paymentWhatsappSent = true;
+                updatePayload.paymentWhatsappSentAt = new Date().toISOString();
+              } else {
+                updatePayload.readyTemplateSent = true;
+                updatePayload.readyTemplateSentAt = new Date().toISOString();
+              }
+              await updateOrder(matchedOrderId, updatePayload, envVars);
+            } catch (e) {}
+          } else {
+            console.warn(`[WhatsApp Webhook] Falha ao enviar link de música para ${senderPhone}:`, sendRes?.error);
+          }
         } finally {
           try {
             await updateOrder(matchedOrderId, {
@@ -812,13 +823,15 @@ Se precisar de qualquer coisa, é só me chamar.`;
 
 Assim que ficar pronta eu te mando o link aqui mesmo, pode deixar comigo. 💜`;
 
-        await sendWApiTextMessage(senderPhone, replyMsg, envVars);
-        try {
-          await updateOrder(matchedOrderId, {
-            whatsappWaitAckSent: true,
-            whatsappWaitAckSentAt: new Date().toISOString(),
-          }, envVars);
-        } catch (e) {}
+        const sendWaitRes = await sendWApiTextMessage(senderPhone, replyMsg, envVars);
+        if (sendWaitRes?.success) {
+          try {
+            await updateOrder(matchedOrderId, {
+              whatsappWaitAckSent: true,
+              whatsappWaitAckSentAt: new Date().toISOString(),
+            }, envVars);
+          } catch (e) {}
+        }
 
         return NextResponse.json({ success: true, action: 'sent_wait_acknowledgment' }, { status: 200 });
       }

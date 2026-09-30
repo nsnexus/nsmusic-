@@ -91,16 +91,49 @@ export async function shouldBlockWhatsAppMessage(phone, message, env = {}) {
   return { block: false };
 }
 
-export const getEvolutionConfig = (env = {}) => {
+let cachedEvoConfig = null;
+let lastEvoFetchTime = 0;
+
+export const getEvolutionConfig = async (env = {}) => {
   let ctxEnv = {};
   try {
     const ctx = getRequestContext();
     if (ctx?.env) ctxEnv = ctx.env;
   } catch (e) {}
 
-  const baseUrl = (env.EVOLUTION_API_URL || ctxEnv.EVOLUTION_API_URL || process.env.EVOLUTION_API_URL || '').replace(/\/$/, '');
-  const instanceName = env.EVOLUTION_INSTANCE_NAME || ctxEnv.EVOLUTION_INSTANCE_NAME || process.env.EVOLUTION_INSTANCE_NAME || '';
-  const token = env.EVOLUTION_API_KEY || ctxEnv.EVOLUTION_API_KEY || process.env.EVOLUTION_API_KEY || '';
+  const baseUrl = (env?.EVOLUTION_API_URL || ctxEnv?.EVOLUTION_API_URL || process.env?.EVOLUTION_API_URL || '').replace(/\/$/, '');
+  const instanceName = env?.EVOLUTION_INSTANCE_NAME || ctxEnv?.EVOLUTION_INSTANCE_NAME || process.env?.EVOLUTION_INSTANCE_NAME || '';
+  const token = env?.EVOLUTION_API_KEY || ctxEnv?.EVOLUTION_API_KEY || process.env?.EVOLUTION_API_KEY || '';
+
+  if (baseUrl && instanceName && token) {
+    return { baseUrl, instanceName, token, enabled: true };
+  }
+
+  // Fallback seguro: carregar da tabela `config` do Supabase (chave: 'evolution')
+  const now = Date.now();
+  if (cachedEvoConfig && (now - lastEvoFetchTime < 60000)) {
+    return cachedEvoConfig;
+  }
+
+  try {
+    const { getSupabaseEdge } = await import('./supabase-edge.js');
+    const supabase = getSupabaseEdge(env);
+    if (supabase) {
+      const { data } = await supabase.from('config').select('valor').eq('chave', 'evolution').maybeSingle();
+      if (data?.valor?.baseUrl && data?.valor?.apiKey && data?.valor?.instanceName) {
+        cachedEvoConfig = {
+          baseUrl: String(data.valor.baseUrl).replace(/\/$/, ''),
+          instanceName: String(data.valor.instanceName),
+          token: String(data.valor.apiKey),
+          enabled: true,
+        };
+        lastEvoFetchTime = now;
+        return cachedEvoConfig;
+      }
+    }
+  } catch (err) {
+    console.warn('[WhatsApp] Falha ao consultar config/evolution no Supabase:', err.message);
+  }
 
   return { baseUrl, instanceName, token, enabled: Boolean(baseUrl && instanceName && token) };
 };
@@ -113,7 +146,7 @@ export const sendWhatsAppPresence = async (phone, presence = 'composing', env = 
   const formattedNumber = formatToWhatsAppNumber(phone);
   if (!formattedNumber) return;
 
-  const evoConfig = getEvolutionConfig(env);
+  const evoConfig = await getEvolutionConfig(env);
   if (evoConfig.enabled) {
     try {
       await fetch(`${evoConfig.baseUrl}/chat/sendPresence/${evoConfig.instanceName}`, {
@@ -143,7 +176,7 @@ export const sendEvolutionTextMessage = async (phone, message, env = {}) => {
     return { success: true, mocked: true };
   }
 
-  const { baseUrl, instanceName, token, enabled } = getEvolutionConfig(env);
+  const { baseUrl, instanceName, token, enabled } = await getEvolutionConfig(env);
   const formattedNumber = formatToWhatsAppNumber(phone);
 
   if (!formattedNumber || !enabled) {
@@ -206,7 +239,7 @@ export const sendWhatsAppTextMessage = async (phone, message, env = {}) => {
     return { success: true, ignored: guard.reason, phoneUsed: formattedNumber };
   }
 
-  const evoConfig = getEvolutionConfig(env);
+  const evoConfig = await getEvolutionConfig(env);
   if (!evoConfig.enabled) {
     return { success: false, error: 'Evolution API não configurado na VPS.' };
   }
@@ -272,7 +305,7 @@ export const sendMusicReadyTemplate = async (phone, { customerName, honoreeName,
   }
 
   // Contingência / Envio via Evolution API (VPS própria)
-  const evoConfig = getEvolutionConfig(env);
+  const evoConfig = await getEvolutionConfig(env);
   if (evoConfig.enabled) {
     console.log(`[WhatsApp] Enviando aviso de música pronta via Evolution API para ${phone}...`);
     const message = `${primeiroNome(name) ? `Oi, ${primeiroNome(name)}! ` : 'Oi! '}A música de ${honoree} ficou pronta. 🎧
@@ -343,7 +376,7 @@ export const sendPaymentApprovedTemplate = async (phone, { customerName, honoree
   }
 
   // Contingência / Envio via Evolution API (VPS própria)
-  const evoConfig = getEvolutionConfig(env);
+  const evoConfig = await getEvolutionConfig(env);
   if (evoConfig.enabled) {
     console.log(`[WhatsApp] Enviando confirmação de pagamento via Evolution API para ${phone}...`);
     const audiosList = urls

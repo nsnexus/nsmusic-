@@ -219,7 +219,7 @@ export const notifyMusicReady = async (orderRefOrId, orderData, orderIdParam, op
     customerName: currentOrder.customerName,
     honoreeName: currentOrder.honoreeName,
     deliveryUrl,
-  });
+  }, env);
 
   if (sendResult.success) {
     await updateOrder(orderId, {

@@ -49,6 +49,25 @@ describe('extractSenderPhone — payload da Evolution API', () => {
     expect(extractSenderPhone(body)).not.toContain(ESTUDIO);
   });
 
+  it('prioriza remoteJidAlt quando remoteJid é @lid da Meta', () => {
+    const body = {
+      event: 'messages.upsert',
+      instance: 'nsmusic',
+      sender: `${ESTUDIO}@s.whatsapp.net`,
+      data: {
+        key: {
+          remoteJid: '183064944721937@lid',
+          remoteJidAlt: `${CLIENTE}@s.whatsapp.net`,
+          fromMe: false,
+          id: 'ABC',
+        },
+        message: { conversation: 'cadê minha prévia?' },
+      },
+    };
+    const phone = extractSenderPhone(body);
+    expect(phone).toBe(CLIENTE);
+  });
+
   it('formato antigo da W-API continua funcionando', () => {
     const body = { sender: { id: `${CLIENTE}@s.whatsapp.net`, pushName: 'Cliente' } };
     expect(extractSenderPhone(body)).toContain(CLIENTE);
