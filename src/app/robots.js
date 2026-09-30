@@ -30,6 +30,7 @@ const PRIVADAS = [
   '/login',
   '/c/',
   '/h/',
+  '/r/',
 ];
 
 export default function robots() {

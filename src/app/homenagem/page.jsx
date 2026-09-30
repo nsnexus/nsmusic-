@@ -267,7 +267,7 @@ export function HomenagemView({ orderId: propOrderId }) {
         {isPaid && order.hasRetrospectivaAccess && (
           <div style={{ marginTop: '32px', textAlign: 'center' }}>
             <a
-              href={`/retrospectiva?orderId=${orderId}`}
+              href={`/r/${orderId}`}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',

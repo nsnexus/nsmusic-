@@ -265,7 +265,7 @@ export default function RetrospectivaAddonCard({ orderId, order }) {
   }
 
   // --- Comprado: editor ---
-  const linkPublico = typeof window !== 'undefined' ? `${window.location.origin}/retrospectiva?orderId=${orderId}` : '';
+  const linkPublico = typeof window !== 'undefined' ? `${window.location.origin}/r/${orderId}` : '';
 
   return (
     <div className="glass-card" style={cardStyle}>
@@ -431,8 +431,8 @@ export default function RetrospectivaAddonCard({ orderId, order }) {
         {salvando ? 'Salvando...' : '💾 Salvar retrospectiva'}
       </button>
 
-      <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
-        <a href={linkPublico} target="_blank" rel="noopener noreferrer" className="btn btn-secondary" style={{ flex: 1, padding: '10px', fontSize: '0.82rem', textDecoration: 'none', textAlign: 'center' }}>
+      <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
+        <a href={linkPublico} target="_blank" rel="noopener noreferrer" className="btn btn-secondary" style={{ flex: 1, padding: '10px', fontSize: '0.82rem', textDecoration: 'none', textAlign: 'center', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
           👀 Ver página
         </a>
         <button
@@ -443,11 +443,38 @@ export default function RetrospectivaAddonCard({ orderId, order }) {
             setTimeout(() => setLinkCopiado(false), 3000);
           }}
           className="btn btn-secondary"
-          style={{ flex: 1, padding: '10px', fontSize: '0.82rem', cursor: 'pointer' }}
+          style={{ flex: 1, padding: '10px', fontSize: '0.82rem', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
         >
           {linkCopiado ? '✅ Link copiado!' : '🔗 Copiar link'}
         </button>
       </div>
+
+      <a
+        href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
+          `Preparei uma retrospectiva linda para você! 📖✨ Veja aqui: ${linkPublico}`
+        )}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="btn"
+        style={{
+          width: '100%',
+          marginTop: '8px',
+          background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)',
+          color: '#ffffff',
+          fontWeight: '700',
+          fontSize: '0.88rem',
+          padding: '11px',
+          borderRadius: '8px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '6px',
+          textDecoration: 'none',
+          boxSizing: 'border-box',
+        }}
+      >
+        <span>📲</span> Enviar no WhatsApp
+      </a>
     </div>
   );
 }

@@ -133,9 +133,9 @@ function formatarDataExtenso(iso) {
   return `${Number(dia)} de ${MESES_EXTENSO[i]} de ${ano}`;
 }
 
-function RetrospectivaContent() {
+export function RetrospectivaView({ orderId: propOrderId }) {
   const searchParams = useSearchParams();
-  const orderId = searchParams.get('orderId') || searchParams.get('id') || '';
+  const orderId = propOrderId || searchParams?.get('orderId') || searchParams?.get('id') || '';
 
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -790,7 +790,7 @@ const estilos = {
 export default function RetrospectivaPage() {
   return (
     <Suspense fallback={<div style={estilos.centro}><p style={{ color: 'var(--text-secondary)' }}>Carregando...</p></div>}>
-      <RetrospectivaContent />
+      <RetrospectivaView />
     </Suspense>
   );
 }
