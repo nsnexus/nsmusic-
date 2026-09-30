@@ -14,6 +14,7 @@ Canal oficial da Meta configurado para as duas mensagens transacionais críticas
 | **App da Meta** | `1663535488712112` | App `nsmusic` |
 | **Conta WhatsApp (WABA ID)** | `2160994021495241` | Conta `NS Music` |
 | **Identificação do Telefone (Phone Number ID)** | `1266330313237394` | Número: `+55 94 8126-2610` (Cloud API Verificado) |
+| **PIN de Registro / Confirmação 2 Etapas** | `190390` | PIN de 6 dígitos para registro do número na Cloud API |
 | **Token de Acesso** | `WHATSAPP_ACCESS_TOKEN` | Token de longa duração (expira em 28/11/2026) |
 
 ---
