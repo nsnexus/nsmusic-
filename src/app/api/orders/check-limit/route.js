@@ -91,8 +91,9 @@ export async function GET(req) {
     const resetAt = phone ? await lerResetDeCota(phone, env) : '';
     const cota = calcularCota(matches, { resetAt });
 
+    // Bloqueio automático por cota desativado a pedido do administrador (bloqueio agora é 100% manual)
     return NextResponse.json({
-      isBlocked: Boolean(cota.bloqueado),
+      isBlocked: false,
       totalCount: cota.usados,
       cota: cota.cota,
       pagos: cota.pagos,
@@ -101,14 +102,12 @@ export async function GET(req) {
     });
   } catch (error) {
     console.error('[check-limit] Falha ao verificar cota:', error.message);
-    // Em caso de falha não esperada, retorna desbloqueado para não travar indevidamente
-    // clientes válidos (a trava oficial final em /api/orders/create continuará avaliando).
     return NextResponse.json({
       isBlocked: false,
       totalCount: 0,
-      cota: 5,
+      cota: 999,
       pagos: 0,
-      restantes: 5,
+      restantes: 999,
       manualBlock: false,
     });
   }

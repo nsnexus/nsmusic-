@@ -864,7 +864,7 @@ export default function CriarMusica() {
           hasPaid: (data.pagos || 0) > 0,
           restantes: data.restantes,
           cota: data.cota,
-          isBlocked: Boolean(data.isBlocked),
+          isBlocked: Boolean(data.manualBlock),
           manualBlock: Boolean(data.manualBlock),
           reason: data.reason || null
         };
@@ -931,15 +931,11 @@ export default function CriarMusica() {
     if (isSubmitting) return;
     setIsSubmitting(true);
     try {
-      // Verifica trava de cota / blacklist no servidor antes de prosseguir
+      // Verifica trava de bloqueio manual (blacklist) no servidor antes de prosseguir
       const { isBlocked, manualBlock } = await checkUserLimit(formData.customerPhone, formData.customerEmail);
-      if (isBlocked) {
+      if (isBlocked || manualBlock) {
         setIsSubmitting(false);
-        if (manualBlock) {
-          alert('Este contato foi bloqueado para novas gerações na plataforma. Entre em contato com o suporte para mais informações.');
-        } else {
-          setShowLimitModal(true);
-        }
+        alert('Este contato foi bloqueado para novas gerações na plataforma. Entre em contato com o suporte para mais informações.');
         return;
       }
 
@@ -988,11 +984,7 @@ export default function CriarMusica() {
             const errData = await orderRes.json().catch(() => ({}));
             setIsSubmitting(false);
             updateField('lyricsStatus', 'idle');
-            if (errData?.blocked) {
-              alert(errData.error || 'Este contato foi bloqueado para novas gerações na plataforma. Entre em contato com o suporte.');
-            } else {
-              setShowLimitModal(true);
-            }
+            alert(errData?.error || 'Este contato foi bloqueado para novas gerações na plataforma. Entre em contato com o suporte.');
             return;
           }
         } catch (orderErr) {
@@ -1132,11 +1124,7 @@ export default function CriarMusica() {
           } else if (createRes.status === 403) {
             const errData = await createRes.json().catch(() => ({}));
             updateField('sunoStatus', 'idle');
-            if (errData?.blocked) {
-              alert(errData.error || 'Este contato foi bloqueado para novas gerações na plataforma. Entre em contato com o suporte.');
-            } else {
-              setShowLimitModal(true);
-            }
+            alert(errData?.error || 'Este contato foi bloqueado para novas gerações na plataforma. Entre em contato com o suporte.');
             return;
           }
         } catch (e) {

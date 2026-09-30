@@ -80,7 +80,7 @@ describe('GET /api/orders/check-limit', () => {
     expect(data.restantes).toBe(15);
   });
 
-  it('bloqueia usuário com 5 pedidos gratuitos e nenhum pago', async () => {
+  it('não bloqueia automaticamente usuário com 5 pedidos gratuitos (bloqueio 100% manual do admin)', async () => {
     dbOrders = Array.from({ length: 5 }, (_, i) => ({
       orderNumber: `free-${i}`,
       paymentStatus: 'AGUARDANDO_PAGAMENTO'
@@ -89,9 +89,9 @@ describe('GET /api/orders/check-limit', () => {
     const res = await GET(req);
     expect(res.status).toBe(200);
     const data = await res.json();
-    expect(data.isBlocked).toBe(true);
+    expect(data.isBlocked).toBe(false);
     expect(data.totalCount).toBe(5);
     expect(data.pagos).toBe(0);
-    expect(data.restantes).toBe(0);
+    expect(data.manualBlock).toBe(false);
   });
 });
