@@ -6,9 +6,9 @@ import { buildAudioProxySrc } from '@/lib/audioProxy';
 import CartaCartao from '@/components/CartaCartao';
 
 // Página PÚBLICA da Carta Virtual (add-on, ver src/lib/pricing.js:carta_addon)
-function CartaContent() {
+export function CartaView({ orderId: propOrderId }) {
   const searchParams = useSearchParams();
-  const orderId = searchParams.get('orderId') || searchParams.get('id') || '';
+  const orderId = propOrderId || searchParams?.get('orderId') || searchParams?.get('id') || '';
 
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -136,9 +136,16 @@ function CartaContent() {
           >
             <span style={{ fontSize: '1.15rem', filter: 'drop-shadow(0 1px 1px rgba(0,0,0,0.25))' }}>💗</span>
           </div>
-          <div style={{ marginTop: '18px', fontFamily: 'var(--font-family-title)', fontSize: '1.15rem', color: '#9d174d' }}>
-            {honoree ? `Uma carta para ${honoree}` : 'Sua carta chegou'}
+          <div style={{ marginTop: '18px', fontFamily: 'var(--font-family-title)', fontSize: '1.2rem', color: '#9d174d', fontWeight: '700' }}>
+            {remetente
+              ? `Carta Especial de ${remetente}`
+              : (honoree ? `Uma carta para ${honoree}` : 'Sua carta chegou')}
           </div>
+          {honoree && (
+            <div style={{ marginTop: '4px', fontSize: '0.9rem', color: '#db2777', fontWeight: '500' }}>
+              para {honoree}
+            </div>
+          )}
           <div style={{ marginTop: '8px', fontSize: '0.85rem', color: '#be185d' }}>toque no lacre para abrir</div>
         </button>
       ) : (
@@ -169,7 +176,7 @@ const estilos = {
 export default function CartaPage() {
   return (
     <Suspense fallback={<div style={estilos.centro}><p style={{ color: 'var(--text-secondary)' }}>Carregando...</p></div>}>
-      <CartaContent />
+      <CartaView />
     </Suspense>
   );
 }
