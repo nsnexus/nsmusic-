@@ -572,32 +572,25 @@ export async function POST(req) {
       return NextResponse.json({ success: true, warning: 'Nenhum remetente identificado' }, { status: 200 });
     }
 
-    // Identifica se a mensagem é uma referência/pedido de música, prévia, status de pedido ou pagamento
+    // Identifica se a mensagem é uma referência/pedido de música com ID explícito (NS-..., id=..., #...)
     const candidateId = extractCandidateOrderId(messageText);
-    const isDefaultSiteButtonText = messageText.includes('Quero receber a prévia da música do meu pedido');
-    const isMusicInquiry = pareceCobrancaDeMusica(messageText);
     const hasOrderReference = Boolean(candidateId);
-    const isPaymentInquiry = /(?:paguei|pagamento|comprovante|pix|pago)/i.test(messageText) || temAnexoDeComprovante(body);
-    const isExplicitMusicOrPreview = /(?:quero|manda|enviar?|receber|ver|ouvir|escutar|passa|cad[eê]|kd).{0,30}(?:pr[eé]via|m[uú]sica|audio|[aá]udio|link)/i.test(messageText)
-      || /(?:pr[eé]via|m[uú]sica|audio|[aá]udio).{0,30}(?:pronta?|saiu|ficou|t[aá] pronta|onde|cad[eê]|kd)/i.test(messageText)
-      || /^(?:oi|ol[aá]|bom dia|boa tarde|boa noite)?\s*(?:a|minha|o|meu)?\s*(?:pr[eé]via|m[uú]sica|[aá]udio|link|cad[eê]|kd)\b/i.test(messageText.trim())
-      || /(?:pr[eé]via|m[uú]sica)/i.test(messageText);
 
-    // Mensagens diretas de atendimento ao pedido (envio de código NS-..., botão do site, cobrança de música ou pagamento)
-    // NUNCA devem ser silenciadas pela desativação do robô conversacional nem por atendimento humano anterior.
-    const isDirectOrderRequest = hasOrderReference || isDefaultSiteButtonText || isMusicInquiry || isPaymentInquiry || isExplicitMusicOrPreview;
+    // O bot SÓ deve responder automaticamente se a mensagem trouxer explicitamente o ID do pedido.
+    // Qualquer outra mensagem (perguntas, bate-papo, mensagens de áudio) é tratada como atendimento humano do estúdio.
+    const isDirectOrderRequest = hasOrderReference;
     const isExplicitPreviewRequest = isDirectOrderRequest;
 
     // A. Master switch: se o robô conversacional estiver desativado no Admin (Atendimento 100% Humano),
-    // ele ainda atende consultas de pedido, envio de código ou confirmação de pagamento. Qualquer conversa geral fica em silêncio.
+    // qualquer mensagem que não traga o ID do pedido fica em silêncio absoluto.
     const isGloballyActive = await isWhatsAppAgentGloballyEnabled(envVars);
     if (!isGloballyActive && !isDirectOrderRequest) {
-      console.log(`[WhatsApp Webhook] Robô conversacional desativado globalmente. Silêncio para mensagem geral de ${senderPhone}.`);
+      console.log(`[WhatsApp Webhook] Mensagem sem ID de pedido de ${senderPhone}. Silêncio (robô desativado / atendimento humano).`);
       return NextResponse.json({ success: true, ignored: 'agent_globally_disabled' }, { status: 200 });
     }
 
-    // B. Atendimento humano: se o atendente humano assumiu este chat e ainda não se passaram 12h, IA conversacional em silêncio
-    // exceto se o cliente mandar o código do pedido ou perguntar sobre a música/pagamento.
+    // B. Atendimento humano: se o atendente humano assumiu este chat e ainda não se passaram 12h,
+    // silêncio exceto se o cliente mandar explicitamente o ID do pedido.
     const isPaused = await isAgentPausedForPhone(senderPhone, envVars);
     if (isPaused && !isDirectOrderRequest) {
       const lower = (messageText || '').toLowerCase();
@@ -611,7 +604,7 @@ export async function POST(req) {
       }
     }
 
-    // 1. Tentar encontrar ID ou número de pedido no texto
+    // 1. Tentar encontrar pedido pelo ID ou número informado no texto
     let matchedOrder = null;
     let matchedOrderId = '';
 
@@ -621,40 +614,31 @@ export async function POST(req) {
         matchedOrderId = found.id;
         matchedOrder = found;
       } else if (candidateId.startsWith('num:')) {
-        // Mandou só os 4 digitos e nao deu para identificar com certeza (o bloco se repete em ~5%
-        // dos pedidos). Pedir o numero completo e melhor do que arriscar mandar a musica de outro
-        // cliente — e melhor ainda do que o silencio de antes.
+        // Mandou só os 4 dígitos e não deu para identificar com certeza (o bloco se repete em ~5%
+        // dos pedidos). Pedir o número completo é melhor do que arriscar mandar a música errada.
         await sendWApiTextMessage(
           senderPhone,
-          'Achei mais de um pedido com esse final. 🙈 Me manda o numero completo (NS-...) ou o link da sua pagina de entrega que eu te mando a musica na hora!',
+          'Achei mais de um pedido com esse final. 🙈 Me manda o número completo (NS-...) ou o link da sua página de entrega que eu te mando a música na hora!',
           envVars
         );
         return NextResponse.json({ success: true, action: 'numero_ambiguo' }, { status: 200 });
       }
     }
 
-    // Se NÃO passou ID explícito e NÃO é intenção explícita de criar nova música,
-    // verifica se o telefone do cliente já possui algum pedido realizado no sistema:
-    if (!matchedOrder && senderPhone && !isNewSongIntent(messageText)) {
-      try {
-        const existingOrder = await findRecentOrderByPhone(senderPhone, envVars);
-        if (existingOrder) {
-          matchedOrderId = existingOrder.id;
-          matchedOrder = existingOrder;
-          console.log(`[WhatsApp Webhook] Pedido existente localizado para o telefone ${senderPhone}: #${existingOrder.orderNumber || existingOrder.id}`);
-        }
-      } catch (lookupErr) {
-        console.warn('[WhatsApp Webhook] Erro ao buscar pedido por telefone:', lookupErr.message);
-      }
+    // Se NÃO passou ID explícito de pedido, o bot NÃO responde (silêncio total para o atendimento humano):
+    if (!matchedOrder || !matchedOrderId) {
+      console.log(`[WhatsApp Webhook] Mensagem sem ID de pedido de ${senderPhone} — silêncio total para permitir atendimento humano.`);
+      return NextResponse.json({ success: true, ignored: 'no_order_id_in_message' }, { status: 200 });
     }
 
-    // Se encontrou o pedido do cliente (por ID ou pelo telefone):
+    // Se encontrou o pedido do cliente por ID explícito:
     if (matchedOrder && matchedOrderId) {
       const isShortAck = isShortAckMessage(messageText);
       const isExplicitId = Boolean(candidateId);
+      const isDefaultSiteButtonText = messageText.includes('Quero receber a prévia da música do meu pedido');
       const isMusicInquiry = pareceCobrancaDeMusica(messageText);
       const hasAudioReady = Boolean(matchedOrder.audioUrl || matchedOrder.audioFiles?.length);
-      const isDirectMusicRequest = isExplicitId || isMusicInquiry || isDefaultSiteButtonText || isExplicitPreviewRequest || hasAudioReady;
+      const isDirectMusicRequest = true;
 
       // Primeiro nome só. Ninguém chama a pessoa pelo nome completo no WhatsApp, e "Olá,
       // Cliente!" (o padrão antigo quando o nome faltava) é a assinatura de mensagem automática.
@@ -685,32 +669,7 @@ export async function POST(req) {
         return NextResponse.json({ success: true, ignored: 'already_notified_short_ack_silence' }, { status: 200 });
       }
 
-      // Se o robô estiver ativo globalmente, atende com o suporte inteligente se houver dúvida:
-      if (isGloballyActive && !isShortAck && !isDefaultSiteButtonText) {
-        try {
-          const { tentarAtenderSuporte } = await import('@/lib/agentSuporte');
-          const suporte = await tentarAtenderSuporte(senderPhone, messageText, envVars);
-          if (suporte?.atendido) {
-            await sendWApiTextMessage(senderPhone, suporte.resposta, envVars);
-            if (suporte.entregarHumano) await pauseAgentForPhone(senderPhone, envVars);
-            return NextResponse.json({ success: true, action: 'suporte_atendeu' }, { status: 200 });
-          }
-        } catch (supErr) {
-          console.warn('[WhatsApp Webhook] Falha ao tentar suporte para pedido existente:', supErr.message);
-        }
-      }
-
-      // Se NÃO foi um pedido direto da música (clique do botão do site com ID, envio de ID, ou pergunta sobre o áudio),
-      // e o suporte não atendeu:
-      // - Se o bot estiver desativado: silêncio absoluto!
-      // - Se o bot estiver ativo: passa para o agente conversacional tratar a mensagem naturalmente.
-      if (!isDirectMusicRequest) {
-        if (!isGloballyActive) {
-          console.log(`[WhatsApp Webhook] Robô desativado e mensagem não é pedido direto de música. Silêncio para ${senderPhone}.`);
-          return NextResponse.json({ success: true, ignored: 'agent_globally_disabled' }, { status: 200 });
-        }
-        console.log(`[WhatsApp Webhook] Mensagem de ${senderPhone} não é pedido direto de música. Encaminhando para Agente Conversacional.`);
-      } else if (matchedOrder.audioUrl || matchedOrder.audioFiles?.length) {
+      if (matchedOrder.audioUrl || matchedOrder.audioFiles?.length) {
         // Se a música já estiver pronta e o cliente solicitou diretamente:
         let freshData = matchedOrder;
         try {
