@@ -52,7 +52,7 @@ export function StudioLyricsAnimation() {
       }} />
 
       {/* SVG com o Caderno Poético & Pena Estilizada */}
-      <svg width="220" height="180" viewBox="0 0 220 180" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ position: 'relative', zIndex: 1 }}>
+      <svg width="220" height="180" viewBox="0 0 220 180" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ position: 'relative', zIndex: 1, overflow: 'visible' }}>
         <defs>
           <linearGradient id="sheetGrad" x1="0" y1="0" x2="1" y2="1">
             <stop offset="0%" stopColor="#ffffff" />
@@ -66,8 +66,8 @@ export function StudioLyricsAnimation() {
             <stop offset="0%" stopColor="#fbbf24" />
             <stop offset="100%" stopColor="#f59e0b" />
           </linearGradient>
-          <filter id="cardShadow" x="-10" y="-10" width="160" height="190" filterUnits="userSpaceOnUse">
-            <feDropShadow dx="0" dy="8" stdDeviation="10" floodColor="#7c3aed" floodOpacity="0.15" />
+          <filter id="cardShadow" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="8" stdDeviation="10" floodColor="#7c3aed" floodOpacity="0.18" />
           </filter>
         </defs>
 
@@ -173,7 +173,7 @@ export function StudioAudioAnimation() {
       }} />
 
       {/* SVG Central do Vinil de Estúdio & Headphone */}
-      <svg width="240" height="175" viewBox="0 0 240 175" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ position: 'relative', zIndex: 1 }}>
+      <svg width="240" height="175" viewBox="0 0 240 175" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ position: 'relative', zIndex: 1, overflow: 'visible' }}>
         <defs>
           <linearGradient id="vinylShine" x1="0" y1="0" x2="1" y2="1">
             <stop offset="0%" stopColor="#1e1b4b" />
@@ -263,7 +263,7 @@ const styles = {
     width: '260px',
     height: '210px',
     margin: '0 auto 12px auto',
-    overflow: 'hidden',
+    overflow: 'visible',
   },
   equalizerWrapper: {
     display: 'flex',
