@@ -18,6 +18,7 @@ import { compressImage } from '@/lib/imageCompress';
 import { getPriceForSku, faixasDeImpacto } from '@/lib/pricing';
 import { markPreviewListened } from '@/lib/previewTracking';
 import { isInAppBrowser } from '@/lib/inAppBrowser';
+import { IconeMusica, IconeCarta, IconeVideo, IconeRetrospectiva, IconeWhatsApp, NotasDecorativas } from '@/components/AppIcons';
 import { styles } from './entregaStyles';
 import { useWhatsappSuporte, linkWhatsapp } from '@/lib/useWhatsappSuporte';
 import { usePromoverAudio } from '@/lib/usePromoverAudio';
@@ -290,7 +291,7 @@ function EntregaContent() {
   const pacotesEntrega = [
     {
       sku: 'audio_only',
-      icone: '🎵',
+      icone: <IconeMusica />,
       iconBg: '#dcfce7',
       iconColor: '#16a34a',
       priceColor: '#059669',
@@ -300,7 +301,7 @@ function EntregaContent() {
     },
     {
       sku: 'combo_carta',
-      icone: '📄',
+      icone: <IconeCarta />,
       iconBg: '#fce7f3',
       iconColor: '#ec4899',
       priceColor: '#1e293b',
@@ -310,7 +311,7 @@ function EntregaContent() {
     },
     {
       sku: 'combo',
-      icone: '▶️',
+      icone: <IconeVideo />,
       iconBg: '#ede9fe',
       iconColor: '#8b5cf6',
       priceColor: '#7c3aed',
@@ -321,7 +322,7 @@ function EntregaContent() {
     },
     {
       sku: 'combo_retrospectiva',
-      icone: '🎞️',
+      icone: <IconeRetrospectiva />,
       iconBg: '#fef3c7',
       iconColor: '#f59e0b',
       priceColor: '#1e293b',
@@ -2121,23 +2122,31 @@ function EntregaContent() {
                       borderRadius: '18px',
                       padding: '18px 16px',
                       boxShadow: '0 4px 14px rgba(34, 197, 94, 0.08)',
+                      position: 'relative',
+                      overflow: 'hidden',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                    {/* Balões de conversa em marca d'água, como no layout aprovado. */}
+                    <div aria-hidden="true" style={{ position: 'absolute', top: '14px', right: '-10px', display: 'flex', flexDirection: 'column', gap: '8px', pointerEvents: 'none' }}>
+                      <div style={{ width: '74px', height: '40px', borderRadius: '14px', backgroundColor: 'rgba(34, 197, 94, 0.08)' }} />
+                      <div style={{ width: '54px', height: '34px', borderRadius: '12px', backgroundColor: 'rgba(34, 197, 94, 0.08)', marginLeft: '16px' }} />
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', position: 'relative' }}>
                       <div
                         style={{
-                          width: '42px',
-                          height: '42px',
+                          width: '46px',
+                          height: '46px',
                           borderRadius: '50%',
-                          backgroundColor: '#dcfce7',
+                          background: 'linear-gradient(135deg, #25D366 0%, #16a34a 100%)',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          fontSize: '1.4rem',
                           flexShrink: 0,
+                          boxShadow: '0 4px 12px rgba(34, 197, 94, 0.3)',
                         }}
                       >
-                        💬
+                        <IconeWhatsApp size={26} />
                       </div>
                       <div>
                         <h5 style={{ fontSize: '1.02rem', fontWeight: '800', color: '#166534', margin: '0 0 4px 0' }}>
@@ -2194,8 +2203,10 @@ function EntregaContent() {
                         boxShadow: '0 4px 14px rgba(22, 163, 74, 0.28)',
                         width: '100%',
                         cursor: 'pointer',
+                        position: 'relative',
                       }}
                     >
+                      <IconeWhatsApp size={20} />
                       <span>Falar no WhatsApp →</span>
                     </a>
                   </div>
@@ -2883,8 +2894,9 @@ function EntregaContent() {
                       scrollMarginTop: '80px',
                     }}
                   >
-                    <div style={{ textAlign: 'center', marginBottom: '18px' }}>
-                      <div style={{ fontSize: '1.4rem', marginBottom: '4px' }}>⚡</div>
+                    <div style={{ textAlign: 'center', marginBottom: '18px', position: 'relative' }}>
+                      <NotasDecorativas />
+                      <div style={{ fontSize: '1.4rem', marginBottom: '4px', position: 'relative' }}>🎵</div>
                       <h3 style={{ fontSize: '1.25rem', fontWeight: '800', margin: '0 0 6px', color: '#1e293b', lineHeight: 1.25 }}>
                         {promo ? (
                           '🎁 Oferta Especial Liberada!'

@@ -622,22 +622,25 @@ export default function Home() {
       {/* Ocasiões. Além de ajudar quem chegou indeciso, é o caminho por onde o buscador descobre
           as páginas de ocasião — página sem link de dentro do site custa muito mais para indexar. */}
       <section className="container" style={{ padding: '30px 0 10px' }}>
-        <h2 style={{ fontSize: '1.1rem', fontWeight: '800', marginBottom: '12px' }}>
+        <h2 style={{ fontSize: '1.1rem', fontWeight: '800', marginBottom: '14px', textAlign: 'center' }}>
           Música personalizada por ocasião
         </h2>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+        {/* Grade em vez de linha que quebra: os títulos têm comprimentos muito diferentes, e no
+            celular cada um virava uma linha de largura própria — a coluna ficava serrilhada. */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '8px' }}>
           {ocasioes.map((o) => (
             <Link
               key={o.slug}
               href={`/${o.slug}`}
               style={{
-                padding: '9px 15px',
+                padding: '11px 14px',
                 borderRadius: '999px',
                 fontSize: '0.88rem',
                 fontWeight: '600',
                 border: '1px solid var(--border-color)',
                 color: 'var(--text-secondary)',
                 textDecoration: 'none',
+                textAlign: 'center',
               }}
             >
               {o.titulo.replace(' Personalizada com IA', '').replace(' com IA', '')}

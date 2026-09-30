@@ -19,6 +19,7 @@ import PixQrCode from '@/components/PixQrCode';
 import { requestPixCharge } from '@/lib/pixCheckout';
 import { useWhatsappSuporte, linkWhatsapp } from '@/lib/useWhatsappSuporte';
 import { StudioLyricsAnimation, StudioAudioAnimation } from '@/components/StudioAnimations';
+import { IconeCelularWhatsApp } from '@/components/AppIcons';
 
 // Tempo na tela de produção depois do qual o cliente sempre ganha uma saída (conferir de novo,
 // recomeçar ou chamar no WhatsApp). Maior que o corte de 6 min do polling de propósito: só entra
@@ -1542,9 +1543,8 @@ export default function CriarMusica() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px', textAlign: 'left' }}>
                     <div
                       style={{
-                        fontSize: '1.6rem',
-                        width: '46px',
-                        height: '46px',
+                        width: '52px',
+                        height: '52px',
                         borderRadius: '50%',
                         backgroundColor: '#dcfce7',
                         display: 'flex',
@@ -1554,7 +1554,7 @@ export default function CriarMusica() {
                         boxShadow: '0 2px 8px rgba(34, 197, 94, 0.15)',
                       }}
                     >
-                      📱
+                      <IconeCelularWhatsApp size={34} />
                     </div>
                     <div>
                       <p style={{ margin: '0 0 4px 0', fontSize: '0.94rem', fontWeight: '700', color: '#166534' }}>

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { getPriceForSku } from '@/lib/pricing';
+import { IconeMusica, IconeClaquete, IconeLivro, IconeEnvelope } from '@/components/AppIcons';
 
 export default function ExtrasOfferModal({
   isOpen,
@@ -29,7 +30,8 @@ export default function ExtrasOfferModal({
   const pacotesPrePagamento = [
     {
       sku: 'audio_only',
-      icone: '🎵',
+      icone: <IconeMusica />,
+      iconBg: '#dcfce7',
       titulo: 'Só a música',
       desc: "2 versões completas em MP3 HD (sem marca d'água)",
       preco: precoFormatado('audio_only'),
@@ -37,7 +39,8 @@ export default function ExtrasOfferModal({
     },
     {
       sku: 'combo',
-      icone: '🎬',
+      icone: <IconeClaquete />,
+      iconBg: '#fce7f3',
       titulo: 'Música + Vídeo Homenagem',
       desc: '2 versões MP3 + Vídeo com fotos e letra sincronizada',
       preco: precoFormatado('combo'),
@@ -45,7 +48,8 @@ export default function ExtrasOfferModal({
     },
     {
       sku: 'combo_retrospectiva',
-      icone: '📖',
+      icone: <IconeLivro />,
+      iconBg: '#ede9fe',
       titulo: 'Música + Retrospectiva',
       desc: '2 versões MP3 + Retrospectiva completa com fotos e vídeo',
       preco: precoFormatado('combo_retrospectiva'),
@@ -53,7 +57,8 @@ export default function ExtrasOfferModal({
     },
     {
       sku: 'combo_carta',
-      icone: '💌',
+      icone: <IconeEnvelope />,
+      iconBg: '#fce7f3',
       titulo: 'Música + Carta Virtual',
       desc: '2 versões MP3 + Carta virtual personalizada para emocionar',
       preco: precoFormatado('combo_carta'),
@@ -65,7 +70,8 @@ export default function ExtrasOfferModal({
   const opcoesPosPagamento = [
     !jaTemRetrospectiva && {
       sku: 'retrospectiva_addon',
-      icone: '📖',
+      icone: <IconeLivro />,
+      iconBg: '#ede9fe',
       titulo: 'Retrospectiva Completa',
       desc: 'Página exclusiva com linha do tempo, fotos e música tocando',
       preco: precoFormatado('retrospectiva_addon'),
@@ -73,7 +79,8 @@ export default function ExtrasOfferModal({
     },
     !jaTemVideo && {
       sku: 'video_addon',
-      icone: '🎬',
+      icone: <IconeClaquete />,
+      iconBg: '#fce7f3',
       titulo: 'Vídeo Homenagem',
       desc: `Clipe com as fotos de ${honoreeName} no ritmo da música`,
       preco: precoFormatado('video_addon'),
@@ -81,7 +88,8 @@ export default function ExtrasOfferModal({
     },
     !jaTemCarta && {
       sku: 'carta_addon',
-      icone: '💌',
+      icone: <IconeEnvelope />,
+      iconBg: '#fce7f3',
       titulo: 'Carta Virtual',
       desc: 'Carta emocionante com envelope digital e foto',
       preco: precoFormatado('carta_addon'),
@@ -275,30 +283,20 @@ export default function ExtrasOfferModal({
                   </span>
                 )}
 
-                {/* Radio Circle */}
+                {/* Selo do produto */}
                 <div
                   style={{
-                    width: '20px',
-                    height: '20px',
-                    borderRadius: '50%',
-                    border: isSelected ? '2px solid #8b5cf6' : '2px solid #cbd5e1',
+                    width: '38px',
+                    height: '38px',
+                    borderRadius: '11px',
+                    backgroundColor: opcao.iconBg || '#f1f5f9',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     flexShrink: 0,
-                    backgroundColor: '#ffffff',
                   }}
                 >
-                  {isSelected && (
-                    <div
-                      style={{
-                        width: '10px',
-                        height: '10px',
-                        borderRadius: '50%',
-                        backgroundColor: '#8b5cf6',
-                      }}
-                    />
-                  )}
+                  {opcao.icone}
                 </div>
 
                 {/* Conteúdo de Texto */}
@@ -336,6 +334,32 @@ export default function ExtrasOfferModal({
                   }}
                 >
                   {opcao.preco}
+                </div>
+
+                {/* Radio Circle */}
+                <div
+                  style={{
+                    width: '20px',
+                    height: '20px',
+                    borderRadius: '50%',
+                    border: isSelected ? '2px solid #8b5cf6' : '2px solid #cbd5e1',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                    backgroundColor: '#ffffff',
+                  }}
+                >
+                  {isSelected && (
+                    <div
+                      style={{
+                        width: '10px',
+                        height: '10px',
+                        borderRadius: '50%',
+                        backgroundColor: '#8b5cf6',
+                      }}
+                    />
+                  )}
                 </div>
               </div>
             );
