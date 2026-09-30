@@ -6,22 +6,39 @@ import { createClient } from '@supabase/supabase-js';
 /**
  * Constrói o objeto de atualização compatível com o schema do Postgres do Supabase.
  */
-export function buildOrderUpdates({ status, progress, videoUrl, error }) {
+export function buildOrderUpdates(params = {}) {
   const nowIso = new Date().toISOString();
   const updates = {
     updated_at: nowIso,
   };
 
-  if (status) {
-    updates.video_status = status;
+  if (params.status) {
+    updates.video_status = params.status;
   }
-  if (videoUrl !== undefined) {
-    updates.video_url = videoUrl;
+  if (params.videoUrl !== undefined) {
+    updates.video_url = params.videoUrl;
   }
-  if (error !== undefined) {
-    updates.video_error = error ? String(error) : null;
-  } else if (status === 'CONCLUIDO') {
+  if (params.error !== undefined) {
+    updates.video_error = params.error ? String(params.error) : null;
+  } else if (params.status === 'CONCLUIDO') {
     updates.video_error = null;
+  }
+
+  // Suporte a campos de karaokê
+  if (params.karaokeStatus !== undefined) {
+    updates.karaoke_status = params.karaokeStatus;
+  }
+  if (params.karaokeProgress !== undefined) {
+    updates.karaoke_progress = params.karaokeProgress;
+  }
+  if (params.karaokeUrl !== undefined) {
+    updates.karaoke_url = params.karaokeUrl;
+  }
+  if (params.karaokeError !== undefined) {
+    updates.karaoke_error = params.karaokeError;
+  }
+  if (params.hasKaraokeAccess !== undefined) {
+    updates.has_karaoke_access = params.hasKaraokeAccess;
   }
 
   return updates;
