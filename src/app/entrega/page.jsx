@@ -984,6 +984,8 @@ function EntregaContent() {
   // Safe client-side URLs
   const sharePageUrl = mounted && typeof window !== 'undefined' ? `${window.location.origin}/h/${orderId}` : '';
   const qrCodeUrl = sharePageUrl ? `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(sharePageUrl)}` : '';
+  const whatsappShareText = `Preparei uma homenagem muito especial para você! ❤️ Ouça aqui: ${sharePageUrl || `https://nsmusic.com.br/h/${orderId}`}`;
+  const whatsappShareUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(whatsappShareText)}`;
 
   // Default beautiful dynamic cover
   const coverUrl = order?.coverUrl || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=600&auto=format&fit=crop';
@@ -1029,6 +1031,212 @@ function EntregaContent() {
       {/* Main content */}
       <main className="entrega-main">
         <div className="entrega-container">
+
+          {/* Banner de Destaque para Compartilhar com o Homenageado — visível no topo após o pagamento */}
+          {isPaid && (
+            <div
+              style={{
+                background: 'linear-gradient(135deg, rgba(236, 72, 153, 0.16) 0%, rgba(168, 85, 247, 0.14) 40%, rgba(15, 23, 42, 0.82) 100%)',
+                border: '1.5px solid rgba(244, 114, 182, 0.45)',
+                boxShadow: '0 12px 32px -4px rgba(236, 72, 153, 0.28), 0 4px 14px rgba(0, 0, 0, 0.45)',
+                borderRadius: '16px',
+                padding: '18px 20px',
+                marginBottom: '20px',
+                position: 'relative',
+                overflow: 'hidden',
+              }}
+            >
+              {/* Efeito decorativo de brilho suave */}
+              <div
+                aria-hidden="true"
+                style={{
+                  position: 'absolute',
+                  top: '-40px',
+                  right: '-40px',
+                  width: '160px',
+                  height: '160px',
+                  background: 'radial-gradient(circle, rgba(236, 72, 153, 0.35) 0%, transparent 70%)',
+                  pointerEvents: 'none',
+                }}
+              />
+
+              <div style={{ position: 'relative', zIndex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      background: 'linear-gradient(90deg, #ec4899, #8b5cf6)',
+                      color: '#ffffff',
+                      fontSize: '0.75rem',
+                      fontWeight: '800',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.06em',
+                      padding: '4px 12px',
+                      borderRadius: '999px',
+                      boxShadow: '0 2px 8px rgba(236, 72, 153, 0.4)',
+                    }}
+                  >
+                    <span>🎁</span> Link Oficial de Presente
+                  </span>
+                  <span style={{ fontSize: '0.8rem', color: '#cbd5e1' }}>
+                    Criado para emocionar ❤️
+                  </span>
+                </div>
+
+                <h3
+                  style={{
+                    fontFamily: 'var(--font-family-gala, sans-serif)',
+                    fontSize: '1.35rem',
+                    fontWeight: '800',
+                    color: '#ffffff',
+                    margin: '0 0 6px',
+                    lineHeight: '1.3',
+                  }}
+                >
+                  Envie a homenagem para {order?.honoreeName || 'a pessoa homenageada'}!
+                </h3>
+
+                <p
+                  style={{
+                    fontSize: '0.88rem',
+                    color: '#e2e8f0',
+                    margin: '0 0 14px',
+                    lineHeight: '1.5',
+                  }}
+                >
+                  Criamos uma página linda e emocionante, pronta para você compartilhar.
+                  Ela foi feita sob medida para a pessoa abrir no celular, ver a capa personalizada e ouvir a música direto!
+                </p>
+
+                {/* Caixa com o link visível */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    background: 'rgba(0, 0, 0, 0.45)',
+                    border: '1px solid rgba(255, 255, 255, 0.14)',
+                    borderRadius: '10px',
+                    padding: '8px 12px',
+                    gap: '10px',
+                    marginBottom: '14px',
+                  }}
+                >
+                  <span style={{ fontSize: '0.9rem', color: '#f472b6' }}>🔗</span>
+                  <span
+                    style={{
+                      fontSize: '0.85rem',
+                      color: '#fbcfe8',
+                      fontWeight: '600',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      flex: 1,
+                    }}
+                  >
+                    {sharePageUrl || `https://nsmusic.com.br/h/${orderId}`}
+                  </span>
+                </div>
+
+                {/* Botões de Ação */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: '10px',
+                  }}
+                >
+                  <a
+                    href={whatsappShareUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn"
+                    style={{
+                      background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)',
+                      color: '#ffffff',
+                      fontWeight: '700',
+                      fontSize: '0.92rem',
+                      padding: '11px 18px',
+                      borderRadius: '10px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      textDecoration: 'none',
+                      boxShadow: '0 4px 14px rgba(37, 211, 102, 0.35)',
+                      border: 'none',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <span>📲</span> Enviar no WhatsApp
+                  </a>
+
+                  <button
+                    type="button"
+                    onClick={handleCopyLink}
+                    className="btn"
+                    style={{
+                      background: copied ? 'rgba(16, 185, 129, 0.25)' : 'rgba(255, 255, 255, 0.12)',
+                      border: copied ? '1px solid #10b981' : '1px solid rgba(255, 255, 255, 0.25)',
+                      color: copied ? '#6ee7b7' : '#ffffff',
+                      fontWeight: '700',
+                      fontSize: '0.92rem',
+                      padding: '11px 18px',
+                      borderRadius: '10px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                    }}
+                  >
+                    <span>{copied ? '✅' : '📋'}</span>
+                    {copied ? 'Link Copiado!' : 'Copiar Link de Presente'}
+                  </button>
+
+                  <a
+                    href={`/h/${orderId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn"
+                    style={{
+                      background: 'transparent',
+                      border: '1px solid rgba(244, 114, 182, 0.4)',
+                      color: '#f472b6',
+                      fontWeight: '600',
+                      fontSize: '0.88rem',
+                      padding: '11px 16px',
+                      borderRadius: '10px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      textDecoration: 'none',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <span>👁️</span> Ver como {order?.honoreeName || 'a pessoa'} vai ver
+                  </a>
+                </div>
+
+                {/* Aviso para não mandar o link de /entrega */}
+                <div
+                  style={{
+                    background: 'rgba(0, 0, 0, 0.35)',
+                    border: '1px dashed rgba(244, 114, 182, 0.35)',
+                    borderRadius: '10px',
+                    padding: '9px 13px',
+                    marginTop: '14px',
+                    fontSize: '0.82rem',
+                    color: '#cbd5e1',
+                    lineHeight: '1.45',
+                  }}
+                >
+                  <strong style={{ color: '#f472b6' }}>💡 Dica importante:</strong> Envie para {order?.honoreeName || 'a pessoa'} sempre o link oficial de presente acima (<code style={{ color: '#fbcfe8', background: 'rgba(0,0,0,0.35)', padding: '1px 5px', borderRadius: '4px' }}>/h/...</code>). A tela em que você está agora (<code style={{ color: '#94a3b8' }}>/entrega</code>) é o seu painel de controle pessoal onde você faz downloads e gerencia seus pedidos.
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Abas dos produtos — só depois de pago (antes só existe a música/prévia, um produto só). */}
           {isPaid && (
@@ -1124,6 +1332,47 @@ function EntregaContent() {
                     <p style={{ fontSize: '0.88rem', color: '#cbd5e1', margin: 0 }}>
                       De <strong style={{ color: '#fff' }}>{order?.customerName}</strong> com todo carinho e amor ❤️
                     </p>
+                    <div style={{ marginTop: '8px', display: 'flex', justifyContent: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      <a
+                        href={whatsappShareUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          background: 'rgba(37, 211, 102, 0.15)',
+                          border: '1px solid rgba(37, 211, 102, 0.4)',
+                          color: '#4ade80',
+                          fontSize: '0.78rem',
+                          fontWeight: '700',
+                          padding: '4px 12px',
+                          borderRadius: '999px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          textDecoration: 'none',
+                        }}
+                      >
+                        📲 Compartilhar no WhatsApp
+                      </a>
+                      <button
+                        type="button"
+                        onClick={handleCopyLink}
+                        style={{
+                          background: 'rgba(255, 255, 255, 0.08)',
+                          border: '1px solid rgba(255, 255, 255, 0.2)',
+                          color: copied ? '#6ee7b7' : '#ffffff',
+                          fontSize: '0.78rem',
+                          fontWeight: '600',
+                          padding: '4px 12px',
+                          borderRadius: '999px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {copied ? '✅ Link copiado!' : '🔗 Copiar link'}
+                      </button>
+                    </div>
                   </div>
                 )}
                 {/* Aviso de pendência no topo, com atalho para o pagamento.
