@@ -440,7 +440,7 @@ export async function notifyPaymentApproved(orderRefOrId, orderData, opts = {}, 
 
   const currentOrder = orderData || await getOrder(orderId, env);
   if (!currentOrder?.customerPhone) return;
-  if (!opts.force && !currentOrder.whatsappRequested) return;
+  if (!opts.force && !currentOrder.whatsappRequested && !currentOrder.customerPhone) return;
 
   try {
     const freshData = await getOrder(orderId, env);

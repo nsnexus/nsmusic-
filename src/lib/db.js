@@ -176,7 +176,7 @@ export const updateTaskResult = async (taskId, result, overrideOrderId = null, e
         await addGeneration();
       }
 
-      await notifyMusicReady(orderId, orderData, orderId, {}, env);
+      await notifyMusicReady(orderId, null, orderId, {}, env);
     }
   } catch (err) {
     console.error("Error updating task result:", err);
@@ -194,7 +194,7 @@ export const notifyMusicReady = async (orderRefOrId, orderData, orderIdParam, op
   const currentOrder = orderData || await getOrder(orderId, env);
   if (!currentOrder?.customerPhone) return { sent: false, reason: 'no_phone' };
   if (!force && (currentOrder.whatsappSent || currentOrder.readyTemplateSent)) return { sent: false, reason: 'already_sent' };
-  if (!force && !currentOrder.whatsappRequested) return { sent: false, reason: 'not_requested' };
+  if (!force && !currentOrder.whatsappRequested && !currentOrder.customerPhone) return { sent: false, reason: 'not_requested' };
 
   let shouldSend = force;
   if (!force) {

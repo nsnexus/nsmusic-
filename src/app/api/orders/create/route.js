@@ -122,6 +122,7 @@ export async function POST(req) {
       lyrics: formData.lyrics || '',
       termsAccepted: true,
       termsAcceptedAt: createdAtIso,
+      whatsappRequested: Boolean(formData.customerPhone),
       paymentStatus: 'AGUARDANDO_PAGAMENTO',
       productionStatus: formData.lyrics ? 'LETRA_CRIADA' : 'EM_PRODUCAO',
       createdAt: createdAtIso,
