@@ -25,6 +25,17 @@ export function calculateIntradayPace(pedidos = [], options = {}) {
   // Chave única para "Hoje" no fuso local da data de referência
   const todayKey = `${ref.getFullYear()}-${String(ref.getMonth() + 1).padStart(2, '0')}-${String(ref.getDate()).padStart(2, '0')}`;
 
+  // Janela dos últimos N dias anteriores (padrão: 7 dias / última semana)
+  const daysLimit = Number(options.daysLimit) || 7;
+  const targetPastDays = [];
+  for (let i = 1; i <= daysLimit; i++) {
+    const d = new Date(ref);
+    d.setDate(d.getDate() - i);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    targetPastDays.push(key);
+  }
+  const targetPastDaysSet = new Set(targetPastDays);
+
   const todayHourlyRevenue = Array(24).fill(0);
   const pastDaysHourlyRevenue = {}; // { 'YYYY-MM-DD': number[24] }
 
@@ -54,7 +65,7 @@ export function calculateIntradayPace(pedidos = [], options = {}) {
 
       if (dayKey === todayKey) {
         todayHourlyRevenue[hour] += price;
-      } else if (dayKey < todayKey) {
+      } else if (targetPastDaysSet.has(dayKey)) {
         if (!pastDaysHourlyRevenue[dayKey]) {
           pastDaysHourlyRevenue[dayKey] = Array(24).fill(0);
         }
@@ -72,7 +83,7 @@ export function calculateIntradayPace(pedidos = [], options = {}) {
       if (dayKey === todayKey) {
         todayHourlyCreated[hour] += 1;
         if (isPaid) todayHourlyPaid[hour] += 1;
-      } else if (dayKey < todayKey) {
+      } else if (targetPastDaysSet.has(dayKey)) {
         if (!pastDaysCreated[dayKey]) {
           pastDaysCreated[dayKey] = Array(24).fill(0);
           pastDaysPaid[dayKey] = Array(24).fill(0);
@@ -194,6 +205,7 @@ export function calculateIntradayPace(pedidos = [], options = {}) {
     todayConversionSoFar,
     avgConversionSoFar,
     daysAveragedCount,
+    daysLimit,
     todayCreatedTotal: runCreated,
     todayPaidTotal: runPaid,
   };

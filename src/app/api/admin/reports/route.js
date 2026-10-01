@@ -202,6 +202,74 @@ export async function GET(req) {
       });
     }
 
+    // --------------------------------------------------------------------------
+    // 4. PEDIDOS RECENTES (para Ritmo de Vendas Intradiário - Hoje + últimos N dias)
+    // --------------------------------------------------------------------------
+    if (tipo === 'pedidos_recentes') {
+      const dias = Math.max(1, Math.min(30, Number(searchParams.get('dias')) || 8));
+      const agora = new Date();
+      const inicioData = new Date(agora.getTime() - dias * 24 * 60 * 60 * 1000);
+      inicioData.setUTCHours(0, 0, 0, 0);
+      const inicio = inicioData.toISOString();
+
+      const todosPedidos = [];
+      let pageOffset = 0;
+      const pageSize = 1000;
+
+      while (true) {
+        const { data, error } = await supabase
+          .from('orders')
+          .select('id, order_number, customer_phone, payment_status, paid_at, created_at, has_video_access, has_carta_access, has_playback_access, has_retrospectiva_access, suno_generation_count, suno_requested_at, extras')
+          .or(`created_at.gte.${inicio},paid_at.gte.${inicio}`)
+          .is('deleted_at', 'null')
+          .order('created_at', { ascending: true })
+          .limit(pageSize)
+          .offset(pageOffset);
+
+        if (error) throw new Error(error.message);
+        if (!data || data.length === 0) break;
+
+        for (const row of data) {
+          const extras = row.extras || {};
+          todosPedidos.push({
+            id: row.id,
+            orderNumber: row.order_number,
+            customerPhone: row.customer_phone,
+            paymentStatus: row.payment_status,
+            paidAt: row.paid_at,
+            createdAt: row.created_at,
+            hasVideoAccess: row.has_video_access,
+            hasCartaAccess: row.has_carta_access,
+            hasPlaybackAccess: row.has_playback_access,
+            hasRetrospectivaAccess: row.has_retrospectiva_access,
+            sunoGenerationCount: row.suno_generation_count,
+            sunoRequestedAt: row.suno_requested_at,
+            videoAddonPaid: extras.videoAddonPaid ?? (row.has_video_access && row.payment_status === 'PAGO'),
+            videoPaidAt: extras.videoPaidAt ?? row.paid_at,
+            playbackAddonPaid: extras.playbackAddonPaid ?? (row.has_playback_access && row.payment_status === 'PAGO'),
+            playbackPaidAt: extras.playbackPaidAt ?? row.paid_at,
+            cartaAddonPaid: extras.cartaAddonPaid ?? (row.has_carta_access && row.payment_status === 'PAGO'),
+            cartaPaidAt: extras.cartaPaidAt ?? row.paid_at,
+            retrospectivaAddonPaid: extras.retrospectivaAddonPaid ?? (row.has_retrospectiva_access && row.payment_status === 'PAGO'),
+            retrospectivaPaidAt: extras.retrospectivaPaidAt ?? row.paid_at,
+            paidAmount: extras.paidAmount ?? null,
+            ...extras,
+          });
+        }
+
+        if (data.length < pageSize) break;
+        pageOffset += pageSize;
+      }
+
+      return NextResponse.json({
+        ok: true,
+        dias,
+        total: todosPedidos.length,
+        pedidos: todosPedidos,
+        source: 'supabase',
+      });
+    }
+
     return NextResponse.json({ error: `Tipo desconhecido: ${tipo}` }, { status: 400 });
   } catch (error) {
     console.error('[admin/reports] Erro ao gerar relatório:', error.message);

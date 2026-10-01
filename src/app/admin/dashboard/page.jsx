@@ -180,8 +180,8 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          {/* Ritmo de Ganho Intradiário em Tempo Real (Hoje vs Média de Dias Anteriores) */}
-          <RitmoVendasCard pedidos={orders} />
+          {/* Ritmo de Ganho Intradiário em Tempo Real (Hoje vs Média dos Últimos 7 Dias) */}
+          <RitmoVendasCard />
 
           <div className="glass-card" style={{ marginTop: '24px', padding: '24px', borderRadius: '16px', backgroundColor: '#ffffff', border: '1px solid #e2e8f0' }}>
             <h3 style={{ fontSize: '1.1rem', fontWeight: '700', color: '#0f172a', margin: '0 0 4px' }}>Solicitações x Conversões por dia</h3>

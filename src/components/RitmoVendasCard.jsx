@@ -2,14 +2,19 @@
 
 import React, { useState, useMemo } from 'react';
 import { calculateIntradayPace } from '@/lib/ritmoVendas';
+import { usePedidosRecentes } from '@/lib/usePedidosRecentes';
 
-export default function RitmoVendasCard({ pedidos = [] }) {
+export default function RitmoVendasCard({ pedidos: pedidosProp = null }) {
   const [metricMode, setMetricMode] = useState('revenue'); // 'revenue' | 'conversion'
   const [activeHour, setActiveHour] = useState(null);
 
-  // Calcula o ritmo com base nos pedidos carregados e na hora local atual
+  // Se pedidos não foi passado explicitamente (ex: em teste), carrega os pedidos dos últimos 8 dias (hoje + 7 dias)
+  const { pedidos: pedidosRecentes, loading: loadingRecentes } = usePedidosRecentes(8);
+  const pedidos = pedidosProp !== null ? pedidosProp : pedidosRecentes;
+
+  // Calcula o ritmo com base nos pedidos carregados e na janela dos últimos 7 dias
   const pace = useMemo(() => {
-    return calculateIntradayPace(pedidos);
+    return calculateIntradayPace(pedidos, { daysLimit: 7 });
   }, [pedidos]);
 
   const {
@@ -98,6 +103,33 @@ export default function RitmoVendasCard({ pedidos = [] }) {
   const inspectAvg = avgData[inspectHour];
   const inspectProj = projData ? projData[inspectHour] : null;
 
+  if (pedidosProp === null && loadingRecentes && pedidos.length === 0) {
+    return (
+      <div style={{
+        marginTop: '24px',
+        background: '#ffffff',
+        borderRadius: '16px',
+        border: '1px solid #e2e8f0',
+        padding: '36px 24px',
+        textAlign: 'center',
+        color: '#64748b',
+        fontSize: '0.88rem',
+      }}>
+        <div style={{
+          display: 'inline-block',
+          width: '26px',
+          height: '26px',
+          border: '3px solid #e2e8f0',
+          borderTopColor: '#7c3aed',
+          borderRadius: '50%',
+          animation: 'spin 0.8s linear infinite',
+          marginBottom: '10px'
+        }} />
+        <div>Carregando ritmo dos últimos 7 dias...</div>
+      </div>
+    );
+  }
+
   return (
     <div style={{
       marginTop: '24px',
@@ -136,7 +168,7 @@ export default function RitmoVendasCard({ pedidos = [] }) {
             </span>
           </div>
           <p style={{ margin: '4px 0 0', fontSize: '0.82rem', color: '#64748b' }}>
-            Comparativo hora a hora do ritmo de hoje contra a média histórica dos dias anteriores ({daysAveragedCount} dias).
+            Comparativo hora a hora do ritmo de hoje contra a média dos últimos 7 dias ({daysAveragedCount} {daysAveragedCount === 1 ? 'dia' : 'dias'}).
           </p>
         </div>
 
@@ -255,7 +287,7 @@ export default function RitmoVendasCard({ pedidos = [] }) {
             {fmtPct(todayConversionSoFar)}
           </div>
           <span style={{ fontSize: '0.78rem', color: '#b45309' }}>
-            Média histórica: {fmtPct(avgConversionSoFar)}
+            Média dos últimos 7 dias: {fmtPct(avgConversionSoFar)}
           </span>
         </div>
       </div>
@@ -439,7 +471,7 @@ export default function RitmoVendasCard({ pedidos = [] }) {
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#94a3b8', display: 'inline-block' }} />
-              <span style={{ color: '#475569' }}>Média anterior:</span>
+              <span style={{ color: '#475569' }}>Média (7 dias):</span>
               <strong style={{ color: '#334155' }}>
                 {isRevenue ? fmtMoney(inspectAvg) : fmtPct(inspectAvg)}
               </strong>
@@ -475,7 +507,7 @@ export default function RitmoVendasCard({ pedidos = [] }) {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <span style={{ width: '14px', height: '4px', background: '#94a3b8', borderRadius: '2px', display: 'inline-block' }} />
-          <span>Média dos dias anteriores</span>
+          <span>Média dos últimos 7 dias</span>
         </div>
         {isRevenue && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
