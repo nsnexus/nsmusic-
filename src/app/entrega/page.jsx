@@ -13,6 +13,7 @@ import PlaybackAddonCard from '@/components/PlaybackAddonCard';
 import KaraokeAddonCard from '@/components/KaraokeAddonCard';
 import CartaAddonCard from '@/components/CartaAddonCard';
 import RetrospectivaAddonCard from '@/components/RetrospectivaAddonCard';
+import BannerLinkPresente from '@/components/BannerLinkPresente';
 import { requestPixCharge } from '@/lib/pixCheckout';
 import { compressImage } from '@/lib/imageCompress';
 import { getPriceForSku, faixasDeImpacto } from '@/lib/pricing';
@@ -369,8 +370,10 @@ function EntregaContent() {
   // servidor no caminho) sem o pedido ter `hasVideoAccess`/`videoAddonPaid` gravado (auditoria de
   // fechamento, 2026-08-02). Pagamento legítimo do combo já grava esses campos via applyPaymentApproval.
   const hasVideoAccess = hasVideoAccessState || order?.hasVideoAccess || order?.videoAddonPaid || order?.videoUrl;
-  const jaTemRetrospectiva = Boolean(order?.hasRetrospectivaAccess || order?.retrospectivaAddonPaid);
-  const jaTemCarta = Boolean(order?.hasCartaAccess || order?.cartaAddonPaid);
+  const [retrospectivaLiberadaLocal, setRetrospectivaLiberadaLocal] = useState(false);
+  const [cartaLiberadaLocal, setCartaLiberadaLocal] = useState(false);
+  const jaTemRetrospectiva = Boolean(order?.hasRetrospectivaAccess || order?.retrospectivaAddonPaid || retrospectivaLiberadaLocal);
+  const jaTemCarta = Boolean(order?.hasCartaAccess || order?.cartaAddonPaid || cartaLiberadaLocal);
 
   // Exibe o pop-up de oferta do vídeo automaticamente ao carregar a tela de entrega
   useEffect(() => {
@@ -646,10 +649,10 @@ function EntregaContent() {
     }
   };
 
-  const handleCopyLink = () => {
+  const handleCopyLink = (customUrl = null) => {
     if (typeof window !== 'undefined' && orderId) {
-      const sharePageUrl = `${window.location.origin}/h/${orderId}`;
-      navigator.clipboard.writeText(sharePageUrl);
+      const url = customUrl || `${window.location.origin}/h/${orderId}`;
+      navigator.clipboard.writeText(url);
       setCopied(true);
       setTimeout(() => setCopied(false), 3000);
     }
@@ -1122,6 +1125,14 @@ function EntregaContent() {
   const whatsappShareText = `Preparei uma homenagem muito especial para você! ❤️ Ouça aqui: ${sharePageUrl || `https://nsmusic.com.br/h/${orderId}`}`;
   const whatsappShareUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(whatsappShareText)}`;
 
+  const cartaPageUrl = mounted && typeof window !== 'undefined' ? `${window.location.origin}/c/${orderId}` : '';
+  const cartaShareText = `Escrevi uma carta linda para você! 💌✨ Veja aqui: ${cartaPageUrl || `https://nsmusic.com.br/c/${orderId}`}`;
+  const cartaWhatsappShareUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(cartaShareText)}`;
+
+  const retrospectivaPageUrl = mounted && typeof window !== 'undefined' ? `${window.location.origin}/r/${orderId}` : '';
+  const retrospectivaShareText = `Preparei uma retrospectiva linda para você! 📖✨ Veja aqui: ${retrospectivaPageUrl || `https://nsmusic.com.br/r/${orderId}`}`;
+  const retrospectivaWhatsappShareUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(retrospectivaShareText)}`;
+
   // Default beautiful dynamic cover
   const coverUrl = order?.coverUrl || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=600&auto=format&fit=crop';
 
@@ -1171,218 +1182,12 @@ function EntregaContent() {
       <main className="entrega-main">
         <div className="entrega-container">
 
-          {/* Banner de Destaque para Compartilhar com o Homenageado — visível no topo após o pagamento */}
-          {isPaid && (
-            <div
-              style={{
-                background: 'linear-gradient(135deg, rgba(236, 72, 153, 0.16) 0%, rgba(168, 85, 247, 0.14) 40%, rgba(15, 23, 42, 0.82) 100%)',
-                border: '1.5px solid rgba(244, 114, 182, 0.45)',
-                boxShadow: '0 12px 32px -4px rgba(236, 72, 153, 0.28), 0 4px 14px rgba(0, 0, 0, 0.45)',
-                borderRadius: '16px',
-                padding: '18px 20px',
-                marginBottom: '20px',
-                position: 'relative',
-                overflow: 'hidden',
-              }}
-            >
-              {/* Efeito decorativo de brilho suave */}
-              <div
-                aria-hidden="true"
-                style={{
-                  position: 'absolute',
-                  top: '-40px',
-                  right: '-40px',
-                  width: '160px',
-                  height: '160px',
-                  background: 'radial-gradient(circle, rgba(236, 72, 153, 0.35) 0%, transparent 70%)',
-                  pointerEvents: 'none',
-                }}
-              />
-
-              <div style={{ position: 'relative', zIndex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
-                  <span
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      background: 'linear-gradient(90deg, #ec4899, #8b5cf6)',
-                      color: '#ffffff',
-                      fontSize: '0.75rem',
-                      fontWeight: '800',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.06em',
-                      padding: '4px 12px',
-                      borderRadius: '999px',
-                      boxShadow: '0 2px 8px rgba(236, 72, 153, 0.4)',
-                    }}
-                  >
-                    <span>🎁</span> Link Oficial de Presente
-                  </span>
-                  <span style={{ fontSize: '0.8rem', color: '#cbd5e1' }}>
-                    Criado para emocionar ❤️
-                  </span>
-                </div>
-
-                <h3
-                  style={{
-                    fontFamily: 'var(--font-family-gala, sans-serif)',
-                    fontSize: '1.35rem',
-                    fontWeight: '800',
-                    color: '#ffffff',
-                    margin: '0 0 6px',
-                    lineHeight: '1.3',
-                  }}
-                >
-                  Envie a homenagem para {order?.honoreeName || 'a pessoa homenageada'}!
-                </h3>
-
-                <p
-                  style={{
-                    fontSize: '0.88rem',
-                    color: '#e2e8f0',
-                    margin: '0 0 14px',
-                    lineHeight: '1.5',
-                  }}
-                >
-                  Criamos uma página linda e emocionante, pronta para você compartilhar.
-                  Ela foi feita sob medida para a pessoa abrir no celular, ver a capa personalizada e ouvir a música direto!
-                </p>
-
-                {/* Caixa com o link visível */}
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    background: 'rgba(0, 0, 0, 0.45)',
-                    border: '1px solid rgba(255, 255, 255, 0.14)',
-                    borderRadius: '10px',
-                    padding: '8px 12px',
-                    gap: '10px',
-                    marginBottom: '14px',
-                  }}
-                >
-                  <span style={{ fontSize: '0.9rem', color: '#f472b6' }}>🔗</span>
-                  <span
-                    style={{
-                      fontSize: '0.85rem',
-                      color: '#fbcfe8',
-                      fontWeight: '600',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      flex: 1,
-                    }}
-                  >
-                    {sharePageUrl || `https://nsmusic.com.br/h/${orderId}`}
-                  </span>
-                </div>
-
-                {/* Botões de Ação */}
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    flexWrap: 'wrap',
-                    gap: '10px',
-                  }}
-                >
-                  <a
-                    href={whatsappShareUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="btn"
-                    style={{
-                      background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)',
-                      color: '#ffffff',
-                      fontWeight: '700',
-                      fontSize: '0.92rem',
-                      padding: '11px 18px',
-                      borderRadius: '10px',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      textDecoration: 'none',
-                      boxShadow: '0 4px 14px rgba(37, 211, 102, 0.35)',
-                      border: 'none',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    <span>📲</span> Enviar no WhatsApp
-                  </a>
-
-                  <button
-                    type="button"
-                    onClick={handleCopyLink}
-                    className="btn"
-                    style={{
-                      background: copied ? 'rgba(16, 185, 129, 0.25)' : 'rgba(255, 255, 255, 0.12)',
-                      border: copied ? '1px solid #10b981' : '1px solid rgba(255, 255, 255, 0.25)',
-                      color: copied ? '#6ee7b7' : '#ffffff',
-                      fontWeight: '700',
-                      fontSize: '0.92rem',
-                      padding: '11px 18px',
-                      borderRadius: '10px',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s ease',
-                    }}
-                  >
-                    <span>{copied ? '✅' : '📋'}</span>
-                    {copied ? 'Link Copiado!' : 'Copiar Link de Presente'}
-                  </button>
-
-                  <a
-                    href={`/h/${orderId}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="btn"
-                    style={{
-                      background: 'transparent',
-                      border: '1px solid rgba(244, 114, 182, 0.4)',
-                      color: '#f472b6',
-                      fontWeight: '600',
-                      fontSize: '0.88rem',
-                      padding: '11px 16px',
-                      borderRadius: '10px',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      textDecoration: 'none',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    <span>👁️</span> Ver como {order?.honoreeName || 'a pessoa'} vai ver
-                  </a>
-                </div>
-
-                {/* Aviso para não mandar o link de /entrega */}
-                <div
-                  style={{
-                    background: 'rgba(0, 0, 0, 0.35)',
-                    border: '1px dashed rgba(244, 114, 182, 0.35)',
-                    borderRadius: '10px',
-                    padding: '9px 13px',
-                    marginTop: '14px',
-                    fontSize: '0.82rem',
-                    color: '#cbd5e1',
-                    lineHeight: '1.45',
-                  }}
-                >
-                  <strong style={{ color: '#f472b6' }}>💡 Dica importante:</strong> Envie para {order?.honoreeName || 'a pessoa'} sempre o link oficial de presente acima (<code style={{ color: '#fbcfe8', background: 'rgba(0,0,0,0.35)', padding: '1px 5px', borderRadius: '4px' }}>/h/...</code>). A tela em que você está agora (<code style={{ color: '#94a3b8' }}>/entrega</code>) é o seu painel de controle pessoal onde você faz downloads e gerencia seus pedidos.
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Abas dos produtos — só depois de pago (antes só existe a música/prévia, um produto só). */}
+          {/* Abas dos produtos — no topo da área de conteúdo (após confirmação do pagamento) */}
           {isPaid && (
             <div className="entrega-tabs" role="tablist">
               {[
                 { id: 'musica', label: '🎵 Música' },
-                { id: 'karaoke', label: '🎤 Vídeo Karaokê', hasBadge: true },
+                { id: 'karaoke', label: '🎤 Karaokê', hasBadge: true },
                 { id: 'retrospectiva', label: '📖 Retrospectiva', hasBadge: true },
                 { id: 'carta', label: '💌 Carta', hasBadge: true },
               ].map((aba) => (
@@ -1408,6 +1213,46 @@ function EntregaContent() {
                 </button>
               ))}
             </div>
+          )}
+
+          {/* Banner de Destaque para Compartilhar com o Homenageado — adaptado à aba selecionada */}
+          {isPaid && abaProduto === 'musica' && (
+            <BannerLinkPresente
+              tipo="musica"
+              honoreeName={order?.honoreeName}
+              orderId={orderId}
+              linkUrl={sharePageUrl}
+              whatsappUrl={whatsappShareUrl}
+              viewUrl={`/h/${orderId}`}
+              onCopy={() => handleCopyLink(sharePageUrl)}
+              copied={copied}
+            />
+          )}
+
+          {isPaid && abaProduto === 'carta' && jaTemCarta && (
+            <BannerLinkPresente
+              tipo="carta"
+              honoreeName={order?.honoreeName}
+              orderId={orderId}
+              linkUrl={cartaPageUrl}
+              whatsappUrl={cartaWhatsappShareUrl}
+              viewUrl={`/c/${orderId}`}
+              onCopy={() => handleCopyLink(cartaPageUrl)}
+              copied={copied}
+            />
+          )}
+
+          {isPaid && abaProduto === 'retrospectiva' && jaTemRetrospectiva && (
+            <BannerLinkPresente
+              tipo="retrospectiva"
+              honoreeName={order?.honoreeName}
+              orderId={orderId}
+              linkUrl={retrospectivaPageUrl}
+              whatsappUrl={retrospectivaWhatsappShareUrl}
+              viewUrl={`/r/${orderId}`}
+              onCopy={() => handleCopyLink(retrospectivaPageUrl)}
+              copied={copied}
+            />
           )}
 
           {(!isPaid || abaProduto === 'musica') && (
@@ -3506,12 +3351,12 @@ function EntregaContent() {
               (/retrospectiva). id preservado pro scroll do pop-up de extras em pedidos antigos que
               ainda apontem pra cá. */}
           {isPaid && abaProduto === 'retrospectiva' && (
-            <div id="card-retrospectiva"><RetrospectivaAddonCard orderId={orderId} order={order} /></div>
+            <div id="card-retrospectiva"><RetrospectivaAddonCard orderId={orderId} order={order} onUnlocked={() => setRetrospectivaLiberadaLocal(true)} /></div>
           )}
 
           {/* Aba Carta — add-on com envelope animado e música */}
           {isPaid && abaProduto === 'carta' && (
-            <div id="card-carta"><CartaAddonCard orderId={orderId} order={order} /></div>
+            <div id="card-carta"><CartaAddonCard orderId={orderId} order={order} onUnlocked={() => setCartaLiberadaLocal(true)} /></div>
           )}
 
           {/* Pop-up de extras: vídeo, retrospectiva e carta na mesma interrupção (substituiu o

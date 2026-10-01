@@ -17,7 +17,7 @@ const MAX_FOTOS = 20;
 // Mesmo padrão de checkout do playback/carta/vídeo. O que muda é o depois: aqui o cliente PREENCHE
 // o conteúdo (linha do tempo, contador, quiz), então este componente é editor, não só entrega.
 // Fica em arquivo próprio pra não engordar entrega/page.jsx (ver .claude/rules/frontend.md).
-export default function RetrospectivaAddonCard({ orderId, order }) {
+export default function RetrospectivaAddonCard({ orderId, order, onUnlocked }) {
   const [pixInfo, setPixInfo] = useState({ qrCode: '', paymentId: '' });
   const [loading, setLoading] = useState(false);
   const [pixError, setPixError] = useState('');
@@ -146,6 +146,9 @@ export default function RetrospectivaAddonCard({ orderId, order }) {
           const data = await res.json();
           if (data.status === 'approved' || data.status === 'PAGO' || data.status === 'PAGAMENTO_APROVADO') {
             setUnlocked(true);
+            if (typeof onUnlocked === 'function') {
+              onUnlocked();
+            }
             clearInterval(interval);
           }
         }
@@ -154,7 +157,7 @@ export default function RetrospectivaAddonCard({ orderId, order }) {
       }
     }, 4000);
     return () => clearInterval(interval);
-  }, [orderId, pixInfo.paymentId, hasAccess]);
+  }, [orderId, pixInfo.paymentId, hasAccess, onUnlocked]);
 
   const salvar = async () => {
     setSalvando(true);

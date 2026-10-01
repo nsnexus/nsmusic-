@@ -850,18 +850,27 @@ label {
   gap: 6px;
   margin-bottom: 18px;
   width: 100%;
+  max-width: 100%;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.1);
   padding: 4px;
   border-radius: 12px;
   box-sizing: border-box;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.entrega-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .entrega-tab-btn {
-  flex: 1;
+  flex: 1 0 auto;
   position: relative;
-  padding: 8px 12px;
-  font-size: 0.84rem;
+  padding: 8px 10px;
+  font-size: 0.82rem;
   font-weight: 700;
   border-radius: 8px;
   border: none;
@@ -869,6 +878,19 @@ label {
   text-align: center;
   white-space: nowrap;
   transition: all 0.2s ease;
+}
+
+@media (max-width: 639px) {
+  .entrega-tabs {
+    gap: 4px;
+    padding: 3px;
+    border-radius: 10px;
+  }
+  .entrega-tab-btn {
+    flex: 1 0 auto;
+    padding: 7px 8px;
+    font-size: 0.76rem;
+  }
 }
 
 /* Indicador pulsante de novidade nas abas de /entrega */

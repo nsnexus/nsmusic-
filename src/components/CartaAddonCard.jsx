@@ -17,7 +17,7 @@ const PIX_POLLING_MAX_ATTEMPTS = 150; // ~10min a cada 4s, mesmo limite dos outr
 // Depois de pago, o texto já vem escrito pelo servidor (src/lib/payments.js chama generateCartaText
 // na aprovação) — o `order` chega ao vivo do onSnapshot que a página pai mantém, então cartaTexto
 // aparece sozinho. O botão de gerar aqui é só a rede de segurança pra quando aquela geração falhou.
-export default function CartaAddonCard({ orderId, order }) {
+export default function CartaAddonCard({ orderId, order, onUnlocked }) {
   const [pixInfo, setPixInfo] = useState({ qrCode: '', paymentId: '' });
   const [loading, setLoading] = useState(false);
   const [pixError, setPixError] = useState('');
@@ -143,6 +143,9 @@ export default function CartaAddonCard({ orderId, order }) {
           const data = await res.json();
           if (data.status === 'approved' || data.status === 'PAGO' || data.status === 'PAGAMENTO_APROVADO') {
             setUnlocked(true);
+            if (typeof onUnlocked === 'function') {
+              onUnlocked();
+            }
             clearInterval(interval);
           }
         }
@@ -152,7 +155,7 @@ export default function CartaAddonCard({ orderId, order }) {
     }, 4000);
 
     return () => clearInterval(interval);
-  }, [orderId, pixInfo.paymentId, hasAccess]);
+  }, [orderId, pixInfo.paymentId, hasAccess, onUnlocked]);
 
   const chamarApi = async (payload) => {
     const res = await fetch('/api/carta/generate', {
