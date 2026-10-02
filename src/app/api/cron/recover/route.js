@@ -3,7 +3,7 @@ import { getRequestContext } from '@cloudflare/next-on-pages';
 import { getSupabaseEdge } from '@/lib/supabase-edge';
 import { updateOrder } from '@/lib/supabaseDb';
 import { mapSupabaseOrderToFirestore } from '@/lib/supabaseSync';
-import { sendRecoveryTemplate, sendPreviewNudgeTemplate } from '@/lib/whatsapp';
+import { sendRecoveryTemplate } from '@/lib/whatsapp';
 import { DOMINIO_CANONICO } from '@/lib/siteUrl';
 
 export const runtime = 'edge';
@@ -140,59 +140,6 @@ export async function GET(req) {
       } catch (e) {
         console.error(`Erro ao processar recuperação para pedido ${order.id}:`, e);
       }
-    }
-
-    // Lembrete de "prévia não ouvida" — achado 09/09/2026, pedido explícito do dono: cliente gera a
-    // música e some sem nunca dar play nem mandar mensagem, ficando invisível pra régua de recuperação
-    // normal (que exige whatsappRequested=true, ver bloco acima). Este é intencionalmente DIFERENTE:
-    // dispara pra QUALQUER pedido com áudio pronto, decisão explícita do usuário em 09/09/2026 mesmo
-    // sabendo que é mensagem business-initiated sem opt-in prévio — mesmo padrão que
-    // sendMusicReadyTemplate (api/whatsapp/notify) já usa pra todo pedido com áudio pronto.
-    // previewListenedAt vem de src/lib/previewTracking.js (grava no primeiro play do player).
-    const PREVIEW_NUDGE_MIN_AGE_MS = 5 * 60 * 1000;   // dá tempo real da CDN propagar antes de cobrar
-    const PREVIEW_NUDGE_MAX_AGE_MS = 30 * 60 * 1000;  // depois disso, a régua de recuperação de 4h já cobre
-
-    const previewNudgeEligible = [];
-    for (const order of pendingOrders) {
-      if (order.previewListenedAt || order.previewNudgeSentAt) continue;
-      if (!order.audioUrl || !order.customerPhone || !order.createdAt) continue;
-      const orderTime = new Date(order.createdAt).getTime();
-      const age = now - orderTime;
-      if (age < PREVIEW_NUDGE_MIN_AGE_MS || age > PREVIEW_NUDGE_MAX_AGE_MS) continue;
-      previewNudgeEligible.push({ order, orderTime });
-    }
-    previewNudgeEligible.sort((a, b) => a.orderTime - b.orderTime);
-    const nudgeBatch = previewNudgeEligible.slice(0, MAX_SENDS_PER_RUN);
-
-    results.previewNudgeEligible = previewNudgeEligible.length;
-    results.previewNudgeSent = [];
-
-    if (!dryRun) {
-      for (const { order } of nudgeBatch) {
-        try {
-          const deliveryUrl = `${DOMINIO_CANONICO}/entrega?orderId=${order.id}`;
-          const targetPhone = order.whatsappSenderPhone || order.customerPhone;
-          const waRes = await sendPreviewNudgeTemplate(targetPhone, {
-            customerName: order.customerName,
-            honoreeName: order.honoreeName,
-            deliveryUrl,
-          });
-
-          if (waRes.success) {
-            await updateOrder(order.id, {
-              previewNudgeSentAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString()
-            }, env);
-            results.previewNudgeSent.push({ id: order.id });
-          } else {
-            console.error(`Falha no envio do lembrete de prévia (Cron) para pedido ${order.id}:`, waRes.error);
-          }
-        } catch (e) {
-          console.error(`Erro ao processar lembrete de prévia para pedido ${order.id}:`, e);
-        }
-      }
-    } else {
-      results.previewNudgeSent = nudgeBatch.map(({ order }) => ({ id: order.id }));
     }
 
     return NextResponse.json({ success: true, results });

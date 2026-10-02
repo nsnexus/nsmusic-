@@ -423,7 +423,7 @@ Qualquer dúvida, estamos por aqui! 💜`;
 };
 
 /**
- * Lembrete de prévia não ouvida
+ * Lembrete de prévia não ouvida (desativado: cliente já é notificado pelo WhatsApp assim que a música fica pronta)
  */
 export const sendPreviewNudgeTemplate = async (phone, { customerName, honoreeName, deliveryUrl }, env = {}) => {
   const name = customerName || 'Cliente';
