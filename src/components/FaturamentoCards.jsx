@@ -198,11 +198,24 @@ export default function FaturamentoCards({ dateFrom, dateTo, reloadTrigger }) {
   ];
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px' }}>
       {cards.map((c) => (
-        <div key={c.label} style={{ background: '#fff', borderRadius: '14px', border: '1px solid #e2e8f0', padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          <span style={{ fontSize: '0.82rem', color: '#64748b', fontWeight: '600' }}>{c.label}</span>
-          <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: '800', color: c.cor }}>{c.valor}</h2>
+        <div
+          key={c.label}
+          style={{
+            background: '#fff',
+            borderRadius: '12px',
+            border: '1px solid #e2e8f0',
+            padding: '12px 14px',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            gap: '4px',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
+          }}
+        >
+          <span style={{ fontSize: '0.74rem', color: '#64748b', fontWeight: '600', lineHeight: '1.2' }}>{c.label}</span>
+          <h2 style={{ margin: 0, fontSize: '1.28rem', fontWeight: '800', color: c.cor, letterSpacing: '-0.02em', lineHeight: '1.2' }}>{c.valor}</h2>
         </div>
       ))}
     </div>

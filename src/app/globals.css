@@ -1136,3 +1136,21 @@ label {
   .admin-agent-desc { display: none; }
   .admin-agent-btn { padding: 7px 14px !important; font-size: 0.8rem !important; width: 100%; }
 }
+
+/* Responsividade e compactação do Painel Admin no Mobile */
+.admin-mobile-only {
+  display: none !important;
+}
+.admin-desktop-only {
+  display: flex !important;
+}
+
+@media (max-width: 768px) {
+  .admin-mobile-only {
+    display: block !important;
+  }
+  .admin-desktop-only {
+    display: none !important;
+  }
+}
+

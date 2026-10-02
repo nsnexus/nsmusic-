@@ -11,6 +11,7 @@ import VendasPorHoraHeatmap from '@/components/VendasPorHoraHeatmap';
 import VendasPorEstadoMapa from '@/components/VendasPorEstadoMapa';
 import RitmoVendasCard from '@/components/RitmoVendasCard';
 import VendasPorPlataformaCard from '@/components/VendasPorPlataformaCard';
+import KieCreditsBadge from '@/components/admin/KieCreditsBadge';
 
 // toISOStr precisa lidar com os dois formatos gravados historicamente (Timestamp do Firestore e
 // string ISO) — mesmo utilitário replicado de admin/page.jsx.
@@ -134,7 +135,38 @@ export default function AdminDashboard() {
               <Image src="/logo.png" alt="NSMusic" width={36} height={36} style={{ height: '36px', width: 'auto' }} priority />
               <span style={{ fontSize: '0.9rem', color: '#0f172a', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Painel Admin</span>
             </Link>
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            {/* Navegação Mobile (Caixa suspensa / Select) */}
+            <div className="admin-mobile-only" style={{ width: '100%', marginTop: '6px' }}>
+              <select
+                value="DASHBOARD"
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === 'ORDERS') {
+                    router.push('/admin');
+                  } else if (val === 'CARTAS') {
+                    router.push('/admin/cartas');
+                  }
+                }}
+                style={{
+                  width: '100%',
+                  padding: '9px 12px',
+                  borderRadius: '8px',
+                  border: '1.5px solid #7c3aed',
+                  backgroundColor: '#ffffff',
+                  color: '#0f172a',
+                  fontWeight: '700',
+                  fontSize: '0.88rem',
+                  outline: 'none',
+                }}
+              >
+                <option value="DASHBOARD">📊 Dashboard</option>
+                <option value="ORDERS">📦 Pedidos ➔</option>
+                <option value="CARTAS">💌 Temas da Carta ➔</option>
+              </select>
+            </div>
+
+            {/* Abas no Desktop */}
+            <div className="admin-desktop-only" style={{ gap: '8px', flexWrap: 'wrap' }}>
               <Link href="/admin" style={{ ...styles.tabBtn, backgroundColor: '#e2e8f0', color: '#334155', textDecoration: 'none', display: 'inline-block' }}>
                 📦 Pedidos
               </Link>
@@ -143,7 +175,8 @@ export default function AdminDashboard() {
               </span>
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+            <KieCreditsBadge />
             <span style={{ fontSize: '0.9rem', color: '#334155', fontWeight: '600' }}>{user?.email}</span>
             <button onClick={handleLogout} style={styles.logoutBtn}>Sair ➔</button>
           </div>

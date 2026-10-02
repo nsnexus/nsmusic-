@@ -10,6 +10,7 @@ import { AUDIO_CACHE_VERSION } from '@/lib/audioCacheVersion';
 import { hasPreviewTrackingData } from '@/lib/previewTracking';
 import { buildSunoPayload } from '@/lib/sunoPayload';
 import { buildAudioProxySrc } from '@/lib/audioProxy';
+import PlatformIcon from '@/components/admin/PlatformIcon';
 import { getOrderPlatform, PLATFORMS } from '@/lib/trafficSource';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -602,22 +603,7 @@ export default function OrderDetailsAdmin() {
                 const pInfo = PLATFORMS[platKey] || PLATFORMS.facebook_ads;
                 return (
                   <div style={{ marginTop: '6px', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                    <span
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '5px',
-                        fontSize: '0.78rem',
-                        fontWeight: '700',
-                        padding: '3px 10px',
-                        borderRadius: '6px',
-                        backgroundColor: pInfo.bgLight,
-                        color: pInfo.color,
-                        border: `1px solid ${pInfo.borderColor}`,
-                      }}
-                    >
-                      <span>{pInfo.icon}</span> Canal: {pInfo.name}
-                    </span>
+                    <PlatformIcon order={order} size={16} showLabel={true} />
                     {order.utmCampaign && (
                       <span style={{ fontSize: '0.75rem', color: '#475569', backgroundColor: '#f1f5f9', padding: '3px 8px', borderRadius: '4px', border: '1px solid #e2e8f0' }}>
                         Campanha: <strong>{order.utmCampaign}</strong>

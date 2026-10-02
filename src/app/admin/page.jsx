@@ -8,6 +8,9 @@ import { getPriceForSku } from '@/lib/pricing';
 import { buildSunoPayload } from '@/lib/sunoPayload';
 import FaturamentoCards from '@/components/FaturamentoCards';
 import LimitesCota from '@/components/admin/LimitesCota';
+import KieCreditsBadge from '@/components/admin/KieCreditsBadge';
+import PlatformIcon from '@/components/admin/PlatformIcon';
+import { getOrderPlatform, PLATFORMS } from '@/lib/trafficSource';
 import { formatToWhatsAppNumber } from '@/lib/whatsappTemplates';
 import { hasPreviewTrackingData } from '@/lib/previewTracking';
 import Link from 'next/link';
@@ -706,8 +709,43 @@ export default function AdminDashboard() {
               <span style={{ fontSize: '0.9rem', color: '#0f172a', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Painel Admin</span>
             </Link>
 
-            {/* Tabs Navigation */}
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            {/* Navegação Mobile (Caixa suspensa / Select) */}
+            <div className="admin-mobile-only" style={{ width: '100%', marginTop: '6px' }}>
+              <select
+                value={activeTab}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === 'DASHBOARD') {
+                    router.push('/admin/dashboard');
+                  } else if (val === 'CARTAS') {
+                    router.push('/admin/cartas');
+                  } else {
+                    setActiveTab(val);
+                  }
+                }}
+                style={{
+                  width: '100%',
+                  padding: '9px 12px',
+                  borderRadius: '8px',
+                  border: '1.5px solid #7c3aed',
+                  backgroundColor: '#ffffff',
+                  color: '#0f172a',
+                  fontWeight: '700',
+                  fontSize: '0.88rem',
+                  outline: 'none',
+                }}
+              >
+                <option value="ORDERS">📦 Pedidos ({orders.length})</option>
+                <option value="STUCK">💰 Conferir Pagamentos</option>
+                <option value="DASHBOARD">📊 Dashboard ➔</option>
+                <option value="CARTAS">💌 Temas da Carta ➔</option>
+                <option value="LIMITES">🚦 Limites de Geração</option>
+                <option value="AJUSTES">⚙️ Ajustes Gerais</option>
+              </select>
+            </div>
+
+            {/* Tabs Navigation Desktop */}
+            <div className="admin-desktop-only" style={{ gap: '8px', flexWrap: 'wrap' }}>
               <button 
                 onClick={() => setActiveTab('ORDERS')}
                 style={{
@@ -758,6 +796,7 @@ export default function AdminDashboard() {
           </div>
 
           <div style={styles.userInfo}>
+            <KieCreditsBadge />
             <button
               type="button"
               onClick={() => setReloadTrigger((prev) => prev + 1)}
@@ -917,15 +956,76 @@ export default function AdminDashboard() {
                   análise (esta página é pra navegar PEDIDOS, não pra ser o painel de métricas). */}
 
               {/* Filtros e Barra de Ações em Massa */}
-              <div style={{ marginTop: '32px' }}>
-                {/* Abas: tipo de compra (música/vídeo) */}
-                <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
+              {/* Filtros e Barra de Ações em Massa */}
+              <div style={{ marginTop: '24px' }}>
+                {/* Busca por texto em DESTAQUE (com foco em telefone) */}
+                <div style={{ marginBottom: '16px' }}>
+                  <div style={{ position: 'relative', width: '100%', maxWidth: '520px' }}>
+                    <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '1.1rem', pointerEvents: 'none' }}>📱</span>
+                    <input
+                      id="admin-search"
+                      type="text"
+                      placeholder="Buscar por telefone (ex: 9499106...), nome ou código..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '11px 36px 11px 38px',
+                        borderRadius: '10px',
+                        border: '1.5px solid #cbd5e1',
+                        fontSize: '0.92rem',
+                        color: '#0f172a',
+                        outline: 'none',
+                        boxSizing: 'border-box',
+                        backgroundColor: '#ffffff',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
+                      }}
+                    />
+                    {searchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setSearchQuery('')}
+                        style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', color: '#94a3b8', lineHeight: 1 }}
+                        title="Limpar busca"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Abas: tipo de compra (música/vídeo) - Mobile em Select, Desktop em Botões */}
+                <div className="admin-mobile-only" style={{ marginBottom: '14px', width: '100%' }}>
+                  <label htmlFor="admin-purchase-type-select" style={{ display: 'block', fontSize: '0.76rem', color: '#64748b', fontWeight: '700', marginBottom: '4px' }}>
+                    Tipo de Venda
+                  </label>
+                  <select
+                    id="admin-purchase-type-select"
+                    value={purchaseTypeTab}
+                    onChange={(e) => setPurchaseTypeTab(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      borderRadius: '8px',
+                      border: '1px solid #cbd5e1',
+                      backgroundColor: '#ffffff',
+                      color: '#0f172a',
+                      fontSize: '0.88rem',
+                      fontWeight: '600',
+                    }}
+                  >
+                    <option value="ALL">📋 Todas as vendas</option>
+                    <option value="MUSIC">🎵 Vendas de música</option>
+                    <option value="VIDEO">🎬 Vendas de vídeo</option>
+                    <option value="PIX_COPIADO">📋 Copiou PIX e não pagou</option>
+                  </select>
+                </div>
+
+                <div className="admin-desktop-only" style={{ gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
                   {[
                     { id: 'ALL', label: 'Todas as vendas' },
                     { id: 'MUSIC', label: '🎵 Vendas de música' },
                     { id: 'VIDEO', label: '🎬 Vendas de vídeo' },
-                    // Copiou o código Pix e não consta como pago: é onde mora um pagamento não
-                    // computado, se houver (pedido 20/09/2026).
                     { id: 'PIX_COPIADO', label: '📋 Copiou PIX e não pagou' },
                   ].map(tab => (
                     <button
@@ -948,67 +1048,33 @@ export default function AdminDashboard() {
                   ))}
                 </div>
 
-                {/* Busca por texto (telefone, nome, código, homenageado) */}
-                <div style={{ marginBottom: '16px' }}>
-                  <div style={{ position: 'relative', maxWidth: '420px' }}>
-                    <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '1rem', pointerEvents: 'none' }}>🔍</span>
-                    <input
-                      id="admin-search"
-                      type="text"
-                      placeholder="Buscar por telefone, nome, homenageado ou código..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '9px 12px 9px 36px',
-                        borderRadius: '8px',
-                        border: '1px solid #cbd5e1',
-                        fontSize: '0.88rem',
-                        color: '#0f172a',
-                        outline: 'none',
-                        boxSizing: 'border-box',
-                      }}
-                    />
-                    {searchQuery && (
-                      <button
-                        type="button"
-                        onClick={() => setSearchQuery('')}
-                        style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', color: '#94a3b8', lineHeight: 1 }}
-                        title="Limpar busca"
-                      >
-                        ✕
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Filtro de data */}
-                <div style={{ display: 'flex', alignItems: 'flex-end', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
+                {/* Filtro de data e status (Grid organizado e responsivo) */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(135px, 1fr))', gap: '10px', alignItems: 'flex-end', marginBottom: '16px' }}>
                   <div>
-                    <label htmlFor="admin-date-from" style={{ display: 'block', fontSize: '0.78rem', color: '#64748b', marginBottom: '4px' }}>De</label>
+                    <label htmlFor="admin-date-from" style={{ display: 'block', fontSize: '0.76rem', color: '#64748b', marginBottom: '4px', fontWeight: '600' }}>De</label>
                     <input
                       id="admin-date-from"
                       type="date"
                       value={dateFrom}
                       onChange={(e) => setDateFrom(e.target.value)}
-                      style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.85rem' }}
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.85rem', boxSizing: 'border-box' }}
                     />
                   </div>
                   <div>
-                    <label htmlFor="admin-date-to" style={{ display: 'block', fontSize: '0.78rem', color: '#64748b', marginBottom: '4px' }}>Até</label>
+                    <label htmlFor="admin-date-to" style={{ display: 'block', fontSize: '0.76rem', color: '#64748b', marginBottom: '4px', fontWeight: '600' }}>Até</label>
                     <input
                       id="admin-date-to"
                       type="date"
                       value={dateTo}
                       onChange={(e) => setDateTo(e.target.value)}
-                      style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.85rem' }}
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.85rem', boxSizing: 'border-box' }}
                     />
                   </div>
                   {(dateFrom || dateTo) && (
                     <button
                       type="button"
                       onClick={() => { setDateFrom(''); setDateTo(''); }}
-                      style={{ padding: '8px 14px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#ffffff', color: '#64748b', fontSize: '0.8rem', cursor: 'pointer' }}
+                      style={{ padding: '8px 14px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#ffffff', color: '#64748b', fontSize: '0.8rem', cursor: 'pointer', height: '35px' }}
                     >
                       Limpar datas
                     </button>
@@ -1093,7 +1159,34 @@ export default function AdminDashboard() {
                     </div>
                   )}
 
-                  <div style={styles.filterBtns}>
+                  {/* Filtro por status do pedido - Mobile em select, Desktop em abas */}
+                  <div className="admin-mobile-only" style={{ marginBottom: '12px', width: '100%' }}>
+                    <label htmlFor="admin-filter-status-select" style={{ display: 'block', fontSize: '0.76rem', color: '#64748b', fontWeight: '700', marginBottom: '4px' }}>
+                      Status do Pedido
+                    </label>
+                    <select
+                      id="admin-filter-status-select"
+                      value={filter}
+                      onChange={(e) => setFilter(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #cbd5e1',
+                        backgroundColor: '#ffffff',
+                        color: '#0f172a',
+                        fontWeight: '700',
+                        fontSize: '0.88rem',
+                      }}
+                    >
+                      <option value="ALL">Todos os pedidos ({orders.length})</option>
+                      <option value="NEW">Novos ({orders.filter(o => o.paymentStatus === 'PAGAMENTO_APROVADO' && o.productionStatus === 'LETRA_APROVADA').length})</option>
+                      <option value="PRODUCTION">Em Produção ({orders.filter(o => o.productionStatus === 'EM_PRODUCAO' || o.productionStatus === 'VERSOES_EM_PRODUCAO').length})</option>
+                      <option value="FINISHED">Finalizados ({orders.filter(o => o.productionStatus === 'FINALIZADO' || o.productionStatus === 'ENTREGUE').length})</option>
+                    </select>
+                  </div>
+
+                  <div className="admin-desktop-only" style={styles.filterBtns}>
                     <button 
                       onClick={() => setFilter('ALL')} 
                       style={{ ...styles.filterBtn, borderBottom: filter === 'ALL' ? '3px solid #7c3aed' : 'none', color: filter === 'ALL' ? '#7c3aed' : '#64748b', fontWeight: filter === 'ALL' ? 'bold' : '600' }}
@@ -1169,7 +1262,12 @@ export default function AdminDashboard() {
                                 />
                               </td>
                               <td style={{ ...styles.td, fontWeight: '700', color: '#0f172a' }}>
-                                {o.orderNumber || o.id.substring(0, 8)}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <PlatformIcon order={o} size={15} />
+                                  <span style={{ whiteSpace: 'nowrap' }}>
+                                    {o.orderNumber || o.id.substring(0, 8)}
+                                  </span>
+                                </div>
                               </td>
                               <td style={styles.td}>
                                 <div style={{ fontWeight: '600', color: '#0f172a' }}>{o.customerName || 'Cliente'}</div>

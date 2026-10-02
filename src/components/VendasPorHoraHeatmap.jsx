@@ -68,44 +68,58 @@ export default function VendasPorHoraHeatmap() {
         <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Nenhuma venda neste mês ainda.</p>
       ) : (
         <>
-          <div style={{ display: 'flex', gap: '2px', overflowX: 'auto', paddingBottom: '4px' }}>
-            {porHora.map((total, hora) => {
-              const t = total / pico;
-              return (
-                <div
-                  key={hora}
-                  onMouseEnter={() => setHover({ hora, total })}
-                  onMouseLeave={() => setHover(null)}
-                  style={{
-                    flex: '1 0 28px',
-                    minWidth: '28px',
-                    height: '48px',
-                    borderRadius: '4px',
-                    background: sequentialBlue(t),
-                    border: '1px solid #e2e8f0',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '0.7rem',
-                    fontWeight: '700',
-                    color: textoSobreSequencial(t),
-                    cursor: 'default',
-                    outline: hover?.hora === hora ? '2px solid #0f172a' : 'none',
-                    outlineOffset: '1px',
-                  }}
-                  title={`${String(hora).padStart(2, '0')}h: ${total} venda${total === 1 ? '' : 's'}`}
-                >
-                  {total || ''}
-                </div>
-              );
-            })}
-          </div>
-          <div style={{ display: 'flex', gap: '2px', marginTop: '4px' }}>
-            {porHora.map((_, hora) => (
-              <span key={hora} style={{ flex: '1 0 28px', minWidth: '28px', textAlign: 'center', fontSize: '0.66rem', color: '#94a3b8' }}>
-                {hora % 3 === 0 ? String(hora).padStart(2, '0') : ''}
-              </span>
-            ))}
+          <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: '8px' }}>
+            <div style={{ minWidth: '680px' }}>
+              <div style={{ display: 'flex', gap: '3px' }}>
+                {porHora.map((total, hora) => {
+                  const t = total / pico;
+                  return (
+                    <div
+                      key={hora}
+                      onMouseEnter={() => setHover({ hora, total })}
+                      onMouseLeave={() => setHover(null)}
+                      style={{
+                        flex: '1 0 26px',
+                        minWidth: '26px',
+                        height: '46px',
+                        borderRadius: '4px',
+                        background: sequentialBlue(t),
+                        border: '1px solid #e2e8f0',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '0.72rem',
+                        fontWeight: '700',
+                        color: textoSobreSequencial(t),
+                        cursor: 'default',
+                        outline: hover?.hora === hora ? '2px solid #0f172a' : 'none',
+                        outlineOffset: '1px',
+                      }}
+                      title={`${String(hora).padStart(2, '0')}h: ${total} venda${total === 1 ? '' : 's'}`}
+                    >
+                      {total || ''}
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{ display: 'flex', gap: '3px', marginTop: '6px' }}>
+                {porHora.map((_, hora) => (
+                  <span
+                    key={hora}
+                    style={{
+                      flex: '1 0 26px',
+                      minWidth: '26px',
+                      textAlign: 'center',
+                      fontSize: '0.68rem',
+                      color: hora % 2 === 0 ? '#475569' : '#94a3b8',
+                      fontWeight: hora % 3 === 0 ? '700' : '400',
+                    }}
+                  >
+                    {hora % 2 === 0 ? `${String(hora).padStart(2, '0')}h` : ''}
+                  </span>
+                ))}
+              </div>
+            </div>
           </div>
 
           <p style={{ marginTop: '14px', fontSize: '0.78rem', color: '#64748b' }}>
