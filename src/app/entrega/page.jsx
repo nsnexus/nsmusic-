@@ -889,18 +889,27 @@ function EntregaContent() {
   const [musicaHomenagem, setMusicaHomenagem] = useState('');
   const [salvandoMusicaHomenagem, setSalvandoMusicaHomenagem] = useState(false);
 
-  const escolherMusicaHomenagem = async (url) => {
+  const escolherMusicaHomenagem = async (url, trackIndex = 0) => {
     setMusicaHomenagem(url);
     setSalvandoMusicaHomenagem(true);
     try {
       const res = await fetch('/api/homenagem/choose-music', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId, audioUrl: url }),
+        body: JSON.stringify({
+          orderId: order?.id || orderId,
+          audioUrl: url,
+          trackIndex
+        }),
       });
-      if (!res.ok) {
-        // Falha silenciosa aqui enganaria: a tela mostraria a faixa marcada e a página pública
-        // continuaria com a outra (.claude/rules/frontend.md).
+      if (res.ok) {
+        const json = await res.json().catch(() => ({}));
+        const finalUrl = json?.homenagemMusicaUrl || url;
+        setMusicaHomenagem(finalUrl);
+        setOrder((prev) => (prev ? { ...prev, homenagemMusicaUrl: finalUrl } : prev));
+      } else {
+        const errJson = await res.json().catch(() => ({}));
+        console.warn('[entrega] Falha ao salvar a música da página de presente:', errJson?.error || res.status);
         setMusicaHomenagem(order?.homenagemMusicaUrl || '');
       }
     } catch (e) {
@@ -1100,6 +1109,20 @@ function EntregaContent() {
     }));
   };
 
+  const handleInduzirCriarCarta = () => {
+    const card = document.getElementById('card-carta');
+    if (card) {
+      card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    setTimeout(() => {
+      const btn = document.getElementById('btn-escrever-carta');
+      if (btn && !btn.disabled) {
+        btn.click();
+      }
+    }, 400);
+  };
+
+
   if (loading) {
     return (
       <div style={styles.wrapper} className="flex-center">
@@ -1239,6 +1262,8 @@ function EntregaContent() {
               viewUrl={`/c/${orderId}`}
               onCopy={() => handleCopyLink(cartaPageUrl)}
               copied={copied}
+              pronto={Boolean(order?.cartaTexto)}
+              onCriar={handleInduzirCriarCarta}
             />
           )}
 
@@ -2611,7 +2636,7 @@ function EntregaContent() {
                           {faixasDoPedido.map((url, i) => {
                             const marcada = musicaHomenagem
                               ? musicaHomenagem === url
-                              : i === 0;
+                              : (order?.homenagemMusicaUrl ? order.homenagemMusicaUrl === url : i === 0);
                             return (
                               <label
                                 key={url}
@@ -2631,7 +2656,7 @@ function EntregaContent() {
                                   type="radio"
                                   name="musica-homenagem"
                                   checked={marcada}
-                                  onChange={() => escolherMusicaHomenagem(url)}
+                                  onChange={() => escolherMusicaHomenagem(url, i)}
                                 />
                                 <span style={{ fontSize: '0.8rem', fontWeight: '600', minWidth: '56px', color: '#ffffff' }}>
                                   Versão {i + 1}
@@ -3356,7 +3381,16 @@ function EntregaContent() {
 
           {/* Aba Carta — add-on com envelope animado e música */}
           {isPaid && abaProduto === 'carta' && (
-            <div id="card-carta"><CartaAddonCard orderId={orderId} order={order} onUnlocked={() => setCartaLiberadaLocal(true)} /></div>
+            <div id="card-carta">
+              <CartaAddonCard
+                orderId={orderId}
+                order={order}
+                onUnlocked={() => setCartaLiberadaLocal(true)}
+                onCartaCriada={(novoTexto) => {
+                  setOrder((prev) => (prev ? { ...prev, cartaTexto: novoTexto, cartaStatus: 'READY' } : prev));
+                }}
+              />
+            </div>
           )}
 
           {/* Pop-up de extras: vídeo, retrospectiva e carta na mesma interrupção (substituiu o

@@ -15,6 +15,8 @@ export default function BannerLinkPresente({
   viewUrl = '',
   onCopy = () => {},
   copied = false,
+  pronto = true,
+  onCriar = null,
 }) {
   const nomeHomenageado = honoreeName || 'a pessoa homenageada';
 
@@ -70,6 +72,23 @@ export default function BannerLinkPresente({
   };
 
   const cfg = configPorTipo[tipo] || configPorTipo.musica;
+  const isPendenteCriacao = !pronto;
+
+  const tituloExibido = isPendenteCriacao
+    ? (tipo === 'carta' ? `Crie a Carta Virtual de ${nomeHomenageado} primeiro!` : `Crie o conteúdo de ${nomeHomenageado} primeiro!`)
+    : cfg.title;
+
+  const descricaoExibida = isPendenteCriacao
+    ? (tipo === 'carta'
+        ? `Sua Carta Virtual está liberada! Porém, antes de enviar o link para ${nomeHomenageado}, você precisa clicar no botão abaixo para gerar a cartinha com a história de vocês.`
+        : 'Este item já está liberado, mas você precisa gerar o conteúdo antes de compartilhar!')
+    : cfg.description;
+
+  const badgeIconExibido = isPendenteCriacao ? '✍️' : cfg.badgeIcon;
+  const badgeTextExibido = isPendenteCriacao ? 'Ação Necessária' : cfg.badgeText;
+  const subBadgeExibido = isPendenteCriacao ? 'Crie a carta antes de compartilhar ✨' : cfg.subBadge;
+  const badgeGradientExibido = isPendenteCriacao ? 'linear-gradient(90deg, #f43f5e, #f59e0b)' : cfg.badgeGradient;
+
   const urlFinal = linkUrl || (orderId ? `https://nsmusic.com.br/${tipo === 'carta' ? 'c' : tipo === 'retrospectiva' ? 'r' : 'h'}/${orderId}` : '');
 
   return (
@@ -106,7 +125,7 @@ export default function BannerLinkPresente({
               display: 'inline-flex',
               alignItems: 'center',
               gap: '6px',
-              background: cfg.badgeGradient,
+              background: badgeGradientExibido,
               color: '#ffffff',
               fontSize: '0.75rem',
               fontWeight: '800',
@@ -117,10 +136,10 @@ export default function BannerLinkPresente({
               boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
             }}
           >
-            <span>{cfg.badgeIcon}</span> {cfg.badgeText}
+            <span>{badgeIconExibido}</span> {badgeTextExibido}
           </span>
           <span style={{ fontSize: '0.8rem', color: '#cbd5e1' }}>
-            {cfg.subBadge}
+            {subBadgeExibido}
           </span>
         </div>
 
@@ -134,7 +153,7 @@ export default function BannerLinkPresente({
             lineHeight: '1.3',
           }}
         >
-          {cfg.title}
+          {tituloExibido}
         </h3>
 
         <p
@@ -145,137 +164,180 @@ export default function BannerLinkPresente({
             lineHeight: '1.5',
           }}
         >
-          {cfg.description}
+          {descricaoExibida}
         </p>
 
-        {/* Caixa com o link visível */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            background: 'rgba(0, 0, 0, 0.45)',
-            border: '1px solid rgba(255, 255, 255, 0.14)',
-            borderRadius: '10px',
-            padding: '8px 12px',
-            gap: '10px',
-            marginBottom: '14px',
-          }}
-        >
-          <span style={{ fontSize: '0.9rem', color: '#f472b6' }}>🔗</span>
-          <span
-            style={{
-              fontSize: '0.85rem',
-              color: '#fbcfe8',
-              fontWeight: '600',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-              flex: 1,
-            }}
-          >
-            {urlFinal}
-          </span>
-        </div>
-
-        {/* Botões de Ação */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: '10px',
-          }}
-        >
-          {whatsappUrl && (
-            <a
-              href={whatsappUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn"
+        {isPendenteCriacao ? (
+          <div>
+            <div style={{ margin: '8px 0 14px' }}>
+              <button
+                type="button"
+                onClick={onCriar}
+                className="btn btn-primary"
+                style={{
+                  background: 'linear-gradient(135deg, #f43f5e 0%, #f59e0b 100%)',
+                  color: '#ffffff',
+                  fontWeight: '800',
+                  fontSize: '0.96rem',
+                  padding: '12px 22px',
+                  borderRadius: '10px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  boxShadow: '0 6px 18px rgba(244, 63, 94, 0.35)',
+                }}
+              >
+                <span>✍️</span> {tipo === 'carta' ? 'Criar e Escrever Carta Agora' : 'Criar Agora'}
+              </button>
+            </div>
+            <div
               style={{
-                background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)',
-                color: '#ffffff',
-                fontWeight: '700',
-                fontSize: '0.92rem',
-                padding: '11px 18px',
+                background: 'rgba(0, 0, 0, 0.35)',
+                border: '1px dashed rgba(251, 146, 60, 0.4)',
                 borderRadius: '10px',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                textDecoration: 'none',
-                boxShadow: '0 4px 14px rgba(37, 211, 102, 0.35)',
-                border: 'none',
-                cursor: 'pointer',
+                padding: '9px 13px',
+                fontSize: '0.82rem',
+                color: '#fed7aa',
+                lineHeight: '1.45',
               }}
             >
-              <span>📲</span> {cfg.whatsappLabel}
-            </a>
-          )}
-
-          <button
-            type="button"
-            onClick={onCopy}
-            className="btn"
-            style={{
-              background: copied ? 'rgba(16, 185, 129, 0.25)' : 'rgba(255, 255, 255, 0.12)',
-              border: copied ? '1px solid #10b981' : '1px solid rgba(255, 255, 255, 0.25)',
-              color: copied ? '#6ee7b7' : '#ffffff',
-              fontWeight: '700',
-              fontSize: '0.92rem',
-              padding: '11px 18px',
-              borderRadius: '10px',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '8px',
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-            }}
-          >
-            <span>{copied ? '✅' : '📋'}</span>
-            {copied ? 'Link Copiado!' : cfg.copyLabel}
-          </button>
-
-          {viewUrl && (
-            <a
-              href={viewUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn"
+              <strong style={{ color: '#fb923c' }}>💡 Dica:</strong> O link de presente e os botões para compartilhar no WhatsApp serão liberados assim que a cartinha for escrita!
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Caixa com o link visível */}
+            <div
               style={{
-                background: 'transparent',
-                border: '1px solid rgba(244, 114, 182, 0.4)',
-                color: '#f472b6',
-                fontWeight: '600',
-                fontSize: '0.88rem',
-                padding: '11px 16px',
-                borderRadius: '10px',
-                display: 'inline-flex',
+                display: 'flex',
                 alignItems: 'center',
-                gap: '6px',
-                textDecoration: 'none',
-                cursor: 'pointer',
+                background: 'rgba(0, 0, 0, 0.45)',
+                border: '1px solid rgba(255, 255, 255, 0.14)',
+                borderRadius: '10px',
+                padding: '8px 12px',
+                gap: '10px',
+                marginBottom: '14px',
               }}
             >
-              <span>👁️</span> Ver como {nomeHomenageado} vai ver
-            </a>
-          )}
-        </div>
+              <span style={{ fontSize: '0.9rem', color: '#f472b6' }}>🔗</span>
+              <span
+                style={{
+                  fontSize: '0.85rem',
+                  color: '#fbcfe8',
+                  fontWeight: '600',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  flex: 1,
+                }}
+              >
+                {urlFinal}
+              </span>
+            </div>
 
-        {/* Aviso para não mandar o link de /entrega */}
-        <div
-          style={{
-            background: 'rgba(0, 0, 0, 0.35)',
-            border: '1px dashed rgba(244, 114, 182, 0.35)',
-            borderRadius: '10px',
-            padding: '9px 13px',
-            marginTop: '14px',
-            fontSize: '0.82rem',
-            color: '#cbd5e1',
-            lineHeight: '1.45',
-          }}
-        >
-          <strong style={{ color: '#f472b6' }}>💡 Dica importante:</strong> {cfg.tipText}
-        </div>
+            {/* Botões de Ação */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '10px',
+              }}
+            >
+              {whatsappUrl && (
+                <a
+                  href={whatsappUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn"
+                  style={{
+                    background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)',
+                    color: '#ffffff',
+                    fontWeight: '700',
+                    fontSize: '0.92rem',
+                    padding: '11px 18px',
+                    borderRadius: '10px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    textDecoration: 'none',
+                    boxShadow: '0 4px 14px rgba(37, 211, 102, 0.35)',
+                    border: 'none',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <span>📲</span> {cfg.whatsappLabel}
+                </a>
+              )}
+
+              <button
+                type="button"
+                onClick={onCopy}
+                className="btn"
+                style={{
+                  background: copied ? 'rgba(16, 185, 129, 0.25)' : 'rgba(255, 255, 255, 0.12)',
+                  border: copied ? '1px solid #10b981' : '1px solid rgba(255, 255, 255, 0.25)',
+                  color: copied ? '#6ee7b7' : '#ffffff',
+                  fontWeight: '700',
+                  fontSize: '0.92rem',
+                  padding: '11px 18px',
+                  borderRadius: '10px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                <span>{copied ? '✅' : '📋'}</span>
+                {copied ? 'Link Copiado!' : cfg.copyLabel}
+              </button>
+
+              {viewUrl && (
+                <a
+                  href={viewUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn"
+                  style={{
+                    background: 'transparent',
+                    border: '1px solid rgba(244, 114, 182, 0.4)',
+                    color: '#f472b6',
+                    fontWeight: '600',
+                    fontSize: '0.88rem',
+                    padding: '11px 16px',
+                    borderRadius: '10px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    textDecoration: 'none',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <span>👁️</span> Ver como {nomeHomenageado} vai ver
+                </a>
+              )}
+            </div>
+
+            {/* Aviso para não mandar o link de /entrega */}
+            <div
+              style={{
+                background: 'rgba(0, 0, 0, 0.35)',
+                border: '1px dashed rgba(244, 114, 182, 0.35)',
+                borderRadius: '10px',
+                padding: '9px 13px',
+                marginTop: '14px',
+                fontSize: '0.82rem',
+                color: '#cbd5e1',
+                lineHeight: '1.45',
+              }}
+            >
+              <strong style={{ color: '#f472b6' }}>💡 Dica importante:</strong> {cfg.tipText}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

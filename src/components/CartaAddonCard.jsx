@@ -15,9 +15,9 @@ const PIX_POLLING_MAX_ATTEMPTS = 150; // ~10min a cada 4s, mesmo limite dos outr
 // .claude/rules/frontend.md).
 //
 // Depois de pago, o texto já vem escrito pelo servidor (src/lib/payments.js chama generateCartaText
-// na aprovação) — o `order` chega ao vivo do onSnapshot que a página pai mantém, então cartaTexto
-// aparece sozinho. O botão de gerar aqui é só a rede de segurança pra quando aquela geração falhou.
-export default function CartaAddonCard({ orderId, order, onUnlocked }) {
+// na aprovação). O botão de gerar aqui é a rede de segurança pra quando aquela geração falhou ou quando
+// o cliente solicita a criação.
+export default function CartaAddonCard({ orderId, order, onUnlocked, onCartaCriada }) {
   const [pixInfo, setPixInfo] = useState({ qrCode: '', paymentId: '' });
   const [loading, setLoading] = useState(false);
   const [pixError, setPixError] = useState('');
@@ -172,8 +172,10 @@ export default function CartaAddonCard({ orderId, order, onUnlocked }) {
     setGerando(true);
     setErroTexto('');
     try {
-      await chamarApi({});
-      // cartaTexto chega pelo onSnapshot do pai — não precisa setar estado local.
+      const data = await chamarApi({});
+      if (data?.texto && onCartaCriada) {
+        onCartaCriada(data.texto);
+      }
     } catch (err) {
       setErroTexto(err.message);
     } finally {
@@ -186,7 +188,10 @@ export default function CartaAddonCard({ orderId, order, onUnlocked }) {
     setSalvando(true);
     setErroTexto('');
     try {
-      await chamarApi({ texto: rascunho });
+      const data = await chamarApi({ texto: rascunho });
+      if (data?.texto && onCartaCriada) {
+        onCartaCriada(data.texto);
+      }
       setEditando(false);
     } catch (err) {
       setErroTexto(err.message);
@@ -295,6 +300,7 @@ export default function CartaAddonCard({ orderId, order, onUnlocked }) {
         </p>
         {erroTexto && <p style={{ fontSize: '0.8rem', color: 'var(--error, #ef4444)', marginBottom: '10px' }}>{erroTexto}</p>}
         <button
+          id="btn-escrever-carta"
           type="button"
           onClick={handleGerar}
           disabled={gerando}
