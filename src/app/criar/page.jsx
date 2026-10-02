@@ -10,6 +10,7 @@ import { pushAdvancedMatching } from '@/lib/metaPixel';
 import { identifyTikTok, trackTikTok } from '@/lib/tiktokPixel';
 import { styles } from './wizardStyles';
 import { occasions } from './wizardOptions';
+import { getStoredTrafficSource } from '@/lib/trafficSource';
 import CustomAudioPreview from './CustomAudioPreview';
 import PreviaEncerradaModal from '@/components/PreviaEncerradaModal';
 import { usePromoverAudio } from '@/lib/usePromoverAudio';
@@ -959,10 +960,14 @@ export default function CriarMusica() {
       let currentOrderId = orderId;
       if (!currentOrderId) {
         try {
+          const traffic = getStoredTrafficSource();
           const orderRes = await fetch('/api/orders/create', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(formData)
+            body: JSON.stringify({
+              ...formData,
+              ...traffic
+            })
           });
           if (orderRes.ok) {
             const orderData = await orderRes.json();
@@ -1107,12 +1112,14 @@ export default function CriarMusica() {
       let activeOrderId = orderId;
       if (!activeOrderId) {
         try {
+          const traffic = getStoredTrafficSource();
           const createRes = await fetch('/api/orders/create', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               ...formData,
-              userId: auth.currentUser ? auth.currentUser.uid : null
+              userId: auth.currentUser ? auth.currentUser.uid : null,
+              ...traffic
             })
           });
           if (createRes.ok) {

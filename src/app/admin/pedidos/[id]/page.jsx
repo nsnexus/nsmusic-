@@ -10,6 +10,7 @@ import { AUDIO_CACHE_VERSION } from '@/lib/audioCacheVersion';
 import { hasPreviewTrackingData } from '@/lib/previewTracking';
 import { buildSunoPayload } from '@/lib/sunoPayload';
 import { buildAudioProxySrc } from '@/lib/audioProxy';
+import { getOrderPlatform, PLATFORMS } from '@/lib/trafficSource';
 import Link from 'next/link';
 import Image from 'next/image';
 
@@ -596,6 +597,44 @@ export default function OrderDetailsAdmin() {
               <p style={{ color: '#475569', fontSize: '0.95rem', marginTop: '4px', fontWeight: '500' }}>
                 Cliente: <strong style={{ color: '#0f172a' }}>{order.customerName}</strong> ({order.customerEmail || 'Sem e-mail'}) • <strong style={{ color: '#2563eb' }}>{order.customerPhone || 'Sem telefone'}</strong>
               </p>
+              {(() => {
+                const platKey = getOrderPlatform(order);
+                const pInfo = PLATFORMS[platKey] || PLATFORMS.facebook_ads;
+                return (
+                  <div style={{ marginTop: '6px', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <span
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        fontSize: '0.78rem',
+                        fontWeight: '700',
+                        padding: '3px 10px',
+                        borderRadius: '6px',
+                        backgroundColor: pInfo.bgLight,
+                        color: pInfo.color,
+                        border: `1px solid ${pInfo.borderColor}`,
+                      }}
+                    >
+                      <span>{pInfo.icon}</span> Canal: {pInfo.name}
+                    </span>
+                    {order.utmCampaign && (
+                      <span style={{ fontSize: '0.75rem', color: '#475569', backgroundColor: '#f1f5f9', padding: '3px 8px', borderRadius: '4px', border: '1px solid #e2e8f0' }}>
+                        Campanha: <strong>{order.utmCampaign}</strong>
+                      </span>
+                    )}
+                    {order.trafficSource ? (
+                      <span style={{ fontSize: '0.72rem', color: '#059669', fontWeight: '600' }}>
+                        ✓ Rastreamento direto
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                        (Atribuição histórica)
+                      </span>
+                    )}
+                  </div>
+                );
+              })()}
               {/* Achado 09/09/2026: pedido do dono do estúdio pra saber se o cliente realmente ouviu
                   a prévia (ver src/lib/previewTracking.js) — ajuda a separar "não gostou" de "nunca
                   conseguiu carregar o áudio". */}

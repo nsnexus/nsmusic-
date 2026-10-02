@@ -2,6 +2,7 @@ import Script from 'next/script';
 import './globals.css';
 import { organizationJsonLd, serviceJsonLd } from '@/lib/structuredData';
 import { SITE_URL } from '@/lib/siteUrl';
+import TrafficTracker from '@/components/TrafficTracker';
 
 // Descrição única, usada em todo lugar (meta, OpenGraph, Twitter) — pedido 20/09/2026 ("deixar o
 // site otimizado para leitura de IA"). Diz O QUE é, PARA QUEM serve, QUANTO custa e EM QUANTO
@@ -109,6 +110,7 @@ export default function RootLayout({ children }) {
         </Script>
       </head>
       <body>
+        <TrafficTracker />
         {/* Dados estruturados do negócio inteiro — quem somos e o que vendemos, por quanto. Ficam
             no layout porque valem para toda página. O FAQPage e o HowTo NÃO ficam aqui: cada
             página tem o seu (home em page.jsx, ocasiões em PaginaOcasiao.jsx), e dois FAQPage no

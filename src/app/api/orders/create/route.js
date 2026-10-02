@@ -71,7 +71,18 @@ export async function POST(req) {
       paymentStatus: 'AGUARDANDO_PAGAMENTO',
       productionStatus: formData.lyrics ? 'LETRA_CRIADA' : 'EM_PRODUCAO',
       createdAt: createdAtIso,
-      updatedAt: createdAtIso
+      updatedAt: createdAtIso,
+      // Atribuição de plataforma de aquisição e tráfego
+      trafficSource: formData.trafficSource || formData.platform || null,
+      utmSource: formData.utmSource || null,
+      utmMedium: formData.utmMedium || null,
+      utmCampaign: formData.utmCampaign || null,
+      utmContent: formData.utmContent || null,
+      utmTerm: formData.utmTerm || null,
+      fbclid: formData.fbclid || null,
+      ttclid: formData.ttclid || null,
+      gclid: formData.gclid || null,
+      referrer: formData.referrer || null,
     };
 
     const created = await createOrder(orderPayload, env);

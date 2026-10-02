@@ -10,6 +10,7 @@ import VendasPorDiaTable from '@/components/VendasPorDiaTable';
 import VendasPorHoraHeatmap from '@/components/VendasPorHoraHeatmap';
 import VendasPorEstadoMapa from '@/components/VendasPorEstadoMapa';
 import RitmoVendasCard from '@/components/RitmoVendasCard';
+import VendasPorPlataformaCard from '@/components/VendasPorPlataformaCard';
 
 // toISOStr precisa lidar com os dois formatos gravados historicamente (Timestamp do Firestore e
 // string ISO) — mesmo utilitário replicado de admin/page.jsx.
@@ -190,6 +191,9 @@ export default function AdminDashboard() {
             </p>
             <ConversionChart series={monthlySeries} />
           </div>
+
+          {/* Faturamento e conversões por plataforma (Facebook Ads, TikTok Ads, Orgânico, Direto) */}
+          <VendasPorPlataformaCard monthValue={monthValue} />
 
           {/* Vendas por dia (+ faturamento, gerações e conversão), mapa de calor por horário e mapa
               por estado — pedido 12/09/2026, movidos pra cá (antes viviam em /admin, a página de
