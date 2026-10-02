@@ -403,43 +403,21 @@ Qualquer coisa é só me chamar por aqui. 💜`;
 };
 
 /**
- * Envia mensagem de recuperação de carrinho.
+ * Envia mensagem de recuperação de carrinho (DESATIVADO).
+ * O cliente já recebe a notificação da música pronta diretamente pela API Oficial da Meta (Cloud API).
+ * O envio desta mensagem via API não oficial (Evolution) foi completamente desativado.
  */
 export const sendRecoveryTemplate = async (phone, templateName, { customerName, deliveryUrl }, env = {}) => {
-  const name = customerName || 'Cliente';
-  const url = deliveryUrl || DOMINIO_CANONICO;
-
-  const is24h = templateName?.includes('24h');
-  const discountText = is24h ? 'com *desconto especial por tempo limitado*' : 'aguardando por você';
-
-  const message = `Oi, ${name}! Passando para avisar que a prévia da sua música personalizada ainda está ${discountText}! 🎶
-
-Não perca essa homenagem emocionante:
-👉 ${url}
-
-Qualquer dúvida, estamos por aqui! 💜`;
-
-  return await sendWApiTextMessage(phone, message, env);
+  console.log(`[WhatsApp] Envio de recuperação (sendRecoveryTemplate) desativado para ${phone}`);
+  return { success: true, ignored: 'desativado_musica_ja_enviada_oficial' };
 };
 
 /**
- * Lembrete de prévia não ouvida (desativado: cliente já é notificado pelo WhatsApp assim que a música fica pronta)
+ * Lembrete de prévia não ouvida (DESATIVADO: cliente já é notificado pelo WhatsApp via API oficial assim que a música fica pronta).
  */
 export const sendPreviewNudgeTemplate = async (phone, { customerName, honoreeName, deliveryUrl }, env = {}) => {
-  const name = customerName || 'Cliente';
-  const honoree = honoreeName || 'alguém especial';
-  const url = deliveryUrl || DOMINIO_CANONICO;
-
-  const message = `Olá, ${name}! 👋
-
-Percebemos que sua música personalizada para *${honoree}* já ficou pronta, mas você ainda não conseguiu ouvir a prévia — às vezes a página demora alguns segundos pra carregar. 🎶
-
-👉 *Clique aqui e ouça agora:*
-${url}
-
-Qualquer dificuldade, é só me chamar por aqui! 💜`;
-
-  return await sendWApiTextMessage(phone, message, env);
+  console.log(`[WhatsApp] Envio de prévia não ouvida (sendPreviewNudgeTemplate) desativado para ${phone}`);
+  return { success: true, ignored: 'desativado' };
 };
 
 /**

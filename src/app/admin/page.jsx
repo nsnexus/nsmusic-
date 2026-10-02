@@ -820,7 +820,6 @@ export default function AdminDashboard() {
               <span style={{ display: 'inline-block', transform: isRefreshing ? 'rotate(180deg)' : 'none', transition: 'transform 0.5s' }}>🔄</span>
               {isRefreshing ? 'Atualizando...' : 'Atualizar'}
             </button>
-            <span style={{ fontSize: '0.9rem', color: '#334155', fontWeight: '600' }}>{user.email}</span>
             <button onClick={handleLogout} style={styles.logoutBtn}>Sair ➔</button>
           </div>
         </div>
@@ -1230,19 +1229,10 @@ export default function AdminDashboard() {
                     <table style={styles.table}>
                       <thead>
                         <tr style={styles.thRow}>
-                          <th style={{ ...styles.th, width: '40px' }}>
-                            <input
-                              type="checkbox"
-                              checked={filteredOrders.length > 0 && selectedOrderIds.length === filteredOrders.length}
-                              onChange={() => toggleSelectAll(filteredOrders)}
-                              style={{ cursor: 'pointer', width: '16px', height: '16px' }}
-                            />
-                          </th>
-                          <th style={styles.th}>Código</th>
                           <th style={styles.th}>Cliente / Zap</th>
-                          <th style={styles.th}>Valor</th>
-                          <th style={styles.th}>Pagamento</th>
-                          <th style={styles.th}>Produção</th>
+                          <th style={styles.th}>Código</th>
+                          <th style={styles.th}>Valor Pago</th>
+                          <th style={styles.th}>Status Produção</th>
                           <th style={styles.th}>Data & Hora</th>
                           <th style={styles.th}>Pago em</th>
                           <th style={styles.th}>Ação</th>
@@ -1254,81 +1244,111 @@ export default function AdminDashboard() {
                           return (
                             <tr key={o.id} style={{ ...styles.tr, backgroundColor: isSelected ? '#f1f5f9' : '#ffffff' }}>
                               <td style={styles.td}>
-                                <input
-                                  type="checkbox"
-                                  checked={isSelected}
-                                  onChange={() => toggleSelectOrder(o.id)}
-                                  style={{ cursor: 'pointer', width: '16px', height: '16px' }}
-                                />
-                              </td>
-                              <td style={{ ...styles.td, fontWeight: '700', color: '#0f172a' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                  <PlatformIcon order={o} size={15} />
-                                  <span style={{ whiteSpace: 'nowrap' }}>
-                                    {o.orderNumber || o.id.substring(0, 8)}
-                                  </span>
-                                </div>
-                              </td>
-                              <td style={styles.td}>
-                                <div style={{ fontWeight: '600', color: '#0f172a' }}>{o.customerName || 'Cliente'}</div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                  {o.customerPhone ? (
-                                    <a
-                                      href={`https://wa.me/${formatToWhatsAppNumber(o.customerPhone)}`}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      title="Abrir conversa no WhatsApp"
-                                      style={{ fontSize: '0.8rem', color: '#25D366', fontWeight: '600', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '3px' }}
-                                    >
-                                      📲 {o.customerPhone}
-                                    </a>
-                                  ) : (
-                                    <span style={{ fontSize: '0.8rem', color: '#2563eb', fontWeight: '500' }}>N/A</span>
-                                  )}
-                                  {(() => {
-                                    const digits = String(o.customerPhone || '').replace(/\D/g, '');
-                                    const count = digits ? phoneOrderCounts[digits] : 0;
-                                    // Só aparece a partir da 2ª música — na 1ª seria ruído visual sem informação nova.
-                                    // Total de pedidos deste telefone entre os já carregados — o
-                                    // mesmo número aparece em todas as linhas dele, não é a posição
-                                    // desta linha na sequência.
-                                    return count > 1 ? (
-                                      <span title="Total de pedidos carregados com este telefone" style={{ fontSize: '0.68rem', fontWeight: '700', color: '#7c3aed', backgroundColor: '#f3e8ff', padding: '1px 6px', borderRadius: '999px' }}>
-                                        {count}x cliente
-                                      </span>
-                                    ) : null;
-                                  })()}
-                                  {/* Achado 09/09/2026: mostra de relance se o cliente já deu play na
-                                      prévia (ver src/lib/previewTracking.js) — ajuda a separar "não
-                                      gostou" de "nunca conseguiu ouvir" sem abrir o pedido. */}
-                                  {/* Pedido de antes do rastreamento (09/09/2026) não tem esse dado —
-                                      mostrar apagado (não "não ouviu") seria enganoso, então some. */}
-                                  {(o.previewListenedAt || hasPreviewTrackingData(o)) && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                  {/* Indicadores na ordem: Pago ou não -> Origem -> Copiou Pix -> Ouviu prévia */}
+                                  <div
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '6px',
+                                      padding: '3px 6px',
+                                      backgroundColor: '#f8fafc',
+                                      borderRadius: '8px',
+                                      border: '1px solid #e2e8f0',
+                                      flexShrink: 0,
+                                    }}
+                                  >
+                                    {/* 1. Ícone de pago ou não */}
+                                    {(() => {
+                                      const isPaid = o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'PAGO';
+                                      return isPaid ? (
+                                        <span
+                                          title={o.paidAt ? `Pago em ${formatDateWithTime(o.paidAt)}` : 'Pagamento Aprovado'}
+                                          style={{ fontSize: '0.9rem', cursor: 'help', lineHeight: 1 }}
+                                        >
+                                          ✅
+                                        </span>
+                                      ) : (
+                                        <span
+                                          title="Aguardando Pagamento"
+                                          style={{ fontSize: '0.9rem', cursor: 'help', opacity: 0.35, lineHeight: 1 }}
+                                        >
+                                          ⏳
+                                        </span>
+                                      );
+                                    })()}
+
+                                    {/* 2. Ícone de onde veio o cliente (Facebook, TikTok, etc.) */}
+                                    <PlatformIcon order={o} size={15} />
+
+                                    {/* 3. Se copiou o código Pix */}
+                                    {(() => {
+                                      const pixCopied = o.pixCopiedAt || o.extras?.pixCopiedAt;
+                                      return pixCopied ? (
+                                        <span
+                                          title={`Copiou o código Pix em ${new Date(pixCopied).toLocaleString('pt-BR')}`}
+                                          style={{ fontSize: '0.85rem', cursor: 'help', lineHeight: 1 }}
+                                        >
+                                          📋
+                                        </span>
+                                      ) : (
+                                        <span
+                                          title="Ainda não copiou o Pix"
+                                          style={{ fontSize: '0.85rem', cursor: 'help', opacity: 0.25, lineHeight: 1 }}
+                                        >
+                                          📋
+                                        </span>
+                                      );
+                                    })()}
+
+                                    {/* 4. Se ouviu a prévia */}
                                     <span
                                       title={o.previewListenedAt ? `Ouviu a prévia em ${new Date(o.previewListenedAt).toLocaleString('pt-BR')}` : 'Ainda não deu play na prévia'}
-                                      style={{ fontSize: '0.85rem', opacity: o.previewListenedAt ? 1 : 0.25 }}
+                                      style={{ fontSize: '0.85rem', cursor: 'help', opacity: o.previewListenedAt ? 1 : 0.25, lineHeight: 1 }}
                                     >
                                       🎧
                                     </span>
-                                  )}
-                                  {/* Copiou o código Pix = intenção declarada de pagar (pedido
-                                      20/09/2026). Quem copiou e não consta como pago é o primeiro
-                                      lugar pra procurar pagamento não computado. Só aparece quando
-                                      houve a cópia: um ícone apagado em pedido antigo (de antes
-                                      deste rastreio) seria lido como "não copiou", que é falso. */}
-                                  {(() => {
-                                    const pixCopied = o.pixCopiedAt || o.extras?.pixCopiedAt;
-                                    if (!pixCopied) return null;
-                                    return (
-                                      <span
-                                        title={`Copiou o código Pix em ${new Date(pixCopied).toLocaleString('pt-BR')}`}
-                                        style={{ fontSize: '0.85rem' }}
-                                      >
-                                        📋
-                                      </span>
-                                    );
-                                  })()}
+                                  </div>
+
+                                  {/* Contato do cliente */}
+                                  <div style={{ minWidth: 0 }}>
+                                    <div style={{ fontWeight: '600', color: '#0f172a', whiteSpace: 'nowrap' }}>
+                                      {o.customerName || 'Cliente'}
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                                      {o.customerPhone ? (
+                                        <a
+                                          href={`https://wa.me/${formatToWhatsAppNumber(o.customerPhone)}`}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          title="Abrir conversa no WhatsApp"
+                                          style={{ fontSize: '0.8rem', color: '#25D366', fontWeight: '600', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap' }}
+                                        >
+                                          📲 {o.customerPhone}
+                                        </a>
+                                      ) : (
+                                        <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: '500' }}>N/A</span>
+                                      )}
+                                      {(() => {
+                                        const digits = String(o.customerPhone || '').replace(/\D/g, '');
+                                        const count = digits ? phoneOrderCounts[digits] : 0;
+                                        return count > 1 ? (
+                                          <span
+                                            title="Total de pedidos carregados com este telefone"
+                                            style={{ fontSize: '0.68rem', fontWeight: '700', color: '#7c3aed', backgroundColor: '#f3e8ff', padding: '1px 6px', borderRadius: '999px', whiteSpace: 'nowrap' }}
+                                          >
+                                            {count}x cliente
+                                          </span>
+                                        ) : null;
+                                      })()}
+                                    </div>
+                                  </div>
                                 </div>
+                              </td>
+                              <td style={{ ...styles.td, fontWeight: '700', color: '#0f172a' }}>
+                                <span style={{ whiteSpace: 'nowrap' }}>
+                                  {o.orderNumber || o.id.substring(0, 8)}
+                                </span>
                               </td>
                               <td style={{ ...styles.td, fontWeight: '700' }}>
                                 {(() => {
@@ -1362,19 +1382,14 @@ export default function AdminDashboard() {
                                 })()}
                               </td>
                               <td style={styles.td}>
-                                <span style={{ ...styles.statusBadge, border: `1px solid ${getStatusBadgeColor(o.paymentStatus)}44`, color: getStatusBadgeColor(o.paymentStatus), backgroundColor: `${getStatusBadgeColor(o.paymentStatus)}10` }}>
-                                  {o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'PAGO' ? 'Aprovado' : 'Aguardando'}
-                                </span>
-                              </td>
-                              <td style={styles.td}>
                                 <span style={{ ...styles.statusBadge, border: `1px solid ${getStatusBadgeColor(o.productionStatus)}44`, color: getStatusBadgeColor(o.productionStatus), backgroundColor: `${getStatusBadgeColor(o.productionStatus)}10` }}>
                                   {o.productionStatus || 'PENDENTE'}
                                 </span>
                               </td>
-                              <td style={{ ...styles.td, fontSize: '0.85rem', color: '#0f172a', fontWeight: '600', whitespace: 'nowrap' }}>
+                              <td style={{ ...styles.td, fontSize: '0.85rem', color: '#0f172a', fontWeight: '600', whiteSpace: 'nowrap' }}>
                                 🕒 {formatDateWithTime(o.createdAt)}
                               </td>
-                              <td style={{ ...styles.td, fontSize: '0.85rem', color: o.paidAt ? '#059669' : '#94a3b8', fontWeight: '600', whitespace: 'nowrap' }}>
+                              <td style={{ ...styles.td, fontSize: '0.85rem', color: o.paidAt ? '#059669' : '#94a3b8', fontWeight: '600', whiteSpace: 'nowrap' }}>
                                 {o.paidAt ? `💰 ${formatDateWithTime(o.paidAt)}` : '—'}
                               </td>
                               <td style={styles.td}>
