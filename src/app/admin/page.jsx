@@ -1229,35 +1229,26 @@ export default function AdminDashboard() {
                     <table style={styles.table}>
                       <thead>
                         <tr style={styles.thRow}>
-                          <th style={{ ...styles.th, width: '90px' }}>Ação</th>
                           <th style={styles.th}>Cliente / Zap</th>
                           <th style={styles.th}>Código</th>
                           <th style={styles.th}>Valor Pago</th>
                           <th style={styles.th}>Status Produção</th>
                           <th style={styles.th}>Data & Hora</th>
                           <th style={styles.th}>Pago em</th>
+                          <th style={{ ...styles.th, width: '60px', textAlign: 'center' }}>Excluir</th>
                         </tr>
                       </thead>
                       <tbody>
                         {filteredOrders.map((o) => {
                           const isSelected = selectedOrderIds.includes(o.id);
                           return (
-                            <tr key={o.id} style={{ ...styles.tr, backgroundColor: isSelected ? '#f1f5f9' : '#ffffff' }}>
-                              <td style={{ ...styles.td, whiteSpace: 'nowrap', width: '90px' }}>
-                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                  <Link href={`/admin/pedidos/${o.id}`} title="Gerenciar Pedido" aria-label="Gerenciar Pedido" style={{ ...styles.manageBtn, padding: '6px 10px' }}>
-                                    ⚙️
-                                  </Link>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeleteSingleOrder(o.id, o.orderNumber)}
-                                    title="Excluir Solicitação"
-                                    style={styles.deleteSingleBtn}
-                                  >
-                                    🗑️
-                                  </button>
-                                </div>
-                              </td>
+                            <tr
+                              key={o.id}
+                              className="admin-order-row"
+                              onClick={() => router.push(`/admin/pedidos/${o.id}`)}
+                              title="Clique para abrir detalhes do pedido"
+                              style={{ ...styles.tr, backgroundColor: isSelected ? '#f1f5f9' : '#ffffff' }}
+                            >
                               <td style={styles.td}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                   {/* Indicadores na ordem: Pago ou não -> Origem -> Copiou Pix -> Ouviu prévia */}
@@ -1336,6 +1327,7 @@ export default function AdminDashboard() {
                                           href={`https://wa.me/${formatToWhatsAppNumber(o.customerPhone)}`}
                                           target="_blank"
                                           rel="noopener noreferrer"
+                                          onClick={(e) => e.stopPropagation()}
                                           title="Abrir conversa no WhatsApp"
                                           style={{ fontSize: '0.8rem', color: '#25D366', fontWeight: '600', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap' }}
                                         >
@@ -1374,7 +1366,10 @@ export default function AdminDashboard() {
                                     <div>
                                       <button
                                         type="button"
-                                        onClick={() => toggleValueExpanded(o.id)}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          toggleValueExpanded(o.id);
+                                        }}
                                         title={isExpanded ? 'Ocultar produtos confirmados' : 'Ver produtos confirmados'}
                                         style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: '#059669', fontWeight: '700', fontSize: 'inherit', fontFamily: 'inherit' }}
                                       >
@@ -1406,6 +1401,19 @@ export default function AdminDashboard() {
                               </td>
                               <td style={{ ...styles.td, fontSize: '0.85rem', color: o.paidAt ? '#059669' : '#94a3b8', fontWeight: '600', whiteSpace: 'nowrap' }}>
                                 {o.paidAt ? `💰 ${formatDateWithTime(o.paidAt)}` : '—'}
+                              </td>
+                              <td style={{ ...styles.td, textAlign: 'center', width: '60px' }}>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteSingleOrder(o.id, o.orderNumber);
+                                  }}
+                                  title="Excluir Solicitação"
+                                  style={styles.deleteSingleBtn}
+                                >
+                                  🗑️
+                                </button>
                               </td>
                             </tr>
                           );

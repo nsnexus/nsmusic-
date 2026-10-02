@@ -1154,3 +1154,11 @@ label {
   }
 }
 
+.admin-order-row {
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+.admin-order-row:hover {
+  background-color: #f1f5f9 !important;
+}
+
