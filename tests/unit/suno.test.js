@@ -173,6 +173,43 @@ describe('requestSunoGeneration', () => {
     expect(global.fetch.mock.calls[0][0]).toBe('https://api.unifically.com/v1/tasks');
     expect(global.fetch.mock.calls[1][0]).toBe('https://api.kie.ai/api/v1/generate');
   });
+
+  it('quando preferredProvider é kie, gera pela Kie.ai diretamente mesmo com Unifically configurada', async () => {
+    global.fetch.mockResolvedValueOnce(kieOkResponse('task-kie-direct'));
+    store['order-kie-direct'] = {};
+
+    const result = await requestSunoGeneration(
+      { orderId: 'order-kie-direct', prompt: 'letra kie', tags: 'samba', preferredProvider: 'kie' },
+      { UNIFICALLY_API_KEY: 'unif-key', KIE_API_KEY: 'kie-key' }
+    );
+
+    expect(result).toEqual({ ok: true, taskId: 'task-kie-direct', provider: 'kie' });
+    expect(store['order-kie-direct'].sunoProvider).toBe('kie');
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(global.fetch.mock.calls[0][0]).toBe('https://api.kie.ai/api/v1/generate');
+  });
+
+  it('quando SUNO_PRIMARY_PROVIDER é kie, tenta Kie primeiro e faz fallback para Unifically se Kie falhar', async () => {
+    // Kie tenta 2 vezes para erro transitório 500 (MAX_KIE_ATTEMPTS = 2):
+    global.fetch.mockResolvedValueOnce(kieErrorResponse(500, 500));
+    global.fetch.mockResolvedValueOnce(kieErrorResponse(500, 500));
+    // 3ª chamada: Failover para Unifically tem sucesso
+    global.fetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ code: 200, success: true, data: { task_id: 'unif-fallback-ok', status: 'processing' } })
+    });
+    store['order-kie-first'] = {};
+
+    const result = await requestSunoGeneration(
+      { orderId: 'order-kie-first', prompt: 'letra', tags: 'pop' },
+      { UNIFICALLY_API_KEY: 'unif-key', KIE_API_KEY: 'kie-key', SUNO_PRIMARY_PROVIDER: 'kie' }
+    );
+
+    expect(result).toEqual({ ok: true, taskId: 'unif-fallback-ok', provider: 'unifically' });
+    expect(store['order-kie-first'].sunoProvider).toBe('unifically');
+    expect(global.fetch).toHaveBeenCalledTimes(3); // 2 tentativas da Kie (transient 500) + 1 Unifically
+  });
 });
 
 describe('resolveLatestTaskId', () => {
@@ -263,5 +300,23 @@ describe('maybeAutoRetrySunoFailure', () => {
   it('sem orderId: não retenta', async () => {
     const result = await maybeAutoRetrySunoFailure({ taskId: 'task-old', orderId: null, env: {}, reason: 'x' });
     expect(result).toEqual({ retried: false, reason: 'sem_order_id' });
+  });
+
+  it('quando a razão da falha é da Unifically, retenta forçando a Kie.ai mesmo com Unifically configurada', async () => {
+    store['order1'] = { ...orderBase };
+    global.fetch.mockResolvedValue(kieOkResponse('task-kie-retried'));
+
+    const result = await maybeAutoRetrySunoFailure({
+      taskId: 'task-unif-failed',
+      orderId: 'order1',
+      env: { UNIFICALLY_API_KEY: 'unif-key', KIE_API_KEY: 'kie-key' },
+      reason: 'unifically_timeout_3min'
+    });
+
+    expect(result).toEqual({ retried: true, newTaskId: 'task-kie-retried' });
+    expect(store['task-unif-failed'].retryTaskId).toBe('task-kie-retried');
+    expect(store['order1'].sunoProvider).toBe('kie');
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(global.fetch.mock.calls[0][0]).toBe('https://api.kie.ai/api/v1/generate');
   });
 });

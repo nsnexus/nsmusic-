@@ -64,27 +64,87 @@ export async function recordSunoFailure(orderId, reason, env = {}) {
 }
 
 /**
- * Inicia a geração da música. Tenta primeiro via Unifically se configurada; caso falhe ou
- * não esteja disponível, faz failover automático transparente para a Kie.ai.
+ * Determina o provedor principal de geração:
+ * 1. Configuração dinâmica no banco (tabela config, editável no painel admin sem deploy)
+ * 2. Variável de ambiente SUNO_PRIMARY_PROVIDER ('kie' ou 'unifically')
+ * 3. Default: 'unifically' se UNIFICALLY_API_KEY existir, senão 'kie'
+ */
+export async function resolvePrimaryProvider(env = {}) {
+  try {
+    const { lerConfigSite } = await import('./configSite.js');
+    const cfg = await lerConfigSite(env);
+    if (cfg?.sunoPrimaryProvider === PROVIDER_KIE || cfg?.sunoPrimaryProvider === PROVIDER_UNIFICALLY) {
+      return cfg.sunoPrimaryProvider;
+    }
+  } catch (e) {
+    // Falha silenciosa em ambientes sem tabela config / testes
+  }
+
+  const envPrimary = String(readEnvValue(env, 'SUNO_PRIMARY_PROVIDER') || '').toLowerCase().trim();
+  if (envPrimary === PROVIDER_KIE || envPrimary === PROVIDER_UNIFICALLY) {
+    return envPrimary;
+  }
+
+  const unificallyKey = readEnvValue(env, 'UNIFICALLY_API_KEY');
+  return unificallyKey ? PROVIDER_UNIFICALLY : PROVIDER_KIE;
+}
+
+/**
+ * Inicia a geração da música. Respeita o provedor primário configurado (Unifically ou Kie.ai)
+ * com failover automático transparente para o provedor secundário em caso de erro (ex: falta de créditos,
+ * timeout, erro 4xx/5xx).
  *
- * @param {{orderId: string, prompt: string, tags: string}} params
+ * @param {{orderId: string, prompt: string, tags: string, preferredProvider?: string}} params
  * @param {object} env
  * @returns {Promise<{ok: true, taskId: string, provider: string} | {ok: false, error: string, status: number}>}
  */
-export async function requestSunoGeneration({ orderId, prompt, tags }, env) {
+export async function requestSunoGeneration({ orderId, prompt, tags, preferredProvider = null }, env = {}) {
   const unificallyKey = readEnvValue(env, 'UNIFICALLY_API_KEY');
-  const primaryProvider = readEnvValue(env, 'SUNO_PRIMARY_PROVIDER') || (unificallyKey ? PROVIDER_UNIFICALLY : PROVIDER_KIE);
+  const kieKey = readEnvValue(env, 'KIE_API_KEY');
 
-  if (primaryProvider === PROVIDER_UNIFICALLY && unificallyKey) {
-    const unifResult = await gerarPelaUnifically({ orderId, prompt, tags }, env);
-    if (unifResult.ok) {
-      return unifResult;
+  const primary = preferredProvider || await resolvePrimaryProvider(env);
+  const fallback = primary === PROVIDER_UNIFICALLY ? PROVIDER_KIE : PROVIDER_UNIFICALLY;
+  const hasFallback = fallback === PROVIDER_UNIFICALLY ? Boolean(unificallyKey) : Boolean(kieKey);
+
+  const tentarProvedor = async (prov) => {
+    if (prov === PROVIDER_UNIFICALLY) {
+      if (!unificallyKey) {
+        return { ok: false, error: 'Configuração ausente: UNIFICALLY_API_KEY não definida no servidor.', status: 500 };
+      }
+      return gerarPelaUnifically({ orderId, prompt, tags }, env);
     }
-    console.warn('[suno] Geração na Unifically falhou, iniciando fallback para Kie.ai:', unifResult.error);
-    await recordSunoFailure(orderId, `unifically_failover_to_kie_${unifResult.status || 'unknown'}`, env);
+    if (prov === PROVIDER_KIE) {
+      if (!kieKey) {
+        return { ok: false, error: 'Configuração ausente: KIE_API_KEY não definida no servidor.', status: 500 };
+      }
+      return gerarPelaKie({ orderId, prompt, tags }, env);
+    }
+    return { ok: false, error: `Provedor desconhecido: ${prov}`, status: 400 };
+  };
+
+  // 1. Tenta o provedor principal (ou o explicitamente requisitado)
+  const resultPrimario = await tentarProvedor(primary);
+  if (resultPrimario.ok) {
+    return resultPrimario;
   }
 
-  return gerarPelaKie({ orderId, prompt, tags }, env);
+  // Se não houver fallback configurado, encerra com o resultado primário
+  if (!hasFallback) {
+    return resultPrimario;
+  }
+
+  // Se o provedor principal falhou (ex: 402 sem crédito, erro de autenticação, timeout, 5xx):
+  console.warn(`[suno] Provedor principal (${primary}) falhou (${resultPrimario.error || resultPrimario.status}). Iniciando fallback automático para ${fallback}...`);
+  await recordSunoFailure(orderId, `${primary}_failover_to_${fallback}_${resultPrimario.status || 'unknown'}`, env);
+
+  // 2. Aciona o fallback se as chaves estiverem disponíveis
+  const resultFallback = await tentarProvedor(fallback);
+  if (resultFallback.ok) {
+    return resultFallback;
+  }
+
+  console.error(`[suno] Provedor de fallback (${fallback}) também falhou:`, resultFallback.error);
+  return resultPrimario;
 }
 
 /**
@@ -286,10 +346,10 @@ async function gerarPelaKie({ orderId, prompt, tags }, env) {
 //
 // Limitado a poucos saltos: o cap de MAX_AUTO_RETRIES já impede cadeias longas de acontecer de
 // verdade; o limite aqui é só para nunca entrar em loop se algum bug de auto-referência escapar.
-export async function resolveLatestTaskId(taskId) {
+export async function resolveLatestTaskId(taskId, env = {}) {
   let current = taskId;
   for (let hop = 0; hop < MAX_AUTO_RETRIES + 1; hop++) {
-    const task = await getTask(current);
+    const task = await getTask(current, env);
     if (task?.retryTaskId) {
       current = task.retryTaskId;
     } else {
@@ -300,19 +360,17 @@ export async function resolveLatestTaskId(taskId) {
 }
 
 /**
- * Reage a uma falha definitiva reportada pela Kie.ai para `taskId`, retentando automaticamente
- * quando ainda há orçamento de tentativas e dados suficientes no pedido para remontar o pedido à
- * Kie.ai (letra/estilo/humor/tipo de voz).
+ * Reage a uma falha definitiva ou timeout reportado por um provedor (Kie.ai ou Unifically) para `taskId`,
+ * retentando automaticamente com o provedor secundário (fallback) quando ainda há orçamento de tentativas.
  *
  * Idempotente por reserva sequencial (getDoc + updateDoc, o mesmo padrão usado em
- * src/lib/payments.js — runTransaction não existe em firebase/firestore/lite): o polling do cliente
- * e a reconciliação por cron podem colidir na mesma tarefa falha, e sem essa reserva as duas
- * disparariam uma retentativa cada, duplicando o gasto com a Kie.ai.
+ * src/lib/payments.js): evita que polling do cliente e cron de reconciliação disparem duas
+ * retentativas para a mesma falha ao colidir na mesma janela de tempo.
  *
- * @param {{taskId: string, orderId: string, env: object, reason: string}} params
+ * @param {{taskId: string, orderId: string, env: object, reason: string, preferredProvider?: string}} params
  * @returns {Promise<{retried: true, newTaskId: string} | {retried: false, reason: string}>}
  */
-export async function maybeAutoRetrySunoFailure({ taskId, orderId, env, reason }) {
+export async function maybeAutoRetrySunoFailure({ taskId, orderId, env = {}, reason, preferredProvider = null }) {
   if (!orderId) return { retried: false, reason: 'sem_order_id' };
 
   let orderData;
@@ -331,7 +389,7 @@ export async function maybeAutoRetrySunoFailure({ taskId, orderId, env, reason }
 
   const retriesUsados = Number(orderData.sunoAutoRetryCount) || 0;
   if (retriesUsados >= MAX_AUTO_RETRIES) {
-    await recordSunoFailure(orderId, `kie_falhou_${reason}_limite_retry_esgotado`, env);
+    await recordSunoFailure(orderId, `falhou_${reason}_limite_retry_esgotado`, env);
     return { retried: false, reason: 'limite_esgotado' };
   }
 
@@ -351,11 +409,29 @@ export async function maybeAutoRetrySunoFailure({ taskId, orderId, env, reason }
   const payload = buildSunoPayload(orderData);
   if (!payload.prompt?.trim() || !payload.tags?.trim()) {
     await updateOrder(orderId, { sunoRetryReserved: false, updatedAt: new Date().toISOString() }, env).catch(() => {});
-    await recordSunoFailure(orderId, `kie_falhou_${reason}_sem_dados_para_retry`, env);
+    await recordSunoFailure(orderId, `falhou_${reason}_sem_dados_para_retry`, env);
     return { retried: false, reason: 'payload_incompleto' };
   }
 
-  const result = await requestSunoGeneration({ orderId, prompt: payload.prompt, tags: payload.tags }, env);
+  // Determina o provedor de destino da retentativa:
+  // Se a falha foi na Unifically, vai para Kie.ai; se foi na Kie.ai e há Unifically configurada, tenta Unifically.
+  let targetProvider = preferredProvider;
+  if (!targetProvider) {
+    const reasonLower = String(reason || '').toLowerCase();
+    if (reasonLower.includes('unifically')) {
+      targetProvider = PROVIDER_KIE;
+    } else if (reasonLower.includes('kie')) {
+      const unifKey = readEnvValue(env, 'UNIFICALLY_API_KEY');
+      targetProvider = unifKey ? PROVIDER_UNIFICALLY : PROVIDER_KIE;
+    }
+  }
+
+  const result = await requestSunoGeneration({
+    orderId,
+    prompt: payload.prompt,
+    tags: payload.tags,
+    preferredProvider: targetProvider
+  }, env);
 
   if (!result.ok) {
     await updateOrder(orderId, { sunoRetryReserved: false, updatedAt: new Date().toISOString() }, env).catch(() => {});

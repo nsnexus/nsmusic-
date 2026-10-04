@@ -2,19 +2,19 @@ import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
 import { getSupabaseEdge } from '@/lib/supabase-edge';
 import { mapSupabaseOrderToFirestore } from '@/lib/supabaseSync';
-import { updateTaskResult, extractAudioTracks } from '@/lib/db';
+import { getTask, updateTaskResult, extractAudioTracks } from '@/lib/db';
 import { applyPaymentApproval } from '@/lib/payments';
 import { getChargeStatus } from '@/lib/efi';
 import { requireAdmin } from '@/lib/auth';
-import { resolveLatestTaskId, maybeAutoRetrySunoFailure, recordSunoFailure } from '@/lib/suno';
+import { resolveLatestTaskId, maybeAutoRetrySunoFailure, recordSunoFailure, PROVIDER_KIE } from '@/lib/suno';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 const MAX_AUDIO_ORDERS = 10;
 const MAX_PAYMENT_ORDERS = 10;
-const MIN_AGE_MINUTES = 5;
-const STUCK_RETRY_MINUTES = 8;
+const MIN_AGE_MINUTES = 3;
+const STUCK_RETRY_MINUTES = 3;
 
 function readEnv(env, name) {
   return String((env && env[name]) || process.env[name] || '').trim();
@@ -40,8 +40,14 @@ async function authorize(req, env) {
   return { ok: false, status: admin.status || 401, error: admin.error || 'Não autorizado.' };
 }
 
-async function forceStuckRetry(orderId, effectiveTaskId, env, result, motivo) {
-  const retry = await maybeAutoRetrySunoFailure({ taskId: effectiveTaskId, orderId, env, reason: motivo });
+async function forceStuckRetry(orderId, effectiveTaskId, env, result, motivo, preferredProvider = null) {
+  const retry = await maybeAutoRetrySunoFailure({
+    taskId: effectiveTaskId,
+    orderId,
+    env,
+    reason: motivo,
+    preferredProvider
+  });
   if (retry.retried) {
     result.retried++;
   } else {
@@ -52,9 +58,11 @@ async function forceStuckRetry(orderId, effectiveTaskId, env, result, motivo) {
 
 async function reconcileStuckAudio(env) {
   const result = { checked: 0, completed: 0, retried: 0, stillProcessing: 0, failed: 0 };
-  const apiKey = readEnv(env, 'KIE_API_KEY');
-  if (!apiKey) {
-    result.error = 'KIE_API_KEY não configurada';
+  const kieApiKey = readEnv(env, 'KIE_API_KEY');
+  const unificallyApiKey = readEnv(env, 'UNIFICALLY_API_KEY');
+
+  if (!kieApiKey && !unificallyApiKey) {
+    result.error = 'Nenhuma chave de IA (KIE_API_KEY ou UNIFICALLY_API_KEY) configurada';
     return result;
   }
 
@@ -111,44 +119,94 @@ async function reconcileStuckAudio(env) {
 
     try {
       const effectiveTaskId = await resolveLatestTaskId(taskId, env);
+      const task = await getTask(effectiveTaskId, env);
+      const isUnif = task?.provider === 'unifically' || orderData.sunoProvider === 'unifically';
 
-      const kieRes = await fetch(`https://api.kie.ai/api/v1/generate/record-info?taskId=${effectiveTaskId}`, {
-        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-        signal: AbortSignal.timeout(10000),
-      });
+      // 1. Processamento de tarefa da Unifically
+      if (isUnif && unificallyApiKey) {
+        const unifRes = await fetch(`https://api.unifically.com/v1/tasks/${effectiveTaskId}`, {
+          headers: { Authorization: `Bearer ${unificallyApiKey}`, 'Content-Type': 'application/json' },
+          signal: AbortSignal.timeout(10000),
+        });
 
-      if (!kieRes.ok) {
+        if (!unifRes.ok) {
+          if (isOlderThan(orderData.sunoRequestedAt, STUCK_RETRY_MINUTES) || unifRes.status === 402) {
+            await forceStuckRetry(orderData.id, effectiveTaskId, env, result, `unifically_http_${unifRes.status}`, PROVIDER_KIE);
+          } else {
+            result.stillProcessing++;
+          }
+          continue;
+        }
+
+        const unifData = await unifRes.json();
+        const taskData = unifData?.data || unifData;
+        const rawStatus = String(taskData?.status || unifData?.status || '').toLowerCase();
+
+        if (rawStatus === 'completed' || rawStatus === 'succeeded' || rawStatus === 'success') {
+          const tracksArray = extractAudioTracks(unifData).length > 0
+            ? extractAudioTracks(unifData)
+            : extractAudioTracks(taskData);
+
+          if (tracksArray.length > 0) {
+            await updateTaskResult(effectiveTaskId, unifData, null, env);
+            result.completed++;
+            continue;
+          }
+        }
+
+        if (rawStatus === 'failed' || rawStatus === 'error') {
+          await forceStuckRetry(orderData.id, effectiveTaskId, env, result, `unifically_status_${rawStatus}`, PROVIDER_KIE);
+          continue;
+        }
+
         if (isOlderThan(orderData.sunoRequestedAt, STUCK_RETRY_MINUTES)) {
-          await forceStuckRetry(orderData.id, effectiveTaskId, env, result, `kie_http_${kieRes.status}`);
+          await forceStuckRetry(orderData.id, effectiveTaskId, env, result, `unifically_travado_${rawStatus || 'vazio'}`, PROVIDER_KIE);
         } else {
           result.stillProcessing++;
         }
         continue;
       }
 
-      const kieData = await kieRes.json();
-      const rawStatus = String(kieData?.data?.status || kieData?.data?.state || '').toUpperCase();
+      // 2. Processamento de tarefa da Kie.ai
+      if (kieApiKey) {
+        const kieRes = await fetch(`https://api.kie.ai/api/v1/generate/record-info?taskId=${effectiveTaskId}`, {
+          headers: { Authorization: `Bearer ${kieApiKey}`, 'Content-Type': 'application/json' },
+          signal: AbortSignal.timeout(10000),
+        });
 
-      if (rawStatus.includes('SUCCESS') || rawStatus.includes('COMPLETE')) {
-        if (extractAudioTracks(kieData).length > 0) {
-          await updateTaskResult(effectiveTaskId, kieData, null, env);
-          result.completed++;
+        if (!kieRes.ok) {
+          if (isOlderThan(orderData.sunoRequestedAt, 6)) {
+            await forceStuckRetry(orderData.id, effectiveTaskId, env, result, `kie_http_${kieRes.status}`);
+          } else {
+            result.stillProcessing++;
+          }
           continue;
         }
-      }
 
-      if (rawStatus.includes('FAIL') || rawStatus.includes('ERROR')) {
-        await forceStuckRetry(orderData.id, effectiveTaskId, env, result, `kie_status_${rawStatus}`);
-        continue;
-      }
+        const kieData = await kieRes.json();
+        const rawStatus = String(kieData?.data?.status || kieData?.data?.state || '').toUpperCase();
 
-      if (isOlderThan(orderData.sunoRequestedAt, STUCK_RETRY_MINUTES)) {
-        await forceStuckRetry(orderData.id, effectiveTaskId, env, result, `kie_status_travado_${rawStatus || 'vazio'}`);
-      } else {
-        result.stillProcessing++;
+        if (rawStatus.includes('SUCCESS') || rawStatus.includes('COMPLETE')) {
+          if (extractAudioTracks(kieData).length > 0) {
+            await updateTaskResult(effectiveTaskId, kieData, null, env);
+            result.completed++;
+            continue;
+          }
+        }
+
+        if (rawStatus.includes('FAIL') || rawStatus.includes('ERROR')) {
+          await forceStuckRetry(orderData.id, effectiveTaskId, env, result, `kie_status_${rawStatus}`);
+          continue;
+        }
+
+        if (isOlderThan(orderData.sunoRequestedAt, 6)) {
+          await forceStuckRetry(orderData.id, effectiveTaskId, env, result, `kie_status_travado_${rawStatus || 'vazio'}`);
+        } else {
+          result.stillProcessing++;
+        }
       }
     } catch (err) {
-      console.warn('[reconcile] Erro ao consultar a Kie.ai:', err.message);
+      console.warn('[reconcile] Erro ao consultar provedor de música:', err.message);
       result.stillProcessing++;
     }
   }

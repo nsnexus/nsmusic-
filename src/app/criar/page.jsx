@@ -1191,7 +1191,7 @@ export default function CriarMusica() {
 
   const pollSunoStatus = (activeTaskId, activeOrderId = orderId) => {
     let attempts = 0;
-    const maxAttempts = 72; // 360 seconds (6 minutos) max
+    const maxAttempts = 108; // 540 seconds (9 minutos) max — acomoda failover automático após 3 min
     updateField('sunoStatus', 'generating');
     updateField('sunoProgress', 'Aguardando o Suno compor e renderizar os áudios (2 a 4 min)...');
 
@@ -1205,6 +1205,10 @@ export default function CriarMusica() {
         const res = await fetch(`/api/suno/status?taskId=${activeTaskId}&orderId=${targetOrder || ''}`);
         if (res.ok) {
           const statusData = await res.json();
+
+          if (statusData.newTaskId && statusData.newTaskId !== activeTaskId) {
+            activeTaskId = statusData.newTaskId;
+          }
 
           if (statusData.status === 'COMPLETED' && statusData.tracks && statusData.tracks.length > 0) {
             setFormData(prev => ({ ...prev, sunoTracks: statusData.tracks }));
@@ -1256,13 +1260,12 @@ export default function CriarMusica() {
               updateField('sunoStatus', 'generated');
             }
           } else if (statusData.status === 'ERROR') {
-            // Falha definitiva da Kie.ai, já com a retentativa automática do servidor esgotada (ver
-            // src/lib/suno.js) — antes disso o polling nunca checava esse status e tratava como "em
-            // produção" até o timeout de 6 minutos, mesmo quando a Kie.ai já tinha desistido em
-            // segundos. Agora o cliente sabe na hora, sem esperar o relógio inteiro rodar.
+            // Falha definitiva da IA, já com a retentativa automática e failover do servidor esgotados
             clearInterval(pollIntervalRef.current);
             updateField('sunoStatus', 'error');
             updateField('sunoProgress', statusData.error || 'A geração da música falhou. Tente novamente.');
+          } else if (statusData.providerStatus === 'FALLBACK_KIE' || statusData.fallback) {
+            updateField('sunoProgress', 'Refinando áudio no estúdio complementar...');
           } else {
             updateField('sunoProgress', `Estúdio produzindo arranjos...`);
           }

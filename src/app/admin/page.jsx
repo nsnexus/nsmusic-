@@ -87,6 +87,10 @@ export default function AdminDashboard() {
   const [salvandoNumero, setSalvandoNumero] = useState(false);
   const [msgNumero, setMsgNumero] = useState('');
 
+  const [sunoPrimaryProvider, setSunoPrimaryProvider] = useState('unifically');
+  const [salvandoProvider, setSalvandoProvider] = useState(false);
+  const [msgProvider, setMsgProvider] = useState('');
+
   // Reprocessamento de pedidos travados antes da Suno (letra pronta mas geração nunca confirmada).
   // Varredura de conferência de pagamentos (pedido 20/09/2026) — ver handleAuditPayments.
   const [auditing, setAuditing] = useState(false);
@@ -504,9 +508,36 @@ export default function AdminDashboard() {
   useEffect(() => {
     lerConfigSite().then((cfg) => {
       setNumeroSuporte(cfg?.whatsappSuporte || WHATSAPP_SUPORTE_PADRAO);
+      if (cfg?.sunoPrimaryProvider) {
+        setSunoPrimaryProvider(cfg.sunoPrimaryProvider);
+      }
     });
   }, []);
 
+  const handleSalvarProvider = async (novoProvider) => {
+    const providerEscolhido = novoProvider || sunoPrimaryProvider;
+    setSalvandoProvider(true);
+    setMsgProvider('');
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      const res = await fetch('/api/admin/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ sunoPrimaryProvider: providerEscolhido }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMsgProvider(data.error || 'Não foi possível salvar.');
+        return;
+      }
+      setSunoPrimaryProvider(data.sunoPrimaryProvider);
+      setMsgProvider(`✅ Salvo: Provedor principal alterado para ${data.sunoPrimaryProvider === 'kie' ? 'Kie.ai' : 'Unifically'}.`);
+    } catch (err) {
+      setMsgProvider('Falha de conexão ao salvar.');
+    } finally {
+      setSalvandoProvider(false);
+    }
+  };
 
   const handleSalvarNumeroSuporte = async () => {
     const normalizado = normalizarNumeroWhatsapp(numeroSuporte);
@@ -941,6 +972,72 @@ export default function AdminDashboard() {
                 {msgNumero && (
                   <span style={{ fontSize: '0.8rem', color: msgNumero.startsWith('✅') ? '#059669' : '#dc2626', flexBasis: '100%' }}>
                     {msgNumero}
+                  </span>
+                )}
+              </div>
+
+              {/* Provedor Principal da Música (IA): permite alternar entre Unifically e Kie.ai sem deploy.
+                  Quem for escolhido como principal é tentado primeiro; em caso de falha/timeout (>3min),
+                  o sistema executa failover automático para o secundário. */}
+              <div style={{
+                marginTop: '16px',
+                padding: '14px 16px',
+                borderRadius: '12px',
+                background: '#f8fafc',
+                border: '1px solid #e2e8f0',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+                  <div>
+                    <span style={{ fontSize: '0.88rem', fontWeight: '700', color: '#1e293b' }}>
+                      🎹 Provedor Principal de Música (IA)
+                    </span>
+                    <span style={{ display: 'block', fontSize: '0.78rem', color: '#64748b' }}>
+                      Se o principal falhar (falta de crédito, erro ou &gt; 3 min gerando), o fallback entra automaticamente.
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={() => handleSalvarProvider('unifically')}
+                      disabled={salvandoProvider}
+                      style={{
+                        padding: '7px 14px',
+                        borderRadius: '8px',
+                        border: '1.5px solid ' + (sunoPrimaryProvider === 'unifically' ? '#7c3aed' : '#cbd5e1'),
+                        background: sunoPrimaryProvider === 'unifically' ? '#7c3aed' : '#ffffff',
+                        color: sunoPrimaryProvider === 'unifically' ? '#ffffff' : '#334155',
+                        fontWeight: '700',
+                        fontSize: '0.82rem',
+                        cursor: salvandoProvider ? 'default' : 'pointer'
+                      }}
+                    >
+                      {sunoPrimaryProvider === 'unifically' ? '⭐ Unifically (Principal)' : 'Unifically'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSalvarProvider('kie')}
+                      disabled={salvandoProvider}
+                      style={{
+                        padding: '7px 14px',
+                        borderRadius: '8px',
+                        border: '1.5px solid ' + (sunoPrimaryProvider === 'kie' ? '#7c3aed' : '#cbd5e1'),
+                        background: sunoPrimaryProvider === 'kie' ? '#7c3aed' : '#ffffff',
+                        color: sunoPrimaryProvider === 'kie' ? '#ffffff' : '#334155',
+                        fontWeight: '700',
+                        fontSize: '0.82rem',
+                        cursor: salvandoProvider ? 'default' : 'pointer'
+                      }}
+                    >
+                      {sunoPrimaryProvider === 'kie' ? '⭐ Kie.ai (Principal)' : 'Kie.ai'}
+                    </button>
+                  </div>
+                </div>
+                {msgProvider && (
+                  <span style={{ fontSize: '0.8rem', color: msgProvider.startsWith('✅') ? '#059669' : '#dc2626' }}>
+                    {msgProvider}
                   </span>
                 )}
               </div>

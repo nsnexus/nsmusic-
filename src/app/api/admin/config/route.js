@@ -54,6 +54,19 @@ export async function POST(req) {
       updates.agentEnabledAtualizadoEm = new Date().toISOString();
     }
 
+    if (body?.sunoPrimaryProvider !== undefined) {
+      const p = String(body.sunoPrimaryProvider).toLowerCase().trim();
+      if (p === 'kie' || p === 'unifically') {
+        updates.sunoPrimaryProvider = p;
+        updates.sunoPrimaryProviderAtualizadoEm = new Date().toISOString();
+      } else {
+        return NextResponse.json(
+          { error: 'Provedor inválido. Escolha "unifically" ou "kie".' },
+          { status: 400 }
+        );
+      }
+    }
+
     const newValor = { ...currentValor, ...updates };
 
     await supabase
@@ -67,7 +80,8 @@ export async function POST(req) {
     return NextResponse.json({
       ok: true,
       whatsappSuporte: newValor.whatsappSuporte || WHATSAPP_SUPORTE_PADRAO,
-      agentEnabled: newValor.agentEnabled !== false
+      agentEnabled: newValor.agentEnabled !== false,
+      sunoPrimaryProvider: newValor.sunoPrimaryProvider || process.env.SUNO_PRIMARY_PROVIDER || 'unifically'
     });
   } catch (err) {
     console.error('[admin/config] falha ao salvar configuração:', err.message);
@@ -96,11 +110,14 @@ export async function GET(req) {
       }
     }
 
+    const defaultProvider = String(env?.SUNO_PRIMARY_PROVIDER || process.env.SUNO_PRIMARY_PROVIDER || 'unifically').toLowerCase().trim();
+
     return NextResponse.json(
       {
         ok: true,
         whatsappSuporte: configData.whatsappSuporte || WHATSAPP_SUPORTE_PADRAO,
-        agentEnabled: configData.agentEnabled !== false
+        agentEnabled: configData.agentEnabled !== false,
+        sunoPrimaryProvider: configData.sunoPrimaryProvider || defaultProvider
       },
       { headers: { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300' } }
     );
@@ -108,7 +125,8 @@ export async function GET(req) {
     return NextResponse.json({
       ok: true,
       whatsappSuporte: WHATSAPP_SUPORTE_PADRAO,
-      agentEnabled: true
+      agentEnabled: true,
+      sunoPrimaryProvider: 'unifically'
     });
   }
 }
