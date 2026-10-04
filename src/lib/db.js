@@ -157,6 +157,23 @@ export const updateTaskResult = async (taskId, result, overrideOrderId = null, e
       }
     }
 
+    if (!orderId) {
+      try {
+        const { getSupabaseEdge } = await import('./supabase-edge.js');
+        const supabase = getSupabaseEdge(env);
+        if (supabase) {
+          const { data: ordRow } = await supabase
+            .from('orders')
+            .select('id')
+            .eq('suno_task_id', taskId)
+            .maybeSingle();
+          if (ordRow?.id) {
+            orderId = ordRow.id;
+          }
+        }
+      } catch (e) {}
+    }
+
     await saveSunoTask(taskId, 'COMPLETED', result, orderId || null, {}, env);
 
     const tracks = extractAudioTracks(result);

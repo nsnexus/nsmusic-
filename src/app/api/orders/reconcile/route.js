@@ -148,7 +148,7 @@ async function reconcileStuckAudio(env) {
             : extractAudioTracks(taskData);
 
           if (tracksArray.length > 0) {
-            await updateTaskResult(effectiveTaskId, unifData, null, env);
+            await updateTaskResult(effectiveTaskId, unifData, orderData.id, env);
             result.completed++;
             continue;
           }
@@ -184,11 +184,24 @@ async function reconcileStuckAudio(env) {
         }
 
         const kieData = await kieRes.json();
-        const rawStatus = String(kieData?.data?.status || kieData?.data?.state || '').toUpperCase();
+        const rawStatus = String(
+          (Array.isArray(kieData?.data) ? kieData.data[0]?.status : (kieData?.data?.status || kieData?.data?.state))
+          || kieData?.status
+          || kieData?.state
+          || kieData?.data?.response?.status
+          || ''
+        ).toUpperCase();
 
-        if (rawStatus.includes('SUCCESS') || rawStatus.includes('COMPLETE')) {
-          if (extractAudioTracks(kieData).length > 0) {
-            await updateTaskResult(effectiveTaskId, kieData, null, env);
+        const tracksArray = extractAudioTracks(kieData);
+        const hasRealAudio = tracksArray.length > 0 && tracksArray.some(t => {
+          const u = t.audio_url || t.audioUrl || '';
+          return typeof u === 'string' && u.startsWith('http');
+        });
+        const isReady = rawStatus.includes('SUCCESS') || rawStatus.includes('COMPLETE') || rawStatus.includes('FINISH') || rawStatus.includes('DONE');
+
+        if (isReady || hasRealAudio) {
+          if (tracksArray.length > 0) {
+            await updateTaskResult(effectiveTaskId, kieData, orderData.id, env);
             result.completed++;
             continue;
           }
