@@ -182,4 +182,38 @@ describe('extractAudioTracks', () => {
     expect(tracks[0].audio_url).toBe('https://cdn.unifically.com/outputs/track1.mp3');
     expect(tracks[1].audio_url).toBe('https://cdn.unifically.com/outputs/track2.mp3');
   });
+
+  it('formato Unifically real de produção: { status, task_id, audio_url1, audio_url2 }', () => {
+    const result = {
+      status: 'completed',
+      task_id: '96b69d7c-73d9-4a18-813c-9cf3e51ef5b4',
+      audio_url1: 'https://files.unifically.com/audio/tf-wlAYfTcDIELE-803a43e8-312b-48ff-9a89-a884f7a81f0c.mp3',
+      audio_url2: 'https://files.unifically.com/audio/tf-wqAzffcVIxVq-757f3834-c4b6-4d23-9789-3d281d7ae92e.mp3'
+    };
+    const tracks = extractAudioTracks(result);
+    expect(tracks).toHaveLength(2);
+    expect(tracks[0].audio_url).toBe('https://files.unifically.com/audio/tf-wlAYfTcDIELE-803a43e8-312b-48ff-9a89-a884f7a81f0c.mp3');
+    expect(tracks[0].audioUrl).toBe('https://files.unifically.com/audio/tf-wlAYfTcDIELE-803a43e8-312b-48ff-9a89-a884f7a81f0c.mp3');
+    expect(tracks[0].trackId).toBe('803a43e8-312b-48ff-9a89-a884f7a81f0c');
+
+    expect(tracks[1].audio_url).toBe('https://files.unifically.com/audio/tf-wqAzffcVIxVq-757f3834-c4b6-4d23-9789-3d281d7ae92e.mp3');
+    expect(tracks[1].audioUrl).toBe('https://files.unifically.com/audio/tf-wqAzffcVIxVq-757f3834-c4b6-4d23-9789-3d281d7ae92e.mp3');
+    expect(tracks[1].trackId).toBe('757f3834-c4b6-4d23-9789-3d281d7ae92e');
+  });
+
+  it('formato Unifically envelopado em { data: { audio_url1, audio_url2 } }', () => {
+    const result = {
+      code: 200,
+      data: {
+        status: 'completed',
+        task_id: '96b69d7c-73d9-4a18-813c-9cf3e51ef5b4',
+        audio_url1: 'https://files.unifically.com/audio/track1.mp3',
+        audio_url2: 'https://files.unifically.com/audio/track2.mp3',
+      }
+    };
+    const tracks = extractAudioTracks(result);
+    expect(tracks).toHaveLength(2);
+    expect(tracks[0].audio_url).toBe('https://files.unifically.com/audio/track1.mp3');
+    expect(tracks[1].audio_url).toBe('https://files.unifically.com/audio/track2.mp3');
+  });
 });

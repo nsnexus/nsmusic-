@@ -36,6 +36,11 @@ describe('origens para arquivar', () => {
     expect(origensParaArquivar('https://cdn1.suno.ai/qualquer-coisa.mp3')).toEqual(['https://cdn1.suno.ai/qualquer-coisa.mp3']);
   });
 
+  it('retorna apenas a URL original da Unifically sem tentar domínios Kie', () => {
+    const unifUrl = 'https://files.unifically.com/audio/tf-wlAYfTcDIELE-803a43e8-312b-48ff-9a89-a884f7a81f0c.mp3';
+    expect(origensParaArquivar(unifUrl)).toEqual([unifUrl]);
+  });
+
   it('entrada vazia não gera tentativa nenhuma', () => {
     for (const vazio of ['', null, undefined]) {
       expect(origensParaArquivar(vazio)).toEqual([]);

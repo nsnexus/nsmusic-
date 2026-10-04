@@ -69,17 +69,20 @@ export async function GET(req) {
         if (unifRes.ok) {
           const unifData = await unifRes.json();
           const taskData = unifData?.data || unifData;
-          const rawStatus = String(taskData?.status || '').toLowerCase();
+          const rawStatus = String(taskData?.status || unifData?.status || '').toLowerCase();
 
-          if (rawStatus === 'completed') {
-            const tracksArray = extractAudioTracks(unifData);
+          if (rawStatus === 'completed' || rawStatus === 'succeeded' || rawStatus === 'success') {
+            const tracksArray = extractAudioTracks(unifData).length > 0
+              ? extractAudioTracks(unifData)
+              : extractAudioTracks(taskData);
+
             if (tracksArray.length > 0) {
               await updateTaskResult(effectiveTaskId, unifData, null, env);
               return NextResponse.json({ status: "COMPLETED", tracks: tracksArray });
             }
           }
 
-          if (rawStatus === 'processing' || rawStatus === 'pending' || rawStatus === 'queued') {
+          if (rawStatus === 'processing' || rawStatus === 'pending' || rawStatus === 'queued' || rawStatus === 'running') {
             return NextResponse.json({ status: "PROCESSING", providerStatus: rawStatus });
           }
 

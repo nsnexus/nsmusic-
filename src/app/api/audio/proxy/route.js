@@ -114,6 +114,8 @@ export async function GET(req) {
       }
     };
 
+    const isUnificallyUrl = Boolean(rawUrl && rawUrl.includes('unifically.com'));
+
     // Lista de URLs candidatas com fallback automático (múltiplas CDNs)
     const candidates = [];
     if (rawUrl) {
@@ -129,7 +131,7 @@ export async function GET(req) {
         candidates.push(`https://audiostream.kie.ai/stream/${derivedUuid}.mp3`);
         candidates.push(`https://tempfile.aiquickdraw.com/r/${derivedUuid}.mp3`);
       }
-      if (itemId) {
+      if (itemId && !isUnificallyUrl) {
         candidates.push(`https://audiostream.kie.ai/stream/${itemId}.mp3`);
         candidates.push(`https://tempfile.aiquickdraw.com/r/${itemId}.mp3`);
       }
@@ -158,7 +160,7 @@ export async function GET(req) {
       }
     }
 
-    if (itemId) {
+    if (itemId && !isUnificallyUrl) {
       candidates.push(`https://audiostream.kie.ai/stream/${itemId}.mp3`);
       try {
         const b64 = btoa(itemId);

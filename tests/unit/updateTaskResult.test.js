@@ -164,4 +164,26 @@ describe('updateTaskResult — regeração e substituição de áudio', () => {
     // Como é a MESMA faixa e já está arquivada no R2, preserva o R2 e não reverte para tempfile
     expect(store['order_mesma'].audioUrl).toBe('https://pub-r2.dev/audios/order_mesma/versao-1.mp3');
   });
+
+  it('atualiza pedido quando recebe saída da Unifically com audio_url1 e audio_url2', async () => {
+    store['task_unif'] = { orderId: 'order_unif' };
+    store['order_unif'] = {
+      customerPhone: '5511999999999',
+      productionStatus: 'GERANDO_AUDIO',
+    };
+
+    const unifPayload = {
+      status: 'completed',
+      task_id: '96b69d7c-73d9-4a18-813c-9cf3e51ef5b4',
+      audio_url1: 'https://files.unifically.com/audio/tf-wlAYfTcDIELE-803a43e8-312b-48ff-9a89-a884f7a81f0c.mp3',
+      audio_url2: 'https://files.unifically.com/audio/tf-wqAzffcVIxVq-757f3834-c4b6-4d23-9789-3d281d7ae92e.mp3'
+    };
+
+    await updateTaskResult('task_unif', unifPayload);
+
+    expect(store['order_unif'].productionStatus).toBe('AUDIO_GERADO');
+    expect(store['order_unif'].audioFiles).toHaveLength(2);
+    expect(store['order_unif'].audioFiles[0]).toBe('https://files.unifically.com/audio/tf-wlAYfTcDIELE-803a43e8-312b-48ff-9a89-a884f7a81f0c.mp3');
+    expect(store['order_unif'].audioFiles[1]).toBe('https://files.unifically.com/audio/tf-wqAzffcVIxVq-757f3834-c4b6-4d23-9789-3d281d7ae92e.mp3');
+  });
 });

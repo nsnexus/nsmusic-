@@ -47,6 +47,10 @@ export function origensParaArquivar(sourceUrl) {
   if (!url) return [];
 
   const candidatos = [];
+  if (url.includes('unifically.com')) {
+    return [url];
+  }
+
   const uuid = (url.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i) || [])[1];
 
   // musicfile.kie.ai guarda o UUID em base64 no path (ver o comentário equivalente no proxy).

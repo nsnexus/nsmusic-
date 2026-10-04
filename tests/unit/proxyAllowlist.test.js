@@ -20,6 +20,7 @@ describe('isAllowedMediaHost', () => {
     expect(isAllowedMediaHost('pub-e90fb1c45fb048ee8e1136c9ee7a1463.r2.dev')).toBe(true);
     expect(isAllowedMediaHost('cdn.unifically.com')).toBe(true);
     expect(isAllowedMediaHost('api.unifically.com')).toBe(true);
+    expect(isAllowedMediaHost('files.unifically.com')).toBe(true);
   });
 
   it('rejeita domínios fora da allowlist', () => {

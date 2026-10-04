@@ -20,6 +20,27 @@ export const saveTask = async (taskId, status, result = null, orderId = null, ex
   return saveSunoTask(taskId, status, result, orderId, extra, env);
 };
 
+function extractNumberedAudioTracks(obj) {
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return null;
+  const tracks = [];
+  // Procura por chaves como audio_url1, audio_url2, audioUrl1, audioUrl2, etc. (padrão Unifically)
+  for (let i = 1; i <= 10; i++) {
+    const url = obj[`audio_url${i}`] || obj[`audioUrl${i}`] || obj[`audio_${i}`];
+    if (typeof url === 'string' && url.trim()) {
+      const u = url.trim();
+      const uuidMatch = u.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
+      tracks.push({
+        id: (uuidMatch && uuidMatch[1]) ? uuidMatch[1] : `${obj.task_id || obj.taskId || 'track'}-${i}`,
+        audio_url: u,
+        audioUrl: u,
+        trackId: (uuidMatch && uuidMatch[1]) ? uuidMatch[1] : `${obj.task_id || obj.taskId || ''}-${i}`,
+        imageUrl: obj.image_url || obj.imageUrl || '',
+      });
+    }
+  }
+  return tracks.length > 0 ? tracks : null;
+}
+
 export const extractAudioTracks = (result) => {
   if (!result) return [];
   
@@ -30,7 +51,9 @@ export const extractAudioTracks = (result) => {
     rawTracks = result.data;
   } else if (result.data && typeof result.data === 'object') {
     const d = result.data;
-    rawTracks = d.response?.sunoData
+    rawTracks = extractNumberedAudioTracks(d)
+      || extractNumberedAudioTracks(d.output)
+      || d.response?.sunoData
       || d.response?.tracks
       || d.sunoData
       || d.tracks
@@ -43,11 +66,17 @@ export const extractAudioTracks = (result) => {
   } else if (result.response && (result.response.sunoData || result.response.tracks)) {
     rawTracks = result.response.sunoData || result.response.tracks;
   } else if (result.output && typeof result.output === 'object') {
-    rawTracks = result.output.audio_urls || result.output.audios || (result.output.audio_url ? [result.output] : null) || [result.output];
+    rawTracks = extractNumberedAudioTracks(result.output)
+      || result.output.audio_urls
+      || result.output.audios
+      || (result.output.audio_url ? [result.output] : null)
+      || [result.output];
   } else if (result.tracks) {
     rawTracks = result.tracks;
   } else if (result.audio_urls && Array.isArray(result.audio_urls)) {
     rawTracks = result.audio_urls;
+  } else if (extractNumberedAudioTracks(result)) {
+    rawTracks = extractNumberedAudioTracks(result);
   } else if (result.audio_url) {
     rawTracks = [result];
   }
@@ -62,16 +91,24 @@ export const extractAudioTracks = (result) => {
 
     const rawCandidates = [
       t.audio_url, t.audioUrl,
+      t.audio_url1, t.audioUrl1,
+      t.audio_url2, t.audioUrl2,
       t.source_audio_url, t.sourceAudioUrl,
       t.stream_audio_url, t.streamAudioUrl,
       t.sourceStreamAudioUrl, t.source_stream_audio_url
     ].filter((u) => typeof u === 'string' && u.trim());
 
     const uuidMatch = rawCandidates.join(' ').match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
-    const trackId = (t.id && /^[a-f0-9-]{36}$/i.test(t.id)) ? t.id : (uuidMatch ? uuidMatch[1] : (t.id || ''));
+    const trackId = (t.trackId && /^[a-f0-9-]{36}$/i.test(t.trackId))
+      ? t.trackId
+      : (t.id && /^[a-f0-9-]{36}$/i.test(t.id))
+        ? t.id
+        : (uuidMatch ? uuidMatch[1] : (t.id || t.trackId || ''));
+
+    const isUnifically = rawCandidates.some(u => u.includes('unifically.com'));
 
     const hasStream = rawCandidates.some(u => u.includes('audiostream.kie.ai') || u.includes('stream'));
-    const streamCandidate = (trackId && (hasStream || rawCandidates.length > 0) && /^[a-f0-9-]{36}$/i.test(trackId))
+    const streamCandidate = (!isUnifically && trackId && (hasStream || rawCandidates.length > 0) && /^[a-f0-9-]{36}$/i.test(trackId))
       ? `https://audiostream.kie.ai/stream/${trackId}.mp3`
       : '';
 
@@ -79,16 +116,23 @@ export const extractAudioTracks = (result) => {
       t.stream_audio_url, t.streamAudioUrl,
       streamCandidate,
       t.audio_url, t.audioUrl,
+      t.audio_url1, t.audioUrl1,
+      t.audio_url2, t.audioUrl2,
       t.source_audio_url, t.sourceAudioUrl,
     ].filter((u) => typeof u === 'string' && u.trim());
 
-    let url = urlCandidates.find((u) => u.includes('audiostream.kie.ai'))
-      || urlCandidates.find((u) => !u.includes('musicfile.kie.ai') && !u.includes('tempfile.aiquickdraw.com'))
-      || urlCandidates.find((u) => !u.includes('musicfile.kie.ai'))
-      || urlCandidates[0] || '';
+    let url = '';
+    if (isUnifically) {
+      url = urlCandidates.find(u => u.includes('unifically.com')) || urlCandidates[0] || '';
+    } else {
+      url = urlCandidates.find((u) => u.includes('audiostream.kie.ai'))
+        || urlCandidates.find((u) => !u.includes('musicfile.kie.ai') && !u.includes('tempfile.aiquickdraw.com'))
+        || urlCandidates.find((u) => !u.includes('musicfile.kie.ai'))
+        || urlCandidates[0] || '';
 
-    if (!url && trackId) {
-      url = `https://cdn1.suno.ai/${trackId}.mp3`;
+      if (!url && trackId) {
+        url = `https://cdn1.suno.ai/${trackId}.mp3`;
+      }
     }
 
     const imageUrl = t.image_url || t.imageUrl || t.cover_image_url || t.coverImageUrl || '';

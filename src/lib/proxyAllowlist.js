@@ -30,12 +30,13 @@ const ALLOWED_HOSTS = [
   // CDN e endpoints da Unifically (Suno AI) onde as faixas de áudio e assets são servidos.
   'cdn.unifically.com',
   'api.unifically.com',
+  'files.unifically.com',
 ];
 
 export function isAllowedMediaHost(hostname) {
   if (!hostname) return false;
   const host = hostname.toLowerCase();
-  return ALLOWED_HOSTS.some((allowed) => host === allowed);
+  return ALLOWED_HOSTS.some((allowed) => host === allowed) || host.endsWith('.unifically.com');
 }
 
 export function isAllowedMediaUrl(rawUrl) {
