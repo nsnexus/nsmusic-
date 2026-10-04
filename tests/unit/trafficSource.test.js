@@ -121,5 +121,60 @@ describe('trafficSource module', () => {
       expect(res.totais.pedidosPagos).toBe(3);
       expect(res.totais.faturamento).toBeCloseTo(36.87);
     });
+
+    it('filtra corretamente por dia específico quando informado diaFiltro', () => {
+      // 1 pedido dia 03 (pago)
+      // 1 pedido dia 03 (pendente)
+      // 1 pedido dia 02 (pago)
+      const pedidos = [
+        {
+          id: '1',
+          paymentStatus: 'PAGO',
+          paidAmount: 9.99,
+          trafficSource: 'facebook_ads',
+          createdAt: '2026-10-03T14:00:00.000Z',
+          paidAt: '2026-10-03T14:10:00.000Z',
+        },
+        {
+          id: '2',
+          paymentStatus: 'AGUARDANDO_PAGAMENTO',
+          trafficSource: 'tiktok_ads',
+          createdAt: '2026-10-03T15:00:00.000Z',
+        },
+        {
+          id: '3',
+          paymentStatus: 'PAGO',
+          paidAmount: 16.89,
+          trafficSource: 'tiktok_ads',
+          createdAt: '2026-10-02T10:00:00.000Z',
+          paidAt: '2026-10-02T10:05:00.000Z',
+        },
+      ];
+
+      // Filtrando dia 3
+      const resDia3 = calcularMetricasPorPlataforma(pedidos, 3, '2026-10');
+      const fbDia3 = resDia3.plataformas.find((p) => p.key === 'facebook_ads');
+      const ttDia3 = resDia3.plataformas.find((p) => p.key === 'tiktok_ads');
+
+      expect(fbDia3.pedidosCriados).toBe(1);
+      expect(fbDia3.pedidosPagos).toBe(1);
+      expect(fbDia3.faturamento).toBeCloseTo(9.99);
+
+      expect(ttDia3.pedidosCriados).toBe(1);
+      expect(ttDia3.pedidosPagos).toBe(0);
+      expect(ttDia3.faturamento).toBe(0);
+
+      expect(resDia3.totais.pedidosCriados).toBe(2);
+      expect(resDia3.totais.pedidosPagos).toBe(1);
+      expect(resDia3.totais.faturamento).toBeCloseTo(9.99);
+
+      // Filtrando dia 2
+      const resDia2 = calcularMetricasPorPlataforma(pedidos, 2, '2026-10');
+      const ttDia2 = resDia2.plataformas.find((p) => p.key === 'tiktok_ads');
+      expect(ttDia2.pedidosCriados).toBe(1);
+      expect(ttDia2.pedidosPagos).toBe(1);
+      expect(ttDia2.faturamento).toBeCloseTo(16.89);
+      expect(resDia2.totais.faturamento).toBeCloseTo(16.89);
+    });
   });
 });

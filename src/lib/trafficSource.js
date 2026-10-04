@@ -226,14 +226,41 @@ export function getOrderPlatform(order) {
 }
 
 /**
- * Calcula o faturamento real pago de um pedido individual (música + add-ons avulsos).
+ * Verifica se uma data ISO/objeto corresponde ao dia e mês filtrados.
  */
-export function calcularFaturamentoPedido(o) {
+export function dataCorrespondeAoDia(dataVal, diaFiltro, mesReferencia) {
+  if (!dataVal || diaFiltro === null || diaFiltro === undefined || diaFiltro === '' || diaFiltro === 'todos') {
+    return true;
+  }
+  const d = typeof dataVal?.toDate === 'function' ? dataVal.toDate() : new Date(dataVal);
+  if (Number.isNaN(d.getTime())) return false;
+
+  const diaEsperado = Number(diaFiltro);
+  if (!Number.isFinite(diaEsperado)) return false;
+
+  if (d.getDate() !== diaEsperado) return false;
+
+  if (mesReferencia && typeof mesReferencia === 'string') {
+    const [anoStr, mesStr] = mesReferencia.split('-');
+    const anoEsp = Number(anoStr);
+    const mesEsp = Number(mesStr);
+    if (Number.isFinite(anoEsp) && d.getFullYear() !== anoEsp) return false;
+    if (Number.isFinite(mesEsp) && (d.getMonth() + 1) !== mesEsp) return false;
+  }
+
+  return true;
+}
+
+/**
+ * Calcula o faturamento real pago de um pedido individual (música + add-ons avulsos).
+ * Permite filtrar por dia específico caso informado.
+ */
+export function calcularFaturamentoPedido(o, diaFiltro = null, mesReferencia = null) {
   if (!o) return 0;
   let total = 0;
 
   const musicaPaga = o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'PAGO';
-  if (musicaPaga) {
+  if (musicaPaga && dataCorrespondeAoDia(o.paidAt || o.createdAt, diaFiltro, mesReferencia)) {
     if (o.paidAmount !== null && o.paidAmount !== undefined && o.paidAmount !== '') {
       const v = Number(o.paidAmount);
       if (Number.isFinite(v) && v > 0) {
@@ -253,24 +280,34 @@ export function calcularFaturamentoPedido(o) {
 
   // Add-ons comprados SEPARADAMENTE (com id de transação próprio para não duplicar combo)
   if (o.videoPaymentId && (o.hasVideoAccess || o.videoAddonPaid)) {
-    const v = Number(o.videoPaidAmount);
-    total += (Number.isFinite(v) && v > 0) ? v : 6.90;
+    if (dataCorrespondeAoDia(o.videoPaidAt || o.paidAt || o.createdAt, diaFiltro, mesReferencia)) {
+      const v = Number(o.videoPaidAmount);
+      total += (Number.isFinite(v) && v > 0) ? v : 6.90;
+    }
   }
   if (o.cartaPaymentId && (o.hasCartaAccess || o.cartaAddonPaid)) {
-    const v = Number(o.cartaPaidAmount);
-    total += (Number.isFinite(v) && v > 0) ? v : (getPriceForSku('carta_addon') || 3.99);
+    if (dataCorrespondeAoDia(o.cartaPaidAt || o.paidAt || o.createdAt, diaFiltro, mesReferencia)) {
+      const v = Number(o.cartaPaidAmount);
+      total += (Number.isFinite(v) && v > 0) ? v : (getPriceForSku('carta_addon') || 3.99);
+    }
   }
   if (o.retrospectivaPaymentId && (o.hasRetrospectivaAccess || o.retrospectivaAddonPaid)) {
-    const v = Number(o.retrospectivaPaidAmount);
-    total += (Number.isFinite(v) && v > 0) ? v : (getPriceForSku('retrospectiva_addon') || 9.99);
+    if (dataCorrespondeAoDia(o.retrospectivaPaidAt || o.paidAt || o.createdAt, diaFiltro, mesReferencia)) {
+      const v = Number(o.retrospectivaPaidAmount);
+      total += (Number.isFinite(v) && v > 0) ? v : (getPriceForSku('retrospectiva_addon') || 9.99);
+    }
   }
   if (o.playbackPaymentId && (o.hasPlaybackAccess || o.playbackAddonPaid)) {
-    const v = Number(o.playbackPaidAmount);
-    total += (Number.isFinite(v) && v > 0) ? v : (getPriceForSku('playback_addon') || 4.99);
+    if (dataCorrespondeAoDia(o.playbackPaidAt || o.paidAt || o.createdAt, diaFiltro, mesReferencia)) {
+      const v = Number(o.playbackPaidAmount);
+      total += (Number.isFinite(v) && v > 0) ? v : (getPriceForSku('playback_addon') || 4.99);
+    }
   }
   if (o.karaokePaymentId && (o.hasKaraokeAccess || o.karaokeAddonPaid)) {
-    const v = Number(o.karaokePaidAmount);
-    total += (Number.isFinite(v) && v > 0) ? v : (getPriceForSku('karaoke_addon') || 9.90);
+    if (dataCorrespondeAoDia(o.karaokePaidAt || o.paidAt || o.createdAt, diaFiltro, mesReferencia)) {
+      const v = Number(o.karaokePaidAmount);
+      total += (Number.isFinite(v) && v > 0) ? v : (getPriceForSku('karaoke_addon') || 9.90);
+    }
   }
 
   return total;
@@ -278,8 +315,9 @@ export function calcularFaturamentoPedido(o) {
 
 /**
  * Agrupa pedidos por plataforma e calcula faturamento, conversões e ticket médio.
+ * Suporta filtro por dia específico (diaFiltro: número 1..31 ou 'todos'/null).
  */
-export function calcularMetricasPorPlataforma(pedidos = []) {
+export function calcularMetricasPorPlataforma(pedidos = [], diaFiltro = null, mesReferencia = null) {
   const metricas = {
     facebook_ads: { ...PLATFORMS.facebook_ads, pedidosCriados: 0, pedidosPagos: 0, faturamento: 0 },
     tiktok_ads: { ...PLATFORMS.tiktok_ads, pedidosCriados: 0, pedidosPagos: 0, faturamento: 0 },
@@ -292,18 +330,22 @@ export function calcularMetricasPorPlataforma(pedidos = []) {
   let pedidosPagosTotalGeral = 0;
   let pedidosCriadosTotalGeral = 0;
 
+  const temFiltroDia = diaFiltro !== null && diaFiltro !== undefined && diaFiltro !== '' && diaFiltro !== 'todos';
+
   for (const o of pedidos) {
     const platKey = getOrderPlatform(o);
     const target = metricas[platKey] || metricas.direto;
 
-    target.pedidosCriados += 1;
-    pedidosCriadosTotalGeral += 1;
+    // Pedidos criados no período
+    const criadoNoPeriodo = temFiltroDia ? dataCorrespondeAoDia(o.createdAt, diaFiltro, mesReferencia) : true;
+    if (criadoNoPeriodo) {
+      target.pedidosCriados += 1;
+      pedidosCriadosTotalGeral += 1;
+    }
 
-    const musicaPaga = o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'PAGO';
-    const teveVendaPaga = musicaPaga || o.videoAddonPaid || o.cartaAddonPaid || o.retrospectivaAddonPaid || o.playbackAddonPaid || o.karaokeAddonPaid;
-
-    if (teveVendaPaga) {
-      const valor = calcularFaturamentoPedido(o);
+    // Faturamento e pedidos pagos no período
+    const valor = calcularFaturamentoPedido(o, diaFiltro, mesReferencia);
+    if (valor > 0) {
       target.pedidosPagos += 1;
       target.faturamento += valor;
 
