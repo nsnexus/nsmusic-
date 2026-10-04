@@ -46,6 +46,30 @@ export async function GET(req) {
   if (!since) since = hojeStr;
   if (!until) until = hojeStr;
 
+  const supabase = getSupabaseEdge(env);
+
+  // Fallback: carrega credenciais da Meta salvas no Supabase se não estiverem no env do Pages
+  if (supabase) {
+    try {
+      const { data: metaConf } = await supabase
+        .from('config')
+        .select('valor')
+        .eq('chave', 'meta_ads_config')
+        .maybeSingle();
+
+      if (metaConf?.valor && typeof metaConf.valor === 'object') {
+        if (!env.META_AD_ACCOUNT_ID && metaConf.valor.META_AD_ACCOUNT_ID) {
+          env.META_AD_ACCOUNT_ID = metaConf.valor.META_AD_ACCOUNT_ID;
+        }
+        if (!env.META_MARKETING_ACCESS_TOKEN && metaConf.valor.META_MARKETING_ACCESS_TOKEN) {
+          env.META_MARKETING_ACCESS_TOKEN = metaConf.valor.META_MARKETING_ACCESS_TOKEN;
+        }
+      }
+    } catch (e) {
+      console.warn('[ads-spend] Aviso ao carregar meta_ads_config:', e?.message);
+    }
+  }
+
   try {
     const spendData = await getConsolidatedAdsSpend({ since, until }, env);
 
