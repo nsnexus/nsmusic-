@@ -12,6 +12,7 @@ import VendasPorEstadoMapa from '@/components/VendasPorEstadoMapa';
 import RitmoVendasCard from '@/components/RitmoVendasCard';
 import VendasPorPlataformaCard from '@/components/VendasPorPlataformaCard';
 import KieCreditsBadge from '@/components/admin/KieCreditsBadge';
+import UnificallyCreditsBadge from '@/components/admin/UnificallyCreditsBadge';
 
 // toISOStr precisa lidar com os dois formatos gravados historicamente (Timestamp do Firestore e
 // string ISO) — mesmo utilitário replicado de admin/page.jsx.
@@ -176,6 +177,7 @@ export default function AdminDashboard() {
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+            <UnificallyCreditsBadge />
             <KieCreditsBadge />
             <span style={{ fontSize: '0.9rem', color: '#334155', fontWeight: '600' }}>{user?.email}</span>
             <button onClick={handleLogout} style={styles.logoutBtn}>Sair ➔</button>

@@ -9,6 +9,7 @@ import { buildSunoPayload } from '@/lib/sunoPayload';
 import FaturamentoCards from '@/components/FaturamentoCards';
 import LimitesCota from '@/components/admin/LimitesCota';
 import KieCreditsBadge from '@/components/admin/KieCreditsBadge';
+import UnificallyCreditsBadge from '@/components/admin/UnificallyCreditsBadge';
 import PlatformIcon from '@/components/admin/PlatformIcon';
 import { getOrderPlatform, PLATFORMS } from '@/lib/trafficSource';
 import { formatToWhatsAppNumber } from '@/lib/whatsappTemplates';
@@ -796,6 +797,7 @@ export default function AdminDashboard() {
           </div>
 
           <div style={styles.userInfo}>
+            <UnificallyCreditsBadge />
             <KieCreditsBadge />
             <button
               type="button"
