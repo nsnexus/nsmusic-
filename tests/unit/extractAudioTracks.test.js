@@ -135,4 +135,51 @@ describe('extractAudioTracks', () => {
     expect(tracks[0].audio_url).toBe('https://audiostream.kie.ai/stream/aae474c5-6548-4a67-a82e-3ac2040710f2.mp3');
     expect(tracks[0].trackId).toBe('aae474c5-6548-4a67-a82e-3ac2040710f2');
   });
+
+  it('formato Unifically webhook: { task_id, status, data: { audio_url } }', () => {
+    const result = {
+      task_id: 'unif-task-1',
+      status: 'completed',
+      data: {
+        audio_url: 'https://cdn.unifically.com/outputs/unif-1.mp3',
+      },
+    };
+    const tracks = extractAudioTracks(result);
+    expect(tracks).toHaveLength(1);
+    expect(tracks[0].audio_url).toBe('https://cdn.unifically.com/outputs/unif-1.mp3');
+  });
+
+  it('formato Unifically polling: { data: { task_id, status, output: { audio_url } } }', () => {
+    const result = {
+      code: 200,
+      success: true,
+      data: {
+        task_id: 'unif-task-2',
+        status: 'completed',
+        output: {
+          audio_url: 'https://cdn.unifically.com/outputs/unif-2.mp3',
+        },
+      },
+    };
+    const tracks = extractAudioTracks(result);
+    expect(tracks).toHaveLength(1);
+    expect(tracks[0].audio_url).toBe('https://cdn.unifically.com/outputs/unif-2.mp3');
+  });
+
+  it('formato Unifically multi-faixa: { data: { output: { audio_urls: [...] } } }', () => {
+    const result = {
+      data: {
+        output: {
+          audio_urls: [
+            'https://cdn.unifically.com/outputs/track1.mp3',
+            'https://cdn.unifically.com/outputs/track2.mp3',
+          ],
+        },
+      },
+    };
+    const tracks = extractAudioTracks(result);
+    expect(tracks).toHaveLength(2);
+    expect(tracks[0].audio_url).toBe('https://cdn.unifically.com/outputs/track1.mp3');
+    expect(tracks[1].audio_url).toBe('https://cdn.unifically.com/outputs/track2.mp3');
+  });
 });

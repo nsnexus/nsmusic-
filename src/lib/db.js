@@ -29,11 +29,27 @@ export const extractAudioTracks = (result) => {
   } else if (Array.isArray(result.data)) {
     rawTracks = result.data;
   } else if (result.data && typeof result.data === 'object') {
-    rawTracks = result.data.response?.sunoData || result.data.response?.tracks || result.data.sunoData || result.data.tracks || [result.data];
+    const d = result.data;
+    rawTracks = d.response?.sunoData
+      || d.response?.tracks
+      || d.sunoData
+      || d.tracks
+      || d.output?.audio_urls
+      || d.output?.audios
+      || (d.output?.audio_url ? [d.output] : null)
+      || d.audio_urls
+      || (d.audio_url ? [d] : null)
+      || [d];
   } else if (result.response && (result.response.sunoData || result.response.tracks)) {
     rawTracks = result.response.sunoData || result.response.tracks;
+  } else if (result.output && typeof result.output === 'object') {
+    rawTracks = result.output.audio_urls || result.output.audios || (result.output.audio_url ? [result.output] : null) || [result.output];
   } else if (result.tracks) {
     rawTracks = result.tracks;
+  } else if (result.audio_urls && Array.isArray(result.audio_urls)) {
+    rawTracks = result.audio_urls;
+  } else if (result.audio_url) {
+    rawTracks = [result];
   }
 
   const tracks = Array.isArray(rawTracks) ? rawTracks : (rawTracks ? [rawTracks] : []);

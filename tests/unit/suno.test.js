@@ -123,6 +123,56 @@ describe('requestSunoGeneration', () => {
     expect(store['order3'].sunoError).toBe('kie_400');
     expect(store['order3'].sunoErrorCount).toBe(1);
   });
+
+  it('quando UNIFICALLY_API_KEY está configurada, gera pela Unifically como primária', async () => {
+    global.fetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ code: 200, success: true, data: { task_id: 'unif-123', status: 'processing' } })
+    });
+    store['order-unif'] = {};
+
+    const result = await requestSunoGeneration(
+      { orderId: 'order-unif', prompt: 'letra unif', tags: 'sertanejo' },
+      { UNIFICALLY_API_KEY: 'unif-key-secret', KIE_API_KEY: 'kie-key' }
+    );
+
+    expect(result).toEqual({ ok: true, taskId: 'unif-123', provider: 'unifically' });
+    expect(store['order-unif'].productionStatus).toBe('GERANDO_AUDIO');
+    expect(store['order-unif'].sunoProvider).toBe('unifically');
+    expect(saveTaskMock).toHaveBeenCalledWith('unif-123', 'PROCESSING', null, 'order-unif', { provider: 'unifically' }, expect.anything());
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(global.fetch).toHaveBeenCalledWith('https://api.unifically.com/v1/tasks', expect.objectContaining({
+      method: 'POST',
+      headers: expect.objectContaining({
+        'Authorization': 'Bearer unif-key-secret',
+      })
+    }));
+  });
+
+  it('quando Unifically falha, executa failover automático para Kie.ai', async () => {
+    // 1ª chamada: Unifically falha (ex: 402 Insufficient Balance ou 500)
+    global.fetch.mockResolvedValueOnce({
+      ok: false,
+      status: 402,
+      json: async () => ({ code: 402, error_message: 'Insufficient balance' })
+    });
+    // 2ª chamada: Failover para Kie.ai tem sucesso
+    global.fetch.mockResolvedValueOnce(kieOkResponse('task-kie-fallback'));
+    store['order-failover'] = {};
+
+    const result = await requestSunoGeneration(
+      { orderId: 'order-failover', prompt: 'letra failover', tags: 'rock' },
+      { UNIFICALLY_API_KEY: 'unif-key', KIE_API_KEY: 'kie-key' }
+    );
+
+    expect(result).toEqual({ ok: true, taskId: 'task-kie-fallback', provider: 'kie' });
+    expect(store['order-failover'].sunoProvider).toBe('kie');
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+    // Verificou que a primeira foi Unifically e a segunda foi Kie
+    expect(global.fetch.mock.calls[0][0]).toBe('https://api.unifically.com/v1/tasks');
+    expect(global.fetch.mock.calls[1][0]).toBe('https://api.kie.ai/api/v1/generate');
+  });
 });
 
 describe('resolveLatestTaskId', () => {

@@ -27,6 +27,9 @@ const ALLOWED_HOSTS = [
   // ver"/arquivo não carregava). Se um domínio customizado for configurado pro bucket no futuro,
   // adicionar aqui também.
   'pub-e90fb1c45fb048ee8e1136c9ee7a1463.r2.dev',
+  // CDN e endpoints da Unifically (Suno AI) onde as faixas de áudio e assets são servidos.
+  'cdn.unifically.com',
+  'api.unifically.com',
 ];
 
 export function isAllowedMediaHost(hostname) {

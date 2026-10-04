@@ -10,14 +10,9 @@ import { buildSunoPayload } from './sunoPayload.js';
 import { resolverSiteUrl } from './siteUrl.js';
 import { readEnvValue } from './envValue.js';
 
-// Provedor único de geração: Kie.ai.
-//
-// Entre 24 e 25/09/2026 existiu um roteamento com uma API de Suno própria (VPS do estúdio) como
-// primária e a Kie.ai de fallback. A VPS nunca chegou a gerar uma música: a sessão dela com o Suno
-// caía com 401 poucas horas depois de cada reautenticação, e as 50+ gerações do período foram todas
-// pela Kie.ai. Removido a pedido do dono do estúdio. O campo `provider` continua sendo gravado em
-// suno_tasks/orders porque os pedidos daquele período já o têm.
+// Provedores de geração suportados: Unifically (primário) e Kie.ai (fallback).
 export const PROVIDER_KIE = 'kie';
+export const PROVIDER_UNIFICALLY = 'unifically';
 
 // A Kie.ai sinaliza a maioria dos erros com HTTP 200 e um `code` no corpo (429/430 = limite de
 // taxa, 455 = manutenção, 500 = erro interno deles) — só olhar response.status não pegava esses
@@ -69,15 +64,26 @@ export async function recordSunoFailure(orderId, reason, env = {}) {
 }
 
 /**
- * Inicia a geração da música na Kie.ai e persiste o vínculo taskId->orderId. Não decide política de
- * quantas vezes retentar depois de uma falha definitiva — isso é de quem chama (a rota, no clique
- * manual; maybeAutoRetrySunoFailure, no automático).
+ * Inicia a geração da música. Tenta primeiro via Unifically se configurada; caso falhe ou
+ * não esteja disponível, faz failover automático transparente para a Kie.ai.
  *
  * @param {{orderId: string, prompt: string, tags: string}} params
  * @param {object} env
  * @returns {Promise<{ok: true, taskId: string, provider: string} | {ok: false, error: string, status: number}>}
  */
 export async function requestSunoGeneration({ orderId, prompt, tags }, env) {
+  const unificallyKey = readEnvValue(env, 'UNIFICALLY_API_KEY');
+  const primaryProvider = readEnvValue(env, 'SUNO_PRIMARY_PROVIDER') || (unificallyKey ? PROVIDER_UNIFICALLY : PROVIDER_KIE);
+
+  if (primaryProvider === PROVIDER_UNIFICALLY && unificallyKey) {
+    const unifResult = await gerarPelaUnifically({ orderId, prompt, tags }, env);
+    if (unifResult.ok) {
+      return unifResult;
+    }
+    console.warn('[suno] Geração na Unifically falhou, iniciando fallback para Kie.ai:', unifResult.error);
+    await recordSunoFailure(orderId, `unifically_failover_to_kie_${unifResult.status || 'unknown'}`, env);
+  }
+
   return gerarPelaKie({ orderId, prompt, tags }, env);
 }
 
@@ -114,6 +120,73 @@ async function persistirGeracao({ orderId, taskId, provider }, env = {}) {
   }
 
   return { ok: true };
+}
+
+async function gerarPelaUnifically({ orderId, prompt, tags }, env) {
+  const apiKey = readEnvValue(env, 'UNIFICALLY_API_KEY');
+  if (!apiKey) {
+    return { ok: false, error: 'Configuração ausente: UNIFICALLY_API_KEY não definida no servidor.', status: 500 };
+  }
+
+  const baseUrl = resolverSiteUrl(readEnvValue(env, 'NEXT_PUBLIC_SITE_URL'));
+  const callbackUrl = `${baseUrl}/api/suno/webhook?provider=unifically`;
+  const modelVersion = readEnvValue(env, 'UNIFICALLY_SUNO_MODEL') || 'chirp-hawk';
+
+  let response, data;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      response = await fetch('https://api.unifically.com/v1/tasks', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: 'suno-ai/music',
+          callback_url: callbackUrl,
+          input: {
+            mv: modelVersion,
+            custom: true,
+            prompt: prompt,
+            tags: tags,
+            title: `Pedido ${orderId ? orderId.substring(0, 8) : 'Novo'}`.substring(0, 80),
+            make_instrumental: false
+          }
+        }),
+        signal: AbortSignal.timeout(10000)
+      });
+
+      data = await response.json().catch(() => ({}));
+      if (response.ok && (data.code === 200 || data.success === true || data.data?.task_id || data.data?.taskId)) {
+        break;
+      }
+
+      console.warn(`[suno] Tentativa ${attempt}/2 Unifically falhou:`, response.status, data);
+      if (response.status < 500 && response.status !== 429) {
+        // Erro não transitório (ex: 400 bad request, 401 unauth, 402 no balance)
+        break;
+      }
+    } catch (fetchErr) {
+      console.warn(`[suno] Falha de rede ao chamar Unifically (tentativa ${attempt}/2):`, fetchErr.message);
+      response = null;
+      data = { msg: fetchErr.message };
+    }
+    if (attempt < 2) {
+      await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
+    }
+  }
+
+  const taskId = data?.data?.task_id || data?.data?.taskId || data?.task_id || data?.taskId || data?.id;
+  if (!response?.ok || !taskId) {
+    const errorMsg = data?.data?.message || data?.error_message || data?.message || data?.msg || `HTTP ${response?.status || 'network'}`;
+    console.error('[suno] Erro no retorno da Unifically:', response?.status, errorMsg);
+    return { ok: false, error: errorMsg, status: response?.status || 502 };
+  }
+
+  const persistido = await persistirGeracao({ orderId, taskId, provider: PROVIDER_UNIFICALLY }, env);
+  if (!persistido.ok) return persistido;
+
+  return { ok: true, taskId, provider: PROVIDER_UNIFICALLY };
 }
 
 async function gerarPelaKie({ orderId, prompt, tags }, env) {

@@ -18,6 +18,8 @@ describe('isAllowedMediaHost', () => {
     // Achado 07/09/2026: sem o bucket R2 na allowlist, todo player/download quebrava pra qualquer
     // música já arquivada — o próprio /api/audio/proxy rejeitava o nosso próprio storage.
     expect(isAllowedMediaHost('pub-e90fb1c45fb048ee8e1136c9ee7a1463.r2.dev')).toBe(true);
+    expect(isAllowedMediaHost('cdn.unifically.com')).toBe(true);
+    expect(isAllowedMediaHost('api.unifically.com')).toBe(true);
   });
 
   it('rejeita domínios fora da allowlist', () => {
