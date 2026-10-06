@@ -61,10 +61,32 @@ export async function POST(req) {
 
     // 2. Criar Perfil de Voz com a gravação da validação
     if (action === 'create_voice') {
-      const { phraseTaskId, verifyUrl, voiceName = 'Voz do Cliente', description = 'Voz personalizada', style = 'acoustic' } = body;
-      if (!phraseTaskId || !verifyUrl) {
-        return NextResponse.json({ error: 'phraseTaskId e verifyUrl são obrigatórios.' }, { status: 400 });
+      const {
+        phraseTaskId,
+        verifyUrl,
+        voiceName = 'Voz do Cliente',
+        description = 'Voz personalizada',
+        style = 'acoustic',
+        verifyPhraseId,
+        voiceRecordingId
+      } = body;
+
+      if (!phraseTaskId && !verifyPhraseId) {
+        return NextResponse.json({ error: 'phraseTaskId ou verifyPhraseId é obrigatório.' }, { status: 400 });
       }
+      if (!verifyUrl) {
+        return NextResponse.json({ error: 'verifyUrl é obrigatório.' }, { status: 400 });
+      }
+
+      const inputPayload = {
+        task_id: phraseTaskId || verifyPhraseId,
+        verify_url: verifyUrl,
+        voice_name: voiceName,
+        description: description,
+        style: style
+      };
+      if (verifyPhraseId) inputPayload.verify_phrase_id = verifyPhraseId;
+      if (voiceRecordingId) inputPayload.voice_recording_id = voiceRecordingId;
 
       const res = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
         method: 'POST',
@@ -74,13 +96,7 @@ export async function POST(req) {
         },
         body: JSON.stringify({
           model: 'ai-music-api/create-voice',
-          input: {
-            task_id: phraseTaskId,
-            verify_url: verifyUrl,
-            voice_name: voiceName,
-            description: description,
-            style: style
-          }
+          input: inputPayload
         }),
         signal: AbortSignal.timeout(15000)
       });
@@ -226,11 +242,13 @@ export async function GET(req) {
     }
 
     // Extrai frase de validação caso seja a tarefa de validação
-    let phrase = parsedResult?.phrase
+    let phrase = parsedResult?.verify_phrase_text
+      || parsedResult?.phrase
       || parsedResult?.validation_phrase
       || parsedResult?.validationPhrase
       || parsedResult?.text
       || parsedResult?.phrase_text
+      || data?.data?.verify_phrase_text
       || data?.data?.phrase
       || data?.data?.validation_phrase
       || data?.data?.validationPhrase
@@ -245,6 +263,9 @@ export async function GET(req) {
         }
       }
     }
+
+    const verifyPhraseId = parsedResult?.verify_phrase_id || data?.data?.verify_phrase_id || null;
+    const voiceRecordingId = parsedResult?.voice_recording_id || data?.data?.voice_recording_id || null;
 
     // Extrai o voiceId caso seja a tarefa de criação de voz
     let voiceId = parsedResult?.voiceId
@@ -274,6 +295,8 @@ export async function GET(req) {
       failMsg: data?.data?.failMsg || data?.failMsg || null,
       parsedResult,
       phrase,
+      verifyPhraseId,
+      voiceRecordingId,
       voiceId,
       raw: data
     });

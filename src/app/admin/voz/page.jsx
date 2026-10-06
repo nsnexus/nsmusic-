@@ -29,7 +29,9 @@ export default function AdminVozLab() {
   const [statusFrase, setStatusFrase] = useState('');
 
   // Passo 2: Frase de Validação
-  const [fraseValidacao, setFraseValidacao] = useState('');
+  const [fraseValidacao, setFraseValidacao] = useState('Canto suave ao piano enquanto a voz acalma');
+  const [verifyPhraseId, setVerifyPhraseId] = useState('faeadd8b-96d5-4528-b45d-91709cdfe028');
+  const [voiceRecordingId, setVoiceRecordingId] = useState('b4fa71e2-b681-4b1c-97f7-812a9ed0effa');
   const [verificacaoBlob, setVerificacaoBlob] = useState(null);
   const [verificacaoPreviewUrl, setVerificacaoPreviewUrl] = useState('');
   const [verificacaoPublicUrl, setVerificacaoPublicUrl] = useState('');
@@ -236,6 +238,8 @@ Com você ao meu lado eu sei onde quero estar`
             if (pollData.phrase) {
               clearInterval(pollInterval);
               setFraseValidacao(pollData.phrase);
+              if (pollData.verifyPhraseId) setVerifyPhraseId(pollData.verifyPhraseId);
+              if (pollData.voiceRecordingId) setVoiceRecordingId(pollData.voiceRecordingId);
               setEnviandoAmostra(false);
               setStatusFrase('');
               setEtapa(2);
@@ -307,7 +311,9 @@ Com você ao meu lado eu sei onde quero estar`
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'create_voice',
-          phraseTaskId: phraseTaskId,
+          phraseTaskId: phraseTaskId || verifyPhraseId,
+          verifyPhraseId: verifyPhraseId,
+          voiceRecordingId: voiceRecordingId,
           verifyUrl: uploadData.url,
           voiceName: 'Voz Teste Admin',
           description: 'Voz personalizada gerada pelo lab',
@@ -654,6 +660,32 @@ Com você ao meu lado eu sei onde quero estar`
             >
               {enviandoAmostra ? 'Processando na Kie.ai...' : 'Avançar e Gerar Frase de Validação →'}
             </button>
+
+            {/* Atalho se a frase já foi gerada na Kie.ai */}
+            <div style={{ marginTop: '16px', textAlign: 'center' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setFraseValidacao('Canto suave ao piano enquanto a voz acalma');
+                  setVerifyPhraseId('faeadd8b-96d5-4528-b45d-91709cdfe028');
+                  setVoiceRecordingId('b4fa71e2-b681-4b1c-97f7-812a9ed0effa');
+                  setEtapa(2);
+                }}
+                style={{
+                  width: '100%',
+                  background: 'rgba(56, 189, 248, 0.08)',
+                  border: '1px dashed #38bdf8',
+                  color: '#38bdf8',
+                  padding: '12px 14px',
+                  borderRadius: '10px',
+                  fontSize: '0.84rem',
+                  fontWeight: '600',
+                  cursor: 'pointer'
+                }}
+              >
+                👉 Usar frase gerada na Kie (&quot;Canto suave ao piano...&quot;) e ir para Leitura ➔
+              </button>
+            </div>
           </div>
         )}
 
@@ -672,9 +704,14 @@ Com você ao meu lado eu sei onde quero estar`
               <span style={{ fontSize: '0.72rem', color: '#38bdf8', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                 Frase para Ler em Voz Alta:
               </span>
-              <p style={{ fontSize: '1.05rem', fontWeight: '600', color: '#ffffff', margin: '8px 0 0 0', lineHeight: '1.5' }}>
-                &ldquo;{fraseValidacao || 'Aguardando frase da Kie.ai...'}&rdquo;
+              <p style={{ fontSize: '1.15rem', fontWeight: '700', color: '#ffffff', margin: '8px 0 0 0', lineHeight: '1.5' }}>
+                &ldquo;{fraseValidacao || 'Canto suave ao piano enquanto a voz acalma'}&rdquo;
               </p>
+              {verifyPhraseId && (
+                <div style={{ marginTop: '8px', fontSize: '0.74rem', color: '#64748b' }}>
+                  ID da Frase: <code>{verifyPhraseId}</code>
+                </div>
+              )}
             </div>
 
             {/* Gravador da Frase */}
