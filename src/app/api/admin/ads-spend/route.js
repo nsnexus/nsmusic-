@@ -85,7 +85,13 @@ export async function GET(req) {
 
         if (configData?.valor && typeof configData.valor === 'object') {
           for (const [key, val] of Object.entries(configData.valor)) {
-            const [canal, dataStr] = key.split('_');
+            const lastUnderscore = key.lastIndexOf('_');
+            if (lastUnderscore === -1) continue;
+            let canal = key.slice(0, lastUnderscore).toLowerCase();
+            const dataStr = key.slice(lastUnderscore + 1);
+            if (canal.includes('tiktok')) canal = 'tiktok';
+            else if (canal.includes('meta') || canal.includes('facebook')) canal = 'meta';
+
             const spendVal = Number(val) || 0;
 
             if (dataStr >= since && dataStr <= until) {
@@ -142,10 +148,13 @@ export async function POST(req) {
 
   try {
     const body = await req.json().catch(() => null);
-    const { channel, date, spend } = body || {};
+    const { channel, date, spend, entries, days } = body || {};
 
-    if (!channel || !date || spend === undefined) {
-      return NextResponse.json({ error: 'Parâmetros inválidos (channel, date, spend)' }, { status: 400 });
+    const rawChannel = String(channel || '').toLowerCase();
+    const normChannel = rawChannel.includes('tiktok') ? 'tiktok' : (rawChannel.includes('meta') || rawChannel.includes('facebook') ? 'meta' : 'tiktok');
+
+    if (!channel || (!date && !entries && !Array.isArray(days))) {
+      return NextResponse.json({ error: 'Parâmetros inválidos (channel, date/spend ou entries/days)' }, { status: 400 });
     }
 
     const supabase = getSupabaseEdge(env);
@@ -159,9 +168,37 @@ export async function POST(req) {
       .eq('chave', 'manual_ads_spend')
       .maybeSingle();
 
-    const current = (configData?.valor && typeof configData.valor === 'object') ? configData.valor : {};
-    const key = `${channel}_${date}`;
-    current[key] = Math.round(Number(spend) * 100) / 100;
+    const current = (configData?.valor && typeof configData.valor === 'object') ? { ...configData.valor } : {};
+
+    // Suporte a lote via entries { '2026-10-01': 50, ... }
+    if (entries && typeof entries === 'object') {
+      for (const [entryDate, entrySpend] of Object.entries(entries)) {
+        const valNum = Number(entrySpend);
+        if (Number.isFinite(valNum) && valNum >= 0) {
+          current[`${normChannel}_${entryDate}`] = Math.round(valNum * 100) / 100;
+        }
+      }
+    }
+
+    // Suporte a lote via days [{ date, spend }, ...]
+    if (Array.isArray(days)) {
+      for (const item of days) {
+        if (item?.date) {
+          const valNum = Number(item.spend);
+          if (Number.isFinite(valNum) && valNum >= 0) {
+            current[`${normChannel}_${item.date}`] = Math.round(valNum * 100) / 100;
+          }
+        }
+      }
+    }
+
+    // Suporte a dia individual
+    if (date && spend !== undefined && spend !== null) {
+      const valNum = Number(spend);
+      if (Number.isFinite(valNum) && valNum >= 0) {
+        current[`${normChannel}_${date}`] = Math.round(valNum * 100) / 100;
+      }
+    }
 
     await supabase.from('config').upsert({
       chave: 'manual_ads_spend',
@@ -169,7 +206,7 @@ export async function POST(req) {
       updated_at: new Date().toISOString()
     });
 
-    return NextResponse.json({ ok: true, saved: { key, spend: current[key] } });
+    return NextResponse.json({ ok: true, saved: true });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { usePedidosDoMes } from '@/lib/usePedidosDoMes';
 import { calcularMetricasPorPlataforma } from '@/lib/trafficSource';
 import { useAdsSpend } from '@/lib/useAdsSpend';
+import TikTokAdsDailyModal from '@/components/admin/TikTokAdsDailyModal';
 
 function formatMoney(val) {
   return `R$ ${Number(val || 0).toFixed(2).replace('.', ',')}`;
@@ -22,14 +23,6 @@ function mesAtualPadrao() {
 export default function VendasPorPlataformaCard({ monthValue }) {
   const mesAtivo = monthValue || mesAtualPadrao();
 
-  // Estado para filtrar por dia específico ('', 'todos' ou número do dia 1..31)
-  const [diaSelecionado, setDiaSelecionado] = useState('');
-
-  // Ao trocar de mês no dashboard, reseta o filtro de dia para exibir o mês todo
-  useEffect(() => {
-    setDiaSelecionado('');
-  }, [mesAtivo]);
-
   const [ano, mesNum] = useMemo(() => {
     const parts = (mesAtivo || '').split('-').map(Number);
     const d = new Date();
@@ -45,6 +38,35 @@ export default function VendasPorPlataformaCard({ monthValue }) {
     const yesterday = isCurrent && currentDay > 1 ? currentDay - 1 : null;
     return { ehMesAtual: isCurrent, hojeDia: currentDay, ontemDia: yesterday };
   }, [ano, mesNum]);
+
+  // Estado para filtrar por dia específico ('', 'todos' ou número do dia 1..31)
+  // Se for o mês atual, sempre inicia com o dia de HOJE selecionado por padrão
+  const [diaSelecionado, setDiaSelecionado] = useState(() => {
+    const d = new Date();
+    const targetMonth = monthValue || mesAtualPadrao();
+    const [tAno, tMes] = (targetMonth || '').split('-').map(Number);
+    if (d.getFullYear() === tAno && (d.getMonth() + 1) === tMes) {
+      return String(d.getDate());
+    }
+    return '';
+  });
+
+  const prevMesRef = useRef(mesAtivo);
+
+  // Ao trocar de mês no dashboard: se for o mês atual, seleciona hoje; se for outro mês, seleciona o mês todo
+  useEffect(() => {
+    if (prevMesRef.current !== mesAtivo) {
+      prevMesRef.current = mesAtivo;
+      if (ehMesAtual && hojeDia) {
+        setDiaSelecionado(String(hojeDia));
+      } else {
+        setDiaSelecionado('');
+      }
+    }
+  }, [mesAtivo, ehMesAtual, hojeDia]);
+
+  // Modal para gerenciar gastos do TikTok Ads dia a dia
+  const [modalTikTokAberto, setModalTikTokAberto] = useState(false);
 
   const nomeDoMes = NOMES_MESES[mesNum - 1] || mesAtivo;
 
@@ -88,6 +110,10 @@ export default function VendasPorPlataformaCard({ monthValue }) {
   const tiktokConfigurado = adsSpend?.tiktok?.reason !== 'not_configured' || Boolean(tiktokSpend > 0) || adsSpend?.tiktok?.ok === true;
 
   const handleEditSpend = async (channel, platName) => {
+    if (channel === 'tiktok') {
+      setModalTikTokAberto(true);
+      return;
+    }
     const dataAlvo = dataFiltroStr || `${ano}-${String(mesNum).padStart(2, '0')}-${String(hojeDia || '01').padStart(2, '0')}`;
     const valorAtual = dataFiltroStr ? (adsSpend?.[channel]?.byDate?.[dataAlvo] || 0) : (adsSpend?.[channel]?.total || 0);
     const entrada = window.prompt(
@@ -519,7 +545,13 @@ export default function VendasPorPlataformaCard({ monthValue }) {
                             </div>
                             <button
                               type="button"
-                              onClick={() => handleEditSpend(plat.key === 'facebook_ads' ? 'meta' : 'tiktok', plat.name)}
+                              onClick={() => {
+                                if (plat.key === 'tiktok_ads') {
+                                  setModalTikTokAberto(true);
+                                } else {
+                                  handleEditSpend('meta', plat.name);
+                                }
+                              }}
                               style={{
                                 padding: '3px 8px',
                                 fontSize: '0.72rem',
@@ -531,7 +563,7 @@ export default function VendasPorPlataformaCard({ monthValue }) {
                                 cursor: 'pointer',
                               }}
                             >
-                              ✏️ Informar
+                              {plat.key === 'tiktok_ads' ? '📅 Editar Dia a Dia' : '✏️ Informar'}
                             </button>
                           </div>
                         ) : (
@@ -542,7 +574,13 @@ export default function VendasPorPlataformaCard({ monthValue }) {
                                 <strong style={{ color: '#dc2626' }}>{formatMoney(plat.gasto)}</strong>
                                 <button
                                   type="button"
-                                  onClick={() => handleEditSpend(plat.key === 'facebook_ads' ? 'meta' : 'tiktok', plat.name)}
+                                  onClick={() => {
+                                    if (plat.key === 'tiktok_ads') {
+                                      setModalTikTokAberto(true);
+                                    } else {
+                                      handleEditSpend('meta', plat.name);
+                                    }
+                                  }}
                                   title="Ajustar ou informar valor manualmente"
                                   style={{
                                     background: 'none',
@@ -557,6 +595,30 @@ export default function VendasPorPlataformaCard({ monthValue }) {
                                 </button>
                               </div>
                             </div>
+                            {plat.key === 'tiktok_ads' && (
+                              <button
+                                type="button"
+                                onClick={() => setModalTikTokAberto(true)}
+                                style={{
+                                  marginBottom: '8px',
+                                  width: '100%',
+                                  padding: '5px 8px',
+                                  fontSize: '0.74rem',
+                                  fontWeight: '700',
+                                  borderRadius: '6px',
+                                  backgroundColor: '#fff1f2',
+                                  border: '1px solid #fecdd3',
+                                  color: '#e11d48',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: '4px',
+                                }}
+                              >
+                                📅 Editar TikTok Ads Dia a Dia
+                              </button>
+                            )}
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', fontSize: '0.78rem' }}>
                               <span style={{ color: '#64748b' }}>Lucro Líquido:</span>
                               <strong style={{ color: plat.lucro >= 0 ? '#059669' : '#dc2626' }}>
@@ -704,7 +766,48 @@ export default function VendasPorPlataformaCard({ monthValue }) {
                         {formatMoney(plat.faturamento)}
                       </td>
                       <td style={{ padding: '10px 12px', textAlign: 'right', color: '#dc2626', fontWeight: '600' }}>
-                        {isAds ? (plat.configurado ? formatMoney(plat.gasto) : 'Pendente') : '-'}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px' }}>
+                          <span>
+                            {isAds ? (plat.configurado ? formatMoney(plat.gasto) : 'Pendente') : '-'}
+                          </span>
+                          {plat.key === 'tiktok_ads' && (
+                            <button
+                              type="button"
+                              onClick={() => setModalTikTokAberto(true)}
+                              title="Editar investimento do TikTok Ads dia a dia"
+                              style={{
+                                background: 'none',
+                                border: '1px solid #fecdd3',
+                                backgroundColor: '#fff1f2',
+                                color: '#e11d48',
+                                borderRadius: '4px',
+                                padding: '1px 5px',
+                                fontSize: '0.7rem',
+                                fontWeight: '700',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              ✏️ Dia a dia
+                            </button>
+                          )}
+                          {plat.key === 'facebook_ads' && (
+                            <button
+                              type="button"
+                              onClick={() => handleEditSpend('meta', plat.name)}
+                              title="Ajustar ou informar valor Meta Ads"
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                cursor: 'pointer',
+                                padding: '0 2px',
+                                fontSize: '0.75rem',
+                                color: '#64748b',
+                              }}
+                            >
+                              ✏️
+                            </button>
+                          )}
+                        </div>
                       </td>
                       <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '800' }}>
                         <span style={{ color: plat.lucro >= 0 ? '#059669' : '#dc2626' }}>
@@ -762,11 +865,22 @@ export default function VendasPorPlataformaCard({ monthValue }) {
           >
             <span style={{ fontSize: '1.1rem' }}>ℹ️</span>
             <div>
-              <strong>Integração de Anúncios:</strong> O gasto de <strong>Facebook Ads</strong> é sincronizado automaticamente via Meta Marketing API (Insights diários por data). O <strong>TikTok Ads</strong> pode ser ativado adicionando a chave <code>TIKTOK_ADVERTISER_ID</code>. Pedidos pagos são atribuídos por UTMs, <code>fbclid</code> e <code>ttclid</code>.
+              <strong>Integração de Anúncios:</strong> O gasto de <strong>Facebook Ads</strong> é sincronizado automaticamente via Meta Marketing API (Insights diários por data). O <strong>TikTok Ads</strong> pode ser informado dia a dia ou integrado via <code>TIKTOK_ADVERTISER_ID</code>. Pedidos pagos são atribuídos por UTMs, <code>fbclid</code> e <code>ttclid</code>.
             </div>
           </div>
         </>
       )}
+
+      {/* Modal de Edição Diária do TikTok Ads */}
+      <TikTokAdsDailyModal
+        isOpen={modalTikTokAberto}
+        onClose={() => setModalTikTokAberto(false)}
+        mesAtivo={mesAtivo}
+        pedidos={pedidos}
+        adsSpend={adsSpend}
+        onSaveDaily={saveManualSpend}
+        diaFoco={diaSelecionado}
+      />
     </div>
   );
 }

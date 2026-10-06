@@ -40,17 +40,20 @@ export function useAdsSpend(mes) {
     fetchSpend();
   }, [fetchSpend]);
 
-  const saveManualSpend = useCallback(async ({ channel, date, spend }) => {
+  const saveManualSpend = useCallback(async ({ channel, date, spend, entries, days }) => {
     try {
       const token = await getAdminAuthToken();
       const headers = {
         'Content-Type': 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {})
       };
+      const body = (entries || days)
+        ? JSON.stringify({ channel, entries, days })
+        : JSON.stringify({ channel, date, spend });
       const res = await fetch('/api/admin/ads-spend', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ channel, date, spend }),
+        body,
       });
       if (res.ok) {
         await fetchSpend();

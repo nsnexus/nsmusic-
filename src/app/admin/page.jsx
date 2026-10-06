@@ -10,6 +10,7 @@ import FaturamentoCards from '@/components/FaturamentoCards';
 import LimitesCota from '@/components/admin/LimitesCota';
 import KieCreditsBadge from '@/components/admin/KieCreditsBadge';
 import UnificallyCreditsBadge from '@/components/admin/UnificallyCreditsBadge';
+import WhatsAppUsageBadge from '@/components/admin/WhatsAppUsageBadge';
 import PlatformIcon from '@/components/admin/PlatformIcon';
 import { getOrderPlatform, PLATFORMS } from '@/lib/trafficSource';
 import { formatToWhatsAppNumber } from '@/lib/whatsappTemplates';
@@ -830,6 +831,7 @@ export default function AdminDashboard() {
           <div style={styles.userInfo}>
             <UnificallyCreditsBadge />
             <KieCreditsBadge />
+            <WhatsAppUsageBadge />
             <button
               type="button"
               onClick={() => setReloadTrigger((prev) => prev + 1)}
