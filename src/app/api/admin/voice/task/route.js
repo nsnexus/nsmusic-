@@ -258,6 +258,8 @@ export async function GET(req) {
     let voiceRecordingId = null;
     let voiceId = null;
 
+    let personaId = null;
+
     for (const target of searchTargets) {
       if (!phrase) {
         phrase = target.verify_phrase_text
@@ -278,11 +280,19 @@ export async function GET(req) {
           || target.voiceRecordingId
           || null;
       }
-      if (!voiceId) {
-        voiceId = target.voiceId
-          || target.voice_id
+      if (!personaId) {
+        personaId = target.persona_id
           || target.personaId
-          || target.persona_id
+          || null;
+      }
+      if (!voiceId) {
+        voiceId = target.persona_id
+          || target.personaId
+          || target.voiceId
+          || target.voice_id
+          || (Array.isArray(target.resultUrls) && target.resultUrls[0] ? target.resultUrls[0] : null)
+          || (typeof target.resultUrls === 'string' ? target.resultUrls : null)
+          || target.resultUrl
           || (target.id && !target.task_id ? target.id : null)
           || null;
       }
@@ -312,6 +322,45 @@ export async function GET(req) {
       }
     }
 
+    if (!voiceId && jobState === 'success') {
+      const urls = data?.data?.response?.resultUrls || parsedResult?.resultUrls || (Array.isArray(data?.data?.resultUrls) ? data.data.resultUrls : null);
+      if (Array.isArray(urls) && urls[0]) {
+        voiceId = urls[0];
+      }
+    }
+
+    // Se voiceId for um taskId de 32 hexadecimais (ex: retornado por create-voice apontando para validation-phrase), busca o persona_id real
+    if (voiceId && !voiceId.includes('-') && voiceId.length === 32 && kieApiKey) {
+      try {
+        const subRes = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${encodeURIComponent(voiceId)}`, {
+          headers: {
+            'Authorization': `Bearer ${kieApiKey}`,
+            'Content-Type': 'application/json'
+          },
+          signal: AbortSignal.timeout(6000)
+        });
+        if (subRes.ok) {
+          const subData = await subRes.json();
+          const subRaw = subData?.data?.resultJson || subData?.resultJson;
+          let subParsed = null;
+          if (subRaw) {
+            try { subParsed = typeof subRaw === 'string' ? JSON.parse(subRaw) : subRaw; } catch (e) {}
+          }
+          const foundPersona = subParsed?.persona_id
+            || subParsed?.data?.persona_id
+            || subData?.data?.persona_id;
+          if (foundPersona) {
+            personaId = foundPersona;
+            voiceId = foundPersona;
+          }
+        }
+      } catch (subErr) {
+        console.warn('[voice/task] Não foi possível inspecionar sub-tarefa:', subErr.message);
+      }
+    }
+
+    const finalVoiceId = personaId || voiceId || null;
+
     return NextResponse.json({
       ok: true,
       state: jobState,
@@ -321,7 +370,8 @@ export async function GET(req) {
       phrase,
       verifyPhraseId,
       voiceRecordingId,
-      voiceId,
+      personaId: personaId || finalVoiceId,
+      voiceId: finalVoiceId,
       raw: data
     });
   } catch (err) {

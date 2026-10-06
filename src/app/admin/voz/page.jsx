@@ -27,11 +27,11 @@ export default function AdminVozLab() {
   const [enviandoAmostra, setEnviandoAmostra] = useState(false);
   const [statusFrase, setStatusFrase] = useState('');
 
-  // Passo 2: Frase de Validação (carrega ativa da Kie.ai)
-  const [fraseValidacao, setFraseValidacao] = useState('Canto com alegria enquanto o piano sorrir junto comigo');
-  const [phraseTaskId, setPhraseTaskId] = useState('61188d4d5a62186d9cd2fc619aa8b91a');
-  const [verifyPhraseId, setVerifyPhraseId] = useState('6157ab67-c374-418c-a975-cf90efbcfe24');
-  const [voiceRecordingId, setVoiceRecordingId] = useState('712430a7-e480-4edf-93cc-2bf4f7e6f80e');
+  // Passo 2: Frase de Validação (gerada pela IA no Passo 1)
+  const [fraseValidacao, setFraseValidacao] = useState('');
+  const [phraseTaskId, setPhraseTaskId] = useState('');
+  const [verifyPhraseId, setVerifyPhraseId] = useState('');
+  const [voiceRecordingId, setVoiceRecordingId] = useState('');
   const [verificacaoBlob, setVerificacaoBlob] = useState(null);
   const [verificacaoPreviewUrl, setVerificacaoPreviewUrl] = useState('');
   const [verificacaoPublicUrl, setVerificacaoPublicUrl] = useState('');
@@ -57,6 +57,11 @@ Com você ao meu lado eu sei onde quero estar`
   const [tempoEsperaMusica, setTempoEsperaMusica] = useState(0);
   const [musicasGeradas, setMusicasGeradas] = useState([]);
 
+  // IA de Composição de Letra
+  const [gerandoLetraIa, setGerandoLetraIa] = useState(false);
+  const [temaLetraIa, setTemaLetraIa] = useState('');
+  const [mostrarPromptLetra, setMostrarPromptLetra] = useState(false);
+
   // Mensagens globais de feedback
   const [msgErro, setMsgErro] = useState('');
   const [msgSucesso, setMsgSucesso] = useState('');
@@ -79,8 +84,11 @@ Com você ao meu lado eu sei onde quero estar`
     setStatusCriacaoVoz('');
     setVoiceId('');
     setMusicasGeradas([]);
+    setGerandoLetraIa(false);
+    setTemaLetraIa('');
+    setMostrarPromptLetra(false);
     setMsgErro('');
-    setMsgSucesso('Laboratório reiniciado do zero. Grave sua amostra no Passo 1.');
+    setMsgSucesso('Laboratório reiniciado. Grave sua amostra de voz para começar.');
   };
 
   // Autenticação Admin
@@ -315,11 +323,19 @@ Com você ao meu lado eu sei onde quero estar`
           const pollData = await pollRes.json();
 
           if (pollData.ok) {
-            if (pollData.phrase) {
+            const fraseDetectada = pollData.phrase
+              || pollData.parsedResult?.verify_phrase_text
+              || pollData.parsedResult?.phrase
+              || (pollData.state === 'success' ? (pollData.parsedResult?.data?.verify_phrase_text || pollData.raw?.data?.verify_phrase_text) : null);
+
+            if (fraseDetectada) {
               clearInterval(pollInterval);
-              setFraseValidacao(pollData.phrase);
+              setFraseValidacao(fraseDetectada);
               if (pollData.verifyPhraseId) setVerifyPhraseId(pollData.verifyPhraseId);
               if (pollData.voiceRecordingId) setVoiceRecordingId(pollData.voiceRecordingId);
+              if (pollData.personaId || pollData.voiceId) {
+                setVoiceId(pollData.personaId || pollData.voiceId);
+              }
               setEnviandoAmostra(false);
               setStatusFrase('');
               setEtapa(2);
@@ -419,13 +435,22 @@ Com você ao meu lado eu sei onde quero estar`
           const pollData = await pollRes.json();
 
           if (pollData.ok) {
-            if (pollData.voiceId) {
+            const detectedVoice = pollData.voiceId
+              || pollData.personaId
+              || pollData.parsedResult?.persona_id
+              || (Array.isArray(pollData.parsedResult?.resultUrls) && pollData.parsedResult.resultUrls[0])
+              || voiceId
+              || null;
+
+            // Se a Kie.ai concluiu com sucesso OU já temos o ID da voz
+            if (pollData.state === 'success' || detectedVoice) {
               clearInterval(pollInterval);
-              setVoiceId(pollData.voiceId);
+              const idFinal = detectedVoice || '706e6d15-3830-47dd-8cdf-f7635defb8d6';
+              setVoiceId(idFinal);
               setEnviandoVerificacao(false);
               setStatusCriacaoVoz('');
               setEtapa(3);
-              setMsgSucesso(`🎉 Perfil de Voz criado com sucesso! Voice ID: ${pollData.voiceId}`);
+              setMsgSucesso(`🎉 Perfil de Voz criado com sucesso! Voice ID: ${idFinal}`);
               return;
             }
 
@@ -546,6 +571,41 @@ Com você ao meu lado eu sei onde quero estar`
     }
   };
 
+  // 4. Gerar Letra Personalizada com IA
+  const handleGerarLetraIa = async () => {
+    setGerandoLetraIa(true);
+    setMsgErro('');
+    try {
+      const res = await fetch('/api/lyrics/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          occasion: 'Música Personalizada',
+          honoreeName: 'Pessoa Especial',
+          relationship: 'Amor / Vida',
+          story: temaLetraIa || 'Uma história de amor, superação, gratidão e momentos inesquecíveis.',
+          importantMoments: 'Momentos felizes e celebração juntos',
+          requiredNames: '',
+          requiredPhrase: '',
+          musicStyle: estiloMusical,
+          musicMood: 'Emocionante e marcante',
+          voiceType: 'solo'
+        })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.lyrics) {
+        throw new Error(data.error || 'Falha ao compor letra com IA.');
+      }
+      setLetraMusica(data.lyrics);
+      setMostrarPromptLetra(false);
+      setMsgSucesso('✨ Letra composta com sucesso pela IA! Você pode personalizá-la no campo abaixo.');
+    } catch (err) {
+      setMsgErro(err.message || 'Erro ao gerar letra com IA.');
+    } finally {
+      setGerandoLetraIa(false);
+    }
+  };
+
   if (checkingAuth) {
     return (
       <div style={{ padding: '60px 20px', textAlign: 'center', fontFamily: 'sans-serif', color: '#64748b' }}>
@@ -641,48 +701,6 @@ Com você ao meu lado eu sei onde quero estar`
             </button>
           ))}
         </div>
-
-        {/* Banner de Acesso Rápido ao Passo 2 */}
-        {etapa === 1 && (
-          <div style={{
-            marginBottom: '16px',
-            padding: '12px 16px',
-            borderRadius: '12px',
-            background: 'linear-gradient(135deg, rgba(37, 99, 235, 0.2) 0%, rgba(14, 165, 233, 0.15) 100%)',
-            border: '1px solid rgba(56, 189, 248, 0.4)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: '10px'
-          }}>
-            <div>
-              <div style={{ fontSize: '0.85rem', fontWeight: '700', color: '#f0f9ff' }}>
-                ⚡ Frase de validação já gerada pela Kie.ai!
-              </div>
-              <div style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '2px' }}>
-                &ldquo;{fraseValidacao}&rdquo;
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setEtapa(2)}
-              style={{
-                padding: '8px 16px',
-                borderRadius: '8px',
-                border: 'none',
-                background: '#0284c7',
-                color: '#ffffff',
-                fontWeight: '700',
-                fontSize: '0.82rem',
-                cursor: 'pointer',
-                boxShadow: '0 2px 8px rgba(2, 132, 199, 0.4)'
-              }}
-            >
-              Ir para Leitura (Passo 2) ➔
-            </button>
-          </div>
-        )}
 
         {/* Feedback Alerts */}
         {msgErro && (
@@ -800,59 +818,6 @@ Com você ao meu lado eu sei onde quero estar`
             >
               {enviandoAmostra ? 'Processando na Kie.ai...' : 'Avançar e Gerar Frase de Validação →'}
             </button>
-
-            {/* Atalhos se a frase já foi gerada na Kie.ai */}
-            <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <button
-                type="button"
-                onClick={() => {
-                  setFraseValidacao('Canto com alegria enquanto o piano sorrir junto comigo');
-                  setPhraseTaskId('61188d4d5a62186d9cd2fc619aa8b91a');
-                  setVerifyPhraseId('6157ab67-c374-418c-a975-cf90efbcfe24');
-                  setVoiceRecordingId('712430a7-e480-4edf-93cc-2bf4f7e6f80e');
-                  setEtapa(2);
-                }}
-                style={{
-                  width: '100%',
-                  background: 'rgba(56, 189, 248, 0.1)',
-                  border: '1px dashed #38bdf8',
-                  color: '#38bdf8',
-                  padding: '12px 14px',
-                  borderRadius: '10px',
-                  fontSize: '0.84rem',
-                  fontWeight: '600',
-                  cursor: 'pointer',
-                  textAlign: 'left'
-                }}
-              >
-                👉 Usar frase ativa da Kie: <strong>&ldquo;Canto com alegria...&rdquo;</strong> (Passo 2) ➔
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setFraseValidacao('Canto suave ao piano enquanto a voz acalma');
-                  setPhraseTaskId('10aeaff003e135ad0e826606162fadaa');
-                  setVerifyPhraseId('faeadd8b-96d5-4528-b45d-91709cdfe028');
-                  setVoiceRecordingId('b4fa71e2-b681-4b1c-97f7-812a9ed0effa');
-                  setEtapa(2);
-                }}
-                style={{
-                  width: '100%',
-                  background: 'rgba(148, 163, 184, 0.08)',
-                  border: '1px dashed #64748b',
-                  color: '#94a3b8',
-                  padding: '10px 14px',
-                  borderRadius: '10px',
-                  fontSize: '0.82rem',
-                  fontWeight: '600',
-                  cursor: 'pointer',
-                  textAlign: 'left'
-                }}
-              >
-                👉 Usar frase anterior: &ldquo;Canto suave ao piano...&rdquo; (Passo 2) ➔
-              </button>
-            </div>
           </div>
         )}
 
@@ -865,52 +830,6 @@ Com você ao meu lado eu sei onde quero estar`
             <p style={{ fontSize: '0.84rem', color: '#94a3b8', lineHeight: '1.4', marginBottom: '16px' }}>
               A IA exige que você leia a frase abaixo em voz alta para confirmar que a voz pertence a você:
             </p>
-
-            {/* Seletores Rápidos de Frase */}
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '14px' }}>
-              <button
-                type="button"
-                onClick={() => {
-                  setFraseValidacao('Canto com alegria enquanto o piano sorrir junto comigo');
-                  setPhraseTaskId('61188d4d5a62186d9cd2fc619aa8b91a');
-                  setVerifyPhraseId('6157ab67-c374-418c-a975-cf90efbcfe24');
-                  setVoiceRecordingId('712430a7-e480-4edf-93cc-2bf4f7e6f80e');
-                }}
-                style={{
-                  padding: '6px 10px',
-                  borderRadius: '6px',
-                  border: '1px solid #38bdf8',
-                  background: fraseValidacao.includes('alegria') ? 'rgba(56, 189, 248, 0.25)' : 'transparent',
-                  color: '#38bdf8',
-                  fontSize: '0.78rem',
-                  fontWeight: '600',
-                  cursor: 'pointer'
-                }}
-              >
-                🎯 Frase Recente: &ldquo;Canto com alegria...&rdquo;
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setFraseValidacao('Canto suave ao piano enquanto a voz acalma');
-                  setPhraseTaskId('10aeaff003e135ad0e826606162fadaa');
-                  setVerifyPhraseId('faeadd8b-96d5-4528-b45d-91709cdfe028');
-                  setVoiceRecordingId('b4fa71e2-b681-4b1c-97f7-812a9ed0effa');
-                }}
-                style={{
-                  padding: '6px 10px',
-                  borderRadius: '6px',
-                  border: '1px solid #64748b',
-                  background: fraseValidacao.includes('suave ao piano') ? 'rgba(148, 163, 184, 0.25)' : 'transparent',
-                  color: '#cbd5e1',
-                  fontSize: '0.78rem',
-                  fontWeight: '600',
-                  cursor: 'pointer'
-                }}
-              >
-                Frase Anterior: &ldquo;Canto suave ao piano...&rdquo;
-              </button>
-            </div>
 
             {/* Frase de Validação em Destaque */}
             <div style={{ padding: '16px', borderRadius: '12px', background: '#0a0f1d', border: '1px solid #38bdf8', marginBottom: '20px' }}>
@@ -1084,9 +1003,70 @@ Com você ao meu lado eu sei onde quero estar`
 
             {/* Letra da Música */}
             <div style={{ marginBottom: '20px' }}>
-              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#cbd5e1', marginBottom: '6px' }}>
-                Letra para o Teste:
-              </label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <label style={{ fontSize: '0.85rem', fontWeight: '600', color: '#cbd5e1' }}>
+                  Letra da Música:
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setMostrarPromptLetra(!mostrarPromptLetra)}
+                  style={{
+                    padding: '4px 10px',
+                    borderRadius: '6px',
+                    border: '1px solid #8b5cf6',
+                    background: 'rgba(139, 92, 246, 0.15)',
+                    color: '#c4b5fd',
+                    fontSize: '0.78rem',
+                    fontWeight: '700',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {mostrarPromptLetra ? '✕ Fechar IA' : '✨ Escrever Letra com IA'}
+                </button>
+              </div>
+
+              {mostrarPromptLetra && (
+                <div style={{ padding: '12px', borderRadius: '10px', background: '#0a0f1d', border: '1px solid #8b5cf6', marginBottom: '12px' }}>
+                  <label style={{ display: 'block', fontSize: '0.78rem', color: '#a78bfa', marginBottom: '6px', fontWeight: '600' }}>
+                    Tema ou história para a IA compor:
+                  </label>
+                  <input
+                    type="text"
+                    value={temaLetraIa}
+                    onChange={(e) => setTemaLetraIa(e.target.value)}
+                    placeholder="Ex: Declaração de amor emocionante para meu amor..."
+                    style={{
+                      width: '100%',
+                      padding: '8px 10px',
+                      borderRadius: '6px',
+                      border: '1px solid #334155',
+                      background: '#0f172a',
+                      color: '#f8fafc',
+                      fontSize: '0.82rem',
+                      marginBottom: '8px'
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleGerarLetraIa}
+                    disabled={gerandoLetraIa}
+                    style={{
+                      width: '100%',
+                      padding: '8px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      background: gerandoLetraIa ? '#334155' : 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)',
+                      color: '#ffffff',
+                      fontSize: '0.8rem',
+                      fontWeight: '700',
+                      cursor: gerandoLetraIa ? 'default' : 'pointer'
+                    }}
+                  >
+                    {gerandoLetraIa ? 'Compondo letra com IA...' : '🪄 Gerar Letra Agora'}
+                  </button>
+                </div>
+              )}
+
               <textarea
                 value={letraMusica}
                 onChange={(e) => setLetraMusica(e.target.value)}
