@@ -11,6 +11,7 @@ import { hasPreviewTrackingData } from '@/lib/previewTracking';
 import { buildSunoPayload } from '@/lib/sunoPayload';
 import { buildAudioProxySrc } from '@/lib/audioProxy';
 import PlatformIcon from '@/components/admin/PlatformIcon';
+import OrderWhatsAppFeedbackCard from '@/components/admin/OrderWhatsAppFeedbackCard';
 import { getOrderPlatform, PLATFORMS } from '@/lib/trafficSource';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -1064,6 +1065,12 @@ export default function OrderDetailsAdmin() {
               <div style={styles.card}>
                 <h3 style={styles.cardTitle}>Dados do Homenageado</h3>
                 <div style={styles.infoBlock}>
+                  <span style={styles.infoLabel}>Nome da Pessoa Homenageada</span>
+                  <p style={{ ...styles.infoVal, fontWeight: '800', fontSize: '1.15rem', color: '#7c3aed' }}>
+                    {order.honoreeName || order.honoree_name || order.recipientName || 'Não informado'}
+                  </p>
+                </div>
+                <div style={styles.infoBlock}>
                   <span style={styles.infoLabel}>Ocasião</span>
                   <p style={styles.infoVal}>{order.occasion || 'N/A'}</p>
                 </div>
@@ -1084,6 +1091,9 @@ export default function OrderDetailsAdmin() {
                   <p style={{ ...styles.infoVal, color: '#dc2626', fontWeight: 'bold' }}>{order.forbiddenSubjects || 'Nenhum'}</p>
                 </div>
               </div>
+
+              {/* Mensagem de Feedback e Ajuste para WhatsApp */}
+              <OrderWhatsAppFeedbackCard order={order} />
 
               <div style={styles.card}>
                 <h3 style={styles.cardTitle}>História Fornecida</h3>
