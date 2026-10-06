@@ -67,6 +67,11 @@ export async function POST(req) {
       }
     }
 
+    if (body?.contingencyMode !== undefined) {
+      updates.contingencyMode = Boolean(body.contingencyMode);
+      updates.contingencyModeAtualizadoEm = new Date().toISOString();
+    }
+
     const newValor = { ...currentValor, ...updates };
 
     await supabase
@@ -81,7 +86,8 @@ export async function POST(req) {
       ok: true,
       whatsappSuporte: newValor.whatsappSuporte || WHATSAPP_SUPORTE_PADRAO,
       agentEnabled: newValor.agentEnabled !== false,
-      sunoPrimaryProvider: newValor.sunoPrimaryProvider || process.env.SUNO_PRIMARY_PROVIDER || 'unifically'
+      sunoPrimaryProvider: newValor.sunoPrimaryProvider || process.env.SUNO_PRIMARY_PROVIDER || 'unifically',
+      contingencyMode: newValor.contingencyMode === true
     });
   } catch (err) {
     console.error('[admin/config] falha ao salvar configuração:', err.message);
@@ -117,16 +123,18 @@ export async function GET(req) {
         ok: true,
         whatsappSuporte: configData.whatsappSuporte || WHATSAPP_SUPORTE_PADRAO,
         agentEnabled: configData.agentEnabled !== false,
-        sunoPrimaryProvider: configData.sunoPrimaryProvider || defaultProvider
+        sunoPrimaryProvider: configData.sunoPrimaryProvider || defaultProvider,
+        contingencyMode: configData.contingencyMode === true
       },
-      { headers: { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300' } }
+      { headers: { 'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60' } }
     );
   } catch (err) {
     return NextResponse.json({
       ok: true,
       whatsappSuporte: WHATSAPP_SUPORTE_PADRAO,
       agentEnabled: true,
-      sunoPrimaryProvider: 'unifically'
+      sunoPrimaryProvider: 'unifically',
+      contingencyMode: false
     });
   }
 }

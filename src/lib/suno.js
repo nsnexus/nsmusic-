@@ -417,8 +417,22 @@ export async function maybeAutoRetrySunoFailure({ taskId, orderId, env = {}, rea
   // Se a falha foi na Unifically, vai para Kie.ai; se foi na Kie.ai e há Unifically configurada, tenta Unifically.
   let targetProvider = preferredProvider;
   if (!targetProvider) {
+    try {
+      const failedTask = await getTask(taskId, env);
+      if (failedTask?.provider === PROVIDER_UNIFICALLY) {
+        targetProvider = PROVIDER_KIE;
+      } else if (failedTask?.provider === PROVIDER_KIE) {
+        const unifKey = readEnvValue(env, 'UNIFICALLY_API_KEY');
+        targetProvider = unifKey ? PROVIDER_UNIFICALLY : PROVIDER_KIE;
+      }
+    } catch (e) {
+      // Fallback para inspeção da string do motivo
+    }
+  }
+
+  if (!targetProvider) {
     const reasonLower = String(reason || '').toLowerCase();
-    if (reasonLower.includes('unifically')) {
+    if (reasonLower.includes('unifically') || reasonLower.includes('upstream error')) {
       targetProvider = PROVIDER_KIE;
     } else if (reasonLower.includes('kie')) {
       const unifKey = readEnvValue(env, 'UNIFICALLY_API_KEY');

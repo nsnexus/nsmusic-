@@ -92,6 +92,10 @@ export default function AdminDashboard() {
   const [salvandoProvider, setSalvandoProvider] = useState(false);
   const [msgProvider, setMsgProvider] = useState('');
 
+  const [contingencyMode, setContingencyMode] = useState(false);
+  const [salvandoContingencia, setSalvandoContingencia] = useState(false);
+  const [msgContingencia, setMsgContingencia] = useState('');
+
   // Reprocessamento de pedidos travados antes da Suno (letra pronta mas geração nunca confirmada).
   // Varredura de conferência de pagamentos (pedido 20/09/2026) — ver handleAuditPayments.
   const [auditing, setAuditing] = useState(false);
@@ -512,8 +516,36 @@ export default function AdminDashboard() {
       if (cfg?.sunoPrimaryProvider) {
         setSunoPrimaryProvider(cfg.sunoPrimaryProvider);
       }
+      if (cfg?.contingencyMode !== undefined) {
+        setContingencyMode(Boolean(cfg.contingencyMode));
+      }
     });
   }, []);
+
+  const handleToggleContingencia = async () => {
+    const novoValor = !contingencyMode;
+    setSalvandoContingencia(true);
+    setMsgContingencia('');
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      const res = await fetch('/api/admin/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ contingencyMode: novoValor }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMsgContingencia(data.error || 'Não foi possível alterar.');
+        return;
+      }
+      setContingencyMode(Boolean(data.contingencyMode));
+      setMsgContingencia(`✅ Salvo: Modo Contingência ${data.contingencyMode ? 'ATIVADO (clientes irão pro WhatsApp)' : 'DESATIVADO (geração automática via API)'}.`);
+    } catch (err) {
+      setMsgContingencia('Falha de conexão ao salvar.');
+    } finally {
+      setSalvandoContingencia(false);
+    }
+  };
 
   const handleSalvarProvider = async (novoProvider) => {
     const providerEscolhido = novoProvider || sunoPrimaryProvider;
@@ -1042,6 +1074,71 @@ export default function AdminDashboard() {
                     {msgProvider}
                   </span>
                 )}
+
+                {/* Card de Modo de Contingência (Geração via WhatsApp) */}
+                <div
+                  style={{
+                    marginTop: '14px',
+                    padding: '14px 16px',
+                    borderRadius: '12px',
+                    border: contingencyMode ? '2px solid #f59e0b' : '1px solid #e2e8f0',
+                    background: contingencyMode ? '#fffbeb' : '#f8fafc',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '1.25rem' }}>{contingencyMode ? '🚨' : '🛡️'}</span>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '0.88rem', fontWeight: '800', color: '#1e293b' }}>
+                            Modo Contingência (Geração via WhatsApp)
+                          </span>
+                          <span
+                            style={{
+                              fontSize: '0.72rem',
+                              fontWeight: '700',
+                              padding: '2px 8px',
+                              borderRadius: '999px',
+                              background: contingencyMode ? '#fef3c7' : '#dcfce7',
+                              color: contingencyMode ? '#b45309' : '#15803d',
+                              border: contingencyMode ? '1px solid #fde68a' : '1px solid #bbf7d0',
+                            }}
+                          >
+                            {contingencyMode ? 'ATIVADO' : 'DESATIVADO (Normal)'}
+                          </span>
+                        </div>
+                        <span style={{ fontSize: '0.78rem', color: '#64748b', display: 'block', marginTop: '2px' }}>
+                          Quando ativo (em caso de falha geral nas APIs), o cliente no <code>/criar</code> ao aprovar a letra é direcionado direto pro seu WhatsApp com a letra e estilo prontos para você gerar no Suno manual.
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleToggleContingencia}
+                      disabled={salvandoContingencia}
+                      style={{
+                        padding: '8px 16px',
+                        borderRadius: '8px',
+                        border: 'none',
+                        background: contingencyMode ? '#dc2626' : '#f59e0b',
+                        color: '#ffffff',
+                        fontWeight: '700',
+                        fontSize: '0.82rem',
+                        cursor: salvandoContingencia ? 'default' : 'pointer'
+                      }}
+                    >
+                      {salvandoContingencia ? 'Salvando...' : (contingencyMode ? 'Desativar Contingência' : '🚨 Ativar Contingência')}
+                    </button>
+                  </div>
+                  {msgContingencia && (
+                    <span style={{ fontSize: '0.8rem', color: msgContingencia.startsWith('✅') ? '#059669' : '#dc2626' }}>
+                      {msgContingencia}
+                    </span>
+                  )}
+                </div>
               </div>
 
             </div>

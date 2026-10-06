@@ -19,6 +19,7 @@ import WizardSteps from './WizardSteps';
 import PixQrCode from '@/components/PixQrCode';
 import { requestPixCharge } from '@/lib/pixCheckout';
 import { useWhatsappSuporte, linkWhatsapp } from '@/lib/useWhatsappSuporte';
+import { lerConfigSite } from '@/lib/configSite';
 import { StudioLyricsAnimation, StudioAudioAnimation } from '@/components/StudioAnimations';
 import { IconeCelularWhatsApp } from '@/components/AppIcons';
 
@@ -66,12 +67,23 @@ function BrandLogo() {
 export default function CriarMusica() {
   // Número do suporte vem da configuração editável no painel (src/lib/configSite.js), não do código.
   const whatsappSuporte = useWhatsappSuporte();
+  const [contingencyMode, setContingencyMode] = useState(false);
   const [step, setStep] = useState(1);
   const [orderId, setOrderId] = useState('');
   const [taskId, setTaskId] = useState('');
   const [isRestored, setIsRestored] = useState(false);
   const [needsReload, setNeedsReload] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    let ativo = true;
+    lerConfigSite().then((cfg) => {
+      if (ativo && cfg?.contingencyMode) {
+        setContingencyMode(true);
+      }
+    });
+    return () => { ativo = false; };
+  }, []);
 
   // Força reload da página após gerar a música para resetar o DOM e o AudioPlayer
   useEffect(() => {
@@ -1094,20 +1106,16 @@ export default function CriarMusica() {
     }
   };
 
-  // Step 9 Approval -> Move to Audio Generation preview screen (Step 10)
+  // Step 9 Approval -> Move to Audio Generation preview screen (Step 10) or WhatsApp (Contingency)
   const handleApproveLyrics = async () => {
     if (isSubmitting) return;
     setIsSubmitting(true);
     try {
-      setStep(10);
       // Se as músicas já foram geradas com sucesso anteriormente, apenas navega sem regenerar
       if (formData.sunoStatus === 'generated' && formData.sunoTracks && formData.sunoTracks.length > 0) {
         if (orderId) window.location.href = `/entrega?orderId=${orderId}`;
         return;
       }
-
-      updateField('sunoStatus', 'generating');
-      updateField('sunoProgress', 'Enviando composição de letra ao Suno AI...');
 
       let activeOrderId = orderId;
       if (!activeOrderId) {
@@ -1130,26 +1138,45 @@ export default function CriarMusica() {
             }
           } else if (createRes.status === 403) {
             const errData = await createRes.json().catch(() => ({}));
-            updateField('sunoStatus', 'idle');
+            setIsSubmitting(false);
             alert(errData?.error || 'Este contato foi bloqueado para novas gerações na plataforma. Entre em contato com o suporte.');
             return;
           }
         } catch (e) {
-          console.error("Erro ao criar pedido emergencial antes do Suno:", e);
+          console.error("Erro ao criar pedido antes do Suno/Contingência:", e);
         }
       }
 
       if (activeOrderId && formData.lyrics) {
-        fetch('/api/orders/client-update', {
+        await fetch('/api/orders/client-update', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             orderId: activeOrderId,
             lyrics: formData.lyrics,
-            productionStatus: 'LETRA_APROVADA'
+            productionStatus: contingencyMode ? 'CONTINGENCIA_WHATSAPP' : 'LETRA_APROVADA'
           })
         }).catch(e => console.warn('[criar] Falha ao persistir letra aprovada:', e));
       }
+
+      // Se o Modo de Contingência estiver ativo no painel Admin:
+      if (contingencyMode) {
+        const msgWhatsapp = `Olá! Aprovei a letra da minha música no NS Music e gostaria de produzir o áudio! 🎵\n\n` +
+          `👤 *Cliente:* ${formData.customerName || 'Cliente'}\n` +
+          `❤️ *Homenageado(a):* ${formData.honoreeName || 'Alguém especial'}\n` +
+          `🎸 *Estilo Musical:* ${formData.musicStyle || 'Personalizado'}\n` +
+          `🎤 *Tipo de Voz:* ${formData.voiceType || 'Padrão'}\n` +
+          (activeOrderId ? `🔖 *Pedido:* #${activeOrderId}\n\n` : '\n') +
+          `📜 *LETRA DA MÚSICA:*\n${formData.lyrics}`;
+
+        const urlWhatsapp = linkWhatsapp(whatsappSuporte, msgWhatsapp);
+        window.location.href = urlWhatsapp;
+        return;
+      }
+
+      setStep(10);
+      updateField('sunoStatus', 'generating');
+      updateField('sunoProgress', 'Enviando composição de letra ao Suno AI...');
 
       const response = await fetch('/api/suno/generate', {
         method: 'POST',
@@ -1396,6 +1423,24 @@ export default function CriarMusica() {
               <div>
                 <h1 style={styles.stepTitle}>Sua Letra Exclusiva ✨</h1>
                 <p style={styles.stepSubtitle}>Revisada e gerada especialmente para você. Se gostar, aprove para produzir o áudio!</p>
+                
+                {contingencyMode && (
+                  <div style={{
+                    padding: '14px 18px',
+                    borderRadius: '12px',
+                    background: 'rgba(37, 211, 102, 0.12)',
+                    border: '1px solid rgba(37, 211, 102, 0.35)',
+                    marginBottom: '20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px'
+                  }}>
+                    <span style={{ fontSize: '1.4rem' }}>📲</span>
+                    <div style={{ fontSize: '0.9rem', color: '#25D366', fontWeight: '600' }}>
+                      <strong>Produção Direta via WhatsApp:</strong> Ao aprovar sua letra, você será direcionado ao nosso WhatsApp com a composição pronta para nossa equipe gerar sua música imediatamente!
+                    </div>
+                  </div>
+                )}
                 
                 <div className="responsive-grid-split">
                   <div style={styles.lyricsBox}>
@@ -2180,20 +2225,40 @@ export default function CriarMusica() {
                     </button>
                   ) : (
                     step === 9 && (
-                      <button
-                        onClick={handleApproveLyrics}
-                        disabled={isNextDisabled() || isSubmitting}
-                        className="btn btn-primary"
-                        style={{
-                          padding: '12px 28px',
-                          fontSize: '0.95rem',
-                          minHeight: '46px',
-                          background: (isNextDisabled() || isSubmitting) ? 'var(--bg-tertiary)' : 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)',
-                          color: (isNextDisabled() || isSubmitting) ? 'var(--text-muted)' : '#FFFFFF'
-                        }}
-                      >
-                        Criar Música →
-                      </button>
+                      contingencyMode ? (
+                        <button
+                          onClick={handleApproveLyrics}
+                          disabled={isNextDisabled() || isSubmitting}
+                          className="btn btn-primary"
+                          style={{
+                            padding: '12px 28px',
+                            fontSize: '0.95rem',
+                            minHeight: '46px',
+                            background: (isNextDisabled() || isSubmitting) ? 'var(--bg-tertiary)' : 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)',
+                            color: (isNextDisabled() || isSubmitting) ? 'var(--text-muted)' : '#FFFFFF',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '8px'
+                          }}
+                        >
+                          <IconeCelularWhatsApp size={18} /> {isSubmitting ? 'Encaminhando...' : 'Aprovar e Gerar no WhatsApp →'}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={handleApproveLyrics}
+                          disabled={isNextDisabled() || isSubmitting}
+                          className="btn btn-primary"
+                          style={{
+                            padding: '12px 28px',
+                            fontSize: '0.95rem',
+                            minHeight: '46px',
+                            background: (isNextDisabled() || isSubmitting) ? 'var(--bg-tertiary)' : 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)',
+                            color: (isNextDisabled() || isSubmitting) ? 'var(--text-muted)' : '#FFFFFF'
+                          }}
+                        >
+                          Criar Música →
+                        </button>
+                      )
                     )
                   )}
                 </div>
