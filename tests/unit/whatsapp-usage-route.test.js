@@ -65,7 +65,7 @@ describe('GET /api/admin/whatsapp-usage', () => {
       expect(json.sentLast24h).toBe(20);
       expect(json.limitTier).toBe(250);
       expect(json.remainingLast24h).toBe(230);
-      expect(json.costLast24hBrl).toBe(3.8); // 20 * 0.19
+      expect(json.costLast24hBrl).toBe(0.7); // 20 * 0.035 (tarifa de Utilidade)
       expect(json.qualityRating).toBe('GREEN');
     } finally {
       global.fetch = originalFetch;

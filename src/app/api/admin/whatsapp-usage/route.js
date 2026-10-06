@@ -7,7 +7,7 @@ export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 const DEFAULT_WABA_ID = '2160994021495241';
-const COST_PER_MSG_BRL = 0.19; // Estimativa média da categoria Utilidade da Meta no Brasil (~US$ 0.035)
+const COST_PER_MSG_BRL = 0.035; // Tarifa oficial da categoria Utilidade (Informativa/Utility) da Meta no Brasil (~US$ 0.0068 = ~R$ 0,035)
 
 /**
  * Consulta a volumetria e custos de mensagens enviadas via WhatsApp Cloud API Oficial.

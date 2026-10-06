@@ -289,7 +289,7 @@ function WhatsAppUsageBadgeInner({ style = {} }) {
                   {formatBrl(data.costLast24hBrl)}
                 </div>
                 <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: '2px' }}>
-                  {data.sentLast24h ?? 0} disparos (~R$ 0,19/msg)
+                  {data.sentLast24h ?? 0} disparos (~R$ 0,035/msg - Utilidade)
                 </div>
               </div>
 
