@@ -4,15 +4,38 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { getAdminAuthToken } from '@/lib/authClient';
 
 /**
+ * Error boundary local para garantir que nenhuma falha no badge
+ * cause erro de renderização na página administrativa.
+ */
+class WhatsAppUsageBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  componentDidCatch(err) {
+    console.warn('[WhatsAppUsageBadge] Erro capturado no badge:', err);
+  }
+  render() {
+    if (this.state.hasError) {
+      return null;
+    }
+    return this.props.children;
+  }
+}
+
+/**
  * Medidor visual de volumetria e custos de mensagens do WhatsApp Cloud API Oficial.
  * Exibe no cabeçalho do painel de administração:
  * - Quantidade de envios na janela móvel de 24h vs Limite da Meta (Tier 250 / 1.000)
  * - Custo acumulado estimado em R$ (baseado nos centavos por mensagem da Meta)
  * - Alerta visual quando o limite de mensagens estiver próximo de estourar
  */
-export default function WhatsAppUsageBadge({ style = {} }) {
+function WhatsAppUsageBadgeInner({ style = {} }) {
   const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [openModal, setOpenModal] = useState(false);
 
@@ -43,8 +66,8 @@ export default function WhatsAppUsageBadge({ style = {} }) {
     return () => clearInterval(interval);
   }, [fetchUsage]);
 
-  const isOver = data?.isOverLimit;
-  const isNear = data?.isNearLimit;
+  const isOver = Boolean(data?.isOverLimit);
+  const isNear = Boolean(data?.isNearLimit);
 
   let bg = '#f0fdf4';
   let border = '#bbf7d0';
@@ -99,11 +122,13 @@ export default function WhatsAppUsageBadge({ style = {} }) {
         <span>{icon}</span>
         {loading && !data ? (
           <span>Carregando WA...</span>
-        ) : error ? (
+        ) : error && !data ? (
           <span>WA: {error}</span>
+        ) : !data ? (
+          <span>Carregando WA...</span>
         ) : (
           <span>
-            WA: <strong>{data.sentLast24h}</strong>/{data.limitTier}{' '}
+            WA: <strong>{data.sentLast24h ?? 0}</strong>/{data.limitTier ?? '-'}{' '}
             <span style={{ fontSize: '0.75rem', opacity: 0.85, fontWeight: '500' }}>
               ({formatBrl(data.costLast24hBrl)})
             </span>
@@ -158,7 +183,7 @@ export default function WhatsAppUsageBadge({ style = {} }) {
                     Medidor de WhatsApp Cloud API
                   </h3>
                   <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                    Número Oficial: {data.displayPhone}
+                    Número Oficial: {data.displayPhone || 'Oficial'}
                   </span>
                 </div>
               </div>
@@ -216,7 +241,7 @@ export default function WhatsAppUsageBadge({ style = {} }) {
               >
                 <span>Uso da Janela Móvel (24 horas)</span>
                 <span style={{ color: isOver ? '#dc2626' : isNear ? '#d97706' : '#16a34a' }}>
-                  {data.sentLast24h} / {data.limitTier} ({data.usagePercent}%)
+                  {data.sentLast24h ?? 0} / {data.limitTier ?? 250} ({data.usagePercent ?? 0}%)
                 </span>
               </div>
               <div
@@ -230,7 +255,7 @@ export default function WhatsAppUsageBadge({ style = {} }) {
               >
                 <div
                   style={{
-                    width: `${Math.min(100, (data.sentLast24h / data.limitTier) * 100)}%`,
+                    width: `${Math.min(100, ((data.sentLast24h || 0) / (data.limitTier || 250)) * 100)}%`,
                     height: '100%',
                     backgroundColor: isOver ? '#ef4444' : isNear ? '#f59e0b' : '#22c55e',
                     borderRadius: '6px',
@@ -264,7 +289,7 @@ export default function WhatsAppUsageBadge({ style = {} }) {
                   {formatBrl(data.costLast24hBrl)}
                 </div>
                 <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: '2px' }}>
-                  {data.sentLast24h} disparos (~R$ 0,19/msg)
+                  {data.sentLast24h ?? 0} disparos (~R$ 0,19/msg)
                 </div>
               </div>
 
@@ -283,7 +308,7 @@ export default function WhatsAppUsageBadge({ style = {} }) {
                   {formatBrl(data.costTodayBrl)}
                 </div>
                 <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: '2px' }}>
-                  {data.sentToday} disparos desde 00:00
+                  {data.sentToday ?? 0} disparos desde 00:00
                 </div>
               </div>
 
@@ -302,7 +327,7 @@ export default function WhatsAppUsageBadge({ style = {} }) {
                   {formatBrl(data.costMonthBrl)}
                 </div>
                 <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: '2px' }}>
-                  {data.sentMonth} mensagens enviadas
+                  {data.sentMonth ?? 0} mensagens enviadas
                 </div>
               </div>
 
@@ -327,11 +352,11 @@ export default function WhatsAppUsageBadge({ style = {} }) {
                     }}
                   />
                   <span style={{ fontSize: '1.1rem', fontWeight: '800', color: '#0f172a' }}>
-                    {data.qualityRating === 'GREEN' ? 'Excelente' : data.qualityRating}
+                    {data.qualityRating === 'GREEN' ? 'Excelente' : data.qualityRating || 'OK'}
                   </span>
                 </div>
                 <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: '2px' }}>
-                  Status: {data.status}
+                  Status: {data.status || 'CONECTADO'}
                 </div>
               </div>
             </div>
@@ -388,5 +413,13 @@ export default function WhatsAppUsageBadge({ style = {} }) {
         </div>
       )}
     </>
+  );
+}
+
+export default function WhatsAppUsageBadge(props) {
+  return (
+    <WhatsAppUsageBoundary>
+      <WhatsAppUsageBadgeInner {...props} />
+    </WhatsAppUsageBoundary>
   );
 }
