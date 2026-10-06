@@ -136,8 +136,13 @@ export async function POST(req) {
           model: 'V6',
           style: style,
           title: title.substring(0, 80),
+          callBackUrl: 'https://nsmusic.nsnexus.com.br/api/suno/webhook',
           personaId: voiceId,
-          voiceId: voiceId
+          voiceId: voiceId,
+          persona_id: voiceId,
+          persona_model: 'voice_persona',
+          styleWeight: 0.85,
+          weirdnessConstraint: 0.20,
         }),
         signal: AbortSignal.timeout(15000)
       });
