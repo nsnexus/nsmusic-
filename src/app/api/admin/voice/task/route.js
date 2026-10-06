@@ -226,23 +226,46 @@ export async function GET(req) {
     }
 
     // Extrai frase de validação caso seja a tarefa de validação
-    const phrase = parsedResult?.phrase
+    let phrase = parsedResult?.phrase
       || parsedResult?.validation_phrase
+      || parsedResult?.validationPhrase
       || parsedResult?.text
       || parsedResult?.phrase_text
       || data?.data?.phrase
+      || data?.data?.validation_phrase
+      || data?.data?.validationPhrase
       || data?.phrase
       || null;
 
+    if (!phrase && parsedResult && typeof parsedResult === 'object') {
+      for (const [k, v] of Object.entries(parsedResult)) {
+        if ((k.toLowerCase().includes('phrase') || k.toLowerCase().includes('text')) && typeof v === 'string') {
+          phrase = v;
+          break;
+        }
+      }
+    }
+
     // Extrai o voiceId caso seja a tarefa de criação de voz
-    const voiceId = parsedResult?.voiceId
+    let voiceId = parsedResult?.voiceId
       || parsedResult?.voice_id
       || parsedResult?.personaId
       || parsedResult?.persona_id
       || parsedResult?.id
       || data?.data?.voiceId
+      || data?.data?.voice_id
+      || data?.data?.personaId
       || data?.voiceId
       || null;
+
+    if (!voiceId && parsedResult && typeof parsedResult === 'object') {
+      for (const [k, v] of Object.entries(parsedResult)) {
+        if ((k.toLowerCase().includes('voice') || k.toLowerCase().includes('persona')) && typeof v === 'string') {
+          voiceId = v;
+          break;
+        }
+      }
+    }
 
     return NextResponse.json({
       ok: true,

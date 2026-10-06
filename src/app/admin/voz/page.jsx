@@ -250,13 +250,17 @@ Com você ao meu lado eu sei onde quero estar`
               return;
             }
 
-            setStatusFrase(`Processando na IA... (${tentativas * 2}s)`);
+            const estadoFormatado = pollData.state === 'waiting'
+              ? 'Na fila da IA...'
+              : (pollData.state === 'queuing' ? 'Aguardando processador...' : 'Analisando áudio...');
+            const progressoTxt = pollData.progress ? ` (${pollData.progress}%)` : '';
+            setStatusFrase(`Status Kie.ai: ${estadoFormatado}${progressoTxt} (${Math.round(tentativas * 2.5)}s decorridos)`);
           }
 
-          if (tentativas > 30) {
+          if (tentativas > 120) {
             clearInterval(pollInterval);
             setEnviandoAmostra(false);
-            setMsgErro('Tempo limite excedido aguardando a frase da Kie.ai. Tente novamente.');
+            setMsgErro('A Kie.ai ainda está processando a tarefa. Aguarde alguns instantes e tente conferir.');
           }
         } catch (e) {
           console.warn('Erro no polling da frase:', e);
@@ -345,13 +349,17 @@ Com você ao meu lado eu sei onde quero estar`
               return;
             }
 
-            setStatusCriacaoVoz(`Treinando modelo de voz... (${tentativas * 3}s)`);
+            const estadoFormatado = pollData.state === 'waiting'
+              ? 'Na fila de clonagem...'
+              : (pollData.state === 'queuing' ? 'Aguardando GPU...' : 'Treinando modelo de voz...');
+            const progressoTxt = pollData.progress ? ` (${pollData.progress}%)` : '';
+            setStatusCriacaoVoz(`Status Kie.ai: ${estadoFormatado}${progressoTxt} (${Math.round(tentativas * 3)}s decorridos)`);
           }
 
-          if (tentativas > 40) {
+          if (tentativas > 120) {
             clearInterval(pollInterval);
             setEnviandoVerificacao(false);
-            setMsgErro('Tempo limite excedido na criação da voz. Tente novamente.');
+            setMsgErro('A Kie.ai ainda está processando a criação da voz. Aguarde alguns instantes e tente conferir.');
           }
         } catch (e) {
           console.warn('Erro no polling de criação de voz:', e);
