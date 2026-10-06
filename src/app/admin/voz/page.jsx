@@ -61,6 +61,28 @@ Com você ao meu lado eu sei onde quero estar`
   const [msgErro, setMsgErro] = useState('');
   const [msgSucesso, setMsgSucesso] = useState('');
 
+  const handleReiniciarTudo = () => {
+    setEtapa(1);
+    setAmostraBlob(null);
+    setAmostraPreviewUrl('');
+    setAmostraPublicUrl('');
+    setEnviandoAmostra(false);
+    setStatusFrase('');
+    setFraseValidacao('');
+    setPhraseTaskId('');
+    setVerifyPhraseId('');
+    setVoiceRecordingId('');
+    setVerificacaoBlob(null);
+    setVerificacaoPreviewUrl('');
+    setVerificacaoPublicUrl('');
+    setEnviandoVerificacao(false);
+    setStatusCriacaoVoz('');
+    setVoiceId('');
+    setMusicasGeradas([]);
+    setMsgErro('');
+    setMsgSucesso('Laboratório reiniciado do zero. Grave sua amostra no Passo 1.');
+  };
+
   // Autenticação Admin
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -246,7 +268,8 @@ Com você ao meu lado eu sei onde quero estar`
     try {
       // Upload para o Cloudflare R2
       const fd = new FormData();
-      fd.append('file', amostraBlob, 'amostra.webm');
+      const extAmostra = (amostraBlob.type && amostraBlob.type.includes('wav')) ? 'wav' : 'webm';
+      fd.append('file', amostraBlob, `amostra.${extAmostra}`);
       fd.append('folder', 'samples');
 
       const uploadRes = await fetch('/api/admin/voice/upload', {
@@ -348,7 +371,8 @@ Com você ao meu lado eu sei onde quero estar`
 
     try {
       const fd = new FormData();
-      fd.append('file', verificacaoBlob, 'verificacao.webm');
+      const extVerif = (verificacaoBlob.type && verificacaoBlob.type.includes('wav')) ? 'wav' : 'webm';
+      fd.append('file', verificacaoBlob, `verificacao.${extVerif}`);
       fd.append('folder', 'verifications');
 
       const uploadRes = await fetch('/api/admin/voice/upload', {
@@ -565,9 +589,28 @@ Com você ao meu lado eu sei onde quero estar`
           <h1 style={{ fontSize: '1.6rem', fontWeight: '800', margin: '0 0 6px 0', background: 'linear-gradient(135deg, #38bdf8 0%, #818cf8 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
             🎤 Teste de Voz dos Clientes
           </h1>
-          <p style={{ fontSize: '0.88rem', color: '#94a3b8', margin: 0 }}>
+          <p style={{ fontSize: '0.88rem', color: '#94a3b8', margin: '0 0 14px 0' }}>
             Clone e teste a sua própria voz cantando em canções personalizadas
           </p>
+          <button
+            type="button"
+            onClick={handleReiniciarTudo}
+            style={{
+              background: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid #334155',
+              color: '#94a3b8',
+              padding: '6px 14px',
+              borderRadius: '8px',
+              fontSize: '0.78rem',
+              fontWeight: '600',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+          >
+            🔄 Começar do Zero / Novo Teste
+          </button>
         </div>
 
         {/* Stepper Navigation */}
