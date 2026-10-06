@@ -31,13 +31,14 @@ export default function AdminVozLab() {
   const [fraseValidacao, setFraseValidacao] = useState('');
   const [phraseTaskId, setPhraseTaskId] = useState('');
   const [verifyPhraseId, setVerifyPhraseId] = useState('');
-  const [voiceRecordingId, setVoiceRecordingId] = useState('');
+  const [voiceRecordingId, setVoiceRecordingId] = useState('b4fa71e2-b681-4b1c-97f7-812a9ed0effa');
+  const [accountId, setAccountId] = useState('70147233');
   const [verificacaoBlob, setVerificacaoBlob] = useState(null);
   const [verificacaoPreviewUrl, setVerificacaoPreviewUrl] = useState('');
   const [verificacaoPublicUrl, setVerificacaoPublicUrl] = useState('');
   const [enviandoVerificacao, setEnviandoVerificacao] = useState(false);
   const [statusCriacaoVoz, setStatusCriacaoVoz] = useState('');
-  const [voiceId, setVoiceId] = useState('');
+  const [voiceId, setVoiceId] = useState('706e6d15-3830-47dd-8cdf-f7635defb8d6');
 
   // Passo 3: Geração da Canção
   const [estiloMusical, setEstiloMusical] = useState('Sertanejo Acústico');
@@ -333,6 +334,7 @@ Com você ao meu lado eu sei onde quero estar`
               setFraseValidacao(fraseDetectada);
               if (pollData.verifyPhraseId) setVerifyPhraseId(pollData.verifyPhraseId);
               if (pollData.voiceRecordingId) setVoiceRecordingId(pollData.voiceRecordingId);
+              if (pollData.accountId) setAccountId(pollData.accountId);
               if (pollData.personaId || pollData.voiceId) {
                 setVoiceId(pollData.personaId || pollData.voiceId);
               }
@@ -447,6 +449,9 @@ Com você ao meu lado eu sei onde quero estar`
               clearInterval(pollInterval);
               const idFinal = detectedVoice || '706e6d15-3830-47dd-8cdf-f7635defb8d6';
               setVoiceId(idFinal);
+              if (pollData.accountId) setAccountId(pollData.accountId);
+              if (pollData.voiceRecordingId) setVoiceRecordingId(pollData.voiceRecordingId);
+              if (pollData.verifyPhraseId) setVerifyPhraseId(pollData.verifyPhraseId);
               setEnviandoVerificacao(false);
               setStatusCriacaoVoz('');
               setEtapa(3);
@@ -510,6 +515,9 @@ Com você ao meu lado eu sei onde quero estar`
         body: JSON.stringify({
           action: 'generate_song',
           voiceId: voiceId,
+          accountId: accountId || '70147233',
+          voiceRecordingId: voiceRecordingId || 'b4fa71e2-b681-4b1c-97f7-812a9ed0effa',
+          phraseTaskId: phraseTaskId,
           prompt: letraMusica,
           style: estiloMusical,
           title: tituloMusica || 'Música com Minha Voz',
@@ -963,6 +971,11 @@ Com você ao meu lado eu sei onde quero estar`
                 style={{ width: '100%', marginTop: '6px', padding: '8px', borderRadius: '6px', border: '1px solid #1e293b', background: '#0f172a', color: '#f8fafc', fontSize: '0.85rem' }}
                 placeholder="ID da voz clonada"
               />
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: '8px', fontSize: '0.74rem', color: '#94a3b8' }}>
+                <span>Conta Suno: <code style={{ color: '#38bdf8' }}>{accountId || '70147233'}</code></span>
+                <span>•</span>
+                <span>Gravação: <code style={{ color: '#38bdf8' }}>{(voiceRecordingId || 'b4fa71e2...').substring(0, 16)}...</code></span>
+              </div>
             </div>
 
             {/* Estilo Musical */}

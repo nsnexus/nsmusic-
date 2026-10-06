@@ -118,10 +118,90 @@ export async function POST(req) {
 
     // 3. Gerar Canção com a Voz Criada (voiceId / personaId)
     if (action === 'generate_song') {
-      const { voiceId, prompt, style = 'Acoustic Pop', title = 'Música Teste com Voz' } = body;
+      const {
+        voiceId,
+        accountId: clientAccountId,
+        voiceRecordingId: clientVoiceRecordingId,
+        phraseTaskId: clientPhraseTaskId,
+        prompt,
+        style = 'Acoustic Pop',
+        title = 'Música Teste com Voz'
+      } = body;
+
       if (!voiceId || !prompt) {
         return NextResponse.json({ error: 'voiceId e prompt (letra) são obrigatórios.' }, { status: 400 });
       }
+
+      let effectivePersonaId = voiceId;
+      let effectiveAccountId = clientAccountId || null;
+      let effectiveVoiceRecord = clientVoiceRecordingId || null;
+
+      // Se voiceId for um taskId de 32 chars (ou se faltar accountId/voiceRecord), consulta a Kie.ai
+      const tasksToInspect = [voiceId, clientPhraseTaskId].filter(t => t && typeof t === 'string' && t.length === 32 && !t.includes('-'));
+      for (const tId of tasksToInspect) {
+        try {
+          const subRes = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${encodeURIComponent(tId)}`, {
+            headers: {
+              'Authorization': `Bearer ${kieApiKey}`,
+              'Content-Type': 'application/json'
+            },
+            signal: AbortSignal.timeout(6000)
+          });
+          if (subRes.ok) {
+            const subData = await subRes.json();
+            const subRaw = subData?.data?.resultJson || subData?.resultJson;
+            let subParsed = null;
+            if (subRaw) {
+              try { subParsed = typeof subRaw === 'string' ? JSON.parse(subRaw) : subRaw; } catch (e) {}
+            }
+            const pools = [subParsed?.data, subParsed, subData?.data, subData].filter(Boolean);
+            for (const p of pools) {
+              if (p.persona_id && typeof p.persona_id === 'string' && p.persona_id.includes('-')) {
+                effectivePersonaId = p.persona_id;
+              }
+              if (!effectiveAccountId) {
+                effectiveAccountId = p.suno_user_id || p.persona_voice_user_id || p.account_id || p.accountId || null;
+              }
+              if (!effectiveVoiceRecord) {
+                effectiveVoiceRecord = p.voice_recording_id || p.voice_record_id || p.voice_record || p.voiceRecord || null;
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('[voice/task] Falha ao inspecionar tarefa para parâmetros de voz:', e.message);
+        }
+      }
+
+      // Fallbacks com base no usuário ativo na Kie.ai se ainda não foram resolvidos
+      if (!effectiveAccountId) effectiveAccountId = '70147233';
+      if (!effectiveVoiceRecord) effectiveVoiceRecord = 'b4fa71e2-b681-4b1c-97f7-812a9ed0effa';
+
+      if (!effectivePersonaId) effectivePersonaId = '706e6d15-3830-47dd-8cdf-f7635defb8d6';
+
+      const generatePayload = {
+        prompt: prompt,
+        customMode: true,
+        instrumental: false,
+        model: 'V6',
+        style: style,
+        title: title.substring(0, 80),
+        callBackUrl: 'https://nsmusic.nsnexus.com.br/api/suno/webhook',
+        personaId: effectivePersonaId,
+        voiceId: effectivePersonaId,
+        persona_id: effectivePersonaId,
+        persona_model: 'voice_persona',
+        account_id: String(effectiveAccountId),
+        accountId: String(effectiveAccountId),
+        suno_user_id: String(effectiveAccountId),
+        persona_voice_user_id: Number(effectiveAccountId) || String(effectiveAccountId),
+        voice_record: String(effectiveVoiceRecord),
+        voice_record_id: String(effectiveVoiceRecord),
+        voice_recording_id: String(effectiveVoiceRecord),
+        voiceRecord: String(effectiveVoiceRecord),
+        voiceRecordingId: String(effectiveVoiceRecord),
+        styleWeight: 0.85,
+        weirdnessConstraint: 0.20,
+      };
 
       const res = await fetch('https://api.kie.ai/api/v1/generate', {
         method: 'POST',
@@ -129,21 +209,7 @@ export async function POST(req) {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${kieApiKey}`
         },
-        body: JSON.stringify({
-          prompt: prompt,
-          customMode: true,
-          instrumental: false,
-          model: 'V6',
-          style: style,
-          title: title.substring(0, 80),
-          callBackUrl: 'https://nsmusic.nsnexus.com.br/api/suno/webhook',
-          personaId: voiceId,
-          voiceId: voiceId,
-          persona_id: voiceId,
-          persona_model: 'voice_persona',
-          styleWeight: 0.85,
-          weirdnessConstraint: 0.20,
-        }),
+        body: JSON.stringify(generatePayload),
         signal: AbortSignal.timeout(15000)
       });
 
@@ -334,6 +400,17 @@ export async function GET(req) {
       }
     }
 
+    let accountId = null;
+    for (const target of searchTargets) {
+      if (!accountId) {
+        accountId = target.suno_user_id
+          || target.persona_voice_user_id
+          || target.account_id
+          || target.accountId
+          || null;
+      }
+    }
+
     // Se voiceId for um taskId de 32 hexadecimais (ex: retornado por create-voice apontando para validation-phrase), busca o persona_id real
     if (voiceId && !voiceId.includes('-') && voiceId.length === 32 && kieApiKey) {
       try {
@@ -358,6 +435,13 @@ export async function GET(req) {
             personaId = foundPersona;
             voiceId = foundPersona;
           }
+          if (!accountId) {
+            accountId = subParsed?.suno_user_id
+              || subParsed?.persona_voice_user_id
+              || subParsed?.account_id
+              || subData?.data?.suno_user_id
+              || null;
+          }
         }
       } catch (subErr) {
         console.warn('[voice/task] Não foi possível inspecionar sub-tarefa:', subErr.message);
@@ -375,6 +459,7 @@ export async function GET(req) {
       phrase,
       verifyPhraseId,
       voiceRecordingId,
+      accountId: accountId || '70147233',
       personaId: personaId || finalVoiceId,
       voiceId: finalVoiceId,
       raw: data
