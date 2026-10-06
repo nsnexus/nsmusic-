@@ -239,7 +239,7 @@ describe('applyPaymentApproval', () => {
     expect(store['order11'].paymentStatus).toBe('PAGAMENTO_APROVADO'); // inalterado
   });
 
-  it('notifica o cliente via WhatsApp quando a música é aprovada e há telefone cadastrado', async () => {
+  it('NÃO notifica o cliente via WhatsApp por padrão na aprovação (economia de mensagens: apenas música pronta é enviada)', async () => {
     store['order12'] = {
       paymentIntentSku: 'audio_only',
       customerPhone: '5511999999999',
@@ -252,13 +252,35 @@ describe('applyPaymentApproval', () => {
 
     await applyPaymentApproval('order12', '1212', { status: 'approved', transaction_amount: 9.99 });
 
-    expect(sendPaymentApprovedTemplateMock).toHaveBeenCalledTimes(1);
-    expect(sendPaymentApprovedTemplateMock).toHaveBeenCalledWith('5511999999999', expect.objectContaining({
-      customerName: 'Maria',
-      honoreeName: 'Vovó Lúcia',
-      audioUrls: ['https://cdn1.suno.ai/a.mp3', 'https://cdn1.suno.ai/b.mp3'],
-    }));
-    expect(store['order12'].paymentWhatsappSent).toBe(true);
+    expect(sendPaymentApprovedTemplateMock).not.toHaveBeenCalled();
+    expect(store['order12'].paymentStatus).toBe('PAGAMENTO_APROVADO');
+  });
+
+  it('notifica o cliente via WhatsApp quando ENABLE_PAYMENT_WHATSAPP está explicitamente ativado', async () => {
+    process.env.ENABLE_PAYMENT_WHATSAPP = 'true';
+    try {
+      store['order12_on'] = {
+        paymentIntentSku: 'audio_only',
+        customerPhone: '5511999999999',
+        whatsappRequested: true,
+        customerName: 'Maria',
+        honoreeName: 'Vovó Lúcia',
+        audioFiles: ['https://cdn1.suno.ai/a.mp3', 'https://cdn1.suno.ai/b.mp3'],
+        paymentId: null,
+      };
+
+      await applyPaymentApproval('order12_on', '1212_on', { status: 'approved', transaction_amount: 9.99 });
+
+      expect(sendPaymentApprovedTemplateMock).toHaveBeenCalledTimes(1);
+      expect(sendPaymentApprovedTemplateMock).toHaveBeenCalledWith('5511999999999', expect.objectContaining({
+        customerName: 'Maria',
+        honoreeName: 'Vovó Lúcia',
+        audioUrls: ['https://cdn1.suno.ai/a.mp3', 'https://cdn1.suno.ai/b.mp3'],
+      }));
+      expect(store['order12_on'].paymentWhatsappSent).toBe(true);
+    } finally {
+      delete process.env.ENABLE_PAYMENT_WHATSAPP;
+    }
   });
 
   it('NÃO notifica via WhatsApp no pagamento isolado do add-on de vídeo', async () => {
@@ -489,40 +511,50 @@ describe('applyPaymentApproval — SKU vem do txid pago, não da última cobran�
   });
 
   it('anti-duplicata: chamadas concorrentes a notifyPaymentApproved disparam apenas 1 mensagem', async () => {
-    store['orderConcurrent'] = {
-      customerName: 'Cliente Teste',
-      honoreeName: 'Homenageado',
-      customerPhone: '5511999998888',
-      whatsappRequested: true,
-      paymentStatus: 'PAGAMENTO_APROVADO',
-      paymentWhatsappSent: false,
-    };
+    process.env.ENABLE_PAYMENT_WHATSAPP = 'true';
+    try {
+      store['orderConcurrent'] = {
+        customerName: 'Cliente Teste',
+        honoreeName: 'Homenageado',
+        customerPhone: '5511999998888',
+        whatsappRequested: true,
+        paymentStatus: 'PAGAMENTO_APROVADO',
+        paymentWhatsappSent: false,
+      };
 
-    // Dispara 5 chamadas em paralelo para o mesmo pedido
-    await Promise.all([
-      notifyPaymentApproved('orderConcurrent', store['orderConcurrent']),
-      notifyPaymentApproved('orderConcurrent', store['orderConcurrent']),
-      notifyPaymentApproved('orderConcurrent', store['orderConcurrent']),
-      notifyPaymentApproved('orderConcurrent', store['orderConcurrent']),
-      notifyPaymentApproved('orderConcurrent', store['orderConcurrent']),
-    ]);
+      // Dispara 5 chamadas em paralelo para o mesmo pedido
+      await Promise.all([
+        notifyPaymentApproved('orderConcurrent', store['orderConcurrent']),
+        notifyPaymentApproved('orderConcurrent', store['orderConcurrent']),
+        notifyPaymentApproved('orderConcurrent', store['orderConcurrent']),
+        notifyPaymentApproved('orderConcurrent', store['orderConcurrent']),
+        notifyPaymentApproved('orderConcurrent', store['orderConcurrent']),
+      ]);
 
-    expect(sendPaymentApprovedTemplateMock).toHaveBeenCalledTimes(1);
-    expect(store['orderConcurrent'].paymentWhatsappSent).toBe(true);
+      expect(sendPaymentApprovedTemplateMock).toHaveBeenCalledTimes(1);
+      expect(store['orderConcurrent'].paymentWhatsappSent).toBe(true);
+    } finally {
+      delete process.env.ENABLE_PAYMENT_WHATSAPP;
+    }
   });
 
   it('anti-duplicata: se paymentWhatsappSent já é true, notifyPaymentApproved não envia novamente', async () => {
-    store['orderSent'] = {
-      customerName: 'Cliente Já Enviado',
-      customerPhone: '5511999998888',
-      whatsappRequested: true,
-      paymentStatus: 'PAGAMENTO_APROVADO',
-      paymentWhatsappSent: true,
-    };
+    process.env.ENABLE_PAYMENT_WHATSAPP = 'true';
+    try {
+      store['orderSent'] = {
+        customerName: 'Cliente Já Enviado',
+        customerPhone: '5511999998888',
+        whatsappRequested: true,
+        paymentStatus: 'PAGAMENTO_APROVADO',
+        paymentWhatsappSent: true,
+      };
 
-    await notifyPaymentApproved('orderSent', store['orderSent']);
+      await notifyPaymentApproved('orderSent', store['orderSent']);
 
-    expect(sendPaymentApprovedTemplateMock).not.toHaveBeenCalled();
+      expect(sendPaymentApprovedTemplateMock).not.toHaveBeenCalled();
+    } finally {
+      delete process.env.ENABLE_PAYMENT_WHATSAPP;
+    }
   });
 
   it('anti-duplicata: applyPaymentApproval em pedido já aprovado (PAGAMENTO_APROVADO) não chama notifyPaymentApproved', async () => {
