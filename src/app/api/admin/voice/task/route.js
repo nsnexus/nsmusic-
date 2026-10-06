@@ -37,6 +37,7 @@ export async function POST(req) {
         },
         body: JSON.stringify({
           model: 'ai-music-api/validation-phrase',
+          callBackUrl: 'https://nsmusic.nsnexus.com.br/api/suno/webhook',
           input: {
             voice_url: voiceUrl,
             vocal_start_s: Number(vocalStart) || 0,
@@ -81,6 +82,7 @@ export async function POST(req) {
       const inputPayload = {
         task_id: phraseTaskId || verifyPhraseId,
         verify_url: verifyUrl,
+        voice_url: verifyUrl,
         voice_name: voiceName,
         description: description,
         style: style
@@ -96,6 +98,7 @@ export async function POST(req) {
         },
         body: JSON.stringify({
           model: 'ai-music-api/create-voice',
+          callBackUrl: 'https://nsmusic.nsnexus.com.br/api/suno/webhook',
           input: inputPayload
         }),
         signal: AbortSignal.timeout(15000)
@@ -241,50 +244,71 @@ export async function GET(req) {
       }
     }
 
-    // Extrai frase de validação caso seja a tarefa de validação
-    let phrase = parsedResult?.verify_phrase_text
-      || parsedResult?.phrase
-      || parsedResult?.validation_phrase
-      || parsedResult?.validationPhrase
-      || parsedResult?.text
-      || parsedResult?.phrase_text
-      || data?.data?.verify_phrase_text
-      || data?.data?.phrase
-      || data?.data?.validation_phrase
-      || data?.data?.validationPhrase
-      || data?.phrase
-      || null;
+    // Extrai dados das diferentes camadas retornadas pela Kie.ai
+    const searchTargets = [
+      parsedResult?.data,
+      parsedResult,
+      data?.data?.response?.data,
+      data?.data?.response,
+      data?.data
+    ].filter((t) => t && typeof t === 'object');
 
-    if (!phrase && parsedResult && typeof parsedResult === 'object') {
-      for (const [k, v] of Object.entries(parsedResult)) {
-        if ((k.toLowerCase().includes('phrase') || k.toLowerCase().includes('text')) && typeof v === 'string') {
-          phrase = v;
-          break;
-        }
+    let phrase = null;
+    let verifyPhraseId = null;
+    let voiceRecordingId = null;
+    let voiceId = null;
+
+    for (const target of searchTargets) {
+      if (!phrase) {
+        phrase = target.verify_phrase_text
+          || target.phrase
+          || target.validation_phrase
+          || target.validationPhrase
+          || target.text
+          || target.phrase_text
+          || null;
+      }
+      if (!verifyPhraseId) {
+        verifyPhraseId = target.verify_phrase_id
+          || target.verifyPhraseId
+          || null;
+      }
+      if (!voiceRecordingId) {
+        voiceRecordingId = target.voice_recording_id
+          || target.voiceRecordingId
+          || null;
+      }
+      if (!voiceId) {
+        voiceId = target.voiceId
+          || target.voice_id
+          || target.personaId
+          || target.persona_id
+          || (target.id && !target.task_id ? target.id : null)
+          || null;
       }
     }
 
-    const verifyPhraseId = parsedResult?.verify_phrase_id || data?.data?.verify_phrase_id || null;
-    const voiceRecordingId = parsedResult?.voice_recording_id || data?.data?.voice_recording_id || null;
-
-    // Extrai o voiceId caso seja a tarefa de criação de voz
-    let voiceId = parsedResult?.voiceId
-      || parsedResult?.voice_id
-      || parsedResult?.personaId
-      || parsedResult?.persona_id
-      || parsedResult?.id
-      || data?.data?.voiceId
-      || data?.data?.voice_id
-      || data?.data?.personaId
-      || data?.voiceId
-      || null;
-
-    if (!voiceId && parsedResult && typeof parsedResult === 'object') {
-      for (const [k, v] of Object.entries(parsedResult)) {
-        if ((k.toLowerCase().includes('voice') || k.toLowerCase().includes('persona')) && typeof v === 'string') {
-          voiceId = v;
-          break;
+    if (!phrase) {
+      for (const target of searchTargets) {
+        for (const [k, v] of Object.entries(target)) {
+          if ((k.toLowerCase().includes('phrase') || k.toLowerCase().includes('text')) && typeof v === 'string') {
+            phrase = v;
+            break;
+          }
         }
+        if (phrase) break;
+      }
+    }
+
+    if (!voiceId) {
+      for (const target of searchTargets) {
+        for (const [k, v] of Object.entries(target)) {
+          if ((k.toLowerCase().includes('voice') || k.toLowerCase().includes('persona')) && typeof v === 'string' && !v.startsWith('http') && v.length < 100) {
+            voiceId = v;
+            break;
+          }
+        }
+        if (voiceId) break;
       }
     }
 
