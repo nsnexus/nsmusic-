@@ -782,6 +782,8 @@ export default function AdminDashboard() {
                   const val = e.target.value;
                   if (val === 'DASHBOARD') {
                     router.push('/admin/dashboard');
+                  } else if (val === 'VOZ') {
+                    router.push('/admin/voz');
                   } else if (val === 'CARTAS') {
                     router.push('/admin/cartas');
                   } else {
@@ -802,6 +804,7 @@ export default function AdminDashboard() {
               >
                 <option value="ORDERS">📦 Pedidos ({orders.length})</option>
                 <option value="STUCK">💰 Conferir Pagamentos</option>
+                <option value="VOZ">🎤 Teste de Voz (Beta) ➔</option>
                 <option value="DASHBOARD">📊 Dashboard ➔</option>
                 <option value="CARTAS">💌 Temas da Carta ➔</option>
                 <option value="LIMITES">🚦 Limites de Geração</option>
@@ -831,6 +834,9 @@ export default function AdminDashboard() {
               >
                 💰 Conferir Pagamentos
               </button>
+              <Link href="/admin/voz" style={{ ...styles.tabBtn, backgroundColor: '#2563eb', color: '#ffffff', textDecoration: 'none', display: 'inline-block', fontWeight: '700' }}>
+                🎤 Teste de Voz (Beta)
+              </Link>
               <Link href="/admin/dashboard" style={{ ...styles.tabBtn, backgroundColor: '#e2e8f0', color: '#334155', textDecoration: 'none', display: 'inline-block' }}>
                 📊 Dashboard
               </Link>
@@ -1138,6 +1144,54 @@ export default function AdminDashboard() {
                       {msgContingencia}
                     </span>
                   )}
+                </div>
+
+                {/* Card de Acesso ao Laboratório de Voz */}
+                <div
+                  style={{
+                    marginTop: '14px',
+                    padding: '14px 16px',
+                    borderRadius: '12px',
+                    border: '1px solid #38bdf8',
+                    background: '#f0f9ff',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: '12px'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '1.25rem' }}>🎤</span>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '0.88rem', fontWeight: '800', color: '#0369a1' }}>
+                          Laboratório de Voz (Custom Voice / Suno)
+                        </span>
+                        <span style={{ fontSize: '0.72rem', fontWeight: '700', padding: '2px 8px', borderRadius: '999px', background: '#e0f2fe', color: '#0284c7', border: '1px solid #bae6fd' }}>
+                          BETA NOVO
+                        </span>
+                      </div>
+                      <span style={{ fontSize: '0.78rem', color: '#475569', display: 'block', marginTop: '2px' }}>
+                        Clone sua voz direto pelo microfone do celular e gere músicas personalizadas para testar a qualidade.
+                      </span>
+                    </div>
+                  </div>
+                  <Link
+                    href="/admin/voz"
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: '8px',
+                      background: '#0284c7',
+                      color: '#ffffff',
+                      fontWeight: '700',
+                      fontSize: '0.82rem',
+                      textDecoration: 'none',
+                      display: 'inline-block'
+                    }}
+                  >
+                    Abrir Laboratório de Teste ➔
+                  </Link>
                 </div>
               </div>
 
