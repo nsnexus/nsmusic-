@@ -257,6 +257,21 @@ export async function gerarMusicaNoSuno({ prompt, style = 'Acoustic Pop', title 
     throw new Error('MODERATION_ERROR: O Suno bloqueou termos na letra ou estilo.');
   }
 
+  // Escuta URLs diretas da CDN da Suno e chamadas de feed
+  let cdnAudioUrls = [];
+  const cdnListener = (response) => {
+    try {
+      const u = response.url();
+      if (u.includes('cdn1.suno.ai') && (u.includes('.mp3') || !u.includes('?'))) {
+        const cleanUrl = u.split('?')[0];
+        if (!cdnAudioUrls.includes(cleanUrl)) {
+          cdnAudioUrls.push(cleanUrl);
+        }
+      }
+    } catch (e) {}
+  };
+  page.on('response', cdnListener);
+
   // 7. Aguarda os clipes finalizarem e extrai as URLs
   onProgress('Aguardando Suno finalizar as 2 faixas...');
   const startTime = Date.now();
@@ -268,40 +283,124 @@ export async function gerarMusicaNoSuno({ prompt, style = 'Acoustic Pop', title 
     const elapsed = Math.round((Date.now() - startTime) / 1000);
     onProgress(`Aguardando renderização no Suno (${elapsed}s decorridos)...`);
 
-    // Consulta os clipes no contexto da página usando o fetch interno com cookies da sessão
-    const result = await page.evaluate(async (clipIds) => {
-      try {
-        const query = clipIds.length > 0 ? `?ids=${clipIds.join(',')}` : '';
-        const res = await fetch(`https://studio-api.suno.ai/api/feed/${query}`, {
-          headers: { 'Accept': 'application/json' }
-        });
-        if (!res.ok) return null;
-        const data = await res.json();
-        const list = Array.isArray(data) ? data : (data.clips || []);
-        return list.map(c => ({
-          id: c.id,
-          title: c.title,
-          status: c.status,
-          audioUrl: c.audio_url || `https://cdn1.suno.ai/${c.id}.mp3`,
-          duration: c.duration
-        }));
-      } catch (e) {
-        return null;
-      }
-    }, createdClipIds);
+    // ESTRATÉGIA 1: Consulta API de feed usando token da sessão Clerk
+    try {
+      const apiResult = await page.evaluate(async () => {
+        try {
+          let token = null;
+          if (window.Clerk && window.Clerk.session) {
+            token = await window.Clerk.session.getToken();
+          }
+          const headers = { 'Accept': 'application/json' };
+          if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    if (result && result.length > 0) {
-      const prontos = result.filter(c => c.status === 'complete' && c.audioUrl);
-      if (prontos.length >= 2) {
-        clipsFinalizados = prontos.slice(0, 2);
+          const endpoints = [
+            'https://studio-api.prod.suno.com/api/feed/v2',
+            'https://studio-api.prod.suno.com/api/feed/',
+            'https://studio-api.suno.ai/api/feed/',
+            '/api/feed/'
+          ];
+
+          for (const ep of endpoints) {
+            try {
+              const res = await fetch(ep, { headers });
+              if (res.ok) {
+                const data = await res.json();
+                const list = Array.isArray(data) ? data : (data.clips || data.data || []);
+                const prontos = list.filter(c => c.audio_url || (c.status === 'complete' && c.id));
+                if (prontos.length >= 2) {
+                  return prontos.slice(0, 2).map(c => ({
+                    id: c.id,
+                    title: c.title || 'Música Suno',
+                    status: 'complete',
+                    audioUrl: c.audio_url || `https://cdn1.suno.ai/${c.id}.mp3`,
+                    duration: c.duration || 120
+                  }));
+                }
+              }
+            } catch (e) {}
+          }
+        } catch (e) {}
+        return null;
+      });
+
+      if (apiResult && apiResult.length >= 2) {
+        clipsFinalizados = apiResult;
         break;
       }
+    } catch (e) {}
+
+    // ESTRATÉGIA 2: Extrai UUIDs dos clipes diretamente do DOM (links /song/[id] e capas de imagem)
+    try {
+      const domResult = await page.evaluate(() => {
+        const uuids = [];
+        const uuidRegex = /([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i;
+
+        // 1. Procura em links /song/[uuid]
+        document.querySelectorAll('a[href*="/song/"]').forEach(a => {
+          const m = a.href.match(uuidRegex);
+          if (m && m[1] && !uuids.includes(m[1])) uuids.push(m[1]);
+        });
+
+        // 2. Procura em imagens de capa da CDN do Suno
+        document.querySelectorAll('img[src*="suno.ai"]').forEach(img => {
+          const m = img.src.match(uuidRegex);
+          if (m && m[1] && !uuids.includes(m[1])) uuids.push(m[1]);
+        });
+
+        // 3. Procura em atributos data-id / data-clip-id
+        document.querySelectorAll('[data-id], [data-clip-id]').forEach(el => {
+          const val = el.getAttribute('data-id') || el.getAttribute('data-clip-id');
+          if (val) {
+            const m = val.match(uuidRegex);
+            if (m && m[1] && !uuids.includes(m[1])) uuids.push(m[1]);
+          }
+        });
+
+        return uuids;
+      });
+
+      if (domResult && domResult.length >= 2) {
+        console.log(`[SunoAutomator] 🎯 Clipes detectados na tela: ${domResult[0]} e ${domResult[1]}`);
+        clipsFinalizados = [
+          {
+            id: domResult[0],
+            title: title || 'Faixa 1',
+            status: 'complete',
+            audioUrl: `https://cdn1.suno.ai/${domResult[0]}.mp3`
+          },
+          {
+            id: domResult[1],
+            title: title || 'Faixa 2',
+            status: 'complete',
+            audioUrl: `https://cdn1.suno.ai/${domResult[1]}.mp3`
+          }
+        ];
+        break;
+      }
+    } catch (e) {}
+
+    // ESTRATÉGIA 3: Clica no card da música para disparar o streaming se disponível
+    try {
+      const songCard = page.locator('div:has-text("Teste do Robô Local"), [role="button"]:has-text("Play"), button[aria-label*="Play" i]').first();
+      if (await songCard.isVisible({ timeout: 1500 }).catch(() => false)) {
+        await songCard.click().catch(() => {});
+      }
+    } catch (e) {}
+
+    if (cdnAudioUrls.length >= 2) {
+      clipsFinalizados = [
+        { id: 'clip1', title: 'Faixa 1', status: 'complete', audioUrl: cdnAudioUrls[0] },
+        { id: 'clip2', title: 'Faixa 2', status: 'complete', audioUrl: cdnAudioUrls[1] }
+      ];
+      break;
     }
 
-    await page.waitForTimeout(4000);
+    await page.waitForTimeout(3000);
   }
 
   page.off('response', feedListener);
+  page.off('response', cdnListener);
 
   if (clipsFinalizados.length === 0) {
     throw new Error('TIMEOUT: O Suno demorou mais de 4 minutos para finalizar as faixas.');
