@@ -162,12 +162,31 @@ export async function gerarMusicaNoSuno({ prompt, style = 'Acoustic Pop', title 
 
   if (!isCustomActive) {
     console.log('[SunoAutomator] Modo Custom desligado. Clicando no switch Custom...');
-    const customBtn = page.locator('button:has-text("Custom"), [role="switch"]:has-text("Custom"), label:has-text("Custom"), button[aria-label*="Custom" i]').first();
-    if (await customBtn.isVisible({ timeout: 4000 }).catch(() => false)) {
-      await customBtn.click();
-      await page.waitForTimeout(1500);
+    const customSelectors = [
+      'button:has-text("Custom")',
+      'button:has-text("Personalizado")',
+      '[role="switch"]:has-text("Custom")',
+      '[role="switch"]:has-text("Personalizado")',
+      'label:has-text("Custom")',
+      'label:has-text("Personalizado")',
+      'button[aria-label*="Custom" i]',
+      'button[aria-label*="Personalizado" i]',
+      'div:has-text("Custom") [role="switch"]',
+      '[role="switch"]'
+    ];
+
+    for (const sel of customSelectors) {
+      const el = page.locator(sel).first();
+      if (await el.isVisible({ timeout: 1000 }).catch(() => false)) {
+        await el.click().catch(() => {});
+        await page.waitForTimeout(1000);
+        isCustomActive = await page.locator(styleSelector).first().isVisible({ timeout: 1500 }).catch(() => false);
+        if (isCustomActive) {
+          console.log(`[SunoAutomator] ✅ Modo Custom ativado com sucesso via seletor: ${sel}`);
+          break;
+        }
+      }
     }
-    isCustomActive = await page.locator(styleSelector).first().isVisible({ timeout: 2500 }).catch(() => false);
   }
 
   // 2. Preenche a Letra (Lyrics)
