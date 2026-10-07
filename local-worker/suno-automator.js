@@ -2,6 +2,7 @@ import { chromium } from 'playwright';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import readline from 'readline';
+import fs from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -24,7 +25,29 @@ function pausarParaLogin(mensagem) {
 }
 
 /**
- * Inicializa ou reaproveita o navegador com perfil persistente.
+ * Detecta e clica na caixa "Confirme que é humano" do Cloudflare Turnstile se estiver visível.
+ */
+export async function resolverTurnstileSeNecessario(page) {
+  try {
+    for (const frame of page.frames()) {
+      if (frame.url().includes('challenges.cloudflare.com')) {
+        const checkbox = frame.locator('input[type="checkbox"], [role="checkbox"], .ctp-checkbox-label, label, #challenge-stage, span.mark').first();
+        if (await checkbox.isVisible({ timeout: 1500 }).catch(() => false)) {
+          console.log('[SunoAutomator] 🛡️ Cloudflare Turnstile detectado! Clicando na confirmação...');
+          await checkbox.hover().catch(() => {});
+          await page.waitForTimeout(200);
+          await checkbox.click({ delay: 100 }).catch(() => {});
+          await page.waitForTimeout(2000);
+          return true;
+        }
+      }
+    }
+  } catch (e) {}
+  return false;
+}
+
+/**
+ * Inicializa ou reaproveita o navegador com perfil persistente e modo stealth (anti-detecção).
  */
 export async function initSunoBrowser(options = {}) {
   const { headless = false } = options;
@@ -33,16 +56,33 @@ export async function initSunoBrowser(options = {}) {
     return { context: browserContext, page: activePage };
   }
 
-  console.log('[SunoAutomator] 🚀 Iniciando navegador Chrome com perfil persistente...');
+  const chromePath = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
+  const hasChrome = fs.existsSync(chromePath);
+
+  console.log(`[SunoAutomator] 🚀 Iniciando navegador ${hasChrome ? 'Google Chrome (Oficial)' : 'Chromium'} com perfil persistente...`);
+  
   browserContext = await chromium.launchPersistentContext(USER_DATA_DIR, {
     headless,
-    viewport: { width: 1280, height: 800 },
-    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+    viewport: null,
+    ...(hasChrome ? { channel: 'chrome' } : {}),
+    ignoreDefaultArgs: ['--enable-automation'],
     args: [
       '--disable-blink-features=AutomationControlled',
       '--start-maximized',
-      '--no-sandbox'
+      '--no-sandbox',
+      '--disable-infobars',
+      '--disable-dev-shm-usage',
+      '--no-first-run',
+      '--no-service-autorun'
     ]
+  });
+
+  // Remove marcas de automação (navigator.webdriver) para evitar disparar o Turnstile
+  await browserContext.addInitScript(() => {
+    Object.defineProperty(navigator, 'webdriver', {
+      get: () => undefined,
+    });
+    window.chrome = window.chrome || { runtime: {} };
   });
 
   const pages = browserContext.pages();
@@ -190,9 +230,21 @@ export async function gerarMusicaNoSuno({ prompt, style = 'Acoustic Pop', title 
   onProgress('Enviando solicitação de geração...');
   const createButton = page.locator('button:has-text("Create"), button[aria-label="Create"]').first();
   await createButton.waitFor({ state: 'visible', timeout: 10000 });
+  await createButton.hover().catch(() => {});
+  await page.waitForTimeout(400);
   await createButton.click();
 
-  await page.waitForTimeout(4000);
+  // Monitora se o Cloudflare Turnstile ("Confirme que é humano") aparecer e resolve automaticamente
+  for (let i = 0; i < 8; i++) {
+    await page.waitForTimeout(1000);
+    const resolvido = await resolverTurnstileSeNecessario(page);
+    if (resolvido) {
+      console.log('[SunoAutomator] ✅ Confirmação do Cloudflare clicada com sucesso!');
+      break;
+    }
+  }
+
+  await page.waitForTimeout(3000);
 
   // Verifica se apareceu erro de créditos ou moderação
   const bodyText = await page.innerText('body').catch(() => '');
