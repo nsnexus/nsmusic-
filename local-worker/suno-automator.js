@@ -1,6 +1,7 @@
 import { chromium } from 'playwright';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import readline from 'readline';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -8,6 +9,19 @@ const USER_DATA_DIR = path.resolve(__dirname, 'perfil-chrome');
 
 let browserContext = null;
 let activePage = null;
+
+function pausarParaLogin(mensagem) {
+  return new Promise((resolve) => {
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout
+    });
+    rl.question(mensagem, () => {
+      rl.close();
+      resolve();
+    });
+  });
+}
 
 /**
  * Inicializa ou reaproveita o navegador com perfil persistente.
@@ -43,30 +57,43 @@ export async function initSunoBrowser(options = {}) {
 }
 
 /**
- * Verifica se o usuário está logado. Se não, aguarda login manual.
+ * Verifica se o usuário está logado. Se não, aguarda login manual com prompt no terminal.
  */
 async function verificarAutenticacao(page) {
   try {
     await page.waitForTimeout(3000);
-    const content = await page.content();
 
-    const precisaLogin = content.includes('Sign In') || content.includes('Sign in') || content.includes('Log In') || content.includes('Log in');
-    const temCreate = content.includes('Create') || content.includes('Custom') || content.includes('Lyrics');
+    // Verifica se há botões de Sign In visíveis
+    const signInBtn = page.locator('button:has-text("Sign in"), button:has-text("Sign In"), button:has-text("Log in"), button:has-text("Log In"), a:has-text("Sign In"), a:has-text("Log In")').first();
+    const temSignIn = await signInBtn.isVisible({ timeout: 2500 }).catch(() => false);
 
-    if (precisaLogin && !temCreate) {
+    // Verifica se a textarea de geração já existe ou se o texto da página tem créditos
+    const textoBody = (await page.innerText('body').catch(() => '')) || '';
+    const temCreditos = /\d+\s*(credits|créditos)/i.test(textoBody);
+    const temTextarea = await page.locator('textarea').first().isVisible({ timeout: 1500 }).catch(() => false);
+
+    const estaLogado = temCreditos || (temTextarea && !temSignIn);
+
+    if (!estaLogado) {
       console.log('\n=============================================================');
-      console.log('⚠️ [ATENÇÃO] CONTA NÃO AUTENTICADA NO SUNO!');
-      console.log('Por favor, faça login na janela do navegador que se abriu.');
-      console.log('O robô detectará seu login automaticamente assim que terminar.');
+      console.log('🔑 [PRIMEIRO ACESSO] FAÇA LOGIN NA SUA CONTA SUNO');
+      console.log('1. Na janela do Chrome aberta, clique em "Sign In" ou "Log In".');
+      console.log('2. Faça login com sua conta oficial da Suno (Google, Discord, etc.).');
+      console.log('3. Após terminar o login e estar na tela da Suno, volte aqui');
+      console.log('   neste terminal e pressione a tecla [ENTER].');
       console.log('=============================================================\n');
 
-      // Aguarda até o usuário completar o login (até 5 minutos)
-      await page.waitForFunction(() => {
-        const text = document.body.innerText || '';
-        return (text.includes('Create') || text.includes('Custom')) && !text.includes('Sign In');
-      }, { timeout: 300000 });
+      await pausarParaLogin('👉 Pressione [ENTER] aqui no terminal após concluir o login no Suno: ');
 
-      console.log('[SunoAutomator] ✅ Login no Suno detectado com sucesso!');
+      console.log('\n[SunoAutomator] ⏳ Validando sessão logada e navegando para tela de criação...');
+      await page.waitForTimeout(2000);
+
+      if (!page.url().includes('suno.com/create')) {
+        await page.goto('https://suno.com/create', { waitUntil: 'domcontentloaded', timeout: 45000 });
+        await page.waitForTimeout(3000);
+      }
+
+      console.log('[SunoAutomator] ✅ Sessão autenticada e salva na pasta perfil-chrome!');
     } else {
       console.log('[SunoAutomator] ✅ Sessão ativa detectada no Suno.');
     }
@@ -91,24 +118,35 @@ export async function gerarMusicaNoSuno({ prompt, style = 'Acoustic Pop', title 
   // 1. Garante que o modo "Custom" (Personalizado) está ativado
   onProgress('Ativando modo personalizado (Custom)...');
   try {
-    const customSwitch = page.locator('button:has-text("Custom"), [aria-label*="Custom" i], input[type="checkbox"]:has-text("Custom")').first();
-    const isCustomVisible = await customSwitch.isVisible({ timeout: 4000 }).catch(() => false);
+    const customSwitch = page.locator('button:has-text("Custom"), [role="switch"]:has-text("Custom"), label:has-text("Custom"), span:has-text("Custom")').first();
+    const isCustomVisible = await customSwitch.isVisible({ timeout: 3000 }).catch(() => false);
     if (isCustomVisible) {
-      const isChecked = await customSwitch.getAttribute('aria-checked') || await customSwitch.getAttribute('data-state');
-      if (isChecked !== 'true' && isChecked !== 'checked') {
+      const temTextarea = await page.locator('textarea').first().isVisible({ timeout: 1000 }).catch(() => false);
+      if (!temTextarea) {
         await customSwitch.click().catch(() => {});
-        await page.waitForTimeout(1000);
+        await page.waitForTimeout(1500);
       }
     }
   } catch (e) {
-    console.log('[SunoAutomator] Modo Custom já ativo ou botão não encontrado:', e.message);
+    console.log('[SunoAutomator] Modo Custom:', e.message);
   }
 
   // 2. Preenche a Letra (Lyrics)
   onProgress('Preenchendo letra da música...');
-  const lyricsInput = page.locator('textarea[placeholder*="lyrics" i], textarea[placeholder*="letra" i], textarea[aria-label*="lyrics" i]').first();
-  await lyricsInput.waitFor({ state: 'visible', timeout: 15000 });
+  let lyricsInput = page.locator('textarea[placeholder*="lyrics" i], textarea[placeholder*="letra" i], textarea[placeholder*="own" i], textarea[aria-label*="lyrics" i]').first();
+  let achouLyrics = await lyricsInput.isVisible({ timeout: 4000 }).catch(() => false);
+
+  if (!achouLyrics) {
+    lyricsInput = page.locator('textarea').first();
+    achouLyrics = await lyricsInput.isVisible({ timeout: 6000 }).catch(() => false);
+  }
+
+  if (!achouLyrics) {
+    throw new Error('Não foi possível encontrar a caixa de letra no Suno. Verifique se o login está concluído no navegador.');
+  }
+
   await lyricsInput.fill(prompt);
+  await page.waitForTimeout(500);
   await page.waitForTimeout(500);
 
   // 3. Preenche o Estilo (Style)
