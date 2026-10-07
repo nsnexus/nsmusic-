@@ -8,6 +8,7 @@ import { AUDIO_CACHE_VERSION } from '@/lib/audioCacheVersion';
 import { buildSunoPayload } from '@/lib/sunoPayload';
 import { pushAdvancedMatching } from '@/lib/metaPixel';
 import { identifyTikTok, trackTikTok } from '@/lib/tiktokPixel';
+import { trackGooglePurchase } from '@/lib/googleAds';
 import { styles } from './wizardStyles';
 import { occasions } from './wizardOptions';
 import { getStoredTrafficSource } from '@/lib/trafficSource';
@@ -124,6 +125,7 @@ export default function CriarMusica() {
       value: getTotalPrice(),
       currency: 'BRL',
     });
+    trackGooglePurchase({ orderId: idToUse, value: getTotalPrice() });
     setPixInfo(prev => ({ ...prev, status: 'approved' }));
     window.location.href = `/entrega?orderId=${idToUse}&justPaid=1`;
   };

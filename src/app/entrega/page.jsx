@@ -24,6 +24,7 @@ import { styles } from './entregaStyles';
 import { useWhatsappSuporte, linkWhatsapp } from '@/lib/useWhatsappSuporte';
 import { usePromoverAudio } from '@/lib/usePromoverAudio';
 import { identifyTikTok, trackTikTok } from '@/lib/tiktokPixel';
+import { trackGooglePurchase } from '@/lib/googleAds';
 
 /**
  * Tarja de prévia limitada, exibida DENTRO do card de cada versão.
@@ -415,6 +416,10 @@ function EntregaContent() {
         ],
         value: typeof order.amount === 'number' ? order.amount : 9.99,
         currency: 'BRL',
+      });
+      trackGooglePurchase({
+        orderId,
+        value: typeof order.amount === 'number' ? order.amount : 9.99,
       });
     }
   }, [order, orderId]);
