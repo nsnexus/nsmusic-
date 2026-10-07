@@ -7,7 +7,9 @@ import {
   recordSunoFailure,
   PROVIDER_KIE,
   PROVIDER_UNIFICALLY,
+  PROVIDER_SUNO_LOCAL,
   resolvePrimaryProvider,
+  requestSunoGeneration,
 } from '@/lib/suno';
 
 export const runtime = 'edge';
@@ -46,11 +48,6 @@ export async function GET(req) {
     // Segue a cadeia de retentativas automáticas: se esta tarefa já falhou e foi reenviada por trás das cortinas,
     // o cliente que está fazendo polling pelo taskId original recebe o status da nova tarefa.
     const effectiveTaskId = await resolveLatestTaskId(taskId, env);
-
-    if (!unificallyApiKey && !kieApiKey) {
-      console.error('[api/suno/status] Nenhuma chave de provedor (UNIFICALLY_API_KEY ou KIE_API_KEY) configurada.');
-      return NextResponse.json({ error: 'Configuração ausente: chaves de geração de música não definidas no servidor.' }, { status: 500 });
-    }
 
     // Busca metadados da tarefa no banco (se já foi gravada) para saber o provedor e status
     let task = null;
@@ -118,6 +115,58 @@ export async function GET(req) {
     const primaryProvider = await resolvePrimaryProvider(env);
     const effectiveProvider = task?.provider || orderData?.sunoProvider || primaryProvider;
     const isKieFirst = effectiveProvider === PROVIDER_KIE;
+
+    // -------------------------------------------------------------------------
+    // Ramo do Provedor Suno Local (Robô Desktop no PC)
+    // -------------------------------------------------------------------------
+    if (effectiveProvider === PROVIDER_SUNO_LOCAL) {
+      // 1. Se o pedido já possui áudio salvo (pelo robô), devolve COMPLETED imediatamente
+      if (orderData?.musicUrl) {
+        const tracks = [
+          { audioUrl: orderData.musicUrl, audio_url: orderData.musicUrl, title: 'Versão 1' }
+        ];
+        if (orderData.musicUrl2) {
+          tracks.push({ audioUrl: orderData.musicUrl2, audio_url: orderData.musicUrl2, title: 'Versão 2' });
+        }
+        return NextResponse.json({ status: "COMPLETED", tracks, provider: PROVIDER_SUNO_LOCAL });
+      }
+
+      // 2. Se o robô reportou falha local OU estourou o tempo de timeout (3 minutos):
+      const elapsedMs = getTaskElapsedMs(task, orderData);
+      const isFailedLocal = orderData?.status_robo === 'FALHA_LOCAL' || orderData?.statusRobo === 'FALHA_LOCAL';
+      const isTimeout = elapsedMs > STUCK_TIMEOUT_MS;
+
+      if ((isFailedLocal || isTimeout) && orderId) {
+        console.warn(`[api/suno/status] Robô local ${isFailedLocal ? 'reportou falha' : 'atingiu timeout de 3min'}. Disparando failover automático para Kie.ai...`);
+        const prompt = orderData?.lyrics || orderData?.letra || orderData?.story || '';
+        const tags = orderData?.musicStyle || orderData?.style || orderData?.tags || 'Acoustic Pop';
+
+        const failover = await requestSunoGeneration({
+          orderId,
+          prompt,
+          tags,
+          preferredProvider: PROVIDER_KIE
+        }, env);
+
+        if (failover.ok && failover.taskId) {
+          return NextResponse.json({
+            status: "PROCESSING",
+            providerStatus: "FALLBACK_KIE",
+            fallback: true,
+            newTaskId: failover.taskId,
+            provider: PROVIDER_KIE
+          });
+        }
+      }
+
+      // 3. Ainda dentro do prazo: continua em processamento pelo robô local
+      return NextResponse.json({
+        status: "PROCESSING",
+        provider: PROVIDER_SUNO_LOCAL,
+        elapsedMs,
+        remainingMs: Math.max(0, STUCK_TIMEOUT_MS - elapsedMs)
+      });
+    }
 
     // Funções auxiliares para consulta e processamento das respostas de cada provedor
     const consultarKie = async () => {
@@ -318,6 +367,11 @@ export async function GET(req) {
     // ============================================================
     // EXECUÇÃO RESPEITANDO O PROVEDOR PRINCIPAL (COM FAILOVER MÚTUO)
     // ============================================================
+    if (!unificallyApiKey && !kieApiKey) {
+      console.error('[api/suno/status] Nenhuma chave de provedor (UNIFICALLY_API_KEY ou KIE_API_KEY) configurada.');
+      return NextResponse.json({ error: 'Configuração ausente: chaves de geração de música não definidas no servidor.' }, { status: 500 });
+    }
+
     if (isKieFirst) {
       // 1. Consulta Kie.ai primeiro
       const kieRes = await consultarKie();

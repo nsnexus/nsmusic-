@@ -10,9 +10,10 @@ import { buildSunoPayload } from './sunoPayload.js';
 import { resolverSiteUrl } from './siteUrl.js';
 import { readEnvValue } from './envValue.js';
 
-// Provedores de geração suportados: Unifically (primário) e Kie.ai (fallback).
+// Provedores de geração suportados: Unifically (primário), Kie.ai (fallback) e Suno Local (robô desktop).
 export const PROVIDER_KIE = 'kie';
 export const PROVIDER_UNIFICALLY = 'unifically';
+export const PROVIDER_SUNO_LOCAL = 'suno_local';
 
 // A Kie.ai sinaliza a maioria dos erros com HTTP 200 e um `code` no corpo (429/430 = limite de
 // taxa, 455 = manutenção, 500 = erro interno deles) — só olhar response.status não pegava esses
@@ -66,14 +67,14 @@ export async function recordSunoFailure(orderId, reason, env = {}) {
 /**
  * Determina o provedor principal de geração:
  * 1. Configuração dinâmica no banco (tabela config, editável no painel admin sem deploy)
- * 2. Variável de ambiente SUNO_PRIMARY_PROVIDER ('kie' ou 'unifically')
+ * 2. Variável de ambiente SUNO_PRIMARY_PROVIDER ('kie', 'unifically' ou 'suno_local')
  * 3. Default: 'unifically' se UNIFICALLY_API_KEY existir, senão 'kie'
  */
 export async function resolvePrimaryProvider(env = {}) {
   try {
     const { lerConfigSite } = await import('./configSite.js');
     const cfg = await lerConfigSite(env);
-    if (cfg?.sunoPrimaryProvider === PROVIDER_KIE || cfg?.sunoPrimaryProvider === PROVIDER_UNIFICALLY) {
+    if (cfg?.sunoPrimaryProvider === PROVIDER_KIE || cfg?.sunoPrimaryProvider === PROVIDER_UNIFICALLY || cfg?.sunoPrimaryProvider === PROVIDER_SUNO_LOCAL) {
       return cfg.sunoPrimaryProvider;
     }
   } catch (e) {
@@ -81,7 +82,7 @@ export async function resolvePrimaryProvider(env = {}) {
   }
 
   const envPrimary = String(readEnvValue(env, 'SUNO_PRIMARY_PROVIDER') || '').toLowerCase().trim();
-  if (envPrimary === PROVIDER_KIE || envPrimary === PROVIDER_UNIFICALLY) {
+  if (envPrimary === PROVIDER_KIE || envPrimary === PROVIDER_UNIFICALLY || envPrimary === PROVIDER_SUNO_LOCAL) {
     return envPrimary;
   }
 
@@ -90,7 +91,7 @@ export async function resolvePrimaryProvider(env = {}) {
 }
 
 /**
- * Inicia a geração da música. Respeita o provedor primário configurado (Unifically ou Kie.ai)
+ * Inicia a geração da música. Respeita o provedor primário configurado (Suno Local, Unifically ou Kie.ai)
  * com failover automático transparente para o provedor secundário em caso de erro (ex: falta de créditos,
  * timeout, erro 4xx/5xx).
  *
@@ -103,10 +104,13 @@ export async function requestSunoGeneration({ orderId, prompt, tags, preferredPr
   const kieKey = readEnvValue(env, 'KIE_API_KEY');
 
   const primary = preferredProvider || await resolvePrimaryProvider(env);
-  const fallback = primary === PROVIDER_UNIFICALLY ? PROVIDER_KIE : PROVIDER_UNIFICALLY;
+  const fallback = primary === PROVIDER_SUNO_LOCAL ? PROVIDER_KIE : (primary === PROVIDER_UNIFICALLY ? PROVIDER_KIE : PROVIDER_UNIFICALLY);
   const hasFallback = fallback === PROVIDER_UNIFICALLY ? Boolean(unificallyKey) : Boolean(kieKey);
 
   const tentarProvedor = async (prov) => {
+    if (prov === PROVIDER_SUNO_LOCAL) {
+      return gerarPeloWorkerLocal({ orderId, prompt, tags }, env);
+    }
     if (prov === PROVIDER_UNIFICALLY) {
       if (!unificallyKey) {
         return { ok: false, error: 'Configuração ausente: UNIFICALLY_API_KEY não definida no servidor.', status: 500 };
@@ -180,6 +184,24 @@ async function persistirGeracao({ orderId, taskId, provider }, env = {}) {
   }
 
   return { ok: true };
+}
+
+async function gerarPeloWorkerLocal({ orderId, prompt, tags }, env = {}) {
+  const taskId = `suno_local_${orderId || Date.now()}`;
+  const pers = await persistirGeracao({ orderId, taskId, provider: PROVIDER_SUNO_LOCAL }, env);
+  if (!pers.ok) return pers;
+
+  if (orderId) {
+    try {
+      await updateOrder(orderId, {
+        sunoProvider: PROVIDER_SUNO_LOCAL,
+        status_robo: 'PENDENTE',
+        sunoError: null,
+      }, env);
+    } catch (e) {}
+  }
+
+  return { ok: true, taskId, provider: PROVIDER_SUNO_LOCAL };
 }
 
 async function gerarPelaUnifically({ orderId, prompt, tags }, env) {
