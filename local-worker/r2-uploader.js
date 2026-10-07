@@ -34,10 +34,12 @@ export async function uploadAudioParaR2({
   console.log(`[R2Uploader] ⬇️ Processando áudio da Suno (Faixa ${clipIndex}): ${audioUrl || uuid}`);
 
   let audioBuffer = initialBuffer;
-  let audioExt = 'm4a';
-  let mimeType = 'audio/m4a';
+  let audioExt = 'mp3';
+  let mimeType = 'audio/mpeg';
 
-  if (!audioBuffer) {
+  if (audioBuffer) {
+    console.log(`[R2Uploader] ✅ Buffer MP3 recebido diretamente (${(audioBuffer.byteLength / 1024 / 1024).toFixed(2)} MB, .mp3)`);
+  } else {
     // Monta lista de URLs candidatas priorizando a CDN CloudFront direta da Suno
     const candidates = [];
     if (uuid) {

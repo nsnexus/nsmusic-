@@ -106,8 +106,8 @@ async function processarPedido(pedido) {
     // 3. Download da CDN e Upload seguro para o Cloudflare R2
     console.log(`[RobôSuno] 📤 Realizando upload das faixas para o Cloudflare R2...`);
     const [upload1, upload2] = await Promise.all([
-      uploadAudioParaR2({ audioUrl: clip1.audioUrl, clipId: clip1.id, orderId, clipIndex: 1 }),
-      uploadAudioParaR2({ audioUrl: clip2.audioUrl, clipId: clip2.id, orderId, clipIndex: 2 })
+      uploadAudioParaR2({ audioUrl: clip1.audioUrl, clipId: clip1.id, audioBuffer: clip1.buffer, orderId, clipIndex: 1 }),
+      uploadAudioParaR2({ audioUrl: clip2.audioUrl, clipId: clip2.id, audioBuffer: clip2.buffer, orderId, clipIndex: 2 })
     ]);
 
     const finalUrl1 = upload1.r2Url || clip1.audioUrl;
