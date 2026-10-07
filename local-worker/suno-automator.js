@@ -295,27 +295,40 @@ export async function gerarMusicaNoSuno({ prompt, style = 'Acoustic Pop', title 
           if (token) headers['Authorization'] = `Bearer ${token}`;
 
           const endpoints = [
+            'https://studio-api-prod.suno.com/api/feed/v3',
             'https://studio-api.prod.suno.com/api/feed/v2',
             'https://studio-api.prod.suno.com/api/feed/',
-            'https://studio-api.suno.ai/api/feed/',
             '/api/feed/'
           ];
 
           for (const ep of endpoints) {
             try {
-              const res = await fetch(ep, { headers });
+              const isV3 = ep.includes('v3');
+              const res = await fetch(ep, {
+                method: isV3 ? 'POST' : 'GET',
+                headers: {
+                  ...headers,
+                  ...(isV3 ? { 'Content-Type': 'application/json' } : {})
+                },
+                ...(isV3 ? { body: JSON.stringify({ page: 1 }) } : {})
+              });
               if (res.ok) {
                 const data = await res.json();
                 const list = Array.isArray(data) ? data : (data.clips || data.data || []);
-                const prontos = list.filter(c => c.audio_url || (c.status === 'complete' && c.id));
+                const prontos = list.filter(c => c.id && (c.status === 'complete' || (c.media_urls && c.media_urls.length > 0)));
                 if (prontos.length >= 2) {
-                  return prontos.slice(0, 2).map(c => ({
-                    id: c.id,
-                    title: c.title || 'Música Suno',
-                    status: 'complete',
-                    audioUrl: c.audio_url || `https://cdn1.suno.ai/${c.id}.mp3`,
-                    duration: c.duration || 120
-                  }));
+                  return prontos.slice(0, 2).map(c => {
+                    const cloudfrontM4a = `https://d2lwuy8qc234o3.cloudfront.net/1/clip/${c.id}.m4a`;
+                    const mediaUrl = c.media_urls?.[0]?.url;
+                    const directAudio = (mediaUrl && !mediaUrl.includes('forbidden')) ? mediaUrl : cloudfrontM4a;
+                    return {
+                      id: c.id,
+                      title: c.title || 'Música Suno',
+                      status: 'complete',
+                      audioUrl: directAudio,
+                      duration: c.duration || 120
+                    };
+                  });
                 }
               }
             } catch (e) {}
@@ -367,13 +380,13 @@ export async function gerarMusicaNoSuno({ prompt, style = 'Acoustic Pop', title 
             id: domResult[0],
             title: title || 'Faixa 1',
             status: 'complete',
-            audioUrl: `https://cdn1.suno.ai/${domResult[0]}.mp3`
+            audioUrl: `https://d2lwuy8qc234o3.cloudfront.net/1/clip/${domResult[0]}.m4a`
           },
           {
             id: domResult[1],
             title: title || 'Faixa 2',
             status: 'complete',
-            audioUrl: `https://cdn1.suno.ai/${domResult[1]}.mp3`
+            audioUrl: `https://d2lwuy8qc234o3.cloudfront.net/1/clip/${domResult[1]}.m4a`
           }
         ];
         break;

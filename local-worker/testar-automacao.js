@@ -55,8 +55,8 @@ async function executarTeste() {
     const clip2 = resultado.clips[1] || resultado.clips[0];
 
     const [up1, up2] = await Promise.all([
-      uploadAudioParaR2({ audioUrl: clip1.audioUrl, orderId, clipIndex: 1 }),
-      uploadAudioParaR2({ audioUrl: clip2.audioUrl, orderId, clipIndex: 2 })
+      uploadAudioParaR2({ audioUrl: clip1.audioUrl, clipId: clip1.id, orderId, clipIndex: 1 }),
+      uploadAudioParaR2({ audioUrl: clip2.audioUrl, clipId: clip2.id, orderId, clipIndex: 2 })
     ]);
 
     console.log('\n=============================================================');
