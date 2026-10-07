@@ -113,20 +113,20 @@ async function processarPedido(pedido) {
     const finalUrl1 = upload1.r2Url || clip1.audioUrl;
     const finalUrl2 = upload2.r2Url || clip2.audioUrl;
 
-    // 4. Atualiza o pedido no Supabase como CONCLUÍDO
+    // 4. Atualiza o pedido no Supabase como AUDIO_GERADO (pronto para o cliente ouvir prévia e pagar)
     const agora = new Date().toISOString();
     const updatePayload = {
       audio_url: finalUrl1,
       audio_files: [finalUrl1, finalUrl2],
       audio_ids: [clip1.id, clip2.id],
-      production_status: 'CONCLUIDO',
+      production_status: 'AUDIO_GERADO',
       updated_at: agora,
       extras: {
         ...currentExtras,
         musicUrl: finalUrl1,
         musicUrl2: finalUrl2,
-        status_robo: 'CONCLUIDO',
-        status_geracao: 'CONCLUIDO'
+        status_robo: 'AUDIO_GERADO',
+        status_geracao: 'AUDIO_GERADO'
       }
     };
 
