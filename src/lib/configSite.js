@@ -27,7 +27,8 @@ export async function lerConfigSite(env = {}) {
               whatsappSuporte: json.whatsappSuporte,
               agentEnabled: json.agentEnabled !== false,
               sunoPrimaryProvider: json.sunoPrimaryProvider || null,
-              contingencyMode: json.contingencyMode === true
+              contingencyMode: json.contingencyMode === true,
+              sunoWorkerHeartbeat: json.sunoWorkerHeartbeat || null
             };
           }
         }

@@ -91,6 +91,13 @@ export default function AdminDashboard() {
   const [sunoPrimaryProvider, setSunoPrimaryProvider] = useState('unifically');
   const [salvandoProvider, setSalvandoProvider] = useState(false);
   const [msgProvider, setMsgProvider] = useState('');
+  const [sunoWorkerHeartbeat, setSunoWorkerHeartbeat] = useState(null);
+
+  const isWorkerOnline = useMemo(() => {
+    if (!sunoWorkerHeartbeat?.timestamp) return false;
+    const diffMs = Date.now() - new Date(sunoWorkerHeartbeat.timestamp).getTime();
+    return diffMs < 90000;
+  }, [sunoWorkerHeartbeat]);
 
   const [contingencyMode, setContingencyMode] = useState(false);
   const [salvandoContingencia, setSalvandoContingencia] = useState(false);
@@ -519,6 +526,9 @@ export default function AdminDashboard() {
       if (cfg?.contingencyMode !== undefined) {
         setContingencyMode(Boolean(cfg.contingencyMode));
       }
+      if (cfg?.sunoWorkerHeartbeat !== undefined) {
+        setSunoWorkerHeartbeat(cfg.sunoWorkerHeartbeat);
+      }
     });
   }, []);
 
@@ -564,7 +574,12 @@ export default function AdminDashboard() {
         return;
       }
       setSunoPrimaryProvider(data.sunoPrimaryProvider);
-      setMsgProvider(`✅ Salvo: Provedor principal alterado para ${data.sunoPrimaryProvider === 'kie' ? 'Kie.ai' : 'Unifically'}.`);
+      const nomes = {
+        kie: 'Kie.ai',
+        unifically: 'Unifically',
+        suno_local: 'Suno Local (Robô PC)'
+      };
+      setMsgProvider(`✅ Salvo: Provedor principal alterado para ${nomes[data.sunoPrimaryProvider] || data.sunoPrimaryProvider}.`);
     } catch (err) {
       setMsgProvider('Falha de conexão ao salvar.');
     } finally {
@@ -1038,7 +1053,7 @@ export default function AdminDashboard() {
                       Se o principal falhar (falta de crédito, erro ou &gt; 3 min gerando), o fallback entra automaticamente.
                     </span>
                   </div>
-                  <div style={{ display: 'flex', gap: '8px' }}>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                     <button
                       type="button"
                       onClick={() => handleSalvarProvider('unifically')}
@@ -1073,6 +1088,67 @@ export default function AdminDashboard() {
                     >
                       {sunoPrimaryProvider === 'kie' ? '⭐ Kie.ai (Principal)' : 'Kie.ai'}
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSalvarProvider('suno_local')}
+                      disabled={salvandoProvider}
+                      style={{
+                        padding: '7px 14px',
+                        borderRadius: '8px',
+                        border: '1.5px solid ' + (sunoPrimaryProvider === 'suno_local' ? '#0284c7' : '#cbd5e1'),
+                        background: sunoPrimaryProvider === 'suno_local' ? '#0284c7' : '#ffffff',
+                        color: sunoPrimaryProvider === 'suno_local' ? '#ffffff' : '#334155',
+                        fontWeight: '700',
+                        fontSize: '0.82rem',
+                        cursor: salvandoProvider ? 'default' : 'pointer'
+                      }}
+                    >
+                      {sunoPrimaryProvider === 'suno_local' ? '⭐ Suno Local (Robô PC)' : '🖥️ Suno Local (PC)'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Status do Robô Local Suno */}
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  padding: '9px 12px',
+                  borderRadius: '8px',
+                  background: isWorkerOnline ? '#f0fdf4' : '#fff7ed',
+                  border: isWorkerOnline ? '1px solid #bbf7d0' : '1px solid #fed7aa',
+                  fontSize: '0.8rem',
+                  color: isWorkerOnline ? '#166534' : '#9a3412',
+                  marginTop: '4px'
+                }}>
+                  <span style={{ fontSize: '1rem' }}>{isWorkerOnline ? '🟢' : '⚪'}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontWeight: '700' }}>
+                        Robô Local (Suno.com no PC): {isWorkerOnline ? 'Online e Pronto' : 'Desconectado / Inativo'}
+                      </span>
+                      {sunoPrimaryProvider === 'suno_local' && (
+                        <span style={{
+                          fontSize: '0.7rem',
+                          fontWeight: '700',
+                          background: isWorkerOnline ? '#16a34a' : '#ea580c',
+                          color: '#ffffff',
+                          padding: '1px 6px',
+                          borderRadius: '4px'
+                        }}>
+                          PROVEDOR ATIVO
+                        </span>
+                      )}
+                    </div>
+                    {isWorkerOnline ? (
+                      <span style={{ display: 'block', fontSize: '0.74rem', color: '#15803d', marginTop: '2px' }}>
+                        Host: <strong>{sunoWorkerHeartbeat?.hostname || 'PC'}</strong> · Visto em {new Date(sunoWorkerHeartbeat?.timestamp).toLocaleTimeString('pt-BR')}. Geração direta com sua conta Suno Pro/Premier.
+                      </span>
+                    ) : (
+                      <span style={{ display: 'block', fontSize: '0.74rem', color: '#c2410c', marginTop: '2px' }}>
+                        Para gerar pela sua assinatura, execute <code>iniciar-robo.bat</code> na pasta <code>local-worker</code>. Se estiver offline e o cliente criar uma música, o failover automático assumirá a Kie.ai após 3 min.
+                      </span>
+                    )}
                   </div>
                 </div>
                 {msgProvider && (

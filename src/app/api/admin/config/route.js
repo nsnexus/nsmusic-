@@ -56,12 +56,12 @@ export async function POST(req) {
 
     if (body?.sunoPrimaryProvider !== undefined) {
       const p = String(body.sunoPrimaryProvider).toLowerCase().trim();
-      if (p === 'kie' || p === 'unifically') {
+      if (p === 'kie' || p === 'unifically' || p === 'suno_local') {
         updates.sunoPrimaryProvider = p;
         updates.sunoPrimaryProviderAtualizadoEm = new Date().toISOString();
       } else {
         return NextResponse.json(
-          { error: 'Provedor inválido. Escolha "unifically" ou "kie".' },
+          { error: 'Provedor inválido. Escolha "unifically", "kie" ou "suno_local".' },
           { status: 400 }
         );
       }
@@ -105,6 +105,8 @@ export async function GET(req) {
 
     const supabase = getSupabaseEdge(env);
     let configData = {};
+    let workerHeartbeat = null;
+
     if (supabase) {
       const { data } = await supabase
         .from('config')
@@ -114,6 +116,21 @@ export async function GET(req) {
       if (data?.valor) {
         configData = data.valor;
       }
+
+      // Consulta heartbeat do worker local se houver registro
+      try {
+        const { data: hb } = await supabase
+          .from('config')
+          .select('valor, updated_at')
+          .eq('chave', 'suno_worker_heartbeat')
+          .maybeSingle();
+        if (hb?.valor) {
+          workerHeartbeat = {
+            ...hb.valor,
+            updatedAt: hb.updated_at
+          };
+        }
+      } catch (hbErr) {}
     }
 
     const defaultProvider = String(env?.SUNO_PRIMARY_PROVIDER || process.env.SUNO_PRIMARY_PROVIDER || 'unifically').toLowerCase().trim();
@@ -124,7 +141,8 @@ export async function GET(req) {
         whatsappSuporte: configData.whatsappSuporte || WHATSAPP_SUPORTE_PADRAO,
         agentEnabled: configData.agentEnabled !== false,
         sunoPrimaryProvider: configData.sunoPrimaryProvider || defaultProvider,
-        contingencyMode: configData.contingencyMode === true
+        contingencyMode: configData.contingencyMode === true,
+        sunoWorkerHeartbeat: workerHeartbeat
       },
       { headers: { 'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60' } }
     );
