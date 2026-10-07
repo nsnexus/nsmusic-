@@ -1,0 +1,16 @@
+{
+  "name": "nsmusic-local-worker",
+  "version": "1.0.0",
+  "description": "Robô desktop local para automação e geração de músicas no Suno.com via Playwright",
+  "main": "robo-suno.js",
+  "type": "module",
+  "scripts": {
+    "start": "node robo-suno.js",
+    "test:automator": "node test-automator.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "dotenv": "^16.4.5",
+    "playwright": "^1.47.0"
+  }
+}
