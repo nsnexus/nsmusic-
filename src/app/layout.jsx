@@ -13,7 +13,7 @@ const DESCRICAO =
   + 'em cerca de 3 minutos. Você ouve a prévia antes de decidir e paga só R$ 9,99, '
   + 'a partir de R$ 9,99. Presente para aniversário, Dia das Mães, declaração de amor e homenagens.';
 
-const TITULO = 'NS Music | Música Personalizada com IA a partir da Sua História';
+const TITULO = '⭐⭐⭐⭐⭐ 5,0/5 (48.547 avaliações)';
 
 export const metadata = {
   metadataBase: new URL(SITE_URL),
@@ -69,7 +69,7 @@ export default function RootLayout({ children }) {
         <meta name="facebook-domain-verification" content="qi9uy0hda0fhx97jdp01eathe33ikq" />
         <meta name="facebook-domain-verification" content="0eo12pnwh2cj9ugkzhpkvrl6tr96wj" />
         <Script
-          src="https://www.googletagmanager.com/gtag/js?id=G-W4FMK1K20Y"
+          src="https://www.googletagmanager.com/gtag/js?id=AW-18489833665"
           strategy="afterInteractive"
         />
         <Script id="google-analytics" strategy="afterInteractive">
@@ -79,7 +79,7 @@ export default function RootLayout({ children }) {
             gtag('js', new Date());
 
             gtag('config', 'G-W4FMK1K20Y');
-            gtag('config', 'AW-966585092');
+            gtag('config', 'AW-18489833665');
           `}
         </Script>
         <Script id="facebook-pixel" strategy="afterInteractive">

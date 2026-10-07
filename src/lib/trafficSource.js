@@ -77,6 +77,7 @@ export function identifyTrafficSource() {
     const ttclid = (urlParams.get('ttclid') || '').trim();
     const gclid = (urlParams.get('gclid') || '').trim();
     const referrer = typeof document !== 'undefined' ? (document.referrer || '') : '';
+    const userAgent = typeof navigator !== 'undefined' ? (navigator.userAgent || '') : '';
 
     const hasNewTrackingParams = Boolean(
       utmSource || utmMedium || utmCampaign || fbclid || ttclid || gclid
@@ -98,23 +99,42 @@ export function identifyTrafficSource() {
     let platform = 'direto';
     const srcLower = utmSource.toLowerCase();
     const medLower = utmMedium.toLowerCase();
+    const campLower = utmCampaign.toLowerCase();
     const refLower = referrer.toLowerCase();
+    const uaLower = userAgent.toLowerCase();
 
     // 1. TikTok Ads
-    if (ttclid || /tiktok|bytedance|tt_/i.test(srcLower) || /tiktok/i.test(medLower)) {
+    // Detecta por:
+    // - ttclid (TikTok Click ID)
+    // - UTMs (source, medium ou campaign com tiktok, bytedance, tt, etc.)
+    // - Navegador interno do TikTok (WebView com TikTok, musical_ly, bytedance)
+    // - Referrer de tiktok.com
+    if (
+      ttclid ||
+      /tiktok|bytedance|\btt\b|tt_/i.test(srcLower) ||
+      /tiktok|bytedance|\btt\b|tt_/i.test(medLower) ||
+      /tiktok|bytedance|\btt\b|tt_/i.test(campLower) ||
+      /tiktok|musical_ly|bytedance/i.test(uaLower) ||
+      /tiktok\.com/i.test(refLower)
+    ) {
       platform = 'tiktok_ads';
     }
     // 2. Facebook & Instagram Ads (Meta)
     else if (
       fbclid ||
       /facebook|meta|fb|instagram|ig_/i.test(srcLower) ||
+      /facebook|instagram/i.test(campLower) ||
       ((medLower.includes('cpc') || medLower.includes('ads') || medLower.includes('paid')) &&
         (refLower.includes('facebook') || refLower.includes('instagram')))
     ) {
       platform = 'facebook_ads';
     }
     // 3. Google Ads
-    else if (gclid || (/google|adwords/i.test(srcLower) && /cpc|ads|paid/i.test(medLower))) {
+    else if (
+      gclid ||
+      (/google|adwords/i.test(srcLower) && /cpc|ads|paid/i.test(medLower)) ||
+      /google_ads|gads/i.test(campLower)
+    ) {
       platform = 'google_ads';
     }
     // 4. Busca Orgânica (Google, Bing, Yahoo, DuckDuckGo, Ecosia)
@@ -127,7 +147,7 @@ export function identifyTrafficSource() {
     }
     // 5. Social Orgânico (links vindos de redes sociais sem parâmetros de anúncios pagos)
     else if (
-      /instagram\.com|facebook\.com|l\.instagram\.com|l\.facebook\.com|tiktok\.com|t\.co|twitter\.com|x\.com|whatsapp/i.test(refLower)
+      /instagram\.com|facebook\.com|l\.instagram\.com|l\.facebook\.com|t\.co|twitter\.com|x\.com|whatsapp/i.test(refLower)
     ) {
       platform = 'organico';
     }
@@ -189,7 +209,39 @@ export function getStoredTrafficSource() {
 export function getOrderPlatform(order) {
   if (!order) return 'facebook_ads';
 
-  // 1. Campo explícito gravado no pedido (novos pedidos após a implementação)
+  // 1. Click IDs inequívocos gravados no pedido (sempre têm precedência)
+  if (order.ttclid) return 'tiktok_ads';
+  if (order.fbclid) return 'facebook_ads';
+  if (order.gclid) return 'google_ads';
+
+  // 2. Parâmetros de campanha explícitos gravados nos extras
+  const utmSource = String(order.utmSource || '').toLowerCase();
+  const utmMedium = String(order.utmMedium || '').toLowerCase();
+  const utmCampaign = String(order.utmCampaign || '').toLowerCase();
+  const referrer = String(order.referrer || '').toLowerCase();
+
+  if (
+    /tiktok|bytedance|\btt\b|tt_/i.test(utmSource) ||
+    /tiktok|bytedance|\btt\b|tt_/i.test(utmMedium) ||
+    /tiktok|bytedance|\btt\b|tt_/i.test(utmCampaign) ||
+    /tiktok\.com/i.test(referrer)
+  ) {
+    return 'tiktok_ads';
+  }
+  if (
+    /facebook|meta|fb|instagram|ig_/i.test(utmSource) ||
+    /facebook|instagram/i.test(utmCampaign)
+  ) {
+    return 'facebook_ads';
+  }
+  if (/google|adwords/i.test(utmSource) || /google_ads|gads/i.test(utmCampaign)) {
+    return 'google_ads';
+  }
+  if (/organico|organic/i.test(utmSource) || /organico|organic/i.test(utmMedium)) {
+    return 'organico';
+  }
+
+  // 3. Campo explícito gravado no pedido (novos pedidos após a implementação)
   const rawSource = order.trafficSource || order.platform;
   if (rawSource) {
     const s = String(rawSource).toLowerCase();
@@ -200,27 +252,7 @@ export function getOrderPlatform(order) {
     if (s === 'direto' || s === 'direct') return 'direto';
   }
 
-  // 2. Se houver UTMs ou Click IDs gravados nos extras
-  const utmSource = String(order.utmSource || '').toLowerCase();
-  const utmMedium = String(order.utmMedium || '').toLowerCase();
-
-  if (order.ttclid || /tiktok|bytedance|tt_/i.test(utmSource)) {
-    return 'tiktok_ads';
-  }
-  if (order.fbclid || /facebook|meta|fb|instagram|ig_/i.test(utmSource)) {
-    return 'facebook_ads';
-  }
-  if (order.gclid || /google|adwords/i.test(utmSource)) {
-    return 'google_ads';
-  }
-  if (/organico|organic/i.test(utmSource) || /organico|organic/i.test(utmMedium)) {
-    return 'organico';
-  }
-  if (/direto|direct/i.test(utmSource)) {
-    return 'direto';
-  }
-
-  // 3. Pedidos anteriores à implementação:
+  // 4. Pedidos anteriores à implementação:
   // Diretriz do administrador: todo o histórico anterior operava sob campanhas do Facebook Ads.
   return 'facebook_ads';
 }

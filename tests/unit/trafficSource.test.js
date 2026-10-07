@@ -44,6 +44,11 @@ describe('trafficSource module', () => {
       expect(getOrderPlatform({ ttclid: 'tt-12345' })).toBe('tiktok_ads');
       expect(getOrderPlatform({ utmSource: 'tiktok' })).toBe('tiktok_ads');
       expect(getOrderPlatform({ utmSource: 'tiktok_ads' })).toBe('tiktok_ads');
+      expect(getOrderPlatform({ utmSource: 'tt' })).toBe('tiktok_ads');
+      expect(getOrderPlatform({ utmCampaign: 'campanha_tiktok_2026' })).toBe('tiktok_ads');
+      expect(getOrderPlatform({ referrer: 'https://www.tiktok.com/' })).toBe('tiktok_ads');
+      expect(getOrderPlatform({ trafficSource: 'direto', ttclid: 'tt-abc' })).toBe('tiktok_ads');
+      expect(getOrderPlatform({ trafficSource: 'direto', utmCampaign: 'tiktok_ads_01' })).toBe('tiktok_ads');
     });
 
     it('deve identificar facebook por fbclid ou utmSource', () => {
