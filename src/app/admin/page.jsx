@@ -99,6 +99,10 @@ export default function AdminDashboard() {
     return diffMs < 90000;
   }, [sunoWorkerHeartbeat]);
 
+  const [testandoRobo, setTestandoRobo] = useState(false);
+  const [testeRoboStatus, setTesteRoboStatus] = useState('');
+  const [testeRoboAudioUrl, setTesteRoboAudioUrl] = useState(null);
+
   const [contingencyMode, setContingencyMode] = useState(false);
   const [salvandoContingencia, setSalvandoContingencia] = useState(false);
   const [msgContingencia, setMsgContingencia] = useState('');
@@ -584,6 +588,65 @@ export default function AdminDashboard() {
       setMsgProvider('Falha de conexão ao salvar.');
     } finally {
       setSalvandoProvider(false);
+    }
+  };
+
+  const handleDispararTesteRobo = async () => {
+    setTestandoRobo(true);
+    setTesteRoboStatus('Criando pedido de teste...');
+    setTesteRoboAudioUrl(null);
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      const res = await fetch('/api/admin/suno-local/test', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${idToken}` }
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.orderId) {
+        setTesteRoboStatus(`❌ Falha ao criar teste: ${data.error || 'Erro desconhecido'}`);
+        setTestandoRobo(false);
+        return;
+      }
+
+      setTesteRoboStatus(`⏳ Pedido de teste criado! Aguardando o robô local no seu PC detectar...`);
+      const testOrderId = data.orderId;
+
+      let tentativas = 0;
+      const interval = setInterval(async () => {
+        tentativas++;
+        if (tentativas > 60) {
+          clearInterval(interval);
+          setTesteRoboStatus('⚠️ Tempo limite (3 min). Verifique se o iniciar-robo.bat está aberto no seu PC.');
+          setTestandoRobo(false);
+          return;
+        }
+
+        try {
+          const checkRes = await fetch(`/api/admin/suno-local/test?orderId=${testOrderId}`, {
+            headers: { Authorization: `Bearer ${idToken}` }
+          });
+          const checkData = await checkRes.json().catch(() => ({}));
+          if (checkData?.order) {
+            const o = checkData.order;
+            if (o.status_robo === 'PROCESSANDO') {
+              setTesteRoboStatus('🔄 Robô detectou o teste! Gerando a música no Suno.com...');
+            } else if (o.status_robo === 'CONCLUIDO' || o.musicUrl) {
+              clearInterval(interval);
+              setTesteRoboStatus('🎉 Sucesso! Música gerada e salva com sucesso no Cloudflare R2:');
+              setTesteRoboAudioUrl(o.musicUrl);
+              setTestandoRobo(false);
+            } else if (o.status_robo === 'FALHA_LOCAL') {
+              clearInterval(interval);
+              setTesteRoboStatus(`❌ Erro no robô local: ${o.robo_erro || 'Falha ao processar.'}`);
+              setTestandoRobo(false);
+            }
+          }
+        } catch (pollErr) {}
+      }, 3000);
+
+    } catch (err) {
+      setTesteRoboStatus(`❌ Erro de conexão: ${err.message}`);
+      setTestandoRobo(false);
     }
   };
 
@@ -1111,35 +1174,36 @@ export default function AdminDashboard() {
                 {/* Status do Robô Local Suno */}
                 <div style={{
                   display: 'flex',
-                  alignItems: 'center',
+                  alignItems: 'flex-start',
                   gap: '10px',
-                  padding: '9px 12px',
-                  borderRadius: '8px',
+                  padding: '12px 14px',
+                  borderRadius: '10px',
                   background: isWorkerOnline ? '#f0fdf4' : '#fff7ed',
                   border: isWorkerOnline ? '1px solid #bbf7d0' : '1px solid #fed7aa',
                   fontSize: '0.8rem',
                   color: isWorkerOnline ? '#166534' : '#9a3412',
-                  marginTop: '4px'
+                  marginTop: '6px'
                 }}>
-                  <span style={{ fontSize: '1rem' }}>{isWorkerOnline ? '🟢' : '⚪'}</span>
+                  <span style={{ fontSize: '1.2rem', lineHeight: 1 }}>{isWorkerOnline ? '🟢' : '⚪'}</span>
                   <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span style={{ fontWeight: '700' }}>
-                        Robô Local (Suno.com no PC): {isWorkerOnline ? 'Online e Pronto' : 'Desconectado / Inativo'}
-                      </span>
-                      {sunoPrimaryProvider === 'suno_local' && (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontWeight: '700' }}>
+                          Robô Local (Suno.com no PC): {isWorkerOnline ? 'Online e Pronto' : 'Desconectado / Inativo'}
+                        </span>
                         <span style={{
                           fontSize: '0.7rem',
                           fontWeight: '700',
-                          background: isWorkerOnline ? '#16a34a' : '#ea580c',
+                          background: sunoPrimaryProvider === 'suno_local' ? '#16a34a' : '#64748b',
                           color: '#ffffff',
                           padding: '1px 6px',
                           borderRadius: '4px'
                         }}>
-                          PROVEDOR ATIVO
+                          {sunoPrimaryProvider === 'suno_local' ? 'LIGADO PARA CLIENTES' : 'DESLIGADO PARA CLIENTES'}
                         </span>
-                      )}
+                      </div>
                     </div>
+
                     {isWorkerOnline ? (
                       <span style={{ display: 'block', fontSize: '0.74rem', color: '#15803d', marginTop: '2px' }}>
                         Host: <strong>{sunoWorkerHeartbeat?.hostname || 'PC'}</strong> · Visto em {new Date(sunoWorkerHeartbeat?.timestamp).toLocaleTimeString('pt-BR')}. Geração direta com sua conta Suno Pro/Premier.
@@ -1148,6 +1212,92 @@ export default function AdminDashboard() {
                       <span style={{ display: 'block', fontSize: '0.74rem', color: '#c2410c', marginTop: '2px' }}>
                         Para gerar pela sua assinatura, execute <code>iniciar-robo.bat</code> na pasta <code>local-worker</code>. Se estiver offline e o cliente criar uma música, o failover automático assumirá a Kie.ai após 3 min.
                       </span>
+                    )}
+
+                    {/* Controles de Ligar/Desligar e Teste */}
+                    <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      {sunoPrimaryProvider === 'suno_local' ? (
+                        <button
+                          type="button"
+                          onClick={() => handleSalvarProvider('kie')}
+                          disabled={salvandoProvider}
+                          style={{
+                            padding: '6px 12px',
+                            borderRadius: '6px',
+                            border: '1px solid #ef4444',
+                            background: '#fee2e2',
+                            color: '#b91c1c',
+                            fontWeight: '700',
+                            fontSize: '0.76rem',
+                            cursor: salvandoProvider ? 'default' : 'pointer'
+                          }}
+                        >
+                          ⏹️ Desligar Robô para Clientes (Voltar para Kie.ai)
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleSalvarProvider('suno_local')}
+                          disabled={salvandoProvider}
+                          style={{
+                            padding: '6px 12px',
+                            borderRadius: '6px',
+                            border: '1px solid #10b981',
+                            background: '#d1fae5',
+                            color: '#065f46',
+                            fontWeight: '700',
+                            fontSize: '0.76rem',
+                            cursor: salvandoProvider ? 'default' : 'pointer'
+                          }}
+                        >
+                          ▶️ Ligar Robô Local para Clientes
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={handleDispararTesteRobo}
+                        disabled={testandoRobo}
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: '6px',
+                          border: '1px solid #3b82f6',
+                          background: '#eff6ff',
+                          color: '#1d4ed8',
+                          fontWeight: '700',
+                          fontSize: '0.76rem',
+                          cursor: testandoRobo ? 'default' : 'pointer'
+                        }}
+                      >
+                        {testandoRobo ? '⏳ Executando Teste...' : '🧪 Testar Robô Agora (Sem Afetar Clientes)'}
+                      </button>
+                    </div>
+
+                    {/* Feedback do Teste em Tempo Real */}
+                    {(testeRoboStatus || testeRoboAudioUrl) && (
+                      <div style={{
+                        marginTop: '10px',
+                        padding: '10px 12px',
+                        borderRadius: '6px',
+                        background: '#ffffff',
+                        border: '1px solid #e2e8f0',
+                        fontSize: '0.78rem'
+                      }}>
+                        <div style={{ color: '#1e293b', fontWeight: '600' }}>{testeRoboStatus}</div>
+                        {testeRoboAudioUrl && (
+                          <div style={{ marginTop: '8px' }}>
+                            <audio controls src={testeRoboAudioUrl} style={{ width: '100%', height: '36px' }} />
+                            <a
+                              href={testeRoboAudioUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              style={{ display: 'inline-block', marginTop: '4px', color: '#2563eb', fontSize: '0.72rem', textDecoration: 'underline' }}
+                            >
+                              Abrir arquivo MP3 no R2 ↗
+                            </a>
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>

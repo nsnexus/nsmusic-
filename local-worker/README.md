@@ -51,8 +51,16 @@ Na primeira vez que você rodar o script:
 
 ---
 
-## 🖥️ Painel Admin do NSMusic
+## 🖥️ Painel Admin do NSMusic (/admin)
 No painel `/admin`, na seção **🎹 Provedor Principal de Música (IA)**:
-- Clique no botão **🖥️ Suno Local (PC)** para torná-lo o provedor padrão.
-- Você verá o indicador **🟢 Robô Local Conectado** quando o script estiver rodando no seu computador.
-- Se o robô for fechado, o painel exibirá o aviso e a Kie.ai assumirá o papel de segurança automaticamente.
+- **Ligar / Desligar para Clientes**: Você pode deixar o robô **DESLIGADO** para os clientes e o site continuará usando a Kie.ai ou Unifically normalmente. Quando quiser que o site use o robô, basta clicar em **▶️ Ligar Robô Local para Clientes**.
+- **🧪 Testar Robô Agora (Sem Afetar Clientes)**: Mesmo com o robô desligado para os clientes, clique no botão de teste no painel. Ele dispara um pedido de teste imediato, o robô processa no seu PC, sobe pro R2 e exibe o player de áudio na tela para você conferir.
+- **🟢 Indicador de Conexão**: Mostra o nome do seu computador e o horário do último sinal recebido em tempo real.
+
+---
+
+## 🧪 Teste Isolado Direto pelo PC
+Se você preferir testar a automação no seu computador sem abrir o painel admin:
+1. Dê dois cliques em **`testar-robo.bat`**.
+2. Ele abrirá o Suno, gerará uma música de teste com letra demo, baixará o áudio e fará upload no seu R2.
+3. No final, exibirá o link direto do áudio no terminal para você ouvir e comprovar que tudo está funcionando perfeitamente!
