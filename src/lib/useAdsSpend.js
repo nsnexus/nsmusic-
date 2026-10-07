@@ -8,6 +8,7 @@ export function useAdsSpend(mes) {
   const [adsSpend, setAdsSpend] = useState({
     meta: { byDate: {}, total: 0 },
     tiktok: { byDate: {}, total: 0 },
+    google: { byDate: {}, total: 0 },
   });
   const [loadingAds, setLoadingAds] = useState(false);
   const [adsError, setAdsError] = useState(null);
@@ -26,6 +27,7 @@ export function useAdsSpend(mes) {
           setAdsSpend({
             meta: json.meta || { byDate: {}, total: 0 },
             tiktok: json.tiktok || { byDate: {}, total: 0 },
+            google: json.google || { byDate: {}, total: 0 },
           });
         }
       }

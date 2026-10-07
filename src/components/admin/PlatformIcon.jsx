@@ -7,7 +7,7 @@ import { getOrderPlatform, PLATFORMS } from '@/lib/trafficSource';
  * Componente de ícone/badge para exibir a plataforma de tráfego de um pedido.
  * Suporta Meta (Facebook/Instagram), TikTok, Google, Orgânico e Direto com SVGs nítidos.
  */
-export default function PlatformIcon({ order, platform, size = 15, showLabel = false, style = {} }) {
+export default function PlatformIcon({ order, platform, size = 15, showLabel = false, bare = false, style = {} }) {
   const platKey = platform || (order ? getOrderPlatform(order) : 'facebook_ads');
   const info = PLATFORMS[platKey] || PLATFORMS.facebook_ads;
 
@@ -21,23 +21,36 @@ export default function PlatformIcon({ order, platform, size = 15, showLabel = f
     switch (platKey) {
       case 'facebook_ads':
         return (
-          <svg width={size} height={size} viewBox="0 0 24 24" fill="#1877F2" aria-hidden="true">
-            <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+          <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle cx="12" cy="12" r="12" fill="#1877F2" />
+            <path
+              d="M16.5 12.05H13.88V21H10.19V12.05H8.44V8.92H10.19V6.66C10.19 5.22 10.87 3 13.91 3L16.5 3.01V6.05H14.62C14.3 6.05 13.88 6.21 13.88 6.9V8.92H16.53L16.5 12.05Z"
+              fill="#ffffff"
+            />
           </svg>
         );
       case 'tiktok_ads':
         return (
-          <svg width={size} height={size} viewBox="0 0 24 24" fill="#000000" aria-hidden="true">
-            <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 3 15.68 6.34 6.34 0 0 0 9.34 22a6.34 6.34 0 0 0 6.33-6.32V8.9a8.16 8.16 0 0 0 4.92 1.63V7.08a4.85 4.85 0 0 1-1-.39z" />
+          <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <rect width="24" height="24" rx="6" fill="#000000" />
+            <path
+              d="M17.5 8.2c-.9-.6-1.5-1.6-1.6-2.7h-2.6v11.2c0 1.3-1 2.3-2.3 2.3s-2.3-1-2.3-2.3 1-2.3 2.3-2.3c.25 0 .5.04.7.12V11.8c-.23-.03-.47-.05-.7-.05-2.8 0-5.1 2.3-5.1 5.1s2.3 5.1 5.1 5.1 5.1-2.3 5.1-5.1v-5.3c1.1.8 2.5 1.3 3.9 1.3V10.1c-.9 0-1.8-.3-2.4-.9z"
+              fill="#ffffff"
+            />
           </svg>
         );
       case 'google_ads':
         return (
-          <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
-            <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z" />
-            <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.27 21.41 7.34 24 12 24z" />
-            <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.14-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z" />
-            <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.34 0 3.27 2.59 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z" />
+          <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path
+              d="M4.64 15.65L10.37 5.73C11.53 3.73 14.08 3.05 16.08 4.21C18.08 5.37 18.76 7.92 17.6 9.92L11.87 19.84C10.71 21.84 8.16 22.52 6.16 21.36C4.16 20.2 3.48 17.65 4.64 15.65Z"
+              fill="#4285F4"
+            />
+            <circle cx="6.16" cy="18.5" r="3.1" fill="#FBBC04" />
+            <path
+              d="M20.12 16.63L16.27 10C15.42 8.52 13.52 8.01 12.04 8.86C10.56 9.71 10.05 11.61 10.9 13.09L14.75 19.72C15.6 21.2 17.5 21.71 18.98 20.86C20.46 20.01 20.97 18.11 20.12 16.63Z"
+              fill="#34A853"
+            />
           </svg>
         );
       case 'organico':
@@ -49,12 +62,36 @@ export default function PlatformIcon({ order, platform, size = 15, showLabel = f
       case 'direto':
       default:
         return (
-          <svg width={size} height={size} viewBox="0 0 24 24" fill="#64748b" aria-hidden="true">
-            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" />
+          <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
           </svg>
         );
     }
   };
+
+  if (bare) {
+    return (
+      <span
+        title={tooltipText}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          verticalAlign: 'middle',
+          flexShrink: 0,
+          ...style,
+        }}
+      >
+        {renderSvg()}
+        {showLabel && (
+          <span style={{ fontSize: '0.75rem', fontWeight: '700', color: info.color, whiteSpace: 'nowrap', marginLeft: '6px' }}>
+            {info.shortName}
+          </span>
+        )}
+      </span>
+    );
+  }
 
   return (
     <span

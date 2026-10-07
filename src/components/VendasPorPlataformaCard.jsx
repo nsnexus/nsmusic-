@@ -5,6 +5,7 @@ import { usePedidosDoMes } from '@/lib/usePedidosDoMes';
 import { calcularMetricasPorPlataforma } from '@/lib/trafficSource';
 import { useAdsSpend } from '@/lib/useAdsSpend';
 import TikTokAdsDailyModal from '@/components/admin/TikTokAdsDailyModal';
+import PlatformIcon from '@/components/admin/PlatformIcon';
 
 function formatMoney(val) {
   return `R$ ${Number(val || 0).toFixed(2).replace('.', ',')}`;
@@ -512,7 +513,7 @@ export default function VendasPorPlataformaCard({ monthValue }) {
                     {/* Header do Card */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontSize: '1.2rem' }}>{plat.icon}</span>
+                        <PlatformIcon platform={plat.key} size={22} bare />
                         <strong style={{ fontSize: '0.95rem', color: '#0f172a' }}>{plat.name}</strong>
                       </div>
                       <span
@@ -764,7 +765,7 @@ export default function VendasPorPlataformaCard({ monthValue }) {
                       }}
                     >
                       <td style={{ padding: '10px 12px', fontWeight: '600', color: '#0f172a' }}>
-                        <span style={{ marginRight: '6px' }}>{plat.icon}</span>
+                        <PlatformIcon platform={plat.key} size={16} bare style={{ marginRight: '8px' }} />
                         {plat.name}
                       </td>
                       <td style={{ padding: '10px 12px', textAlign: 'right', color: '#334155' }}>
