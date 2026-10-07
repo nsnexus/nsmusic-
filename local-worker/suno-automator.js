@@ -156,77 +156,73 @@ export async function gerarMusicaNoSuno({ prompt, style = 'Acoustic Pop', title 
   await page.waitForTimeout(2000);
 
   // 1. Garante que o modo "Custom" (Personalizado) está ativado
-  onProgress('Ativando modo personalizado (Custom)...');
-  try {
-    const customSwitch = page.locator('button:has-text("Custom"), [role="switch"]:has-text("Custom"), label:has-text("Custom"), span:has-text("Custom")').first();
-    const isCustomVisible = await customSwitch.isVisible({ timeout: 3000 }).catch(() => false);
-    if (isCustomVisible) {
-      const temTextarea = await page.locator('textarea').first().isVisible({ timeout: 1000 }).catch(() => false);
-      if (!temTextarea) {
-        await customSwitch.click().catch(() => {});
-        await page.waitForTimeout(1500);
-      }
+  onProgress('Garantindo modo personalizado (Custom)...');
+  const styleSelector = 'textarea[placeholder*="style" i], input[placeholder*="style" i], [aria-label*="style" i], [placeholder*="genre" i]';
+  let isCustomActive = await page.locator(styleSelector).first().isVisible({ timeout: 1500 }).catch(() => false);
+
+  if (!isCustomActive) {
+    console.log('[SunoAutomator] Modo Custom desligado. Clicando no switch Custom...');
+    const customBtn = page.locator('button:has-text("Custom"), [role="switch"]:has-text("Custom"), label:has-text("Custom"), button[aria-label*="Custom" i]').first();
+    if (await customBtn.isVisible({ timeout: 4000 }).catch(() => false)) {
+      await customBtn.click();
+      await page.waitForTimeout(1500);
     }
-  } catch (e) {
-    console.log('[SunoAutomator] Modo Custom:', e.message);
+    isCustomActive = await page.locator(styleSelector).first().isVisible({ timeout: 2500 }).catch(() => false);
   }
 
   // 2. Preenche a Letra (Lyrics)
   onProgress('Preenchendo letra da música...');
-  let lyricsInput = page.locator('textarea[placeholder*="lyrics" i], textarea[placeholder*="letra" i], textarea[placeholder*="own" i], textarea[aria-label*="lyrics" i]').first();
-  let achouLyrics = await lyricsInput.isVisible({ timeout: 4000 }).catch(() => false);
+  const lyricsSelector = 'textarea[placeholder*="lyrics" i], textarea[placeholder*="letra" i], textarea[placeholder*="own lyrics" i], textarea[aria-label*="lyrics" i]';
+  let lyricsInput = page.locator(lyricsSelector).first();
+  let achouLyrics = await lyricsInput.isVisible({ timeout: 3000 }).catch(() => false);
 
   if (!achouLyrics) {
     lyricsInput = page.locator('textarea').first();
-    achouLyrics = await lyricsInput.isVisible({ timeout: 6000 }).catch(() => false);
+    achouLyrics = await lyricsInput.isVisible({ timeout: 4000 }).catch(() => false);
   }
 
   if (!achouLyrics) {
     throw new Error('Não foi possível encontrar a caixa de letra no Suno. Verifique se o login está concluído no navegador.');
   }
 
+  await lyricsInput.click().catch(() => {});
   await lyricsInput.fill(prompt);
   await page.waitForTimeout(500);
-  await page.waitForTimeout(500);
 
-  // 3. Preenche o Estilo (Style)
-  onProgress('Preenchendo estilo musical...');
-  const styleInput = page.locator('textarea[placeholder*="style" i], input[placeholder*="style" i], [aria-label*="style of music" i]').first();
-  if (await styleInput.isVisible().catch(() => false)) {
+  // 3. Preenche o Estilo (Style Tags)
+  onProgress(`Preenchendo estilo musical: ${style}...`);
+  const styleInput = page.locator(styleSelector).first();
+  if (await styleInput.isVisible({ timeout: 2000 }).catch(() => false)) {
+    await styleInput.click().catch(() => {});
     await styleInput.fill(style);
     await page.waitForTimeout(500);
+  } else {
+    console.warn('[SunoAutomator] ⚠️ Campo de estilo não encontrado');
   }
 
   // 4. Preenche o Título (Title)
-  onProgress('Preenchendo título...');
-  const titleInput = page.locator('input[placeholder*="title" i], input[aria-label*="title" i]').first();
-  if (await titleInput.isVisible().catch(() => false)) {
+  onProgress(`Preenchendo título: ${title}...`);
+  const titleInput = page.locator('input[placeholder*="title" i], input[placeholder*="título" i], input[aria-label*="title" i]').first();
+  if (await titleInput.isVisible({ timeout: 2000 }).catch(() => false)) {
+    await titleInput.click().catch(() => {});
     await titleInput.fill(title.substring(0, 80));
     await page.waitForTimeout(500);
   }
 
-  // 5. Prepara escuta da API interna de feed do Suno para capturar os clip IDs
-  let createdClipIds = [];
-  const feedListener = async (response) => {
-    try {
-      const url = response.url();
-      if ((url.includes('/api/generate') || url.includes('/api/feed')) && response.status() === 200) {
-        const data = await response.json().catch(() => null);
-        if (data) {
-          const list = Array.isArray(data) ? data : (data.clips || data.data || []);
-          for (const item of list) {
-            if (item?.id && !createdClipIds.includes(item.id)) {
-              createdClipIds.push(item.id);
-            }
-          }
-        }
-      }
-    } catch (e) {}
-  };
+  // Captura os IDs que já existiam na tela antes de clicar em Create para nunca confundir com faixas anteriores
+  const preExistingUuids = await page.evaluate(() => {
+    const list = [];
+    const uuidRegex = /([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i;
+    document.querySelectorAll('a[href*="/song/"], img[src*="suno.ai"], [data-id], [data-clip-id]').forEach(el => {
+      const val = el.href || el.src || el.getAttribute('data-id') || el.getAttribute('data-clip-id') || '';
+      const m = val.match(uuidRegex);
+      if (m && m[1] && !list.includes(m[1].toLowerCase())) list.push(m[1].toLowerCase());
+    });
+    return list;
+  });
+  console.log(`[SunoAutomator] 📋 ${preExistingUuids.length} clipes pré-existentes na biblioteca ignorados.`);
 
-  page.on('response', feedListener);
-
-  // 6. Clica em "Create"
+  // 5. Clica em "Create"
   onProgress('Enviando solicitação de geração...');
   const createButton = page.locator('button:has-text("Create"), button[aria-label="Create"]').first();
   await createButton.waitFor({ state: 'visible', timeout: 10000 });
@@ -249,33 +245,19 @@ export async function gerarMusicaNoSuno({ prompt, style = 'Acoustic Pop', title 
   // Verifica se apareceu erro de créditos ou moderação
   const bodyText = await page.innerText('body').catch(() => '');
   if (bodyText.includes('Out of credits') || bodyText.includes('Insufficient credits')) {
-    page.off('response', feedListener);
     throw new Error('INSUFFICIENT_CREDITS: A conta oficial do Suno está sem créditos suficientes.');
   }
   if (bodyText.includes('flagged by our moderation') || bodyText.includes('Moderation error')) {
-    page.off('response', feedListener);
     throw new Error('MODERATION_ERROR: O Suno bloqueou termos na letra ou estilo.');
   }
 
-  // Escuta URLs diretas da CDN da Suno e chamadas de feed
-  let cdnAudioUrls = [];
-  const cdnListener = (response) => {
-    try {
-      const u = response.url();
-      if (u.includes('cdn1.suno.ai') && (u.includes('.mp3') || !u.includes('?'))) {
-        const cleanUrl = u.split('?')[0];
-        if (!cdnAudioUrls.includes(cleanUrl)) {
-          cdnAudioUrls.push(cleanUrl);
-        }
-      }
-    } catch (e) {}
-  };
-  page.on('response', cdnListener);
-
-  // 7. Aguarda os clipes finalizarem e extrai as URLs
-  onProgress('Aguardando Suno finalizar as 2 faixas...');
+  // 6. Aguarda os clipes finalizarem de verdade
+  onProgress('Aguardando Suno finalizar as 2 faixas (leva cerca de 30-50s)...');
   const startTime = Date.now();
   const MAX_WAIT_MS = 240000; // 4 minutos máximo por geração
+
+  // Aguarda 15 segundos mínimos para o Suno iniciar o processamento real
+  await page.waitForTimeout(12000);
 
   let clipsFinalizados = [];
 
@@ -283,143 +265,73 @@ export async function gerarMusicaNoSuno({ prompt, style = 'Acoustic Pop', title 
     const elapsed = Math.round((Date.now() - startTime) / 1000);
     onProgress(`Aguardando renderização no Suno (${elapsed}s decorridos)...`);
 
-    // ESTRATÉGIA 1: Consulta API de feed usando token da sessão Clerk
+    // Busca novos UUIDs no DOM que NÃO existiam antes do Create
     try {
-      const apiResult = await page.evaluate(async () => {
-        try {
-          let token = null;
-          if (window.Clerk && window.Clerk.session) {
-            token = await window.Clerk.session.getToken();
-          }
-          const headers = { 'Accept': 'application/json' };
-          if (token) headers['Authorization'] = `Bearer ${token}`;
-
-          const endpoints = [
-            'https://studio-api-prod.suno.com/api/feed/v3',
-            'https://studio-api.prod.suno.com/api/feed/v2',
-            'https://studio-api.prod.suno.com/api/feed/',
-            '/api/feed/'
-          ];
-
-          for (const ep of endpoints) {
-            try {
-              const isV3 = ep.includes('v3');
-              const res = await fetch(ep, {
-                method: isV3 ? 'POST' : 'GET',
-                headers: {
-                  ...headers,
-                  ...(isV3 ? { 'Content-Type': 'application/json' } : {})
-                },
-                ...(isV3 ? { body: JSON.stringify({ page: 1 }) } : {})
-              });
-              if (res.ok) {
-                const data = await res.json();
-                const list = Array.isArray(data) ? data : (data.clips || data.data || []);
-                const prontos = list.filter(c => c.id && (c.status === 'complete' || (c.media_urls && c.media_urls.length > 0)));
-                if (prontos.length >= 2) {
-                  return prontos.slice(0, 2).map(c => {
-                    const cloudfrontM4a = `https://d2lwuy8qc234o3.cloudfront.net/1/clip/${c.id}.m4a`;
-                    const mediaUrl = c.media_urls?.[0]?.url;
-                    const directAudio = (mediaUrl && !mediaUrl.includes('forbidden')) ? mediaUrl : cloudfrontM4a;
-                    return {
-                      id: c.id,
-                      title: c.title || 'Música Suno',
-                      status: 'complete',
-                      audioUrl: directAudio,
-                      duration: c.duration || 120
-                    };
-                  });
-                }
-              }
-            } catch (e) {}
-          }
-        } catch (e) {}
-        return null;
-      });
-
-      if (apiResult && apiResult.length >= 2) {
-        clipsFinalizados = apiResult;
-        break;
-      }
-    } catch (e) {}
-
-    // ESTRATÉGIA 2: Extrai UUIDs dos clipes diretamente do DOM (links /song/[id] e capas de imagem)
-    try {
-      const domResult = await page.evaluate(() => {
+      const novosUuids = await page.evaluate((antigos) => {
         const uuids = [];
         const uuidRegex = /([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i;
 
-        // 1. Procura em links /song/[uuid]
         document.querySelectorAll('a[href*="/song/"]').forEach(a => {
           const m = a.href.match(uuidRegex);
-          if (m && m[1] && !uuids.includes(m[1])) uuids.push(m[1]);
+          if (m && m[1]) {
+            const id = m[1].toLowerCase();
+            if (!antigos.includes(id) && !uuids.includes(id)) uuids.push(id);
+          }
         });
 
-        // 2. Procura em imagens de capa da CDN do Suno
         document.querySelectorAll('img[src*="suno.ai"]').forEach(img => {
           const m = img.src.match(uuidRegex);
-          if (m && m[1] && !uuids.includes(m[1])) uuids.push(m[1]);
-        });
-
-        // 3. Procura em atributos data-id / data-clip-id
-        document.querySelectorAll('[data-id], [data-clip-id]').forEach(el => {
-          const val = el.getAttribute('data-id') || el.getAttribute('data-clip-id');
-          if (val) {
-            const m = val.match(uuidRegex);
-            if (m && m[1] && !uuids.includes(m[1])) uuids.push(m[1]);
+          if (m && m[1]) {
+            const id = m[1].toLowerCase();
+            if (!antigos.includes(id) && !uuids.includes(id)) uuids.push(id);
           }
         });
 
         return uuids;
-      });
+      }, preExistingUuids);
 
-      if (domResult && domResult.length >= 2) {
-        console.log(`[SunoAutomator] 🎯 Clipes detectados na tela: ${domResult[0]} e ${domResult[1]}`);
-        clipsFinalizados = [
-          {
-            id: domResult[0],
-            title: title || 'Faixa 1',
-            status: 'complete',
-            audioUrl: `https://d2lwuy8qc234o3.cloudfront.net/1/clip/${domResult[0]}.m4a`
-          },
-          {
-            id: domResult[1],
-            title: title || 'Faixa 2',
-            status: 'complete',
-            audioUrl: `https://d2lwuy8qc234o3.cloudfront.net/1/clip/${domResult[1]}.m4a`
-          }
-        ];
-        break;
+      if (novosUuids.length >= 2) {
+        // Verifica se o áudio já está renderizado no CloudFront
+        const id1 = novosUuids[0];
+        const id2 = novosUuids[1];
+
+        const [r1, r2] = await Promise.all([
+          fetch(`https://d2lwuy8qc234o3.cloudfront.net/1/clip/${id1}.m4a`, { method: 'HEAD' }).catch(() => null),
+          fetch(`https://d2lwuy8qc234o3.cloudfront.net/1/clip/${id2}.m4a`, { method: 'HEAD' }).catch(() => null)
+        ]);
+
+        const size1 = parseInt(r1?.headers?.get('content-length') || '0', 10);
+        const size2 = parseInt(r2?.headers?.get('content-length') || '0', 10);
+
+        if (r1?.ok && r2?.ok && size1 > 100000 && size2 > 100000) {
+          console.log(`[SunoAutomator] 🎯 Faixas renderizadas com sucesso! ${(size1/1024/1024).toFixed(2)} MB e ${(size2/1024/1024).toFixed(2)} MB`);
+          clipsFinalizados = [
+            {
+              id: id1,
+              title: title || 'Faixa 1',
+              status: 'complete',
+              audioUrl: `https://d2lwuy8qc234o3.cloudfront.net/1/clip/${id1}.m4a`
+            },
+            {
+              id: id2,
+              title: title || 'Faixa 2',
+              status: 'complete',
+              audioUrl: `https://d2lwuy8qc234o3.cloudfront.net/1/clip/${id2}.m4a`
+            }
+          ];
+          break;
+        }
       }
     } catch (e) {}
 
-    // ESTRATÉGIA 3: Clica no card da música para disparar o streaming se disponível
-    try {
-      const songCard = page.locator('div:has-text("Teste do Robô Local"), [role="button"]:has-text("Play"), button[aria-label*="Play" i]').first();
-      if (await songCard.isVisible({ timeout: 1500 }).catch(() => false)) {
-        await songCard.click().catch(() => {});
-      }
-    } catch (e) {}
-
-    if (cdnAudioUrls.length >= 2) {
-      clipsFinalizados = [
-        { id: 'clip1', title: 'Faixa 1', status: 'complete', audioUrl: cdnAudioUrls[0] },
-        { id: 'clip2', title: 'Faixa 2', status: 'complete', audioUrl: cdnAudioUrls[1] }
-      ];
-      break;
-    }
-
-    await page.waitForTimeout(3000);
+    await page.waitForTimeout(4000);
   }
-
-  page.off('response', feedListener);
-  page.off('response', cdnListener);
 
   if (clipsFinalizados.length === 0) {
     throw new Error('TIMEOUT: O Suno demorou mais de 4 minutos para finalizar as faixas.');
   }
 
-  console.log('[SunoAutomator] 🎉 2 faixas geradas com sucesso:', clipsFinalizados.map(c => c.audioUrl));
+  console.log('[SunoAutomator] 🎉 2 faixas geradas e validadas com sucesso:', clipsFinalizados.map(c => c.audioUrl));
   return {
     success: true,
     clips: clipsFinalizados

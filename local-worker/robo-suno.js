@@ -152,14 +152,16 @@ async function processarPedido(pedido) {
     console.error(`[RobôSuno] ❌ ERRO AO PROCESSAR PEDIDO #${orderId.substring(0, 8)}:`, err.message);
 
     // Marca falha local no pedido para permitir que o failover do Next.js assuma
-    await supabase.from('orders').update({
-      extras: {
-        ...currentExtras,
-        status_robo: 'FALHA_LOCAL',
-        robo_erro: err.message
-      },
-      updated_at: new Date().toISOString()
-    }).eq('id', orderId).catch(() => {});
+    try {
+      await supabase.from('orders').update({
+        extras: {
+          ...currentExtras,
+          status_robo: 'FALHA_LOCAL',
+          robo_erro: err.message
+        },
+        updated_at: new Date().toISOString()
+      }).eq('id', orderId);
+    } catch (e) {}
   }
 }
 
