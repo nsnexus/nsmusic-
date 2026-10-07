@@ -121,12 +121,14 @@ export async function GET(req) {
     // -------------------------------------------------------------------------
     if (effectiveProvider === PROVIDER_SUNO_LOCAL) {
       // 1. Se o pedido já possui áudio salvo (pelo robô), devolve COMPLETED imediatamente
-      if (orderData?.musicUrl) {
+      const firstAudio = orderData?.audioUrl || orderData?.musicUrl || orderData?.audio_url;
+      if (firstAudio) {
         const tracks = [
-          { audioUrl: orderData.musicUrl, audio_url: orderData.musicUrl, title: 'Versão 1' }
+          { audioUrl: firstAudio, audio_url: firstAudio, title: 'Versão 1' }
         ];
-        if (orderData.musicUrl2) {
-          tracks.push({ audioUrl: orderData.musicUrl2, audio_url: orderData.musicUrl2, title: 'Versão 2' });
+        const secondAudio = orderData?.audioFiles?.[1] || orderData?.musicUrl2 || orderData?.audio_files?.[1];
+        if (secondAudio) {
+          tracks.push({ audioUrl: secondAudio, audio_url: secondAudio, title: 'Versão 2' });
         }
         return NextResponse.json({ status: "COMPLETED", tracks, provider: PROVIDER_SUNO_LOCAL });
       }

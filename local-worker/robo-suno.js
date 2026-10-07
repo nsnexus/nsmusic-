@@ -41,8 +41,8 @@ async function enviarHeartbeat() {
     const agora = new Date().toISOString();
     // Salva ou atualiza chave de heartbeat na tabela config
     await supabase.from('config').upsert({
-      id: 'suno_worker_heartbeat',
-      value: {
+      chave: 'suno_worker_heartbeat',
+      valor: {
         last_seen: agora,
         status: isProcessing ? 'busy' : 'idle',
         machine: process.env.COMPUTERNAME || 'pc-local'
@@ -59,22 +59,30 @@ async function enviarHeartbeat() {
  */
 async function processarPedido(pedido) {
   const orderId = pedido.id;
+  const clienteNome = pedido.customer_name || pedido.customerName || 'Cliente';
+  const homenageadoNome = pedido.honoree_name || pedido.recipientName || 'Homenageado';
+
   console.log(`\n=============================================================`);
   console.log(`[RobôSuno] 📥 NOVO PEDIDO DETECTADO: #${orderId.substring(0, 8)}`);
-  console.log(`Cliente: ${pedido.customerName || pedido.nome || 'Cliente'}`);
-  console.log(`Homenageado: ${pedido.recipientName || pedido.homenageado || 'Homenagem'}`);
+  console.log(`Cliente: ${clienteNome}`);
+  console.log(`Homenageado: ${homenageadoNome}`);
   console.log(`=============================================================`);
 
   // 1. Bloqueia o pedido atômico para evitar que outro ciclo tente processar
+  const currentExtras = (pedido.extras && typeof pedido.extras === 'object') ? pedido.extras : {};
   await supabase.from('orders').update({
-    status_robo: 'PROCESSANDO',
-    robo_iniciado_em: new Date().toISOString()
+    production_status: 'GERANDO_AUDIO',
+    extras: {
+      ...currentExtras,
+      status_robo: 'PROCESSANDO',
+      robo_iniciado_em: new Date().toISOString()
+    }
   }).eq('id', orderId);
 
   try {
-    const prompt = pedido.lyrics || pedido.letra || pedido.story || '';
-    const style = pedido.musicStyle || pedido.style || pedido.estilo || 'Acoustic Pop';
-    const title = pedido.recipientName || pedido.homenageado || `Pedido ${orderId.substring(0, 8)}`;
+    const prompt = pedido.lyrics || pedido.story || '';
+    const style = pedido.music_style || pedido.musicStyle || pedido.occasion || 'Acoustic Pop';
+    const title = homenageadoNome || `Pedido ${orderId.substring(0, 8)}`;
 
     if (!prompt.trim()) {
       throw new Error('Pedido não possui letra cadastrada para geração.');
@@ -108,13 +116,18 @@ async function processarPedido(pedido) {
     // 4. Atualiza o pedido no Supabase como CONCLUÍDO
     const agora = new Date().toISOString();
     const updatePayload = {
-      musicUrl: finalUrl1,
-      musicUrl2: finalUrl2,
-      sunoClipIds: [clip1.id, clip2.id],
-      status: 'CONCLUIDO',
-      status_robo: 'CONCLUIDO',
-      status_geracao: 'CONCLUIDO',
-      updated_at: agora
+      audio_url: finalUrl1,
+      audio_files: [finalUrl1, finalUrl2],
+      audio_ids: [clip1.id, clip2.id],
+      production_status: 'CONCLUIDO',
+      updated_at: agora,
+      extras: {
+        ...currentExtras,
+        musicUrl: finalUrl1,
+        musicUrl2: finalUrl2,
+        status_robo: 'CONCLUIDO',
+        status_geracao: 'CONCLUIDO'
+      }
     };
 
     const { error: updateErr } = await supabase.from('orders').update(updatePayload).eq('id', orderId);
@@ -140,8 +153,11 @@ async function processarPedido(pedido) {
 
     // Marca falha local no pedido para permitir que o failover do Next.js assuma
     await supabase.from('orders').update({
-      status_robo: 'FALHA_LOCAL',
-      robo_erro: err.message,
+      extras: {
+        ...currentExtras,
+        status_robo: 'FALHA_LOCAL',
+        robo_erro: err.message
+      },
       updated_at: new Date().toISOString()
     }).eq('id', orderId).catch(() => {});
   }
@@ -171,21 +187,26 @@ async function loopPrincipal() {
   while (isRunning) {
     if (!isProcessing) {
       try {
-        // Busca pedidos pendentes onde sunoProvider = 'suno_local' e ainda sem áudio finalizado
+        // Busca pedidos pendentes onde suno_provider = 'suno_local' e ainda sem áudio finalizado
         const { data: pedidos, error } = await supabase
           .from('orders')
           .select('*')
-          .eq('sunoProvider', 'suno_local')
-          .is('musicUrl', null)
-          .neq('status_robo', 'PROCESSANDO')
-          .neq('status_robo', 'FALHA_LOCAL')
+          .eq('suno_provider', 'suno_local')
+          .is('audio_url', null)
           .order('created_at', { ascending: true })
-          .limit(1);
+          .limit(5);
 
         if (!error && pedidos && pedidos.length > 0) {
-          isProcessing = true;
-          await processarPedido(pedidos[0]);
-          isProcessing = false;
+          const elegivel = pedidos.find(p => {
+            const ext = p.extras || {};
+            return ext.status_robo !== 'PROCESSANDO' && ext.status_robo !== 'FALHA_LOCAL';
+          });
+
+          if (elegivel) {
+            isProcessing = true;
+            await processarPedido(elegivel);
+            isProcessing = false;
+          }
         }
       } catch (loopErr) {
         console.warn('[RobôSuno] Aviso no ciclo de polling:', loopErr.message);

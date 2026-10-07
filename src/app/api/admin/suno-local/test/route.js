@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
 import { requireAdmin } from '@/lib/auth';
 import { getSupabaseEdge } from '@/lib/supabase-edge';
+import { mapFirestoreOrderToSupabase } from '@/lib/supabaseSync';
 
 export const runtime = 'edge';
 
@@ -41,12 +42,11 @@ export async function POST(req) {
       productionStatus: 'GERANDO_AUDIO',
       paymentStatus: 'PAGO',
       createdAt: agora,
-      created_at: agora,
-      updatedAt: agora,
-      updated_at: agora
+      updatedAt: agora
     };
 
-    const { error: insertErr } = await supabase.from('orders').insert(testOrder);
+    const mapped = mapFirestoreOrderToSupabase(orderId, testOrder);
+    const { error: insertErr } = await supabase.from('orders').insert(mapped);
     if (insertErr) {
       return NextResponse.json({ error: `Erro ao criar pedido de teste: ${insertErr.message}` }, { status: 500 });
     }
@@ -89,7 +89,7 @@ export async function GET(req) {
 
     const { data: order, error } = await supabase
       .from('orders')
-      .select('id, orderNumber, status_robo, musicUrl, musicUrl2, robo_erro, robo_iniciado_em, updated_at')
+      .select('id, order_number, audio_url, audio_files, production_status, extras, updated_at')
       .eq('id', orderId)
       .maybeSingle();
 
@@ -97,9 +97,23 @@ export async function GET(req) {
       return NextResponse.json({ error: 'Pedido de teste não encontrado' }, { status: 404 });
     }
 
+    const extras = (order.extras && typeof order.extras === 'object') ? order.extras : {};
+    const audioUrl = order.audio_url || extras.musicUrl || null;
+    const audioUrl2 = order.audio_files?.[1] || extras.musicUrl2 || null;
+    const statusRobo = extras.status_robo || (audioUrl ? 'CONCLUIDO' : 'PROCESSANDO');
+
     return NextResponse.json({
       ok: true,
-      order
+      order: {
+        id: order.id,
+        orderNumber: order.order_number,
+        status_robo: statusRobo,
+        musicUrl: audioUrl,
+        musicUrl2: audioUrl2,
+        robo_erro: extras.robo_erro || null,
+        robo_iniciado_em: extras.robo_iniciado_em || null,
+        updated_at: order.updated_at
+      }
     });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
