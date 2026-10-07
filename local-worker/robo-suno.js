@@ -6,6 +6,8 @@ import { createClient } from '@supabase/supabase-js';
 import { initSunoBrowser, gerarMusicaNoSuno, closeSunoBrowser } from './suno-automator.js';
 import { uploadAudioParaR2 } from './r2-uploader.js';
 
+import { buildSunoTags } from './suno-payload.js';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -81,7 +83,7 @@ async function processarPedido(pedido) {
 
   try {
     const prompt = pedido.lyrics || pedido.story || '';
-    const style = pedido.music_style || pedido.musicStyle || pedido.occasion || 'Acoustic Pop';
+    const style = buildSunoTags(pedido);
     const title = homenageadoNome || `Pedido ${orderId.substring(0, 8)}`;
 
     if (!prompt.trim()) {
