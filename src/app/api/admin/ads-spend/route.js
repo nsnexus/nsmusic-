@@ -91,6 +91,7 @@ export async function GET(req) {
             const dataStr = key.slice(lastUnderscore + 1);
             if (canal.includes('tiktok')) canal = 'tiktok';
             else if (canal.includes('meta') || canal.includes('facebook')) canal = 'meta';
+            else if (canal.includes('google')) canal = 'google';
 
             const spendVal = Number(val) || 0;
 
@@ -103,6 +104,11 @@ export async function GET(req) {
                 if (!spendData.meta.byDate) spendData.meta.byDate = {};
                 spendData.meta.byDate[dataStr] = spendVal;
                 spendData.meta.ok = true;
+              } else if (canal === 'google') {
+                if (!spendData.google) spendData.google = { ok: true, byDate: {}, total: 0 };
+                if (!spendData.google.byDate) spendData.google.byDate = {};
+                spendData.google.byDate[dataStr] = spendVal;
+                spendData.google.ok = true;
               }
             }
           }
@@ -117,6 +123,11 @@ export async function GET(req) {
             let tot = 0;
             for (const v of Object.values(spendData.meta.byDate)) tot += Number(v) || 0;
             spendData.meta.total = Math.round(tot * 100) / 100;
+          }
+          if (spendData.google?.byDate) {
+            let tot = 0;
+            for (const v of Object.values(spendData.google.byDate)) tot += Number(v) || 0;
+            spendData.google.total = Math.round(tot * 100) / 100;
           }
         }
       }
@@ -141,9 +152,37 @@ export async function POST(req) {
     if (ctx?.env) env = ctx.env;
   } catch (e) {}
 
-  const auth = await requireAdmin(req, env);
-  if (!auth.ok) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status || 401 });
+  const url = new URL(req.url);
+  const secretParam = url.searchParams.get('secret');
+  const secretHeader = req.headers.get('x-api-key') || req.headers.get('x-script-secret');
+  const providedSecret = secretParam || secretHeader;
+
+  let isAuthorized = false;
+  const expectedSecret = env.GOOGLE_ADS_SCRIPT_SECRET || env.CRON_SECRET || env.RECONCILE_SECRET;
+  if (expectedSecret && providedSecret === expectedSecret) {
+    isAuthorized = true;
+  }
+
+  const supabase = getSupabaseEdge(env);
+
+  if (!isAuthorized && providedSecret && supabase) {
+    try {
+      const { data: conf } = await supabase
+        .from('config')
+        .select('valor')
+        .eq('chave', 'google_ads_script_secret')
+        .maybeSingle();
+      if (conf?.valor && String(conf.valor) === providedSecret) {
+        isAuthorized = true;
+      }
+    } catch (e) {}
+  }
+
+  if (!isAuthorized) {
+    const auth = await requireAdmin(req, env);
+    if (!auth.ok) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status || 401 });
+    }
   }
 
   try {
@@ -151,7 +190,11 @@ export async function POST(req) {
     const { channel, date, spend, entries, days } = body || {};
 
     const rawChannel = String(channel || '').toLowerCase();
-    const normChannel = rawChannel.includes('tiktok') ? 'tiktok' : (rawChannel.includes('meta') || rawChannel.includes('facebook') ? 'meta' : 'tiktok');
+    const normChannel = rawChannel.includes('google')
+      ? 'google'
+      : rawChannel.includes('tiktok')
+        ? 'tiktok'
+        : (rawChannel.includes('meta') || rawChannel.includes('facebook') ? 'meta' : 'tiktok');
 
     if (!channel || (!date && !entries && !Array.isArray(days))) {
       return NextResponse.json({ error: 'Parâmetros inválidos (channel, date/spend ou entries/days)' }, { status: 400 });

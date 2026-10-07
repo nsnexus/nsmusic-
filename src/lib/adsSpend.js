@@ -157,6 +157,7 @@ export async function getConsolidatedAdsSpend({ since, until }, env = {}) {
   return {
     meta: metaRes,
     tiktok: tiktokRes,
+    google: { ok: true, byDate: {}, total: 0 },
     period: { since, until },
   };
 }

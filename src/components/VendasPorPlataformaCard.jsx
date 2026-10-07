@@ -106,8 +106,17 @@ export default function VendasPorPlataformaCard({ monthValue }) {
     return Number(adsSpend.tiktok.total) || 0;
   }, [adsSpend, dataFiltroStr]);
 
+  const googleSpend = useMemo(() => {
+    if (!adsSpend?.google) return 0;
+    if (dataFiltroStr) {
+      return Number(adsSpend.google.byDate?.[dataFiltroStr]) || 0;
+    }
+    return Number(adsSpend.google.total) || 0;
+  }, [adsSpend, dataFiltroStr]);
+
   const metaConfigurado = adsSpend?.meta?.reason !== 'not_configured' || Boolean(metaSpend > 0);
   const tiktokConfigurado = adsSpend?.tiktok?.reason !== 'not_configured' || Boolean(tiktokSpend > 0) || adsSpend?.tiktok?.ok === true;
+  const googleConfigurado = Boolean(googleSpend > 0) || adsSpend?.google?.ok === true;
 
   const handleEditSpend = async (channel, platName) => {
     if (channel === 'tiktok') {
@@ -147,6 +156,10 @@ export default function VendasPorPlataformaCard({ monthValue }) {
         gasto = tiktokSpend;
         configurado = tiktokConfigurado;
         if (!tiktokConfigurado) pendenteMensagem = 'Token TikTok com escopo Reporting pendente';
+      } else if (plat.key === 'google_ads') {
+        gasto = googleSpend;
+        configurado = googleConfigurado;
+        if (!googleConfigurado && gasto === 0) pendenteMensagem = 'Gasto Google Ads não sincronizado';
       }
 
       const lucro = Math.round((plat.faturamento - gasto) * 100) / 100;
@@ -163,11 +176,11 @@ export default function VendasPorPlataformaCard({ monthValue }) {
         cpa,
       };
     });
-  }, [plataformas, metaSpend, tiktokSpend, metaConfigurado, tiktokConfigurado]);
+  }, [plataformas, metaSpend, tiktokSpend, googleSpend, metaConfigurado, tiktokConfigurado, googleConfigurado]);
 
   // Totais consolidados
   const totaisConsolidados = useMemo(() => {
-    const gastoTotal = Math.round((metaSpend + tiktokSpend) * 100) / 100;
+    const gastoTotal = Math.round((metaSpend + tiktokSpend + googleSpend) * 100) / 100;
     const lucroTotal = Math.round((totais.faturamento - gastoTotal) * 100) / 100;
     const roasGeral = gastoTotal > 0 ? Math.round((totais.faturamento / gastoTotal) * 100) / 100 : null;
     const cpaGeral = (totais.pedidosPagos > 0 && gastoTotal > 0) ? Math.round((gastoTotal / totais.pedidosPagos) * 100) / 100 : null;
@@ -179,12 +192,12 @@ export default function VendasPorPlataformaCard({ monthValue }) {
       roasGeral,
       cpaGeral,
     };
-  }, [totais, metaSpend, tiktokSpend]);
+  }, [totais, metaSpend, tiktokSpend, googleSpend]);
 
   // Filtra as principais plataformas com atividade ou configuradas para exibição em destaque
   const principaisCards = useMemo(() => {
     return plataformasComMetricas.filter(
-      (p) => p.key === 'facebook_ads' || p.key === 'tiktok_ads' || p.faturamento > 0 || p.pedidosCriados > 0 || p.gasto > 0
+      (p) => p.key === 'facebook_ads' || p.key === 'tiktok_ads' || p.key === 'google_ads' || p.faturamento > 0 || p.pedidosCriados > 0 || p.gasto > 0
     );
   }, [plataformasComMetricas]);
 
@@ -479,7 +492,7 @@ export default function VendasPorPlataformaCard({ monthValue }) {
             }}
           >
             {principaisCards.map((plat) => {
-              const isAds = plat.key === 'facebook_ads' || plat.key === 'tiktok_ads';
+              const isAds = plat.key === 'facebook_ads' || plat.key === 'tiktok_ads' || plat.key === 'google_ads';
 
               return (
                 <div
@@ -548,6 +561,8 @@ export default function VendasPorPlataformaCard({ monthValue }) {
                               onClick={() => {
                                 if (plat.key === 'tiktok_ads') {
                                   setModalTikTokAberto(true);
+                                } else if (plat.key === 'google_ads') {
+                                  handleEditSpend('google', plat.name);
                                 } else {
                                   handleEditSpend('meta', plat.name);
                                 }
@@ -577,6 +592,8 @@ export default function VendasPorPlataformaCard({ monthValue }) {
                                   onClick={() => {
                                     if (plat.key === 'tiktok_ads') {
                                       setModalTikTokAberto(true);
+                                    } else if (plat.key === 'google_ads') {
+                                      handleEditSpend('google', plat.name);
                                     } else {
                                       handleEditSpend('meta', plat.name);
                                     }
@@ -736,7 +753,7 @@ export default function VendasPorPlataformaCard({ monthValue }) {
               <tbody>
                 {plataformasComMetricas.map((plat) => {
                   const hasData = plat.pedidosCriados > 0 || plat.pedidosPagos > 0 || plat.gasto > 0;
-                  const isAds = plat.key === 'facebook_ads' || plat.key === 'tiktok_ads';
+                  const isAds = plat.key === 'facebook_ads' || plat.key === 'tiktok_ads' || plat.key === 'google_ads';
 
                   return (
                     <tr
@@ -790,11 +807,11 @@ export default function VendasPorPlataformaCard({ monthValue }) {
                               ✏️ Dia a dia
                             </button>
                           )}
-                          {plat.key === 'facebook_ads' && (
+                          {(plat.key === 'facebook_ads' || plat.key === 'google_ads') && (
                             <button
                               type="button"
-                              onClick={() => handleEditSpend('meta', plat.name)}
-                              title="Ajustar ou informar valor Meta Ads"
+                              onClick={() => handleEditSpend(plat.key === 'facebook_ads' ? 'meta' : 'google', plat.name)}
+                              title={`Ajustar ou informar valor ${plat.name}`}
                               style={{
                                 background: 'none',
                                 border: 'none',
