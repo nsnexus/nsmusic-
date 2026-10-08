@@ -92,6 +92,7 @@ export async function initSunoBrowser() {
   await activePage.waitForTimeout(3000);
 
   await verificarLoginSuno(activePage);
+  await configurarSlidersSuno(activePage).catch(() => {});
 
   return { context: browserContext, page: activePage };
 }
@@ -190,6 +191,9 @@ export async function gerarMusicaNoSuno({ prompt, style = 'Acoustic Pop', title 
   } else {
     console.log('[SunoAutomator] ✅ Modo Advanced já está ativo.');
   }
+
+  // Ajusta os sliders musicais (Estranheza: 10%, Influência de estilo: 90%, Variedade: Desligada)
+  await configurarSlidersSuno(page);
 
   // 2. Preenche a Letra (Lyrics) no editor contenteditable do Suno
   onProgress('Preenchendo letra da música no editor oficial...');
@@ -322,6 +326,10 @@ export async function gerarMusicaNoSuno({ prompt, style = 'Acoustic Pop', title 
     return list;
   });
   console.log(`[SunoAutomator] 📋 ${preExistingUuids.length} clipes pré-existentes na biblioteca ignorados.`);
+
+  // 5.1 Garante sliders configurados (Estranheza: 10%, Estilo: 90%, Variedade: Desligada)
+  onProgress('Garantindo parâmetros musicais (Estranheza 10%, Estilo 90%, Variedade Desligada)...');
+  await configurarSlidersSuno(page);
 
   // 6. Clica em "Create"
   onProgress('Enviando solicitação de geração...');
@@ -615,6 +623,108 @@ async function resolverTurnstileSeNecessario(page) {
     }
   } catch (e) {}
   return false;
+}
+
+/**
+ * Configura os sliders de geração avançada no Suno:
+ * - Estranheza: 10% (Weirdness baixa para melodia comercial e sem notas estranhas)
+ * - Influência de estilo: 90% (Style influence alta para fidelidade máxima aos instrumentos)
+ * - Variedade: Desligada (0% / mínimo à esquerda)
+ */
+export async function configurarSlidersSuno(page) {
+  try {
+    console.log('[SunoAutomator] 🎚️ Ajustando sliders: Estranheza -> 10%, Influência de estilo -> 90%, Variedade -> Desligada...');
+
+    const sliders = page.locator('[role="slider"], input[type="range"]');
+    const totalSliders = await sliders.count().catch(() => 0);
+
+    const moverSlider = async (sliderLoc, percentual, nome) => {
+      try {
+        await sliderLoc.scrollIntoViewIfNeeded().catch(() => {});
+        await sliderLoc.focus().catch(() => {});
+
+        // 1. Tenta via teclado (padrão de acessibilidade ARIA/Radix UI)
+        if (percentual === 0) {
+          await sliderLoc.press('Home').catch(() => {});
+        } else if (percentual >= 0.95) {
+          await sliderLoc.press('End').catch(() => {});
+        } else {
+          await sliderLoc.press('Home').catch(() => {});
+          const passos = Math.round(percentual * 20); // passos de 5%
+          for (let i = 0; i < passos; i++) {
+            await sliderLoc.press('ArrowRight').catch(() => {});
+          }
+        }
+
+        // 2. Tenta clique no track por coordenadas físicas
+        const track = sliderLoc.locator('..').first();
+        const trackBox = await track.boundingBox().catch(() => null);
+        const sliderBox = await sliderLoc.boundingBox().catch(() => null);
+        const box = trackBox || sliderBox;
+
+        if (box && box.width > 20) {
+          const clickX = box.x + Math.max(2, Math.min(box.width - 2, box.width * percentual));
+          const clickY = box.y + (box.height / 2);
+
+          await page.mouse.move(clickX, clickY, { steps: 4 }).catch(() => {});
+          await page.waitForTimeout(50);
+          await page.mouse.click(clickX, clickY).catch(() => {});
+          await page.waitForTimeout(100);
+
+          if (sliderBox) {
+            await page.mouse.move(sliderBox.x + sliderBox.width / 2, sliderBox.y + sliderBox.height / 2, { steps: 3 }).catch(() => {});
+            await page.mouse.down().catch(() => {});
+            await page.mouse.move(clickX, clickY, { steps: 5 }).catch(() => {});
+            await page.mouse.up().catch(() => {});
+          }
+        }
+
+        console.log(`[SunoAutomator] 🎚️ [${nome}] ajustado com sucesso.`);
+      } catch (err) {
+        console.warn(`[SunoAutomator] Aviso ao ajustar slider ${nome}:`, err.message);
+      }
+    };
+
+    // Estratégia 1: Localiza por texto de cada linha (Estranheza, Influência de estilo, Variedade)
+    const containerEstranheza = page.locator('div, section').filter({ hasText: /Estranheza|Weirdness/i }).filter({ has: page.locator('[role="slider"], input[type="range"]') }).last();
+    const containerEstilo = page.locator('div, section').filter({ hasText: /Influência de estilo|Style influence/i }).filter({ has: page.locator('[role="slider"], input[type="range"]') }).last();
+    const containerVariedade = page.locator('div, section').filter({ hasText: /Variedade|Variety/i }).filter({ has: page.locator('[role="slider"], input[type="range"]') }).last();
+
+    let ajustouPorTexto = false;
+
+    if (await containerEstranheza.count().catch(() => 0) > 0) {
+      const s = containerEstranheza.locator('[role="slider"], input[type="range"]').first();
+      await moverSlider(s, 0.10, 'Estranheza (10%)');
+      ajustouPorTexto = true;
+    }
+
+    if (await containerEstilo.count().catch(() => 0) > 0) {
+      const s = containerEstilo.locator('[role="slider"], input[type="range"]').first();
+      await moverSlider(s, 0.90, 'Influência de Estilo (90%)');
+      ajustouPorTexto = true;
+    }
+
+    if (await containerVariedade.count().catch(() => 0) > 0) {
+      const s = containerVariedade.locator('[role="slider"], input[type="range"]').first();
+      await moverSlider(s, 0.00, 'Variedade (Desligada)');
+      ajustouPorTexto = true;
+    }
+
+    // Estratégia 2: Fallback por índice caso os textos não estejam em blocos isolados
+    if (!ajustouPorTexto && totalSliders >= 2) {
+      console.log(`[SunoAutomator] Ajustando sliders por ordem sequencial (${totalSliders} encontrados)...`);
+      await moverSlider(sliders.nth(0), 0.10, 'Slider 1: Estranheza (10%)');
+      await moverSlider(sliders.nth(1), 0.90, 'Slider 2: Influência de Estilo (90%)');
+      if (totalSliders >= 3) {
+        await moverSlider(sliders.nth(2), 0.00, 'Slider 3: Variedade (Desligada)');
+      }
+    }
+
+    await page.waitForTimeout(300);
+    console.log('[SunoAutomator] ✅ Sliders configurados com sucesso!');
+  } catch (err) {
+    console.warn('[SunoAutomator] ⚠️ Não foi possível configurar os sliders automaticamente:', err.message);
+  }
 }
 
 /**
