@@ -7,6 +7,7 @@ import { initSunoBrowser, gerarMusicaNoSuno, closeSunoBrowser } from './suno-aut
 import { uploadAudioParaR2 } from './r2-uploader.js';
 
 import { buildSunoTags } from './suno-payload.js';
+import { startKeepAwake, stopKeepAwake } from './keep-awake.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -247,6 +248,9 @@ async function loopPrincipal() {
   console.log(`Verificando novos pedidos a cada ${POLLING_INTERVAL_MS / 1000}s...`);
   console.log('=============================================================\n');
 
+  // Mantém a tela e o computador acordados durante a execução
+  startKeepAwake(30);
+
   // Inicializa o navegador e valida login
   try {
     await initSunoBrowser();
@@ -330,12 +334,14 @@ async function loopPrincipal() {
 // Finalização graciosa com Ctrl+C
 process.on('SIGINT', async () => {
   console.log('\n[RobôSuno] ⏹️ Encerrando robô local...');
+  stopKeepAwake();
   isRunning = false;
   await closeSunoBrowser();
   process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
+  stopKeepAwake();
   isRunning = false;
   await closeSunoBrowser();
   process.exit(0);

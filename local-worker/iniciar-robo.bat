@@ -44,6 +44,7 @@ if not exist "node_modules\ffmpeg-static" (
 
 echo.
 echo [INFO] Iniciando o Robo Local...
+echo [INFO] Modo Anti-Suspensao ativo: a tela e o PC nao desligarao enquanto o robo estiver aberto.
 echo Mantenha esta janela aberta enquanto quiser atender pedidos pelo seu Suno.
 echo ============================================================
 echo.
