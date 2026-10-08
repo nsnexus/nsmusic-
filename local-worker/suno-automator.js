@@ -627,103 +627,129 @@ async function resolverTurnstileSeNecessario(page) {
 
 /**
  * Configura os sliders de geração avançada no Suno:
- * - Estranheza: 10% (Weirdness baixa para melodia comercial e sem notas estranhas)
- * - Influência de estilo: 90% (Style influence alta para fidelidade máxima aos instrumentos)
- * - Variedade: Desligada (0% / mínimo à esquerda)
+ * - Estranheza / Weirdness: 10% (0.10) -> "Safe zone | 10%"
+ * - Influência de estilo / Style Influence: 90% (0.90) -> "Strong | 90%"
+ * - Variedade / Variety: Desligada (0.00 / extremo esquerdo) -> "Exact style | Off"
  */
 export async function configurarSlidersSuno(page) {
   try {
-    console.log('[SunoAutomator] 🎚️ Ajustando sliders: Estranheza -> 10%, Influência de estilo -> 90%, Variedade -> Desligada...');
+    console.log('[SunoAutomator] 🎚️ Calibrando sliders: Weirdness -> 10%, Style Influence -> 90%, Variety -> Desligada (Off)...');
 
-    const sliders = page.locator('[role="slider"], input[type="range"]');
-    const totalSliders = await sliders.count().catch(() => 0);
+    // 1. Garante que o modo Advanced está ativado para os sliders existirem no DOM
+    const advTab = page.locator('button[role="tab"]:has-text("Advanced")').first();
+    if (await advTab.isVisible().catch(() => false)) {
+      const isSelected = (await advTab.getAttribute('aria-selected')) === 'true';
+      if (!isSelected) {
+        await advTab.click().catch(() => {});
+        await page.waitForTimeout(1000);
+      }
+    }
 
-    const moverSlider = async (sliderLoc, percentual, nome) => {
-      try {
-        await sliderLoc.scrollIntoViewIfNeeded().catch(() => {});
-        await sliderLoc.focus().catch(() => {});
+    // 2. Ajusta cada slider diretamente pelos manipuladores oficiais do componente React ou eventos de teclado nativos
+    const resultado = await page.evaluate(async () => {
+      const configs = [
+        { label: 'Weirdness', regex: /Weirdness|Estranheza/i, targetNorm: 0.10, targetInt: 10 },
+        { label: 'Style Influence', regex: /Style Influence|Influência de estilo/i, targetNorm: 0.90, targetInt: 90 },
+        { label: 'Variety', regex: /Variety|Variedade/i, targetNorm: 0.00, targetInt: 0 }
+      ];
 
-        // 1. Tenta via teclado (padrão de acessibilidade ARIA/Radix UI)
-        if (percentual === 0) {
-          await sliderLoc.press('Home').catch(() => {});
-        } else if (percentual >= 0.95) {
-          await sliderLoc.press('End').catch(() => {});
+      const relatorio = [];
+
+      for (const item of configs) {
+        // Localiza o slider pelo aria-label ou busca contextual
+        let slider = document.querySelector(`[role="slider"][aria-label*="${item.label}" i]`);
+        if (!slider) {
+          const allSliders = Array.from(document.querySelectorAll('[role="slider"]'));
+          slider = allSliders.find(s => {
+            const labelAttr = s.getAttribute('aria-label') || '';
+            if (item.regex.test(labelAttr)) return true;
+            let p = s.parentElement;
+            for (let i = 0; i < 4; i++) {
+              if (p && item.regex.test(p.innerText || '')) return true;
+              if (p) p = p.parentElement;
+            }
+            return false;
+          });
+        }
+
+        if (!slider) {
+          relatorio.push({ label: item.label, erro: 'slider_nao_encontrado' });
+          continue;
+        }
+
+        const valorAntes = slider.getAttribute('aria-valuenow') || '';
+
+        // Estratégia A: Injeção direta nos hooks do React Fiber (onChange e onCommit)
+        const fiberKey = Object.keys(slider).find(k => k.startsWith('__reactFiber') || k.startsWith('__reactInternalInstance'));
+        let handlerAplicado = false;
+        let curr = slider[fiberKey];
+
+        while (curr) {
+          if (curr.memoizedProps && typeof curr.memoizedProps.onChange === 'function') {
+            try {
+              curr.memoizedProps.onChange(item.targetNorm);
+              if (typeof curr.memoizedProps.onCommit === 'function') {
+                curr.memoizedProps.onCommit(item.targetNorm);
+              }
+              handlerAplicado = true;
+              break;
+            } catch (e) {}
+          }
+          curr = curr.return;
+        }
+
+        // Estratégia B (Fallback via KeyboardEvent nativo)
+        if (!handlerAplicado) {
+          slider.focus();
+          let currentVal = parseInt(slider.getAttribute('aria-valuenow') || '50', 10);
+          let steps = 0;
+          while (currentVal !== item.targetInt && steps < 110) {
+            steps++;
+            const key = currentVal > item.targetInt ? 'ArrowLeft' : 'ArrowRight';
+            slider.dispatchEvent(new KeyboardEvent('keydown', { key, code: key, bubbles: true, cancelable: true, view: window }));
+            currentVal = parseInt(slider.getAttribute('aria-valuenow') || '50', 10);
+          }
+        }
+
+        // Aguarda propagação do React
+        await new Promise(r => setTimeout(r, 100));
+
+        const valorDepois = slider.getAttribute('aria-valuenow') || '';
+        let textoUi = '';
+        let p = slider.parentElement;
+        for (let i = 0; i < 4; i++) {
+          if (p && ((p.innerText || '').includes('%') || /Normal|Low|High|Off|Deslig/i.test(p.innerText || ''))) {
+            textoUi = p.innerText.trim().replace(/\n+/g, ' | ');
+            break;
+          }
+          if (p) p = p.parentElement;
+        }
+
+        relatorio.push({
+          label: item.label,
+          valorAntes,
+          valorDepois,
+          textoUi,
+          sucesso: true
+        });
+      }
+
+      return relatorio;
+    });
+
+    if (Array.isArray(resultado)) {
+      for (const r of resultado) {
+        if (r.sucesso) {
+          console.log(`[SunoAutomator] 🎚️ [${r.label}] Ajustado com sucesso: ${r.valorAntes} -> ${r.valorDepois} ("${r.textoUi}")`);
         } else {
-          await sliderLoc.press('Home').catch(() => {});
-          const passos = Math.round(percentual * 20); // passos de 5%
-          for (let i = 0; i < passos; i++) {
-            await sliderLoc.press('ArrowRight').catch(() => {});
-          }
+          console.warn(`[SunoAutomator] ⚠️ [${r.label}] Falha ao ajustar:`, r.erro);
         }
-
-        // 2. Tenta clique no track por coordenadas físicas
-        const track = sliderLoc.locator('..').first();
-        const trackBox = await track.boundingBox().catch(() => null);
-        const sliderBox = await sliderLoc.boundingBox().catch(() => null);
-        const box = trackBox || sliderBox;
-
-        if (box && box.width > 20) {
-          const clickX = box.x + Math.max(2, Math.min(box.width - 2, box.width * percentual));
-          const clickY = box.y + (box.height / 2);
-
-          await page.mouse.move(clickX, clickY, { steps: 4 }).catch(() => {});
-          await page.waitForTimeout(50);
-          await page.mouse.click(clickX, clickY).catch(() => {});
-          await page.waitForTimeout(100);
-
-          if (sliderBox) {
-            await page.mouse.move(sliderBox.x + sliderBox.width / 2, sliderBox.y + sliderBox.height / 2, { steps: 3 }).catch(() => {});
-            await page.mouse.down().catch(() => {});
-            await page.mouse.move(clickX, clickY, { steps: 5 }).catch(() => {});
-            await page.mouse.up().catch(() => {});
-          }
-        }
-
-        console.log(`[SunoAutomator] 🎚️ [${nome}] ajustado com sucesso.`);
-      } catch (err) {
-        console.warn(`[SunoAutomator] Aviso ao ajustar slider ${nome}:`, err.message);
-      }
-    };
-
-    // Estratégia 1: Localiza por texto de cada linha (Estranheza, Influência de estilo, Variedade)
-    const containerEstranheza = page.locator('div, section').filter({ hasText: /Estranheza|Weirdness/i }).filter({ has: page.locator('[role="slider"], input[type="range"]') }).last();
-    const containerEstilo = page.locator('div, section').filter({ hasText: /Influência de estilo|Style influence/i }).filter({ has: page.locator('[role="slider"], input[type="range"]') }).last();
-    const containerVariedade = page.locator('div, section').filter({ hasText: /Variedade|Variety/i }).filter({ has: page.locator('[role="slider"], input[type="range"]') }).last();
-
-    let ajustouPorTexto = false;
-
-    if (await containerEstranheza.count().catch(() => 0) > 0) {
-      const s = containerEstranheza.locator('[role="slider"], input[type="range"]').first();
-      await moverSlider(s, 0.10, 'Estranheza (10%)');
-      ajustouPorTexto = true;
-    }
-
-    if (await containerEstilo.count().catch(() => 0) > 0) {
-      const s = containerEstilo.locator('[role="slider"], input[type="range"]').first();
-      await moverSlider(s, 0.90, 'Influência de Estilo (90%)');
-      ajustouPorTexto = true;
-    }
-
-    if (await containerVariedade.count().catch(() => 0) > 0) {
-      const s = containerVariedade.locator('[role="slider"], input[type="range"]').first();
-      await moverSlider(s, 0.00, 'Variedade (Desligada)');
-      ajustouPorTexto = true;
-    }
-
-    // Estratégia 2: Fallback por índice caso os textos não estejam em blocos isolados
-    if (!ajustouPorTexto && totalSliders >= 2) {
-      console.log(`[SunoAutomator] Ajustando sliders por ordem sequencial (${totalSliders} encontrados)...`);
-      await moverSlider(sliders.nth(0), 0.10, 'Slider 1: Estranheza (10%)');
-      await moverSlider(sliders.nth(1), 0.90, 'Slider 2: Influência de Estilo (90%)');
-      if (totalSliders >= 3) {
-        await moverSlider(sliders.nth(2), 0.00, 'Slider 3: Variedade (Desligada)');
       }
     }
 
-    await page.waitForTimeout(300);
-    console.log('[SunoAutomator] ✅ Sliders configurados com sucesso!');
+    console.log('[SunoAutomator] ✅ Sliders calibrados e conferidos na interface do Suno!');
   } catch (err) {
-    console.warn('[SunoAutomator] ⚠️ Não foi possível configurar os sliders automaticamente:', err.message);
+    console.warn('[SunoAutomator] ⚠️ Erro ao calibrar sliders:', err.message);
   }
 }
 
