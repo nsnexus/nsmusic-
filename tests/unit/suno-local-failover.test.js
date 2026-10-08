@@ -80,6 +80,37 @@ describe('Suno Local Worker e Failover', () => {
     expect(store['pedido-123']?.productionStatus).toBe('GERANDO_AUDIO');
   });
 
+  it('requestSunoGeneration desvia para Kie.ai quando o pedido tem voz personalizada do cliente mesmo se suno_local for o provedor', async () => {
+    store['pedido-custom-voice'] = {
+      id: 'pedido-custom-voice',
+      isCustomVoice: true,
+      customVoiceId: 'voice_abc123'
+    };
+
+    const originalFetch = global.fetch;
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ code: 200, data: { taskId: 'kie_task_voice_123' } })
+    });
+
+    try {
+      const env = { KIE_API_KEY: 'test-kie-key' };
+      const result = await requestSunoGeneration({
+        orderId: 'pedido-custom-voice',
+        prompt: 'Letra de teste',
+        tags: 'Acoustic',
+        preferredProvider: PROVIDER_SUNO_LOCAL
+      }, env);
+
+      expect(result.ok).toBe(true);
+      expect(result.provider).toBe(PROVIDER_KIE);
+      expect(result.taskId).toBe('kie_task_voice_123');
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
   it('GET /api/suno/status devolve COMPLETED quando o robô já salvou musicUrl', async () => {
     const taskId = 'suno_local_ped-1';
     store[taskId] = {

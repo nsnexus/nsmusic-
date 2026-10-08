@@ -57,12 +57,46 @@ async function enviarHeartbeat() {
 }
 
 /**
+ * Verifica se o pedido requer voz clonada/personalizada do cliente.
+ */
+function ehVozPersonalizada(pedido) {
+  const ext = (pedido && typeof pedido.extras === 'object') ? pedido.extras : {};
+  return Boolean(
+    pedido?.is_custom_voice ||
+    pedido?.isCustomVoice ||
+    pedido?.custom_voice_id ||
+    pedido?.customVoiceId ||
+    pedido?.voice_type === 'minha_voz' ||
+    pedido?.voiceType === 'minha_voz' ||
+    ext.isCustomVoice ||
+    ext.customVoiceId ||
+    ext.voiceType === 'minha_voz'
+  );
+}
+
+/**
  * Processa um único pedido pendente.
  */
 async function processarPedido(pedido) {
   const orderId = pedido.id;
   const clienteNome = pedido.customer_name || pedido.customerName || 'Cliente';
   const homenageadoNome = pedido.honoree_name || pedido.recipientName || 'Homenageado';
+  const currentExtras = (pedido.extras && typeof pedido.extras === 'object') ? pedido.extras : {};
+
+  // Se o pedido for com voz personalizada/clonada do cliente, desvia para a Kie.ai
+  if (ehVozPersonalizada(pedido)) {
+    console.log(`\n[RobôSuno] 🎤 Pedido #${orderId.substring(0, 8)} possui voz personalizada/clonada.`);
+    console.log(`[RobôSuno] ➡️ Desviando automaticamente para a Kie.ai (provedor oficial de voz personalizada)...`);
+    await supabase.from('orders').update({
+      suno_provider: 'kie',
+      extras: {
+        ...currentExtras,
+        status_robo: 'DESVIADO_VOZ_PERSONALIZADA',
+        desviado_em: new Date().toISOString()
+      }
+    }).eq('id', orderId);
+    return;
+  }
 
   console.log(`\n=============================================================`);
   console.log(`[RobôSuno] 📥 NOVO PEDIDO DETECTADO: #${orderId.substring(0, 8)}`);
@@ -71,7 +105,6 @@ async function processarPedido(pedido) {
   console.log(`=============================================================`);
 
   // 1. Bloqueia o pedido atômico para evitar que outro ciclo tente processar
-  const currentExtras = (pedido.extras && typeof pedido.extras === 'object') ? pedido.extras : {};
   await supabase.from('orders').update({
     production_status: 'GERANDO_AUDIO',
     extras: {
@@ -201,9 +234,26 @@ async function loopPrincipal() {
           .limit(5);
 
         if (!error && pedidos && pedidos.length > 0) {
+          // 1. Redireciona pedidos de voz personalizada para a Kie.ai (robô local não clona vozes)
+          const paraDesviar = pedidos.filter(ehVozPersonalizada);
+          for (const p of paraDesviar) {
+            console.log(`[RobôSuno] 🎤 Pedido #${p.id.substring(0, 8)} possui voz personalizada. Desviando para a Kie.ai...`);
+            const ext = (p.extras && typeof p.extras === 'object') ? p.extras : {};
+            await supabase.from('orders').update({
+              suno_provider: 'kie',
+              extras: {
+                ...ext,
+                status_robo: 'DESVIADO_VOZ_PERSONALIZADA',
+                desviado_em: new Date().toISOString()
+              }
+            }).eq('id', p.id);
+          }
+
+          // 2. Localiza pedido elegível comum para geração no Suno
           const elegivel = pedidos.find(p => {
+            if (ehVozPersonalizada(p)) return false;
             const ext = p.extras || {};
-            return ext.status_robo !== 'PROCESSANDO' && ext.status_robo !== 'FALHA_LOCAL';
+            return ext.status_robo !== 'PROCESSANDO' && ext.status_robo !== 'FALHA_LOCAL' && ext.status_robo !== 'DESVIADO_VOZ_PERSONALIZADA';
           });
 
           if (elegivel) {

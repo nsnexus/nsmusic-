@@ -103,8 +103,32 @@ export async function requestSunoGeneration({ orderId, prompt, tags, preferredPr
   const unificallyKey = readEnvValue(env, 'UNIFICALLY_API_KEY');
   const kieKey = readEnvValue(env, 'KIE_API_KEY');
 
+  // Verifica se o pedido utiliza voz personalizada do cliente (clonagem de timbre)
+  let isCustomVoiceOrder = false;
+  if (orderId) {
+    try {
+      const order = await getOrder(orderId, env);
+      if (
+        order?.isCustomVoice ||
+        order?.voiceType === 'minha_voz' ||
+        order?.customVoiceId ||
+        order?.extras?.isCustomVoice ||
+        order?.extras?.customVoiceId
+      ) {
+        isCustomVoiceOrder = true;
+      }
+    } catch (e) {}
+  }
+
   const primary = preferredProvider || await resolvePrimaryProvider(env);
-  const fallback = primary === PROVIDER_SUNO_LOCAL ? PROVIDER_KIE : (primary === PROVIDER_UNIFICALLY ? PROVIDER_KIE : PROVIDER_UNIFICALLY);
+
+  // Se o pedido requer voz clonada do cliente e o provedor seria o robô local (suno_local),
+  // desvia obrigatoriamente para a Kie.ai, que é a única com suporte ao motor de persona/clonagem.
+  const effectivePrimary = (isCustomVoiceOrder && primary === PROVIDER_SUNO_LOCAL)
+    ? PROVIDER_KIE
+    : primary;
+
+  const fallback = effectivePrimary === PROVIDER_SUNO_LOCAL ? PROVIDER_KIE : (effectivePrimary === PROVIDER_UNIFICALLY ? PROVIDER_KIE : PROVIDER_UNIFICALLY);
   const hasFallback = fallback === PROVIDER_UNIFICALLY ? Boolean(unificallyKey) : Boolean(kieKey);
 
   const tentarProvedor = async (prov) => {
@@ -127,7 +151,7 @@ export async function requestSunoGeneration({ orderId, prompt, tags, preferredPr
   };
 
   // 1. Tenta o provedor principal (ou o explicitamente requisitado)
-  const resultPrimario = await tentarProvedor(primary);
+  const resultPrimario = await tentarProvedor(effectivePrimary);
   if (resultPrimario.ok) {
     return resultPrimario;
   }
@@ -138,8 +162,8 @@ export async function requestSunoGeneration({ orderId, prompt, tags, preferredPr
   }
 
   // Se o provedor principal falhou (ex: 402 sem crédito, erro de autenticação, timeout, 5xx):
-  console.warn(`[suno] Provedor principal (${primary}) falhou (${resultPrimario.error || resultPrimario.status}). Iniciando fallback automático para ${fallback}...`);
-  await recordSunoFailure(orderId, `${primary}_failover_to_${fallback}_${resultPrimario.status || 'unknown'}`, env);
+  console.warn(`[suno] Provedor principal (${effectivePrimary}) falhou (${resultPrimario.error || resultPrimario.status}). Iniciando fallback automático para ${fallback}...`);
+  await recordSunoFailure(orderId, `${effectivePrimary}_failover_to_${fallback}_${resultPrimario.status || 'unknown'}`, env);
 
   // 2. Aciona o fallback se as chaves estiverem disponíveis
   const resultFallback = await tentarProvedor(fallback);
