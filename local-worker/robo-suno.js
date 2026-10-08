@@ -34,6 +34,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
 
 let isProcessing = false;
 let isRunning = true;
+let pedidoSendoProcessadoId = null;
 
 /**
  * Envia pulso de presença (heartbeat) ao Supabase para o painel admin saber que o robô está ativo.
@@ -47,10 +48,38 @@ async function enviarHeartbeat() {
       valor: {
         last_seen: agora,
         status: isProcessing ? 'busy' : 'idle',
+        order_id: pedidoSendoProcessadoId || null,
         machine: process.env.COMPUTERNAME || 'pc-local'
       },
       updated_at: agora
     });
+
+    // Se o robô já estiver gerando uma música e surgirem outros pedidos concorrentes,
+    // desvia-os IMEDIATAMENTE para a Kie.ai para o cliente não precisar esperar na fila
+    if (isProcessing && pedidoSendoProcessadoId) {
+      const { data: outrosNaFila } = await supabase
+        .from('orders')
+        .select('id, extras')
+        .eq('suno_provider', 'suno_local')
+        .is('audio_url', null)
+        .neq('id', pedidoSendoProcessadoId)
+        .limit(5);
+
+      if (outrosNaFila && outrosNaFila.length > 0) {
+        for (const outro of outrosNaFila) {
+          console.log(`[RobôSuno] ⚡ Robô ocupado com #${pedidoSendoProcessadoId.substring(0, 8)}. Desviando novo pedido concorrente #${outro.id.substring(0, 8)} para a Kie.ai...`);
+          const ext = (outro.extras && typeof outro.extras === 'object') ? outro.extras : {};
+          await supabase.from('orders').update({
+            suno_provider: 'kie',
+            extras: {
+              ...ext,
+              status_robo: 'DESVIADO_ROBO_OCUPADO',
+              desviado_em: agora
+            }
+          }).eq('id', outro.id);
+        }
+      }
+    }
   } catch (err) {
     // Falha silenciosa de heartbeat para não interromper fluxo principal
   }
@@ -97,6 +126,10 @@ async function processarPedido(pedido) {
     }).eq('id', orderId);
     return;
   }
+
+  pedidoSendoProcessadoId = orderId;
+  isProcessing = true;
+  await enviarHeartbeat();
 
   console.log(`\n=============================================================`);
   console.log(`[RobôSuno] 📥 NOVO PEDIDO DETECTADO: #${orderId.substring(0, 8)}`);
@@ -197,6 +230,10 @@ async function processarPedido(pedido) {
         updated_at: new Date().toISOString()
       }).eq('id', orderId);
     } catch (e) {}
+  } finally {
+    pedidoSendoProcessadoId = null;
+    isProcessing = false;
+    await enviarHeartbeat();
   }
 }
 
@@ -249,17 +286,35 @@ async function loopPrincipal() {
             }).eq('id', p.id);
           }
 
-          // 2. Localiza pedido elegível comum para geração no Suno
-          const elegivel = pedidos.find(p => {
+          // 2. Localiza pedidos elegíveis comuns para geração no Suno
+          const elegiveis = pedidos.filter(p => {
             if (ehVozPersonalizada(p)) return false;
             const ext = p.extras || {};
-            return ext.status_robo !== 'PROCESSANDO' && ext.status_robo !== 'FALHA_LOCAL' && ext.status_robo !== 'DESVIADO_VOZ_PERSONALIZADA';
+            return ext.status_robo !== 'PROCESSANDO' && ext.status_robo !== 'FALHA_LOCAL' && ext.status_robo !== 'DESVIADO_VOZ_PERSONALIZADA' && ext.status_robo !== 'DESVIADO_ROBO_OCUPADO';
           });
 
-          if (elegivel) {
-            isProcessing = true;
-            await processarPedido(elegivel);
-            isProcessing = false;
+          if (elegiveis.length > 0) {
+            const primeiro = elegiveis[0];
+
+            // Se houver mais de um pedido pendente na fila ao mesmo tempo,
+            // processa o primeiro no robô e desvia imediatamente os demais para a Kie.ai
+            if (elegiveis.length > 1) {
+              const concorrentes = elegiveis.slice(1);
+              for (const conc of concorrentes) {
+                console.log(`[RobôSuno] ⚡ Múltiplos pedidos na fila. Desviando pedido concorrente #${conc.id.substring(0, 8)} para a Kie.ai...`);
+                const ext = (conc.extras && typeof conc.extras === 'object') ? conc.extras : {};
+                await supabase.from('orders').update({
+                  suno_provider: 'kie',
+                  extras: {
+                    ...ext,
+                    status_robo: 'DESVIADO_ROBO_OCUPADO',
+                    desviado_em: new Date().toISOString()
+                  }
+                }).eq('id', conc.id);
+              }
+            }
+
+            await processarPedido(primeiro);
           }
         }
       } catch (loopErr) {

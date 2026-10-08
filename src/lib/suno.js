@@ -124,9 +124,58 @@ export async function requestSunoGeneration({ orderId, prompt, tags, preferredPr
 
   // Se o pedido requer voz clonada do cliente e o provedor seria o robô local (suno_local),
   // desvia obrigatoriamente para a Kie.ai, que é a única com suporte ao motor de persona/clonagem.
-  const effectivePrimary = (isCustomVoiceOrder && primary === PROVIDER_SUNO_LOCAL)
+  let effectivePrimary = (isCustomVoiceOrder && primary === PROVIDER_SUNO_LOCAL)
     ? PROVIDER_KIE
     : primary;
+
+  // Se o provedor for o robô local, verifica se ele já está ocupado gerando outra música.
+  // Se estiver ocupado, desvia o novo pedido imediatamente para a Kie.ai para não formar fila.
+  if (effectivePrimary === PROVIDER_SUNO_LOCAL) {
+    try {
+      const { getSupabaseEdge } = await import('./supabase-edge.js');
+      const supabase = getSupabaseEdge(env);
+      if (supabase) {
+        // 1. Verifica pedidos ativos no robô nos últimos 4 minutos
+        const { data: ocupados } = await supabase
+          .from('orders')
+          .select('id, suno_requested_at, extras')
+          .eq('suno_provider', PROVIDER_SUNO_LOCAL)
+          .eq('production_status', 'GERANDO_AUDIO')
+          .neq('id', orderId || '')
+          .limit(1);
+
+        if (ocupados && ocupados.length > 0) {
+          const outro = ocupados[0];
+          const inicio = outro.suno_requested_at || outro.extras?.robo_iniciado_em;
+          const decorridoMs = inicio ? Date.now() - new Date(inicio).getTime() : 0;
+          if (!inicio || decorridoMs < 240000) {
+            console.log(`[suno] ⚡ Robô local ocupado gerando pedido #${outro.id.substring(0, 8)}. Desviando novo pedido #${orderId ? orderId.substring(0, 8) : ''} imediatamente para Kie.ai.`);
+            effectivePrimary = PROVIDER_KIE;
+          }
+        }
+
+        // 2. Verifica se o heartbeat do robô está marcado como 'busy'
+        if (effectivePrimary === PROVIDER_SUNO_LOCAL) {
+          const { data: hb } = await supabase
+            .from('config')
+            .select('valor')
+            .eq('chave', 'suno_worker_heartbeat')
+            .maybeSingle();
+
+          if (hb?.valor?.status === 'busy') {
+            const lastSeen = hb.valor.last_seen;
+            const diffMs = lastSeen ? Date.now() - new Date(lastSeen).getTime() : 0;
+            if (diffMs < 180000) {
+              console.log(`[suno] ⚡ Heartbeat do robô local acusa 'busy'. Desviando pedido #${orderId ? orderId.substring(0, 8) : ''} para Kie.ai.`);
+              effectivePrimary = PROVIDER_KIE;
+            }
+          }
+        }
+      }
+    } catch (checkBusyErr) {
+      console.warn('[suno] Falha ao verificar disponibilidade do robô local:', checkBusyErr.message);
+    }
+  }
 
   const fallback = effectivePrimary === PROVIDER_SUNO_LOCAL ? PROVIDER_KIE : (effectivePrimary === PROVIDER_UNIFICALLY ? PROVIDER_KIE : PROVIDER_UNIFICALLY);
   const hasFallback = fallback === PROVIDER_UNIFICALLY ? Boolean(unificallyKey) : Boolean(kieKey);

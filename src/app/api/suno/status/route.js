@@ -133,9 +133,12 @@ export async function GET(req) {
         return NextResponse.json({ status: "COMPLETED", tracks, provider: PROVIDER_SUNO_LOCAL });
       }
 
-      // 2. Se o robô reportou falha local OU estourou o tempo de timeout (3 minutos):
+      // 2. Se o robô reportou falha local, foi desviado para a Kie por concorrência/voz OU estourou o tempo de timeout (3 minutos):
       const elapsedMs = getTaskElapsedMs(task, orderData);
-      const isFailedLocal = orderData?.status_robo === 'FALHA_LOCAL' || orderData?.statusRobo === 'FALHA_LOCAL';
+      const isFailedLocal = orderData?.status_robo === 'FALHA_LOCAL' ||
+        orderData?.statusRobo === 'FALHA_LOCAL' ||
+        orderData?.status_robo === 'DESVIADO_ROBO_OCUPADO' ||
+        orderData?.status_robo === 'DESVIADO_VOZ_PERSONALIZADA';
       const isTimeout = elapsedMs > STUCK_TIMEOUT_MS;
 
       if ((isFailedLocal || isTimeout) && orderId) {

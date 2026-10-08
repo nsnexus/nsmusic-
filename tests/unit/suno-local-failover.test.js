@@ -1,22 +1,60 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 let store = {};
+let configStore = {};
 
 vi.mock('@/lib/supabase-edge', () => ({
   getSupabaseEdge: vi.fn(() => ({
-    from: () => ({
-      update: (data) => ({
-        eq: (_col, val) => {
-          store[val] = { ...(store[val] || {}), ...data };
-          return Promise.resolve({ data: null, error: null });
+    from: (table) => {
+      if (table === 'config') {
+        return {
+          select: () => ({
+            eq: (_col, chave) => ({
+              maybeSingle: () => Promise.resolve({ data: configStore[chave] || null })
+            })
+          })
+        };
+      }
+      return {
+        update: (data) => ({
+          eq: (_col, val) => {
+            store[val] = { ...(store[val] || {}), ...data };
+            return Promise.resolve({ data: null, error: null });
+          }
+        }),
+        select: () => {
+          const filters = [];
+          const query = {
+            or: () => ({
+              maybeSingle: () => Promise.resolve({ data: null })
+            }),
+            eq: (col, val) => {
+              filters.push({ col, val, op: 'eq' });
+              return query;
+            },
+            neq: (col, val) => {
+              filters.push({ col, val, op: 'neq' });
+              return query;
+            },
+            limit: () => {
+              const matches = Object.values(store).filter(item => {
+                return filters.every(f => {
+                  if (f.op === 'eq') {
+                    return item[f.col] === f.val || item.sunoProvider === f.val || item.productionStatus === f.val;
+                  }
+                  if (f.op === 'neq') {
+                    return item.id !== f.val;
+                  }
+                  return true;
+                });
+              });
+              return Promise.resolve({ data: matches, error: null });
+            }
+          };
+          return query;
         }
-      }),
-      select: () => ({
-        or: () => ({
-          maybeSingle: () => Promise.resolve({ data: null })
-        })
-      })
-    })
+      };
+    }
   }))
 }));
 
@@ -56,6 +94,7 @@ const { GET } = await import('@/app/api/suno/status/route');
 describe('Suno Local Worker e Failover', () => {
   beforeEach(() => {
     store = {};
+    configStore = {};
     vi.clearAllMocks();
   });
 
@@ -78,6 +117,43 @@ describe('Suno Local Worker e Failover', () => {
     expect(result.taskId).toContain('suno_local_pedido-123');
     expect(store['pedido-123']?.sunoProvider).toBe(PROVIDER_SUNO_LOCAL);
     expect(store['pedido-123']?.productionStatus).toBe('GERANDO_AUDIO');
+  });
+
+  it('requestSunoGeneration desvia automaticamente para Kie.ai quando o robô local já está ocupado gerando outro pedido', async () => {
+    // Pedido 1 já está sendo gerado ativamente pelo robô local
+    store['pedido-em-andamento'] = {
+      id: 'pedido-em-andamento',
+      suno_provider: PROVIDER_SUNO_LOCAL,
+      production_status: 'GERANDO_AUDIO',
+      suno_requested_at: new Date().toISOString()
+    };
+
+    store['novo-pedido-2'] = {
+      id: 'novo-pedido-2'
+    };
+
+    const originalFetch = global.fetch;
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ code: 200, data: { taskId: 'kie_task_concorrente_999' } })
+    });
+
+    try {
+      const env = { KIE_API_KEY: 'test-kie-key' };
+      const result = await requestSunoGeneration({
+        orderId: 'novo-pedido-2',
+        prompt: 'Letra concorrente',
+        tags: 'Acoustic',
+        preferredProvider: PROVIDER_SUNO_LOCAL
+      }, env);
+
+      expect(result.ok).toBe(true);
+      expect(result.provider).toBe(PROVIDER_KIE);
+      expect(result.taskId).toBe('kie_task_concorrente_999');
+    } finally {
+      global.fetch = originalFetch;
+    }
   });
 
   it('requestSunoGeneration desvia para Kie.ai quando o pedido tem voz personalizada do cliente mesmo se suno_local for o provedor', async () => {
