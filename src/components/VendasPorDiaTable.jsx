@@ -67,6 +67,11 @@ export default function VendasPorDiaTable() {
       if (linha) {
         const count = Number(o.sunoGenerationCount) || (o.sunoRequestedAt ? 1 : 0);
         linha.geracoes += count;
+        if (o.sunoProvider === 'suno_local') {
+          linha.geracoesBot = (linha.geracoesBot || 0) + count;
+        } else {
+          linha.geracoesKie = (linha.geracoesKie || 0) + count;
+        }
         linha.pedidosCriados += 1;
         if (musicaPaga || o.videoAddonPaid) linha.pedidosPagos += 1;
       }
@@ -82,12 +87,16 @@ export default function VendasPorDiaTable() {
   const totais = porDia.reduce((acc, linha) => {
     for (const { chave } of PRODUTOS) acc[chave] += linha[chave];
     acc.geracoes += linha.geracoes;
+    acc.geracoesBot = (acc.geracoesBot || 0) + (linha.geracoesBot || 0);
+    acc.geracoesKie = (acc.geracoesKie || 0) + (linha.geracoesKie || 0);
     acc.pedidosCriados += linha.pedidosCriados;
     acc.pedidosPagos += linha.pedidosPagos;
     acc.faturamento += faturamentoDia(linha);
-    acc.gasto += linha.geracoes * KIE_COST_PER_GENERATION;
+    // Gasto apenas com Kie.ai (Robô local tem custo R$ 0,00)
+    acc.gasto += (linha.geracoesKie || 0) * KIE_COST_PER_GENERATION;
+    acc.economiaBot = (acc.economiaBot || 0) + ((linha.geracoesBot || 0) * KIE_COST_PER_GENERATION);
     return acc;
-  }, { musicas: 0, videos: 0, playbacks: 0, cartas: 0, retrospectivas: 0, geracoes: 0, pedidosCriados: 0, pedidosPagos: 0, faturamento: 0, gasto: 0 });
+  }, { musicas: 0, videos: 0, playbacks: 0, cartas: 0, retrospectivas: 0, geracoes: 0, geracoesBot: 0, geracoesKie: 0, pedidosCriados: 0, pedidosPagos: 0, faturamento: 0, gasto: 0, economiaBot: 0 });
 
   const hoje = new Date();
   const ehMesAtual = hoje.getFullYear() === ano && hoje.getMonth() === mesNum - 1;

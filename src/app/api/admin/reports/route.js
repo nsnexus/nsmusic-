@@ -45,35 +45,67 @@ export async function GET(req) {
 
       let vQuery = supabase.from('vendas_por_dia').select('*');
       let pQuery = supabase.from('producao_por_dia').select('*');
+      let oQuery = supabase.from('orders').select('suno_provider, suno_generation_count').is('deleted_at', null).neq('production_status', 'CONFIG');
 
       if (dateFrom) {
         vQuery = vQuery.gte('dia', dateFrom);
         pQuery = pQuery.gte('dia', dateFrom);
+        const fromIso = dateFrom.includes('T') ? dateFrom : `${dateFrom}T00:00:00.000Z`;
+        oQuery = oQuery.gte('created_at', fromIso);
       }
       if (dateTo) {
         vQuery = vQuery.lte('dia', dateTo);
         pQuery = pQuery.lte('dia', dateTo);
+        const toIso = dateTo.includes('T') ? dateTo : `${dateTo}T23:59:59.999Z`;
+        oQuery = oQuery.lte('created_at', toIso);
       }
 
-      const [vRes, pRes] = await Promise.all([vQuery, pQuery]);
+      const [vRes, pRes, oRes] = await Promise.all([vQuery, pQuery, oQuery]);
 
       if (vRes.error) throw new Error(vRes.error.message);
       if (pRes.error) throw new Error(pRes.error.message);
 
       const vData = vRes.data || [];
       const pData = pRes.data || [];
+      const oData = oRes?.data || [];
 
       const faturamentoTotal = vData.reduce((acc, r) => acc + (Number(r.faturamento) || 0), 0);
       const vendasCount = vData.reduce((acc, r) => acc + (Number(r.pedidos_pagos) || 0), 0);
-      const geracoes = pData.reduce((acc, r) => acc + (Number(r.geracoes) || 0), 0);
-      const gastoGeracao = geracoes * KIE_COST_PER_GENERATION;
+      const geracoesGerais = pData.reduce((acc, r) => acc + (Number(r.geracoes) || 0), 0);
+
+      let geracoesBot = 0;
+      let geracoesKie = 0;
+
+      if (oData.length > 0) {
+        for (const row of oData) {
+          const count = Number(row.suno_generation_count) || 0;
+          if (count === 0) continue;
+          if (row.suno_provider === 'suno_local') {
+            geracoesBot += count;
+          } else {
+            // kie, unifically ou legado antes de gravar provider
+            geracoesKie += count;
+          }
+        }
+      } else {
+        geracoesKie = geracoesGerais;
+      }
+
+      const geracoesTotal = (geracoesBot + geracoesKie) || geracoesGerais;
+      const gastoKie = geracoesKie * KIE_COST_PER_GENERATION;
+      const economiaBot = geracoesBot * KIE_COST_PER_GENERATION;
 
       return NextResponse.json({
         ok: true,
         faturamentoTotal,
         vendasCount,
-        geracoes,
-        gastoGeracao,
+        geracoes: geracoesTotal,
+        geracoesTotal,
+        geracoesBot,
+        geracoesKie,
+        gastoGeracao: gastoKie, // Apenas o gasto real com a Kie.ai (Robô local = R$ 0,00)
+        gastoKie,
+        economiaBot,
         source: 'supabase',
       });
     }
@@ -150,7 +182,7 @@ export async function GET(req) {
       while (true) {
         const { data, error } = await supabase
           .from('orders')
-          .select('id, order_number, customer_phone, payment_status, paid_at, created_at, has_video_access, has_carta_access, has_playback_access, has_retrospectiva_access, suno_generation_count, suno_requested_at, extras')
+          .select('id, order_number, customer_phone, payment_status, paid_at, created_at, has_video_access, has_carta_access, has_playback_access, has_retrospectiva_access, suno_generation_count, suno_requested_at, suno_provider, extras')
           .gte('created_at', inicio)
           .lt('created_at', fim)
           .is('deleted_at', 'null')
@@ -176,6 +208,7 @@ export async function GET(req) {
             hasRetrospectivaAccess: row.has_retrospectiva_access,
             sunoGenerationCount: row.suno_generation_count,
             sunoRequestedAt: row.suno_requested_at,
+            sunoProvider: row.suno_provider || null,
             videoAddonPaid: extras.videoAddonPaid ?? (row.has_video_access && row.payment_status === 'PAGO'),
             videoPaidAt: extras.videoPaidAt ?? row.paid_at,
             playbackAddonPaid: extras.playbackAddonPaid ?? (row.has_playback_access && row.payment_status === 'PAGO'),

@@ -2,6 +2,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 let mockAdminOk = true;
 let mockSupabaseOrdersData = [];
+let mockVendasData = [];
+let mockProducaoData = [];
+let mockOrdersSummaryData = [];
 
 vi.mock('@/lib/auth', () => ({
   requireAdmin: async () => mockAdminOk
@@ -15,9 +18,10 @@ vi.mock('@cloudflare/next-on-pages', () => ({
 
 vi.mock('@/lib/supabase-edge', () => ({
   getSupabaseEdge: vi.fn(() => ({
-    from: () => ({
+    from: (table) => ({
       select: function () { return this; },
       is: function () { return this; },
+      neq: function () { return this; },
       gte: function () { return this; },
       lte: function () { return this; },
       or: function () { return this; },
@@ -25,7 +29,15 @@ vi.mock('@/lib/supabase-edge', () => ({
       limit: function () { return this; },
       offset: function () { return this; },
       then: function (resolve) {
-        resolve({ data: mockSupabaseOrdersData, error: null });
+        if (table === 'vendas_por_dia') {
+          resolve({ data: mockVendasData, error: null });
+        } else if (table === 'producao_por_dia') {
+          resolve({ data: mockProducaoData, error: null });
+        } else if (table === 'orders' && mockOrdersSummaryData.length > 0) {
+          resolve({ data: mockOrdersSummaryData, error: null });
+        } else {
+          resolve({ data: mockSupabaseOrdersData, error: null });
+        }
       }
     })
   }))
@@ -35,6 +47,9 @@ const { GET } = await import('@/app/api/admin/reports/route');
 
 beforeEach(() => {
   mockAdminOk = true;
+  mockVendasData = [];
+  mockProducaoData = [];
+  mockOrdersSummaryData = [];
   mockSupabaseOrdersData = [
     {
       id: 'order-recent-1',
@@ -73,5 +88,31 @@ describe('GET /api/admin/reports?tipo=pedidos_recentes', () => {
     expect(json.pedidos[0].id).toBe('order-recent-1');
     expect(json.pedidos[0].orderNumber).toBe('NS-9999-2026');
     expect(json.pedidos[0].paymentStatus).toBe('PAGO');
+  });
+});
+
+describe('GET /api/admin/reports?tipo=faturamento', () => {
+  it('isola gastos de Kie.ai e reporta musicas geradas pelo robô local com economia', async () => {
+    mockVendasData = [{ faturamento: 250, pedidos_pagos: 10 }];
+    mockProducaoData = [{ geracoes: 10, pedidos_criados: 10 }];
+    mockOrdersSummaryData = [
+      { suno_provider: 'suno_local', suno_generation_count: 4 },
+      { suno_provider: 'kie', suno_generation_count: 6 },
+    ];
+
+    const req = new Request('http://localhost/api/admin/reports?tipo=faturamento');
+    const res = await GET(req);
+    expect(res.status).toBe(200);
+
+    const json = await res.json();
+    expect(json.ok).toBe(true);
+    expect(json.faturamentoTotal).toBe(250);
+    expect(json.vendasCount).toBe(10);
+    expect(json.geracoesTotal).toBe(10);
+    expect(json.geracoesBot).toBe(4);
+    expect(json.geracoesKie).toBe(6);
+    expect(json.gastoKie).toBeCloseTo(1.80, 2);
+    expect(json.gastoGeracao).toBeCloseTo(1.80, 2);
+    expect(json.economiaBot).toBeCloseTo(1.20, 2);
   });
 });

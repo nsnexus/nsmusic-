@@ -41,6 +41,7 @@ export default function AdminDashboard() {
   }, [searchQuery]);
   const [paymentStatusFilter, setPaymentStatusFilter] = useState('ALL');
   const [productionStatusFilter, setProductionStatusFilter] = useState('ALL');
+  const [providerFilter, setProviderFilter] = useState('ALL');
   const [sortBy, setSortBy] = useState('createdAt_desc'); // 'createdAt_desc'|'createdAt_asc'|'paidAt_desc'|'paidAt_asc'
 
   // Controle de auto-atualização em tempo real e renovação de token
@@ -388,6 +389,10 @@ export default function AdminDashboard() {
 
     if (productionStatusFilter !== 'ALL') {
       result = result.filter(o => o.productionStatus === productionStatusFilter);
+    }
+
+    if (providerFilter !== 'ALL') {
+      result = result.filter(o => o.sunoProvider === providerFilter);
     }
 
     // Ordenação — client-side porque a lista já está toda carregada em memória (evita depender de
@@ -1606,6 +1611,21 @@ export default function AdminDashboard() {
                   </div>
 
                   <div>
+                    <label htmlFor="admin-provider-filter" style={{ display: 'block', fontSize: '0.78rem', color: '#64748b', marginBottom: '4px' }}>Provedor IA</label>
+                    <select
+                      id="admin-provider-filter"
+                      value={providerFilter}
+                      onChange={(e) => setProviderFilter(e.target.value)}
+                      style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.85rem', color: '#0f172a' }}
+                    >
+                      <option value="ALL">Todos os provedores</option>
+                      <option value="suno_local">🖥️ Robô PC (Local)</option>
+                      <option value="kie">🟣 Kie.ai</option>
+                      <option value="unifically">🌐 Unifically</option>
+                    </select>
+                  </div>
+
+                  <div>
                     <label htmlFor="admin-sort-by" style={{ display: 'block', fontSize: '0.78rem', color: '#64748b', marginBottom: '4px' }}>Ordenar por</label>
                     <select
                       id="admin-sort-by"
@@ -1885,9 +1905,26 @@ export default function AdminDashboard() {
                                 })()}
                               </td>
                               <td style={styles.td}>
-                                <span style={{ ...styles.statusBadge, border: `1px solid ${getStatusBadgeColor(o.productionStatus)}44`, color: getStatusBadgeColor(o.productionStatus), backgroundColor: `${getStatusBadgeColor(o.productionStatus)}10` }}>
-                                  {o.productionStatus || 'PENDENTE'}
-                                </span>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
+                                  <span style={{ ...styles.statusBadge, border: `1px solid ${getStatusBadgeColor(o.productionStatus)}44`, color: getStatusBadgeColor(o.productionStatus), backgroundColor: `${getStatusBadgeColor(o.productionStatus)}10` }}>
+                                    {o.productionStatus || 'PENDENTE'}
+                                  </span>
+                                  {o.sunoProvider === 'suno_local' && (
+                                    <span title="Música gerada pelo seu Robô Local (Suno PC) - Custo R$ 0,00" style={{ fontSize: '0.7rem', fontWeight: '700', color: '#0369a1', backgroundColor: '#e0f2fe', padding: '1px 6px', borderRadius: '6px', border: '1px solid #bae6fd', display: 'inline-flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap' }}>
+                                      🖥️ Robô PC
+                                    </span>
+                                  )}
+                                  {o.sunoProvider === 'kie' && (
+                                    <span title="Música gerada pela Kie.ai API - Custo ~R$ 0,30" style={{ fontSize: '0.7rem', fontWeight: '700', color: '#6d28d9', backgroundColor: '#f5f3ff', padding: '1px 6px', borderRadius: '6px', border: '1px solid #ddd6fe', display: 'inline-flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap' }}>
+                                      🟣 Kie.ai
+                                    </span>
+                                  )}
+                                  {o.sunoProvider === 'unifically' && (
+                                    <span title="Música gerada pela Unifically" style={{ fontSize: '0.7rem', fontWeight: '700', color: '#0f766e', backgroundColor: '#f0fdfa', padding: '1px 6px', borderRadius: '6px', border: '1px solid #ccfbf1', display: 'inline-flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap' }}>
+                                      🌐 Unifically
+                                    </span>
+                                  )}
+                                </div>
                               </td>
                               <td style={{ ...styles.td, fontSize: '0.85rem', color: '#0f172a', fontWeight: '600', whiteSpace: 'nowrap' }}>
                                 🕒 {formatDateWithTime(o.createdAt)}

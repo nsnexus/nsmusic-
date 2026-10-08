@@ -110,15 +110,21 @@ export default function FaturamentoCards({ dateFrom, dateTo, reloadTrigger }) {
     return fallback;
   };
 
-  // "Gerações" e "Gasto em Geração" são por createdAt — a chamada à Kie.ai acontece na criação do
+  // "Gerações" e "Gasto em Geração" são por createdAt — a chamada de IA acontece na criação do
   // pedido, não no pagamento. Faturamento e vendas são por data de PAGAMENTO (ver comentário de topo).
   const pedidosCriadosNoPeriodo = pedidos.filter((o) => dentroDoPeriodo(o.createdAt));
 
-  const geracoes = pedidosCriadosNoPeriodo.reduce((sum, o) => {
-    return sum + (Number(o.sunoGenerationCount) || (o.sunoRequestedAt ? 1 : 0));
-  }, 0);
+  const geracoesBot = pedidosCriadosNoPeriodo
+    .filter((o) => o.sunoProvider === 'suno_local')
+    .reduce((sum, o) => sum + (Number(o.sunoGenerationCount) || 1), 0);
 
-  const gastoGeracao = geracoes * KIE_COST_PER_GENERATION;
+  const geracoesKie = pedidosCriadosNoPeriodo
+    .filter((o) => o.sunoProvider !== 'suno_local')
+    .reduce((sum, o) => sum + (Number(o.sunoGenerationCount) || (o.sunoRequestedAt ? 1 : 0)), 0);
+
+  const geracoes = geracoesBot + geracoesKie;
+  const gastoKie = geracoesKie * KIE_COST_PER_GENERATION;
+  const economiaBot = geracoesBot * KIE_COST_PER_GENERATION;
 
   // Faturamento = soma do que a Efí confirmou em cada transação.
   //
@@ -182,19 +188,21 @@ export default function FaturamentoCards({ dateFrom, dateTo, reloadTrigger }) {
     return <p style={{ color: '#dc2626', fontSize: '0.9rem', margin: '16px 0' }}>{erro}</p>;
   }
 
-  // Quatro números, a pedido do dono do estúdio (25/09/2026): o que entrou, o que saiu, e o volume
-  // dos dois lados. A divisão por produto (músicas, vídeos, cartas...) vive na tabela Vendas por
-  // dia, que é o lugar de olhar detalhe.
+  // Cards de visão geral com separação clara do Robô PC e da Kie.ai
   const cards = supaStats ? [
-    { label: 'Faturamento total', valor: `R$ ${supaStats.faturamentoTotal.toFixed(2).replace('.', ',')}`, cor: '#059669' },
-    { label: 'Vendas (pagas)', valor: supaStats.vendasCount, cor: '#0f172a' },
-    { label: 'Gerações', valor: supaStats.geracoes, cor: '#d97706' },
-    { label: 'Gasto em Geração (Kie.ai)', valor: `R$ ${supaStats.gastoGeracao.toFixed(2).replace('.', ',')}`, cor: '#dc2626' },
+    { label: 'Faturamento total', valor: `R$ ${supaStats.faturamentoTotal.toFixed(2).replace('.', ',')}`, cor: '#059669', sub: null },
+    { label: 'Vendas (pagas)', valor: supaStats.vendasCount, cor: '#0f172a', sub: null },
+    { label: 'Total Gerações', valor: supaStats.geracoesTotal ?? supaStats.geracoes, cor: '#d97706', sub: null },
+    { label: '🖥️ Feitas pelo Robô PC', valor: supaStats.geracoesBot ?? 0, cor: '#0284c7', sub: 'Custo R$ 0,00' },
+    { label: '🟣 Feitas pela Kie.ai', valor: supaStats.geracoesKie ?? 0, cor: '#7c3aed', sub: null },
+    { label: '💸 Gasto c/ Kie.ai', valor: `R$ ${(supaStats.gastoKie ?? supaStats.gastoGeracao).toFixed(2).replace('.', ',')}`, cor: '#dc2626', sub: `Economia Robô: R$ ${(supaStats.economiaBot ?? 0).toFixed(2).replace('.', ',')}` },
   ] : [
-    { label: 'Faturamento total', valor: `R$ ${faturamentoTotal.toFixed(2).replace('.', ',')}`, cor: '#059669' },
-    { label: 'Vendas (pagas)', valor: vendasCount, cor: '#0f172a' },
-    { label: 'Gerações', valor: geracoes, cor: '#d97706' },
-    { label: 'Gasto em Geração (Kie.ai)', valor: `R$ ${gastoGeracao.toFixed(2).replace('.', ',')}`, cor: '#dc2626' },
+    { label: 'Faturamento total', valor: `R$ ${faturamentoTotal.toFixed(2).replace('.', ',')}`, cor: '#059669', sub: null },
+    { label: 'Vendas (pagas)', valor: vendasCount, cor: '#0f172a', sub: null },
+    { label: 'Total Gerações', valor: geracoes, cor: '#d97706', sub: null },
+    { label: '🖥️ Feitas pelo Robô PC', valor: geracoesBot, cor: '#0284c7', sub: 'Custo R$ 0,00' },
+    { label: '🟣 Feitas pela Kie.ai', valor: geracoesKie, cor: '#7c3aed', sub: null },
+    { label: '💸 Gasto c/ Kie.ai', valor: `R$ ${gastoKie.toFixed(2).replace('.', ',')}`, cor: '#dc2626', sub: `Economia Robô: R$ ${economiaBot.toFixed(2).replace('.', ',')}` },
   ];
 
   return (
@@ -216,6 +224,11 @@ export default function FaturamentoCards({ dateFrom, dateTo, reloadTrigger }) {
         >
           <span style={{ fontSize: '0.74rem', color: '#64748b', fontWeight: '600', lineHeight: '1.2' }}>{c.label}</span>
           <h2 style={{ margin: 0, fontSize: '1.28rem', fontWeight: '800', color: c.cor, letterSpacing: '-0.02em', lineHeight: '1.2' }}>{c.valor}</h2>
+          {c.sub && (
+            <span style={{ fontSize: '0.68rem', fontWeight: '700', color: c.sub.includes('Economia') ? '#059669' : '#0284c7', marginTop: '2px' }}>
+              {c.sub}
+            </span>
+          )}
         </div>
       ))}
     </div>

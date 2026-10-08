@@ -823,6 +823,19 @@ export default function OrderDetailsAdmin() {
                     </p>
                   </div>
 
+                  {/* Provedor de Música IA */}
+                  <div style={{ marginBottom: '16px', padding: '12px 14px', borderRadius: '10px', background: order?.sunoProvider === 'suno_local' ? '#f0f9ff' : order?.sunoProvider === 'kie' ? '#faf5ff' : '#f8fafc', border: order?.sunoProvider === 'suno_local' ? '1px solid #bae6fd' : order?.sunoProvider === 'kie' ? '1px solid #e9d5ff' : '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span style={{ fontSize: '1.5rem', lineHeight: 1 }}>{order?.sunoProvider === 'suno_local' ? '🖥️' : order?.sunoProvider === 'kie' ? '🟣' : '🎵'}</span>
+                    <div>
+                      <div style={{ fontSize: '0.86rem', fontWeight: '800', color: order?.sunoProvider === 'suno_local' ? '#0369a1' : order?.sunoProvider === 'kie' ? '#6d28d9' : '#334155' }}>
+                        {order?.sunoProvider === 'suno_local' ? 'Gerado pelo Robô Local (Suno PC)' : order?.sunoProvider === 'kie' ? 'Gerado pela Kie.ai API' : order?.sunoProvider === 'unifically' ? 'Gerado pela Unifically' : 'Provedor de Música'}
+                      </div>
+                      <div style={{ fontSize: '0.76rem', color: '#64748b', marginTop: '2px' }}>
+                        {order?.sunoProvider === 'suno_local' ? 'Custo de API: R$ 0,00 (Assinatura própria do Suno no computador)' : order?.sunoProvider === 'kie' ? 'Custo de API: ~R$ 0,30 (Créditos consumidos na Kie.ai)' : 'Provedor registrado no pedido'}
+                      </div>
+                    </div>
+                  </div>
+
                   <div style={styles.formGroup}>
                     <label style={styles.label}>Status da Produção ⚙️</label>
                     <select 
