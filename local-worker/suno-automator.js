@@ -99,6 +99,38 @@ async function verificarLoginSuno(page) {
 }
 
 /**
+ * Remove banner de consentimento de cookies da Suno (Usercentrics/CMP) para não bloquear cliques.
+ */
+async function removerBannerCookies(page) {
+  try {
+    await page.evaluate(() => {
+      // 1. Tenta clicar no botão de aceitar se existir
+      const acceptBtn = document.querySelector(
+        '#cmp-welcome-optin-accept-all-button, #cmp-bnt-accept-all, #cmp-banner-container button[id*="accept"], #cmp-first-layer button, [data-cmp-action="accept"]'
+      );
+      if (acceptBtn) {
+        try { acceptBtn.click(); } catch (e) {}
+      }
+
+      // 2. Remove completamente o banner e camadas de consentimento do DOM
+      const banner = document.getElementById('cmp-banner-container');
+      if (banner) banner.remove();
+      const layer = document.getElementById('cmp-first-layer');
+      if (layer) layer.remove();
+
+      document.querySelectorAll('.cmp-backdrop, .cmp-layer, #cmp-banner-container, [id*="cmp-"]').forEach(el => {
+        try { el.remove(); } catch (e) {}
+      });
+
+      if (document.body) {
+        document.body.style.overflow = 'auto';
+        document.body.style.pointerEvents = 'auto';
+      }
+    });
+  } catch (e) {}
+}
+
+/**
  * Executa a criação da música na interface do Suno e captura as URLs de CDN.
  */
 export async function gerarMusicaNoSuno({ prompt, style = 'Acoustic Pop', title = 'Nova Música', onProgress = () => {} }) {
@@ -110,6 +142,7 @@ export async function gerarMusicaNoSuno({ prompt, style = 'Acoustic Pop', title 
   }
 
   await page.waitForTimeout(2000);
+  await removerBannerCookies(page);
 
   // 1. Garante que o modo "Advanced" está ativado
   onProgress('Garantindo modo avançado (Advanced)...');
@@ -128,46 +161,67 @@ export async function gerarMusicaNoSuno({ prompt, style = 'Acoustic Pop', title 
 
   // 2. Preenche a Letra (Lyrics) no editor contenteditable do Suno
   onProgress('Preenchendo letra da música no editor oficial...');
+  await removerBannerCookies(page);
+
   const lyricsEditor = page.locator('div[aria-label="Lyrics editor"], [contenteditable="true"][aria-label*="Lyrics" i], [contenteditable="true"]').first();
   await lyricsEditor.waitFor({ state: 'visible', timeout: 8000 });
   await lyricsEditor.scrollIntoViewIfNeeded().catch(() => {});
   await lyricsEditor.click();
-  await page.waitForTimeout(300);
+  await page.waitForTimeout(200);
 
-  // Injeta o texto preservando as quebras de linha exatas das estrofes
-  const preenchidoComSucesso = await page.evaluate((text) => {
+  // LIMPEZA COMPLETA: Seleciona tudo e apaga via teclado nativo do Playwright
+  await page.keyboard.press('ControlOrMeta+A');
+  await page.keyboard.press('Backspace');
+  await page.waitForTimeout(150);
+
+  // Garante que o editor ficou 100% vazio no DOM (sem resquícios de estrofes de pedidos anteriores)
+  await page.evaluate(() => {
     const editor = document.querySelector('div[aria-label="Lyrics editor"], [contenteditable="true"]');
-    if (!editor) return false;
-    editor.focus();
-
-    // Limpa conteúdo anterior
-    document.execCommand('selectAll', false, null);
-
-    // Dispara paste event com DataTransfer para preservar quebras de estrofes
-    const dt = new DataTransfer();
-    dt.setData('text/plain', text);
-    const pasteEvent = new ClipboardEvent('paste', {
-      bubbles: true,
-      cancelable: true,
-      clipboardData: dt
-    });
-    editor.dispatchEvent(pasteEvent);
-
-    // Fallback: se o editor continuar vazio, injeta via execCommand
-    if (!editor.innerText || editor.innerText.trim().length === 0) {
-      document.execCommand('insertText', false, text);
+    if (editor) {
+      editor.innerText = '';
+      editor.innerHTML = '';
+      editor.dispatchEvent(new Event('input', { bubbles: true }));
     }
+  });
+  await page.waitForTimeout(100);
 
-    return editor.innerText && editor.innerText.trim().length > 0;
-  }, prompt);
+  // Injeta o texto completo no editor limpo
+  await lyricsEditor.click();
+  await page.keyboard.insertText(prompt);
+  await page.waitForTimeout(400);
 
-  if (preenchidoComSucesso) {
-    console.log('[SunoAutomator] ✅ Letra preenchida com sucesso no editor!');
+  // Validação do texto preenchido
+  let currentLyrics = await page.evaluate(() => {
+    const editor = document.querySelector('div[aria-label="Lyrics editor"], [contenteditable="true"]');
+    return editor ? (editor.innerText || editor.textContent || '').trim() : '';
+  });
+
+  // Se o insertText não fixou, usa fallback de área de transferência
+  if (!currentLyrics || currentLyrics.length < 10) {
+    console.log('[SunoAutomator] Aplicando fallback de preenchimento via clipboard...');
+    await page.evaluate((text) => {
+      const editor = document.querySelector('div[aria-label="Lyrics editor"], [contenteditable="true"]');
+      if (editor) {
+        editor.focus();
+        document.execCommand('selectAll', false, null);
+        document.execCommand('delete', false, null);
+        document.execCommand('insertText', false, text);
+      }
+    }, prompt);
+    await page.waitForTimeout(300);
+    currentLyrics = await page.evaluate(() => {
+      const editor = document.querySelector('div[aria-label="Lyrics editor"], [contenteditable="true"]');
+      return editor ? (editor.innerText || editor.textContent || '').trim() : '';
+    });
+  }
+
+  if (currentLyrics && currentLyrics.length > 10) {
+    console.log(`[SunoAutomator] ✅ Letra preenchida com sucesso (${currentLyrics.length} caracteres)!`);
   } else {
     throw new Error('Falha ao preencher a letra no editor da Suno.');
   }
 
-  await page.waitForTimeout(400);
+  await page.waitForTimeout(300);
 
   // 3. Preenche o Estilo Musical (Styles) - Tags musicais ricas
   onProgress(`Preenchendo estilo musical: ${style.substring(0, 60)}...`);
@@ -175,8 +229,10 @@ export async function gerarMusicaNoSuno({ prompt, style = 'Acoustic Pop', title 
   if (await styleInput.isVisible({ timeout: 2000 }).catch(() => false)) {
     await styleInput.scrollIntoViewIfNeeded().catch(() => {});
     await styleInput.click().catch(() => {});
+    await styleInput.fill('');
+    await page.waitForTimeout(100);
     await styleInput.fill(style);
-    await page.waitForTimeout(400);
+    await page.waitForTimeout(300);
     console.log(`[SunoAutomator] ✅ Estilo musical preenchido: "${style}"`);
   } else {
     console.warn('[SunoAutomator] ⚠️ Campo de estilo não encontrado diretamente');
@@ -189,6 +245,9 @@ export async function gerarMusicaNoSuno({ prompt, style = 'Acoustic Pop', title 
   
   if (await titleInput.isVisible({ timeout: 3000 }).catch(() => false)) {
     await titleInput.scrollIntoViewIfNeeded().catch(() => {});
+    await titleInput.click().catch(() => {});
+    await titleInput.fill('');
+    await page.waitForTimeout(100);
     await titleInput.fill(cleanTitle).catch(async () => {
       await titleInput.evaluate((el, text) => {
         el.value = text;
@@ -234,11 +293,12 @@ export async function gerarMusicaNoSuno({ prompt, style = 'Acoustic Pop', title 
 
   // 6. Clica em "Create"
   onProgress('Enviando solicitação de geração...');
+  await removerBannerCookies(page);
   const createButton = page.locator('button:has-text("Create"), button[aria-label="Create song"]').last();
   await createButton.waitFor({ state: 'visible', timeout: 10000 });
   await createButton.scrollIntoViewIfNeeded().catch(() => {});
   await page.waitForTimeout(300);
-  await createButton.click();
+  await createButton.click({ force: true });
 
   // Monitora se o Cloudflare Turnstile aparecer
   for (let i = 0; i < 5; i++) {
