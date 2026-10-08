@@ -10,7 +10,7 @@
 //   - estados de estorno/cancelamento revogam acesso já concedido, o que nunca era tratado antes.
 
 import { getOrder, updateOrder } from './supabaseDb.js';
-import { skuApprovesMusic, skuGrantsVideoAccess, skuGrantsCartaAccess, skuGrantsRetrospectivaAccess, getPriceForSku, brindesPorValorPago } from './pricing.js';
+import { skuApprovesMusic, skuGrantsVideoAccess, skuGrantsCartaAccess, skuGrantsRetrospectivaAccess, skuGrantsCustomVoiceAccess, getPriceForSku, brindesPorValorPago } from './pricing.js';
 import { resolveDeliveryUrl } from './whatsappTemplates.js';
 import { sendMetaPurchaseEvent } from './metaCapi.js';
 import { sendTikTokPurchaseEvent } from './tiktokCapi.js';
@@ -78,12 +78,14 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
       const isCartaOnly = sku === 'carta_addon';
       const isRetroOnly = sku === 'retrospectiva_addon';
       const isKaraokeOnly = sku === 'karaoke_addon';
-      const isAddonOnly = isVideoOnly || isPlaybackOnly || isCartaOnly || isRetroOnly || isKaraokeOnly;
+      const isVoiceOnly = sku === 'custom_voice_addon';
+      const isAddonOnly = isVideoOnly || isPlaybackOnly || isCartaOnly || isRetroOnly || isKaraokeOnly || isVoiceOnly;
       const dedupKey = isVideoOnly ? 'videoPaymentId'
         : isPlaybackOnly ? 'playbackPaymentId'
         : isCartaOnly ? 'cartaPaymentId'
         : isRetroOnly ? 'retrospectivaPaymentId'
         : isKaraokeOnly ? 'karaokePaymentId'
+        : isVoiceOnly ? 'customVoicePaymentId'
         : 'paymentId';
 
       const existingPaymentId = String(orderData[dedupKey] || '').trim().toUpperCase();
@@ -130,6 +132,12 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
           updates.karaokePaymentId = String(paymentId);
           updates.karaokePaidAt = nowIso;
           updates.karaokePaidAmount = valorPago;
+        } else if (isVoiceOnly) {
+          updates.hasCustomVoiceAccess = true;
+          updates.customVoiceAddonPaid = true;
+          updates.customVoicePaymentId = String(paymentId);
+          updates.customVoicePaidAt = nowIso;
+          updates.customVoicePaidAmount = valorPago;
         } else {
           // C-09: paymentStatus só é escrito neste ramo — os add-ons isolados nunca o alteram.
           updates.paymentStatus = 'PAGAMENTO_APROVADO';
@@ -156,6 +164,11 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
             updates.retrospectivaAddonPaid = true;
             updates.retrospectivaPaidAt = nowIso;
           }
+          if (skuGrantsCustomVoiceAccess(sku)) {
+            updates.hasCustomVoiceAccess = true;
+            updates.customVoiceAddonPaid = true;
+            updates.customVoicePaidAt = nowIso;
+          }
         }
 
         await updateOrder(orderId, updates, env);
@@ -170,6 +183,7 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
           else if (isPlaybackOnly) paymentKind = 'playback';
           else if (isRetroOnly) paymentKind = 'retrospectiva';
           else if (isKaraokeOnly) paymentKind = 'karaoke';
+          else if (isVoiceOnly) paymentKind = 'voz';
 
           const confirmedAmount = Number(payment.transaction_amount) || getPriceForSku(sku) || 9.99;
           await mirrorPaymentToSupabase({
@@ -183,7 +197,7 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
         } catch {}
 
         const grantedCartaViaCombo = skuGrantsCartaAccess(sku);
-        txResult = { applied: true, sku, isVideoOnly, isPlaybackOnly, isCartaOnly, isRetroOnly, isKaraokeOnly, grantedCartaViaCombo, orderData };
+        txResult = { applied: true, sku, isVideoOnly, isPlaybackOnly, isCartaOnly, isRetroOnly, isKaraokeOnly, isVoiceOnly, grantedCartaViaCombo, orderData };
       }
     }
   } catch (err) {
@@ -194,7 +208,7 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
   }
 
   if (txResult.applied) {
-    if (!txResult.isVideoOnly && !txResult.isPlaybackOnly && !txResult.isCartaOnly && !txResult.isRetroOnly && !txResult.isKaraokeOnly) {
+    if (!txResult.isVideoOnly && !txResult.isPlaybackOnly && !txResult.isCartaOnly && !txResult.isRetroOnly && !txResult.isKaraokeOnly && !txResult.isVoiceOnly) {
       await notifyPaymentApproved(orderId, txResult.orderData, {}, env);
 
       // Contador de vendas da vitrine da home (stats/_live)

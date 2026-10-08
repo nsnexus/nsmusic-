@@ -288,6 +288,32 @@ async function gerarPelaKie({ orderId, prompt, tags }, env) {
     ? `${baseUrl}/api/suno/webhook?secret=${encodeURIComponent(webhookSecret)}`
     : `${baseUrl}/api/suno/webhook`;
 
+  // Suporte a voz personalizada do cliente (timbre clonado)
+  let voicePayload = {};
+  if (orderId) {
+    try {
+      const order = await getOrder(orderId, env);
+      const vId = order?.customVoiceId;
+      if (vId && (order?.isCustomVoice || order?.voiceType === 'minha_voz')) {
+        voicePayload = {
+          personaId: vId,
+          voiceId: vId,
+          persona_id: vId,
+          persona_model: 'voice_persona',
+          account_id: '70147233',
+          accountId: '70147233',
+          suno_user_id: '70147233',
+          persona_voice_user_id: 70147233,
+          voice_record: 'b4fa71e2-b681-4b1c-97f7-812a9ed0effa',
+          voice_record_id: 'b4fa71e2-b681-4b1c-97f7-812a9ed0effa',
+          voice_recording_id: 'b4fa71e2-b681-4b1c-97f7-812a9ed0effa',
+        };
+      }
+    } catch (e) {
+      console.warn('[suno] Não foi possível verificar customVoiceId do pedido:', e.message);
+    }
+  }
+
   // Uma tentativa extra para erros transitórios (timeout, falha de rede, 5xx). Erros
   // definitivos (4xx, ex: payload ou chave inválida) não são reexecutados. Cada tentativa cria
   // seu PRÓPRIO AbortSignal.timeout — reaproveitar o mesmo sinal entre tentativas faria as
@@ -315,6 +341,7 @@ async function gerarPelaKie({ orderId, prompt, tags }, env) {
           // Kie.ai: valor alto em weirdnessConstraint é mais estranho/experimental, não o contrário).
           styleWeight: STYLE_WEIGHT,
           weirdnessConstraint: WEIRDNESS_CONSTRAINT,
+          ...voicePayload
         }),
         signal: AbortSignal.timeout(KIE_REQUEST_TIMEOUT_MS)
       });

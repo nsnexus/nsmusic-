@@ -23,6 +23,8 @@ export const SKU_PRICES = {
   // mesma regra do `combo` (música+vídeo): soma simples dos dois preços, sem desconto.
   combo_carta: 13.98,
   combo_retrospectiva: 19.98,
+  custom_voice_addon: 24.90,
+  combo_voz: 34.89,
   recovery_combo_24h: 9.99,
   recovery_combo_48h: 6.99,
 };
@@ -51,6 +53,10 @@ export function skuGrantsKaraokeAccess(sku) {
   return sku === 'karaoke_addon';
 }
 
+export function skuGrantsCustomVoiceAccess(sku) {
+  return sku === 'custom_voice_addon' || sku === 'combo_voz';
+}
+
 // Um SKU "aprova a música" quando confirma o pagamento principal (paymentStatus). O video_addon
 // isolado NUNCA deve alterar paymentStatus (ver C-09 no AUDIT_REPORT.md).
 //
@@ -60,7 +66,7 @@ export function skuGrantsKaraokeAccess(sku) {
 // concedido à parte, por FAIXA de valor pago (ver src/lib/payments.js), não por este SKU sozinho.
 export function skuApprovesMusic(sku) {
   return sku === 'audio_only' || sku === 'combo' || sku === 'combo_carta' || sku === 'combo_retrospectiva'
-    || sku === 'recovery_combo_24h' || sku === 'recovery_combo_48h' || sku === 'impacto';
+    || sku === 'combo_voz' || sku === 'recovery_combo_24h' || sku === 'recovery_combo_48h' || sku === 'impacto';
 }
 
 // Escada de brindes do pagamento por impacto ("pague o quanto quiser", SKU 'impacto').

@@ -220,3 +220,24 @@ group by 1;
 alter table orders     enable row level security;
 alter table payments   enable row level security;
 alter table suno_tasks enable row level security;
+
+-- ============================================================================
+-- customer_voices — Timbres e vozes clonadas vinculadas ao WhatsApp do cliente
+-- ============================================================================
+create table if not exists customer_voices (
+  id                uuid default gen_random_uuid() primary key,
+  phone             text not null unique,
+  customer_name     text,
+  voice_id          text not null,
+  voice_recording_id text,
+  sample_audio_url  text,
+  verify_audio_url  text,
+  status            text not null default 'ativo',
+  pedidos_count     integer not null default 1,
+  created_at        timestamptz not null default now(),
+  updated_at        timestamptz not null default now()
+);
+
+create index if not exists customer_voices_phone_idx on customer_voices (phone);
+alter table customer_voices enable row level security;
+

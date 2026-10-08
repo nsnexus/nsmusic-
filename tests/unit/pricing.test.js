@@ -23,7 +23,7 @@ describe('getPriceForSku', () => {
   });
 
   it('não é influenciável por um valor arbitrário — só existe o que está no catálogo', () => {
-    expect(Object.keys(SKU_PRICES)).toEqual(['audio_only', 'combo', 'video_addon', 'playback_addon', 'karaoke_addon', 'carta_addon', 'retrospectiva_addon', 'combo_carta', 'combo_retrospectiva', 'recovery_combo_24h', 'recovery_combo_48h']);
+    expect(Object.keys(SKU_PRICES)).toEqual(['audio_only', 'combo', 'video_addon', 'playback_addon', 'karaoke_addon', 'carta_addon', 'retrospectiva_addon', 'combo_carta', 'combo_retrospectiva', 'custom_voice_addon', 'combo_voz', 'recovery_combo_24h', 'recovery_combo_48h']);
   });
 });
 

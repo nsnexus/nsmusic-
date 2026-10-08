@@ -269,6 +269,8 @@ export default function CriarMusica() {
   const [paymentErrorMessage, setPaymentErrorMessage] = useState('');
   const [phoneVerifyStatus, setPhoneVerifyStatus] = useState('idle'); // 'idle' | 'valid' | 'invalid'
   const [phoneVerifyMessage, setPhoneVerifyMessage] = useState('');
+  const [recognizedVoice, setRecognizedVoice] = useState(null);
+  const [checkingVoice, setCheckingVoice] = useState(false);
 
   // Validação de formato do telefone. Não existe mais checagem em tempo real de conta ativa no
   // WhatsApp — a API oficial da Meta (que substituiu o provedor não oficial W-API, banido repetidas
@@ -280,6 +282,7 @@ export default function CriarMusica() {
     if (clean.length === 0) {
       setPhoneVerifyStatus('idle');
       setPhoneVerifyMessage('');
+      setRecognizedVoice(null);
       return;
     }
 
@@ -287,6 +290,7 @@ export default function CriarMusica() {
     if (clean.length < 10) {
       setPhoneVerifyStatus('idle');
       setPhoneVerifyMessage('Digite o DDD + número do seu celular');
+      setRecognizedVoice(null);
       return;
     }
 
@@ -294,11 +298,37 @@ export default function CriarMusica() {
     if (clean.length > 11 || !VALID_BRAZIL_DDDS.has(ddd)) {
       setPhoneVerifyStatus('invalid');
       setPhoneVerifyMessage('❌ DDD ou número inválido');
+      setRecognizedVoice(null);
       return;
     }
 
     setPhoneVerifyStatus('valid');
     setPhoneVerifyMessage('✓ Número válido');
+
+    // Consulta se este WhatsApp já tem um timbre de voz cadastrado ativo
+    let cancel = false;
+    setCheckingVoice(true);
+    fetch(`/api/voice/check?phone=${clean}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (!cancel) {
+          if (data && data.found && data.voice) {
+            setRecognizedVoice(data.voice);
+          } else {
+            setRecognizedVoice(null);
+          }
+        }
+      })
+      .catch(() => {
+        if (!cancel) setRecognizedVoice(null);
+      })
+      .finally(() => {
+        if (!cancel) setCheckingVoice(false);
+      });
+
+    return () => {
+      cancel = true;
+    };
   }, [formData.customerPhone]);
 
   // Restore draft from localStorage on load & check URL query params
@@ -980,6 +1010,8 @@ export default function CriarMusica() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               ...formData,
+              customVoiceId: recognizedVoice?.voiceId || null,
+              isCustomVoice: formData.voiceType === 'minha_voz',
               ...traffic
             })
           });
@@ -1128,6 +1160,8 @@ export default function CriarMusica() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               ...formData,
+              customVoiceId: recognizedVoice?.voiceId || null,
+              isCustomVoice: formData.voiceType === 'minha_voz',
               userId: auth.currentUser ? auth.currentUser.uid : null,
               ...traffic
             })
@@ -1386,6 +1420,8 @@ export default function CriarMusica() {
       handlePhoneChange={handlePhoneChange}
       phoneVerifyStatus={phoneVerifyStatus}
       phoneVerifyMessage={phoneVerifyMessage}
+      recognizedVoice={recognizedVoice}
+      checkingVoice={checkingVoice}
     />
   );
 

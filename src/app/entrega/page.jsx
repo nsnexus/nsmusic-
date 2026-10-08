@@ -13,6 +13,7 @@ import PlaybackAddonCard from '@/components/PlaybackAddonCard';
 import KaraokeAddonCard from '@/components/KaraokeAddonCard';
 import CartaAddonCard from '@/components/CartaAddonCard';
 import RetrospectivaAddonCard from '@/components/RetrospectivaAddonCard';
+import VozClienteAddonCard from '@/components/VozClienteAddonCard';
 import BannerLinkPresente from '@/components/BannerLinkPresente';
 import { requestPixCharge } from '@/lib/pixCheckout';
 import { compressImage } from '@/lib/imageCompress';
@@ -2758,6 +2759,11 @@ function EntregaContent() {
                 {/* Add-on de Vídeo Karaokê (letra sincronizada estilo karaokê + playback instrumental 16:9 HD) */}
                 {isPaid && Boolean(order?.audioUrl || order?.audioFiles?.length > 0 || order?.audioIds?.length > 0) && (
                   <KaraokeAddonCard orderId={orderId} order={order} />
+                )}
+
+                {/* Add-on de Voz Personalizada do Cliente (clonagem de voz via IA) */}
+                {isPaid && Boolean(order?.audioUrl || order?.audioFiles?.length > 0 || order?.audioIds?.length > 0) && (
+                  <VozClienteAddonCard orderId={orderId} order={order} />
                 )}
 
                 {!isPaid && (

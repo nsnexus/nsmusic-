@@ -48,6 +48,20 @@ export async function POST(req) {
     const orderNumber = await generateUniqueOrderNumber(env);
     const createdAtIso = new Date().toISOString();
 
+    // Suporte a voz personalizada do cliente (timbre clonado)
+    let customVoiceId = formData.customVoiceId || formData.custom_voice_id || null;
+    let isCustomVoice = Boolean(formData.isCustomVoice || formData.is_custom_voice || formData.voiceType === 'minha_voz');
+    if ((isCustomVoice || formData.voiceType === 'minha_voz') && !customVoiceId && formData.customerPhone) {
+      try {
+        const { findCustomerVoice } = await import('@/lib/customerVoices');
+        const v = await findCustomerVoice(formData.customerPhone, env);
+        if (v && v.status === 'ativo' && v.voiceId) {
+          customVoiceId = v.voiceId;
+          isCustomVoice = true;
+        }
+      } catch (e) {}
+    }
+
     const orderPayload = {
       orderNumber,
       userId: formData.userId || null,
@@ -63,6 +77,8 @@ export async function POST(req) {
       musicStyle: formData.musicStyle || '',
       musicMood: formData.musicMood || '',
       voiceType: formData.voiceType || '',
+      customVoiceId: customVoiceId || null,
+      isCustomVoice: Boolean(isCustomVoice && customVoiceId),
       coverUrl: formData.coverUrl || '',
       lyrics: formData.lyrics || '',
       termsAccepted: true,

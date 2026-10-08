@@ -67,6 +67,75 @@ Com você ao meu lado eu sei onde quero estar`
   const [msgErro, setMsgErro] = useState('');
   const [msgSucesso, setMsgSucesso] = useState('');
 
+  // Aba 4: Gestão de Timbres dos Clientes
+  const [clientesVoz, setClientesVoz] = useState([]);
+  const [carregandoClientesVoz, setCarregandoClientesVoz] = useState(false);
+  const [buscaVoz, setBuscaVoz] = useState('');
+  const [resetandoTelefone, setResetandoTelefone] = useState('');
+
+  const carregarClientesVoz = async () => {
+    setCarregandoClientesVoz(true);
+    try {
+      const res = await fetch('/api/admin/voice/customers');
+      const data = await res.json();
+      if (data.ok && Array.isArray(data.voices)) {
+        setClientesVoz(data.voices);
+      } else {
+        setClientesVoz([]);
+      }
+    } catch (err) {
+      console.error('Erro ao buscar clientes com voz:', err);
+    } finally {
+      setCarregandoClientesVoz(false);
+    }
+  };
+
+  const handleResetarTimbre = async (cliente) => {
+    const nome = cliente.customerName || cliente.customer_name || 'este cliente';
+    const conf = window.confirm(`Deseja realmente redefinir o timbre de voz de ${nome} (${cliente.phone})?\n\nO status do timbre será alterado para "resetado" e o cliente poderá gravar uma nova amostra.`);
+    if (!conf) return;
+
+    setResetandoTelefone(cliente.phone);
+    try {
+      const res = await fetch('/api/admin/voice/customers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'reset', phone: cliente.phone })
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        setMsgSucesso(`Timbre de ${nome} redefinido com sucesso!`);
+        await carregarClientesVoz();
+      } else {
+        setMsgErro(data.error || 'Erro ao redefinir timbre.');
+      }
+    } catch (err) {
+      setMsgErro(err.message || 'Erro de conexão ao redefinir timbre.');
+    } finally {
+      setResetandoTelefone('');
+    }
+  };
+
+  const handleTestarVozNoLab = (cliente) => {
+    const vId = cliente.voiceId || cliente.voice_id;
+    if (!vId) {
+      alert('Este registro não possui um Voice ID válido.');
+      return;
+    }
+    setVoiceId(vId);
+    if (cliente.sampleAudioUrl || cliente.sample_audio_url) {
+      setAmostraPublicUrl(cliente.sampleAudioUrl || cliente.sample_audio_url);
+    }
+    setEtapa(3);
+    setMsgSucesso(`Voz de ${cliente.customerName || cliente.customer_name || cliente.phone} carregada no Passo 3! Pronto para gerar músicas de teste.`);
+  };
+
+  useEffect(() => {
+    if (etapa === 4 && autorizado) {
+      carregarClientesVoz();
+    }
+  }, [etapa, autorizado]);
+
   const handleReiniciarTudo = () => {
     setEtapa(1);
     setAmostraBlob(null);
@@ -687,6 +756,7 @@ Com você ao meu lado eu sei onde quero estar`
             { n: 1, label: '1. Amostra' },
             { n: 2, label: '2. Validação' },
             { n: 3, label: '3. Canção' },
+            { n: 4, label: '4. Timbres Cadastrados' },
           ].map((s) => (
             <button
               key={s.n}
@@ -1150,6 +1220,233 @@ Com você ao meu lado eu sei onde quero estar`
             )}
           </div>
         )}
+
+        {/* ETAPA 4: Gestão de Timbres dos Clientes */}
+        {etapa === 4 && (
+          <div style={{ background: '#131b2e', borderRadius: '16px', padding: '20px', border: '1px solid #1e293b' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
+              <div>
+                <h2 style={{ fontSize: '1.15rem', fontWeight: '700', margin: '0 0 4px 0', color: '#f1f5f9' }}>
+                  📋 Timbres de Clientes Cadastrados
+                </h2>
+                <p style={{ fontSize: '0.84rem', color: '#94a3b8', margin: 0 }}>
+                  Vozes clonadas vinculadas aos números de WhatsApp dos clientes
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontSize: '0.78rem', background: '#1e293b', color: '#38bdf8', padding: '4px 10px', borderRadius: '999px', fontWeight: '700' }}>
+                  {clientesVoz.length} {clientesVoz.length === 1 ? 'timbre' : 'timbres'}
+                </span>
+                <button
+                  type="button"
+                  onClick={carregarClientesVoz}
+                  disabled={carregandoClientesVoz}
+                  style={{
+                    background: '#1e293b',
+                    border: '1px solid #334155',
+                    color: '#f8fafc',
+                    padding: '6px 12px',
+                    borderRadius: '8px',
+                    fontSize: '0.8rem',
+                    fontWeight: '600',
+                    cursor: carregandoClientesVoz ? 'default' : 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  {carregandoClientesVoz ? 'Carregando...' : '🔄 Atualizar'}
+                </button>
+              </div>
+            </div>
+
+            {/* Barra de Busca / Filtro */}
+            <div style={{ marginBottom: '18px' }}>
+              <input
+                type="text"
+                value={buscaVoz}
+                onChange={(e) => setBuscaVoz(e.target.value)}
+                placeholder="🔍 Filtrar por nome ou WhatsApp..."
+                style={{
+                  width: '100%',
+                  padding: '10px 14px',
+                  borderRadius: '10px',
+                  border: '1px solid #334155',
+                  background: '#0a0f1d',
+                  color: '#f8fafc',
+                  fontSize: '0.85rem'
+                }}
+              />
+            </div>
+
+            {/* Lista / Tabela */}
+            {carregandoClientesVoz ? (
+              <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8', fontSize: '0.9rem' }}>
+                ⏳ Carregando base de timbres cadastrados...
+              </div>
+            ) : (() => {
+              const filtrados = clientesVoz.filter((c) => {
+                if (!buscaVoz.trim()) return true;
+                const termo = buscaVoz.toLowerCase().trim();
+                const nome = (c.customerName || c.customer_name || '').toLowerCase();
+                const fone = (c.phone || '').toLowerCase();
+                return nome.includes(termo) || fone.includes(termo);
+              });
+
+              if (filtrados.length === 0) {
+                return (
+                  <div style={{ textAlign: 'center', padding: '40px 20px', background: '#0a0f1d', borderRadius: '12px', border: '1px dashed #334155', color: '#94a3b8' }}>
+                    <div style={{ fontSize: '2rem', marginBottom: '8px' }}>🎤</div>
+                    <div style={{ fontWeight: '600', color: '#f1f5f9', marginBottom: '4px' }}>
+                      {buscaVoz ? 'Nenhum timbre encontrado com este filtro' : 'Nenhum timbre de cliente cadastrado'}
+                    </div>
+                    <div style={{ fontSize: '0.8rem' }}>
+                      {buscaVoz ? 'Tente buscar por outro nome ou número.' : 'Quando os clientes gravarem a voz na página de entrega (/entrega), os timbres aparecerão aqui vinculados ao WhatsApp.'}
+                    </div>
+                  </div>
+                );
+              }
+
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {filtrados.map((item, idx) => {
+                    const phone = item.phone || '';
+                    const nome = item.customerName || item.customer_name || 'Cliente';
+                    const voiceIdItem = item.voiceId || item.voice_id || '';
+                    const sampleUrl = item.sampleAudioUrl || item.sample_audio_url || '';
+                    const status = item.status || 'ativo';
+                    const isAtivo = status === 'ativo';
+                    const isResetando = resetandoTelefone === phone;
+
+                    return (
+                      <div
+                        key={item.id || idx}
+                        style={{
+                          background: '#0a0f1d',
+                          border: isAtivo ? '1px solid #1e293b' : '1px dashed #d97706',
+                          borderRadius: '12px',
+                          padding: '16px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '12px'
+                        }}
+                      >
+                        {/* Linha superior: Nome, Telefone e Status */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '8px' }}>
+                          <div>
+                            <div style={{ fontSize: '0.98rem', fontWeight: '700', color: '#f8fafc', marginBottom: '2px' }}>
+                              {nome}
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem' }}>
+                              <a
+                                href={`https://wa.me/${phone}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{ color: '#22c55e', textDecoration: 'none', fontWeight: '600' }}
+                              >
+                                💬 +{phone}
+                              </a>
+                              <span style={{ color: '#475569' }}>•</span>
+                              <span style={{ color: '#94a3b8' }}>
+                                {item.pedidosCount || 1} pedido(s)
+                              </span>
+                              {item.createdAt && (
+                                <>
+                                  <span style={{ color: '#475569' }}>•</span>
+                                  <span style={{ color: '#64748b', fontSize: '0.78rem' }}>
+                                    Cadastrado em {new Date(item.createdAt).toLocaleDateString('pt-BR')}
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+
+                          <div>
+                            {isAtivo ? (
+                              <span style={{ fontSize: '0.74rem', background: 'rgba(34, 197, 94, 0.15)', border: '1px solid rgba(34, 197, 94, 0.4)', color: '#86efac', padding: '3px 8px', borderRadius: '6px', fontWeight: '700' }}>
+                                🟢 Timbre Ativo
+                              </span>
+                            ) : (
+                              <span style={{ fontSize: '0.74rem', background: 'rgba(234, 179, 8, 0.15)', border: '1px solid rgba(234, 179, 8, 0.4)', color: '#fde047', padding: '3px 8px', borderRadius: '6px', fontWeight: '700' }}>
+                                🟡 Timbre Resetado
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Linha do Voice ID e Player */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', background: '#131b2e', padding: '10px 12px', borderRadius: '8px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', color: '#94a3b8' }}>
+                            <span style={{ fontWeight: '600', color: '#cbd5e1' }}>Voice ID:</span>
+                            <code style={{ background: '#0a0f1d', padding: '2px 6px', borderRadius: '4px', color: '#38bdf8', fontFamily: 'monospace' }}>
+                              {voiceIdItem || 'Sem ID'}
+                            </code>
+                          </div>
+
+                          {sampleUrl ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{ fontSize: '0.74rem', color: '#94a3b8' }}>Amostra:</span>
+                              <audio controls src={sampleUrl} style={{ height: '32px', maxWidth: '220px' }} />
+                            </div>
+                          ) : (
+                            <span style={{ fontSize: '0.74rem', color: '#64748b' }}>Sem áudio de amostra</span>
+                          )}
+                        </div>
+
+                        {/* Botões de Ação */}
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '8px', paddingTop: '4px' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleTestarVozNoLab(item)}
+                            disabled={!voiceIdItem}
+                            style={{
+                              background: '#1e293b',
+                              border: '1px solid #334155',
+                              color: '#38bdf8',
+                              padding: '6px 12px',
+                              borderRadius: '8px',
+                              fontSize: '0.78rem',
+                              fontWeight: '600',
+                              cursor: voiceIdItem ? 'pointer' : 'default',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
+                          >
+                            🎧 Testar no Lab
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleResetarTimbre(item)}
+                            disabled={isResetando || !isAtivo}
+                            style={{
+                              background: isAtivo ? 'rgba(239, 68, 68, 0.1)' : 'rgba(255, 255, 255, 0.03)',
+                              border: isAtivo ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid #334155',
+                              color: isAtivo ? '#fca5a5' : '#64748b',
+                              padding: '6px 12px',
+                              borderRadius: '8px',
+                              fontSize: '0.78rem',
+                              fontWeight: '600',
+                              cursor: (isAtivo && !isResetando) ? 'pointer' : 'default',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
+                          >
+                            {isResetando ? 'Redefinindo...' : isAtivo ? '🔄 Redefinir Timbre' : 'Já Redefinido'}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </div>
+        )}
+
 
       </div>
     </div>

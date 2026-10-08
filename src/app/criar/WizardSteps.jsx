@@ -21,6 +21,8 @@ export default function WizardSteps({
   handlePhoneChange,
   phoneVerifyStatus,
   phoneVerifyMessage,
+  recognizedVoice = null,
+  checkingVoice = false,
 }) {
   switch (step) {
     case 1:
@@ -260,7 +262,8 @@ export default function WizardSteps({
                 { id: 'masculina', label: 'Masculina', desc: 'Voz grave', Icon: Mic },
                 { id: 'feminina', label: 'Feminina', desc: 'Voz aguda', Icon: Mic },
                 { id: 'dueto', label: 'Dueto', desc: 'Masc. + fem.', Icon: Users },
-              ].map(({ id, label, desc, Icon }) => {
+                ...(recognizedVoice ? [{ id: 'minha_voz', label: 'Minha Própria Voz', desc: 'Seu timbre cadastrado', Icon: Mic, isCustom: true }] : []),
+              ].map(({ id, label, desc, Icon, isCustom }) => {
                 const selected = formData.voiceType === id;
                 return (
                   <button
@@ -275,20 +278,20 @@ export default function WizardSteps({
                       alignItems: 'center',
                       gap: '6px',
                       fontWeight: '600',
-                      borderColor: selected ? 'var(--primary)' : 'var(--border-color)',
-                      backgroundColor: selected ? 'var(--primary-light)' : '#FFFFFF',
-                      color: selected ? 'var(--primary)' : 'var(--text-primary)',
-                      boxShadow: selected ? '0 4px 14px var(--primary-glow)' : '0 2px 6px rgba(0,0,0,0.02)',
+                      borderColor: selected ? (isCustom ? '#f59e0b' : 'var(--primary)') : (isCustom ? 'rgba(245, 158, 11, 0.4)' : 'var(--border-color)'),
+                      backgroundColor: selected ? (isCustom ? 'rgba(245, 158, 11, 0.15)' : 'var(--primary-light)') : (isCustom ? 'rgba(245, 158, 11, 0.05)' : '#FFFFFF'),
+                      color: selected ? (isCustom ? '#d97706' : 'var(--primary)') : (isCustom ? '#b45309' : 'var(--text-primary)'),
+                      boxShadow: selected ? (isCustom ? '0 4px 14px rgba(245, 158, 11, 0.25)' : '0 4px 14px var(--primary-glow)') : '0 2px 6px rgba(0,0,0,0.02)',
                     }}
                   >
                     {selected && (
-                      <span style={{ ...styles.checkCircle, width: '20px', height: '20px', top: '8px', right: '8px' }}>
+                      <span style={{ ...styles.checkCircle, width: '20px', height: '20px', top: '8px', right: '8px', background: isCustom ? '#f59e0b' : undefined }}>
                         <Check size={12} strokeWidth={3} aria-hidden="true" />
                       </span>
                     )}
                     <Icon size={22} aria-hidden="true" />
                     <span style={{ fontSize: '1rem' }}>{label}</span>
-                    <span style={{ fontSize: '0.78rem', fontWeight: '500', color: selected ? 'var(--primary)' : 'var(--text-muted)', opacity: 0.85 }}>{desc}</span>
+                    <span style={{ fontSize: '0.78rem', fontWeight: '500', color: selected ? (isCustom ? '#b45309' : 'var(--primary)') : 'var(--text-muted)', opacity: 0.85 }}>{desc}</span>
                   </button>
                 );
               })}
@@ -395,8 +398,14 @@ export default function WizardSteps({
             </div>
             <div style={styles.summaryItemRow}>
               <span style={{ color: 'var(--text-secondary)' }}>Voz:</span>
-              <span style={{ fontWeight: '600' }}>
-                {formData.voiceType === 'masculina' ? 'Masculina' : formData.voiceType === 'feminina' ? 'Feminina' : 'Dueto (masc. + fem.)'}
+              <span style={{ fontWeight: '600', color: formData.voiceType === 'minha_voz' ? '#f59e0b' : undefined }}>
+                {formData.voiceType === 'minha_voz'
+                  ? '🎤 Minha Própria Voz (Timbre Cadastrado)'
+                  : formData.voiceType === 'masculina'
+                  ? 'Masculina'
+                  : formData.voiceType === 'feminina'
+                  ? 'Feminina'
+                  : 'Dueto (masc. + fem.)'}
               </span>
             </div>
             <div style={styles.summaryItemRow}>
@@ -440,6 +449,54 @@ export default function WizardSteps({
               <span style={{ fontSize: '0.75rem', color: phoneVerifyStatus === 'valid' ? 'var(--success)' : phoneVerifyStatus === 'invalid' ? '#ef4444' : 'var(--text-muted)', marginTop: '4px', display: 'block', fontWeight: phoneVerifyStatus === 'invalid' ? 'bold' : 'normal' }}>
                 {phoneVerifyMessage || 'Digite o DDD + 9 dígitos'}
               </span>
+              {checkingVoice && (
+                <span style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '4px', display: 'block' }}>
+                  ⏳ Verificando se este WhatsApp tem voz cadastrada...
+                </span>
+              )}
+              {recognizedVoice && (
+                <div style={{
+                  marginTop: '12px',
+                  padding: '14px 16px',
+                  borderRadius: '12px',
+                  background: 'rgba(245, 158, 11, 0.1)',
+                  border: '1px solid rgba(245, 158, 11, 0.4)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#f59e0b', fontWeight: '700', fontSize: '0.9rem' }}>
+                    <span>🎤</span>
+                    <span>Timbre de Voz Cadastrado Encontrado!</span>
+                  </div>
+                  <p style={{ margin: 0, fontSize: '0.82rem', color: '#fef3c7', lineHeight: '1.4' }}>
+                    Olá, <strong>{recognizedVoice.customerName || 'Cliente'}</strong>! Identificamos o seu timbre de voz gravado anteriormente. Você pode gerar esta nova música cantada com a <strong>sua própria voz</strong> pelo valor normal de <strong>R$ 9,99</strong>!
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      updateField('voiceType', formData.voiceType === 'minha_voz' ? 'masculina' : 'minha_voz');
+                    }}
+                    style={{
+                      marginTop: '4px',
+                      padding: '8px 14px',
+                      borderRadius: '8px',
+                      border: formData.voiceType === 'minha_voz' ? '1px solid #f59e0b' : '1px solid rgba(255, 255, 255, 0.15)',
+                      background: formData.voiceType === 'minha_voz' ? '#f59e0b' : 'rgba(255, 255, 255, 0.05)',
+                      color: formData.voiceType === 'minha_voz' ? '#000' : '#fef3c7',
+                      fontWeight: '700',
+                      fontSize: '0.82rem',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      alignSelf: 'flex-start'
+                    }}
+                  >
+                    {formData.voiceType === 'minha_voz' ? '✓ Cantar com Minha Própria Voz (Ativado)' : '🎤 Ativar Minha Voz nesta Música'}
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* O campo de e-mail (opcional) foi removido daqui em 21/09/2026 — menos uma coisa
