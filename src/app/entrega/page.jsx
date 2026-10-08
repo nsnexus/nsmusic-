@@ -9,6 +9,7 @@ import { AUDIO_CACHE_VERSION } from '@/lib/audioCacheVersion';
 import ExtrasOfferModal from '@/components/ExtrasOfferModal';
 import PixQrCode from '@/components/PixQrCode';
 import PreviaEncerradaModal from '@/components/PreviaEncerradaModal';
+import PreviaProntaModal from '@/components/PreviaProntaModal';
 import PlaybackAddonCard from '@/components/PlaybackAddonCard';
 import KaraokeAddonCard from '@/components/KaraokeAddonCard';
 import CartaAddonCard from '@/components/CartaAddonCard';
@@ -333,6 +334,17 @@ function EntregaContent() {
       linhas: ['+ Retrospectiva + Vídeo Homenagem', '+ Carta Virtual'],
       valor: getPriceForSku('combo_retrospectiva') || 19.98,
     },
+    {
+      sku: 'combo_voz',
+      icone: <span style={{ fontSize: '1.25rem' }}>🎤</span>,
+      iconBg: '#fef3c7',
+      iconColor: '#d97706',
+      priceColor: '#b45309',
+      titulo: '2 versões completas',
+      linhas: ['+ Voz Clonada do Cliente (IA)'],
+      valor: getPriceForSku('combo_voz') || 34.89,
+      destaque: '✨ NOVO',
+    },
   ];
 
   const [valorEscolhido, setValorEscolhido] = useState(() => getPriceForSku('combo') || 16.89);
@@ -344,7 +356,11 @@ function EntregaContent() {
     const pacote = pacotesEntrega.find(p => Math.abs(p.valor - valor) < 0.01);
     const sku = explicitSku || pacote?.sku || 'combo';
     setSelectedPackage(sku);
-    handleGeneratePix('impacto', false, valor);
+    if (sku === 'combo_voz') {
+      handleGeneratePix('combo_voz', false);
+    } else {
+      handleGeneratePix('impacto', false, valor);
+    }
   };
 
   const skuDoPacoteAtual = promo === '48h' ? 'recovery_combo_48h'
@@ -356,6 +372,7 @@ function EntregaContent() {
     combo: 'para liberar as 2 versões completas e o Vídeo Homenagem com as suas fotos!',
     combo_carta: 'para liberar as 2 versões completas e a Carta Virtual!',
     combo_retrospectiva: 'para liberar as 2 versões completas e a Retrospectiva!',
+    combo_voz: 'para liberar as 2 versões completas e clonar o seu timbre de voz personalizado!',
   };
   const descricaoDoPacoteAtual = DESCRICOES_DE_PACOTE[skuDoPacoteAtual] || DESCRICOES_DE_PACOTE.audio_only;
 
@@ -382,12 +399,14 @@ function EntregaContent() {
     if (order && !order.videoUrl && !order.hasVideoAccess && !promo && typeof window !== 'undefined') {
       const dismissed = sessionStorage.getItem(`video_modal_dismissed_${orderId}`);
       const ocultoSempre = localStorage.getItem('nsmusic_extras_modal_oculto') === '1';
-      if (!dismissed && !ocultoSempre) {
+      const previaProntaDismissed = sessionStorage.getItem(`previa_pronta_modal_${orderId}`);
+      // Não sobrepõe o modal de início da prévia se ainda não foi dispensado
+      if (!dismissed && !ocultoSempre && (previaProntaDismissed || isPaid)) {
         const timer = setTimeout(() => setShowVideoModal(true), 1200);
         return () => clearTimeout(timer);
       }
     }
-  }, [order, orderId]);
+  }, [order, orderId, isPaid]);
 
   // O evento de Purchase (Facebook Pixel / Meta Ads) NÃO é mais disparado aqui no cliente — movido
   // pro servidor (src/lib/payments.js:applyPaymentApproval, via src/lib/metaCapi.js), no único ponto
@@ -1128,6 +1147,50 @@ function EntregaContent() {
     }, 400);
   };
 
+  // Pop-up de início da prévia: recepciona o cliente avisando que a música
+  // está pronta, recomendando fones de ouvido e oferecendo a novidade de clonagem de voz.
+  const [showPreviaProntaModal, setShowPreviaProntaModal] = useState(false);
+
+  useEffect(() => {
+    if (!order || isPaid || typeof window === 'undefined') return;
+    const temAudio = Boolean(order.audioUrl || order.audioFiles?.length > 0 || order.audioIds?.length > 0);
+    if (!temAudio) return;
+
+    const dismissed = sessionStorage.getItem(`previa_pronta_modal_${orderId}`);
+    if (!dismissed) {
+      const timer = setTimeout(() => {
+        setShowPreviaProntaModal(true);
+      }, 600);
+      return () => clearTimeout(timer);
+    }
+  }, [order, orderId, isPaid]);
+
+  const handleClosePreviaProntaModal = () => {
+    setShowPreviaProntaModal(false);
+    if (typeof window !== 'undefined' && orderId) {
+      sessionStorage.setItem(`previa_pronta_modal_${orderId}`, 'true');
+    }
+  };
+
+  const handlePlayPreviewFromModal = () => {
+    handleClosePreviaProntaModal();
+    const el = primaryAudioElRef.current;
+    if (el && el.paused) {
+      toggleAudioPlay('primary');
+    }
+  };
+
+  const handleQueroMinhaVozFromModal = () => {
+    handleClosePreviaProntaModal();
+    const precoComboVoz = getPriceForSku('combo_voz') || 34.89;
+    escolherFaixa(precoComboVoz, 'combo_voz');
+    if (typeof document !== 'undefined') {
+      const el = document.getElementById('pagamento');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+  };
 
   if (loading) {
     return (
@@ -3418,6 +3481,15 @@ function EntregaContent() {
             honoreeName={order?.honoreeName || ''}
             precoTexto={valorCobradoTexto}
             ctaLabel="Liberar a música completa"
+          />
+
+          <PreviaProntaModal
+            isOpen={showPreviaProntaModal && !isPaid}
+            onClose={handleClosePreviaProntaModal}
+            onPlayPreview={handlePlayPreviewFromModal}
+            onQueroMinhaVoz={handleQueroMinhaVozFromModal}
+            honoreeName={order?.honoreeName || 'alguém especial'}
+            customerName={order?.customerName || ''}
           />
 
           <ExtrasOfferModal
