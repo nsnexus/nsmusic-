@@ -2,6 +2,9 @@ import { chromium } from 'playwright';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import os from 'os';
+import ffmpegPath from 'ffmpeg-static';
+import { execFile } from 'child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -325,8 +328,8 @@ export async function gerarMusicaNoSuno({ prompt, style = 'Acoustic Pop', title 
     throw new Error('MODERATION_ERROR: O Suno bloqueou termos na letra ou estilo.');
   }
 
-  // 7. Aguarda os clipes finalizarem e captura as URLs diretas da CDN
-  onProgress('Aguardando Suno finalizar as 2 faixas (leva cerca de 30-50s)...');
+  // 7. Aguarda os clipes finalizarem no Suno
+  onProgress('Aguardando Suno finalizar as 2 faixas (leva cerca de 45-75s)...');
   const startTime = Date.now();
   const MAX_WAIT_MS = 240000; // 4 minutos máximo
 
@@ -374,9 +377,12 @@ export async function gerarMusicaNoSuno({ prompt, style = 'Acoustic Pop', title 
       const size1 = parseInt(r1?.headers?.get('content-length') || '0', 10);
       const size2 = parseInt(r2?.headers?.get('content-length') || '0', 10);
 
-      // Quando a CDN responder com tamanho real (> 100KB)
-      if ((r1?.ok && size1 > 100000 && r2?.ok && size2 > 100000) || elapsed >= 50) {
-        console.log(`[SunoAutomator] 🎯 Faixas renderizadas com sucesso na CDN da Suno!`);
+      // Aguarda até que ambas as faixas estejam totalmente geradas (> 1.5 MB cada)
+      const ambasCompletas = r1?.ok && size1 > 1500000 && r2?.ok && size2 > 1500000;
+      const timeoutSeguranca = elapsed >= 110 && r1?.ok && size1 > 500000 && r2?.ok && size2 > 500000;
+
+      if (ambasCompletas || timeoutSeguranca) {
+        console.log(`[SunoAutomator] 🎯 Faixas renderizadas com sucesso no Suno (${(size1/1024/1024).toFixed(2)} MB e ${(size2/1024/1024).toFixed(2)} MB)!`);
         break;
       }
     }
@@ -390,14 +396,32 @@ export async function gerarMusicaNoSuno({ prompt, style = 'Acoustic Pop', title 
     throw new Error('TIMEOUT: O Suno não gerou as 2 faixas no tempo esperado.');
   }
 
-  // 8. Monta as URLs oficiais da CDN para download direto em streaming
   const id1 = targetClipIds[0];
   const id2 = targetClipIds[1];
 
   const cdnUrl1 = `https://d2lwuy8qc234o3.cloudfront.net/1/clip/${id1}.m4a`;
   const cdnUrl2 = `https://d2lwuy8qc234o3.cloudfront.net/1/clip/${id2}.m4a`;
 
-  console.log('[SunoAutomator] 🌐 URLs oficiais da CDN capturadas:', [cdnUrl1, cdnUrl2]);
+  // 8. Extrai o áudio decodificado pelo player do Suno e converte para MP3 256kbps
+  let mp3Buffer1 = null;
+  let mp3Buffer2 = null;
+
+  try {
+    mp3Buffer1 = await extrairMp3DoClip(page, id1, onProgress);
+    console.log(`[SunoAutomator] ✅ Faixa 1 convertida para MP3 com sucesso (${(mp3Buffer1.length / 1024 / 1024).toFixed(2)} MB)!`);
+  } catch (err) {
+    console.warn(`[SunoAutomator] ⚠️ Falha na conversão de MP3 da Faixa 1 (${err.message}). Usando contingência CDN.`);
+  }
+
+  try {
+    mp3Buffer2 = await extrairMp3DoClip(page, id2, onProgress);
+    console.log(`[SunoAutomator] ✅ Faixa 2 convertida para MP3 com sucesso (${(mp3Buffer2.length / 1024 / 1024).toFixed(2)} MB)!`);
+  } catch (err) {
+    console.warn(`[SunoAutomator] ⚠️ Falha na conversão de MP3 da Faixa 2 (${err.message}). Usando contingência CDN.`);
+  }
+
+  // Retorna à tela /create para manter o navegador pronto para a próxima geração
+  await page.goto('https://suno.com/create', { waitUntil: 'domcontentloaded' }).catch(() => {});
 
   return {
     success: true,
@@ -406,16 +430,119 @@ export async function gerarMusicaNoSuno({ prompt, style = 'Acoustic Pop', title 
         id: id1,
         title: title || 'Faixa 1',
         status: 'complete',
-        audioUrl: cdnUrl1
+        audioUrl: cdnUrl1,
+        buffer: mp3Buffer1
       },
       {
         id: id2,
         title: title || 'Faixa 2',
         status: 'complete',
-        audioUrl: cdnUrl2
+        audioUrl: cdnUrl2,
+        buffer: mp3Buffer2
       }
     ]
   };
+}
+
+/**
+ * Converte um buffer de chunks fMP4 decodificados em MP3 limpo a 256 kbps via ffmpeg.
+ */
+export async function converterFmp4ParaMp3(fmp4Buffer) {
+  const tempInput = path.join(os.tmpdir(), `suno_${Date.now()}_${Math.random().toString(36).substring(7)}.mp4`);
+  const tempOutput = path.join(os.tmpdir(), `suno_${Date.now()}_${Math.random().toString(36).substring(7)}.mp3`);
+
+  try {
+    fs.writeFileSync(tempInput, fmp4Buffer);
+    await new Promise((resolve, reject) => {
+      execFile(ffmpegPath, [
+        '-y',
+        '-i', tempInput,
+        '-codec:a', 'libmp3lame',
+        '-b:a', '256k',
+        tempOutput
+      ], (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+
+    return fs.readFileSync(tempOutput);
+  } finally {
+    try { if (fs.existsSync(tempInput)) fs.unlinkSync(tempInput); } catch (e) {}
+    try { if (fs.existsSync(tempOutput)) fs.unlinkSync(tempOutput); } catch (e) {}
+  }
+}
+
+/**
+ * Captura o áudio completo decodificado pelo player oficial do Suno e converte para MP3 256kbps.
+ */
+export async function extrairMp3DoClip(page, clipId, onProgress = () => {}) {
+  onProgress(`Abrindo página do clipe #${clipId.substring(0, 8)} para captura de áudio...`);
+
+  // Injeta interceptor no SourceBuffer
+  await page.evaluate(() => {
+    window.__appendedChunks = [];
+    if (!window.__origAppendBuffer) {
+      window.__origAppendBuffer = SourceBuffer.prototype.appendBuffer;
+      SourceBuffer.prototype.appendBuffer = function(buf) {
+        window.__appendedChunks.push(Array.from(new Uint8Array(buf)));
+        return window.__origAppendBuffer.call(this, buf);
+      };
+    }
+  }).catch(() => {});
+
+  await page.goto(`https://suno.com/song/${clipId}`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  await page.waitForTimeout(2000);
+
+  // Garante que o interceptor está ativo na página carregada
+  await page.evaluate(() => {
+    window.__appendedChunks = [];
+    if (!window.__origAppendBuffer) {
+      window.__origAppendBuffer = SourceBuffer.prototype.appendBuffer;
+      SourceBuffer.prototype.appendBuffer = function(buf) {
+        window.__appendedChunks.push(Array.from(new Uint8Array(buf)));
+        return window.__origAppendBuffer.call(this, buf);
+      };
+    }
+  });
+
+  const playBtn = page.locator('button[aria-label="Play"], button[aria-label*="play" i]').first();
+  await playBtn.waitFor({ state: 'visible', timeout: 15000 });
+  await playBtn.click();
+  await page.waitForTimeout(1000);
+
+  onProgress(`Bufferizando áudio completo do clipe #${clipId.substring(0, 8)}...`);
+
+  // Avança o áudio em passos de 15s para forçar o buffer do clipe inteiro
+  const dur = await page.evaluate(async () => {
+    const audio = document.querySelector('audio');
+    if (!audio) return 0;
+    const d = audio.duration || 240;
+    for (let t = 10; t < d; t += 15) {
+      audio.currentTime = t;
+      await new Promise(r => setTimeout(r, 120));
+    }
+    return d;
+  });
+
+  await page.waitForTimeout(800);
+
+  // Pausa o áudio
+  await page.evaluate(() => {
+    const audio = document.querySelector('audio');
+    if (audio) audio.pause();
+  }).catch(() => {});
+
+  const chunks = await page.evaluate(() => window.__appendedChunks || []);
+  if (chunks.length === 0) {
+    throw new Error('Nenhum fragmento de áudio recebido pelo reprodutor da Suno.');
+  }
+
+  const rawBuffer = Buffer.concat(chunks.map(c => Buffer.from(c)));
+  onProgress(`Convertendo ${(rawBuffer.length / 1024 / 1024).toFixed(2)} MB para formato MP3 (256 kbps)...`);
+
+  const mp3Buffer = await converterFmp4ParaMp3(rawBuffer);
+  return mp3Buffer;
 }
 
 /**

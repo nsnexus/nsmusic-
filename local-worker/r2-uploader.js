@@ -40,16 +40,16 @@ export async function uploadAudioParaR2({
   if (audioBuffer) {
     console.log(`[R2Uploader] ✅ Buffer MP3 recebido diretamente (${(audioBuffer.byteLength / 1024 / 1024).toFixed(2)} MB, .mp3)`);
   } else {
-    // Monta lista de URLs candidatas priorizando a CDN CloudFront direta da Suno
+    // Monta lista de URLs candidatas priorizando MP3 e CDN da Suno
     const candidates = [];
     if (uuid) {
+      candidates.push(`https://cdn1.suno.ai/${uuid}.mp3`);
       candidates.push(`https://d2lwuy8qc234o3.cloudfront.net/1/clip/${uuid}.m4a`);
     }
     if (audioUrl) {
       candidates.push(audioUrl);
     }
     if (uuid) {
-      candidates.push(`https://cdn1.suno.ai/${uuid}.mp3`);
       candidates.push(`https://audiopipe.suno.ai/?item_id=${uuid}`);
     }
 

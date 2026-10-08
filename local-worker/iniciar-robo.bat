@@ -40,6 +40,11 @@ if not exist "node_modules\" (
     call npm install
     echo [INFO] Configurando navegador Chromium...
     call npx playwright install chromium
+) else (
+    if not exist "node_modules\ffmpeg-static\" (
+        echo [INFO] Instalando dependências de áudio (ffmpeg-static)...
+        call npm install
+    )
 )
 
 echo.
