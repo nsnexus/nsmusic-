@@ -1,18 +1,18 @@
 @echo off
 chcp 65001 > nul
-title NSMusic - Robô Desktop Suno AI
+title NSMusic - Robo Desktop Suno AI
 color 0B
 
 echo ============================================================
-echo         🎵 NSMUSIC - ROBÔ LOCAL DE GERAÇÃO SUNO AI
+echo         🎵 NSMUSIC - ROBO LOCAL DE GERACAO SUNO AI
 echo ============================================================
 echo.
 
-:: 1. Verifica se o Node.js está instalado
+REM 1. Verifica se o Node.js esta instalado
 where node >nul 2>nul
 if %errorlevel% neq 0 (
     color 0C
-    echo [ERRO] O Node.js não foi encontrado no seu computador!
+    echo [ERRO] O Node.js nao foi encontrado no seu computador!
     echo Por favor, instale o Node.js v18+ em https://nodejs.org
     echo.
     pause
@@ -21,42 +21,37 @@ if %errorlevel% neq 0 (
 
 cd /d "%~dp0"
 
-:: 2. Prepara o arquivo .env se ainda não existir
+REM 2. Prepara o arquivo .env se ainda nao existir
 if not exist ".env" (
     if exist "..\.env.local" (
         echo [INFO] Configurando .env a partir do projeto principal...
         copy "..\.env.local" ".env" >nul
-    ) else (
-        if exist ".env.example" (
-            echo [INFO] Criando .env a partir do .env.example...
-            copy ".env.example" ".env" >nul
-        )
     )
 )
 
-:: 3. Instala dependências se necessário
-if not exist "node_modules\" (
-    echo [INFO] Primeira execução detectada! Instalando dependências...
+REM 3. Instala dependencias se necessario
+if not exist "node_modules" (
+    echo [INFO] Primeira execucao detectada! Instalando dependencias...
     call npm install
     echo [INFO] Configurando navegador Chromium...
     call npx playwright install chromium
-) else (
-    if not exist "node_modules\ffmpeg-static\" (
-        echo [INFO] Instalando dependências de áudio (ffmpeg-static)...
-        call npm install
-    )
+)
+
+if not exist "node_modules\ffmpeg-static" (
+    echo [INFO] Instalando modulos de conversao de audio para MP3...
+    call npm install
 )
 
 echo.
-echo [INFO] Iniciando o Robô Local...
+echo [INFO] Iniciando o Robo Local...
 echo Mantenha esta janela aberta enquanto quiser atender pedidos pelo seu Suno.
 echo ============================================================
 echo.
 
 node robo-suno.js
 
-if %errorlevel% neq 0 (
-    echo.
-    echo [AVISO] O processo do robô foi encerrado com código %errorlevel%.
-    pause
-)
+echo.
+echo ============================================================
+echo [AVISO] O processo do robo foi encerrado.
+echo Pressione qualquer tecla para fechar esta janela.
+pause
