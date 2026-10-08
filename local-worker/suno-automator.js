@@ -65,6 +65,28 @@ export async function initSunoBrowser() {
   activePage = pages.length > 0 ? pages[0] : await browserContext.newPage();
   activePage.setDefaultTimeout(30000);
 
+  // Injeta script furtivo para mascarar automação perante o Cloudflare Turnstile
+  await browserContext.addInitScript(() => {
+    try {
+      Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+    } catch (e) {}
+
+    try {
+      Object.defineProperty(navigator, 'plugins', {
+        get: () => [1, 2, 3, 4, 5]
+      });
+    } catch (e) {}
+
+    try {
+      window.chrome = {
+        runtime: {},
+        loadTimes: function() {},
+        csi: function() {},
+        app: {}
+      };
+    } catch (e) {}
+  });
+
   console.log('[SunoAutomator] 🌐 Acessando https://suno.com/create...');
   await activePage.goto('https://suno.com/create', { waitUntil: 'domcontentloaded', timeout: 45000 });
   await activePage.waitForTimeout(3000);
@@ -307,11 +329,22 @@ export async function gerarMusicaNoSuno({ prompt, style = 'Acoustic Pop', title 
   const createButton = page.locator('button:has-text("Create"), button[aria-label="Create song"]').last();
   await createButton.waitFor({ state: 'visible', timeout: 10000 });
   await createButton.scrollIntoViewIfNeeded().catch(() => {});
-  await page.waitForTimeout(300);
-  await createButton.click({ force: true });
+  await page.waitForTimeout(400);
+
+  // Simula movimento suave do mouse até o botão Create para parecer humano
+  const btnBox = await createButton.boundingBox().catch(() => null);
+  if (btnBox) {
+    const targetX = btnBox.x + btnBox.width / 2;
+    const targetY = btnBox.y + btnBox.height / 2;
+    await page.mouse.move(targetX, targetY, { steps: 8 }).catch(() => {});
+    await page.waitForTimeout(200);
+    await page.mouse.click(targetX, targetY).catch(() => createButton.click());
+  } else {
+    await createButton.click();
+  }
 
   // Monitora se o Cloudflare Turnstile aparecer
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 6; i++) {
     await page.waitForTimeout(1000);
     await resolverTurnstileSeNecessario(page);
   }
@@ -361,6 +394,9 @@ export async function gerarMusicaNoSuno({ prompt, style = 'Acoustic Pop', title 
 
       if (novosDoDom.length >= 2) {
         targetClipIds = novosDoDom.slice(0, 2);
+      } else {
+        // Se ainda não temos clipes novos na biblioteca, confere se o Turnstile surgiu travando
+        await resolverTurnstileSeNecessario(page);
       }
     }
 
@@ -546,17 +582,34 @@ export async function extrairMp3DoClip(page, clipId, onProgress = () => {}) {
 }
 
 /**
- * Resolve Cloudflare Turnstile caso apareça na tela.
+ * Resolve Cloudflare Turnstile ("Confirme que é humano") caso apareça na tela.
  */
 async function resolverTurnstileSeNecessario(page) {
   try {
-    const frame = page.frames().find(f => f.url().includes('cloudflare') || f.url().includes('turnstile'));
-    if (frame) {
-      const box = frame.locator('input[type="checkbox"], #challenge-stage, .ctp-checkbox-label').first();
-      if (await box.isVisible({ timeout: 1000 }).catch(() => false)) {
-        console.log('[SunoAutomator] 🛡️ Detectado Cloudflare Turnstile. Clicando no checkbox...');
-        await box.click();
-        await page.waitForTimeout(2000);
+    // 1. Procura o iframe do Cloudflare Turnstile na página
+    const turnstileIframe = page.locator('iframe[src*="challenges.cloudflare.com"], iframe[src*="turnstile"]').first();
+    const existe = await turnstileIframe.count().catch(() => 0);
+
+    if (existe > 0) {
+      const box = await turnstileIframe.boundingBox().catch(() => null);
+      if (box && box.width > 20 && box.height > 20) {
+        // A caixinha do checkbox do Turnstile fica à esquerda (tipicamente 25-35px da borda) e centralizada na vertical
+        const clickX = box.x + 30;
+        const clickY = box.y + (box.height / 2);
+        console.log(`[SunoAutomator] 🛡️ Detectado Cloudflare Turnstile. Simulando clique físico no checkbox em (${Math.round(clickX)}, ${Math.round(clickY)})...`);
+
+        await page.mouse.move(clickX, clickY, { steps: 8 }).catch(() => {});
+        await page.waitForTimeout(200);
+        await page.mouse.click(clickX, clickY).catch(() => {});
+        await page.waitForTimeout(1500);
+        return true;
+      }
+
+      // Tentativa alternativa via frame locator
+      const frame = page.frameLocator('iframe[src*="challenges.cloudflare.com"], iframe[src*="turnstile"]').first();
+      const checkbox = frame.locator('input[type="checkbox"], #challenge-stage, .ctp-checkbox-label, label, span').first();
+      if (await checkbox.count().catch(() => 0) > 0) {
+        await checkbox.click({ timeout: 2000, force: true }).catch(() => {});
         return true;
       }
     }
