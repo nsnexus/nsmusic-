@@ -196,7 +196,7 @@ export default function RitmoVendasCard({ pedidos: pedidosProp = null }) {
               boxShadow: isRevenue ? '0 2px 4px rgba(0,0,0,0.06)' : 'none',
             }}
           >
-            💰 Faturamento (R$)
+            💰 Faturamento Líquido (R$)
           </button>
           <button
             type="button"
@@ -234,7 +234,7 @@ export default function RitmoVendasCard({ pedidos: pedidosProp = null }) {
           border: '1px solid #e2e8f0',
         }}>
           <span style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            Hoje até às {String(currentHour).padStart(2, '0')}:59
+            Hoje Líquido até às {String(currentHour).padStart(2, '0')}:59
           </span>
           <div style={{ fontSize: '1.5rem', fontWeight: '800', color: '#0f172a', margin: '4px 0' }}>
             {fmtMoney(todayRevenueSoFar)}
@@ -250,7 +250,7 @@ export default function RitmoVendasCard({ pedidos: pedidosProp = null }) {
               {revenueDiffPercent >= 0 ? `▲ +${revenueDiffPercent}%` : `▼ ${revenueDiffPercent}%`}
             </span>
             <span style={{ color: '#64748b' }}>
-              vs média ({fmtMoney(avgRevenueAtCurrentHour)})
+              vs média líquida ({fmtMoney(avgRevenueAtCurrentHour)})
             </span>
           </div>
         </div>
@@ -263,13 +263,13 @@ export default function RitmoVendasCard({ pedidos: pedidosProp = null }) {
           border: '1px solid #e9d5ff',
         }}>
           <span style={{ fontSize: '0.78rem', color: '#7e22ce', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            🎯 Projeção para 23h59
+            🎯 Projeção Líquida para 23h59
           </span>
           <div style={{ fontSize: '1.5rem', fontWeight: '800', color: '#6b21a8', margin: '4px 0' }}>
             {fmtMoney(projectedDayEndRevenue)}
           </div>
           <span style={{ fontSize: '0.78rem', color: '#9333ea' }}>
-            Estimativa no ritmo atual
+            Estimativa líquida no ritmo atual
           </span>
         </div>
 
@@ -454,7 +454,7 @@ export default function RitmoVendasCard({ pedidos: pedidosProp = null }) {
             {inspectToday !== null && inspectToday !== undefined ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#7c3aed', display: 'inline-block' }} />
-                <span style={{ color: '#475569' }}>Hoje:</span>
+                <span style={{ color: '#475569' }}>{isRevenue ? 'Hoje Líquido:' : 'Hoje:'}</span>
                 <strong style={{ color: '#7c3aed' }}>
                   {isRevenue ? fmtMoney(inspectToday) : fmtPct(inspectToday)}
                 </strong>
@@ -462,7 +462,7 @@ export default function RitmoVendasCard({ pedidos: pedidosProp = null }) {
             ) : inspectProj !== null ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#a855f7', display: 'inline-block' }} />
-                <span style={{ color: '#475569' }}>Projetado:</span>
+                <span style={{ color: '#475569' }}>{isRevenue ? 'Projeção Líquida:' : 'Projetado:'}</span>
                 <strong style={{ color: '#a855f7' }}>
                   {isRevenue ? fmtMoney(inspectProj) : fmtPct(inspectProj)}
                 </strong>
@@ -471,7 +471,7 @@ export default function RitmoVendasCard({ pedidos: pedidosProp = null }) {
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#94a3b8', display: 'inline-block' }} />
-              <span style={{ color: '#475569' }}>Média (7 dias):</span>
+              <span style={{ color: '#475569' }}>{isRevenue ? 'Média Líquida (7d):' : 'Média (7 dias):'}</span>
               <strong style={{ color: '#334155' }}>
                 {isRevenue ? fmtMoney(inspectAvg) : fmtPct(inspectAvg)}
               </strong>

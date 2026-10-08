@@ -203,41 +203,25 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          <div style={styles.metricsGrid}>
-            <div style={styles.metricCard}>
-              <span style={styles.metricLabel}>Solicitações no mês</span>
-              <h2 style={styles.metricValue}>{monthlySeries.totalFeito}</h2>
-            </div>
-            <div style={styles.metricCard}>
-              <span style={styles.metricLabel}>Convertidas (pagas)</span>
-              <h2 style={{ ...styles.metricValue, color: '#059669' }}>{monthlySeries.totalConvertido}</h2>
-            </div>
-            <div style={styles.metricCard}>
-              <span style={styles.metricLabel}>Taxa de conversão do mês</span>
-              <h2 style={{ ...styles.metricValue, color: '#d97706' }}>{overallPercent}%</h2>
-            </div>
-          </div>
-
-          {/* Ritmo de Ganho Intradiário em Tempo Real (Hoje vs Média dos Últimos 7 Dias) */}
+          {/* Ritmo de Ganho Intradiário em Tempo Real (Hoje vs Média Líquida dos Últimos 7 Dias) */}
           <RitmoVendasCard />
 
-          <div className="glass-card" style={{ marginTop: '24px', padding: '24px', borderRadius: '16px', backgroundColor: '#ffffff', border: '1px solid #e2e8f0' }}>
+          {/* Faturamento e conversões por plataforma (Facebook Ads, TikTok Ads, Orgânico, Direto) */}
+          <VendasPorPlataformaCard monthValue={monthValue} />
+
+          {/* Vendas por dia (+ faturamento líquido, gerações e conversão), mapa de calor por horário e mapa por estado */}
+          <VendasPorDiaTable />
+          <VendasPorHoraHeatmap />
+          <VendasPorEstadoMapa />
+
+          {/* Solicitações x Conversões por dia com rótulos de dados (no final da página) */}
+          <div className="glass-card" style={{ marginTop: '32px', padding: '24px', borderRadius: '16px', backgroundColor: '#ffffff', border: '1px solid #e2e8f0' }}>
             <h3 style={{ fontSize: '1.1rem', fontWeight: '700', color: '#0f172a', margin: '0 0 4px' }}>Solicitações x Conversões por dia</h3>
             <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '0 0 20px' }}>
               Barras: quantidade feita e convertida por dia. Linha: % de conversão do dia (eixo direito).
             </p>
             <ConversionChart series={monthlySeries} />
           </div>
-
-          {/* Faturamento e conversões por plataforma (Facebook Ads, TikTok Ads, Orgânico, Direto) */}
-          <VendasPorPlataformaCard monthValue={monthValue} />
-
-          {/* Vendas por dia (+ faturamento, gerações e conversão), mapa de calor por horário e mapa
-              por estado — pedido 12/09/2026, movidos pra cá (antes viviam em /admin, a página de
-              navegar pedidos, não de análise). */}
-          <VendasPorDiaTable />
-          <VendasPorHoraHeatmap />
-          <VendasPorEstadoMapa />
         </div>
       </main>
     </div>
@@ -304,7 +288,7 @@ function ConversionChart({ series }) {
           )
         ))}
 
-        {/* Barras: feito (azul) e convertido (verde), lado a lado por dia */}
+        {/* Barras: feito (azul) e convertido (verde), lado a lado por dia com rótulos */}
         {days.map((day, i) => {
           const cx = xForDay(i);
           const fH = plotHeight - (yForCount(feito[i]) - marginTop);
@@ -314,6 +298,18 @@ function ConversionChart({ series }) {
               <title>{`Dia ${day}: ${feito[i]} feito(s), ${convertido[i]} convertido(s) (${percent[i]}%)`}</title>
               <rect x={cx - barWidth - 1} y={yForCount(feito[i])} width={barWidth} height={Math.max(0, fH)} fill="#3b82f6" rx="1.5" />
               <rect x={cx + 1} y={yForCount(convertido[i])} width={barWidth} height={Math.max(0, cH)} fill="#10b981" rx="1.5" />
+              {/* Rótulo de feito */}
+              {feito[i] > 0 && (
+                <text x={cx - barWidth / 2 - 1} y={Math.max(12, yForCount(feito[i]) - 3)} textAnchor="middle" fontSize="8" fontWeight="700" fill="#2563eb">
+                  {feito[i]}
+                </text>
+              )}
+              {/* Rótulo de convertido */}
+              {convertido[i] > 0 && (
+                <text x={cx + barWidth / 2 + 1} y={Math.max(12, yForCount(convertido[i]) - 3)} textAnchor="middle" fontSize="8" fontWeight="700" fill="#059669">
+                  {convertido[i]}
+                </text>
+              )}
             </g>
           );
         })}
@@ -321,7 +317,14 @@ function ConversionChart({ series }) {
         {/* Linha de conversão (%) */}
         <polyline points={linePoints} fill="none" stroke="#d97706" strokeWidth="2.5" />
         {days.map((day, i) => (
-          <circle key={`dot-${i}`} cx={xForDay(i)} cy={yForPercent(percent[i])} r="3" fill="#d97706" />
+          <g key={`dot-${i}`}>
+            <circle cx={xForDay(i)} cy={yForPercent(percent[i])} r="3" fill="#d97706" />
+            {percent[i] > 0 && (
+              <text x={xForDay(i)} y={Math.max(12, yForPercent(percent[i]) - 6)} textAnchor="middle" fontSize="8.5" fontWeight="800" fill="#d97706">
+                {percent[i]}%
+              </text>
+            )}
+          </g>
         ))}
       </svg>
 

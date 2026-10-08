@@ -51,26 +51,62 @@ export function calculateIntradayPace(pedidos = [], options = {}) {
   for (const o of pedidos) {
     if (!o) continue;
 
-    // 1. Processa eventos de faturamento por produto
-    for (const prod of PRODUTOS_RITMO) {
-      const ts = prod.getPaidAt(o);
-      if (!ts) continue;
-
+    // 1. Processa eventos de faturamento líquido real
+    const registrarPagamento = (ts, valor) => {
+      if (!ts || !valor || valor <= 0) return;
       const d = paraData(ts);
-      if (!d) continue;
+      if (!d) return;
 
       const dayKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       const hour = d.getHours();
-      const price = precoPorSku[prod.sku] || 0;
 
       if (dayKey === todayKey) {
-        todayHourlyRevenue[hour] += price;
+        todayHourlyRevenue[hour] += valor;
       } else if (targetPastDaysSet.has(dayKey)) {
         if (!pastDaysHourlyRevenue[dayKey]) {
           pastDaysHourlyRevenue[dayKey] = Array(24).fill(0);
         }
-        pastDaysHourlyRevenue[dayKey][hour] += price;
+        pastDaysHourlyRevenue[dayKey][hour] += valor;
       }
+    };
+
+    const musicaPaga = o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'PAGO';
+    if (musicaPaga) {
+      let valorMusica = 9.99;
+      if (o.paidAmount !== null && o.paidAmount !== undefined && o.paidAmount !== '') {
+        const v = Number(o.paidAmount);
+        if (Number.isFinite(v) && v > 0) valorMusica = v;
+      } else if (o.paymentIntentSku) {
+        const porSku = precoPorSku[o.paymentIntentSku];
+        if (porSku !== null && porSku !== undefined && o.paymentIntentSku !== 'impacto') valorMusica = porSku;
+      }
+      registrarPagamento(o.paidAt || o.createdAt, valorMusica);
+    }
+
+    // Add-ons comprados separadamente
+    if (o.videoPaymentId && (o.hasVideoAccess || o.videoAddonPaid)) {
+      const v = Number(o.videoPaidAmount);
+      registrarPagamento(o.videoPaidAt || o.paidAt || o.createdAt, (Number.isFinite(v) && v > 0) ? v : 6.90);
+    } else if (!o.paidAmount && (o.hasVideoAccess || o.videoAddonPaid) && o.videoPaidAt) {
+      // Caso legado (ex: testes sem paidAmount onde videoPaidAt foi fornecido)
+      registrarPagamento(o.videoPaidAt, 6.90);
+    }
+
+    if (o.cartaPaymentId && (o.hasCartaAccess || o.cartaAddonPaid)) {
+      const v = Number(o.cartaPaidAmount);
+      registrarPagamento(o.cartaPaidAt || o.paidAt || o.createdAt, (Number.isFinite(v) && v > 0) ? v : 3.99);
+    }
+    if (o.playbackPaymentId && (o.hasPlaybackAccess || o.playbackAddonPaid)) {
+      const v = Number(o.playbackPaidAmount);
+      registrarPagamento(o.playbackPaidAt || o.paidAt || o.createdAt, (Number.isFinite(v) && v > 0) ? v : 4.99);
+    }
+    if (o.retrospectivaPaymentId && (o.hasRetrospectivaAccess || o.retrospectivaAddonPaid)) {
+      const v = Number(o.retrospectivaPaidAmount);
+      registrarPagamento(o.retrospectivaPaidAt || o.paidAt || o.createdAt, (Number.isFinite(v) && v > 0) ? v : 9.99);
+    }
+    if (o.karaokePaymentId && (o.hasKaraokeAccess || o.karaokeAddonPaid)) {
+      const v = Number(o.karaokePaidAmount);
+      registrarPagamento(o.karaokePaidAt || o.paidAt || o.createdAt, (Number.isFinite(v) && v > 0) ? v : 9.90);
     }
 
     // 2. Processa cohort de conversão (baseado na hora de criação)

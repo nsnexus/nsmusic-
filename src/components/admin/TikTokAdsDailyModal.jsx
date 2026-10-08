@@ -275,7 +275,7 @@ export default function TikTokAdsDailyModal({
         {/* Resumo do Mês */}
         <div
           style={{
-            padding: '12px 24px',
+            padding: '12px 20px',
             backgroundColor: '#f8fafc',
             borderBottom: '1px solid #e2e8f0',
             display: 'flex',
@@ -285,9 +285,9 @@ export default function TikTokAdsDailyModal({
             gap: '12px',
           }}
         >
-          <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '12px', flex: 1, minWidth: '240px' }}>
             <div>
-              <span style={{ display: 'block', fontSize: '0.7rem', color: '#64748b', fontWeight: '600', textTransform: 'uppercase' }}>
+              <span style={{ display: 'block', fontSize: '0.68rem', color: '#64748b', fontWeight: '700', textTransform: 'uppercase' }}>
                 Total Investido:
               </span>
               <strong style={{ fontSize: '1rem', color: '#dc2626' }}>
@@ -295,18 +295,18 @@ export default function TikTokAdsDailyModal({
               </strong>
             </div>
             <div>
-              <span style={{ display: 'block', fontSize: '0.7rem', color: '#64748b', fontWeight: '600', textTransform: 'uppercase' }}>
-                Faturamento TikTok:
+              <span style={{ display: 'block', fontSize: '0.68rem', color: '#64748b', fontWeight: '700', textTransform: 'uppercase' }}>
+                Faturamento:
               </span>
               <strong style={{ fontSize: '1rem', color: '#059669' }}>
                 {formatMoney(totaisCalculados.faturamentoTotal)}
               </strong>
               <span style={{ fontSize: '0.72rem', color: '#64748b', marginLeft: '4px' }}>
-                ({totaisCalculados.vendasTotal} vendas)
+                ({totaisCalculados.vendasTotal})
               </span>
             </div>
             <div>
-              <span style={{ display: 'block', fontSize: '0.7rem', color: '#64748b', fontWeight: '600', textTransform: 'uppercase' }}>
+              <span style={{ display: 'block', fontSize: '0.68rem', color: '#64748b', fontWeight: '700', textTransform: 'uppercase' }}>
                 Lucro Líquido:
               </span>
               <strong style={{ fontSize: '1rem', color: totaisCalculados.lucroTotal >= 0 ? '#059669' : '#dc2626' }}>
@@ -314,7 +314,7 @@ export default function TikTokAdsDailyModal({
               </strong>
             </div>
             <div>
-              <span style={{ display: 'block', fontSize: '0.7rem', color: '#64748b', fontWeight: '600', textTransform: 'uppercase' }}>
+              <span style={{ display: 'block', fontSize: '0.68rem', color: '#64748b', fontWeight: '700', textTransform: 'uppercase' }}>
                 ROAS TikTok:
               </span>
               <strong style={{ fontSize: '1rem', color: '#7c3aed' }}>
@@ -329,6 +329,7 @@ export default function TikTokAdsDailyModal({
             disabled={salvando}
             style={{
               padding: '8px 16px',
+              minHeight: '38px',
               backgroundColor: salvando ? '#94a3b8' : '#059669',
               color: '#ffffff',
               border: 'none',
@@ -350,7 +351,7 @@ export default function TikTokAdsDailyModal({
         {feedbackGeral && (
           <div
             style={{
-              padding: '10px 24px',
+              padding: '10px 20px',
               fontSize: '0.82rem',
               fontWeight: '600',
               backgroundColor: feedbackGeral.tipo === 'sucesso' ? '#ecfdf5' : '#fef2f2',
@@ -366,150 +367,260 @@ export default function TikTokAdsDailyModal({
           </div>
         )}
 
-        {/* Lista / Tabela dos Dias */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
-            <thead>
-              <tr style={{ backgroundColor: '#f1f5f9', color: '#475569', textAlign: 'left', borderBottom: '2px solid #e2e8f0' }}>
-                <th style={{ padding: '8px 10px', fontWeight: '700' }}>Data</th>
-                <th style={{ padding: '8px 10px', fontWeight: '700', textAlign: 'right' }}>Vendas TikTok</th>
-                <th style={{ padding: '8px 10px', fontWeight: '700', textAlign: 'right' }}>Faturamento</th>
-                <th style={{ padding: '8px 10px', fontWeight: '700', width: '160px' }}>Investimento Ads (R$)</th>
-                <th style={{ padding: '8px 10px', fontWeight: '700', textAlign: 'right' }}>Lucro Dia</th>
-                <th style={{ padding: '8px 10px', fontWeight: '700', textAlign: 'right' }}>ROAS</th>
-                <th style={{ padding: '8px 10px', fontWeight: '700', textAlign: 'center', width: '90px' }}>Ação</th>
-              </tr>
-            </thead>
-            <tbody>
-              {listaDias.map((d) => {
-                const info = dadosPorDia[d];
-                const dateStr = info?.dateStr;
-                const dObj = new Date(ano, mesNum - 1, d);
-                const diaSemana = DIAS_SEMANA[dObj.getDay()];
-                const isHoje = ehMesAtual && d === hojeDia;
-                const isOntem = ehMesAtual && d === ontemDia;
-                const isFoco = diaFoco && String(diaFoco) === String(d);
+        {/* Lista dos Dias: Visão Desktop (Tabela) e Visão Mobile (Cards Touch-Friendly) */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
+          {/* TABELA DESKTOP */}
+          <div className="admin-desktop-only" style={{ width: '100%' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
+              <thead>
+                <tr style={{ backgroundColor: '#f1f5f9', color: '#475569', textAlign: 'left', borderBottom: '2px solid #e2e8f0' }}>
+                  <th style={{ padding: '8px 10px', fontWeight: '700' }}>Data</th>
+                  <th style={{ padding: '8px 10px', fontWeight: '700', textAlign: 'right' }}>Vendas TikTok</th>
+                  <th style={{ padding: '8px 10px', fontWeight: '700', textAlign: 'right' }}>Faturamento</th>
+                  <th style={{ padding: '8px 10px', fontWeight: '700', width: '160px' }}>Investimento Ads (R$)</th>
+                  <th style={{ padding: '8px 10px', fontWeight: '700', textAlign: 'right' }}>Lucro Dia</th>
+                  <th style={{ padding: '8px 10px', fontWeight: '700', textAlign: 'right' }}>ROAS</th>
+                  <th style={{ padding: '8px 10px', fontWeight: '700', textAlign: 'center', width: '90px' }}>Ação</th>
+                </tr>
+              </thead>
+              <tbody>
+                {listaDias.map((d) => {
+                  const info = dadosPorDia[d];
+                  const dateStr = info?.dateStr;
+                  const dObj = new Date(ano, mesNum - 1, d);
+                  const diaSemana = DIAS_SEMANA[dObj.getDay()];
+                  const isHoje = ehMesAtual && d === hojeDia;
+                  const isOntem = ehMesAtual && d === ontemDia;
+                  const isFoco = diaFoco && String(diaFoco) === String(d);
 
-                const valStr = valoresPorData[dateStr] || '';
-                const gastoNum = parseFloat(valStr.replace(',', '.')) || 0;
-                const lucroDia = Math.round(((info?.faturamento || 0) - gastoNum) * 100) / 100;
-                const roasDia = gastoNum > 0 ? Math.round(((info?.faturamento || 0) / gastoNum) * 100) / 100 : null;
-                const status = statusPorData[dateStr];
+                  const valStr = valoresPorData[dateStr] || '';
+                  const gastoNum = parseFloat(valStr.replace(',', '.')) || 0;
+                  const lucroDia = Math.round(((info?.faturamento || 0) - gastoNum) * 100) / 100;
+                  const roasDia = gastoNum > 0 ? Math.round(((info?.faturamento || 0) / gastoNum) * 100) / 100 : null;
+                  const status = statusPorData[dateStr];
 
-                return (
-                  <tr
-                    key={d}
-                    style={{
-                      borderBottom: '1px solid #f1f5f9',
-                      backgroundColor: isFoco ? '#fef3c7' : isHoje ? '#f0fdf4' : isOntem ? '#f8fafc' : '#ffffff',
-                    }}
-                  >
-                    {/* Coluna Data */}
-                    <td style={{ padding: '8px 10px', fontWeight: '600', color: '#0f172a' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span>
-                          {String(d).padStart(2, '0')}/{String(mesNum).padStart(2, '0')} ({diaSemana})
+                  return (
+                    <tr
+                      key={`desk-${d}`}
+                      style={{
+                        borderBottom: '1px solid #f1f5f9',
+                        backgroundColor: isFoco ? '#fef3c7' : isHoje ? '#f0fdf4' : isOntem ? '#f8fafc' : '#ffffff',
+                      }}
+                    >
+                      <td style={{ padding: '8px 10px', fontWeight: '600', color: '#0f172a' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span>
+                            {String(d).padStart(2, '0')}/{String(mesNum).padStart(2, '0')} ({diaSemana})
+                          </span>
+                          {isHoje && (
+                            <span style={{ fontSize: '0.68rem', fontWeight: '700', backgroundColor: '#059669', color: '#ffffff', padding: '1px 6px', borderRadius: '6px' }}>
+                              Hoje
+                            </span>
+                          )}
+                          {isOntem && (
+                            <span style={{ fontSize: '0.68rem', fontWeight: '700', backgroundColor: '#2563eb', color: '#ffffff', padding: '1px 6px', borderRadius: '6px' }}>
+                              Ontem
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td style={{ padding: '8px 10px', textAlign: 'right', color: '#334155' }}>
+                        {info?.pedidosPagos > 0 ? (
+                          <strong style={{ color: '#059669' }}>{info.pedidosPagos} pagas</strong>
+                        ) : (
+                          <span style={{ color: '#94a3b8' }}>0</span>
+                        )}
+                      </td>
+                      <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: '700', color: info?.faturamento > 0 ? '#059669' : '#94a3b8' }}>
+                        {formatMoney(info?.faturamento || 0)}
+                      </td>
+                      <td style={{ padding: '8px 10px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <span style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: '600' }}>R$</span>
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            placeholder="0,00"
+                            value={valStr}
+                            onChange={(e) => handleChangeValor(dateStr, e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleSalvarDiaIndividual(dateStr);
+                            }}
+                            style={{
+                              width: '100px',
+                              padding: '4px 8px',
+                              fontSize: '0.84rem',
+                              fontWeight: '700',
+                              borderRadius: '6px',
+                              border: gastoNum > 0 ? '1.5px solid #fe2c55' : '1px solid #cbd5e1',
+                              outline: 'none',
+                              color: gastoNum > 0 ? '#dc2626' : '#0f172a',
+                              backgroundColor: '#ffffff',
+                            }}
+                          />
+                        </div>
+                      </td>
+                      <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: '700' }}>
+                        <span style={{ color: lucroDia >= 0 ? (lucroDia > 0 ? '#059669' : '#64748b') : '#dc2626' }}>
+                          {formatMoney(lucroDia)}
                         </span>
-                        {isHoje && (
-                          <span style={{ fontSize: '0.68rem', fontWeight: '700', backgroundColor: '#059669', color: '#ffffff', padding: '1px 6px', borderRadius: '6px' }}>
-                            Hoje
-                          </span>
+                      </td>
+                      <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: '700', color: '#7c3aed' }}>
+                        {roasDia !== null ? `${roasDia.toFixed(2)}x` : '-'}
+                      </td>
+                      <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                        {status === 'salvando' ? (
+                          <span style={{ fontSize: '0.72rem', color: '#64748b' }}>⏳</span>
+                        ) : status === 'salvo' ? (
+                          <span style={{ fontSize: '0.72rem', color: '#059669', fontWeight: '700' }}>✓ Salvo</span>
+                        ) : status === 'erro' ? (
+                          <span style={{ fontSize: '0.72rem', color: '#dc2626', fontWeight: '700' }}>Erro</span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleSalvarDiaIndividual(dateStr)}
+                            title="Salvar apenas este dia"
+                            style={{
+                              padding: '3px 8px',
+                              fontSize: '0.72rem',
+                              fontWeight: '600',
+                              borderRadius: '6px',
+                              border: '1px solid #cbd5e1',
+                              backgroundColor: '#ffffff',
+                              color: '#334155',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Salvar
+                          </button>
                         )}
-                        {isOntem && (
-                          <span style={{ fontSize: '0.68rem', fontWeight: '700', backgroundColor: '#2563eb', color: '#ffffff', padding: '1px 6px', borderRadius: '6px' }}>
-                            Ontem
-                          </span>
-                        )}
-                      </div>
-                    </td>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
 
-                    {/* Vendas Pagas */}
-                    <td style={{ padding: '8px 10px', textAlign: 'right', color: '#334155' }}>
-                      {info?.pedidosPagos > 0 ? (
-                        <strong style={{ color: '#059669' }}>{info.pedidosPagos} pagas</strong>
-                      ) : (
-                        <span style={{ color: '#94a3b8' }}>0</span>
+          {/* CARDS TOUCH-FRIENDLY NO MOBILE */}
+          <div className="admin-mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {listaDias.map((d) => {
+              const info = dadosPorDia[d];
+              const dateStr = info?.dateStr;
+              const dObj = new Date(ano, mesNum - 1, d);
+              const diaSemana = DIAS_SEMANA[dObj.getDay()];
+              const isHoje = ehMesAtual && d === hojeDia;
+              const isOntem = ehMesAtual && d === ontemDia;
+              const isFoco = diaFoco && String(diaFoco) === String(d);
+
+              const valStr = valoresPorData[dateStr] || '';
+              const gastoNum = parseFloat(valStr.replace(',', '.')) || 0;
+              const lucroDia = Math.round(((info?.faturamento || 0) - gastoNum) * 100) / 100;
+              const roasDia = gastoNum > 0 ? Math.round(((info?.faturamento || 0) / gastoNum) * 100) / 100 : null;
+              const status = statusPorData[dateStr];
+
+              return (
+                <div
+                  key={`mob-${d}`}
+                  style={{
+                    backgroundColor: isFoco ? '#fef3c7' : isHoje ? '#f0fdf4' : isOntem ? '#f8fafc' : '#ffffff',
+                    borderRadius: '12px',
+                    border: isHoje ? '1.5px solid #059669' : isOntem ? '1.5px solid #2563eb' : '1px solid #e2e8f0',
+                    padding: '12px 14px',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <strong style={{ fontSize: '0.95rem', color: '#0f172a' }}>
+                        {String(d).padStart(2, '0')}/{String(mesNum).padStart(2, '0')} ({diaSemana})
+                      </strong>
+                      {isHoje && (
+                        <span style={{ fontSize: '0.68rem', fontWeight: '700', backgroundColor: '#059669', color: '#ffffff', padding: '1px 6px', borderRadius: '6px' }}>
+                          Hoje
+                        </span>
                       )}
-                    </td>
+                      {isOntem && (
+                        <span style={{ fontSize: '0.68rem', fontWeight: '700', backgroundColor: '#2563eb', color: '#ffffff', padding: '1px 6px', borderRadius: '6px' }}>
+                          Ontem
+                        </span>
+                      )}
+                    </div>
+                    <span style={{ fontSize: '0.8rem', fontWeight: '700', color: info?.pedidosPagos > 0 ? '#059669' : '#64748b' }}>
+                      {info?.pedidosPagos || 0} {info?.pedidosPagos === 1 ? 'venda' : 'vendas'}
+                    </span>
+                  </div>
 
-                    {/* Faturamento */}
-                    <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: '700', color: info?.faturamento > 0 ? '#059669' : '#94a3b8' }}>
-                      {formatMoney(info?.faturamento || 0)}
-                    </td>
-
-                    {/* Input de Gasto */}
-                    <td style={{ padding: '8px 10px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <span style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: '600' }}>R$</span>
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          placeholder="0,00"
-                          value={valStr}
-                          onChange={(e) => handleChangeValor(dateStr, e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') handleSalvarDiaIndividual(dateStr);
-                          }}
-                          style={{
-                            width: '100px',
-                            padding: '4px 8px',
-                            fontSize: '0.84rem',
-                            fontWeight: '700',
-                            borderRadius: '6px',
-                            border: gastoNum > 0 ? '1.5px solid #fe2c55' : '1px solid #cbd5e1',
-                            outline: 'none',
-                            color: gastoNum > 0 ? '#dc2626' : '#0f172a',
-                            backgroundColor: '#ffffff',
-                          }}
-                        />
-                      </div>
-                    </td>
-
-                    {/* Lucro do Dia */}
-                    <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: '700' }}>
-                      <span style={{ color: lucroDia >= 0 ? (lucroDia > 0 ? '#059669' : '#64748b') : '#dc2626' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', marginBottom: '10px', backgroundColor: '#f1f5f9', padding: '6px 10px', borderRadius: '8px' }}>
+                    <div>
+                      <span style={{ color: '#64748b', fontSize: '0.68rem', display: 'block' }}>Faturado:</span>
+                      <strong style={{ color: info?.faturamento > 0 ? '#059669' : '#94a3b8' }}>
+                        {formatMoney(info?.faturamento || 0)}
+                      </strong>
+                    </div>
+                    <div>
+                      <span style={{ color: '#64748b', fontSize: '0.68rem', display: 'block' }}>Lucro Líq:</span>
+                      <strong style={{ color: lucroDia >= 0 ? '#059669' : '#dc2626' }}>
                         {formatMoney(lucroDia)}
-                      </span>
-                    </td>
+                      </strong>
+                    </div>
+                    <div>
+                      <span style={{ color: '#64748b', fontSize: '0.68rem', display: 'block' }}>ROAS:</span>
+                      <strong style={{ color: '#7c3aed' }}>
+                        {roasDia !== null ? `${roasDia.toFixed(2)}x` : '-'}
+                      </strong>
+                    </div>
+                  </div>
 
-                    {/* ROAS do Dia */}
-                    <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: '700', color: '#7c3aed' }}>
-                      {roasDia !== null ? `${roasDia.toFixed(2)}x` : '-'}
-                    </td>
-
-                    {/* Botão de Salvar da Linha */}
-                    <td style={{ padding: '8px 10px', textAlign: 'center' }}>
-                      {status === 'salvando' ? (
-                        <span style={{ fontSize: '0.72rem', color: '#64748b' }}>⏳</span>
-                      ) : status === 'salvo' ? (
-                        <span style={{ fontSize: '0.72rem', color: '#059669', fontWeight: '700' }}>✓ Salvo</span>
-                      ) : status === 'erro' ? (
-                        <span style={{ fontSize: '0.72rem', color: '#dc2626', fontWeight: '700' }}>Erro</span>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => handleSalvarDiaIndividual(dateStr)}
-                          title="Salvar apenas este dia"
-                          style={{
-                            padding: '3px 8px',
-                            fontSize: '0.72rem',
-                            fontWeight: '600',
-                            borderRadius: '6px',
-                            border: '1px solid #cbd5e1',
-                            backgroundColor: '#ffffff',
-                            color: '#334155',
-                            cursor: 'pointer',
-                          }}
-                        >
-                          Salvar
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center' }}>
+                      <span style={{ position: 'absolute', left: '10px', fontSize: '0.82rem', color: '#64748b', fontWeight: '700' }}>R$</span>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        placeholder="0,00"
+                        value={valStr}
+                        onChange={(e) => handleChangeValor(dateStr, e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleSalvarDiaIndividual(dateStr);
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '8px 10px 8px 32px',
+                          fontSize: '16px', // 16px impede o zoom automático no mobile Safari/Chrome
+                          fontWeight: '700',
+                          borderRadius: '8px',
+                          border: gastoNum > 0 ? '1.5px solid #fe2c55' : '1px solid #cbd5e1',
+                          outline: 'none',
+                          color: gastoNum > 0 ? '#dc2626' : '#0f172a',
+                          backgroundColor: '#ffffff',
+                          boxSizing: 'border-box',
+                        }}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleSalvarDiaIndividual(dateStr)}
+                      style={{
+                        padding: '8px 14px',
+                        minHeight: '38px',
+                        fontSize: '0.82rem',
+                        fontWeight: '700',
+                        borderRadius: '8px',
+                        border: 'none',
+                        backgroundColor: status === 'salvo' ? '#059669' : '#0f172a',
+                        color: '#ffffff',
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {status === 'salvando' ? '⏳...' : status === 'salvo' ? '✓ Salvo' : 'Salvar'}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         {/* Rodapé */}

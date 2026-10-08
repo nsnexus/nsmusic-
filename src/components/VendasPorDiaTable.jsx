@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { usePedidosDoMes, paraData } from '@/lib/usePedidosDoMes';
 import { getPriceForSku } from '@/lib/pricing';
+import { calcularFaturamentoPedido } from '@/lib/trafficSource';
 
 // Tabela "vendas por dia" do dashboard admin (pedido 04/09/2026) — quantidade vendida por produto,
 // por dia do mês, com total no fim. Ver src/lib/usePedidosDoMes.js pro porquê da consulta própria.
@@ -78,10 +79,17 @@ export default function VendasPorDiaTable() {
     }
   }
 
-  const KIE_COST_PER_GENERATION = 0.30;
-  const precoPorProduto = Object.fromEntries(PRODUTOS.map((p) => [p.chave, getPriceForSku(p.sku)]));
+  // Calcula o faturamento líquido real pago em cada dia (respeitando combos e paidAmount)
+  for (let d = 1; d <= diasNoMes; d++) {
+    let fatDia = 0;
+    for (const o of pedidos) {
+      fatDia += calcularFaturamentoPedido(o, String(d), mes);
+    }
+    porDia[d - 1].faturamento = fatDia;
+  }
 
-  const faturamentoDia = (linha) => PRODUTOS.reduce((s, p) => s + linha[p.chave] * precoPorProduto[p.chave], 0);
+  const KIE_COST_PER_GENERATION = 0.30;
+  const faturamentoDia = (linha) => linha.faturamento;
   const conversaoDia = (linha) => (linha.pedidosCriados > 0 ? (linha.pedidosPagos / linha.pedidosCriados) * 100 : null);
 
   const totais = porDia.reduce((acc, linha) => {
@@ -91,7 +99,7 @@ export default function VendasPorDiaTable() {
     acc.geracoesKie = (acc.geracoesKie || 0) + (linha.geracoesKie || 0);
     acc.pedidosCriados += linha.pedidosCriados;
     acc.pedidosPagos += linha.pedidosPagos;
-    acc.faturamento += faturamentoDia(linha);
+    acc.faturamento += linha.faturamento;
     // Gasto apenas com Kie.ai (Robô local tem custo R$ 0,00)
     acc.gasto += (linha.geracoesKie || 0) * KIE_COST_PER_GENERATION;
     acc.economiaBot = (acc.economiaBot || 0) + ((linha.geracoesBot || 0) * KIE_COST_PER_GENERATION);
@@ -140,7 +148,9 @@ export default function VendasPorDiaTable() {
                   </th>
                 ))}
                 <th style={{ position: 'sticky', top: 0, background: '#fff', textAlign: 'right', padding: '8px 10px', color: '#475569', fontWeight: '800' }}>Total</th>
-                <th style={{ position: 'sticky', top: 0, background: '#fff', textAlign: 'right', padding: '8px 10px', color: '#059669', fontWeight: '700', whiteSpace: 'nowrap' }}>Faturado</th>
+                <th style={{ position: 'sticky', top: 0, background: '#fff', textAlign: 'right', padding: '8px 10px', color: '#059669', fontWeight: '700', whiteSpace: 'nowrap' }} title="Faturamento líquido real recebido no PIX/pagamento (considerando descontos dos combos)">
+                  Faturado (Líq.)
+                </th>
                 <th style={{ position: 'sticky', top: 0, background: '#fff', textAlign: 'right', padding: '8px 10px', color: '#475569', fontWeight: '700', whiteSpace: 'nowrap' }} title="Chamadas aceitas pela Kie.ai nesse dia, por data de CRIAÇÃO do pedido (não de pagamento)">
                   Gerações
                 </th>

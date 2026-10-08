@@ -143,4 +143,22 @@ describe('calculateIntradayPace', () => {
     expect(result.avgRevenueAtCurrentHour).toBeCloseTo(9.99, 1);
     expect(result.avgCumulativeRevenue[9]).toBeCloseTo(9.99, 1);
   });
+
+  it('respeita o valor liquido real de combos (paidAmount) em vez de somar SKUs avulsos', () => {
+    const hoje = new Date(2026, 9, 8, 14, 0, 0);
+    const pedidos = [
+      {
+        id: 'combo-1689',
+        paymentStatus: 'PAGO',
+        paidAmount: 16.89,
+        hasVideoAccess: true,
+        hasCartaAccess: true,
+        paidAt: new Date(2026, 9, 8, 11, 0, 0).toISOString(),
+        createdAt: new Date(2026, 9, 8, 11, 0, 0).toISOString(),
+      }
+    ];
+
+    const result = calculateIntradayPace(pedidos, { referenceDate: hoje, daysLimit: 7 });
+    expect(result.todayRevenueSoFar).toBeCloseTo(16.89, 2);
+  });
 });
