@@ -31,11 +31,14 @@ export async function initSunoBrowser() {
       headless: false,
       channel: 'chrome',
       viewport: { width: 1440, height: 900 },
-      ignoreDefaultArgs: ['--enable-automation'],
+      ignoreDefaultArgs: ['--no-sandbox', '--enable-automation'],
       args: [
+        '--test-type',
         '--disable-blink-features=AutomationControlled',
         '--no-default-browser-check',
-        '--disable-notifications'
+        '--disable-notifications',
+        '--disable-features=Translate',
+        '--lang=pt-BR'
       ]
     });
   } catch (err) {
@@ -43,11 +46,14 @@ export async function initSunoBrowser() {
     browserContext = await chromium.launchPersistentContext(USER_DATA_DIR, {
       headless: false,
       viewport: { width: 1440, height: 900 },
-      ignoreDefaultArgs: ['--enable-automation'],
+      ignoreDefaultArgs: ['--no-sandbox', '--enable-automation'],
       args: [
+        '--test-type',
         '--disable-blink-features=AutomationControlled',
         '--no-default-browser-check',
-        '--disable-notifications'
+        '--disable-notifications',
+        '--disable-features=Translate',
+        '--lang=pt-BR'
       ]
     });
   }
