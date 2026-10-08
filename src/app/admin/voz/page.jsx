@@ -683,6 +683,20 @@ Com você ao meu lado eu sei onde quero estar`
     }
   };
 
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('tab') === 'timbres' || params.get('tab') === '4') {
+        setEtapa(4);
+      }
+      const vId = params.get('voiceId');
+      if (vId) {
+        setVoiceId(vId);
+        setEtapa(3);
+      }
+    }
+  }, []);
+
   if (checkingAuth) {
     return (
       <div style={{ padding: '60px 20px', textAlign: 'center', fontFamily: 'sans-serif', color: '#64748b' }}>
@@ -695,7 +709,7 @@ Com você ao meu lado eu sei onde quero estar`
 
   return (
     <div style={{ minHeight: '100vh', background: '#090d16', color: '#f8fafc', padding: '16px 12px 80px 12px', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
-      <div style={{ maxWidth: '640px', margin: '0 auto' }}>
+      <div style={{ maxWidth: etapa === 4 ? '1000px' : '640px', margin: '0 auto', transition: 'max-width 0.2s' }}>
         
         {/* Top Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
@@ -729,25 +743,46 @@ Com você ao meu lado eu sei onde quero estar`
           <p style={{ fontSize: '0.88rem', color: '#94a3b8', margin: '0 0 14px 0' }}>
             Clone e teste a sua própria voz cantando em canções personalizadas
           </p>
-          <button
-            type="button"
-            onClick={handleReiniciarTudo}
-            style={{
-              background: 'rgba(255, 255, 255, 0.05)',
-              border: '1px solid #334155',
-              color: '#94a3b8',
-              padding: '6px 14px',
-              borderRadius: '8px',
-              fontSize: '0.78rem',
-              fontWeight: '600',
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px'
-            }}
-          >
-            🔄 Começar do Zero / Novo Teste
-          </button>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={handleReiniciarTudo}
+              style={{
+                background: 'rgba(255, 255, 255, 0.05)',
+                border: '1px solid #334155',
+                color: '#94a3b8',
+                padding: '6px 14px',
+                borderRadius: '8px',
+                fontSize: '0.78rem',
+                fontWeight: '600',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              🔄 Novo Teste de Gravação
+            </button>
+            <button
+              type="button"
+              onClick={() => setEtapa(4)}
+              style={{
+                background: etapa === 4 ? '#2563eb' : 'rgba(37, 99, 235, 0.15)',
+                border: '1px solid #3b82f6',
+                color: '#93c5fd',
+                padding: '6px 14px',
+                borderRadius: '8px',
+                fontSize: '0.78rem',
+                fontWeight: '700',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              📋 Ver Tabela de Timbres Cadastrados
+            </button>
+          </div>
         </div>
 
         {/* Stepper Navigation */}
