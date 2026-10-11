@@ -9,11 +9,9 @@ import TrafficTracker from '@/components/TrafficTracker';
 // TEMPO fica pronto: é essa frase que um assistente cita quando alguém pergunta por música
 // personalizada de presente, então ela precisa responder sozinha, sem depender do resto da página.
 const DESCRICAO =
-  'Transforme sua história em música. A IA escreve a letra e compõe 2 versões completas em MP3 HD '
-  + 'em cerca de 3 minutos. Você ouve a prévia antes de decidir e paga só R$ 9,99, '
-  + 'a partir de R$ 9,99. Presente para aniversário, Dia das Mães, declaração de amor e homenagens.';
+  'Transforme sua história em música personalizada com IA. Ouça a prévia em 3 minutos e receba 2 versões completas em MP3 HD por apenas R$ 9,99. Presente perfeito para aniversário, casamento, declaração de amor e homenagens.';
 
-const TITULO = '⭐⭐⭐⭐⭐ 5,0/5 (48.547 avaliações)';
+const TITULO = 'Música Personalizada com IA por R$ 9,99 | NS Music';
 
 export const metadata = {
   metadataBase: new URL(SITE_URL),
@@ -24,8 +22,9 @@ export const metadata = {
   description: DESCRICAO,
   applicationName: 'NS Music',
   keywords: [
-    'música personalizada', 'música com IA', 'presente personalizado', 'homenagem em música',
-    'música de aniversário', 'declaração de amor em música', 'canção personalizada',
+    'música personalizada', 'música com IA', 'música personalizada com inteligência artificial',
+    'criar música personalizada', 'música personalizada com nome', 'presente personalizado',
+    'homenagem em música', 'música de aniversário', 'declaração de amor em música', 'canção personalizada',
   ],
   authors: [{ name: 'NS Music' }],
   creator: 'NS Music',
