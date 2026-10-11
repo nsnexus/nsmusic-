@@ -5,6 +5,8 @@ let mockSupabaseOrdersData = [];
 let mockVendasData = [];
 let mockProducaoData = [];
 let mockOrdersSummaryData = [];
+let mockGteCalls = [];
+let mockLteCalls = [];
 
 vi.mock('@/lib/auth', () => ({
   requireAdmin: async () => mockAdminOk
@@ -22,8 +24,14 @@ vi.mock('@/lib/supabase-edge', () => ({
       select: function () { return this; },
       is: function () { return this; },
       neq: function () { return this; },
-      gte: function () { return this; },
-      lte: function () { return this; },
+      gte: function (col, val) {
+        mockGteCalls.push({ table, col, val });
+        return this;
+      },
+      lte: function (col, val) {
+        mockLteCalls.push({ table, col, val });
+        return this;
+      },
       or: function () { return this; },
       order: function () { return this; },
       limit: function () { return this; },
@@ -50,6 +58,8 @@ beforeEach(() => {
   mockVendasData = [];
   mockProducaoData = [];
   mockOrdersSummaryData = [];
+  mockGteCalls = [];
+  mockLteCalls = [];
   mockSupabaseOrdersData = [
     {
       id: 'order-recent-1',
@@ -114,5 +124,23 @@ describe('GET /api/admin/reports?tipo=faturamento', () => {
     expect(json.gastoKie).toBeCloseTo(1.80, 2);
     expect(json.gastoGeracao).toBeCloseTo(1.80, 2);
     expect(json.economiaBot).toBeCloseTo(1.20, 2);
+  });
+
+  it('aplica fuso horário de Brasília (-03:00) ao filtrar por dateFrom e dateTo', async () => {
+    mockVendasData = [{ faturamento: 100, pedidos_pagos: 5 }];
+    mockProducaoData = [{ geracoes: 5, pedidos_criados: 5 }];
+    mockOrdersSummaryData = [{ suno_provider: 'kie', suno_generation_count: 5 }];
+
+    const req = new Request('http://localhost/api/admin/reports?tipo=faturamento&dateFrom=2026-10-11&dateTo=2026-10-11');
+    const res = await GET(req);
+    expect(res.status).toBe(200);
+
+    const orderGte = mockGteCalls.find(c => c.table === 'orders' && c.col === 'created_at');
+    const orderLte = mockLteCalls.find(c => c.table === 'orders' && c.col === 'created_at');
+    expect(orderGte?.val).toBe('2026-10-11T00:00:00-03:00');
+    expect(orderLte?.val).toBe('2026-10-11T23:59:59.999-03:00');
+
+    const vendasGte = mockGteCalls.find(c => c.table === 'vendas_por_dia' && c.col === 'dia');
+    expect(vendasGte?.val).toBe('2026-10-11');
   });
 });

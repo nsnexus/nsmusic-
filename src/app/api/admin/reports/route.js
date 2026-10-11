@@ -15,6 +15,32 @@ function formatLocalDate(d) {
   return `${year}-${month}-${day}`;
 }
 
+// Conversão de datas para o fuso oficial da plataforma (America/Sao_Paulo / UTC-3).
+// No Supabase, as views vendas_por_dia e producao_por_dia usam `at time zone 'America/Sao_Paulo'`,
+// gravando a coluna 'dia' como DATE local (ex: '2026-10-11').
+// Quando o front envia 'YYYY-MM-DD', o início do dia no fuso de Brasília é 'YYYY-MM-DDT00:00:00-03:00'
+// (e não T00:00:00.000Z em UTC, que começaria às 21h do dia anterior e inflaria as gerações).
+function toSpDay(dateStr) {
+  if (!dateStr) return null;
+  if (!dateStr.includes('T')) return dateStr.slice(0, 10);
+  const d = new Date(dateStr);
+  return Number.isNaN(d.getTime())
+    ? dateStr.slice(0, 10)
+    : d.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+}
+
+function toBrStartIso(dateStr) {
+  if (!dateStr) return null;
+  if (dateStr.includes('T')) return dateStr;
+  return `${dateStr}T00:00:00-03:00`;
+}
+
+function toBrEndIso(dateStr) {
+  if (!dateStr) return null;
+  if (dateStr.includes('T')) return dateStr;
+  return `${dateStr}T23:59:59.999-03:00`;
+}
+
 export async function GET(req) {
   let env = {};
   try {
@@ -47,16 +73,23 @@ export async function GET(req) {
       let pQuery = supabase.from('producao_por_dia').select('*');
       let oQuery = supabase.from('orders').select('suno_provider, suno_generation_count').is('deleted_at', null).neq('production_status', 'CONFIG');
 
-      if (dateFrom) {
-        vQuery = vQuery.gte('dia', dateFrom);
-        pQuery = pQuery.gte('dia', dateFrom);
-        const fromIso = dateFrom.includes('T') ? dateFrom : `${dateFrom}T00:00:00.000Z`;
+      const diaFrom = toSpDay(dateFrom);
+      const diaTo = toSpDay(dateTo);
+      const fromIso = toBrStartIso(dateFrom);
+      const toIso = toBrEndIso(dateTo);
+
+      if (diaFrom) {
+        vQuery = vQuery.gte('dia', diaFrom);
+        pQuery = pQuery.gte('dia', diaFrom);
+      }
+      if (fromIso) {
         oQuery = oQuery.gte('created_at', fromIso);
       }
-      if (dateTo) {
-        vQuery = vQuery.lte('dia', dateTo);
-        pQuery = pQuery.lte('dia', dateTo);
-        const toIso = dateTo.includes('T') ? dateTo : `${dateTo}T23:59:59.999Z`;
+      if (diaTo) {
+        vQuery = vQuery.lte('dia', diaTo);
+        pQuery = pQuery.lte('dia', diaTo);
+      }
+      if (toIso) {
         oQuery = oQuery.lte('created_at', toIso);
       }
 

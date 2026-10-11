@@ -39,11 +39,11 @@ export async function GET(req) {
       .neq('production_status', 'CONFIG');
 
     if (dateFrom && !search) {
-      const fromIso = dateFrom.includes('T') ? dateFrom : `${dateFrom}T00:00:00.000Z`;
+      const fromIso = dateFrom.includes('T') ? dateFrom : `${dateFrom}T00:00:00-03:00`;
       q = q.gte('created_at', fromIso);
     }
     if (dateTo) {
-      const toIso = dateTo.includes('T') ? dateTo : `${dateTo}T23:59:59.999Z`;
+      const toIso = dateTo.includes('T') ? dateTo : `${dateTo}T23:59:59.999-03:00`;
       q = q.lte('created_at', toIso);
     }
 
