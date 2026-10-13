@@ -400,7 +400,13 @@ export default function CriarMusica() {
             if (rawStep >= 11) mappedStep = 7;
             else if (rawStep === 10) mappedStep = 6;
             else if (rawStep === 9) mappedStep = 5;
-            else if (rawStep >= 4) mappedStep = 4;
+            else if (rawStep >= 4) {
+              const temHistoria = (parsed.formData?.story || '').trim().length >= 50;
+              const temEstilo = Boolean(parsed.formData?.musicStyle);
+              if (!temHistoria) mappedStep = 2;
+              else if (!temEstilo) mappedStep = 3;
+              else mappedStep = 4;
+            }
             setStep(mappedStep);
           }
 
@@ -983,9 +989,27 @@ export default function CriarMusica() {
     }
   };
 
-  // Step 9: Save Order to Firestore first, then trigger lyrics generation
+  // Step 4 -> 5: Save Order to Firestore first, then trigger lyrics generation
   const handleSaveAndGenerateLyrics = async () => {
     if (isSubmitting) return;
+
+    // Validações rigorosas antes de iniciar a geração da letra
+    if (!formData.occasion || !formData.honoreeName?.trim()) {
+      alert('Por favor, preencha a ocasião e o nome do homenageado na Etapa 1.');
+      setStep(1);
+      return;
+    }
+    if ((formData.story || '').trim().length < 50) {
+      alert('Por favor, conte a história com no mínimo 50 caracteres na Etapa 2 para que a letra fique linda e exclusiva.');
+      setStep(2);
+      return;
+    }
+    if (!formData.musicStyle || !formData.musicMood || !formData.voiceType) {
+      alert('Por favor, selecione o ritmo, clima e voz na Etapa 3.');
+      setStep(3);
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       // Verifica trava de bloqueio manual (blacklist) no servidor antes de prosseguir
@@ -1404,12 +1428,19 @@ export default function CriarMusica() {
 
     // Etapa 1: Ocasião + Nome de quem dedica + Nome do homenageado
     if (step === 1 && (!formData.occasion || !formData.customerName?.trim() || !formData.honoreeName?.trim())) return true;
-    // Etapa 2: História (mínimo 50 caracteres)
-    if (step === 2 && (formData.story || '').length < 50) return true;
+    // Etapa 2: História (mínimo 50 caracteres válidos com trim)
+    if (step === 2 && (formData.story || '').trim().length < 50) return true;
     // Etapa 3: Ritmo, Clima e Tipo de Voz
     if (step === 3 && (!formData.musicStyle || !formData.musicMood || !formData.voiceType)) return true;
-    // Etapa 4: Resumo, Capa, WhatsApp válido e Termos aceitos
-    if (step === 4 && (!formData.customerName?.trim() || !isPhoneValid(formData.customerPhone) || !formData.termsAccepted)) return true;
+    // Etapa 4: Resumo, Capa, WhatsApp válido, Termos aceitos e validação cruzada das etapas anteriores
+    if (step === 4 && (
+      !formData.customerName?.trim() ||
+      !formData.honoreeName?.trim() ||
+      (formData.story || '').trim().length < 50 ||
+      !formData.musicStyle ||
+      !isPhoneValid(formData.customerPhone) ||
+      !formData.termsAccepted
+    )) return true;
     // Etapa 5: Geração / Aprovação de Letra
     if (step === 5 && formData.lyricsStatus !== 'generated') return true;
     // Etapa 6: Geração de Áudio Suno

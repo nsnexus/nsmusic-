@@ -227,13 +227,13 @@ export default function WizardSteps({
               style={{ ...styles.wizardTextarea, height: '180px', backgroundColor: '#ffffff', color: '#0f172a' }}
             />
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px' }}>
-              <span style={{ fontSize: '0.8rem', color: (formData.story || '').length >= 50 ? 'var(--success)' : 'var(--danger)', fontWeight: '600' }}>
-                {(formData.story || '').length < 50
-                  ? `Mínimo de 50 caracteres (faltam ${50 - (formData.story || '').length})`
+              <span style={{ fontSize: '0.8rem', color: (formData.story || '').trim().length >= 50 ? 'var(--success)' : 'var(--danger)', fontWeight: '600' }}>
+                {(formData.story || '').trim().length < 50
+                  ? `Mínimo de 50 caracteres (faltam ${Math.max(0, 50 - (formData.story || '').trim().length)})`
                   : 'Tamanho ideal atingido ✓'}
               </span>
               <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                {(formData.story || '').length}/2000
+                {(formData.story || '').trim().length}/2000
               </span>
             </div>
           </div>

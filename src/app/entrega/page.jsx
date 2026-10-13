@@ -27,6 +27,7 @@ import { useWhatsappSuporte, linkWhatsapp } from '@/lib/useWhatsappSuporte';
 import { usePromoverAudio } from '@/lib/usePromoverAudio';
 import { identifyTikTok, trackTikTok } from '@/lib/tiktokPixel';
 import { trackGooglePurchase } from '@/lib/googleAds';
+import { trackFbPurchase } from '@/lib/metaPixel';
 
 /**
  * Tarja de prévia limitada, exibida DENTRO do card de cada versão.
@@ -440,6 +441,23 @@ function EntregaContent() {
       trackGooglePurchase({
         orderId,
         value: typeof order.amount === 'number' ? order.amount : 9.99,
+      });
+    }
+
+    // Disparo de Purchase para Meta (Facebook Pixel): protegido por localStorage e com eventID idêntico ao CAPI para desduplicação
+    const fbPurchaseKey = `fb_purchase_${orderId}`;
+    if (typeof window !== 'undefined' && !localStorage.getItem(fbPurchaseKey)) {
+      localStorage.setItem(fbPurchaseKey, '1');
+      const purchaseValue = typeof order.paidAmount === 'number' && order.paidAmount > 0
+        ? order.paidAmount
+        : (typeof order.amount === 'number' && order.amount > 0 ? order.amount : 9.99);
+
+      trackFbPurchase({
+        orderId,
+        value: purchaseValue,
+        contentName: order.sku || 'audio_only',
+        phone: order.customerPhone,
+        email: order.customerEmail,
       });
     }
   }, [order, orderId]);

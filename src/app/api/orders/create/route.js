@@ -32,6 +32,13 @@ export async function POST(req) {
       return NextResponse.json({ error: 'É necessário aceitar os Termos de Uso para continuar.' }, { status: 400 });
     }
 
+    // A história é obrigatória, exceto quando o cliente já cola uma letra própria completa
+    const hasStory = Boolean(formData.story && formData.story.trim().length >= 10);
+    const hasCustomLyrics = Boolean(formData.lyrics && formData.lyrics.trim().length >= 20);
+    if (!hasStory && !hasCustomLyrics) {
+      return NextResponse.json({ error: 'A história da homenagem é obrigatória para a criação do pedido.' }, { status: 400 });
+    }
+
     // Trava de bloqueio manual (Blacklist do administrador)
     const manualBlock = await isContactBlocked(formData.customerPhone, formData.customerEmail, env);
     if (manualBlock.blocked) {
