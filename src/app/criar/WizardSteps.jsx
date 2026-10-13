@@ -275,7 +275,7 @@ export default function WizardSteps({
                 <option value="">Selecione o ritmo (ex: Romântica, Sertanejo, Pop, MPB...)</option>
                 {stylesList.map((st) => (
                   <option key={st.id} value={st.id}>
-                    {st.icon} {st.label} — {st.desc}
+                    {st.icon} {st.label}
                   </option>
                 ))}
               </select>
@@ -304,7 +304,7 @@ export default function WizardSteps({
                 <option value="">Selecione o clima (ex: Emocionante, Romântica, Alegre...)</option>
                 {moods.map((md) => (
                   <option key={md.id} value={md.id}>
-                    {md.icon} {md.label} — {md.desc}
+                    {md.icon} {md.label}
                   </option>
                 ))}
               </select>
