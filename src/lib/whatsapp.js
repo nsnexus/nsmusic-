@@ -380,19 +380,19 @@ export const sendPaymentApprovedTemplate = async (phone, { customerName, honoree
   if (evoConfig.enabled) {
     console.log(`[WhatsApp] Enviando confirmação de pagamento via Evolution API para ${phone}...`);
     const audiosList = urls
-      .map((link, idx) => `• *Versão ${idx + 1}:* ${buildAudioDownloadLink(link, `NS-Music-${honoree}-Versao-${idx + 1}.mp3`)}`)
-      .join('\n');
+      .map((link, idx) => `🎵 *Download Direto - Versão ${idx + 1}:*\n${buildAudioDownloadLink(link, `NS-Music-${honoree}-Versao-${idx + 1}.mp3`)}`)
+      .join('\n\n');
     const userHasVideo = Boolean(hasVideoAccess);
     const videoBlock = userHasVideo
-      ? `\nO vídeo também tá liberado — é só mandar de 10 a 20 fotos nessa mesma página que eu sincronizo com a música. 📸\n`
-      : `\nSe quiser, dá pra transformar em vídeo com as fotos de ${honoree} por R$ 6,90 — tá na mesma página. 🎬\n`;
+      ? `\n\n🎬 *Vídeo Homenagem:* O vídeo também está liberado! É só enviar de 10 a 20 fotos nessa mesma página que sincronizamos com a música. 📸`
+      : `\n\n🎬 *Deseja transformar em Vídeo?* Dá pra transformar em um lindo vídeo emocionante com as fotos de ${honoree} por apenas R$ 6,90 nessa mesma página.`;
 
-    const message = `${primeiroNome(name) ? `${primeiroNome(name)}, s` : 'S'}eu pagamento caiu! 🎉 A música de ${honoree} tá liberada.
+    const message = `${primeiroNome(name) ? `Olá, ${primeiroNome(name)}! ` : 'Olá! '}Seu pagamento foi confirmado com sucesso! 🎉 A música de *${honoree}* está 100% liberada.
 
-${audiosList ? `${audiosList}\n\n` : ''}A página completa fica aqui:
-${url}
-${videoBlock}
-Qualquer coisa é só me chamar por aqui. 💜`;
+${audiosList ? `${audiosList}\n\n` : ''}📱 *Acessar página completa do seu pedido:*
+${url}${videoBlock}
+
+Qualquer dúvida ou se precisar de alguma coisa, é só me chamar por aqui! Muito obrigado pela confiança! 💜`;
 
     const evoRes = await sendEvolutionTextMessage(phone, message, env);
     if (evoRes.success) return evoRes;

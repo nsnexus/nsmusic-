@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { formatToWhatsAppNumber, resolveDeliveryUrl } from '@/lib/whatsappTemplates';
+import { formatToWhatsAppNumber, resolveDeliveryUrl, buildAudioDownloadLink } from '@/lib/whatsappTemplates';
 
 function getSaudacaoAtual() {
   const hora = new Date().getHours();
@@ -12,13 +12,18 @@ function getSaudacaoAtual() {
 
 export default function OrderWhatsAppFeedbackCard({ order }) {
   const [saudacao, setSaudacao] = useState(getSaudacaoAtual);
+  // Se o pedido já estiver pago/aprovado, abre direto no modelo de pagamento aprovado; senão, modelo de feedback
+  const [modeloSelecionado, setModeloSelecionado] = useState(() => {
+    const isPago = order?.paymentStatus === 'PAGAMENTO_APROVADO' || order?.paymentStatus === 'PAGO';
+    return isPago ? 'pagamento' : 'feedback';
+  });
   const [mensagem, setMensagem] = useState('');
   const [copiado, setCopiado] = useState(false);
+  const [copiadoLink, setCopiadoLink] = useState('');
 
   const clienteNome = useMemo(() => {
     const raw = String(order?.customerName || '').trim();
     if (!raw || raw.toLowerCase() === 'cliente') return 'tudo bem?';
-    // Pega o primeiro nome para a conversa soar mais pessoal e amigável
     return raw.split(' ')[0];
   }, [order?.customerName]);
 
@@ -34,13 +39,73 @@ export default function OrderWhatsAppFeedbackCard({ order }) {
     return resolveDeliveryUrl(order.id);
   }, [order?.id]);
 
-  // Gera o template padrão
-  const gerarTextoPadrao = (saudacaoEscolhida) => {
+  const audio1Url = useMemo(() => {
+    return order?.audioFiles?.[0] || order?.audioUrl || '';
+  }, [order?.audioFiles, order?.audioUrl]);
+
+  const audio2Url = useMemo(() => {
+    return order?.audioFiles?.[1] || order?.audioUrl2 || '';
+  }, [order?.audioFiles, order?.audioUrl2]);
+
+  const downloadLinkV1 = useMemo(() => {
+    if (!audio1Url) return '';
+    return buildAudioDownloadLink(audio1Url, `NS-Music-${homenageadoNome}-Versao-1.mp3`);
+  }, [audio1Url, homenageadoNome]);
+
+  const downloadLinkV2 = useMemo(() => {
+    if (!audio2Url) return '';
+    return buildAudioDownloadLink(audio2Url, `NS-Music-${homenageadoNome}-Versao-2.mp3`);
+  }, [audio2Url, homenageadoNome]);
+
+  const hasVideoAccess = Boolean(order?.hasVideoAccess || order?.videoAddonPaid);
+
+  // Gera o texto conforme o modelo escolhido
+  const gerarTextoModelo = (tipo, saudacaoEscolhida) => {
     const saud = saudacaoEscolhida || saudacao;
-    const saudacaoLinha = clienteNome === 'tudo bem?' 
+    const saudacaoLinha = clienteNome === 'tudo bem?'
       ? `${saud}! Tudo bem por aí? 😊`
       : `${saud}, ${clienteNome}! Tudo bem? 😊`;
 
+    if (tipo === 'pagamento') {
+      const videoInfo = hasVideoAccess
+        ? `\n\n🎬 *Vídeo Homenagem:* O vídeo também está liberado! É só enviar de 10 a 20 fotos na página do seu pedido que sincronizamos com a música.`
+        : `\n\n🎬 *Deseja transformar em Vídeo?* Você também pode transformar essa música em um lindo vídeo emocionante com as fotos de ${homenageadoNome} por apenas R$ 6,90 diretamente na página do pedido.`;
+
+      let blocoAudios = '';
+      if (downloadLinkV1 && downloadLinkV2) {
+        blocoAudios = `Aqui estão os links para download direto das 2 versões em alta qualidade:\n\n🎵 *Baixar Versão 1 (Download direto):*\n${downloadLinkV1}\n\n🎵 *Baixar Versão 2 (Download direto):*\n${downloadLinkV2}`;
+      } else if (downloadLinkV1) {
+        blocoAudios = `Aqui está o link para download direto da música em alta qualidade:\n\n🎵 *Baixar Música (Download direto):*\n${downloadLinkV1}`;
+      } else {
+        blocoAudios = `As músicas completas estão sendo sincronizadas na página do pedido.`;
+      }
+
+      return `${saudacaoLinha}
+
+Seu pagamento foi confirmado com sucesso! 🎉 A música de *${homenageadoNome}* está 100% liberada para você ouvir e baixar.
+
+${blocoAudios}
+
+📱 *Acessar página completa do seu pedido:*
+${deliveryLink || '(Link de entrega não disponível)'}${videoInfo}
+
+Qualquer dúvida ou se precisar de alguma coisa, é só me chamar por aqui! Muito obrigado pela confiança! 💜`.trim();
+    }
+
+    if (tipo === 'musica_pronta') {
+      return `${saudacaoLinha}
+
+A música que preparamos para *${homenageadoNome}* acabou de ficar pronta com todo o carinho! 🎧
+
+Preparamos 2 versões com arranjos diferentes para você ouvir e escolher a sua preferida.
+
+Ouça a prévia agora pelo link:
+${deliveryLink || '(Link de entrega não disponível)'}
+
+Assim que você ouvir, me conta o que achou! 🎶`.trim();
+    }
+
+    // Padrão: Feedback e Ajuste
     return `${saudacaoLinha}
 
 Passando aqui pra saber: o que você achou da música que fizemos pra ${homenageadoNome}? Ficou do jeitinho que você imaginava?
@@ -50,14 +115,19 @@ Se você quiser ajustar alguma coisa na letra ou nos detalhes, é só me falar p
 ${deliveryLink ? `(Caso queira ouvir novamente a prévia: ${deliveryLink})` : ''}`.trim();
   };
 
-  // Inicializa a mensagem na montagem ou quando a saudação/pedido mudar
+  // Inicializa ou atualiza a mensagem quando muda saudação, modelo ou dados
   useEffect(() => {
-    setMensagem(gerarTextoPadrao(saudacao));
-  }, [saudacao, clienteNome, homenageadoNome, deliveryLink]);
+    setMensagem(gerarTextoModelo(modeloSelecionado, saudacao));
+  }, [modeloSelecionado, saudacao, clienteNome, homenageadoNome, deliveryLink, downloadLinkV1, downloadLinkV2, hasVideoAccess]);
+
+  const handleTrocarModelo = (novoModelo) => {
+    setModeloSelecionado(novoModelo);
+    setMensagem(gerarTextoModelo(novoModelo, saudacao));
+  };
 
   const handleTrocarSaudacao = (novaSaudacao) => {
     setSaudacao(novaSaudacao);
-    setMensagem(gerarTextoPadrao(novaSaudacao));
+    setMensagem(gerarTextoModelo(modeloSelecionado, novaSaudacao));
   };
 
   const phoneLimpo = useMemo(() => {
@@ -81,6 +151,19 @@ ${deliveryLink ? `(Caso queira ouvir novamente a prévia: ${deliveryLink})` : ''
     }
   };
 
+  const handleCopiarLinkAvulso = async (url, chave) => {
+    if (!url) return;
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(url);
+        setCopiadoLink(chave);
+        setTimeout(() => setCopiadoLink(''), 2000);
+      }
+    } catch (e) {
+      alert('Não foi possível copiar o link.');
+    }
+  };
+
   return (
     <div
       style={{
@@ -92,15 +175,16 @@ ${deliveryLink ? `(Caso queira ouvir novamente a prévia: ${deliveryLink})` : ''
         marginTop: '24px',
       }}
     >
+      {/* Cabeçalho */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', marginBottom: '14px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <span style={{ fontSize: '1.4rem' }}>💬</span>
           <div>
             <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '800', color: '#0f172a' }}>
-              Mensagem Pronta para o WhatsApp (Ajuste / Feedback)
+              Modelos de Mensagem para WhatsApp
             </h3>
             <p style={{ margin: '3px 0 0', fontSize: '0.8rem', color: '#64748b' }}>
-              Envie uma mensagem calorosa perguntando o que o cliente achou da música e se quer ajustar algo.
+              Escolha o modelo pronto para envio rápido com links diretos de download e da entrega.
             </p>
           </div>
         </div>
@@ -134,13 +218,161 @@ ${deliveryLink ? `(Caso queira ouvir novamente a prévia: ${deliveryLink})` : ''
         </div>
       </div>
 
+      {/* Seletor de Modelo de Mensagem (Tabs) */}
+      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '16px' }}>
+        <button
+          type="button"
+          onClick={() => handleTrocarModelo('pagamento')}
+          style={{
+            padding: '8px 14px',
+            fontSize: '0.84rem',
+            fontWeight: '800',
+            borderRadius: '10px',
+            cursor: 'pointer',
+            border: modeloSelecionado === 'pagamento' ? '2px solid #7c3aed' : '1px solid #cbd5e1',
+            backgroundColor: modeloSelecionado === 'pagamento' ? '#f5f3ff' : '#f8fafc',
+            color: modeloSelecionado === 'pagamento' ? '#6d28d9' : '#475569',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            transition: 'all 0.15s ease',
+          }}
+        >
+          <span>🎁</span>
+          <span>Pagamento Aprovado & Downloads</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleTrocarModelo('feedback')}
+          style={{
+            padding: '8px 14px',
+            fontSize: '0.84rem',
+            fontWeight: '800',
+            borderRadius: '10px',
+            cursor: 'pointer',
+            border: modeloSelecionado === 'feedback' ? '2px solid #2563eb' : '1px solid #cbd5e1',
+            backgroundColor: modeloSelecionado === 'feedback' ? '#eff6ff' : '#f8fafc',
+            color: modeloSelecionado === 'feedback' ? '#1d4ed8' : '#475569',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            transition: 'all 0.15s ease',
+          }}
+        >
+          <span>💬</span>
+          <span>Feedback & Ajuste da Letra</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleTrocarModelo('musica_pronta')}
+          style={{
+            padding: '8px 14px',
+            fontSize: '0.84rem',
+            fontWeight: '800',
+            borderRadius: '10px',
+            cursor: 'pointer',
+            border: modeloSelecionado === 'musica_pronta' ? '2px solid #d97706' : '1px solid #cbd5e1',
+            backgroundColor: modeloSelecionado === 'musica_pronta' ? '#fffbeb' : '#f8fafc',
+            color: modeloSelecionado === 'musica_pronta' ? '#b45309' : '#475569',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            transition: 'all 0.15s ease',
+          }}
+        >
+          <span>🎧</span>
+          <span>Música Pronta (Ouvir Prévia)</span>
+        </button>
+      </div>
+
+      {/* Barra de atalhos rápidos para copiar links avulsos */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        flexWrap: 'wrap',
+        marginBottom: '12px',
+        padding: '10px 14px',
+        backgroundColor: '#f8fafc',
+        borderRadius: '10px',
+        border: '1px dashed #cbd5e1',
+      }}>
+        <span style={{ fontSize: '0.78rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>
+          Atalhos de Links:
+        </span>
+
+        {downloadLinkV1 && (
+          <button
+            type="button"
+            onClick={() => handleCopiarLinkAvulso(downloadLinkV1, 'v1')}
+            style={{
+              padding: '4px 10px',
+              fontSize: '0.76rem',
+              fontWeight: '700',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              border: '1px solid #c7d2fe',
+              backgroundColor: copiadoLink === 'v1' ? '#ecfdf5' : '#eef2ff',
+              color: copiadoLink === 'v1' ? '#065f46' : '#3730a3',
+            }}
+          >
+            {copiadoLink === 'v1' ? '✅ Link V1 Copiado!' : '🎵 Copiar Link Download Versão 1'}
+          </button>
+        )}
+
+        {downloadLinkV2 && (
+          <button
+            type="button"
+            onClick={() => handleCopiarLinkAvulso(downloadLinkV2, 'v2')}
+            style={{
+              padding: '4px 10px',
+              fontSize: '0.76rem',
+              fontWeight: '700',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              border: '1px solid #c7d2fe',
+              backgroundColor: copiadoLink === 'v2' ? '#ecfdf5' : '#eef2ff',
+              color: copiadoLink === 'v2' ? '#065f46' : '#3730a3',
+            }}
+          >
+            {copiadoLink === 'v2' ? '✅ Link V2 Copiado!' : '🎵 Copiar Link Download Versão 2'}
+          </button>
+        )}
+
+        {deliveryLink && (
+          <button
+            type="button"
+            onClick={() => handleCopiarLinkAvulso(deliveryLink, 'pedido')}
+            style={{
+              padding: '4px 10px',
+              fontSize: '0.76rem',
+              fontWeight: '700',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              border: '1px solid #cbd5e1',
+              backgroundColor: copiadoLink === 'pedido' ? '#ecfdf5' : '#ffffff',
+              color: copiadoLink === 'pedido' ? '#065f46' : '#334155',
+            }}
+          >
+            {copiadoLink === 'pedido' ? '✅ Link Pedido Copiado!' : '📱 Copiar Link do Pedido'}
+          </button>
+        )}
+      </div>
+
       {/* Caixa de Texto Editável da Mensagem */}
       <div style={{ marginBottom: '14px' }}>
-        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#475569', marginBottom: '6px', textTransform: 'uppercase' }}>
-          Texto da Mensagem (Você pode editar antes de enviar):
-        </label>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+          <label style={{ fontSize: '0.75rem', fontWeight: '700', color: '#475569', textTransform: 'uppercase' }}>
+            Texto da Mensagem (Você pode editar livremente antes de enviar):
+          </label>
+          <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+            {mensagem.length} caracteres
+          </span>
+        </div>
         <textarea
-          rows={7}
+          rows={9}
           value={mensagem}
           onChange={(e) => setMensagem(e.target.value)}
           style={{
@@ -169,11 +401,11 @@ ${deliveryLink ? `(Caso queira ouvir novamente a prévia: ${deliveryLink})` : ''
               target="_blank"
               rel="noopener noreferrer"
               style={{
-                padding: '9px 18px',
+                padding: '10px 20px',
                 backgroundColor: '#25D366',
                 color: '#ffffff',
                 borderRadius: '8px',
-                fontSize: '0.85rem',
+                fontSize: '0.88rem',
                 fontWeight: '700',
                 textDecoration: 'none',
                 display: 'inline-flex',
@@ -196,12 +428,12 @@ ${deliveryLink ? `(Caso queira ouvir novamente a prévia: ${deliveryLink})` : ''
             type="button"
             onClick={handleCopiar}
             style={{
-              padding: '9px 16px',
+              padding: '10px 18px',
               backgroundColor: copiado ? '#ecfdf5' : '#ffffff',
               color: copiado ? '#059669' : '#334155',
               border: copiado ? '1.5px solid #059669' : '1px solid #cbd5e1',
               borderRadius: '8px',
-              fontSize: '0.85rem',
+              fontSize: '0.88rem',
               fontWeight: '700',
               cursor: 'pointer',
               display: 'inline-flex',
@@ -210,14 +442,14 @@ ${deliveryLink ? `(Caso queira ouvir novamente a prévia: ${deliveryLink})` : ''
             }}
           >
             <span>{copiado ? '✅' : '📋'}</span>
-            <span>{copiado ? 'Mensagem Copiada!' : 'Copiar Mensagem'}</span>
+            <span>{copiado ? 'Mensagem Copiada!' : 'Copiar Mensagem Completa'}</span>
           </button>
         </div>
 
         <button
           type="button"
-          onClick={() => setMensagem(gerarTextoPadrao(saudacao))}
-          title="Restaura o texto original da mensagem"
+          onClick={() => setMensagem(gerarTextoModelo(modeloSelecionado, saudacao))}
+          title="Restaura o texto original do modelo selecionado"
           style={{
             background: 'none',
             border: 'none',
@@ -227,7 +459,7 @@ ${deliveryLink ? `(Caso queira ouvir novamente a prévia: ${deliveryLink})` : ''
             cursor: 'pointer',
           }}
         >
-          🔄 Restaurar mensagem padrão
+          🔄 Restaurar texto original do modelo
         </button>
       </div>
     </div>

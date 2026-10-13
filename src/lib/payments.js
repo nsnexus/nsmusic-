@@ -441,12 +441,12 @@ export async function notifyPaymentApproved(orderRefOrId, orderData, opts = {}, 
   const orderId = typeof orderRefOrId === 'string' ? orderRefOrId : orderRefOrId?.id;
   if (!orderId) return;
 
-  // Envio de confirmação de pagamento via WhatsApp desativado por padrão para economia de mensagens.
-  // O cliente já recebe a mensagem de "música pronta" e a liberação é exibida diretamente na tela de entrega.
-  const isPaymentWhatsappEnabled = opts.force || env?.ENABLE_PAYMENT_WHATSAPP === 'true' || process.env.ENABLE_PAYMENT_WHATSAPP === 'true';
-  if (!isPaymentWhatsappEnabled) {
-    console.log(`[payments] Notificação de pagamento aprovado via WhatsApp desativada para economia de mensagens (pedido ${orderId}).`);
-    return { success: true, ignored: 'desativado_para_economia' };
+  // O envio de confirmação de pagamento via WhatsApp é ATIVO por padrão.
+  // Pode ser desativado explicitamente configurando ENABLE_PAYMENT_WHATSAPP=false.
+  const isPaymentWhatsappDisabled = env?.ENABLE_PAYMENT_WHATSAPP === 'false' || process.env.ENABLE_PAYMENT_WHATSAPP === 'false';
+  if (isPaymentWhatsappDisabled && !opts.force) {
+    console.log(`[payments] Notificação de pagamento aprovado via WhatsApp desativada por configuração (pedido ${orderId}).`);
+    return { success: true, ignored: 'desativado_por_configuracao' };
   }
 
   const now = Date.now();
