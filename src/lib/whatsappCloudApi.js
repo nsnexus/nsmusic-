@@ -40,6 +40,7 @@ export function getCloudApiConfig(env = {}) {
     // template for recriado com outro nome (acontece: reprovação da Meta obriga a refazer).
     templateMusicaPronta: ler('WHATSAPP_TEMPLATE_MUSICA') || 'aviso_musica_pronta',
     templatePagamento: ler('WHATSAPP_TEMPLATE_PAGAMENTO') || 'confirmacao_pagamento',
+    templatePagamentoDownloads: ler('WHATSAPP_TEMPLATE_PAGAMENTO_DOWNLOADS') || 'confirmacao_pagamento_downloads',
     enabled: Boolean(token && phoneNumberId),
   };
 }
@@ -158,6 +159,20 @@ export async function enviarPagamentoConfirmadoCloud(phone, { cliente, homenagea
   const numSuporte = normalizarNumeroWhatsapp(cfgSite?.whatsappSuporte) || WHATSAPP_SUPORTE_PADRAO;
   const linkSuporte = `https://wa.me/${numSuporte}`;
 
+  // Se os links de download direto estiverem disponíveis, tenta primeiro o template completo com downloads
+  if (audio1 && audio2) {
+    const resDownloads = await sendCloudApiTemplate(
+      phone,
+      config.templatePagamentoDownloads,
+      [cliente, homenageado, audio1, audio2, link, linkSuporte],
+      {},
+      env
+    );
+    if (resDownloads.success) return resDownloads;
+    console.warn('[CloudAPI] Falha no template com downloads, tentando template padrão aprovado...', resDownloads.error);
+  }
+
+  // Fallback para o template padrão aprovado (4 variáveis)
   return sendCloudApiTemplate(
     phone,
     config.templatePagamento,
