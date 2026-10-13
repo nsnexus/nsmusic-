@@ -150,7 +150,7 @@ export default function PreviaProntaModal({
             color: '#fef3c7',
             lineHeight: '1.45',
           }}>
-            Quer que essa música seja cantada com a <strong>SUA PRÓPRIA VOZ</strong>? Agora você pode clonar o seu timbre de voz por apenas <strong>+ R$ 24,90</strong>!
+            Quer que essa música seja cantada com a <strong>SUA PRÓPRIA VOZ</strong>? Agora você pode clonar o seu timbre de voz por apenas <strong>+ R$ 14,90</strong>!
           </p>
           <button
             type="button"
@@ -176,7 +176,7 @@ export default function PreviaProntaModal({
             }}
           >
             <span>🎤</span>
-            <span>Quero Cantar com Minha Voz (+ R$ 24,90)</span>
+            <span>Quero Cantar com Minha Voz (+ R$ 14,90)</span>
           </button>
         </div>
 

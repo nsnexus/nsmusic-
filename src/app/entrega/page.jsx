@@ -342,7 +342,7 @@ function EntregaContent() {
       priceColor: '#b45309',
       titulo: '2 versões completas',
       linhas: ['+ Voz Clonada do Cliente (IA)'],
-      valor: getPriceForSku('combo_voz') || 34.89,
+      valor: getPriceForSku('combo_voz') || 24.89,
       destaque: '✨ NOVO',
     },
   ];
@@ -1183,7 +1183,7 @@ function EntregaContent() {
 
   const handleQueroMinhaVozFromModal = () => {
     handleClosePreviaProntaModal();
-    const precoComboVoz = getPriceForSku('combo_voz') || 34.89;
+    const precoComboVoz = getPriceForSku('combo_voz') || 24.89;
     escolherFaixa(precoComboVoz, 'combo_voz');
     if (typeof document !== 'undefined') {
       const el = document.getElementById('pagamento');

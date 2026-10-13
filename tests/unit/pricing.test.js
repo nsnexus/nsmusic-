@@ -14,6 +14,8 @@ describe('getPriceForSku', () => {
     expect(getPriceForSku('retrospectiva_addon')).toBe(9.99);
     expect(getPriceForSku('combo_carta')).toBe(13.98);
     expect(getPriceForSku('combo_retrospectiva')).toBe(19.98);
+    expect(getPriceForSku('custom_voice_addon')).toBe(14.90);
+    expect(getPriceForSku('combo_voz')).toBe(24.89);
   });
 
   it('retorna null para SKU desconhecido (nunca inventa um preço)', () => {

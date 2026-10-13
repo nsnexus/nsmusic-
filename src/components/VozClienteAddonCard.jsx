@@ -411,7 +411,7 @@ export default function VozClienteAddonCard({ orderId, order }) {
             background: 'rgba(255,255,255,0.03)',
             borderRadius: '12px'
           }}>
-            <span style={{ fontSize: '1.6rem', fontWeight: '900', color: '#ffffff' }}>R$ 24,90</span>
+            <span style={{ fontSize: '1.6rem', fontWeight: '900', color: '#ffffff' }}>R$ 14,90</span>
             <span style={{ fontSize: '0.8rem', color: '#71717a' }}>taxa única de clonagem + regravação</span>
           </div>
 
@@ -420,7 +420,7 @@ export default function VozClienteAddonCard({ orderId, order }) {
               <PixQrCode
                 qrCodeText={pixInfo.qrCode}
                 paymentId={pixInfo.paymentId}
-                amount={24.90}
+                amount={14.90}
                 orderNumber={order?.orderNumber}
               />
               {pollingTimedOut && (
@@ -452,7 +452,7 @@ export default function VozClienteAddonCard({ orderId, order }) {
                   transition: 'opacity 0.2s'
                 }}
               >
-                {loadingPix ? 'Gerando Chave PIX...' : '✨ Quero a Música com a Minha Voz (R$ 24,90)'}
+                {loadingPix ? 'Gerando Chave PIX...' : '✨ Quero a Música com a Minha Voz (R$ 14,90)'}
               </button>
             </div>
           )}

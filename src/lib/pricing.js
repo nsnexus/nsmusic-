@@ -23,8 +23,8 @@ export const SKU_PRICES = {
   // mesma regra do `combo` (música+vídeo): soma simples dos dois preços, sem desconto.
   combo_carta: 13.98,
   combo_retrospectiva: 19.98,
-  custom_voice_addon: 24.90,
-  combo_voz: 34.89,
+  custom_voice_addon: 14.90,
+  combo_voz: 24.89,
   recovery_combo_24h: 9.99,
   recovery_combo_48h: 6.99,
 };

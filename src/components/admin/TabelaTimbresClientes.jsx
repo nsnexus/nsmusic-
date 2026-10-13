@@ -229,7 +229,7 @@ export default function TabelaTimbresClientes() {
           <p style={{ fontSize: '0.85rem', margin: 0, maxWidth: '480px', marginInline: 'auto', lineHeight: '1.5' }}>
             {busca
               ? 'Tente buscar por outro termo, telefone ou limpe o campo de busca.'
-              : 'Quando os clientes comprarem o Add-on de Voz (R$ 24,90) e gravarem suas amostras na página de entrega (/entrega), seus timbres serão vinculados ao WhatsApp e aparecerão aqui automaticamente.'}
+              : 'Quando os clientes comprarem o Add-on de Voz (R$ 14,90) e gravarem suas amostras na página de entrega (/entrega), seus timbres serão vinculados ao WhatsApp e aparecerão aqui automaticamente.'}
           </p>
         </div>
       ) : (
