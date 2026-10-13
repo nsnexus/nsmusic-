@@ -18,6 +18,7 @@ import { hasPreviewTrackingData } from '@/lib/previewTracking';
 import Link from 'next/link';
 import Image from 'next/image';
 import TabelaTimbresClientes from '@/components/admin/TabelaTimbresClientes';
+import AbaFinanceiro from '@/components/admin/AbaFinanceiro';
 
 export default function AdminDashboard() {
   const [user, setUser] = useState(null);
@@ -887,6 +888,7 @@ export default function AdminDashboard() {
                 }}
               >
                 <option value="ORDERS">📦 Pedidos ({orders.length})</option>
+                <option value="FINANCEIRO">💰 Financeiro (Receitas & Despesas)</option>
                 <option value="STUCK">💰 Conferir Pagamentos</option>
                 <option value="TIMBRES">📋 Timbres de Voz (Clientes)</option>
                 <option value="VOZ">🎤 Teste de Voz (Beta) ➔</option>
@@ -908,6 +910,17 @@ export default function AdminDashboard() {
                 }}
               >
                 📦 Pedidos ({orders.length})
+              </button>
+              <button
+                onClick={() => setActiveTab('FINANCEIRO')}
+                style={{
+                  ...styles.tabBtn,
+                  backgroundColor: activeTab === 'FINANCEIRO' ? '#7c3aed' : '#e2e8f0',
+                  color: activeTab === 'FINANCEIRO' ? '#ffffff' : '#334155',
+                  fontWeight: '700',
+                }}
+              >
+                💰 Financeiro
               </button>
               <button
                 onClick={() => setActiveTab('STUCK')}
@@ -997,7 +1010,9 @@ export default function AdminDashboard() {
       <main style={{ flex: 1, padding: '32px 0' }}>
         <div className="container" style={{ maxWidth: '1280px', margin: '0 auto', padding: '0 20px' }}>
           
-          {activeTab === 'TIMBRES' ? (
+          {activeTab === 'FINANCEIRO' ? (
+            <AbaFinanceiro />
+          ) : activeTab === 'TIMBRES' ? (
             <TabelaTimbresClientes />
           ) : activeTab === 'LIMITES' ? (
             <LimitesCota />

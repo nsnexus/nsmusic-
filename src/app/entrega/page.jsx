@@ -676,7 +676,8 @@ function EntregaContent() {
 
   const handleCopyLink = (customUrl = null) => {
     if (typeof window !== 'undefined' && orderId) {
-      const url = customUrl || `${window.location.origin}/h/${orderId}`;
+      const validUrl = typeof customUrl === 'string' && customUrl.trim() ? customUrl.trim() : null;
+      const url = validUrl || `${window.location.origin}/h/${orderId}`;
       navigator.clipboard.writeText(url);
       setCopied(true);
       setTimeout(() => setCopied(false), 3000);

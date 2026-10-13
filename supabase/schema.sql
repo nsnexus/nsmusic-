@@ -241,3 +241,23 @@ create table if not exists customer_voices (
 create index if not exists customer_voices_phone_idx on customer_voices (phone);
 alter table customer_voices enable row level security;
 
+-- ============================================================================
+-- financial_entries — Lançamentos manuais de receitas avulsas e despesas
+-- ============================================================================
+create table if not exists financial_entries (
+  id          text primary key,
+  tipo        text not null check (tipo in ('receita', 'despesa')),
+  data        date not null default current_date,
+  valor       numeric(10,2) not null check (valor > 0),
+  categoria   text not null default 'Outros',
+  descricao   text not null,
+  observacoes text,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+
+create index if not exists financial_entries_data_idx on financial_entries (data desc);
+create index if not exists financial_entries_tipo_idx on financial_entries (tipo, data desc);
+alter table financial_entries enable row level security;
+
+

@@ -148,9 +148,14 @@ export default function VendasPorPlataformaCard({ monthValue }) {
       let gasto = 0;
       let configurado = false;
       let pendenteMensagem = null;
+      let metaBase = 0;
+      let metaImposto = 0;
 
       if (plat.key === 'facebook_ads') {
-        gasto = metaSpend;
+        metaBase = metaSpend;
+        metaImposto = Math.round(metaBase * 0.138 * 100) / 100;
+        // Adiciona 13,8% de imposto sobre os valores gastos com anúncio no Facebook Ads
+        gasto = Math.round((metaBase + metaImposto) * 100) / 100;
         configurado = metaConfigurado;
         if (!metaConfigurado) pendenteMensagem = 'Credenciais Meta Ads pendentes';
       } else if (plat.key === 'tiktok_ads') {
@@ -170,6 +175,8 @@ export default function VendasPorPlataformaCard({ monthValue }) {
       return {
         ...plat,
         gasto,
+        metaBase,
+        metaImposto,
         configurado,
         pendenteMensagem,
         lucro,
@@ -181,7 +188,9 @@ export default function VendasPorPlataformaCard({ monthValue }) {
 
   // Totais consolidados
   const totaisConsolidados = useMemo(() => {
-    const gastoTotal = Math.round((metaSpend + tiktokSpend + googleSpend) * 100) / 100;
+    const metaImpostoTotal = Math.round(metaSpend * 0.138 * 100) / 100;
+    const metaTotalComImposto = Math.round((metaSpend + metaImpostoTotal) * 100) / 100;
+    const gastoTotal = Math.round((metaTotalComImposto + tiktokSpend + googleSpend) * 100) / 100;
     const lucroTotal = Math.round((totais.faturamento - gastoTotal) * 100) / 100;
     const roasGeral = gastoTotal > 0 ? Math.round((totais.faturamento / gastoTotal) * 100) / 100 : null;
     const cpaGeral = (totais.pedidosPagos > 0 && gastoTotal > 0) ? Math.round((gastoTotal / totais.pedidosPagos) * 100) / 100 : null;
@@ -613,6 +622,11 @@ export default function VendasPorPlataformaCard({ monthValue }) {
                                 </button>
                               </div>
                             </div>
+                            {plat.key === 'facebook_ads' && plat.metaImposto > 0 && (
+                              <div style={{ fontSize: '0.70rem', color: '#64748b', textAlign: 'right', marginTop: '-3px', marginBottom: '6px' }}>
+                                Base: {formatMoney(plat.metaBase)} + {formatMoney(plat.metaImposto)} (imposto 13,8%)
+                              </div>
+                            )}
                             {plat.key === 'tiktok_ads' && (
                               <button
                                 type="button"
