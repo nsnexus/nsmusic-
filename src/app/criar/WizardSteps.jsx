@@ -1,18 +1,15 @@
 'use client';
 
+import React from 'react';
 import Link from 'next/link';
-import { Mic, Users, Check } from 'lucide-react';
+import { Mic, Users, Check, Camera, Trash2, Heart, Music, Sparkles } from 'lucide-react';
 import { styles } from './wizardStyles';
-import { recipients, occasions, stylesList, moods } from './wizardOptions';
+import { occasions, stylesList, moods } from './wizardOptions';
 
-// Passos 1-9 do wizard de /criar — extraído de page.jsx (M-20 no AUDIT_REPORT.md). Mantém toda a
-// lógica/estado no componente pai (criar/page.jsx); este componente só recebe formData e os
-// handlers já prontos, sem duplicar nenhuma regra de negócio.
 export default function WizardSteps({
   step,
   formData,
   updateField,
-  selectFieldAndAdvance,
   isListening,
   toggleVoiceDictation,
   appendStoryPrompt,
@@ -23,78 +20,157 @@ export default function WizardSteps({
   phoneVerifyMessage,
   recognizedVoice = null,
   checkingVoice = false,
+  isSelfTribute = false,
+  setIsSelfTribute,
 }) {
   switch (step) {
+    // --------------------------------------------------------------------------
+    // ETAPA 1: Ocasião, Nome de quem está dedicando & Nome do Homenageado
+    // --------------------------------------------------------------------------
     case 1:
       return (
-        <div>
-          <h1 style={styles.stepTitle}>Quem vai RECEBER a música?</h1>
-          <p style={styles.stepSubtitle}>Escolha a pessoa que será homenageada. Ao clicar, a tela avança automaticamente!</p>
-          <div style={styles.gridCards}>
-            {recipients.map((item) => (
-              <div
-                key={item.id}
-                onClick={() => selectFieldAndAdvance('recipientType', item.id)}
+        <div style={{ maxWidth: '640px', margin: '0 auto' }}>
+          <h1 style={styles.stepTitle}>Quem vai ser homenageado? ✨</h1>
+          <p style={styles.stepSubtitle}>
+            Escolha a ocasião e os nomes de quem está dedicando e recebendo a música.
+          </p>
+
+          <div style={{ backgroundColor: '#ffffff', borderRadius: '16px', padding: '28px 24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 20px rgba(0,0,0,0.03)' }}>
+            {/* 1. Ocasião Especial (Lista Suspensa / Dropdown) */}
+            <div style={{ marginBottom: '22px' }}>
+              <label style={styles.wizardLabel}>Qual é a ocasião especial? *</label>
+              <select
+                value={formData.occasion || ''}
+                onChange={(e) => updateField('occasion', e.target.value)}
                 style={{
-                  ...styles.wizardCard,
-                  borderColor: formData.recipientType === item.id ? 'var(--primary)' : 'rgba(255,255,255,0.08)',
-                  backgroundColor: formData.recipientType === item.id ? 'rgba(79, 70, 229, 0.08)' : 'rgba(255,255,255,0.02)',
+                  width: '100%',
+                  padding: '14px 16px',
+                  borderRadius: '12px',
+                  border: '1.5px solid #cbd5e1',
+                  backgroundColor: '#ffffff',
+                  color: formData.occasion ? '#0f172a' : '#64748b',
+                  fontSize: '1rem',
+                  fontWeight: '600',
+                  outline: 'none',
+                  cursor: 'pointer',
+                  boxSizing: 'border-box',
                 }}
               >
-                {formData.recipientType === item.id && <div style={styles.checkCircle}>✓</div>}
-                <span style={{ fontSize: '2.2rem', marginBottom: '10px' }}>{item.icon}</span>
-                <span style={{ fontSize: '0.95rem', fontWeight: '600' }}>{item.label}</span>
+                <option value="">Selecione a ocasião (ex: Aniversário, Declaração de Amor...)</option>
+                {occasions.map((occ) => (
+                  <option key={occ.id} value={occ.id}>
+                    {occ.icon} {occ.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* 2. Seu Primeiro Nome (Quem está dedicando) */}
+            <div style={{ marginBottom: '22px' }}>
+              <label style={styles.wizardLabel}>Seu primeiro nome (quem está dedicando) *</label>
+              <input
+                type="text"
+                value={formData.customerName || ''}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  updateField('customerName', val);
+                  if (isSelfTribute) {
+                    updateField('honoreeName', val);
+                  }
+                }}
+                placeholder="Ex: Carlos, Mariana, Rodrigo..."
+                style={{
+                  ...styles.wizardInput,
+                  marginTop: '4px',
+                  textAlign: 'left',
+                  fontSize: '1rem',
+                  padding: '14px 16px',
+                }}
+              />
+            </div>
+
+            {/* 3. Nome da Pessoa Homenageada (com Botão/Flag 'Eu mesmo') */}
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '6px' }}>
+                <label style={{ ...styles.wizardLabel, marginBottom: 0 }}>
+                  Nome de quem vai receber a música *
+                </label>
+                
+                {/* Botão Discreto tipo Flag / Toggle para 'Eu mesmo' */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nextSelf = !isSelfTribute;
+                    if (setIsSelfTribute) setIsSelfTribute(nextSelf);
+                    if (nextSelf) {
+                      updateField('honoreeName', formData.customerName || '');
+                      updateField('recipientType', 'Eu mesmo');
+                    } else {
+                      updateField('honoreeName', '');
+                      updateField('recipientType', 'Outro');
+                    }
+                  }}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '4px 12px',
+                    borderRadius: '999px',
+                    fontSize: '0.78rem',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    border: isSelfTribute ? '1.5px solid var(--primary)' : '1px solid #cbd5e1',
+                    backgroundColor: isSelfTribute ? 'var(--primary-light)' : '#f8fafc',
+                    color: isSelfTribute ? 'var(--primary)' : '#64748b',
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  <span style={{ fontSize: '0.9rem' }}>{isSelfTribute ? '✓' : '○'}</span>
+                  <span>Dedicar para mim mesmo(a)</span>
+                </button>
               </div>
-            ))}
+
+              <input
+                type="text"
+                value={formData.honoreeName || ''}
+                readOnly={isSelfTribute}
+                onChange={(e) => updateField('honoreeName', e.target.value)}
+                placeholder={isSelfTribute ? (formData.customerName || 'Seu próprio nome') : 'Ex: Camila, Minha Mãe, Meu Amor...'}
+                style={{
+                  ...styles.wizardInput,
+                  marginTop: '4px',
+                  textAlign: 'left',
+                  fontSize: '1rem',
+                  padding: '14px 16px',
+                  backgroundColor: isSelfTribute ? '#f8fafc' : '#ffffff',
+                  borderColor: isSelfTribute ? 'var(--primary)' : '#cbd5e1',
+                  color: isSelfTribute ? 'var(--primary)' : '#0f172a',
+                  fontWeight: isSelfTribute ? '700' : '500',
+                }}
+              />
+              {isSelfTribute && (
+                <span style={{ display: 'block', fontSize: '0.78rem', color: 'var(--primary)', marginTop: '6px', fontWeight: '600' }}>
+                  ⭐ Homenagem própria: a música será cantada para você mesmo(a)!
+                </span>
+              )}
+            </div>
           </div>
         </div>
       );
+
+    // --------------------------------------------------------------------------
+    // ETAPA 2: A História (sem momentos especiais redundantes)
+    // --------------------------------------------------------------------------
     case 2:
-      return (
-        <div style={{ maxWidth: '600px', margin: '0 auto', textAlign: 'center' }}>
-          <h1 style={styles.stepTitle}>Qual o nome de quem vai RECEBER a música?</h1>
-          <p style={styles.stepSubtitle}>Coloque o nome ou apelido de quem vai receber a homenagem. Esse nome vai aparecer na letra da música.</p>
-          <input
-            type="text"
-            value={formData.honoreeName}
-            onChange={(e) => updateField('honoreeName', e.target.value)}
-            placeholder="Digite o nome..."
-            style={styles.wizardInput}
-          />
-        </div>
-      );
-    case 3:
-      return (
-        <div>
-          <h1 style={styles.stepTitle}>Qual a ocasião?</h1>
-          <p style={styles.stepSubtitle}>Escolha o momento que você quer eternizar</p>
-          <div style={styles.gridCards}>
-            {occasions.map((item) => (
-              <div
-                key={item.id}
-                onClick={() => selectFieldAndAdvance('occasion', item.id)}
-                style={{
-                  ...styles.wizardCard,
-                  borderColor: formData.occasion === item.id ? 'var(--primary)' : 'rgba(255,255,255,0.08)',
-                  backgroundColor: formData.occasion === item.id ? 'rgba(79, 70, 229, 0.08)' : 'rgba(255,255,255,0.02)',
-                }}
-              >
-                {formData.occasion === item.id && <div style={styles.checkCircle}>✓</div>}
-                <span style={{ fontSize: '2.2rem', marginBottom: '10px' }}>{item.icon}</span>
-                <span style={{ fontSize: '0.95rem', fontWeight: '600', textAlign: 'center' }}>{item.label}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      );
-    case 4:
       return (
         <div style={{ maxWidth: '750px', margin: '0 auto' }}>
           <h1 style={styles.stepTitle}>Conte sua história 📜</h1>
-          <p style={styles.stepSubtitle}>Digite ou use o microfone para contar os detalhes. Faremos uma composição inesquecível!</p>
+          <p style={styles.stepSubtitle}>
+            Digite ou use o microfone para contar os detalhes. Faremos uma composição inesquecível!
+          </p>
 
-          {/* Barra de Ferramentas de Voz e Sugestões Rápida */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center', marginBottom: '12px' }}>
+          {/* Barra de Ferramentas de Voz e Sugestões Rápidas */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center', marginBottom: '14px' }}>
             <button
               type="button"
               onClick={toggleVoiceDictation}
@@ -109,7 +185,7 @@ export default function WizardSteps({
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '6px'
+                gap: '6px',
               }}
             >
               {isListening ? '⏹ Gravando... (Fale Agora)' : '🎙️ Ditar por Voz (Gravar Fala)'}
@@ -120,7 +196,7 @@ export default function WizardSteps({
             <button
               type="button"
               onClick={() => appendStoryPrompt("Nos conhecemos em um momento marcante de nossas vidas e desde então não nos separamos mais.")}
-              style={{ padding: '4px 10px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: 'var(--text-secondary)', fontSize: '0.78rem', cursor: 'pointer' }}
+              style={{ padding: '4px 10px', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.1)', background: '#ffffff', color: '#475569', fontSize: '0.78rem', cursor: 'pointer' }}
             >
               💡 Como nos conhecemos
             </button>
@@ -128,7 +204,7 @@ export default function WizardSteps({
             <button
               type="button"
               onClick={() => appendStoryPrompt("As maiores virtudes dessa pessoa são a bondade, o sorriso contagiante e a dedicação à família.")}
-              style={{ padding: '4px 10px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: 'var(--text-secondary)', fontSize: '0.78rem', cursor: 'pointer' }}
+              style={{ padding: '4px 10px', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.1)', background: '#ffffff', color: '#475569', fontSize: '0.78rem', cursor: 'pointer' }}
             >
               💡 Qualidades e virtudes
             </button>
@@ -136,404 +212,449 @@ export default function WizardSteps({
             <button
               type="button"
               onClick={() => appendStoryPrompt("Quero expressar minha gratidão por cada segundo ao lado dela e reafirmar meu amor eterno.")}
-              style={{ padding: '4px 10px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: 'var(--text-secondary)', fontSize: '0.78rem', cursor: 'pointer' }}
+              style={{ padding: '4px 10px', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.1)', background: '#ffffff', color: '#475569', fontSize: '0.78rem', cursor: 'pointer' }}
             >
               💡 Declaração de Amor
             </button>
           </div>
 
-          <div style={{ marginBottom: '24px' }}>
-            <label style={styles.wizardLabel}>Sua história *</label>
+          <div style={{ marginBottom: '12px' }}>
+            <label style={styles.wizardLabel}>Sua história de vida, momentos e sentimentos *</label>
             <textarea
-              value={formData.story}
+              value={formData.story || ''}
               onChange={(e) => updateField('story', e.target.value)}
               placeholder="Como vocês se conheceram? Qual o momento mais especial? O que essa pessoa significa pra você? (Ou clique no microfone acima para falar)"
-              style={{ ...styles.wizardTextarea, height: '140px' }}
+              style={{ ...styles.wizardTextarea, height: '180px', backgroundColor: '#ffffff', color: '#0f172a' }}
             />
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px' }}>
-              <span style={{ fontSize: '0.8rem', color: formData.story.length >= 50 ? 'var(--success)' : 'var(--danger)' }}>
-                {formData.story.length < 50 ? `Mínimo de 50 caracteres (faltam ${50 - formData.story.length})` : 'Tamanho ideal atingido ✓'}
+              <span style={{ fontSize: '0.8rem', color: (formData.story || '').length >= 50 ? 'var(--success)' : 'var(--danger)', fontWeight: '600' }}>
+                {(formData.story || '').length < 50
+                  ? `Mínimo de 50 caracteres (faltam ${50 - (formData.story || '').length})`
+                  : 'Tamanho ideal atingido ✓'}
               </span>
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{formData.story.length}/2000</span>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                {(formData.story || '').length}/2000
+              </span>
             </div>
           </div>
-
-          <div>
-            <label style={styles.wizardLabel}>Momentos especiais para mencionar (opcional)</label>
-            <textarea
-              value={formData.importantMoments}
-              onChange={(e) => updateField('importantMoments', e.target.value)}
-              placeholder="Ex: primeiro encontro no parque, viagem para a praia, pedido de casamento..."
-              style={{ ...styles.wizardTextarea, height: '100px' }}
-            />
-          </div>
         </div>
       );
-    case 5:
+
+    // --------------------------------------------------------------------------
+    // ETAPA 3: Ritmo da Música (Caixa Suspensa), Clima e Tipo da Voz
+    // --------------------------------------------------------------------------
+    case 3:
       return (
-        <div>
-          <h1 style={styles.stepTitle}>Gênero musical</h1>
-          <p style={styles.stepSubtitle}>Selecione o ritmo ideal para a sua canção</p>
-          <div style={styles.gridCards2}>
-            {stylesList.map((item) => (
-              <div
-                key={item.id}
-                onClick={() => selectFieldAndAdvance('musicStyle', item.id)}
-                style={{
-                  ...styles.wizardCardLarge,
-                  borderColor: formData.musicStyle === item.id ? 'var(--primary)' : 'rgba(255,255,255,0.08)',
-                  backgroundColor: formData.musicStyle === item.id ? 'rgba(79, 70, 229, 0.08)' : 'rgba(255,255,255,0.02)',
-                }}
-              >
-                {formData.musicStyle === item.id && <div style={styles.checkCircle}>✓</div>}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                  <span style={{ fontSize: '2.2rem' }}>{item.icon}</span>
-                  <div style={{ textAlign: 'left' }}>
-                    <h4 style={{ fontSize: '1.05rem', fontWeight: '700' }}>{item.label}</h4>
-                    <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{item.desc}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      );
-    case 6:
-      return (
-        <div>
-          <h1 style={styles.stepTitle}>Clima da música</h1>
-          <p style={styles.stepSubtitle}>Qual o clima que a música deve transmitir?</p>
-          <div style={styles.gridCards2}>
-            {moods.map((item) => (
-              <div
-                key={item.id}
-                onClick={() => selectFieldAndAdvance('musicMood', item.id)}
-                style={{
-                  ...styles.wizardCardLarge,
-                  borderColor: formData.musicMood === item.id ? 'var(--primary)' : 'rgba(255,255,255,0.08)',
-                  backgroundColor: formData.musicMood === item.id ? 'rgba(79, 70, 229, 0.08)' : 'rgba(255,255,255,0.02)',
-                }}
-              >
-                {formData.musicMood === item.id && <div style={styles.checkCircle}>✓</div>}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                  <span style={{ fontSize: '2.2rem' }}>{item.icon}</span>
-                  <div style={{ textAlign: 'left' }}>
-                    <h4 style={{ fontSize: '1.05rem', fontWeight: '700' }}>{item.label}</h4>
-                    <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{item.desc}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      );
-    case 7:
-      return (
-        <div style={{ maxWidth: '650px', margin: '0 auto' }}>
-          <h1 style={styles.stepTitle}>Detalhes finais</h1>
-          <p style={styles.stepSubtitle}>Últimos ajustes para personalizar ainda mais sua música</p>
+        <div style={{ maxWidth: '680px', margin: '0 auto' }}>
+          <h1 style={styles.stepTitle}>Ritmo, Clima & Voz 🎵</h1>
+          <p style={styles.stepSubtitle}>
+            Defina o estilo musical, o sentimento da letra e quem vai interpretar a canção.
+          </p>
 
-          <div style={{ marginBottom: '20px' }}>
-            <label style={styles.wizardLabel}>Nomes que devem aparecer na música</label>
-            <input
-              type="text"
-              value={formData.requiredNames}
-              onChange={(e) => updateField('requiredNames', e.target.value)}
-              placeholder="Ex: João e Maria"
-              style={styles.wizardInput}
-            />
-          </div>
-
-          <div style={{ marginBottom: '24px' }}>
-            <label style={styles.wizardLabel}>Frase especial para incluir (opcional)</label>
-            <input
-              type="text"
-              value={formData.requiredPhrase}
-              onChange={(e) => updateField('requiredPhrase', e.target.value)}
-              placeholder="Ex: Te amo mais que ontem e menos que amanhã"
-              style={styles.wizardInput}
-            />
-          </div>
-
-          <div>
-            <label style={styles.wizardLabel}>Tipo de voz da música (quem vai cantar)</label>
-            <div style={{ display: 'flex', gap: '12px', marginTop: '8px', flexWrap: 'wrap' }}>
-              {[
-                { id: 'masculina', label: 'Masculina', desc: 'Voz grave', Icon: Mic },
-                { id: 'feminina', label: 'Feminina', desc: 'Voz aguda', Icon: Mic },
-                { id: 'dueto', label: 'Dueto', desc: 'Masc. + fem.', Icon: Users },
-                ...(recognizedVoice ? [{ id: 'minha_voz', label: 'Minha Própria Voz', desc: 'Seu timbre cadastrado', Icon: Mic, isCustom: true }] : []),
-              ].map(({ id, label, desc, Icon, isCustom }) => {
-                const selected = formData.voiceType === id;
-                return (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => updateField('voiceType', id)}
-                    style={{
-                      ...styles.voiceBtn,
-                      position: 'relative',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      gap: '6px',
-                      fontWeight: '600',
-                      borderColor: selected ? (isCustom ? '#f59e0b' : 'var(--primary)') : (isCustom ? 'rgba(245, 158, 11, 0.4)' : 'var(--border-color)'),
-                      backgroundColor: selected ? (isCustom ? 'rgba(245, 158, 11, 0.15)' : 'var(--primary-light)') : (isCustom ? 'rgba(245, 158, 11, 0.05)' : '#FFFFFF'),
-                      color: selected ? (isCustom ? '#d97706' : 'var(--primary)') : (isCustom ? '#b45309' : 'var(--text-primary)'),
-                      boxShadow: selected ? (isCustom ? '0 4px 14px rgba(245, 158, 11, 0.25)' : '0 4px 14px var(--primary-glow)') : '0 2px 6px rgba(0,0,0,0.02)',
-                    }}
-                  >
-                    {selected && (
-                      <span style={{ ...styles.checkCircle, width: '20px', height: '20px', top: '8px', right: '8px', background: isCustom ? '#f59e0b' : undefined }}>
-                        <Check size={12} strokeWidth={3} aria-hidden="true" />
-                      </span>
-                    )}
-                    <Icon size={22} aria-hidden="true" />
-                    <span style={{ fontSize: '1rem' }}>{label}</span>
-                    <span style={{ fontSize: '0.78rem', fontWeight: '500', color: selected ? (isCustom ? '#b45309' : 'var(--primary)') : 'var(--text-muted)', opacity: 0.85 }}>{desc}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Foto de Capa da Música */}
-          <div style={{ marginTop: '28px', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '20px' }}>
-            <label style={styles.wizardLabel}>🖼️ Foto de Capa da Música (Opcional)</label>
-            <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '12px' }}>
-              Envie uma foto especial (casal, família, aniversariante). Se não enviar, utilizaremos a capa padrão do estúdio.
-            </p>
-
+          <div style={{ backgroundColor: '#ffffff', borderRadius: '16px', padding: '28px 24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 20px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '22px' }}>
+            {/* 1. Ritmo Musical (Caixa Suspensa) */}
             <div>
-              {formData.coverUrl ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', background: 'rgba(255,255,255,0.03)', padding: '12px 16px', borderRadius: '12px', border: '1px solid var(--primary)' }}>
+              <label style={styles.wizardLabel}>Ritmo da música (Gênero) *</label>
+              <select
+                value={formData.musicStyle || ''}
+                onChange={(e) => updateField('musicStyle', e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '14px 16px',
+                  borderRadius: '12px',
+                  border: '1.5px solid #cbd5e1',
+                  backgroundColor: '#ffffff',
+                  color: formData.musicStyle ? '#0f172a' : '#64748b',
+                  fontSize: '1rem',
+                  fontWeight: '600',
+                  outline: 'none',
+                  cursor: 'pointer',
+                  boxSizing: 'border-box',
+                }}
+              >
+                <option value="">Selecione o ritmo (ex: Romântica, Sertanejo, Pop, MPB...)</option>
+                {stylesList.map((st) => (
+                  <option key={st.id} value={st.id}>
+                    {st.icon} {st.label} — {st.desc}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* 2. Clima da Canção (Caixa Suspensa) */}
+            <div>
+              <label style={styles.wizardLabel}>Clima da música (Sentimento) *</label>
+              <select
+                value={formData.musicMood || ''}
+                onChange={(e) => updateField('musicMood', e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '14px 16px',
+                  borderRadius: '12px',
+                  border: '1.5px solid #cbd5e1',
+                  backgroundColor: '#ffffff',
+                  color: formData.musicMood ? '#0f172a' : '#64748b',
+                  fontSize: '1rem',
+                  fontWeight: '600',
+                  outline: 'none',
+                  cursor: 'pointer',
+                  boxSizing: 'border-box',
+                }}
+              >
+                <option value="">Selecione o clima (ex: Emocionante, Romântica, Alegre...)</option>
+                {moods.map((md) => (
+                  <option key={md.id} value={md.id}>
+                    {md.icon} {md.label} — {md.desc}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* 3. Tipo de Voz (Botões Visuais) */}
+            <div>
+              <label style={styles.wizardLabel}>Tipo de voz da música (quem vai cantar) *</label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '12px', marginTop: '8px' }}>
+                {[
+                  { id: 'masculina', label: 'Masculina', desc: 'Voz grave', Icon: Mic },
+                  { id: 'feminina', label: 'Feminina', desc: 'Voz suave / aguda', Icon: Mic },
+                  { id: 'dueto', label: 'Dueto', desc: 'Masc. + Feminina', Icon: Users },
+                  ...(recognizedVoice ? [{ id: 'minha_voz', label: 'Minha Própria Voz', desc: 'Timbre gravado', Icon: Mic, isCustom: true }] : []),
+                ].map(({ id, label, desc, Icon, isCustom }) => {
+                  const selected = formData.voiceType === id;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => updateField('voiceType', id)}
+                      style={{
+                        position: 'relative',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        padding: '16px 12px',
+                        borderRadius: '12px',
+                        cursor: 'pointer',
+                        border: selected
+                          ? (isCustom ? '2px solid #f59e0b' : '2px solid var(--primary)')
+                          : '1.5px solid #e2e8f0',
+                        backgroundColor: selected
+                          ? (isCustom ? 'rgba(245, 158, 11, 0.12)' : 'var(--primary-light)')
+                          : '#ffffff',
+                        color: selected
+                          ? (isCustom ? '#d97706' : 'var(--primary)')
+                          : '#334155',
+                        boxShadow: selected ? '0 4px 12px rgba(124, 58, 237, 0.15)' : 'none',
+                        transition: 'all 0.2s ease',
+                      }}
+                    >
+                      {selected && (
+                        <span style={{ position: 'absolute', top: '8px', right: '8px', width: '18px', height: '18px', borderRadius: '50%', backgroundColor: isCustom ? '#f59e0b' : 'var(--primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <Check size={11} strokeWidth={3} />
+                        </span>
+                      )}
+                      <Icon size={24} />
+                      <strong style={{ fontSize: '0.95rem' }}>{label}</strong>
+                      <span style={{ fontSize: '0.74rem', color: '#64748b' }}>{desc}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+
+    // --------------------------------------------------------------------------
+    // ETAPA 4: Resumo Completo, Capa com Prévia em Tempo Real & WhatsApp
+    // --------------------------------------------------------------------------
+    case 4:
+      return (
+        <div style={{ maxWidth: '860px', margin: '0 auto' }}>
+          <h1 style={styles.stepTitle}>Resumo da Composição & Envio 🎶</h1>
+          <p style={styles.stepSubtitle}>
+            Confira como ficou seu pedido, adicione a foto de capa e informe seu WhatsApp para receber o link.
+          </p>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
+            {/* Coluna 1: Resumo + Prévia Visual da Capa */}
+            <div style={{ backgroundColor: '#ffffff', borderRadius: '16px', padding: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 20px rgba(0,0,0,0.03)' }}>
+              <h3 style={{ fontSize: '1.15rem', fontWeight: '800', color: 'var(--primary)', margin: '0 0 16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span>💿</span>
+                <span>Capa do Álbum & Resumo</span>
+              </h3>
+
+              {/* Mockup da Capa de Álbum (com foto enviada ou capa padrão) */}
+              <div
+                style={{
+                  position: 'relative',
+                  width: '100%',
+                  aspectRatio: '1',
+                  maxHeight: '260px',
+                  borderRadius: '16px',
+                  overflow: 'hidden',
+                  margin: '0 auto 16px',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                  border: '2px solid rgba(0,0,0,0.06)',
+                  background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4338ca 100%)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'flex-end',
+                }}
+              >
+                {formData.coverUrl ? (
                   <img
                     src={formData.coverUrl}
                     alt="Capa personalizada"
-                    style={{ width: '70px', height: '70px', borderRadius: '10px', objectFit: 'cover' }}
+                    style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
                   />
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <span style={{ fontSize: '0.88rem', color: '#34d399', fontWeight: 'bold' }}>✓ Foto enviada com sucesso!</span>
+                ) : (
+                  <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#ffffff', padding: '16px 20px 75px', textAlign: 'center' }}>
+                    <span style={{ fontSize: '2.5rem', marginBottom: '6px' }}>🎵</span>
+                    <strong style={{ fontSize: '1.05rem', letterSpacing: '0.04em', textShadow: '0 2px 8px rgba(0,0,0,0.4)' }}>NS MUSIC STUDIO</strong>
+                  </div>
+                )}
+
+                {/* Overlay com título na parte inferior da capa */}
+                <div
+                  style={{
+                    position: 'relative',
+                    zIndex: 2,
+                    background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 70%, transparent 100%)',
+                    padding: '16px 14px 12px',
+                    color: '#ffffff',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                    <div>
+                      <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#cbd5e1', fontWeight: '700' }}>
+                        {formData.occasion || 'Homenagem Especial'}
+                      </span>
+                      <strong style={{ display: 'block', fontSize: '1.05rem', color: '#ffffff', fontWeight: '800', lineHeight: 1.2 }}>
+                        Para {formData.honoreeName || 'Alguém Especial'}
+                      </strong>
+                      <span style={{ fontSize: '0.76rem', color: '#f1f5f9', opacity: 0.9 }}>
+                        Por {formData.customerName || 'Quem ama'} • {formData.musicStyle || 'Música Personalizada'}
+                      </span>
+                    </div>
+
+                    <span style={{ fontSize: '0.7rem', padding: '2px 8px', borderRadius: '999px', backgroundColor: formData.coverUrl ? '#059669' : 'rgba(255,255,255,0.2)', color: '#ffffff', fontWeight: '700' }}>
+                      {formData.coverUrl ? '✓ Sua Foto' : 'Capa Padrão'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Botão de Enviar Foto de Capa */}
+              <div style={{ marginBottom: '16px' }}>
+                {formData.coverUrl ? (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.8rem', color: '#059669', fontWeight: '700' }}>
+                      ✓ Foto de capa enviada!
+                    </span>
                     <button
                       type="button"
                       onClick={() => updateField('coverUrl', '')}
-                      style={{ background: 'none', border: 'none', color: '#fca5a5', fontSize: '0.8rem', cursor: 'pointer', textAlign: 'left', textDecoration: 'underline', padding: 0 }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#dc2626',
+                        fontSize: '0.78rem',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                      }}
                     >
-                      🗑️ Remover foto (usar capa padrão)
+                      <Trash2 size={13} /> Remover foto
                     </button>
                   </div>
-                </div>
-              ) : isUploadingCover ? (
-                <div style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px',
-                  width: '100%',
-                  padding: '22px',
-                  borderRadius: '14px',
-                  border: '2px dashed rgba(79, 70, 229, 0.4)',
-                  background: 'rgba(79, 70, 229, 0.04)',
-                }}>
-                  <span style={{ fontSize: '1.8rem' }}>⏳</span>
-                  <span style={{ fontSize: '0.95rem', fontWeight: 'bold', color: '#fff' }}>Enviando foto...</span>
-                </div>
-              ) : (
-                <label style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px',
-                  width: '100%',
-                  padding: '22px',
-                  borderRadius: '14px',
-                  border: '2px dashed rgba(79, 70, 229, 0.4)',
-                  background: 'rgba(79, 70, 229, 0.04)',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease'
-                }}>
-                  <span style={{ fontSize: '1.8rem' }}>📸</span>
-                  <span style={{ fontSize: '0.95rem', fontWeight: 'bold', color: '#fff' }}>Clique para enviar uma foto de capa</span>
-                  <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Suporta fotos em JPG, PNG ou WEBP</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageUpload}
-                    style={{ display: 'none' }}
-                  />
-                </label>
-              )}
-            </div>
-          </div>
-        </div>
-      );
-    case 8:
-      return (
-        <div className="responsive-grid-2">
-          <div style={styles.checkoutSummary} className="glass-card">
-            <h3 style={{ fontSize: '1.2rem', marginBottom: '20px', color: 'var(--primary)' }}>Resumo do pedido</h3>
-
-            <div style={styles.summaryItemRow}>
-              <span style={{ color: 'var(--text-secondary)' }}>Para quem:</span>
-              <span style={{ fontWeight: '600' }}>{formData.honoreeName} ({formData.recipientType})</span>
-            </div>
-            <div style={styles.summaryItemRow}>
-              <span style={{ color: 'var(--text-secondary)' }}>De quem:</span>
-              <span style={{ fontWeight: '600' }}>{formData.relationship}</span>
-            </div>
-            <div style={styles.summaryItemRow}>
-              <span style={{ color: 'var(--text-secondary)' }}>Ocasião:</span>
-              <span style={{ fontWeight: '600' }}>{formData.occasion}</span>
-            </div>
-            <div style={styles.summaryItemRow}>
-              <span style={{ color: 'var(--text-secondary)' }}>Gênero:</span>
-              <span style={{ fontWeight: '600' }}>{formData.musicStyle}</span>
-            </div>
-            <div style={styles.summaryItemRow}>
-              <span style={{ color: 'var(--text-secondary)' }}>Clima:</span>
-              <span style={{ fontWeight: '600' }}>{formData.musicMood}</span>
-            </div>
-            <div style={styles.summaryItemRow}>
-              <span style={{ color: 'var(--text-secondary)' }}>Voz:</span>
-              <span style={{ fontWeight: '600', color: formData.voiceType === 'minha_voz' ? '#f59e0b' : undefined }}>
-                {formData.voiceType === 'minha_voz'
-                  ? '🎤 Minha Própria Voz (Timbre Cadastrado)'
-                  : formData.voiceType === 'masculina'
-                  ? 'Masculina'
-                  : formData.voiceType === 'feminina'
-                  ? 'Feminina'
-                  : 'Dueto (masc. + fem.)'}
-              </span>
-            </div>
-            <div style={styles.summaryItemRow}>
-              <span style={{ color: 'var(--text-secondary)' }}>Capa:</span>
-              <span style={{ fontWeight: '600', color: formData.coverUrl ? '#34d399' : 'var(--text-muted)' }}>
-                {formData.coverUrl ? '📸 Foto enviada' : '🖼️ Capa padrão'}
-              </span>
-            </div>
-
-            <div style={{ marginTop: '16px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '16px' }}>
-              <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>História contada:</span>
-              <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginTop: '6px', fontStyle: 'italic', lineHeight: '1.5' }}>
-                {formData.story}
-              </p>
-            </div>
-          </div>
-
-          <div>
-            <h3 style={{ fontSize: '1.2rem', marginBottom: '20px' }}>Seus dados de contato</h3>
-
-            <div style={{ marginBottom: '16px' }}>
-              <label style={styles.wizardLabel}>SEU nome (quem está pedindo a música) *</label>
-              <input
-                type="text"
-                value={formData.customerName}
-                onChange={(e) => updateField('customerName', e.target.value)}
-                placeholder="Ex: Maria Silva"
-                style={styles.wizardInput}
-              />
-            </div>
-
-            <div style={{ marginBottom: '16px' }}>
-              <label style={styles.wizardLabel}>SEU WhatsApp (enviaremos a música pronta aqui) *</label>
-              <input
-                type="tel"
-                value={formData.customerPhone}
-                onChange={(e) => handlePhoneChange(e.target.value)}
-                placeholder="(99) 99999-9999"
-                style={styles.wizardInput}
-              />
-              <span style={{ fontSize: '0.75rem', color: phoneVerifyStatus === 'valid' ? 'var(--success)' : phoneVerifyStatus === 'invalid' ? '#ef4444' : 'var(--text-muted)', marginTop: '4px', display: 'block', fontWeight: phoneVerifyStatus === 'invalid' ? 'bold' : 'normal' }}>
-                {phoneVerifyMessage || 'Digite o DDD + 9 dígitos'}
-              </span>
-              {checkingVoice && (
-                <span style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '4px', display: 'block' }}>
-                  ⏳ Verificando se este WhatsApp tem voz cadastrada...
-                </span>
-              )}
-              {recognizedVoice && (
-                <div style={{
-                  marginTop: '12px',
-                  padding: '14px 16px',
-                  borderRadius: '12px',
-                  background: 'rgba(245, 158, 11, 0.1)',
-                  border: '1px solid rgba(245, 158, 11, 0.4)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '8px'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#f59e0b', fontWeight: '700', fontSize: '0.9rem' }}>
-                    <span>🎤</span>
-                    <span>Timbre de Voz Cadastrado Encontrado!</span>
+                ) : isUploadingCover ? (
+                  <div style={{ textAlign: 'center', padding: '8px', fontSize: '0.85rem', color: 'var(--primary)', fontWeight: '700' }}>
+                    ⏳ Enviando foto...
                   </div>
-                  <p style={{ margin: 0, fontSize: '0.82rem', color: '#fef3c7', lineHeight: '1.4' }}>
-                    Olá, <strong>{recognizedVoice.customerName || 'Cliente'}</strong>! Identificamos o seu timbre de voz gravado anteriormente. Você pode gerar esta nova música cantada com a <strong>sua própria voz</strong> pelo valor normal de <strong>R$ 9,99</strong>!
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      updateField('voiceType', formData.voiceType === 'minha_voz' ? 'masculina' : 'minha_voz');
-                    }}
+                ) : (
+                  <label
                     style={{
-                      marginTop: '4px',
-                      padding: '8px 14px',
-                      borderRadius: '8px',
-                      border: formData.voiceType === 'minha_voz' ? '1px solid #f59e0b' : '1px solid rgba(255, 255, 255, 0.15)',
-                      background: formData.voiceType === 'minha_voz' ? '#f59e0b' : 'rgba(255, 255, 255, 0.05)',
-                      color: formData.voiceType === 'minha_voz' ? '#000' : '#fef3c7',
-                      fontWeight: '700',
-                      fontSize: '0.82rem',
-                      cursor: 'pointer',
-                      display: 'inline-flex',
+                      display: 'flex',
                       alignItems: 'center',
-                      gap: '6px',
-                      alignSelf: 'flex-start'
+                      justifyContent: 'center',
+                      gap: '8px',
+                      padding: '10px 14px',
+                      borderRadius: '10px',
+                      border: '1.5px dashed var(--primary)',
+                      backgroundColor: 'var(--primary-light)',
+                      color: 'var(--primary)',
+                      fontWeight: '700',
+                      fontSize: '0.85rem',
+                      cursor: 'pointer',
+                      textAlign: 'center',
                     }}
                   >
-                    {formData.voiceType === 'minha_voz' ? '✓ Cantar com Minha Própria Voz (Ativado)' : '🎤 Ativar Minha Voz nesta Música'}
-                  </button>
+                    <Camera size={16} />
+                    <span>Clique para enviar foto na capa (Opcional)</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      style={{ display: 'none' }}
+                    />
+                  </label>
+                )}
+              </div>
+
+              {/* Lista Resumo dos Itens */}
+              <div style={{ fontSize: '0.86rem', display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px solid #f1f5f9', paddingTop: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: '#64748b' }}>Homenageado(a):</span>
+                  <strong style={{ color: '#0f172a' }}>{formData.honoreeName}</strong>
                 </div>
-              )}
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: '#64748b' }}>Dedicado por:</span>
+                  <strong style={{ color: '#0f172a' }}>{formData.customerName}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: '#64748b' }}>Ritmo & Clima:</span>
+                  <strong style={{ color: '#0f172a' }}>{formData.musicStyle} • {formData.musicMood}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: '#64748b' }}>Tipo da Voz:</span>
+                  <strong style={{ color: '#0f172a' }}>{formData.voiceType}</strong>
+                </div>
+              </div>
             </div>
 
-            {/* O campo de e-mail (opcional) foi removido daqui em 21/09/2026 — menos uma coisa
-                entre o cliente e o botão. O CAMPO `customerEmail` CONTINUA EXISTINDO no pedido e
-                em todo o resto do código de propósito: pedidos antigos têm e-mail gravado, e
-                /minhas-musicas ainda encontra a música do cliente por ele quando a pessoa entra
-                com a conta Google. Só deixou de ser pedido no formulário. */}
+            {/* Coluna 2: Dados de Contato e WhatsApp */}
+            <div style={{ backgroundColor: '#ffffff', borderRadius: '16px', padding: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 20px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+              <div>
+                <h3 style={{ fontSize: '1.15rem', fontWeight: '800', color: '#0f172a', margin: '0 0 16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span>📲</span>
+                  <span>Onde enviar o seu pedido?</span>
+                </h3>
 
-            <div style={styles.infoAlert} className="glass-card">
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
-                🔒 Respeitamos sua privacidade. Seus contatos serão utilizados exclusivamente para entregar e acompanhar a criação da sua composição.
-              </p>
-            </div>
+                {/* Nome de quem está pedindo (já pré-preenchido da etapa 1) */}
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={styles.wizardLabel}>Seu nome completo ou apelido *</label>
+                  <input
+                    type="text"
+                    value={formData.customerName || ''}
+                    onChange={(e) => updateField('customerName', e.target.value)}
+                    placeholder="Ex: Maria Silva"
+                    style={{
+                      ...styles.wizardInput,
+                      marginTop: '4px',
+                      textAlign: 'left',
+                      fontSize: '0.95rem',
+                      padding: '12px 14px',
+                    }}
+                  />
+                  <span style={{ fontSize: '0.74rem', color: '#64748b', marginTop: '4px', display: 'block' }}>
+                    ✓ Preenchido da 1ª etapa (você pode ajustar se quiser).
+                  </span>
+                </div>
 
-            <div style={{ marginTop: '16px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-              <input
-                type="checkbox"
-                id="termsAccepted"
-                checked={formData.termsAccepted}
-                onChange={(e) => updateField('termsAccepted', e.target.checked)}
-                style={{ marginTop: '3px', width: '18px', height: '18px', flexShrink: 0 }}
-              />
-              <label htmlFor="termsAccepted" style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
-                Li e aceito os{' '}
-                <Link href="/termos-de-uso" target="_blank" style={{ color: 'var(--primary)', fontWeight: '600' }}>
-                  Termos de Uso
-                </Link>
-                {' '}e a{' '}
-                <Link href="/politica-de-privacidade" target="_blank" style={{ color: 'var(--primary)', fontWeight: '600' }}>
-                  Política de Privacidade
-                </Link>
-                . *
-              </label>
+                {/* WhatsApp do cliente */}
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={styles.wizardLabel}>Seu WhatsApp (com DDD) *</label>
+                  <input
+                    type="tel"
+                    value={formData.customerPhone || ''}
+                    onChange={(e) => handlePhoneChange(e.target.value)}
+                    placeholder="(99) 99999-9999"
+                    style={{
+                      ...styles.wizardInput,
+                      marginTop: '4px',
+                      textAlign: 'left',
+                      fontSize: '1rem',
+                      fontWeight: '700',
+                      padding: '12px 14px',
+                    }}
+                  />
+                  <span
+                    style={{
+                      fontSize: '0.75rem',
+                      color: phoneVerifyStatus === 'valid' ? 'var(--success)' : phoneVerifyStatus === 'invalid' ? '#ef4444' : 'var(--text-muted)',
+                      marginTop: '4px',
+                      display: 'block',
+                      fontWeight: phoneVerifyStatus === 'invalid' ? 'bold' : 'normal',
+                    }}
+                  >
+                    {phoneVerifyMessage || 'Digite seu DDD + 9 dígitos do celular'}
+                  </span>
+                </div>
+
+                {/* AVISO IMPORTANTE: A música é ouvida no estúdio e o link é enviado pelo WhatsApp */}
+                <div
+                  style={{
+                    padding: '14px 16px',
+                    borderRadius: '12px',
+                    backgroundColor: '#f0fdf4',
+                    border: '1px solid #bbf7d0',
+                    marginBottom: '16px',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '10px',
+                  }}
+                >
+                  <span style={{ fontSize: '1.25rem', flexShrink: 0, marginTop: '1px' }}>ℹ️</span>
+                  <p style={{ margin: 0, fontSize: '0.82rem', color: '#166534', lineHeight: '1.45' }}>
+                    <strong>Como funciona o envio:</strong> Nós enviaremos o <strong>link de acompanhamento e confirmação</strong> do seu pedido pelo WhatsApp.
+                  </p>
+                </div>
+
+                {/* Reconhecimento de Voz */}
+                {checkingVoice && (
+                  <span style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'block', marginBottom: '8px' }}>
+                    ⏳ Verificando se este WhatsApp tem voz clonada cadastrada...
+                  </span>
+                )}
+                {recognizedVoice && (
+                  <div
+                    style={{
+                      padding: '12px 14px',
+                      borderRadius: '10px',
+                      backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                      border: '1px solid rgba(245, 158, 11, 0.35)',
+                      marginBottom: '16px',
+                      fontSize: '0.82rem',
+                      color: '#b45309',
+                    }}
+                  >
+                    🎤 <strong>Timbre Cadastrado:</strong> Olá, {recognizedVoice.customerName || 'Cliente'}! Identificamos o seu timbre de voz.
+                  </div>
+                )}
+              </div>
+
+              {/* Termos de Uso */}
+              <div>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                  <input
+                    type="checkbox"
+                    id="termsAccepted"
+                    checked={formData.termsAccepted || false}
+                    onChange={(e) => updateField('termsAccepted', e.target.checked)}
+                    style={{ marginTop: '3px', width: '18px', height: '18px', flexShrink: 0, cursor: 'pointer' }}
+                  />
+                  <label htmlFor="termsAccepted" style={{ fontSize: '0.82rem', color: '#64748b', lineHeight: '1.4', cursor: 'pointer' }}>
+                    Li e aceito os{' '}
+                    <Link href="/termos-de-uso" target="_blank" style={{ color: 'var(--primary)', fontWeight: '600' }}>
+                      Termos de Uso
+                    </Link>
+                    {' '}e a{' '}
+                    <Link href="/politica-de-privacidade" target="_blank" style={{ color: 'var(--primary)', fontWeight: '600' }}>
+                      Política de Privacidade
+                    </Link>
+                    . *
+                  </label>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       );
+
     default:
       return null;
   }

@@ -75,6 +75,9 @@ export default function CriarMusica() {
   const [isRestored, setIsRestored] = useState(false);
   const [needsReload, setNeedsReload] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSelfTribute, setIsSelfTribute] = useState(false);
+  const [customLyricsMode, setCustomLyricsMode] = useState(false);
+  const [pastedLyricsText, setPastedLyricsText] = useState('');
 
   useEffect(() => {
     let ativo = true;
@@ -249,7 +252,7 @@ export default function CriarMusica() {
     }
   });
 
-  const totalWizardSteps = 8; // era 9 — etapa de "parentesco" removida (redundante com recipientType)
+  const totalWizardSteps = 4; // Fluxo otimizado em 4 etapas (Etapa 1: Ocasião + Nomes; Etapa 2: História; Etapa 3: Ritmo/Clima/Voz; Etapa 4: Resumo + Capa + WhatsApp)
   const audio1Ref = useRef(null);
   const audio2Ref = useRef(null);
   const recognitionRef = useRef(null);
@@ -369,6 +372,7 @@ export default function CriarMusica() {
           // Concluído é lixo: apaga e segue com o formulário limpo.
           const rascunhoConcluido = parsed.formData?.sunoStatus === 'generated'
             || Boolean(parsed.formData?.sunoTracks?.length)
+            || Number(parsed.step || 0) >= 7
             || Number(parsed.step || 0) >= 11;
           if (rascunhoConcluido) {
             localStorage.removeItem('nsmusic_order_draft');
@@ -390,7 +394,15 @@ export default function CriarMusica() {
           }
           if (parsed.orderId) setOrderId(parsed.orderId);
           if (parsed.taskId) setTaskId(parsed.taskId);
-          if (parsed.step) setStep(parsed.step >= 11 ? 11 : parsed.step);
+          if (parsed.step) {
+            const rawStep = Number(parsed.step);
+            let mappedStep = rawStep;
+            if (rawStep >= 11) mappedStep = 7;
+            else if (rawStep === 10) mappedStep = 6;
+            else if (rawStep === 9) mappedStep = 5;
+            else if (rawStep >= 4) mappedStep = 4;
+            setStep(mappedStep);
+          }
 
           const savedTaskId = parsed.taskId;
           const currentOrderId = parsed.orderId;
@@ -398,7 +410,7 @@ export default function CriarMusica() {
           // Se estava aguardando áudio ou tem um taskId pendente
           if (savedTaskId && parsed.formData?.sunoStatus !== 'generated') {
             pollSunoStatus(savedTaskId, currentOrderId);
-          } else if (currentOrderId && parsed.formData?.sunoStatus !== 'generated' && parsed.step >= 9) {
+          } else if (currentOrderId && parsed.formData?.sunoStatus !== 'generated' && (parsed.step >= 5 || parsed.step >= 9)) {
             checkOrderStatusInFirestore(currentOrderId, savedTaskId);
           }
         } else if (ocasiaoValida) {
@@ -570,7 +582,7 @@ export default function CriarMusica() {
   // sem ninguém consultando nada. Depois disso o cliente sempre tem o que clicar.
   const [audioDemorouDemais, setAudioDemorouDemais] = useState(false);
   useEffect(() => {
-    if (step !== 10 || formData.sunoStatus === 'generated') {
+    if (step !== 6 || formData.sunoStatus === 'generated') {
       setAudioDemorouDemais(false);
       return;
     }
@@ -696,15 +708,15 @@ export default function CriarMusica() {
     }
   };
 
-  // Parar gravação de voz automaticamente se o usuário mudar de etapa ou se o step não for 4
-  // (etapa "Conte sua história" — era 5 antes da remoção da etapa de parentesco)
+  // Parar gravação de voz automaticamente se o usuário mudar de etapa ou se o step não for 2
+  // (etapa "Conte sua história")
   useEffect(() => {
-    if (step !== 4 && isListening) {
+    if (step !== 2 && isListening) {
       if (recognitionRef.current) {
         try {
           recognitionRef.current.stop();
         } catch (e) {
-          console.warn("Erro ao parar ditado de voz ao sair da etapa 4:", e);
+          console.warn("Erro ao parar ditado de voz ao sair da etapa 2:", e);
         }
       }
       setIsListening(false);
@@ -984,7 +996,7 @@ export default function CriarMusica() {
         return;
       }
 
-      setStep(9);
+      setStep(5);
       // Se a letra já foi gerada com sucesso anteriormente, apenas exibe a letra existente sem fazer nova requisição
       if (formData.lyricsStatus === 'generated' && formData.lyrics) {
         setIsSubmitting(false);
@@ -1210,7 +1222,7 @@ export default function CriarMusica() {
         return;
       }
 
-      setStep(10);
+      setStep(6);
       updateField('sunoStatus', 'generating');
       updateField('sunoProgress', 'Enviando composição de letra ao Suno AI...');
 
@@ -1387,22 +1399,23 @@ export default function CriarMusica() {
   };
 
   const isNextDisabled = () => {
-    // Upload da foto de capa em andamento: sem esta trava, quem clicava em "Continuar" antes do
-    // upload terminar avançava com formData.coverUrl ainda vazio e a foto simplesmente se perdia —
-    // o pedido saía com a capa padrão sem ninguém entender por quê. Guarda global de propósito:
-    // isUploadingCover só é true durante esse upload, então não afeta nenhum outro passo.
+    // Upload da foto de capa em andamento: não avança enquanto não terminar
     if (isUploadingCover) return true;
 
-    if (step === 1 && !formData.recipientType) return true;
-    if (step === 2 && !formData.honoreeName) return true;
-    if (step === 3 && !formData.occasion) return true;
-    if (step === 4 && formData.story.length < 50) return true;
-    if (step === 5 && !formData.musicStyle) return true;
-    if (step === 6 && !formData.musicMood) return true;
-    if (step === 8 && (!formData.customerName || !isPhoneValid(formData.customerPhone) || !formData.termsAccepted)) return true;
-    if (step === 9 && formData.lyricsStatus !== 'generated') return true;
-    if (step === 10 && formData.sunoStatus !== 'generated') return true;
-    if (step === 11 && !formData.selectedPackage) return true;
+    // Etapa 1: Ocasião + Nome de quem dedica + Nome do homenageado
+    if (step === 1 && (!formData.occasion || !formData.customerName?.trim() || !formData.honoreeName?.trim())) return true;
+    // Etapa 2: História (mínimo 50 caracteres)
+    if (step === 2 && (formData.story || '').length < 50) return true;
+    // Etapa 3: Ritmo, Clima e Tipo de Voz
+    if (step === 3 && (!formData.musicStyle || !formData.musicMood || !formData.voiceType)) return true;
+    // Etapa 4: Resumo, Capa, WhatsApp válido e Termos aceitos
+    if (step === 4 && (!formData.customerName?.trim() || !isPhoneValid(formData.customerPhone) || !formData.termsAccepted)) return true;
+    // Etapa 5: Geração / Aprovação de Letra
+    if (step === 5 && formData.lyricsStatus !== 'generated') return true;
+    // Etapa 6: Geração de Áudio Suno
+    if (step === 6 && formData.sunoStatus !== 'generated') return true;
+    // Etapa 7: Checkout PIX
+    if (step === 7 && !formData.selectedPackage) return true;
     return false;
   };
 
@@ -1422,15 +1435,121 @@ export default function CriarMusica() {
       phoneVerifyMessage={phoneVerifyMessage}
       recognizedVoice={recognizedVoice}
       checkingVoice={checkingVoice}
+      isSelfTribute={isSelfTribute}
+      setIsSelfTribute={setIsSelfTribute}
     />
   );
 
   const renderWorkflowStep = () => {
     switch (step) {
-      case 9: // Lyrics Generation & Editing
+      case 5: // Etapa 5: Geração de Letra & Edição / Opção "Já tenho minha letra"
         return (
           <div>
-            {formData.lyricsStatus === 'generating' ? (
+            {customLyricsMode ? (
+              <div style={{ maxWidth: '640px', margin: '0 auto', backgroundColor: '#ffffff', borderRadius: '20px', padding: '32px 24px', border: '1px solid #e2e8f0', boxShadow: '0 8px 30px rgba(0,0,0,0.04)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px', gap: '12px' }}>
+                  <div>
+                    <h2 style={{ fontSize: '1.35rem', fontWeight: '800', color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span>✍️</span>
+                      <span>Colar Minha Própria Letra</span>
+                    </h2>
+                    <p style={{ fontSize: '0.88rem', color: '#64748b', margin: '6px 0 0 0', lineHeight: '1.45' }}>
+                      Cole ou digite aqui a composição que você preparou para {formData.honoreeName || 'sua homenagem'}.
+                    </p>
+                  </div>
+                  {formData.lyrics && (
+                    <button
+                      type="button"
+                      onClick={() => setCustomLyricsMode(false)}
+                      style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '700', padding: '4px 8px' }}
+                    >
+                      ✕ Cancelar
+                    </button>
+                  )}
+                </div>
+
+                <div style={{ marginBottom: '16px' }}>
+                  <textarea
+                    value={pastedLyricsText}
+                    onChange={(e) => setPastedLyricsText(e.target.value)}
+                    placeholder={"Cole aqui a sua letra completa...\n\nExemplo:\n[Verso 1]\nLembro do dia em que nos conhecemos,\num sorriso que mudou o meu viver...\n\n[Refrão]\nVocê é minha vida, minha inspiração,\nessa canção é do meu coração..."}
+                    style={{
+                      width: '100%',
+                      minHeight: '260px',
+                      padding: '16px',
+                      borderRadius: '14px',
+                      border: '1.5px solid #cbd5e1',
+                      fontSize: '0.95rem',
+                      lineHeight: '1.6',
+                      fontFamily: 'inherit',
+                      color: '#0f172a',
+                      backgroundColor: '#f8fafc',
+                      outline: 'none',
+                      boxSizing: 'border-box',
+                      resize: 'vertical',
+                    }}
+                  />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px', fontSize: '0.78rem', color: '#64748b' }}>
+                    <span>Dica: organize as partes com [Verso] e [Refrão] para o melhor arranjo vocal.</span>
+                    <span>{(pastedLyricsText || '').length} caracteres</span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const trimmed = (pastedLyricsText || '').trim();
+                      if (trimmed.length < 15) {
+                        alert('Por favor, cole uma letra com pelo menos 15 caracteres.');
+                        return;
+                      }
+                      updateField('lyrics', trimmed);
+                      updateField('lyricsStatus', 'generated');
+                      updateField('lyricsVersion', 1);
+                      setCustomLyricsMode(false);
+                      if (orderId) {
+                        try {
+                          await fetch('/api/orders/client-update', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ orderId, lyrics: trimmed })
+                          });
+                        } catch (e) {
+                          console.warn('Erro ao sincronizar letra personalizada:', e);
+                        }
+                      }
+                    }}
+                    className="btn btn-primary"
+                    style={{
+                      width: '100%',
+                      padding: '15px',
+                      fontSize: '1rem',
+                      fontWeight: '800',
+                      borderRadius: '12px',
+                      cursor: 'pointer',
+                      background: 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)',
+                      color: '#ffffff',
+                      border: 'none',
+                      boxShadow: '0 4px 14px rgba(0,0,0,0.1)'
+                    }}
+                  >
+                    Salvar e Usar Esta Letra 🎶
+                  </button>
+
+                  {formData.lyrics && (
+                    <button
+                      type="button"
+                      onClick={() => setCustomLyricsMode(false)}
+                      className="btn btn-secondary"
+                      style={{ width: '100%', padding: '12px', fontSize: '0.9rem', borderRadius: '12px', cursor: 'pointer' }}
+                    >
+                      Voltar para Letra Gerada por IA
+                    </button>
+                  )}
+                </div>
+              </div>
+            ) : formData.lyricsStatus === 'generating' ? (
               <div style={{ padding: '40px 20px', textAlign: 'center', maxWidth: '600px', margin: '0 auto' }} className="glass-card">
                 <StudioLyricsAnimation />
                 <h3 style={{ fontFamily: 'var(--font-family-title)', fontSize: '1.6rem', color: 'var(--text-primary)' }}>
@@ -1442,6 +1561,34 @@ export default function CriarMusica() {
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '16px' }}>
                   Nossa Inteligência de Composição Poética está transformando seus momentos em versos exclusivos.
                 </p>
+
+                {/* Opção "Já tenho minha letra" durante o carregamento */}
+                <div style={{ marginTop: '28px', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '20px' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPastedLyricsText(formData.lyrics || '');
+                      setCustomLyricsMode(true);
+                    }}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '10px 18px',
+                      borderRadius: '12px',
+                      border: '1.5px dashed var(--secondary)',
+                      backgroundColor: 'rgba(139, 92, 246, 0.08)',
+                      color: 'var(--secondary)',
+                      fontSize: '0.88rem',
+                      fontWeight: '700',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                    }}
+                  >
+                    <span>✍️</span>
+                    <span>Já tenho minha letra pronta (Quero colar a minha)</span>
+                  </button>
+                </div>
               </div>
             ) : formData.lyricsStatus === 'error' ? (
               <div style={styles.generatingState}>
@@ -1449,18 +1596,63 @@ export default function CriarMusica() {
                 <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', marginTop: '8px', maxWidth: '500px' }}>
                   {formData.lyricsError || 'Não foi possível conectar ao servidor para gerar sua letra. Tente novamente.'}
                 </p>
-                <button 
-                  onClick={handleSaveAndGenerateLyrics}
-                  className="btn btn-primary"
-                  style={{ marginTop: '20px', padding: '12px 28px' }}
-                >
-                  Tentar Gerar Novamente 🔄
-                </button>
+                <div style={{ marginTop: '20px', display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                  <button 
+                    onClick={handleSaveAndGenerateLyrics}
+                    className="btn btn-primary"
+                    style={{ padding: '12px 28px' }}
+                  >
+                    Tentar Gerar Novamente 🔄
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPastedLyricsText(formData.lyrics || '');
+                      setCustomLyricsMode(true);
+                    }}
+                    className="btn btn-secondary"
+                    style={{ padding: '12px 20px', fontWeight: '700' }}
+                  >
+                    ✍️ Colar Minha Própria Letra
+                  </button>
+                </div>
               </div>
             ) : (
               <div>
-                <h1 style={styles.stepTitle}>Sua Letra Exclusiva ✨</h1>
-                <p style={styles.stepSubtitle}>Revisada e gerada especialmente para você. Se gostar, aprove para produzir o áudio!</p>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
+                  <div>
+                    <h1 style={{ ...styles.stepTitle, textAlign: 'left', margin: 0 }}>Sua Letra Exclusiva ✨</h1>
+                    <p style={{ ...styles.stepSubtitle, textAlign: 'left', margin: '4px 0 0 0' }}>
+                      Revisada e gerada especialmente para você. Se gostar, aprove para produzir o áudio!
+                    </p>
+                  </div>
+
+                  {/* Botão para colar letra mesmo após ter gerado com IA */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPastedLyricsText(formData.lyrics || '');
+                      setCustomLyricsMode(true);
+                    }}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '8px 16px',
+                      borderRadius: '10px',
+                      border: '1.5px solid #cbd5e1',
+                      backgroundColor: '#ffffff',
+                      color: '#0f172a',
+                      fontSize: '0.85rem',
+                      fontWeight: '700',
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                    }}
+                  >
+                    <span>✍️</span>
+                    <span>Já tenho minha letra (Colar Letra)</span>
+                  </button>
+                </div>
                 
                 {contingencyMode && (
                   <div style={{
@@ -1547,7 +1739,7 @@ export default function CriarMusica() {
             )}
           </div>
         );
-      case 10: // Direct Audio Generation & 60s Preview Playback
+      case 6: // Etapa 6: Geração de Áudio Suno & Prévia de 60s
         return (
           <div>
             {formData.sunoStatus !== 'generated' ? (
@@ -1894,7 +2086,7 @@ export default function CriarMusica() {
                   <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     <button
                       type="button"
-                      onClick={() => setStep(11)}
+                      onClick={() => setStep(7)}
                       className="btn btn-primary"
                       style={{ width: '100%', padding: '16px', fontSize: '1.1rem', fontWeight: 'bold', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', boxShadow: '0 4px 15px rgba(16, 185, 129, 0.4)', border: 'none', color: '#fff', cursor: 'pointer', borderRadius: '12px' }}
                     >
@@ -1915,7 +2107,7 @@ export default function CriarMusica() {
             )}
           </div>
         );
-      case 11: // Checkout Transparente Pix (Efí) embutido no site
+      case 7: // Etapa 7: Checkout Transparente Pix (Efí) embutido no site
         return (
           <div>
             <h1 style={styles.stepTitle}>Finalizar Pedido 💳</h1>
@@ -2227,7 +2419,7 @@ export default function CriarMusica() {
           </div>
 
           {/* Fixed Bottom Navigation Dock */}
-          {formData.lyricsStatus !== 'generating' && formData.sunoStatus !== 'generating' && (step <= totalWizardSteps || step === 9) && (
+          {formData.lyricsStatus !== 'generating' && formData.sunoStatus !== 'generating' && (step <= totalWizardSteps || step === 5) && (
             <div style={styles.navigationControls}>
               <div className="container" style={{ width: '100%', maxWidth: '900px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
                 {step > 1 ? (
@@ -2245,24 +2437,24 @@ export default function CriarMusica() {
                 <div>
                   {step <= totalWizardSteps ? (
                     <button 
-                      onClick={step === 8 ? handleSaveAndGenerateLyrics : nextStep}
-                      disabled={isNextDisabled() || (step === 8 && isSubmitting)}
+                      onClick={step === totalWizardSteps ? handleSaveAndGenerateLyrics : nextStep}
+                      disabled={isNextDisabled() || (step === totalWizardSteps && isSubmitting)}
                       className="btn btn-primary"
                       style={{
                         padding: '12px 28px',
                         fontSize: '0.95rem',
                         minHeight: '46px',
-                        background: (isNextDisabled() || (step === 8 && isSubmitting)) ? 'var(--bg-tertiary)' : 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)',
-                        color: (isNextDisabled() || (step === 8 && isSubmitting)) ? 'var(--text-muted)' : '#FFFFFF'
+                        background: (isNextDisabled() || (step === totalWizardSteps && isSubmitting)) ? 'var(--bg-tertiary)' : 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)',
+                        color: (isNextDisabled() || (step === totalWizardSteps && isSubmitting)) ? 'var(--text-muted)' : '#FFFFFF'
                       }}
                     >
                       {/* Botão desabilitado sem explicação lê como travamento. Diz o motivo. */}
                       {isUploadingCover
                         ? '⏳ Enviando foto...'
-                        : (step === 8 ? 'Criar Letra →' : 'Continuar →')}
+                        : (step === totalWizardSteps ? 'Criar Letra →' : 'Continuar →')}
                     </button>
                   ) : (
-                    step === 9 && (
+                    step === 5 && (
                       contingencyMode ? (
                         <button
                           onClick={handleApproveLyrics}
@@ -2345,7 +2537,7 @@ export default function CriarMusica() {
                 <button
                   onClick={() => {
                     setShowLimitModal(false);
-                    if (step < 11) setStep(11);
+                    if (step < 7) setStep(7);
                   }}
                   className="btn btn-primary"
                   style={{ width: '100%', padding: '14px', fontSize: '1rem', fontWeight: 'bold' }}
@@ -2375,12 +2567,12 @@ export default function CriarMusica() {
         </div>
       )}
 
-      {/* Pop-up do corte da prévia de 60s. O CTA leva ao passo de pagamento (11), que é onde o PIX
+      {/* Pop-up do corte da prévia de 60s. O CTA leva ao passo de pagamento (7), que é onde o PIX
           desta tela vive — não manda o cliente para outra página no meio da emoção. */}
       <PreviaEncerradaModal
         isOpen={showPreviaModal}
         onClose={() => setShowPreviaModal(false)}
-        onPagar={() => { setShowPreviaModal(false); setStep(11); }}
+        onPagar={() => { setShowPreviaModal(false); setStep(7); }}
         honoreeName={formData.honoreeName || ''}
         precoTexto={`R$ ${getTotalPrice().toFixed(2).replace('.', ',')}`}
         ctaLabel="Liberar as músicas completas"
