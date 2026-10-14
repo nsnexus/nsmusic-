@@ -16,6 +16,14 @@ describe('origens para arquivar', () => {
     expect(origens[origens.length - 1]).toContain('audiostream.kie.ai');
   });
 
+  it('suporta IDs hexadecimais de 32 caracteres do Suno/Kie Remix', () => {
+    const HEX32 = 'b6faed949e12687702984cd95b3bc929';
+    const origens = origensParaArquivar(`https://audiostream.kie.ai/stream/${HEX32}.mp3`);
+    expect(origens[0]).toBe(`https://tempfile.aiquickdraw.com/r/${HEX32}.mp3`);
+    expect(origens).toContain(`https://file.aiquickdraw.com/r/${HEX32}.mp3`);
+    expect(origens[origens.length - 1]).toContain('audiostream.kie.ai');
+  });
+
   it('deriva o UUID do base64 no path do musicfile', () => {
     const base64 = Buffer.from(UUID).toString('base64').replace(/=+$/, '');
     const origens = origensParaArquivar(`https://musicfile.kie.ai/${base64}`);

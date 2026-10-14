@@ -4,9 +4,47 @@ import { readEnvValue } from '@/lib/envValue';
 import { getSupabaseEdge } from '@/lib/supabase-edge';
 import { extractAudioTracks } from '@/lib/db';
 import { transcribeAudioWithFailover } from '@/lib/transcribeAudio';
+import { copyAudioToR2, isOurStorage } from '@/lib/audioArchive';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
+
+async function archiveRemixTracksToR2(taskId, tracks, env) {
+  if (!Array.isArray(tracks) || tracks.length === 0) return tracks;
+  let envToUse = env;
+  if (!envToUse || !envToUse.nsmusic_media) {
+    try {
+      const ctx = getRequestContext();
+      if (ctx?.env) envToUse = ctx.env;
+    } catch (e) {}
+  }
+  const r2Bucket = envToUse?.nsmusic_media;
+  const r2PublicUrl = String(readEnvValue(envToUse, 'R2_PUBLIC_URL') || '').trim();
+  if (!r2Bucket || !r2PublicUrl) return tracks;
+
+  const updatedTracks = [];
+  for (let i = 0; i < tracks.length; i++) {
+    const track = { ...tracks[i] };
+    const sourceUrl = track.audio_url || track.audioUrl || track.url;
+    if (sourceUrl && !isOurStorage(sourceUrl)) {
+      try {
+        const destPath = `remix/${taskId}/versao-${i + 1}.mp3`;
+        const copy = await copyAudioToR2(sourceUrl, destPath, r2Bucket, r2PublicUrl);
+        if (copy.ok && copy.url) {
+          track.audio_url = copy.url;
+          track.original_audio_url = sourceUrl;
+          track.savedToR2 = true;
+        }
+      } catch (err) {
+        console.warn(`[remix/archive] Erro ao arquivar faixa ${i + 1} no R2:`, err?.message);
+      }
+    } else if (sourceUrl && isOurStorage(sourceUrl)) {
+      track.savedToR2 = true;
+    }
+    updatedTracks.push(track);
+  }
+  return updatedTracks;
+}
 
 export async function POST(req) {
   let env = {};
@@ -154,6 +192,7 @@ export async function POST(req) {
             instrumental: inputPayload.instrumental,
             model: inputPayload.model,
             vocalGender: vocalGender || 'auto',
+            lyrics: inputPayload.lyrics || inputPayload.prompt || '',
             status: 'PROCESSING',
             tracks: [],
             createdAt: new Date().toISOString()
@@ -179,6 +218,7 @@ export async function POST(req) {
           style: inputPayload.style,
           uploadUrl,
           model: inputPayload.model,
+          lyrics: inputPayload.lyrics || inputPayload.prompt || '',
           status: 'PROCESSING'
         }
       });
@@ -246,8 +286,10 @@ export async function POST(req) {
 
       const finalStatus = rawTracks.length > 0 || isCompleted ? 'SUCCESS' : (isFailed ? 'FAILED' : 'PROCESSING');
 
-      // Se concluído, sincroniza no histórico
+      // Se concluído, arquiva as faixas no Cloudflare R2 e sincroniza no histórico
       if (finalStatus === 'SUCCESS' && rawTracks.length > 0) {
+        rawTracks = await archiveRemixTracksToR2(taskId, rawTracks, env);
+
         const supabase = getSupabaseEdge(env);
         if (supabase) {
           try {
@@ -259,7 +301,7 @@ export async function POST(req) {
                     ...item,
                     status: 'SUCCESS',
                     tracks: rawTracks,
-                    completedAt: new Date().toISOString()
+                    completedAt: item.completedAt || new Date().toISOString()
                   };
                 }
                 return item;
@@ -296,6 +338,85 @@ export async function POST(req) {
       } catch (err) {
         return NextResponse.json({ ok: true, history: [] });
       }
+    }
+
+    // 4. Arquivar faixas pendentes no Cloudflare R2 manualmente
+    if (action === 'archive') {
+      const { taskId } = body;
+      if (!taskId) {
+        return NextResponse.json({ error: 'taskId é obrigatório.' }, { status: 400 });
+      }
+
+      const supabase = getSupabaseEdge(env);
+      if (!supabase) return NextResponse.json({ error: 'Banco de dados indisponível' }, { status: 503 });
+
+      const cfgRes = await supabase.from('config').select('valor').eq('chave', 'remix_history').limit(1);
+      const history = (cfgRes?.data?.[0]?.valor && Array.isArray(cfgRes.data[0].valor)) ? cfgRes.data[0].valor : [];
+      const itemIndex = history.findIndex(it => it.taskId === taskId);
+
+      if (itemIndex === -1) {
+        return NextResponse.json({ error: 'Remix não encontrado no histórico.' }, { status: 404 });
+      }
+
+      const item = history[itemIndex];
+      let tracks = Array.isArray(item.tracks) ? item.tracks : [];
+
+      if (tracks.length === 0) {
+        try {
+          const genRes = await fetch(`https://api.kie.ai/api/v1/generate/record-info?taskId=${encodeURIComponent(taskId)}`, {
+            headers: {
+              Authorization: `Bearer ${kieApiKey}`,
+              'Content-Type': 'application/json'
+            },
+            signal: AbortSignal.timeout(8000)
+          });
+          if (genRes.ok) {
+            const genData = await genRes.json().catch(() => ({}));
+            tracks = extractAudioTracks(genData);
+          }
+        } catch (e) {}
+      }
+
+      const archivedTracks = await archiveRemixTracksToR2(taskId, tracks, env);
+      const updatedItem = {
+        ...item,
+        status: archivedTracks.length > 0 ? 'SUCCESS' : item.status,
+        tracks: archivedTracks,
+        completedAt: item.completedAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      history[itemIndex] = updatedItem;
+      await supabase.from('config').upsert({
+        chave: 'remix_history',
+        valor: history,
+        updated_at: new Date().toISOString()
+      });
+
+      return NextResponse.json({ ok: true, item: updatedItem, tracks: archivedTracks });
+    }
+
+    // 5. Excluir Remix do Histórico
+    if (action === 'delete') {
+      const { taskId } = body;
+      if (!taskId) {
+        return NextResponse.json({ error: 'taskId é obrigatório.' }, { status: 400 });
+      }
+
+      const supabase = getSupabaseEdge(env);
+      if (!supabase) return NextResponse.json({ error: 'Banco de dados indisponível' }, { status: 503 });
+
+      const cfgRes = await supabase.from('config').select('valor').eq('chave', 'remix_history').limit(1);
+      const history = (cfgRes?.data?.[0]?.valor && Array.isArray(cfgRes.data[0].valor)) ? cfgRes.data[0].valor : [];
+      const filtered = history.filter(it => it.taskId !== taskId);
+
+      await supabase.from('config').upsert({
+        chave: 'remix_history',
+        valor: filtered,
+        updated_at: new Date().toISOString()
+      });
+
+      return NextResponse.json({ ok: true, history: filtered });
     }
 
     return NextResponse.json({ error: 'Ação não reconhecida.' }, { status: 400 });

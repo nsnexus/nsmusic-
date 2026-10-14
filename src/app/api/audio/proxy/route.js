@@ -94,7 +94,7 @@ export async function GET(req) {
     // Extrai o ID do áudio se for um link da Suno ou contiver UUID
     let itemId = explicitId;
     if (!itemId) {
-      const matchId = rawUrl.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
+      const matchId = rawUrl.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i) || rawUrl.match(/\/([a-f0-9]{32})(?:\.mp3|\?|$)/i);
       if (matchId && matchId[1]) {
         itemId = matchId[1];
       }

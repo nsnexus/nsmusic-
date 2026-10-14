@@ -572,16 +572,38 @@ function EntregaContent() {
   // Acrescenta ?download=<nome> à URL do proxy: é o que faz o servidor mandar Content-Disposition e
   // o navegador BAIXAR em vez de tocar (ver src/app/api/audio/proxy/route.js).
   const withDownloadFlag = (url, filename) => {
-    if (!url || !url.startsWith('/api/')) return url;
-    return `${url}${url.includes('?') ? '&' : '?'}download=${encodeURIComponent(filename)}`;
+    if (!url) return '';
+    const safeName = (filename || 'musica.mp3').replace(/[^\w.\- ]/g, '_');
+    const base = url.startsWith('/api/') || url.startsWith('blob:')
+      ? url
+      : `/api/audio/proxy?url=${encodeURIComponent(url)}`;
+    return `${base}${base.includes('?') ? '&' : '?'}download=${encodeURIComponent(safeName)}`;
   };
 
   const handleDownload = async (url, filename) => {
-    // Link direto para o proxy, com Content-Disposition — não baixa os ~5 MB para a memória da aba
-    // antes de salvar, e continua sendo download (não vira player) mesmo se algo der errado no meio.
-    // A versão anterior buscava o arquivo por fetch e, em qualquer falha, caía num window.open que
-    // só ABRIA a música numa aba nova: o cliente clicava em "Baixar" e ouvia em vez de baixar.
     const downloadUrl = withDownloadFlag(url, filename);
+    if (!downloadUrl) return;
+
+    try {
+      // 1. Tenta baixar via fetch + Blob: cria URL local blob: que o navegador obrigatoriamente
+      // salva como arquivo para download no disco, sem jamais abrir o tocador de áudio
+      const res = await fetch(downloadUrl);
+      if (res.ok) {
+        const blob = await res.blob();
+        const blobUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.setAttribute('download', filename);
+        document.body.appendChild(link);
+        link.click();
+        link.parentNode.removeChild(link);
+        setTimeout(() => window.URL.revokeObjectURL(blobUrl), 15000);
+        return;
+      }
+    } catch (e) {
+      console.warn('[entrega] Fallback para download direto via link:', e);
+    }
+
     try {
       const link = document.createElement('a');
       link.href = downloadUrl;

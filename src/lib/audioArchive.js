@@ -51,7 +51,9 @@ export function origensParaArquivar(sourceUrl) {
     return [url];
   }
 
-  const uuid = (url.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i) || [])[1];
+  const uuid36 = (url.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i) || [])[1];
+  const hex32 = (url.match(/\/([a-f0-9]{32})(?:\.mp3|\?|$)/i) || [])[1];
+  const uuid = uuid36 || hex32;
 
   // musicfile.kie.ai guarda o UUID em base64 no path (ver o comentário equivalente no proxy).
   let uuidDeBase64 = '';

@@ -44,8 +44,161 @@ export default function AbaRemixCover() {
   const [msgSucesso, setMsgSucesso] = useState('');
   const [copiadoId, setCopiadoId] = useState('');
 
+  // Estados de gestão estilo Pedidos
+  const [salvandoR2Id, setSalvandoR2Id] = useState('');
+  const [baixandoId, setBaixandoId] = useState('');
+  const [excluindoId, setExcluindoId] = useState('');
+  const [atualizandoStatusId, setAtualizandoStatusId] = useState('');
+  const [buscaRemix, setBuscaRemix] = useState('');
+  const [filtroStatus, setFiltroStatus] = useState('todos');
+  const [letrasAbertas, setLetrasAbertas] = useState(new Set());
+
   const timerRef = useRef(null);
   const pollingRef = useRef(null);
+
+  // Alterna exibição da letra no card
+  const toggleLetra = (id) => {
+    setLetrasAbertas((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  // Garante que a URL do áudio toque perfeitamente sem CORS ou stream bloqueado
+  const resolvePlayableAudioUrl = (url) => {
+    if (!url || typeof url !== 'string') return '';
+    const trimmed = url.trim();
+    if (trimmed.includes('.r2.dev') || trimmed.includes('/remix/') || trimmed.includes('/audios/')) {
+      return trimmed;
+    }
+    return `/api/audio/proxy?url=${encodeURIComponent(trimmed)}`;
+  };
+
+  // Download direto do arquivo MP3 garantindo que o arquivo seja salvo no disco (nunca abrindo tocador)
+  const handleDownloadDireto = async (url, nomeArquivo, idParaStatus = '') => {
+    if (!url) return;
+    const safeName = (nomeArquivo || 'remix.mp3').replace(/[^\w.\- ]/g, '_');
+    if (idParaStatus) setBaixandoId(idParaStatus);
+
+    const downloadUrl = `/api/audio/proxy?url=${encodeURIComponent(url)}&download=${encodeURIComponent(safeName)}`;
+
+    try {
+      // 1. Tenta baixar via fetch + Blob: cria URL local blob: que o navegador obrigatoriamente
+      // salva como arquivo para download no disco, sem jamais abrir o tocador de áudio
+      const res = await fetch(downloadUrl);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = safeName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => window.URL.revokeObjectURL(blobUrl), 15000);
+    } catch (err) {
+      console.warn('Fallback download direto via proxy:', err);
+      // 2. Fallback caso fetch falhe: dispara download direto pelo proxy com Content-Disposition
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = safeName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } finally {
+      if (idParaStatus) setBaixandoId('');
+    }
+  };
+
+  // Salva manualmente as faixas no Cloudflare R2
+  const handleSalvarR2 = async (taskId) => {
+    if (!taskId) return;
+    setSalvandoR2Id(taskId);
+    setMsgErro('');
+    setMsgSucesso('');
+
+    try {
+      const res = await fetch('/api/admin/remix', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'archive', taskId })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || 'Falha ao salvar áudios no R2.');
+      }
+
+      setHistorico((prev) =>
+        prev.map((item) => (item.taskId === taskId ? { ...item, ...data.item, tracks: data.tracks } : item))
+      );
+      setMsgSucesso('☁️ Faixas do remix salvas permanentemente no Cloudflare R2!');
+    } catch (err) {
+      setMsgErro(err.message || 'Erro ao arquivar faixas no Cloudflare R2.');
+    } finally {
+      setSalvandoR2Id('');
+    }
+  };
+
+  // Exclui remix do histórico
+  const handleExcluirRemix = async (taskId, tituloRemix) => {
+    if (!confirm(`Deseja realmente remover o remix "${tituloRemix || taskId}" do histórico?`)) return;
+
+    setExcluindoId(taskId);
+    setMsgErro('');
+
+    try {
+      const res = await fetch('/api/admin/remix', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete', taskId })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || 'Falha ao remover remix.');
+      }
+
+      setHistorico((prev) => prev.filter((item) => item.taskId !== taskId));
+      setMsgSucesso('Remix removido do histórico com sucesso!');
+    } catch (err) {
+      setMsgErro(err.message || 'Erro ao excluir remix.');
+    } finally {
+      setExcluindoId('');
+    }
+  };
+
+  // Atualiza status de um remix específico
+  const handleAtualizarStatusIndividual = async (taskId) => {
+    setAtualizandoStatusId(taskId);
+    try {
+      const res = await fetch('/api/admin/remix', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'status', taskId })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.ok) {
+        setHistorico((prev) =>
+          prev.map((it) => (it.taskId === taskId ? { ...it, status: data.status, tracks: data.tracks } : it))
+        );
+        if (data.status === 'SUCCESS') {
+          setMsgSucesso('Remix atualizado e concluído!');
+        }
+      }
+    } catch (e) {
+      console.warn('Erro ao atualizar status do remix:', e);
+    } finally {
+      setAtualizandoStatusId('');
+    }
+  };
+
+  // Copia mensagem personalizada pro WhatsApp do cliente
+  const handleCopiarMensagemWhatsApp = (item, trackUrl, versaoNum) => {
+    const link = resolvePlayableAudioUrl(trackUrl);
+    const texto = `Olá! 🎶 O remix da sua música "${item.title || 'Música'}" ficou pronto!\n\nVocê pode ouvir a Versão ${versaoNum} no link abaixo:\n${link}\n\nEspero que goste do resultado! 🎧✨`;
+    handleCopiar(texto, `wpp_${item.taskId}_${versaoNum}`);
+  };
 
   // Carrega histórico recente ao montar
   const carregarHistorico = async () => {
@@ -721,6 +874,7 @@ export default function AbaRemixCover() {
             {resultadoFaixas.map((track, idx) => {
               const url = track.audioUrl || track.audio_url || track.stream_audio_url || '';
               const trackTitle = track.title || `${titulo} - Variação ${idx + 1}`;
+              const playableUrl = resolvePlayableAudioUrl(url);
 
               return (
                 <div
@@ -750,7 +904,7 @@ export default function AbaRemixCover() {
                   </div>
 
                   <div style={{ marginBottom: '12px' }}>
-                    <audio src={url} controls style={{ width: '100%', height: '38px', outline: 'none' }} />
+                    <audio src={playableUrl} controls style={{ width: '100%', height: '38px', outline: 'none' }} />
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
@@ -771,26 +925,27 @@ export default function AbaRemixCover() {
                       {copiadoId === `track_${idx}` ? '✓ Copiado!' : '📋 Copiar Link MP3'}
                     </button>
 
-                    <a
-                      href={url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      download={`${titulo}_versao_${idx + 1}.mp3`}
+                    <button
+                      type="button"
+                      disabled={baixandoId === `res_${idx}`}
+                      onClick={() => handleDownloadDireto(url, `${titulo}_versao_${idx + 1}.mp3`, `res_${idx}`)}
                       style={{
-                        background: '#166534',
+                        background: baixandoId === `res_${idx}` ? '#15803d' : '#166534',
                         color: '#ffffff',
-                        textDecoration: 'none',
+                        border: 'none',
                         padding: '6px 12px',
                         borderRadius: '6px',
                         fontSize: '0.78rem',
                         fontWeight: '700',
+                        cursor: baixandoId === `res_${idx}` ? 'wait' : 'pointer',
                         display: 'inline-flex',
                         alignItems: 'center',
-                        gap: '4px'
+                        gap: '4px',
+                        opacity: baixandoId === `res_${idx}` ? 0.8 : 1
                       }}
                     >
-                      ⬇️ Baixar MP3
-                    </a>
+                      {baixandoId === `res_${idx}` ? '⏳ Baixando...' : '⬇️ Baixar MP3'}
+                    </button>
                   </div>
                 </div>
               );
@@ -799,157 +954,527 @@ export default function AbaRemixCover() {
         </div>
       )}
 
-      {/* Histórico Recente de Remixes */}
-      <div>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-          <h3 style={{ fontSize: '1.15rem', fontWeight: '800', color: '#0f172a', margin: 0 }}>
-            📋 Histórico Recente de Remixes ({historico.length})
-          </h3>
-          <button
-            type="button"
-            onClick={carregarHistorico}
-            disabled={carregandoHistorico}
-            style={{
-              background: '#f8fafc',
-              border: '1px solid #cbd5e1',
-              color: '#475569',
-              padding: '6px 12px',
-              borderRadius: '6px',
-              fontSize: '0.78rem',
-              fontWeight: '700',
-              cursor: 'pointer'
-            }}
-          >
-            {carregandoHistorico ? 'Carregando...' : '🔄 Atualizar'}
-          </button>
+      {/* Histórico de Remixes Estilo Pedidos */}
+      <div style={{ marginTop: '24px' }}>
+        {/* Cabeçalho do Histórico com Estatísticas e Ações */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '12px',
+          marginBottom: '16px',
+          background: '#ffffff',
+          padding: '16px 20px',
+          borderRadius: '12px',
+          border: '1.5px solid #e2e8f0',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+        }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <h3 style={{ fontSize: '1.2rem', fontWeight: '800', color: '#0f172a', margin: 0 }}>
+                📋 Painel de Solicitações de Remix & Cover
+              </h3>
+              <span style={{
+                background: '#ede9fe',
+                color: '#6d28d9',
+                padding: '2px 10px',
+                borderRadius: '999px',
+                fontSize: '0.78rem',
+                fontWeight: '800'
+              }}>
+                {historico.length} total
+              </span>
+            </div>
+            <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '4px 0 0 0' }}>
+              Gerencie cada remix com áudios salvos no Cloudflare R2, comparação antes/depois e download direto.
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button
+              type="button"
+              onClick={carregarHistorico}
+              disabled={carregandoHistorico}
+              style={{
+                background: '#f8fafc',
+                border: '1.5px solid #cbd5e1',
+                color: '#334155',
+                padding: '8px 14px',
+                borderRadius: '8px',
+                fontSize: '0.82rem',
+                fontWeight: '700',
+                cursor: carregandoHistorico ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              {carregandoHistorico ? '🔄 Carregando...' : '🔄 Atualizar Tudo'}
+            </button>
+          </div>
         </div>
 
+        {/* Barra de Filtros e Busca */}
+        <div style={{
+          display: 'flex',
+          gap: '10px',
+          marginBottom: '18px',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          justifyContent: 'space-between'
+        }}>
+          <div style={{ flex: '1 1 280px', maxWidth: '420px' }}>
+            <input
+              type="text"
+              value={buscaRemix}
+              onChange={(e) => setBuscaRemix(e.target.value)}
+              placeholder="🔍 Buscar por título da música, estilo ou ID..."
+              style={{
+                width: '100%',
+                padding: '9px 14px',
+                borderRadius: '8px',
+                border: '1.5px solid #cbd5e1',
+                fontSize: '0.86rem',
+                outline: 'none',
+                boxSizing: 'border-box'
+              }}
+            />
+          </div>
+
+          <div style={{ display: 'flex', gap: '6px' }}>
+            {[
+              { id: 'todos', label: 'Todos' },
+              { id: 'concluidos', label: 'Concluídos' },
+              { id: 'processando', label: 'Processando' }
+            ].map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => setFiltroStatus(f.id)}
+                style={{
+                  background: filtroStatus === f.id ? '#7c3aed' : '#ffffff',
+                  color: filtroStatus === f.id ? '#ffffff' : '#475569',
+                  border: '1px solid',
+                  borderColor: filtroStatus === f.id ? '#7c3aed' : '#cbd5e1',
+                  padding: '6px 12px',
+                  borderRadius: '8px',
+                  fontSize: '0.8rem',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s'
+                }}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Lista de Cards Estilo Pedidos */}
         {carregandoHistorico ? (
-          <div style={{ textAlign: 'center', padding: '30px', background: '#ffffff', borderRadius: '12px', color: '#64748b' }}>
-            Carregando histórico...
+          <div style={{ textAlign: 'center', padding: '40px', background: '#ffffff', borderRadius: '14px', color: '#64748b', border: '1px solid #e2e8f0' }}>
+            Carregando lista de remixes...
           </div>
         ) : historico.length === 0 ? (
           <div style={{
             textAlign: 'center',
-            padding: '36px 20px',
+            padding: '48px 20px',
             background: '#ffffff',
-            borderRadius: '12px',
+            borderRadius: '14px',
             border: '2px dashed #cbd5e1',
             color: '#64748b'
           }}>
-            Nenhum remix gerado ainda. As músicas criadas com a IA aparecerão aqui com os players e links de download.
+            Nenhum remix gerado ainda. Use o formulário acima para criar o primeiro cover/remix com a Suno!
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {historico.map((item, idx) => {
-              const tracks = Array.isArray(item.tracks) ? item.tracks : [];
-              const isSucesso = item.status === 'SUCCESS' || tracks.length > 0;
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {historico
+              .filter((item) => {
+                const tracks = Array.isArray(item.tracks) ? item.tracks : [];
+                const isConcluido = item.status === 'SUCCESS' || tracks.length > 0;
+                if (filtroStatus === 'concluidos' && !isConcluido) return false;
+                if (filtroStatus === 'processando' && isConcluido) return false;
 
-              return (
-                <div
-                  key={item.taskId || idx}
-                  style={{
-                    background: '#ffffff',
-                    border: '1.5px solid #e2e8f0',
-                    borderRadius: '12px',
-                    padding: '16px 18px',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px', marginBottom: '10px' }}>
-                    <div>
+                if (!buscaRemix.trim()) return true;
+                const termo = buscaRemix.toLowerCase().trim();
+                const tituloMatch = String(item.title || '').toLowerCase().includes(termo);
+                const estiloMatch = String(item.style || '').toLowerCase().includes(termo);
+                const idMatch = String(item.taskId || '').toLowerCase().includes(termo);
+                return tituloMatch || estiloMatch || idMatch;
+              })
+              .map((item, idx) => {
+                const tracks = Array.isArray(item.tracks) ? item.tracks : [];
+                const isConcluido = item.status === 'SUCCESS' || tracks.length > 0;
+                const isFalha = item.status === 'FAILED';
+                const letraAberta = letrasAbertas.has(item.taskId);
+                const shortId = (item.taskId || '').slice(0, 8).toUpperCase();
+                const todasSalvasR2 = tracks.length > 0 && tracks.every((t) => t.savedToR2 || (t.audio_url && t.audio_url.includes('.r2.dev')));
+
+                return (
+                  <div
+                    key={item.taskId || idx}
+                    style={{
+                      background: '#ffffff',
+                      border: '1.5px solid #e2e8f0',
+                      borderRadius: '14px',
+                      padding: '20px',
+                      boxShadow: '0 3px 8px rgba(0,0,0,0.03)',
+                      transition: 'border-color 0.2s'
+                    }}
+                  >
+                    {/* Header do Pedido de Remix */}
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'flex-start',
+                      flexWrap: 'wrap',
+                      gap: '12px',
+                      borderBottom: '1px solid #f1f5f9',
+                      paddingBottom: '14px',
+                      marginBottom: '16px'
+                    }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                          <span style={{
+                            background: '#0f172a',
+                            color: '#ffffff',
+                            padding: '3px 8px',
+                            borderRadius: '6px',
+                            fontSize: '0.75rem',
+                            fontWeight: '800',
+                            letterSpacing: '0.5px'
+                          }}>
+                            #RMX-{shortId}
+                          </span>
+                          <span style={{ fontSize: '1.1rem', fontWeight: '800', color: '#0f172a' }}>
+                            {item.title || 'Remix Suno IA'}
+                          </span>
+                          <span style={{
+                            fontSize: '0.74rem',
+                            fontWeight: '800',
+                            padding: '3px 10px',
+                            borderRadius: '999px',
+                            background: isConcluido ? '#dcfce7' : isFalha ? '#fee2e2' : '#fef3c7',
+                            color: isConcluido ? '#15803d' : isFalha ? '#b91c1c' : '#b45309',
+                            border: `1px solid ${isConcluido ? '#bbf7d0' : isFalha ? '#fca5a5' : '#fde68a'}`
+                          }}>
+                            {isConcluido ? '🟢 Concluído' : isFalha ? '🔴 Falha' : '⏳ Em Processamento'}
+                          </span>
+                        </div>
+
+                        {/* Metadados rápidos */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginTop: '6px', fontSize: '0.78rem', color: '#64748b' }}>
+                          <span>🕒 {new Date(item.createdAt).toLocaleString('pt-BR')}</span>
+                          <span>•</span>
+                          <span style={{ background: '#f1f5f9', padding: '1px 6px', borderRadius: '4px', fontWeight: '700', color: '#334155' }}>
+                            Motor: {item.model || 'V5.5'}
+                          </span>
+                          <span style={{ background: '#f1f5f9', padding: '1px 6px', borderRadius: '4px', fontWeight: '700', color: '#334155' }}>
+                            {item.instrumental ? '🎸 Instrumental' : '🎤 Com Vocal'}
+                          </span>
+                          {item.vocalGender && (
+                            <span style={{ background: '#f1f5f9', padding: '1px 6px', borderRadius: '4px', fontWeight: '700', color: '#334155' }}>
+                              {item.vocalGender === 'm' ? 'Voz Masculina' : item.vocalGender === 'f' ? 'Voz Feminina' : 'Voz Auto'}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Botões do Topo do Card */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontSize: '1rem', fontWeight: '800', color: '#0f172a' }}>
-                          {item.title || 'Remix Suno'}
-                        </span>
-                        <span style={{
-                          fontSize: '0.72rem',
-                          background: isSucesso ? '#ecfdf5' : '#fefce8',
-                          color: isSucesso ? '#065f46' : '#854d0e',
-                          padding: '2px 8px',
-                          borderRadius: '6px',
-                          fontWeight: '700'
-                        }}>
-                          {isSucesso ? '🟢 Concluído' : '🟡 Processando'}
-                        </span>
-                      </div>
-                      <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '2px' }}>
-                        <strong>Estilo:</strong> {item.style} • <strong>Motor:</strong> {item.model || 'V5.5'} • {new Date(item.createdAt).toLocaleString('pt-BR')}
-                      </div>
-                    </div>
-
-                    <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
-                      Task ID: <code>{item.taskId}</code>
-                    </div>
-                  </div>
-
-                  {/* Faixas geradas */}
-                  {tracks.length > 0 ? (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '10px', marginTop: '10px' }}>
-                      {tracks.map((t, tIdx) => {
-                        const trackUrl = t.audioUrl || t.audio_url || '';
-                        return (
-                          <div
-                            key={t.id || tIdx}
+                        {!isConcluido && (
+                          <button
+                            type="button"
+                            onClick={() => handleAtualizarStatusIndividual(item.taskId)}
+                            disabled={atualizandoStatusId === item.taskId}
                             style={{
                               background: '#f8fafc',
-                              border: '1px solid #e2e8f0',
-                              padding: '10px',
-                              borderRadius: '8px'
+                              border: '1px solid #cbd5e1',
+                              color: '#334155',
+                              padding: '5px 10px',
+                              borderRadius: '6px',
+                              fontSize: '0.74rem',
+                              fontWeight: '700',
+                              cursor: 'pointer'
                             }}
                           >
-                            <div style={{ fontSize: '0.8rem', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>
-                              Versão {tIdx + 1}
-                            </div>
-                            <audio src={trackUrl} controls style={{ width: '100%', height: '32px', marginBottom: '6px' }} />
-                            <div style={{ display: 'flex', gap: '6px' }}>
-                              <button
-                                type="button"
-                                onClick={() => handleCopiar(trackUrl, `hist_${item.taskId}_${tIdx}`)}
-                                style={{
-                                  background: copiadoId === `hist_${item.taskId}_${tIdx}` ? '#10b981' : '#ffffff',
-                                  color: copiadoId === `hist_${item.taskId}_${tIdx}` ? '#ffffff' : '#334155',
-                                  border: '1px solid #cbd5e1',
-                                  padding: '4px 8px',
-                                  borderRadius: '4px',
-                                  fontSize: '0.72rem',
-                                  fontWeight: '700',
-                                  cursor: 'pointer'
-                                }}
-                              >
-                                {copiadoId === `hist_${item.taskId}_${tIdx}` ? '✓ Copiado' : 'Copiar MP3'}
-                              </button>
-                              <a
-                                href={trackUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                download
-                                style={{
-                                  background: '#ffffff',
-                                  color: '#166534',
-                                  border: '1px solid #86efac',
-                                  padding: '4px 8px',
-                                  borderRadius: '4px',
-                                  fontSize: '0.72rem',
-                                  fontWeight: '700',
-                                  textDecoration: 'none'
-                                }}
-                              >
-                                ⬇️ Download
-                              </a>
-                            </div>
+                            {atualizandoStatusId === item.taskId ? 'Checando...' : '🔄 Atualizar'}
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => handleExcluirRemix(item.taskId, item.title)}
+                          disabled={excluindoId === item.taskId}
+                          title="Excluir do histórico"
+                          style={{
+                            background: '#fff1f2',
+                            border: '1px solid #fecdd3',
+                            color: '#e11d48',
+                            padding: '5px 9px',
+                            borderRadius: '6px',
+                            fontSize: '0.74rem',
+                            fontWeight: '700',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          {excluindoId === item.taskId ? '...' : '🗑️'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Conteúdo Principal do Card em Grid */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
+                      {/* Lado Esquerdo: Áudio Original do Cliente & Estilo */}
+                      <div style={{
+                        background: '#f8fafc',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '10px',
+                        padding: '14px'
+                      }}>
+                        <div style={{ fontSize: '0.82rem', fontWeight: '800', color: '#1e293b', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span>🎧 Áudio Original do Cliente</span>
+                        </div>
+
+                        {item.uploadUrl ? (
+                          <div style={{ marginBottom: '10px' }}>
+                            <audio
+                              src={resolvePlayableAudioUrl(item.uploadUrl)}
+                              controls
+                              style={{ width: '100%', height: '34px', outline: 'none' }}
+                            />
+                            <a
+                              href={item.uploadUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              style={{ fontSize: '0.72rem', color: '#2563eb', textDecoration: 'underline', display: 'inline-block', marginTop: '4px' }}
+                            >
+                              Arquivo original no Cloudflare R2 ↗
+                            </a>
                           </div>
-                        );
-                      })}
+                        ) : (
+                          <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>URL original não disponível</span>
+                        )}
+
+                        <div style={{ marginTop: '10px', fontSize: '0.78rem', color: '#334155' }}>
+                          <strong style={{ color: '#0f172a' }}>🎵 Estilo Solicitado:</strong>
+                          <div style={{ marginTop: '2px', background: '#ffffff', padding: '6px 8px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                            {item.style}
+                          </div>
+                        </div>
+
+                        {item.lyrics && (
+                          <div style={{ marginTop: '10px' }}>
+                            <button
+                              type="button"
+                              onClick={() => toggleLetra(item.taskId)}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                padding: 0,
+                                color: '#7c3aed',
+                                fontSize: '0.76rem',
+                                fontWeight: '700',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}
+                            >
+                              {letraAberta ? '▲ Ocultar Letra Utilizada' : '▼ 📜 Ver Letra Utilizada'}
+                            </button>
+                            {letraAberta && (
+                              <div style={{
+                                marginTop: '6px',
+                                background: '#ffffff',
+                                border: '1px solid #e2e8f0',
+                                borderRadius: '6px',
+                                padding: '8px 10px',
+                                fontSize: '0.75rem',
+                                color: '#334155',
+                                whiteSpace: 'pre-line',
+                                maxHeight: '180px',
+                                overflowY: 'auto'
+                              }}>
+                                {item.lyrics}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Lado Direito: Versões Geradas (Arranjo 1 e 2) */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: '0.84rem', fontWeight: '800', color: '#0f172a' }}>
+                            🎵 Versões Produzidas pelo Suno ({tracks.length})
+                          </span>
+                          {tracks.length > 0 && !todasSalvasR2 && (
+                            <button
+                              type="button"
+                              onClick={() => handleSalvarR2(item.taskId)}
+                              disabled={salvandoR2Id === item.taskId}
+                              style={{
+                                background: '#f5f3ff',
+                                color: '#7c3aed',
+                                border: '1px solid #c4b5fd',
+                                padding: '3px 8px',
+                                borderRadius: '6px',
+                                fontSize: '0.72rem',
+                                fontWeight: '800',
+                                cursor: salvandoR2Id === item.taskId ? 'not-allowed' : 'pointer'
+                              }}
+                            >
+                              {salvandoR2Id === item.taskId ? 'Salvando no R2...' : '☁️ Salvar no R2'}
+                            </button>
+                          )}
+                        </div>
+
+                        {tracks.length > 0 ? (
+                          tracks.map((t, tIdx) => {
+                            const rawTrackUrl = t.audioUrl || t.audio_url || '';
+                            const playableUrl = resolvePlayableAudioUrl(rawTrackUrl);
+                            const estaNoR2 = Boolean(t.savedToR2 || rawTrackUrl.includes('.r2.dev') || rawTrackUrl.includes('/remix/'));
+                            const trackTitle = t.title || `${item.title || 'Música'} (Versão ${tIdx + 1})`;
+
+                            return (
+                              <div
+                                key={t.id || tIdx}
+                                style={{
+                                  background: '#f8fafc',
+                                  border: '1px solid #e2e8f0',
+                                  borderRadius: '10px',
+                                  padding: '12px'
+                                }}
+                              >
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                  <span style={{ fontSize: '0.86rem', fontWeight: '800', color: '#1e293b' }}>
+                                    Versão {tIdx + 1}
+                                  </span>
+
+                                  {estaNoR2 ? (
+                                    <span style={{
+                                      fontSize: '0.68rem',
+                                      fontWeight: '800',
+                                      background: '#dcfce7',
+                                      color: '#15803d',
+                                      padding: '2px 6px',
+                                      borderRadius: '4px',
+                                      border: '1px solid #bbf7d0'
+                                    }}>
+                                      ☁️ Salvo no R2
+                                    </span>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSalvarR2(item.taskId)}
+                                      disabled={salvandoR2Id === item.taskId}
+                                      style={{
+                                        fontSize: '0.68rem',
+                                        fontWeight: '700',
+                                        background: '#fffbeb',
+                                        color: '#b45309',
+                                        border: '1px solid #fde68a',
+                                        padding: '2px 6px',
+                                        borderRadius: '4px',
+                                        cursor: 'pointer'
+                                      }}
+                                    >
+                                      {salvandoR2Id === item.taskId ? 'Salvando...' : '⚠️ Salvar no R2'}
+                                    </button>
+                                  )}
+                                </div>
+
+                                <audio
+                                  src={playableUrl}
+                                  controls
+                                  style={{ width: '100%', height: '34px', marginBottom: '8px', outline: 'none' }}
+                                />
+
+                                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                                  <button
+                                    type="button"
+                                    disabled={baixandoId === `hist_${item.taskId}_${tIdx}`}
+                                    onClick={() => handleDownloadDireto(rawTrackUrl, `${item.title || 'Remix'}_Versao_${tIdx + 1}.mp3`, `hist_${item.taskId}_${tIdx}`)}
+                                    style={{
+                                      background: baixandoId === `hist_${item.taskId}_${tIdx}` ? '#15803d' : '#166534',
+                                      color: '#ffffff',
+                                      border: 'none',
+                                      padding: '5px 10px',
+                                      borderRadius: '6px',
+                                      fontSize: '0.74rem',
+                                      fontWeight: '800',
+                                      cursor: baixandoId === `hist_${item.taskId}_${tIdx}` ? 'wait' : 'pointer',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                      opacity: baixandoId === `hist_${item.taskId}_${tIdx}` ? 0.8 : 1
+                                    }}
+                                  >
+                                    {baixandoId === `hist_${item.taskId}_${tIdx}` ? '⏳ Baixando...' : '⬇️ Baixar MP3'}
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCopiar(rawTrackUrl, `hist_${item.taskId}_${tIdx}`)}
+                                    style={{
+                                      background: copiadoId === `hist_${item.taskId}_${tIdx}` ? '#10b981' : '#ffffff',
+                                      color: copiadoId === `hist_${item.taskId}_${tIdx}` ? '#ffffff' : '#334155',
+                                      border: '1px solid #cbd5e1',
+                                      padding: '5px 10px',
+                                      borderRadius: '6px',
+                                      fontSize: '0.74rem',
+                                      fontWeight: '700',
+                                      cursor: 'pointer'
+                                    }}
+                                  >
+                                    {copiadoId === `hist_${item.taskId}_${tIdx}` ? '✓ Copiado' : '📋 Copiar MP3'}
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCopiarMensagemWhatsApp(item, rawTrackUrl, tIdx + 1)}
+                                    style={{
+                                      background: copiadoId === `wpp_${item.taskId}_${tIdx + 1}` ? '#10b981' : '#25d366',
+                                      color: '#ffffff',
+                                      border: 'none',
+                                      padding: '5px 10px',
+                                      borderRadius: '6px',
+                                      fontSize: '0.74rem',
+                                      fontWeight: '800',
+                                      cursor: 'pointer',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px'
+                                    }}
+                                  >
+                                    {copiadoId === `wpp_${item.taskId}_${tIdx + 1}` ? '✓ Copiado p/ Zap' : '💬 WhatsApp'}
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <div style={{
+                            padding: '16px',
+                            background: '#f8fafc',
+                            borderRadius: '10px',
+                            border: '1px dashed #cbd5e1',
+                            fontSize: '0.8rem',
+                            color: '#64748b',
+                            textAlign: 'center'
+                          }}>
+                            {isFalha
+                              ? 'A geração do remix falhou na Suno. Tente novamente ou verifique os créditos.'
+                              : '⏳ As músicas estão sendo mixadas pela Suno IA. Clique em "Atualizar" em instantes.'}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  ) : (
-                    <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
-                      Aguardando processamento do Suno...
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                  </div>
+                );
+              })}
           </div>
         )}
       </div>

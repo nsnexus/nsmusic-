@@ -355,6 +355,26 @@ export default function OrderDetailsAdmin() {
       : base;
 
     try {
+      // 1. Tenta baixar via fetch + Blob: cria URL local blob: que o navegador obrigatoriamente
+      // salva como arquivo para download no disco, sem jamais abrir o tocador de áudio
+      const res = await fetch(downloadUrl);
+      if (res.ok) {
+        const blob = await res.blob();
+        const blobUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.setAttribute('download', filename);
+        document.body.appendChild(link);
+        link.click();
+        link.parentNode.removeChild(link);
+        setTimeout(() => window.URL.revokeObjectURL(blobUrl), 15000);
+        return;
+      }
+    } catch (e) {
+      console.warn('[admin/pedidos] Fallback para download direto via link:', e);
+    }
+
+    try {
       const link = document.createElement('a');
       link.href = downloadUrl;
       link.setAttribute('download', filename);
