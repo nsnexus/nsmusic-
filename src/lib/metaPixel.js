@@ -2,7 +2,8 @@
 // (InitiateCheckout/Purchase) para a Meta casar o visitante com uma conta, mesmo sem cookie de
 // terceiro (Safari/iOS). O hash SHA-256 é feito pelo próprio script do Pixel no navegador, nunca
 // aqui. Nenhum destes valores é logado (ver .claude/rules/security.md).
-const META_PIXEL_ID = '1366434898413500';
+export const META_PIXEL_IDS = ['1366434898413500', '1450829683640531'];
+export const META_PIXEL_ID = META_PIXEL_IDS[0];
 
 // Números salvos no formData/pedido são DDD + 9 dígitos (11 dígitos), sem código do país — a Meta
 // espera o telefone em E.164 sem símbolos, então adicionamos o 55 do Brasil.
@@ -31,7 +32,9 @@ export function pushAdvancedMatching(phone, email) {
   if (ph) matchData.ph = ph;
   if (em) matchData.em = em;
 
-  window.fbq('init', META_PIXEL_ID, matchData);
+  for (const pixelId of META_PIXEL_IDS) {
+    window.fbq('init', pixelId, matchData);
+  }
 }
 
 /**

@@ -11,7 +11,11 @@
 
 import { resolverSiteUrl } from './siteUrl.js';
 
-const META_PIXEL_ID = '1366434898413500';
+export const META_PIXELS = [
+  { id: '1366434898413500', tokenEnv: 'META_CAPI_ACCESS_TOKEN' },
+  { id: '1450829683640531', tokenEnv: 'META_CAPI_ACCESS_TOKEN_2', fallbackTokenEnv: 'META_CAPI_ACCESS_TOKEN' },
+];
+export const META_PIXEL_ID = META_PIXELS[0].id;
 const GRAPH_API_VERSION = 'v21.0';
 
 function readEnvValue(env, name) {
@@ -40,17 +44,12 @@ function normalizeEmailForMatching(email) {
 }
 
 /**
- * Envia um evento de Purchase pro Conversions API da Meta.
+ * Envia um evento de Purchase pro Conversions API da Meta (para todos os pixels configurados).
  * @param {{orderId: string, value: number, contentName: string, customerPhone?: string, customerEmail?: string}} params
  * @param {object} env contexto de ambiente resolvido pela rota chamadora
  * @returns {Promise<{sent: boolean, reason?: string}>}
  */
 export async function sendMetaPurchaseEvent({ orderId, value, contentName = 'Música Homenagem Personalizada', eventId: customEventId, customerPhone, customerEmail }, env) {
-  const accessToken = readEnvValue(env, 'META_CAPI_ACCESS_TOKEN');
-  if (!accessToken) {
-    console.warn('[meta-capi] META_CAPI_ACCESS_TOKEN não configurado — evento de Purchase não enviado.');
-    return { sent: false, reason: 'no_token' };
-  }
   if (typeof value !== 'number' || value <= 0) {
     return { sent: false, reason: 'invalid_value' };
   }
@@ -86,22 +85,40 @@ export async function sendMetaPurchaseEvent({ orderId, value, contentName = 'Mú
     }],
   };
 
-  try {
-    const res = await fetch(`https://graph.facebook.com/${GRAPH_API_VERSION}/${META_PIXEL_ID}/events?access_token=${accessToken}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(10000),
-    });
+  const results = await Promise.allSettled(
+    META_PIXELS.map(async ({ id: pixelId, tokenEnv, fallbackTokenEnv }) => {
+      const accessToken = readEnvValue(env, tokenEnv) || (fallbackTokenEnv ? readEnvValue(env, fallbackTokenEnv) : '');
+      if (!accessToken) {
+        console.warn(`[meta-capi] Token não configurado para o pixel ${pixelId} (variável ${tokenEnv}) — Purchase não enviado para este pixel.`);
+        return { pixelId, sent: false, reason: 'no_token' };
+      }
 
-    if (!res.ok) {
-      const errText = await res.text().catch(() => '');
-      console.warn(`[meta-capi] Falha ao enviar evento (HTTP ${res.status}):`, errText.slice(0, 300));
-      return { sent: false, reason: 'http_error' };
-    }
+      try {
+        const res = await fetch(`https://graph.facebook.com/${GRAPH_API_VERSION}/${pixelId}/events?access_token=${accessToken}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(10000),
+        });
+
+        if (!res.ok) {
+          const errText = await res.text().catch(() => '');
+          console.warn(`[meta-capi] Falha ao enviar evento para o pixel ${pixelId} (HTTP ${res.status}):`, errText.slice(0, 300));
+          return { pixelId, sent: false, reason: 'http_error' };
+        }
+        return { pixelId, sent: true };
+      } catch (err) {
+        console.warn(`[meta-capi] Erro de rede ao enviar evento para o pixel ${pixelId}:`, err.message);
+        return { pixelId, sent: false, reason: err.message };
+      }
+    })
+  );
+
+  const anySent = results.some((r) => r.status === 'fulfilled' && r.value.sent);
+  if (anySent) {
     return { sent: true };
-  } catch (err) {
-    console.warn('[meta-capi] Erro de rede ao enviar evento:', err.message);
-    return { sent: false, reason: err.message };
   }
+
+  const firstReason = results[0]?.status === 'fulfilled' ? results[0].value.reason : 'network_error';
+  return { sent: false, reason: firstReason || 'no_token' };
 }
