@@ -45,7 +45,7 @@ function normalizeEmailForMatching(email) {
  * @param {object} env contexto de ambiente resolvido pela rota chamadora
  * @returns {Promise<{sent: boolean, reason?: string}>}
  */
-export async function sendMetaPurchaseEvent({ orderId, value, contentName, customerPhone, customerEmail }, env) {
+export async function sendMetaPurchaseEvent({ orderId, value, contentName = 'Música Homenagem Personalizada', eventId: customEventId, customerPhone, customerEmail }, env) {
   const accessToken = readEnvValue(env, 'META_CAPI_ACCESS_TOKEN');
   if (!accessToken) {
     console.warn('[meta-capi] META_CAPI_ACCESS_TOKEN não configurado — evento de Purchase não enviado.');
@@ -63,9 +63,8 @@ export async function sendMetaPurchaseEvent({ orderId, value, contentName, custo
   if (normalizedPhone) userData.ph = [await sha256Hex(normalizedPhone)];
   if (normalizedEmail) userData.em = [await sha256Hex(normalizedEmail)];
 
-  // event_id estável (orderId + qual produto) — se este evento for reenviado por qualquer motivo, a
-  // Meta deduplica sozinha pelo mesmo event_id, então nunca conta duas vezes mesmo em retry.
-  const eventId = `purchase_${orderId}_${contentName.replace(/\s+/g, '_').toLowerCase()}`;
+  // event_id idêntico entre servidor (CAPI) e navegador (Pixel) para a Meta desduplicar 100%
+  const eventId = customEventId || `purchase_${orderId}_musica`;
 
   const siteUrl = resolverSiteUrl(readEnvValue(env, 'NEXT_PUBLIC_SITE_URL'));
   const eventSourceUrl = `${siteUrl}/entrega?id=${encodeURIComponent(orderId)}`;

@@ -455,7 +455,8 @@ function EntregaContent() {
       trackFbPurchase({
         orderId,
         value: purchaseValue,
-        contentName: order.sku || 'audio_only',
+        contentName: 'Música Homenagem Personalizada',
+        eventId: `purchase_${orderId}_musica`,
         phone: order.customerPhone,
         email: order.customerEmail,
       });

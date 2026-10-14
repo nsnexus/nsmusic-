@@ -393,10 +393,18 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
           : txResult.isPlaybackOnly ? 'Playback Instrumental (Add-on)'
           : txResult.isCartaOnly ? 'Carta Virtual (Add-on)'
           : txResult.isRetroOnly ? 'Retrospectiva (Add-on)' : 'Música Homenagem Personalizada';
+        const productKey = txResult.isVideoOnly
+          ? 'video'
+          : txResult.isPlaybackOnly ? 'playback'
+          : txResult.isCartaOnly ? 'carta'
+          : txResult.isRetroOnly ? 'retro' : 'musica';
+        const eventId = `purchase_${orderId}_${productKey}`;
+
         const sendResult = await sendMetaPurchaseEvent({
           orderId,
           value,
           contentName,
+          eventId,
           customerPhone: txResult.orderData?.customerPhone,
           customerEmail: txResult.orderData?.customerEmail,
         }, env);

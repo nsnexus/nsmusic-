@@ -37,13 +37,12 @@ export function pushAdvancedMatching(phone, email) {
 /**
  * Dispara o evento de Purchase no Meta Pixel do navegador com eventID para desduplicação com a Conversions API.
  */
-export function trackFbPurchase({ orderId, value, currency = 'BRL', contentName = 'musica_completa', phone, email }) {
+export function trackFbPurchase({ orderId, value, currency = 'BRL', contentName = 'Música Homenagem Personalizada', eventId: customEventId, phone, email }) {
   if (typeof window === 'undefined' || !window.fbq || !orderId) return;
 
   pushAdvancedMatching(phone, email);
 
-  const safeContent = String(contentName || 'musica_completa').replace(/\s+/g, '_').toLowerCase();
-  const eventId = `purchase_${orderId}_${safeContent}`;
+  const eventId = customEventId || `purchase_${orderId}_musica`;
 
   window.fbq(
     'track',
@@ -51,9 +50,10 @@ export function trackFbPurchase({ orderId, value, currency = 'BRL', contentName 
     {
       value: typeof value === 'number' && value > 0 ? value : 9.99,
       currency: currency || 'BRL',
-      content_name: contentName || 'musica_completa',
+      content_name: contentName,
       content_type: 'product',
     },
     { eventID: eventId }
   );
 }
+
