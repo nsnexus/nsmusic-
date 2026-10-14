@@ -888,7 +888,7 @@ Com você ao meu lado eu sei onde quero estar`
                   <span style={{ fontSize: '0.78rem', color: '#64748b' }}>OU selecione um arquivo de áudio:</span>
                   <input
                     type="file"
-                    accept="audio/*"
+                    accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.opus,.flac,.webm"
                     onChange={(e) => handleArquivoUpload(e, 'amostra')}
                     style={{ fontSize: '0.8rem', color: '#94a3b8', maxWidth: '240px' }}
                   />
@@ -1009,7 +1009,7 @@ Com você ao meu lado eu sei onde quero estar`
                   <span style={{ fontSize: '0.78rem', color: '#64748b' }}>OU selecione arquivo gravado:</span>
                   <input
                     type="file"
-                    accept="audio/*"
+                    accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.opus,.flac,.webm"
                     onChange={(e) => handleArquivoUpload(e, 'verificacao')}
                     style={{ fontSize: '0.8rem', color: '#94a3b8', maxWidth: '240px' }}
                   />

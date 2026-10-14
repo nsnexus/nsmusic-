@@ -315,7 +315,7 @@ export default function AbaRemixCover() {
               }}>
                 <input
                   type="file"
-                  accept="audio/*,video/webm"
+                  accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.opus,.flac,.webm,video/webm"
                   onChange={handleUploadAudio}
                   disabled={uploadingAudio || gerando}
                   id="remix-file-input"
@@ -329,7 +329,7 @@ export default function AbaRemixCover() {
                     {uploadingAudio ? 'Enviando áudio para o R2...' : audioFile ? audioFile.name : 'Clique para selecionar o áudio'}
                   </div>
                   <div style={{ fontSize: '0.74rem', color: '#94a3b8', marginTop: '2px' }}>
-                    MP3, WAV, M4A ou áudio gravado
+                    MP3, WAV, M4A, AAC, OGG, OPUS (WhatsApp) ou gravador
                   </div>
                 </label>
               </div>

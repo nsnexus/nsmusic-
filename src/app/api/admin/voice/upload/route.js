@@ -3,24 +3,56 @@ import { getRequestContext } from '@cloudflare/next-on-pages';
 
 export const runtime = 'edge';
 
-// Formatos comuns gravados por navegadores móveis (Safari iOS, Chrome Android) e uploads de áudio
+// Formatos comuns gravados por navegadores móveis, WhatsApp (.opus, .ogg, .m4a), gravadores e DAWs
 const ALLOWED_MIME_TYPES = new Set([
   'audio/webm',
   'audio/mp4',
   'audio/m4a',
   'audio/x-m4a',
   'audio/aac',
+  'audio/x-aac',
   'audio/mpeg',
   'audio/mp3',
   'audio/wav',
   'audio/x-wav',
+  'audio/wave',
   'audio/ogg',
+  'audio/opus',
+  'audio/x-opus',
+  'audio/flac',
+  'audio/x-flac',
   'audio/octet-stream',
+  'application/ogg',
+  'application/octet-stream',
   'video/webm', // Alguns navegadores gravam áudio via MediaRecorder com MIME video/webm
   'video/mp4'
 ]);
 
-const MAX_AUDIO_BYTES = 25 * 1024 * 1024; // 25 MB
+const ALLOWED_EXTS = new Set([
+  'mp3',
+  'wav',
+  'ogg',
+  'opus',
+  'm4a',
+  'aac',
+  'flac',
+  'webm',
+  'mp4'
+]);
+
+const EXT_TO_MIME = {
+  mp3: 'audio/mpeg',
+  wav: 'audio/wav',
+  ogg: 'audio/ogg',
+  opus: 'audio/ogg; codecs=opus',
+  m4a: 'audio/mp4',
+  aac: 'audio/aac',
+  flac: 'audio/flac',
+  webm: 'audio/webm',
+  mp4: 'audio/mp4'
+};
+
+const MAX_AUDIO_BYTES = 30 * 1024 * 1024; // 30 MB
 
 export async function POST(req) {
   let env = {};
@@ -45,10 +77,16 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Nenhum arquivo de áudio enviado.' }, { status: 400 });
     }
 
-    const type = file.type || 'audio/webm';
-    if (!ALLOWED_MIME_TYPES.has(type) && !type.startsWith('audio/')) {
+    const originalName = typeof file.name === 'string' ? file.name : '';
+    const nameExt = originalName.includes('.') ? originalName.split('.').pop().toLowerCase().trim() : '';
+    const rawType = (file.type || '').toLowerCase().trim();
+
+    const isMimeAllowed = ALLOWED_MIME_TYPES.has(rawType) || rawType.startsWith('audio/');
+    const isExtAllowed = ALLOWED_EXTS.has(nameExt);
+
+    if (!isMimeAllowed && !isExtAllowed) {
       return NextResponse.json({
-        error: `Formato de áudio não suportado (${type}). Envie MP3, WAV, M4A, OGG ou WEBM.`
+        error: `Formato de áudio não suportado (${rawType || nameExt || 'desconhecido'}). Envie MP3, WAV, M4A, AAC, OGG, OPUS (WhatsApp) ou WEBM.`
       }, { status: 400 });
     }
 
@@ -58,15 +96,28 @@ export async function POST(req) {
     }
 
     if (buffer.byteLength > MAX_AUDIO_BYTES) {
-      return NextResponse.json({ error: 'Áudio excede o tamanho máximo permitido de 25 MB.' }, { status: 413 });
+      return NextResponse.json({ error: 'Áudio excede o tamanho máximo permitido de 30 MB.' }, { status: 413 });
     }
 
-    // Identifica extensão
+    // Identifica extensão segura
     let ext = 'webm';
-    if (type.includes('mp4') || type.includes('m4a') || type.includes('aac')) ext = 'm4a';
-    else if (type.includes('mpeg') || type.includes('mp3')) ext = 'mp3';
-    else if (type.includes('wav')) ext = 'wav';
-    else if (type.includes('ogg')) ext = 'ogg';
+    if (isExtAllowed) {
+      ext = nameExt;
+    } else if (rawType.includes('opus')) {
+      ext = 'opus';
+    } else if (rawType.includes('ogg')) {
+      ext = 'ogg';
+    } else if (rawType.includes('mp4') || rawType.includes('m4a') || rawType.includes('aac')) {
+      ext = 'm4a';
+    } else if (rawType.includes('mpeg') || rawType.includes('mp3')) {
+      ext = 'mp3';
+    } else if (rawType.includes('wav')) {
+      ext = 'wav';
+    } else if (rawType.includes('flac')) {
+      ext = 'flac';
+    }
+
+    const contentType = EXT_TO_MIME[ext] || rawType || 'audio/webm';
 
     const timestamp = Date.now();
     const randomHex = Math.random().toString(36).substring(2, 8);
@@ -75,7 +126,7 @@ export async function POST(req) {
 
     await r2Bucket.put(destPath, buffer, {
       httpMetadata: {
-        contentType: type || 'audio/webm',
+        contentType,
         cacheControl: 'public, max-age=31536000, immutable'
       }
     });
@@ -87,7 +138,7 @@ export async function POST(req) {
       url: publicUrl,
       filename,
       size: buffer.byteLength,
-      contentType: type
+      contentType
     });
   } catch (err) {
     console.error('[voice/upload] Falha no upload de áudio:', err.message);

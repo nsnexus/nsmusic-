@@ -71,9 +71,6 @@ export async function GET(req) {
   const metaAds = Array.isArray(metaResult?.ads) ? metaResult.ads : [];
 
   // 2. Busca pedidos no Supabase para o período (fuso de Brasília UTC-3)
-  const inicioIso = `${since}T00:00:00-03:00`;
-  const fimIso = `${until}T23:59:59.999-03:00`;
-
   const ordersByUtm = new Map();
   let totalPurchasesAll = 0;
   let totalRevenueAll = 0;
@@ -83,12 +80,19 @@ export async function GET(req) {
       let pageOffset = 0;
       const pageSize = 1000;
 
+      // Pega pedidos a partir de 2 dias antes do início para cobrir fusos e pedidos gerados antes e pagos no período
+      const sinceDate = new Date(`${since}T00:00:00-03:00`);
+      const lookbackTime = !isNaN(sinceDate.getTime())
+        ? sinceDate.getTime() - 48 * 3600 * 1000
+        : Date.now() - 30 * 24 * 3600 * 1000;
+      const lookbackIso = new Date(lookbackTime).toISOString();
+
       while (true) {
         const { data: rows, error } = await supabase
           .from('orders')
-          .select('id, order_number, payment_status, amount, paid_at, created_at, extras')
-          .or(`created_at.gte.${inicioIso},paid_at.gte.${inicioIso}`)
-          .is('deleted_at', 'null')
+          .select('id, order_number, payment_status, paid_at, created_at, extras')
+          .gte('created_at', lookbackIso)
+          .order('created_at', { ascending: false })
           .range(pageOffset, pageOffset + pageSize - 1);
 
         if (error) {
@@ -102,7 +106,7 @@ export async function GET(req) {
           const extras = (row.extras && typeof row.extras === 'object') ? row.extras : {};
           const isPaid = row.payment_status === 'PAGO' || row.payment_status === 'PAGAMENTO_APROVADO';
 
-          // Checa se a data do pedido (ou paid_at) está dentro da janela
+          // Checa se a data do pedido (ou paid_at) está dentro da janela no fuso de São Paulo
           const refDate = isPaid && row.paid_at ? row.paid_at : row.created_at;
           if (refDate) {
             const refDay = new Date(refDate).toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
@@ -111,7 +115,7 @@ export async function GET(req) {
 
           let revenue = 0;
           if (isPaid) {
-            const val = Number(extras.paidAmount ?? row.amount);
+            const val = Number(extras.paidAmount ?? extras.expectedAmount ?? extras.amount);
             revenue = Number.isFinite(val) && val > 0 ? val : 9.99;
             totalPurchasesAll += 1;
             totalRevenueAll += revenue;
@@ -121,7 +125,7 @@ export async function GET(req) {
           const campaignIdentifier = String(extras.utmCampaign || extras.utm_campaign || '').trim();
           const source = String(extras.utmSource || extras.utm_source || extras.trafficSource || '').toLowerCase();
 
-          // Ignora se não for tráfego pago ou sem UTM quando há outros dados
+          // Identifica o canal ou campanha/anúncio
           const key = adIdentifier || campaignIdentifier || (source ? `Canal: ${source}` : 'Direto / Sem UTM');
 
           const current = ordersByUtm.get(key) || {
@@ -252,7 +256,8 @@ export async function GET(req) {
   }
 
   totalSpend = Math.round(totalSpend * 100) / 100;
-  totalRevenue = Math.round(totalRevenue * 100) / 100;
+  totalRevenue = Math.round(Math.max(totalRevenue, totalRevenueAll) * 100) / 100;
+  totalPurchases = Math.max(totalPurchases, totalPurchasesAll);
   const totalProfit = Math.round((totalRevenue - totalSpend) * 100) / 100;
   const averageCpa = totalPurchases > 0 ? Math.round((totalSpend / totalPurchases) * 100) / 100 : 0;
   const overallRoas = totalSpend > 0 ? Math.round((totalRevenue / totalSpend) * 100) / 100 : (totalRevenue > 0 ? 999 : 0);
