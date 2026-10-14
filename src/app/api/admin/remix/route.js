@@ -3,6 +3,7 @@ import { getRequestContext } from '@cloudflare/next-on-pages';
 import { readEnvValue } from '@/lib/envValue';
 import { getSupabaseEdge } from '@/lib/supabase-edge';
 import { extractAudioTracks } from '@/lib/db';
+import { transcribeAudioWithFailover } from '@/lib/transcribeAudio';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
@@ -14,17 +15,61 @@ export async function POST(req) {
     if (ctx?.env) env = ctx.env;
   } catch (e) {}
 
-  const kieApiKey = readEnvValue(env, 'KIE_API_KEY');
-  if (!kieApiKey) {
-    return NextResponse.json(
-      { error: 'Configuração ausente: KIE_API_KEY não definida no servidor.' },
-      { status: 500 }
-    );
-  }
-
   try {
     const body = await req.json();
     const { action } = body;
+
+    // 0. Transcrever / Identificar letra do áudio com IA (Whisper + Gemini)
+    if (action === 'transcribe') {
+      const { audioUrl } = body;
+      if (!audioUrl || typeof audioUrl !== 'string') {
+        return NextResponse.json({ error: 'audioUrl é obrigatória para transcrever a letra.' }, { status: 400 });
+      }
+
+      const envVars = {
+        ...process.env,
+        ...env,
+        OPENAI_API_KEY: readEnvValue(env, 'OPENAI_API_KEY'),
+        GEMINI_API_KEY: readEnvValue(env, 'GEMINI_API_KEY'),
+        GEMINI_API_KEYS: readEnvValue(env, 'GEMINI_API_KEYS')
+      };
+
+      const rawText = await transcribeAudioWithFailover({ type: 'url', value: audioUrl.trim() }, envVars);
+      if (!rawText || !rawText.trim()) {
+        return NextResponse.json({
+          ok: false,
+          lyrics: '',
+          message: 'Não foi possível identificar voz cantada audível neste áudio. Você pode digitar a letra manualmente.'
+        });
+      }
+
+      // Formata como versos de letra se estiver tudo em poucas linhas corridas
+      let formatted = rawText.trim();
+      const lineCount = formatted.split('\n').filter(Boolean).length;
+      if (lineCount <= 2) {
+        formatted = formatted
+          .replace(/([.!?])\s+/g, '$1\n')
+          .replace(/(,\s+)/g, ',\n')
+          .split('\n')
+          .map(l => l.trim())
+          .filter(Boolean)
+          .join('\n');
+      }
+
+      return NextResponse.json({
+        ok: true,
+        lyrics: formatted,
+        rawText
+      });
+    }
+
+    const kieApiKey = readEnvValue(env, 'KIE_API_KEY');
+    if (!kieApiKey) {
+      return NextResponse.json(
+        { error: 'Configuração ausente: KIE_API_KEY não definida no servidor.' },
+        { status: 500 }
+      );
+    }
 
     // 1. Criar tarefa de Remix / Cover
     if (action === 'create') {

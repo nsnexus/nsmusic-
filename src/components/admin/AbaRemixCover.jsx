@@ -26,6 +26,7 @@ export default function AbaRemixCover() {
   const [instrumental, setInstrumental] = useState(false);
   const [vocalGender, setVocalGender] = useState('');
   const [prompt, setPrompt] = useState('');
+  const [identificandoLetra, setIdentificandoLetra] = useState(false);
 
   // Processo de Geração
   const [gerando, setGerando] = useState(false);
@@ -77,6 +78,46 @@ export default function AbaRemixCover() {
     setTimeout(() => setCopiadoId(''), 2500);
   };
 
+  // Identifica e transcreve a letra do áudio com IA (Whisper + Gemini)
+  const handleIdentificarLetra = async (urlCustom) => {
+    const urlAlvo = (typeof urlCustom === 'string' && urlCustom.trim()) ? urlCustom.trim() : audioUrl.trim();
+    if (!urlAlvo) {
+      setMsgErro('Por favor, envie um áudio ou informe a URL do áudio antes de identificar a letra.');
+      return;
+    }
+
+    setIdentificandoLetra(true);
+    setMsgErro('');
+    setMsgSucesso('');
+
+    try {
+      const res = await fetch('/api/admin/remix', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'transcribe',
+          audioUrl: urlAlvo
+        })
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || 'Falha ao transcrever o áudio.');
+      }
+
+      if (data.ok && data.lyrics) {
+        setPrompt(data.lyrics);
+        setMsgSucesso('✨ Letra da música identificada e preenchida com sucesso pela Inteligência Artificial!');
+      } else {
+        setMsgErro(data.message || 'Nenhuma voz cantada clara foi identificada no áudio. Você pode digitar a letra manualmente.');
+      }
+    } catch (err) {
+      setMsgErro(err.message || 'Erro ao identificar a letra da música.');
+    } finally {
+      setIdentificandoLetra(false);
+    }
+  };
+
   // Upload do áudio original no Cloudflare R2
   const handleUploadAudio = async (e) => {
     const file = e.target.files?.[0];
@@ -102,6 +143,11 @@ export default function AbaRemixCover() {
 
       setAudioUrl(data.url);
       setMsgSucesso('Áudio original enviado para o Cloudflare R2 com sucesso!');
+
+      // Se for cover com voz e a letra ainda não foi preenchida, transcreve automaticamente
+      if (!instrumental && !prompt.trim()) {
+        handleIdentificarLetra(data.url);
+      }
     } catch (err) {
       setMsgErro(err.message || 'Erro ao fazer upload do arquivo de áudio.');
     } finally {
@@ -536,28 +582,74 @@ export default function AbaRemixCover() {
 
           {!instrumental && (
             <div style={{ marginBottom: '22px' }}>
-              <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', color: '#334155', marginBottom: '4px' }}>
-                Letra ou Adaptação das Palavras (Opcional)
-              </label>
-              <p style={{ fontSize: '0.78rem', color: '#64748b', margin: '0 0 6px 0' }}>
-                Se desejar alterar a letra ou ajudar o Suno a pronunciar os versos exatos, digite aqui. Caso deixe em branco, a IA seguirá o áudio original.
-              </p>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap', gap: '8px' }}>
+                <div>
+                  <label style={{ fontSize: '0.86rem', fontWeight: '800', color: '#1e293b' }}>
+                    3. Letra da Música (Identificada ou Adaptada)
+                  </label>
+                  <span style={{ fontSize: '0.78rem', color: '#64748b', display: 'block', marginTop: '2px' }}>
+                    O Suno precisa da letra para cantar cada palavra com perfeição.
+                  </span>
+                </div>
+                {audioUrl && (
+                  <button
+                    type="button"
+                    onClick={() => handleIdentificarLetra()}
+                    disabled={identificandoLetra || gerando}
+                    style={{
+                      background: identificandoLetra ? '#ede9fe' : '#f5f3ff',
+                      color: '#7c3aed',
+                      border: '1.5px solid #c4b5fd',
+                      borderRadius: '8px',
+                      padding: '6px 12px',
+                      fontSize: '0.8rem',
+                      fontWeight: '800',
+                      cursor: identificandoLetra ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      boxShadow: '0 1px 3px rgba(124, 58, 237, 0.1)',
+                      transition: 'all 0.15s'
+                    }}
+                  >
+                    {identificandoLetra ? (
+                      <>
+                        <span style={{
+                          width: '12px',
+                          height: '12px',
+                          borderRadius: '50%',
+                          border: '2px solid #7c3aed',
+                          borderTopColor: 'transparent',
+                          animation: 'spin 1s linear infinite',
+                          display: 'inline-block'
+                        }} />
+                        Ouvindo áudio e extraindo letra...
+                      </>
+                    ) : (
+                      <>✨ Identificar Letra com IA (Whisper)</>
+                    )}
+                  </button>
+                )}
+              </div>
+
               <textarea
-                rows={3}
+                rows={5}
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
-                placeholder="[Verso 1]..."
-                disabled={gerando}
+                placeholder="A letra cantada da música aparecerá aqui automaticamente após o upload. Você também pode digitar ou editar os versos..."
+                disabled={gerando || identificandoLetra}
                 style={{
                   width: '100%',
-                  padding: '9px 12px',
+                  padding: '10px 12px',
                   borderRadius: '8px',
                   border: '1.5px solid #cbd5e1',
-                  fontSize: '0.84rem',
+                  fontSize: '0.86rem',
                   outline: 'none',
                   boxSizing: 'border-box',
                   fontFamily: 'inherit',
-                  resize: 'vertical'
+                  resize: 'vertical',
+                  lineHeight: '1.5',
+                  background: identificandoLetra ? '#f8fafc' : '#ffffff'
                 }}
               />
             </div>

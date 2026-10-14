@@ -21,6 +21,14 @@ vi.mock('@/lib/supabase-edge', () => ({
   }))
 }));
 
+vi.mock('@/lib/transcribeAudio', () => ({
+  transcribeAudioWithFailover: vi.fn(async (source) => {
+    if (!source || !source.value) return '';
+    if (source.value.includes('error')) return '';
+    return 'Se você me pedir pra ficar eu fico. Se você me pedir pra voltar eu volto.';
+  })
+}));
+
 const { POST } = await import('@/app/api/admin/remix/route');
 
 describe('/api/admin/remix route', () => {
@@ -122,5 +130,29 @@ describe('/api/admin/remix route', () => {
     expect(data.ok).toBe(true);
     expect(data.status).toBe('SUCCESS');
     expect(data.tracks.length).toBe(2);
+  });
+
+  it('retorna 400 se audioUrl não for fornecida na ação transcribe', async () => {
+    const req = {
+      json: async () => ({ action: 'transcribe' })
+    };
+
+    const res = await POST(req);
+    expect(res.status).toBe(400);
+    const data = await res.json();
+    expect(data.error).toContain('audioUrl');
+  });
+
+  it('identifica e formata versos de letra a partir do áudio com sucesso', async () => {
+    const req = {
+      json: async () => ({ action: 'transcribe', audioUrl: 'https://r2.dev/musica-voz.ogg' })
+    };
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.ok).toBe(true);
+    expect(data.lyrics).toContain('Se você me pedir pra ficar');
+    expect(data.lyrics.split('\n').length).toBeGreaterThan(1);
   });
 });
