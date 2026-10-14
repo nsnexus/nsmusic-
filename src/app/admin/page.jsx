@@ -19,6 +19,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import TabelaTimbresClientes from '@/components/admin/TabelaTimbresClientes';
 import AbaFinanceiro from '@/components/admin/AbaFinanceiro';
+import AbaRemixCover from '@/components/admin/AbaRemixCover';
 
 export default function AdminDashboard() {
   const [user, setUser] = useState(null);
@@ -867,8 +868,8 @@ export default function AdminDashboard() {
                   const val = e.target.value;
                   if (val === 'DASHBOARD') {
                     router.push('/admin/dashboard');
-                  } else if (val === 'VOZ') {
-                    router.push('/admin/voz');
+                  } else if (val === 'ANUNCIOS') {
+                    router.push('/admin/anuncios');
                   } else if (val === 'CARTAS') {
                     router.push('/admin/cartas');
                   } else {
@@ -891,8 +892,9 @@ export default function AdminDashboard() {
                 <option value="FINANCEIRO">💰 Financeiro (Receitas & Despesas)</option>
                 <option value="STUCK">💰 Conferir Pagamentos</option>
                 <option value="TIMBRES">📋 Timbres de Voz (Clientes)</option>
-                <option value="VOZ">🎤 Teste de Voz (Beta) ➔</option>
+                <option value="REMIX">🎛️ Remix / Cover Suno</option>
                 <option value="DASHBOARD">📊 Dashboard ➔</option>
+                <option value="ANUNCIOS">🎯 Anúncios (ROI/CPA) ➔</option>
                 <option value="CARTAS">💌 Temas da Carta ➔</option>
                 <option value="LIMITES">🚦 Limites de Geração</option>
                 <option value="AJUSTES">⚙️ Ajustes Gerais</option>
@@ -943,11 +945,22 @@ export default function AdminDashboard() {
               >
                 📋 Timbres de Voz
               </button>
-              <Link href="/admin/voz" style={{ ...styles.tabBtn, backgroundColor: '#2563eb', color: '#ffffff', textDecoration: 'none', display: 'inline-block', fontWeight: '700' }}>
-                🎤 Teste de Voz (Beta)
-              </Link>
+              <button
+                onClick={() => setActiveTab('REMIX')}
+                style={{
+                  ...styles.tabBtn,
+                  backgroundColor: activeTab === 'REMIX' ? '#7c3aed' : '#e2e8f0',
+                  color: activeTab === 'REMIX' ? '#ffffff' : '#334155',
+                  fontWeight: '700',
+                }}
+              >
+                🎛️ Remix & Cover
+              </button>
               <Link href="/admin/dashboard" style={{ ...styles.tabBtn, backgroundColor: '#e2e8f0', color: '#334155', textDecoration: 'none', display: 'inline-block' }}>
                 📊 Dashboard
+              </Link>
+              <Link href="/admin/anuncios" style={{ ...styles.tabBtn, backgroundColor: '#1e293b', color: '#60a5fa', textDecoration: 'none', display: 'inline-block', fontWeight: '700' }}>
+                🎯 Anúncios (ROI/CPA)
               </Link>
               <Link href="/admin/cartas" style={{ ...styles.tabBtn, backgroundColor: '#e2e8f0', color: '#334155', textDecoration: 'none', display: 'inline-block' }}>
                 💌 Temas da Carta
@@ -1012,6 +1025,8 @@ export default function AdminDashboard() {
           
           {activeTab === 'FINANCEIRO' ? (
             <AbaFinanceiro />
+          ) : activeTab === 'REMIX' ? (
+            <AbaRemixCover />
           ) : activeTab === 'TIMBRES' ? (
             <TabelaTimbresClientes />
           ) : activeTab === 'LIMITES' ? (

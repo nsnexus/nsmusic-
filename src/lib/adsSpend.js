@@ -161,3 +161,67 @@ export async function getConsolidatedAdsSpend({ since, until }, env = {}) {
     period: { since, until },
   };
 }
+
+/**
+ * Busca métricas detalhadas a nível de anúncio (ad) via Meta Marketing API.
+ * Retorna lista de anúncios com spend, cliques, impressões, ctr, cpc.
+ */
+export async function fetchMetaAdLevelInsights({ since, until }, env = {}) {
+  const accountIdRaw = readEnvValue(env, 'META_AD_ACCOUNT_ID');
+  const token = readEnvValue(env, 'META_MARKETING_ACCESS_TOKEN');
+
+  if (!accountIdRaw || !token) {
+    return { ok: false, reason: 'not_configured', ads: [] };
+  }
+
+  const actId = normalizeMetaAccountId(accountIdRaw);
+  const cacheKey = getCacheKey('meta_ad_level', since, until);
+  const cached = adsCache.get(cacheKey);
+  const now = Date.now();
+
+  // Cache de 3 minutos
+  if (cached && now - cached.timestamp < 3 * 60 * 1000) {
+    return cached.data;
+  }
+
+  try {
+    const timeRange = JSON.stringify({ since, until });
+    const url = `https://graph.facebook.com/v20.0/${encodeURIComponent(actId)}/insights?level=ad&fields=ad_id,ad_name,campaign_id,campaign_name,adset_id,adset_name,spend,impressions,clicks,cpc,ctr&time_range=${encodeURIComponent(timeRange)}&limit=500&access_token=${encodeURIComponent(token)}`;
+
+    const res = await fetch(url);
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      console.warn(`[adsSpend] Erro ao consultar Meta Ad Insights (HTTP ${res.status}):`, errText.slice(0, 300));
+      return { ok: false, error: `HTTP ${res.status}`, ads: [] };
+    }
+
+    const json = await res.json().catch(() => null);
+    const ads = [];
+
+    if (Array.isArray(json?.data)) {
+      for (const row of json.data) {
+        ads.push({
+          adId: String(row.ad_id || ''),
+          adName: String(row.ad_name || 'Sem nome'),
+          campaignId: String(row.campaign_id || ''),
+          campaignName: String(row.campaign_name || 'Campanha sem nome'),
+          adsetId: String(row.adset_id || ''),
+          adsetName: String(row.adset_name || ''),
+          spend: Number(row.spend) || 0,
+          impressions: Number(row.impressions) || 0,
+          clicks: Number(row.clicks) || 0,
+          cpc: Number(row.cpc) || 0,
+          ctr: Number(row.ctr) || 0,
+        });
+      }
+    }
+
+    const result = { ok: true, ads };
+    adsCache.set(cacheKey, { timestamp: now, data: result });
+    return result;
+  } catch (err) {
+    console.warn('[adsSpend] Exceção ao consultar Meta Ad Insights:', err?.message);
+    return { ok: false, error: err?.message, ads: [] };
+  }
+}
+

@@ -4,6 +4,7 @@ import {
   fetchMetaDailySpend,
   fetchTikTokDailySpend,
   getConsolidatedAdsSpend,
+  fetchMetaAdLevelInsights,
 } from '../../src/lib/adsSpend.js';
 
 describe('adsSpend module', () => {
@@ -102,6 +103,50 @@ describe('adsSpend module', () => {
       expect(res.meta.ok).toBe(false);
       expect(res.tiktok.ok).toBe(false);
       expect(res.period.since).toBe('2026-10-01');
+    });
+  });
+
+  describe('fetchMetaAdLevelInsights', () => {
+    it('retorna not_configured se faltar credencial', async () => {
+      const res = await fetchMetaAdLevelInsights({ since: '2026-10-01', until: '2026-10-02' }, {});
+      expect(res.ok).toBe(false);
+      expect(res.reason).toBe('not_configured');
+      expect(res.ads).toEqual([]);
+    });
+
+    it('processa e retorna anúncios com métricas calculadas', async () => {
+      const fakeFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          data: [
+            {
+              ad_id: '123456',
+              ad_name: 'Anúncio Criativo 01',
+              campaign_id: 'camp_1',
+              campaign_name: 'Campanha Vendas Outubro',
+              adset_id: 'adset_1',
+              adset_name: 'Público Aberto',
+              spend: '49.90',
+              impressions: '1200',
+              clicks: '85',
+              cpc: '0.58',
+              ctr: '7.08',
+            },
+          ],
+        }),
+      });
+      global.fetch = fakeFetch;
+
+      const res = await fetchMetaAdLevelInsights(
+        { since: '2026-10-01', until: '2026-10-02' },
+        { META_AD_ACCOUNT_ID: 'act_999', META_MARKETING_ACCESS_TOKEN: 'token_marketing' }
+      );
+
+      expect(res.ok).toBe(true);
+      expect(res.ads.length).toBe(1);
+      expect(res.ads[0].adName).toBe('Anúncio Criativo 01');
+      expect(res.ads[0].spend).toBe(49.90);
+      expect(res.ads[0].clicks).toBe(85);
     });
   });
 });

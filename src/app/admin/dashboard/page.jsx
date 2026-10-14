@@ -145,6 +145,8 @@ export default function AdminDashboard() {
                   const val = e.target.value;
                   if (val === 'ORDERS') {
                     router.push('/admin');
+                  } else if (val === 'ANUNCIOS') {
+                    router.push('/admin/anuncios');
                   } else if (val === 'CARTAS') {
                     router.push('/admin/cartas');
                   }
@@ -163,6 +165,7 @@ export default function AdminDashboard() {
               >
                 <option value="DASHBOARD">📊 Dashboard</option>
                 <option value="ORDERS">📦 Pedidos ➔</option>
+                <option value="ANUNCIOS">🎯 Anúncios (ROI/CPA) ➔</option>
                 <option value="CARTAS">💌 Temas da Carta ➔</option>
               </select>
             </div>
@@ -175,6 +178,9 @@ export default function AdminDashboard() {
               <span style={{ ...styles.tabBtn, backgroundColor: '#7c3aed', color: '#ffffff' }}>
                 📊 Dashboard
               </span>
+              <Link href="/admin/anuncios" style={{ ...styles.tabBtn, backgroundColor: '#1e293b', color: '#60a5fa', textDecoration: 'none', display: 'inline-block', fontWeight: '700' }}>
+                🎯 Anúncios (ROI/CPA)
+              </Link>
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
