@@ -7,6 +7,7 @@ export async function POST(req) {
   try {
     const body = await req.json();
     const { currentLyrics, comment, formData } = body;
+    const rel = (formData?.relationship || '').trim() || 'Especial';
 
     const keysString = process.env.GEMINI_API_KEYS || process.env.GEMINI_API_KEY || '';
     if (!keysString) {
@@ -32,10 +33,13 @@ Regras estritas:
 2. Mantenha os mesmos cabeçalhos de estrutura: [Verso 1], [Pré-Refrão], [Refrão], [Verso 2], [Ponte], [Refrão Final].
 3. Não cite artistas ou copie letras de terceiros.
 4. Mantenha o estilo e tom geral da música.
-5. RETORNE EXCLUSIVAMENTE O TEXTO DA LETRA DA MÚSICA. É ESTRITAMENTE PROIBIDO incluir saudações, explicações, observações ou comentários de cortesia (como "As alterações foram feitas...", "Espero que goste", etc.), pois o seu texto será enviado diretamente para a gravação da voz.
+5. RESPEITO AO VÍNCULO ("${rel}"): Se a relação for familiar (ex: Mãe, Pai, Filho(a), Irmão/Irmã, etc.), é EXPRESSAMENTE PROIBIDO incluir conotações românticas, termos de casal ou insinuações de marido e mulher. O amor deve ser estritamente filial/familiar.
+6. RETORNE EXCLUSIVAMENTE O TEXTO DA LETRA DA MÚSICA. É ESTRITAMENTE PROIBIDO incluir saudações, explicações, observações ou comentários de cortesia (como "As alterações foram feitas...", "Espero que goste", etc.), pois o seu texto será enviado diretamente para a gravação da voz.
 
 Dados do pedido original para referência:
 - Homenageado: ${formData?.honoreeName || 'Amigo'}
+- Dedicado por: ${formData?.customerName || 'Quem dedica'}
+- Relação: ${rel}
 - Ocasião: ${formData?.occasion || 'Geral'}
 - Qualidades: ${formData?.qualities || ''}`;
 

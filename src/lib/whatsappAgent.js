@@ -474,6 +474,8 @@ Ou me conta agora mesmo: pra quem vai ser essa música, e um pouco da história 
       envVars
     );
 
+    const rel = turn.fields.relationship || session.relationship || '';
+
     const lyricsPrompt = `Você é um compositor e letrista profissional premiado de música brasileira.
 Componha uma letra de música personalizada, profundamente tocante, autêntica e emocionante.
 Use as informações reais fornecidas pelo cliente abaixo para criar versos ricos em detalhes reais, evitando clichês.
@@ -488,14 +490,16 @@ Estrutura da Letra (utilize exatamente estes cabeçalhos em colchetes):
 
 Dados da Homenagem:
 - Homenageado(a): ${honoreeName || 'Pessoa Especial'}
-- Relação: ${turn.fields.relationship || session.relationship || ''}
+- Relação: ${rel}
 - Ocasião: ${occasion || ''}
 - História e Detalhes: ${story}
 - Estilo Musical Escolhido: ${musicStyle}
 - Clima da Música: ${musicMood}
 - Tipo de Voz: ${voiceType}
 
-RETORNE EXCLUSIVAMENTE O TEXTO DA LETRA DA MÚSICA, sem saudações ou comentários.`;
+Diretrizes Obrigatórias:
+1. RESPEITO ABSOLUTO AO VÍNCULO: Se a relação for familiar (ex: Mãe, Pai, Filho(a), Irmão/Irmã, etc.), o amor DEVE ser estritamente filial/familiar. É expressamente PROIBIDO usar termos de casal, conotação sensual, romântica ou insinuações de marido e mulher. Se for Mãe, a canção é cantada do ponto de vista de filho(a) com gratidão e carinho maternal, NUNCA amor de casal!
+2. RETORNE EXCLUSIVAMENTE O TEXTO DA LETRA DA MÚSICA, sem saudações ou comentários.`;
 
     let generatedLyrics = '';
     try {

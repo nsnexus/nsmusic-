@@ -20,8 +20,8 @@ const CATEGORIA_PADRAO = 'padrao';
 // recipientType/relationship -> gênero de quem recebe a carta. Ambíguos (Chefe, Eu mesmo, Outro)
 // ficam de fora do mapa de propósito e caem no fallback neutro.
 const GENERO_POR_RELACAO = {
-  Namorada: 'feminino', Esposa: 'feminino', Mãe: 'feminino', Vó: 'feminino', Filha: 'feminino', Irmã: 'feminino', Amiga: 'feminino',
-  Namorado: 'masculino', Marido: 'masculino', Pai: 'masculino', Vô: 'masculino', Filho: 'masculino', Irmão: 'masculino', Amigo: 'masculino',
+  Namorada: 'feminino', Esposa: 'feminino', Noiva: 'feminino', Mãe: 'feminino', Vó: 'feminino', Filha: 'feminino', Irmã: 'feminino', Amiga: 'feminino', Tia: 'feminino', Madrinha: 'feminino',
+  Namorado: 'masculino', Marido: 'masculino', Noivo: 'masculino', Pai: 'masculino', Vô: 'masculino', Filho: 'masculino', Irmão: 'masculino', Amigo: 'masculino', Tio: 'masculino', Padrinho: 'masculino',
 };
 const GENERO_PADRAO = 'neutro';
 

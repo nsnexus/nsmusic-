@@ -204,9 +204,8 @@ export default function CriarMusica() {
     recipientType: '',
     // Step 2
     honoreeName: '',
-    // Preenchido automaticamente a partir de recipientType (ver selectFieldAndAdvance) — não é
-    // mais uma etapa própria do wizard, era redundante com "quem vai receber a música".
     relationship: '',
+    customRelationship: '',
     // Step 3
     occasion: '',
     // Step 4
@@ -389,6 +388,9 @@ export default function CriarMusica() {
                 ? { ...parsed.formData, occasion: ocasiaoValida }
                 : parsed.formData,
             );
+            if (parsed.formData.relationship === 'Eu mesmo' || parsed.formData.recipientType === 'Eu mesmo') {
+              setIsSelfTribute(true);
+            }
           } else if (ocasiaoValida) {
             setFormData((prev) => ({ ...prev, occasion: ocasiaoValida }));
           }
@@ -947,10 +949,12 @@ export default function CriarMusica() {
       }
       setOrderId('');
       setTaskId('');
+      setIsSelfTribute(false);
       setFormData({
         recipientType: '',
         honoreeName: '',
         relationship: '',
+        customRelationship: '',
         occasion: '',
         story: '',
         importantMoments: '',
@@ -1038,6 +1042,10 @@ export default function CriarMusica() {
       // parecendo que o cliente "pediu a música" mas ela nunca foi enviada à Kie.ai (achado da
       // auditoria de fechamento, 2026-08-05). Mesmo padrão já usado em handleApproveLyrics.
       let currentOrderId = orderId;
+      const effectiveRelationship = (formData.relationship === 'Outro' && formData.customRelationship?.trim())
+        ? formData.customRelationship.trim()
+        : (formData.relationship || (isSelfTribute ? 'Eu mesmo' : ''));
+
       if (!currentOrderId) {
         try {
           const traffic = getStoredTrafficSource();
@@ -1046,6 +1054,8 @@ export default function CriarMusica() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               ...formData,
+              relationship: effectiveRelationship,
+              recipientType: effectiveRelationship,
               customVoiceId: recognizedVoice?.voiceId || null,
               isCustomVoice: formData.voiceType === 'minha_voz',
               ...traffic
@@ -1081,6 +1091,8 @@ export default function CriarMusica() {
 
       // Call lyrics generation with lightweight text payload (stripping Base64 coverUrl to prevent Safari Load failed errors)
       const { coverUrl, ...lightweightFormData } = formData;
+      lightweightFormData.relationship = effectiveRelationship;
+      lightweightFormData.recipientType = effectiveRelationship;
 
       const response = await fetch('/api/lyrics/generate', {
         method: 'POST',
@@ -1140,13 +1152,21 @@ export default function CriarMusica() {
     if (!formData.lyricsComment.trim()) return;
     updateField('lyricsStatus', 'generating');
     try {
+      const effectiveRelationship = (formData.relationship === 'Outro' && formData.customRelationship?.trim())
+        ? formData.customRelationship.trim()
+        : (formData.relationship || (isSelfTribute ? 'Eu mesmo' : ''));
+
       const response = await fetch('/api/lyrics/improve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           currentLyrics: formData.lyrics,
           comment: formData.lyricsComment,
-          formData
+          formData: {
+            ...formData,
+            relationship: effectiveRelationship,
+            recipientType: effectiveRelationship,
+          }
         })
       });
 
@@ -1190,12 +1210,18 @@ export default function CriarMusica() {
       let activeOrderId = orderId;
       if (!activeOrderId) {
         try {
+          const effectiveRelationship = (formData.relationship === 'Outro' && formData.customRelationship?.trim())
+            ? formData.customRelationship.trim()
+            : (formData.relationship || (isSelfTribute ? 'Eu mesmo' : ''));
+
           const traffic = getStoredTrafficSource();
           const createRes = await fetch('/api/orders/create', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               ...formData,
+              relationship: effectiveRelationship,
+              recipientType: effectiveRelationship,
               customVoiceId: recognizedVoice?.voiceId || null,
               isCustomVoice: formData.voiceType === 'minha_voz',
               userId: auth.currentUser ? auth.currentUser.uid : null,
@@ -1426,8 +1452,16 @@ export default function CriarMusica() {
     // Upload da foto de capa em andamento: não avança enquanto não terminar
     if (isUploadingCover) return true;
 
-    // Etapa 1: Ocasião + Nome de quem dedica + Nome do homenageado
-    if (step === 1 && (!formData.occasion || !formData.customerName?.trim() || !formData.honoreeName?.trim())) return true;
+    // Etapa 1: Ocasião + Nome de quem dedica + Nome do homenageado + Relação
+    if (step === 1) {
+      const hasOccasion = Boolean(formData.occasion);
+      const hasCustomer = Boolean(formData.customerName?.trim());
+      const hasHonoree = Boolean(formData.honoreeName?.trim());
+      const hasRelationship = isSelfTribute
+        ? true
+        : Boolean(formData.relationship?.trim()) && (formData.relationship !== 'Outro' || Boolean(formData.customRelationship?.trim()));
+      if (!hasOccasion || !hasCustomer || !hasHonoree || !hasRelationship) return true;
+    }
     // Etapa 2: História (mínimo 50 caracteres válidos com trim)
     if (step === 2 && (formData.story || '').trim().length < 50) return true;
     // Etapa 3: Ritmo, Clima e Tipo de Voz
@@ -1436,6 +1470,8 @@ export default function CriarMusica() {
     if (step === 4 && (
       !formData.customerName?.trim() ||
       !formData.honoreeName?.trim() ||
+      (!formData.relationship?.trim() && !isSelfTribute) ||
+      (formData.relationship === 'Outro' && !formData.customRelationship?.trim()) ||
       (formData.story || '').trim().length < 50 ||
       !formData.musicStyle ||
       !isPhoneValid(formData.customerPhone) ||

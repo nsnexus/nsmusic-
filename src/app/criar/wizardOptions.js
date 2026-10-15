@@ -1,24 +1,29 @@
 // Opções estáticas do wizard de /criar — extraído de page.jsx (M-20 no AUDIT_REPORT.md). Eram
 // recriadas a cada render dentro do componente; agora são constantes de módulo.
 export const recipients = [
-  { id: 'Namorada', label: 'Namorada', icon: '💖' },
-  { id: 'Esposa', label: 'Esposa', icon: '💍' },
-  { id: 'Namorado', label: 'Namorado', icon: '❤️' },
-  { id: 'Marido', label: 'Marido', icon: '💑' },
   { id: 'Mãe', label: 'Mãe', icon: '👩' },
   { id: 'Pai', label: 'Pai', icon: '👨' },
-  { id: 'Vó', label: 'Vó', icon: '👵' },
-  { id: 'Vô', label: 'Vô', icon: '👴' },
+  { id: 'Esposa', label: 'Esposa', icon: '💍' },
+  { id: 'Marido', label: 'Marido', icon: '💑' },
+  { id: 'Namorada', label: 'Namorada', icon: '💖' },
+  { id: 'Namorado', label: 'Namorado', icon: '❤️' },
   { id: 'Filha', label: 'Filha', icon: '👧' },
   { id: 'Filho', label: 'Filho', icon: '👦' },
-  // Faltava — relação bem comum, achado 04/09/2026 ao revisar as opções do wizard.
+  { id: 'Vó', label: 'Vó', icon: '👵' },
+  { id: 'Vô', label: 'Vô', icon: '👴' },
   { id: 'Irmã', label: 'Irmã', icon: '👭' },
   { id: 'Irmão', label: 'Irmão', icon: '👬' },
+  { id: 'Noiva', label: 'Noiva', icon: '👰' },
+  { id: 'Noivo', label: 'Noivo', icon: '🤵' },
   { id: 'Amiga', label: 'Amiga', icon: '💛' },
   { id: 'Amigo', label: 'Amigo', icon: '🤝' },
+  { id: 'Tia', label: 'Tia', icon: '🌸' },
+  { id: 'Tio', label: 'Tio', icon: '👔' },
+  { id: 'Primo(a)', label: 'Primo(a)', icon: '🫂' },
+  { id: 'Padrinho / Madrinha', label: 'Padrinho / Madrinha', icon: '🕊️' },
   { id: 'Chefe', label: 'Chefe', icon: '💼' },
   { id: 'Eu mesmo', label: 'Eu mesmo', icon: '🎤' },
-  { id: 'Outro', label: 'Outro', icon: '🎵' },
+  { id: 'Outro', label: 'Outro', icon: '✨' },
 ];
 
 export const occasions = [

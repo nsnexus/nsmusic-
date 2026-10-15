@@ -4,7 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { Mic, Users, Check, Camera, Trash2, Heart, Music, Sparkles } from 'lucide-react';
 import { styles } from './wizardStyles';
-import { occasions, stylesList, moods } from './wizardOptions';
+import { occasions, stylesList, moods, recipients } from './wizardOptions';
 
 export default function WizardSteps({
   step,
@@ -105,9 +105,11 @@ export default function WizardSteps({
                     if (nextSelf) {
                       updateField('honoreeName', formData.customerName || '');
                       updateField('recipientType', 'Eu mesmo');
+                      updateField('relationship', 'Eu mesmo');
                     } else {
                       updateField('honoreeName', '');
-                      updateField('recipientType', 'Outro');
+                      updateField('recipientType', '');
+                      updateField('relationship', '');
                     }
                   }}
                   style={{
@@ -152,6 +154,88 @@ export default function WizardSteps({
                 <span style={{ display: 'block', fontSize: '0.78rem', color: 'var(--primary)', marginTop: '6px', fontWeight: '600' }}>
                   ⭐ Homenagem própria: a música será cantada para você mesmo(a)!
                 </span>
+              )}
+            </div>
+
+            {/* 4. O que essa pessoa é sua? (Grau de parentesco ou relação) */}
+            <div style={{ marginTop: '22px' }}>
+              <label style={styles.wizardLabel}>
+                O que essa pessoa é sua? (Grau de parentesco ou relação) *
+              </label>
+
+              {isSelfTribute ? (
+                <div
+                  style={{
+                    padding: '14px 16px',
+                    borderRadius: '12px',
+                    backgroundColor: 'var(--primary-light)',
+                    border: '1.5px solid var(--primary)',
+                    color: 'var(--primary)',
+                    fontWeight: '700',
+                    fontSize: '0.95rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    marginTop: '4px',
+                  }}
+                >
+                  <span style={{ fontSize: '1.1rem' }}>🎤</span>
+                  <span>Homenagem para mim mesmo(a)</span>
+                </div>
+              ) : (
+                <>
+                  <select
+                    value={formData.relationship || ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      updateField('relationship', val);
+                      updateField('recipientType', val);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '14px 16px',
+                      borderRadius: '12px',
+                      border: '1.5px solid #cbd5e1',
+                      backgroundColor: '#ffffff',
+                      color: formData.relationship ? '#0f172a' : '#64748b',
+                      fontSize: '1rem',
+                      fontWeight: '600',
+                      outline: 'none',
+                      cursor: 'pointer',
+                      boxSizing: 'border-box',
+                      marginTop: '4px',
+                    }}
+                  >
+                    <option value="">Selecione o parentesco ou vínculo (ex: Mãe, Pai, Esposa...)</option>
+                    {recipients.filter((r) => r.id !== 'Eu mesmo').map((rec) => (
+                      <option key={rec.id} value={rec.id}>
+                        {rec.icon} {rec.label}
+                      </option>
+                    ))}
+                  </select>
+
+                  {formData.relationship === 'Outro' && (
+                    <div style={{ marginTop: '10px' }}>
+                      <input
+                        type="text"
+                        value={formData.customRelationship || ''}
+                        onChange={(e) => updateField('customRelationship', e.target.value)}
+                        placeholder="Especifique a relação (ex: Sogra, Padrasto, Afilhado(a)...)"
+                        style={{
+                          ...styles.wizardInput,
+                          marginTop: '0',
+                          textAlign: 'left',
+                          fontSize: '0.95rem',
+                          padding: '12px 16px',
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  <span style={{ display: 'block', fontSize: '0.78rem', color: '#64748b', marginTop: '6px' }}>
+                    💡 Essencial para a IA definir o tom perfeito da letra (amor familiar, romântico ou amizade).
+                  </span>
+                </>
               )}
             </div>
           </div>
@@ -514,6 +598,14 @@ export default function WizardSteps({
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ color: '#64748b' }}>Dedicado por:</span>
                   <strong style={{ color: '#0f172a' }}>{formData.customerName}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: '#64748b' }}>Relação:</span>
+                  <strong style={{ color: '#0f172a' }}>
+                    {formData.relationship === 'Outro' && formData.customRelationship
+                      ? formData.customRelationship
+                      : (formData.relationship || (isSelfTribute ? 'Eu mesmo' : 'Especial'))}
+                  </strong>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ color: '#64748b' }}>Ritmo & Clima:</span>
