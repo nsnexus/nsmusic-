@@ -37,14 +37,14 @@ export async function GET(req) {
 
   const { searchParams } = new URL(req.url);
   const now = new Date();
-  const hojeStr = getLocalDateStr(now);
+  const hojeStr = new Date(now.getTime() - 3 * 3600 * 1000).toISOString().slice(0, 10);
 
   let since = searchParams.get('since') || hojeStr;
   let until = searchParams.get('until') || hojeStr;
 
   const supabase = getSupabaseEdge(env);
 
-  // Fallback: carrega credenciais da Meta salvas no Supabase se não estiverem no env do Pages
+  // Carrega credenciais da Meta salvas no Supabase
   if (supabase) {
     try {
       const { data: metaConf } = await supabase
@@ -54,10 +54,10 @@ export async function GET(req) {
         .maybeSingle();
 
       if (metaConf?.valor && typeof metaConf.valor === 'object') {
-        if (!env.META_AD_ACCOUNT_ID && metaConf.valor.META_AD_ACCOUNT_ID) {
+        if (metaConf.valor.META_AD_ACCOUNT_ID) {
           env.META_AD_ACCOUNT_ID = metaConf.valor.META_AD_ACCOUNT_ID;
         }
-        if (!env.META_MARKETING_ACCESS_TOKEN && metaConf.valor.META_MARKETING_ACCESS_TOKEN) {
+        if (metaConf.valor.META_MARKETING_ACCESS_TOKEN) {
           env.META_MARKETING_ACCESS_TOKEN = metaConf.valor.META_MARKETING_ACCESS_TOKEN;
         }
       }

@@ -58,10 +58,10 @@ export async function GET(req) {
         .maybeSingle();
 
       if (metaConf?.valor && typeof metaConf.valor === 'object') {
-        if (!env.META_AD_ACCOUNT_ID && metaConf.valor.META_AD_ACCOUNT_ID) {
+        if (metaConf.valor.META_AD_ACCOUNT_ID) {
           env.META_AD_ACCOUNT_ID = metaConf.valor.META_AD_ACCOUNT_ID;
         }
-        if (!env.META_MARKETING_ACCESS_TOKEN && metaConf.valor.META_MARKETING_ACCESS_TOKEN) {
+        if (metaConf.valor.META_MARKETING_ACCESS_TOKEN) {
           env.META_MARKETING_ACCESS_TOKEN = metaConf.valor.META_MARKETING_ACCESS_TOKEN;
         }
       }

@@ -227,8 +227,12 @@ class SupabaseTableQuery {
     return this;
   }
 
-  offset(count) {
-    this.queryParams.set('offset', String(count));
+  range(from, to) {
+    const f = Number(from) || 0;
+    const t = Number(to) || f;
+    const limit = Math.max(1, t - f + 1);
+    this.limit(limit);
+    this.offset(f);
     return this;
   }
 
