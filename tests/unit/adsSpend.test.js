@@ -25,6 +25,10 @@ describe('adsSpend module', () => {
       expect(normalizeMetaAccountId('')).toBe('');
       expect(normalizeMetaAccountId(null)).toBe('');
     });
+
+    it('suporta múltiplos IDs separados por vírgula', () => {
+      expect(normalizeMetaAccountId('3247434285438445, 1501763781840824')).toBe('act_3247434285438445,act_1501763781840824');
+    });
   });
 
   describe('fetchMetaDailySpend', () => {

@@ -12,16 +12,40 @@ function getCacheKey(channel, since, until) {
 }
 
 /**
+ * Normaliza uma lista de IDs de contas da Meta (suporta string com vírgula ou array).
+ * Retorna array de IDs limpos com prefixo 'act_'.
+ */
+export function normalizeMetaAccountIds(id) {
+  if (!id) return [];
+  const rawList = Array.isArray(id) ? id : String(id).split(',');
+  const seen = new Set();
+  const result = [];
+
+  for (const item of rawList) {
+    const clean = String(item || '').trim();
+    if (!clean) continue;
+    const withPrefix = clean.startsWith('act_') ? clean : `act_${clean}`;
+    if (!seen.has(withPrefix)) {
+      seen.add(withPrefix);
+      result.push(withPrefix);
+    }
+  }
+
+  return result;
+}
+
+/**
  * Normaliza o ID da conta da Meta (adiciona 'act_' se vier só os números).
+ * Suporta string única ou separada por vírgula.
  */
 export function normalizeMetaAccountId(id) {
-  if (!id) return '';
-  const clean = String(id).trim();
-  return clean.startsWith('act_') ? clean : `act_${clean}`;
+  const ids = normalizeMetaAccountIds(id);
+  return ids.join(',');
 }
 
 /**
  * Busca o gasto diário com Meta Ads (Facebook e Instagram) para um intervalo de datas.
+ * Suporta múltiplas contas de anúncios simultaneamente (somando os gastos).
  * Retorna um mapa { [YYYY-MM-DD]: valorGasto } e o total.
  */
 export async function fetchMetaDailySpend({ since, until }, env = {}) {
@@ -32,8 +56,12 @@ export async function fetchMetaDailySpend({ since, until }, env = {}) {
     return { ok: false, reason: 'not_configured', byDate: {}, total: 0 };
   }
 
-  const actId = normalizeMetaAccountId(accountIdRaw);
-  const cacheKey = getCacheKey('meta', since, until);
+  const actIds = normalizeMetaAccountIds(accountIdRaw);
+  if (actIds.length === 0) {
+    return { ok: false, reason: 'not_configured', byDate: {}, total: 0 };
+  }
+
+  const cacheKey = `${getCacheKey('meta', since, until)}_${actIds.slice().sort().join('_')}`;
   const cached = adsCache.get(cacheKey);
   const now = Date.now();
 
@@ -44,31 +72,40 @@ export async function fetchMetaDailySpend({ since, until }, env = {}) {
 
   try {
     const timeRange = JSON.stringify({ since, until });
-    const url = `https://graph.facebook.com/v20.0/${encodeURIComponent(actId)}/insights?time_range=${encodeURIComponent(timeRange)}&time_increment=1&fields=spend&access_token=${encodeURIComponent(token)}`;
-
-    const res = await fetch(url);
-    if (!res.ok) {
-      const errText = await res.text().catch(() => '');
-      console.warn(`[adsSpend] Erro ao consultar Meta Insights (HTTP ${res.status}):`, errText.slice(0, 300));
-      return { ok: false, error: `HTTP ${res.status}`, byDate: {}, total: 0 };
-    }
-
-    const json = await res.json().catch(() => null);
     const byDate = {};
     let total = 0;
+    let anyOk = false;
 
-    if (Array.isArray(json?.data)) {
-      for (const row of json.data) {
-        const dateKey = row.date_start; // YYYY-MM-DD
-        const spend = Number(row.spend) || 0;
-        if (dateKey) {
-          byDate[dateKey] = (byDate[dateKey] || 0) + spend;
-          total += spend;
+    await Promise.all(
+      actIds.map(async (actId) => {
+        try {
+          const url = `https://graph.facebook.com/v20.0/${encodeURIComponent(actId)}/insights?time_range=${encodeURIComponent(timeRange)}&time_increment=1&fields=spend&access_token=${encodeURIComponent(token)}`;
+          const res = await fetch(url);
+          if (!res.ok) {
+            const errText = await res.text().catch(() => '');
+            console.warn(`[adsSpend] Erro ao consultar Meta Insights para ${actId} (HTTP ${res.status}):`, errText.slice(0, 300));
+            return;
+          }
+
+          const json = await res.json().catch(() => null);
+          if (Array.isArray(json?.data)) {
+            anyOk = true;
+            for (const row of json.data) {
+              const dateKey = row.date_start; // YYYY-MM-DD
+              const spend = Number(row.spend) || 0;
+              if (dateKey) {
+                byDate[dateKey] = (byDate[dateKey] || 0) + spend;
+                total += spend;
+              }
+            }
+          }
+        } catch (e) {
+          console.warn(`[adsSpend] Falha ao consultar conta ${actId}:`, e?.message);
         }
-      }
-    }
+      })
+    );
 
-    const result = { ok: true, byDate, total: Math.round(total * 100) / 100 };
+    const result = { ok: anyOk, byDate, total: Math.round(total * 100) / 100 };
     adsCache.set(cacheKey, { timestamp: now, data: result });
     return result;
   } catch (err) {
@@ -174,8 +211,12 @@ export async function fetchMetaAdLevelInsights({ since, until }, env = {}) {
     return { ok: false, reason: 'not_configured', ads: [] };
   }
 
-  const actId = normalizeMetaAccountId(accountIdRaw);
-  const cacheKey = getCacheKey('meta_ad_level', since, until);
+  const actIds = normalizeMetaAccountIds(accountIdRaw);
+  if (actIds.length === 0) {
+    return { ok: false, reason: 'not_configured', ads: [] };
+  }
+
+  const cacheKey = `${getCacheKey('meta_ad_level', since, until)}_${actIds.slice().sort().join('_')}`;
   const cached = adsCache.get(cacheKey);
   const now = Date.now();
 
@@ -186,37 +227,47 @@ export async function fetchMetaAdLevelInsights({ since, until }, env = {}) {
 
   try {
     const timeRange = JSON.stringify({ since, until });
-    const url = `https://graph.facebook.com/v20.0/${encodeURIComponent(actId)}/insights?level=ad&fields=ad_id,ad_name,campaign_id,campaign_name,adset_id,adset_name,spend,impressions,clicks,cpc,ctr&time_range=${encodeURIComponent(timeRange)}&limit=500&access_token=${encodeURIComponent(token)}`;
-
-    const res = await fetch(url);
-    if (!res.ok) {
-      const errText = await res.text().catch(() => '');
-      console.warn(`[adsSpend] Erro ao consultar Meta Ad Insights (HTTP ${res.status}):`, errText.slice(0, 300));
-      return { ok: false, error: `HTTP ${res.status}`, ads: [] };
-    }
-
-    const json = await res.json().catch(() => null);
     const ads = [];
+    let anyOk = false;
 
-    if (Array.isArray(json?.data)) {
-      for (const row of json.data) {
-        ads.push({
-          adId: String(row.ad_id || ''),
-          adName: String(row.ad_name || 'Sem nome'),
-          campaignId: String(row.campaign_id || ''),
-          campaignName: String(row.campaign_name || 'Campanha sem nome'),
-          adsetId: String(row.adset_id || ''),
-          adsetName: String(row.adset_name || ''),
-          spend: Number(row.spend) || 0,
-          impressions: Number(row.impressions) || 0,
-          clicks: Number(row.clicks) || 0,
-          cpc: Number(row.cpc) || 0,
-          ctr: Number(row.ctr) || 0,
-        });
-      }
-    }
+    await Promise.all(
+      actIds.map(async (actId) => {
+        try {
+          const url = `https://graph.facebook.com/v20.0/${encodeURIComponent(actId)}/insights?level=ad&fields=ad_id,ad_name,campaign_id,campaign_name,adset_id,adset_name,spend,impressions,clicks,cpc,ctr&time_range=${encodeURIComponent(timeRange)}&limit=500&access_token=${encodeURIComponent(token)}`;
+          const res = await fetch(url);
+          if (!res.ok) {
+            const errText = await res.text().catch(() => '');
+            console.warn(`[adsSpend] Erro ao consultar Meta Ad Insights para ${actId} (HTTP ${res.status}):`, errText.slice(0, 300));
+            return;
+          }
 
-    const result = { ok: true, ads };
+          const json = await res.json().catch(() => null);
+          if (Array.isArray(json?.data)) {
+            anyOk = true;
+            for (const row of json.data) {
+              ads.push({
+                accountId: actId,
+                adId: String(row.ad_id || ''),
+                adName: String(row.ad_name || 'Sem nome'),
+                campaignId: String(row.campaign_id || ''),
+                campaignName: String(row.campaign_name || 'Campanha sem nome'),
+                adsetId: String(row.adset_id || ''),
+                adsetName: String(row.adset_name || ''),
+                spend: Number(row.spend) || 0,
+                impressions: Number(row.impressions) || 0,
+                clicks: Number(row.clicks) || 0,
+                cpc: Number(row.cpc) || 0,
+                ctr: Number(row.ctr) || 0,
+              });
+            }
+          }
+        } catch (e) {
+          console.warn(`[adsSpend] Falha ao consultar ad insights para ${actId}:`, e?.message);
+        }
+      })
+    );
+
+    const result = { ok: anyOk, ads };
     adsCache.set(cacheKey, { timestamp: now, data: result });
     return result;
   } catch (err) {
