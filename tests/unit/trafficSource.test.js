@@ -4,6 +4,8 @@ import {
   getOrderPlatform,
   calcularFaturamentoPedido,
   calcularMetricasPorPlataforma,
+  isOrderFromMeta,
+  isOrderFromTikTok,
   TRAFFIC_STORAGE_KEY,
 } from '../../src/lib/trafficSource.js';
 
@@ -180,6 +182,83 @@ describe('trafficSource module', () => {
       expect(ttDia2.pedidosPagos).toBe(1);
       expect(ttDia2.faturamento).toBeCloseTo(16.89);
       expect(resDia2.totais.faturamento).toBeCloseTo(16.89);
+    });
+  });
+
+  describe('isOrderFromMeta', () => {
+    it('retorna true para pedido com fbclid', () => {
+      expect(isOrderFromMeta({ fbclid: 'fb-xyz-123' })).toBe(true);
+      expect(isOrderFromMeta({ extras: { fbclid: 'fb-xyz-123' } })).toBe(true);
+    });
+
+    it('retorna true para pedido com UTM de Meta/Instagram/Facebook', () => {
+      expect(isOrderFromMeta({ utmSource: 'ig' })).toBe(true);
+      expect(isOrderFromMeta({ utmSource: 'fb' })).toBe(true);
+      expect(isOrderFromMeta({ utmSource: 'facebook' })).toBe(true);
+      expect(isOrderFromMeta({ utmSource: 'instagram' })).toBe(true);
+      expect(isOrderFromMeta({ utmCampaign: 'NSMusic' })).toBe(true);
+      expect(isOrderFromMeta({ extras: { utmSource: 'ig', utmCampaign: 'NSMusic' } })).toBe(true);
+    });
+
+    it('retorna true para pedido com trafficSource explicitamente facebook_ads', () => {
+      expect(isOrderFromMeta({ trafficSource: 'facebook_ads' })).toBe(true);
+      expect(isOrderFromMeta({ platform: 'facebook_ads' })).toBe(true);
+    });
+
+    it('retorna false para pedidos vindos do TikTok Ads', () => {
+      expect(isOrderFromMeta({ ttclid: 'tt-123' })).toBe(false);
+      expect(isOrderFromMeta({ utmSource: 'tiktok' })).toBe(false);
+      expect(isOrderFromMeta({ trafficSource: 'tiktok_ads' })).toBe(false);
+      expect(isOrderFromMeta({ ttclid: 'tt-123', utmCampaign: 'NSMusic' })).toBe(false);
+    });
+
+    it('retorna false para pedidos vindos do Google Ads', () => {
+      expect(isOrderFromMeta({ gclid: 'g-123' })).toBe(false);
+      expect(isOrderFromMeta({ utmSource: 'google' })).toBe(false);
+    });
+
+    it('retorna false para pedidos diretos ou nulos', () => {
+      expect(isOrderFromMeta(null)).toBe(false);
+      expect(isOrderFromMeta(undefined)).toBe(false);
+      expect(isOrderFromMeta({})).toBe(false);
+      expect(isOrderFromMeta({ trafficSource: 'direto' })).toBe(false);
+      expect(isOrderFromMeta({ trafficSource: 'organico' })).toBe(false);
+    });
+  });
+
+  describe('isOrderFromTikTok', () => {
+    it('retorna true para pedido com ttclid', () => {
+      expect(isOrderFromTikTok({ ttclid: 'tt-abc-999' })).toBe(true);
+      expect(isOrderFromTikTok({ extras: { ttclid: 'tt-abc-999' } })).toBe(true);
+    });
+
+    it('retorna true para pedido com UTM de TikTok', () => {
+      expect(isOrderFromTikTok({ utmSource: 'tiktok' })).toBe(true);
+      expect(isOrderFromTikTok({ utmSource: 'tt' })).toBe(true);
+      expect(isOrderFromTikTok({ utmCampaign: 'Website conversion 20260930' })).toBe(false);
+      expect(isOrderFromTikTok({ utmSource: 'tiktok', utmCampaign: 'Website conversion 20260930' })).toBe(true);
+      expect(isOrderFromTikTok({ utmCampaign: 'tiktok_promo_01' })).toBe(true);
+      expect(isOrderFromTikTok({ referrer: 'https://www.tiktok.com/@user' })).toBe(true);
+    });
+
+    it('retorna true para pedido com trafficSource explicitamente tiktok_ads', () => {
+      expect(isOrderFromTikTok({ trafficSource: 'tiktok_ads' })).toBe(true);
+      expect(isOrderFromTikTok({ platform: 'tiktok_ads' })).toBe(true);
+    });
+
+    it('retorna false para pedidos vindos de Meta Ads', () => {
+      expect(isOrderFromTikTok({ fbclid: 'fb-123' })).toBe(false);
+      expect(isOrderFromTikTok({ utmSource: 'facebook' })).toBe(false);
+      expect(isOrderFromTikTok({ utmSource: 'ig' })).toBe(false);
+      expect(isOrderFromTikTok({ trafficSource: 'facebook_ads' })).toBe(false);
+    });
+
+    it('retorna false para pedidos diretos ou nulos', () => {
+      expect(isOrderFromTikTok(null)).toBe(false);
+      expect(isOrderFromTikTok(undefined)).toBe(false);
+      expect(isOrderFromTikTok({})).toBe(false);
+      expect(isOrderFromTikTok({ trafficSource: 'direto' })).toBe(false);
+      expect(isOrderFromTikTok({ trafficSource: 'organico' })).toBe(false);
     });
   });
 });

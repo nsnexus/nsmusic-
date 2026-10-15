@@ -208,17 +208,18 @@ export function getStoredTrafficSource() {
  */
 export function getOrderPlatform(order) {
   if (!order) return 'facebook_ads';
+  const extras = (order.extras && typeof order.extras === 'object') ? order.extras : {};
 
   // 1. Click IDs inequívocos gravados no pedido (sempre têm precedência)
-  if (order.ttclid) return 'tiktok_ads';
-  if (order.fbclid) return 'facebook_ads';
-  if (order.gclid) return 'google_ads';
+  if (order.ttclid || extras.ttclid) return 'tiktok_ads';
+  if (order.fbclid || extras.fbclid) return 'facebook_ads';
+  if (order.gclid || extras.gclid) return 'google_ads';
 
   // 2. Parâmetros de campanha explícitos gravados nos extras
-  const utmSource = String(order.utmSource || '').toLowerCase();
-  const utmMedium = String(order.utmMedium || '').toLowerCase();
-  const utmCampaign = String(order.utmCampaign || '').toLowerCase();
-  const referrer = String(order.referrer || '').toLowerCase();
+  const utmSource = String(order.utmSource || extras.utmSource || extras.utm_source || '').toLowerCase();
+  const utmMedium = String(order.utmMedium || extras.utmMedium || extras.utm_medium || '').toLowerCase();
+  const utmCampaign = String(order.utmCampaign || extras.utmCampaign || extras.utm_campaign || '').toLowerCase();
+  const referrer = String(order.referrer || extras.referrer || '').toLowerCase();
 
   if (
     /tiktok|bytedance|\btt\b|tt_/i.test(utmSource) ||
@@ -229,12 +230,12 @@ export function getOrderPlatform(order) {
     return 'tiktok_ads';
   }
   if (
-    /facebook|meta|fb|instagram|ig_/i.test(utmSource) ||
-    /facebook|instagram/i.test(utmCampaign)
+    /facebook|meta|\bfb\b|instagram|\big\b|ig_/i.test(utmSource) ||
+    /facebook|instagram|nsmusic/i.test(utmCampaign)
   ) {
     return 'facebook_ads';
   }
-  if (/google|adwords/i.test(utmSource) || /google_ads|gads/i.test(utmCampaign)) {
+  if (/google|adwords|\bgads\b/i.test(utmSource) || /google_ads|gads/i.test(utmCampaign)) {
     return 'google_ads';
   }
   if (/organico|organic/i.test(utmSource) || /organico|organic/i.test(utmMedium)) {
@@ -242,7 +243,7 @@ export function getOrderPlatform(order) {
   }
 
   // 3. Campo explícito gravado no pedido (novos pedidos após a implementação)
-  const rawSource = order.trafficSource || order.platform;
+  const rawSource = order.trafficSource || extras.trafficSource || order.platform || extras.platform;
   if (rawSource) {
     const s = String(rawSource).toLowerCase();
     if (s === 'tiktok_ads' || s === 'tiktok') return 'tiktok_ads';
@@ -255,6 +256,76 @@ export function getOrderPlatform(order) {
   // 4. Pedidos anteriores à implementação:
   // Diretriz do administrador: todo o histórico anterior operava sob campanhas do Facebook Ads.
   return 'facebook_ads';
+}
+
+/**
+ * Retorna true se o pedido foi originado no Facebook/Instagram Ads.
+ * Pedidos de TikTok, Google ou acessos diretos sem rastreamento de anúncio do Facebook retornam false.
+ */
+export function isOrderFromMeta(order) {
+  if (!order) return false;
+  const extras = (order.extras && typeof order.extras === 'object') ? order.extras : {};
+
+  // Se tiver identificador claro de TikTok ou Google, NUNCA é Meta
+  if (order.ttclid || extras.ttclid || order.gclid || extras.gclid) return false;
+
+  const utmSource = String(order.utmSource || extras.utmSource || extras.utm_source || '').toLowerCase();
+  const utmCampaign = String(order.utmCampaign || extras.utmCampaign || extras.utm_campaign || '').toLowerCase();
+  const referrer = String(order.referrer || extras.referrer || '').toLowerCase();
+
+  if (/tiktok|bytedance|\btt\b|tt_/i.test(utmSource) || /tiktok|bytedance/i.test(utmCampaign) || /tiktok\.com/i.test(referrer)) return false;
+  if (/google|adwords|\bgads\b/i.test(utmSource) || /google_ads|gads/i.test(utmCampaign)) return false;
+
+  // Se tiver fbclid inequívoco
+  if (order.fbclid || extras.fbclid) return true;
+
+  // Se tiver UTMs de Meta
+  if (
+    /facebook|meta|\bfb\b|instagram|\big\b|ig_/i.test(utmSource) ||
+    /facebook|instagram|nsmusic/i.test(utmCampaign)
+  ) {
+    return true;
+  }
+
+  // Se tiver trafficSource explícito de Facebook
+  const rawSource = String(order.trafficSource || extras.trafficSource || order.platform || extras.platform || '').toLowerCase();
+  if (rawSource === 'facebook_ads' || rawSource === 'facebook' || rawSource === 'meta_ads') {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Retorna true se o pedido foi originado pelo TikTok Ads.
+ */
+export function isOrderFromTikTok(order) {
+  if (!order) return false;
+  const extras = (order.extras && typeof order.extras === 'object') ? order.extras : {};
+
+  if (order.ttclid || extras.ttclid) return true;
+  if (order.fbclid || extras.fbclid || order.gclid || extras.gclid) return false;
+
+  const utmSource = String(order.utmSource || extras.utmSource || extras.utm_source || '').toLowerCase();
+  const utmMedium = String(order.utmMedium || extras.utmMedium || extras.utm_medium || '').toLowerCase();
+  const utmCampaign = String(order.utmCampaign || extras.utmCampaign || extras.utm_campaign || '').toLowerCase();
+  const referrer = String(order.referrer || extras.referrer || '').toLowerCase();
+
+  if (
+    /tiktok|bytedance|\btt\b|tt_/i.test(utmSource) ||
+    /tiktok|bytedance|\btt\b|tt_/i.test(utmMedium) ||
+    /tiktok|bytedance|\btt\b|tt_/i.test(utmCampaign) ||
+    /tiktok\.com/i.test(referrer)
+  ) {
+    return true;
+  }
+
+  const rawSource = String(order.trafficSource || extras.trafficSource || order.platform || extras.platform || '').toLowerCase();
+  if (rawSource === 'tiktok_ads' || rawSource === 'tiktok') {
+    return true;
+  }
+
+  return false;
 }
 
 /**

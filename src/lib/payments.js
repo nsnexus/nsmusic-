@@ -14,6 +14,7 @@ import { skuApprovesMusic, skuGrantsVideoAccess, skuGrantsCartaAccess, skuGrants
 import { resolveDeliveryUrl } from './whatsappTemplates.js';
 import { sendMetaPurchaseEvent } from './metaCapi.js';
 import { sendTikTokPurchaseEvent } from './tiktokCapi.js';
+import { isOrderFromMeta, isOrderFromTikTok } from './trafficSource.js';
 
 const REVOKING_STATUSES = new Set(['cancelled', 'refunded', 'charged_back']);
 
@@ -371,63 +372,100 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
 
     const sentField = txResult.isVideoOnly ? 'metaVideoPurchaseSent' : txResult.isPlaybackOnly ? 'metaPlaybackPurchaseSent' : txResult.isCartaOnly ? 'metaCartaPurchaseSent' : txResult.isRetroOnly ? 'metaRetroPurchaseSent' : txResult.isKaraokeOnly ? 'metaKaraokePurchaseSent' : 'metaPurchaseSent';
     const sendingField = txResult.isVideoOnly ? 'metaVideoPurchaseSending' : txResult.isPlaybackOnly ? 'metaPlaybackPurchaseSending' : txResult.isCartaOnly ? 'metaCartaPurchaseSending' : txResult.isRetroOnly ? 'metaRetroPurchaseSending' : txResult.isKaraokeOnly ? 'metaKaraokePurchaseSending' : 'metaPurchaseSending';
+
+    const ttSentField = txResult.isVideoOnly ? 'ttVideoPurchaseSent' : txResult.isPlaybackOnly ? 'ttPlaybackPurchaseSent' : txResult.isCartaOnly ? 'ttCartaPurchaseSent' : txResult.isRetroOnly ? 'ttRetroPurchaseSent' : txResult.isKaraokeOnly ? 'ttKaraokePurchaseSent' : 'ttPurchaseSent';
+    const ttSendingField = txResult.isVideoOnly ? 'ttVideoPurchaseSending' : txResult.isPlaybackOnly ? 'ttPlaybackPurchaseSending' : txResult.isCartaOnly ? 'ttCartaPurchaseSending' : txResult.isRetroOnly ? 'ttRetroPurchaseSending' : txResult.isKaraokeOnly ? 'ttKaraokePurchaseSending' : 'ttPurchaseSending';
+
     try {
-      let shouldSend = false;
       const freshData = await getOrder(orderId, env);
-      if (freshData) {
-        if (!freshData[sentField] && !freshData[sendingField]) {
-          await updateOrder(orderId, { [sendingField]: true }, env);
-          shouldSend = true;
+      const orderForAttribution = freshData || txResult.orderData || {};
+
+      const isMeta = isOrderFromMeta(orderForAttribution);
+      const isTikTok = isOrderFromTikTok(orderForAttribution);
+
+      const amountByTxid = txResult.orderData?.paymentIntentAmountByTxid || {};
+      const amountForThisTxid = Number(amountByTxid[String(paymentId)]);
+      const value = amountForThisTxid
+        || Number(payment.transaction_amount)
+        || getPriceForSku(txResult.sku)
+        || Number(txResult.orderData?.expectedAmount);
+      const contentName = txResult.isVideoOnly
+        ? 'Vídeo Homenagem (Add-on)'
+        : txResult.isPlaybackOnly ? 'Playback Instrumental (Add-on)'
+        : txResult.isCartaOnly ? 'Carta Virtual (Add-on)'
+        : txResult.isRetroOnly ? 'Retrospectiva (Add-on)' : 'Música Homenagem Personalizada';
+      const productKey = txResult.isVideoOnly
+        ? 'video'
+        : txResult.isPlaybackOnly ? 'playback'
+        : txResult.isCartaOnly ? 'carta'
+        : txResult.isRetroOnly ? 'retro' : 'musica';
+      const eventId = `purchase_${orderId}_${productKey}`;
+
+      // 1. Meta CAPI: Somente envia se o pedido veio de anúncio do Facebook/Instagram
+      if (isMeta) {
+        let shouldSendMeta = false;
+        if (freshData) {
+          if (!freshData[sentField] && !freshData[sendingField]) {
+            await updateOrder(orderId, { [sendingField]: true }, env);
+            shouldSendMeta = true;
+          }
+        }
+
+        if (shouldSendMeta) {
+          const sendResult = await sendMetaPurchaseEvent({
+            orderId,
+            value,
+            contentName,
+            eventId,
+            customerPhone: txResult.orderData?.customerPhone,
+            customerEmail: txResult.orderData?.customerEmail,
+          }, env);
+
+          if (sendResult.sent) {
+            await updateOrder(orderId, { [sentField]: true, [sendingField]: false }, env)
+              .catch((e) => console.warn('[payments] Erro ao marcar Purchase enviado:', e.message));
+          } else {
+            await updateOrder(orderId, { [sendingField]: false }, env).catch((e) => console.warn(e.message));
+            console.warn(`[payments] Falha ao enviar Purchase (Meta CAPI) — pedido ${orderId}:`, sendResult.reason);
+          }
         }
       }
 
-      if (shouldSend) {
-        const amountByTxid = txResult.orderData?.paymentIntentAmountByTxid || {};
-        const amountForThisTxid = Number(amountByTxid[String(paymentId)]);
-        const value = amountForThisTxid
-          || Number(payment.transaction_amount)
-          || getPriceForSku(txResult.sku)
-          || Number(txResult.orderData?.expectedAmount);
-        const contentName = txResult.isVideoOnly
-          ? 'Vídeo Homenagem (Add-on)'
-          : txResult.isPlaybackOnly ? 'Playback Instrumental (Add-on)'
-          : txResult.isCartaOnly ? 'Carta Virtual (Add-on)'
-          : txResult.isRetroOnly ? 'Retrospectiva (Add-on)' : 'Música Homenagem Personalizada';
-        const productKey = txResult.isVideoOnly
-          ? 'video'
-          : txResult.isPlaybackOnly ? 'playback'
-          : txResult.isCartaOnly ? 'carta'
-          : txResult.isRetroOnly ? 'retro' : 'musica';
-        const eventId = `purchase_${orderId}_${productKey}`;
-
-        const sendResult = await sendMetaPurchaseEvent({
-          orderId,
-          value,
-          contentName,
-          eventId,
-          customerPhone: txResult.orderData?.customerPhone,
-          customerEmail: txResult.orderData?.customerEmail,
-        }, env);
-
-        if (sendResult.sent) {
-          await updateOrder(orderId, { [sentField]: true, [sendingField]: false }, env)
-            .catch((e) => console.warn('[payments] Erro ao marcar Purchase enviado:', e.message));
-        } else {
-          await updateOrder(orderId, { [sendingField]: false }, env).catch((e) => console.warn(e.message));
-          console.warn(`[payments] Falha ao enviar Purchase (Meta CAPI) — pedido ${orderId}:`, sendResult.reason);
+      // 2. TikTok Events API: Somente envia se o pedido veio de anúncio do TikTok
+      if (isTikTok) {
+        let shouldSendTikTok = false;
+        if (freshData) {
+          if (!freshData[ttSentField] && !freshData[ttSendingField]) {
+            await updateOrder(orderId, { [ttSendingField]: true }, env);
+            shouldSendTikTok = true;
+          }
         }
 
-        sendTikTokPurchaseEvent({
-          orderId,
-          value,
-          contentName,
-          sku: txResult.sku,
-          customerPhone: txResult.orderData?.customerPhone,
-          customerEmail: txResult.orderData?.customerEmail,
-        }, env).catch((e) => console.warn('[payments] Erro ao enviar Purchase (TikTok Events API):', e?.message));
+        if (shouldSendTikTok) {
+          try {
+            const sendResult = await sendTikTokPurchaseEvent({
+              orderId,
+              value,
+              contentName,
+              sku: txResult.sku,
+              customerPhone: txResult.orderData?.customerPhone,
+              customerEmail: txResult.orderData?.customerEmail,
+            }, env);
+
+            if (sendResult.sent) {
+              await updateOrder(orderId, { [ttSentField]: true, [ttSendingField]: false }, env)
+                .catch((e) => console.warn('[payments] Erro ao marcar TikTok Purchase enviado:', e.message));
+            } else {
+              await updateOrder(orderId, { [ttSendingField]: false }, env).catch((e) => console.warn(e.message));
+            }
+          } catch (e) {
+            await updateOrder(orderId, { [ttSendingField]: false }, env).catch(() => {});
+            console.warn('[payments] Erro ao enviar Purchase (TikTok Events API):', e?.message);
+          }
+        }
       }
     } catch (err) {
-      console.warn('[payments] Erro ao enviar evento de Purchase (Meta CAPI):', err.message);
+      console.warn('[payments] Erro ao enviar evento de Purchase pós-pagamento:', err.message);
     }
   }
 

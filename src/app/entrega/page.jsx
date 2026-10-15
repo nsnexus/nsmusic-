@@ -28,6 +28,7 @@ import { usePromoverAudio } from '@/lib/usePromoverAudio';
 import { identifyTikTok, trackTikTok } from '@/lib/tiktokPixel';
 import { trackGooglePurchase } from '@/lib/googleAds';
 import { trackFbPurchase } from '@/lib/metaPixel';
+import { isOrderFromMeta, isOrderFromTikTok } from '@/lib/trafficSource';
 
 /**
  * Tarja de prévia limitada, exibida DENTRO do card de cada versão.
@@ -423,43 +424,54 @@ function EntregaContent() {
     const isPaid = order.paymentStatus === 'PAGO' || order.paymentStatus === 'PAGAMENTO_APROVADO';
     if (!isPaid) return;
 
-    const purchaseKey = `tt_purchase_${orderId}`;
-    if (typeof window !== 'undefined' && !localStorage.getItem(purchaseKey)) {
-      localStorage.setItem(purchaseKey, '1');
-      identifyTikTok(order.customerPhone, order.customerEmail, orderId);
-      trackTikTok('Purchase', {
-        contents: [
-          {
-            content_id: order.sku || 'audio_only',
-            content_type: 'product',
-            content_name: 'Música Personalizada com IA',
-          },
-        ],
-        value: typeof order.amount === 'number' ? order.amount : 9.99,
-        currency: 'BRL',
-      });
+    // Disparo de Purchase para TikTok Pixel: somente se a venda for atribuída ao TikTok Ads
+    if (isOrderFromTikTok(order)) {
+      const purchaseKey = `tt_purchase_${orderId}`;
+      if (typeof window !== 'undefined' && !localStorage.getItem(purchaseKey)) {
+        localStorage.setItem(purchaseKey, '1');
+        identifyTikTok(order.customerPhone, order.customerEmail, orderId);
+        trackTikTok('Purchase', {
+          contents: [
+            {
+              content_id: order.sku || 'audio_only',
+              content_type: 'product',
+              content_name: 'Música Personalizada com IA',
+            },
+          ],
+          value: typeof order.amount === 'number' ? order.amount : 9.99,
+          currency: 'BRL',
+        });
+      }
+    }
+
+    // Disparo de conversão para Google Ads (se aplicável ao pedido)
+    const googleKey = `gads_purchase_init_${orderId}`;
+    if (typeof window !== 'undefined' && !localStorage.getItem(googleKey)) {
+      localStorage.setItem(googleKey, '1');
       trackGooglePurchase({
         orderId,
         value: typeof order.amount === 'number' ? order.amount : 9.99,
       });
     }
 
-    // Disparo de Purchase para Meta (Facebook Pixel): protegido por localStorage e com eventID idêntico ao CAPI para desduplicação
-    const fbPurchaseKey = `fb_purchase_${orderId}`;
-    if (typeof window !== 'undefined' && !localStorage.getItem(fbPurchaseKey)) {
-      localStorage.setItem(fbPurchaseKey, '1');
-      const purchaseValue = typeof order.paidAmount === 'number' && order.paidAmount > 0
-        ? order.paidAmount
-        : (typeof order.amount === 'number' && order.amount > 0 ? order.amount : 9.99);
+    // Disparo de Purchase para Meta (Facebook Pixel): somente se a venda for atribuída ao Meta/Facebook/Instagram Ads
+    if (isOrderFromMeta(order)) {
+      const fbPurchaseKey = `fb_purchase_${orderId}`;
+      if (typeof window !== 'undefined' && !localStorage.getItem(fbPurchaseKey)) {
+        localStorage.setItem(fbPurchaseKey, '1');
+        const purchaseValue = typeof order.paidAmount === 'number' && order.paidAmount > 0
+          ? order.paidAmount
+          : (typeof order.amount === 'number' && order.amount > 0 ? order.amount : 9.99);
 
-      trackFbPurchase({
-        orderId,
-        value: purchaseValue,
-        contentName: 'Música Homenagem Personalizada',
-        eventId: `purchase_${orderId}_musica`,
-        phone: order.customerPhone,
-        email: order.customerEmail,
-      });
+        trackFbPurchase({
+          orderId,
+          value: purchaseValue,
+          contentName: 'Música Homenagem Personalizada',
+          eventId: `purchase_${orderId}_musica`,
+          phone: order.customerPhone,
+          email: order.customerEmail,
+        });
+      }
     }
   }, [order, orderId]);
 

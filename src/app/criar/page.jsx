@@ -11,7 +11,7 @@ import { identifyTikTok, trackTikTok } from '@/lib/tiktokPixel';
 import { trackGooglePurchase } from '@/lib/googleAds';
 import { styles } from './wizardStyles';
 import { occasions } from './wizardOptions';
-import { getStoredTrafficSource } from '@/lib/trafficSource';
+import { getStoredTrafficSource, isOrderFromTikTok } from '@/lib/trafficSource';
 import CustomAudioPreview from './CustomAudioPreview';
 import PreviaEncerradaModal from '@/components/PreviaEncerradaModal';
 import { usePromoverAudio } from '@/lib/usePromoverAudio';
@@ -116,18 +116,21 @@ export default function CriarMusica() {
 
   const handlePaymentApproved = (targetOrderId) => {
     const idToUse = targetOrderId || orderId;
-    identifyTikTok(formData.customerPhone, formData.customerEmail, idToUse);
-    trackTikTok('Purchase', {
-      contents: [
-        {
-          content_id: sku || 'audio_only',
-          content_type: 'product',
-          content_name: 'Música Personalizada com IA',
-        },
-      ],
-      value: getTotalPrice(),
-      currency: 'BRL',
-    });
+    const currentTraffic = getStoredTrafficSource();
+    if (isOrderFromTikTok(currentTraffic)) {
+      identifyTikTok(formData.customerPhone, formData.customerEmail, idToUse);
+      trackTikTok('Purchase', {
+        contents: [
+          {
+            content_id: sku || 'audio_only',
+            content_type: 'product',
+            content_name: 'Música Personalizada com IA',
+          },
+        ],
+        value: getTotalPrice(),
+        currency: 'BRL',
+      });
+    }
     trackGooglePurchase({ orderId: idToUse, value: getTotalPrice() });
     setPixInfo(prev => ({ ...prev, status: 'approved' }));
     window.location.href = `/entrega?orderId=${idToUse}&justPaid=1`;
