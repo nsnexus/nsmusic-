@@ -74,16 +74,22 @@ export async function identifyTikTok(phone, email, externalId) {
 }
 
 /**
- * Dispara evento do TikTok Pixel com segurança
+ * Dispara evento do TikTok Pixel com segurança e suporte a options ({ event_id }) para deduplicação
  * @param {string} eventName 
  * @param {object} params 
+ * @param {object} [options] Ex: { event_id: 'purchase_123_musica' }
  */
-export function trackTikTok(eventName, params = {}) {
+export function trackTikTok(eventName, params = {}, options = undefined) {
   if (typeof window === 'undefined' || !window.ttq || typeof window.ttq.track !== 'function') return;
 
   try {
-    window.ttq.track(eventName, params);
+    if (options && typeof options === 'object' && Object.keys(options).length > 0) {
+      window.ttq.track(eventName, params, options);
+    } else {
+      window.ttq.track(eventName, params);
+    }
   } catch (err) {
     console.warn(`[tiktok-pixel] Falha ao registrar evento ${eventName}:`, err?.message);
   }
 }
+

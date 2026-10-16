@@ -424,13 +424,17 @@ function EntregaContent() {
     const isPaid = order.paymentStatus === 'PAGO' || order.paymentStatus === 'PAGAMENTO_APROVADO';
     if (!isPaid) return;
 
-    // Disparo de Purchase para TikTok Pixel: somente se a venda for atribuída ao TikTok Ads
+    // Disparo de CompletePayment para TikTok Pixel: somente se a venda for atribuída ao TikTok Ads
     if (isOrderFromTikTok(order)) {
       const purchaseKey = `tt_purchase_${orderId}`;
       if (typeof window !== 'undefined' && !localStorage.getItem(purchaseKey)) {
         localStorage.setItem(purchaseKey, '1');
         identifyTikTok(order.customerPhone, order.customerEmail, orderId);
-        trackTikTok('Purchase', {
+        const purchaseValue = typeof order.paidAmount === 'number' && order.paidAmount > 0
+          ? order.paidAmount
+          : (typeof order.amount === 'number' && order.amount > 0 ? order.amount : 9.99);
+        const eventId = `purchase_${orderId}_musica`;
+        trackTikTok('CompletePayment', {
           contents: [
             {
               content_id: order.sku || 'audio_only',
@@ -438,9 +442,9 @@ function EntregaContent() {
               content_name: 'Música Personalizada com IA',
             },
           ],
-          value: typeof order.amount === 'number' ? order.amount : 9.99,
+          value: purchaseValue,
           currency: 'BRL',
-        });
+        }, { event_id: eventId });
       }
     }
 

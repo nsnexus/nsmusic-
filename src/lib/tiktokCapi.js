@@ -41,7 +41,7 @@ function normalizeEmailForMatching(email) {
  * @param {object} env contexto de ambiente resolvido pela rota chamadora (Cloudflare Pages)
  * @returns {Promise<{sent: boolean, reason?: string}>}
  */
-export async function sendTikTokPurchaseEvent({ orderId, value, contentName, sku, customerPhone, customerEmail }, env) {
+export async function sendTikTokPurchaseEvent({ orderId, value, contentName, sku, eventId: customEventId, customerPhone, customerEmail }, env) {
   const accessToken = readEnvValue(env, 'TIKTOK_EVENTS_API_ACCESS_TOKEN');
   if (!accessToken) {
     console.warn('[tiktok-capi] TIKTOK_EVENTS_API_ACCESS_TOKEN não configurado — evento de CompletePayment não enviado.');
@@ -70,8 +70,8 @@ export async function sendTikTokPurchaseEvent({ orderId, value, contentName, sku
     if (hashedExtId) userData.external_id = hashedExtId;
   }
 
-  // Deduplicação estável por pedido e item
-  const eventId = `purchase_${orderId}_${(sku || contentName || 'audio').replace(/\s+/g, '_').toLowerCase()}`;
+  // Deduplicação estável por pedido e item — mesmo padrão do Pixel do navegador
+  const eventId = customEventId || `purchase_${orderId}_${(sku || contentName || 'audio').replace(/\s+/g, '_').toLowerCase()}`;
   const siteUrl = resolverSiteUrl(readEnvValue(env, 'NEXT_PUBLIC_SITE_URL'));
   const eventSourceUrl = `${siteUrl}/entrega?id=${encodeURIComponent(orderId)}`;
 

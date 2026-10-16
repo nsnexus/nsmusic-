@@ -118,18 +118,23 @@ export default function CriarMusica() {
     const idToUse = targetOrderId || orderId;
     const currentTraffic = getStoredTrafficSource();
     if (isOrderFromTikTok(currentTraffic)) {
-      identifyTikTok(formData.customerPhone, formData.customerEmail, idToUse);
-      trackTikTok('Purchase', {
-        contents: [
-          {
-            content_id: sku || 'audio_only',
-            content_type: 'product',
-            content_name: 'Música Personalizada com IA',
-          },
-        ],
-        value: getTotalPrice(),
-        currency: 'BRL',
-      });
+      const purchaseKey = `tt_purchase_${idToUse}`;
+      if (typeof window !== 'undefined' && !localStorage.getItem(purchaseKey)) {
+        localStorage.setItem(purchaseKey, '1');
+        identifyTikTok(formData.customerPhone, formData.customerEmail, idToUse);
+        const eventId = `purchase_${idToUse}_musica`;
+        trackTikTok('CompletePayment', {
+          contents: [
+            {
+              content_id: sku || 'audio_only',
+              content_type: 'product',
+              content_name: 'Música Personalizada com IA',
+            },
+          ],
+          value: getTotalPrice(),
+          currency: 'BRL',
+        }, { event_id: eventId });
+      }
     }
     trackGooglePurchase({ orderId: idToUse, value: getTotalPrice() });
     setPixInfo(prev => ({ ...prev, status: 'approved' }));

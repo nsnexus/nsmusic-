@@ -2,7 +2,7 @@
 // Suporta: Facebook & Instagram Ads (Meta), TikTok Ads, Google Ads, Orgânico e Direto.
 // Compatível com Cloudflare Pages Edge e Next.js App Router.
 
-import { getPriceForSku, SKU_PRICES } from '@/lib/pricing.js';
+import { getPriceForSku, SKU_PRICES } from './pricing.js';
 
 export const TRAFFIC_STORAGE_KEY = 'nsmusic_traffic_source';
 

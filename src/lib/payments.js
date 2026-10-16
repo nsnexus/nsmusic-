@@ -448,6 +448,7 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
               value,
               contentName,
               sku: txResult.sku,
+              eventId,
               customerPhone: txResult.orderData?.customerPhone,
               customerEmail: txResult.orderData?.customerEmail,
             }, env);

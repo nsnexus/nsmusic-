@@ -55,6 +55,19 @@ describe('tiktokPixel helper', () => {
     expect(global.window.ttq.track).toHaveBeenCalledWith('InitiateCheckout', params);
   });
 
+  it('trackTikTok suporta options ({ event_id }) para deduplicação com Events API', () => {
+    const params = {
+      contents: [{ content_id: 'audio_only', content_type: 'product', content_name: 'Música' }],
+      value: 9.99,
+      currency: 'BRL',
+    };
+    const options = { event_id: 'purchase_order123_musica' };
+
+    trackTikTok('CompletePayment', params, options);
+
+    expect(global.window.ttq.track).toHaveBeenCalledWith('CompletePayment', params, options);
+  });
+
   it('não lança erro se window.ttq não estiver presente', async () => {
     global.window = {};
 
