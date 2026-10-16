@@ -101,7 +101,9 @@ export async function fetchMetaDailySpend({ since, until }, env = {}) {
   try {
     const timeRange = JSON.stringify({ since, until });
     const byDate = {};
+    const byDateTaxable = {};
     let total = 0;
+    let totalTaxable = 0;
     let anyOk = false;
 
     await Promise.all(
@@ -123,13 +125,19 @@ export async function fetchMetaDailySpend({ since, until }, env = {}) {
                 const dateKey = row.date_start; // YYYY-MM-DD
                 const currency = String(row.account_currency || 'BRL').toUpperCase();
                 let spend = Number(row.spend) || 0;
-                if (currency === 'USD') {
+                const isUsd = currency === 'USD';
+                if (isUsd) {
                   const usdRate = await getUsdToBrlRate();
                   spend = spend * usdRate;
                 }
                 if (dateKey) {
                   byDate[dateKey] = (byDate[dateKey] || 0) + spend;
                   total += spend;
+                  // Contas em dólar NÃO pagam os 13,8% de imposto retido sobre anúncios nacionais
+                  if (!isUsd) {
+                    byDateTaxable[dateKey] = (byDateTaxable[dateKey] || 0) + spend;
+                    totalTaxable += spend;
+                  }
                 }
               }
               break; // Token funcionou para esta conta
@@ -141,7 +149,13 @@ export async function fetchMetaDailySpend({ since, until }, env = {}) {
       })
     );
 
-    const result = { ok: anyOk, byDate, total: Math.round(total * 100) / 100 };
+    const result = {
+      ok: anyOk,
+      byDate,
+      total: Math.round(total * 100) / 100,
+      byDateTaxable,
+      totalTaxable: Math.round(totalTaxable * 100) / 100,
+    };
     adsCache.set(cacheKey, { timestamp: now, data: result });
     return result;
   } catch (err) {
