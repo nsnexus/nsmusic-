@@ -70,21 +70,84 @@ export default function CustomAudioPreview({ src, label, badge, isBonus, orderId
   };
 
   return (
-    <div className="glass-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', border: isBonus ? '1px solid rgba(236, 72, 153, 0.3)' : '1px solid rgba(255,255,255,0.1)', backgroundColor: isBonus ? 'rgba(236, 72, 153, 0.03)' : 'rgba(255,255,255,0.02)' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <span style={{ background: isBonus ? 'rgba(236, 72, 153, 0.2)' : 'rgba(124, 58, 237, 0.2)', color: isBonus ? '#ec4899' : 'var(--secondary)', padding: '4px 10px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 'bold' }}>
-            {badge}
-          </span>
-          <h3 style={{ fontSize: '1.2rem', fontWeight: '700', marginTop: '6px' }}>🎵 {label}</h3>
+    <div
+      style={{
+        backgroundColor: '#ffffff',
+        borderRadius: '24px',
+        padding: '26px 24px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '16px',
+        border: isBonus ? '1.5px solid #fbcfe8' : '1px solid #eef2f6',
+        boxShadow: '0 10px 40px rgba(0,0,0,0.04)',
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div
+            style={{
+              width: '42px',
+              height: '42px',
+              borderRadius: '12px',
+              backgroundColor: isBonus ? '#fff1f2' : '#f5f3ff',
+              border: isBonus ? '1px solid #fecdd3' : '1px solid #ddd6fe',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '1.25rem',
+              flexShrink: 0,
+            }}
+          >
+            {isBonus ? '🎁' : '🎧'}
+          </div>
+          <div>
+            <span
+              style={{
+                background: isBonus ? '#fdf2f8' : '#eef2ff',
+                border: isBonus ? '1px solid #fbcfe8' : '1px solid #c7d2fe',
+                color: isBonus ? '#db2777' : '#4338ca',
+                padding: '3px 10px',
+                borderRadius: '8px',
+                fontSize: '0.74rem',
+                fontWeight: '800',
+                letterSpacing: '0.04em',
+              }}
+            >
+              {badge}
+            </span>
+            <h3 style={{ fontSize: '1.15rem', fontWeight: '800', margin: '4px 0 0 0', color: '#0f172a' }}>
+              {label}
+            </h3>
+          </div>
         </div>
-        <span style={{ fontSize: '0.85rem', color: isBonus ? '#ec4899' : '#34d399', fontWeight: 'bold' }}>
+        <span
+          style={{
+            fontSize: '0.82rem',
+            color: isBonus ? '#db2777' : '#059669',
+            fontWeight: '700',
+            backgroundColor: isBonus ? '#fff1f2' : '#ecfdf5',
+            padding: '4px 12px',
+            borderRadius: '999px',
+            border: isBonus ? '1px solid #fecdd3' : '1px solid #a7f3d0',
+          }}
+        >
           {isBonus ? 'Bônus Grátis Incluso ✓' : 'Incluso no Pacote ✓'}
         </span>
       </div>
 
       {src ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '6px', background: 'rgba(0, 0, 0, 0.3)', padding: '16px', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.06)' }}>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '10px',
+            marginTop: '4px',
+            background: '#f8fafc',
+            padding: '16px 20px',
+            borderRadius: '16px',
+            border: '1.5px solid #e2e8f0',
+          }}
+        >
           <audio
             ref={audioRef}
             src={`${src}${src.includes('?') ? '&' : '?'}retry=${retryCount}`}
@@ -118,8 +181,8 @@ export default function CustomAudioPreview({ src, label, badge, isBonus, orderId
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                boxShadow: '0 4px 15px rgba(0,0,0,0.3)',
-                flexShrink: 0
+                boxShadow: '0 4px 15px rgba(79, 70, 229, 0.25)',
+                flexShrink: 0,
               }}
             >
               {isPlaying ? '⏸' : '▶'}
@@ -136,10 +199,10 @@ export default function CustomAudioPreview({ src, label, badge, isBonus, orderId
                 style={{
                   width: '100%',
                   accentColor: isBonus ? '#ec4899' : 'var(--primary)',
-                  cursor: 'pointer'
+                  cursor: 'pointer',
                 }}
               />
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: '#64748b', fontWeight: '600' }}>
                 <span>{formatTime(currentTime)}</span>
                 <span>{formatTime(duration)}</span>
               </div>
@@ -147,14 +210,15 @@ export default function CustomAudioPreview({ src, label, badge, isBonus, orderId
           </div>
         </div>
       ) : (
-        <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', fontStyle: 'italic', padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px' }}>
+        <div style={{ fontSize: '0.9rem', color: '#64748b', fontStyle: 'italic', padding: '14px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
           ⏳ Sintetizando áudio do estúdio...
         </div>
       )}
 
-      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-        🎧 Prévia da Versão 1 completa. O download em MP3 HD e a Versão 2 são liberados após o pagamento.
-      </span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', color: '#64748b' }}>
+        <span>🎧</span>
+        <span>Prévia da Versão 1 completa. O download em MP3 HD e a Versão 2 são liberados após o pagamento.</span>
+      </div>
     </div>
   );
 }

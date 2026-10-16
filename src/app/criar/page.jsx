@@ -1521,26 +1521,46 @@ export default function CriarMusica() {
         return (
           <div>
             {customLyricsMode ? (
-              <div style={{ maxWidth: '640px', margin: '0 auto', backgroundColor: '#ffffff', borderRadius: '20px', padding: '32px 24px', border: '1px solid #e2e8f0', boxShadow: '0 8px 30px rgba(0,0,0,0.04)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px', gap: '12px' }}>
-                  <div>
-                    <h2 style={{ fontSize: '1.35rem', fontWeight: '800', color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span>✍️</span>
-                      <span>Colar Minha Própria Letra</span>
-                    </h2>
-                    <p style={{ fontSize: '0.88rem', color: '#64748b', margin: '6px 0 0 0', lineHeight: '1.45' }}>
-                      Cole ou digite aqui a composição que você preparou para {formData.honoreeName || 'sua homenagem'}.
-                    </p>
+              <div style={{ maxWidth: '680px', margin: '0 auto', backgroundColor: '#ffffff', borderRadius: '24px', padding: '32px 28px', border: '1px solid #eef2f6', boxShadow: '0 10px 40px rgba(0,0,0,0.04)' }}>
+                <div style={{ display: 'flex', gap: '14px', alignItems: 'flex-start', marginBottom: '20px' }}>
+                  <div
+                    style={{
+                      width: '42px',
+                      height: '42px',
+                      borderRadius: '12px',
+                      backgroundColor: '#f5f3ff',
+                      border: '1px solid #ddd6fe',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '1.25rem',
+                      flexShrink: 0,
+                      marginTop: '2px',
+                    }}
+                  >
+                    ✍️
                   </div>
-                  {formData.lyrics && (
-                    <button
-                      type="button"
-                      onClick={() => setCustomLyricsMode(false)}
-                      style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '700', padding: '4px 8px' }}
-                    >
-                      ✕ Cancelar
-                    </button>
-                  )}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
+                      <div>
+                        <h2 style={{ fontSize: '1.25rem', fontWeight: '800', color: '#0f172a', margin: 0 }}>
+                          Colar Minha Própria Letra
+                        </h2>
+                        <p style={{ fontSize: '0.88rem', color: '#64748b', margin: '4px 0 0 0', lineHeight: '1.45' }}>
+                          Cole ou digite aqui a composição que você preparou para {formData.honoreeName || 'sua homenagem'}.
+                        </p>
+                      </div>
+                      {formData.lyrics && (
+                        <button
+                          type="button"
+                          onClick={() => setCustomLyricsMode(false)}
+                          style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '700', padding: '4px 8px' }}
+                        >
+                          ✕ Cancelar
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
                 <div style={{ marginBottom: '16px' }}>
@@ -1558,7 +1578,7 @@ export default function CriarMusica() {
                       lineHeight: '1.6',
                       fontFamily: 'inherit',
                       color: '#0f172a',
-                      backgroundColor: '#f8fafc',
+                      backgroundColor: '#ffffff',
                       outline: 'none',
                       boxSizing: 'border-box',
                       resize: 'vertical',
@@ -1606,7 +1626,7 @@ export default function CriarMusica() {
                       background: 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)',
                       color: '#ffffff',
                       border: 'none',
-                      boxShadow: '0 4px 14px rgba(0,0,0,0.1)'
+                      boxShadow: '0 4px 14px rgba(79, 70, 229, 0.25)'
                     }}
                   >
                     Salvar e Usar Esta Letra 🎶
@@ -1625,20 +1645,20 @@ export default function CriarMusica() {
                 </div>
               </div>
             ) : formData.lyricsStatus === 'generating' ? (
-              <div style={{ padding: '40px 20px', textAlign: 'center', maxWidth: '600px', margin: '0 auto' }} className="glass-card">
+              <div style={{ padding: '40px 28px', textAlign: 'center', maxWidth: '600px', margin: '0 auto', backgroundColor: '#ffffff', borderRadius: '24px', border: '1px solid #eef2f6', boxShadow: '0 10px 40px rgba(0,0,0,0.04)' }}>
                 <StudioLyricsAnimation />
-                <h3 style={{ fontFamily: 'var(--font-family-title)', fontSize: '1.6rem', color: 'var(--text-primary)' }}>
+                <h3 style={{ fontFamily: 'var(--font-family-title)', fontSize: '1.5rem', fontWeight: '800', color: '#0f172a', marginTop: '16px' }}>
                   Estúdio de Composição Ativo ✨
                 </h3>
-                <p style={{ color: 'var(--secondary)', fontSize: '1.05rem', fontWeight: '600', marginTop: '14px', minHeight: '32px' }}>
+                <p style={{ color: 'var(--primary)', fontSize: '1rem', fontWeight: '700', marginTop: '10px', minHeight: '32px' }}>
                   {studioLyricsPhrases[lyricsStepIdx]}
                 </p>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '16px' }}>
+                <p style={{ color: '#64748b', fontSize: '0.88rem', marginTop: '10px' }}>
                   Nossa Inteligência de Composição Poética está transformando seus momentos em versos exclusivos.
                 </p>
 
                 {/* Opção "Já tenho minha letra" durante o carregamento */}
-                <div style={{ marginTop: '28px', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '20px' }}>
+                <div style={{ marginTop: '28px', borderTop: '1px solid #f1f5f9', paddingTop: '20px' }}>
                   <button
                     type="button"
                     onClick={() => {
@@ -1651,9 +1671,9 @@ export default function CriarMusica() {
                       gap: '8px',
                       padding: '10px 18px',
                       borderRadius: '12px',
-                      border: '1.5px dashed var(--secondary)',
-                      backgroundColor: 'rgba(139, 92, 246, 0.08)',
-                      color: 'var(--secondary)',
+                      border: '1.5px dashed var(--primary)',
+                      backgroundColor: 'var(--primary-light)',
+                      color: 'var(--primary)',
                       fontSize: '0.88rem',
                       fontWeight: '700',
                       cursor: 'pointer',
@@ -1666,9 +1686,9 @@ export default function CriarMusica() {
                 </div>
               </div>
             ) : formData.lyricsStatus === 'error' ? (
-              <div style={styles.generatingState}>
-                <h3 style={{ marginTop: '24px', fontFamily: 'var(--font-family-title)', fontSize: '1.6rem', color: 'var(--danger)' }}>Erro ao comunicar com a Inteligência de Composição</h3>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', marginTop: '8px', maxWidth: '500px' }}>
+              <div style={{ ...styles.generatingState, backgroundColor: '#ffffff', borderRadius: '24px', border: '1px solid #fecdd3', padding: '40px 28px', maxWidth: '600px', margin: '0 auto', boxShadow: '0 10px 40px rgba(0,0,0,0.04)' }}>
+                <h3 style={{ marginTop: '12px', fontFamily: 'var(--font-family-title)', fontSize: '1.5rem', fontWeight: '800', color: '#dc2626' }}>Erro ao comunicar com a Inteligência de Composição</h3>
+                <p style={{ color: '#64748b', fontSize: '0.95rem', marginTop: '8px', maxWidth: '500px' }}>
                   {formData.lyricsError || 'Não foi possível conectar ao servidor para gerar sua letra. Tente novamente.'}
                 </p>
                 <div style={{ marginTop: '20px', display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
@@ -1694,7 +1714,7 @@ export default function CriarMusica() {
               </div>
             ) : (
               <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '20px' }}>
                   <div>
                     <h1 style={{ ...styles.stepTitle, textAlign: 'left', margin: 0 }}>Sua Letra Exclusiva ✨</h1>
                     <p style={{ ...styles.stepSubtitle, textAlign: 'left', margin: '4px 0 0 0' }}>
@@ -1713,8 +1733,8 @@ export default function CriarMusica() {
                       display: 'inline-flex',
                       alignItems: 'center',
                       gap: '6px',
-                      padding: '8px 16px',
-                      borderRadius: '10px',
+                      padding: '9px 16px',
+                      borderRadius: '12px',
                       border: '1.5px solid #cbd5e1',
                       backgroundColor: '#ffffff',
                       color: '#0f172a',
@@ -1732,16 +1752,16 @@ export default function CriarMusica() {
                 {contingencyMode && (
                   <div style={{
                     padding: '14px 18px',
-                    borderRadius: '12px',
-                    background: 'rgba(37, 211, 102, 0.12)',
-                    border: '1px solid rgba(37, 211, 102, 0.35)',
+                    borderRadius: '14px',
+                    background: '#f0fdf4',
+                    border: '1.5px solid #bbf7d0',
                     marginBottom: '20px',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '12px'
                   }}>
                     <span style={{ fontSize: '1.4rem' }}>📲</span>
-                    <div style={{ fontSize: '0.9rem', color: '#25D366', fontWeight: '600' }}>
+                    <div style={{ fontSize: '0.9rem', color: '#166534', fontWeight: '600' }}>
                       <strong>Produção Direta via WhatsApp:</strong> Ao aprovar sua letra, você será direcionado ao nosso WhatsApp com a composição pronta para nossa equipe gerar sua música imediatamente!
                     </div>
                   </div>
@@ -1750,39 +1770,57 @@ export default function CriarMusica() {
                 <div className="responsive-grid-split">
                   <div style={styles.lyricsBox}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                      <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>LETRA DA MÚSICA</span>
+                      <span style={{ fontSize: '0.82rem', fontWeight: '800', letterSpacing: '0.04em', color: '#64748b', textTransform: 'uppercase' }}>LETRA DA MÚSICA</span>
                       <span style={styles.stepIndicator}>Versão {formData.lyricsVersion}</span>
                     </div>
-                    <pre style={styles.lyricsText}>{formData.lyrics}</pre>
+                    <pre style={{ ...styles.lyricsText, color: '#0f172a', lineHeight: 1.75 }}>{formData.lyrics}</pre>
                   </div>
                   
-                  <div style={styles.lyricsActions}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', backgroundColor: '#ffffff', borderRadius: '24px', border: '1px solid #eef2f6', padding: '24px 22px', boxShadow: '0 10px 40px rgba(0,0,0,0.04)' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      <label style={styles.wizardLabel}>Gostaria de mudar algo na composição?</label>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '1.1rem' }}>✏️</span>
+                        <label style={{ fontSize: '0.94rem', fontWeight: '700', color: '#0f172a', margin: 0 }}>
+                          Gostaria de mudar algo na composição?
+                        </label>
+                      </div>
                       <textarea 
                         value={formData.lyricsComment}
                         onChange={(e) => updateField('lyricsComment', e.target.value)}
                         placeholder="Ex: mude o segundo verso para falar da nossa viagem a Gramado..."
-                        style={{ ...styles.wizardTextarea, height: '100px' }}
+                        style={{
+                          width: '100%',
+                          height: '100px',
+                          padding: '14px',
+                          borderRadius: '12px',
+                          border: '1.5px solid #cbd5e1',
+                          backgroundColor: '#ffffff',
+                          color: '#0f172a',
+                          fontSize: '0.95rem',
+                          outline: 'none',
+                          boxSizing: 'border-box',
+                          resize: 'vertical',
+                        }}
                       />
                       <button 
                         onClick={requestLyricsAdjustment}
                         disabled={!formData.lyricsComment.trim()}
                         className="btn btn-secondary"
-                        style={{ width: '100%', padding: '14px', fontSize: '0.95rem' }}
+                        style={{ width: '100%', padding: '12px', fontSize: '0.92rem', borderRadius: '10px' }}
                       >
                         Solicitar Ajuste Gratuito ✍️
                       </button>
                     </div>
 
-                    <div style={styles.infoAlert} className="glass-card">
-                      <p style={{ fontSize: '0.85rem', lineHeight: '1.5', color: 'var(--text-secondary)' }}>
-                        💡 Você tem direito a ajustes ilimitados na composição para que ela fique do jeitinho que sonhou.
+                    <div style={{ padding: '14px 18px', borderRadius: '14px', backgroundColor: '#fffbeb', border: '1px solid #fef3c7', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span style={{ fontSize: '1.2rem', flexShrink: 0 }}>💡</span>
+                      <p style={{ fontSize: '0.84rem', lineHeight: '1.45', color: '#92400e', margin: 0 }}>
+                        Você tem direito a ajustes ilimitados na composição para que ela fique do jeitinho que sonhou.
                       </p>
                     </div>
 
-                    <div style={{ padding: '16px', borderRadius: '14px', background: 'rgba(37, 211, 102, 0.08)', border: '1px solid rgba(37, 211, 102, 0.25)', textAlign: 'center' }}>
-                      <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', margin: '0 0 10px 0', lineHeight: '1.4' }}>
+                    <div style={{ padding: '16px 18px', borderRadius: '16px', background: '#f0fdf4', border: '1px solid #bbf7d0', textAlign: 'center' }}>
+                      <p style={{ fontSize: '0.86rem', color: '#166534', margin: '0 0 10px 0', lineHeight: '1.4' }}>
                         💬 <strong>Não gostou do resultado da letra?</strong> Nos chame no WhatsApp que fazemos do seu jeito!
                       </p>
                       <a
@@ -2042,15 +2080,32 @@ export default function CriarMusica() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '680px', margin: '24px auto 0' }}>
                   
                   {/* Banner Oferta Promocional R$ 9,99 */}
-                  <div className="glass-card" style={{ background: 'linear-gradient(135deg, rgba(124, 58, 237, 0.25) 0%, rgba(236, 72, 153, 0.25) 100%)', border: '1px solid var(--primary)', borderRadius: '16px', padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                  <div
+                    style={{
+                      backgroundColor: '#ffffff',
+                      borderRadius: '24px',
+                      border: '2px solid #e0e7ff',
+                      boxShadow: '0 10px 40px rgba(79, 70, 229, 0.08)',
+                      padding: '24px 26px',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      flexWrap: 'wrap',
+                      gap: '14px',
+                    }}
+                  >
                     <div>
-                      <span style={{ fontSize: '0.8rem', color: '#fbbf24', fontWeight: '800', letterSpacing: '0.5px' }}>⚡ OFERTA PROMOCIONAL ESPECIAL</span>
-                      <h4 style={{ fontSize: '1.2rem', fontWeight: '800', marginTop: '2px', color: '#fff' }}>Você ganhou 2 Músicas Completas!</h4>
-                      <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                        De <s style={{ opacity: 0.6 }}>R$ 69,90</s> por apenas <strong style={{ color: '#34d399', fontSize: '1.05rem' }}>R$ 9,99</strong>
+                      <span style={{ fontSize: '0.78rem', color: '#b45309', backgroundColor: '#fffbeb', border: '1px solid #fde68a', padding: '3px 10px', borderRadius: '8px', fontWeight: '800', letterSpacing: '0.5px' }}>
+                        ⚡ OFERTA PROMOCIONAL ESPECIAL
+                      </span>
+                      <h4 style={{ fontSize: '1.25rem', fontWeight: '800', color: '#0f172a', margin: '6px 0 0 0' }}>
+                        Você ganhou 2 Músicas Completas!
+                      </h4>
+                      <p style={{ fontSize: '0.9rem', color: '#64748b', margin: '4px 0 0 0' }}>
+                        De <s style={{ opacity: 0.65 }}>R$ 69,90</s> por apenas <strong style={{ color: '#059669', fontSize: '1.15rem' }}>R$ 9,99</strong>
                       </p>
                     </div>
-                    <span style={{ background: 'linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%)', color: '#fff', padding: '8px 16px', borderRadius: '24px', fontWeight: 'bold', fontSize: '0.9rem', boxShadow: '0 4px 15px rgba(124, 58, 237, 0.4)' }}>
+                    <span style={{ background: 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)', color: '#fff', padding: '10px 20px', borderRadius: '999px', fontWeight: '800', fontSize: '0.92rem', boxShadow: '0 4px 15px rgba(124, 58, 237, 0.25)' }}>
                       2 Músicas por R$ 9,99
                     </span>
                   </div>
@@ -2068,39 +2123,39 @@ export default function CriarMusica() {
                   {/* Versão 2 Locked Bonus Card */}
                   {formData.sunoTracks[1] && (
                     <div
-                      className="glass-card"
                       style={{
-                        padding: '24px',
+                        backgroundColor: '#ffffff',
+                        borderRadius: '24px',
+                        padding: '26px 24px',
                         display: 'flex',
                         flexDirection: 'column',
                         gap: '14px',
-                        border: '2px dashed rgba(236, 72, 153, 0.45)',
-                        backgroundColor: 'rgba(236, 72, 153, 0.04)',
-                        borderRadius: '16px',
+                        border: '2px dashed #f472b6',
+                        boxShadow: '0 10px 40px rgba(0,0,0,0.03)',
                       }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
                         <div>
-                          <span style={{ background: 'linear-gradient(135deg, #ec4899 0%, #be185d 100%)', color: '#fff', padding: '4px 12px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 'bold' }}>
+                          <span style={{ background: '#fdf2f8', border: '1px solid #fbcfe8', color: '#db2777', padding: '4px 12px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: '800' }}>
                             🎁 BÔNUS EXCLUSIVO 100% GRÁTIS
                           </span>
-                          <h3 style={{ fontSize: '1.2rem', fontWeight: '700', marginTop: '8px', color: '#fff' }}>
+                          <h3 style={{ fontSize: '1.15rem', fontWeight: '800', color: '#0f172a', margin: '8px 0 0 0' }}>
                             🎵 Versão {formData.honoreeName || 'Personalizada'} (Arranjo Alternativo)
                           </h3>
                         </div>
-                        <span style={{ fontSize: '0.85rem', color: '#ec4899', fontWeight: 'bold' }}>
+                        <span style={{ fontSize: '0.84rem', color: '#db2777', fontWeight: '700', backgroundColor: '#fff1f2', padding: '4px 12px', borderRadius: '999px', border: '1px solid #fecdd3' }}>
                           Liberada Após o Pagamento 🔒
                         </span>
                       </div>
 
-                      <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.5' }}>
+                      <p style={{ fontSize: '0.88rem', color: '#64748b', margin: 0, lineHeight: '1.55' }}>
                         O estúdio gerou um <strong>segundo arranjo exclusivo</strong> com ritmo e estilo alternativos para sua homenagem. Ouça a Versão 1 completa acima e garanta seu pedido para desbloquear o download de ambas em MP3 HD!
                       </p>
 
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', padding: '12px 16px', background: 'rgba(0, 0, 0, 0.3)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', padding: '12px 18px', background: '#fff1f2', borderRadius: '14px', border: '1px solid #fecdd3' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          <span style={{ fontSize: '1.4rem' }}>🔒</span>
-                          <span style={{ fontSize: '0.85rem', color: '#f472b6', fontWeight: '600' }}>
+                          <span style={{ fontSize: '1.3rem' }}>🔒</span>
+                          <span style={{ fontSize: '0.85rem', color: '#be185d', fontWeight: '700' }}>
                             Versão 2 bloqueada — Liberada gratuitamente com seu pedido
                           </span>
                         </div>
@@ -2116,7 +2171,7 @@ export default function CriarMusica() {
                             fontWeight: '700',
                             fontSize: '0.85rem',
                             cursor: 'pointer',
-                            boxShadow: '0 2px 10px rgba(236,72,153,0.3)',
+                            boxShadow: '0 2px 10px rgba(236,72,153,0.25)',
                           }}
                         >
                           Liberar Grátis 🔓
@@ -2126,12 +2181,12 @@ export default function CriarMusica() {
                   )}
 
                   {/* Card: Não gostou do resultado? Chame no WhatsApp */}
-                  <div className="glass-card" style={{ padding: '16px 20px', borderRadius: '16px', border: '1px solid rgba(37, 211, 102, 0.3)', background: 'rgba(37, 211, 102, 0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+                  <div style={{ padding: '18px 22px', borderRadius: '24px', border: '1.5px solid #bbf7d0', background: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', boxShadow: '0 6px 20px rgba(34, 197, 94, 0.05)' }}>
                     <div style={{ flex: 1, minWidth: '220px' }}>
-                      <h5 style={{ fontSize: '0.96rem', fontWeight: '700', color: '#10b981', margin: '0 0 4px 0' }}>
+                      <h5 style={{ fontSize: '0.96rem', fontWeight: '800', color: '#15803d', margin: '0 0 4px 0' }}>
                         🤔 Não gostou do resultado da música?
                       </h5>
-                      <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.4' }}>
+                      <p style={{ fontSize: '0.84rem', color: '#475569', margin: 0, lineHeight: '1.4' }}>
                         Nos chame no WhatsApp que fazemos do seu jeito com nossos produtores!
                       </p>
                     </div>
@@ -2159,39 +2214,66 @@ export default function CriarMusica() {
                   </div>
 
                   {/* Card de Oferta do Vídeo Homenagem */}
-                  <div className="glass-card" style={{ padding: '20px 24px', borderRadius: '16px', border: formData.addons?.wantsVideo ? '2px solid #8b5cf6' : '1px solid rgba(139, 92, 246, 0.3)', background: formData.addons?.wantsVideo ? 'linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(236, 72, 153, 0.15) 100%)' : 'rgba(139, 92, 246, 0.05)', transition: 'all 0.3s ease' }}>
+                  <div
+                    style={{
+                      backgroundColor: '#ffffff',
+                      borderRadius: '24px',
+                      padding: '24px 26px',
+                      border: formData.addons?.wantsVideo ? '2px solid #8b5cf6' : '1px solid #eef2f6',
+                      boxShadow: '0 10px 40px rgba(0,0,0,0.04)',
+                      transition: 'all 0.25s ease',
+                    }}
+                  >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', flexWrap: 'wrap' }}>
-                      <div style={{ flex: 1, minWidth: '200px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                          <span style={{ fontSize: '1.3rem' }}>🎬</span>
-                          <h4 style={{ fontSize: '1.05rem', fontWeight: '800', color: '#c084fc' }}>Vídeo Homenagem com Fotos</h4>
+                      <div style={{ display: 'flex', gap: '14px', alignItems: 'flex-start', flex: 1, minWidth: '220px' }}>
+                        <div
+                          style={{
+                            width: '42px',
+                            height: '42px',
+                            borderRadius: '12px',
+                            backgroundColor: '#f5f3ff',
+                            border: '1px solid #ddd6fe',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '1.25rem',
+                            flexShrink: 0,
+                            marginTop: '2px',
+                          }}
+                        >
+                          🎬
                         </div>
-                        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: '1.5', marginBottom: '8px' }}>
-                          Crie um vídeo emocionante com <strong>10 a 20 fotos</strong> da pessoa homenageada, com sua música de fundo. 
-                          Perfeito para compartilhar no WhatsApp, Instagram ou em festas!
-                        </p>
-                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', fontSize: '0.78rem' }}>
-                          <span style={{ background: 'rgba(139, 92, 246, 0.15)', color: '#c084fc', padding: '3px 10px', borderRadius: '20px', fontWeight: '600' }}>📸 10-20 fotos</span>
-                          <span style={{ background: 'rgba(139, 92, 246, 0.15)', color: '#c084fc', padding: '3px 10px', borderRadius: '20px', fontWeight: '600' }}>🎵 Sua música de fundo</span>
-                          <span style={{ background: 'rgba(139, 92, 246, 0.15)', color: '#c084fc', padding: '3px 10px', borderRadius: '20px', fontWeight: '600' }}>📲 Link exclusivo</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <h4 style={{ fontSize: '1.1rem', fontWeight: '800', color: '#0f172a', margin: '0 0 6px 0' }}>
+                            Vídeo Homenagem com Fotos
+                          </h4>
+                          <p style={{ fontSize: '0.86rem', color: '#64748b', lineHeight: '1.5', margin: '0 0 10px 0' }}>
+                            Crie um vídeo emocionante com <strong>10 a 20 fotos</strong> da pessoa homenageada, com sua música de fundo. 
+                            Perfeito para compartilhar no WhatsApp, Instagram ou em festas!
+                          </p>
+                          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', fontSize: '0.78rem' }}>
+                            <span style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', color: '#7c3aed', padding: '3px 10px', borderRadius: '20px', fontWeight: '700' }}>📸 10-20 fotos</span>
+                            <span style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', color: '#7c3aed', padding: '3px 10px', borderRadius: '20px', fontWeight: '700' }}>🎵 Sua música de fundo</span>
+                            <span style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', color: '#7c3aed', padding: '3px 10px', borderRadius: '20px', fontWeight: '700' }}>📲 Link exclusivo</span>
+                          </div>
                         </div>
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', minWidth: '120px' }}>
-                        <span style={{ fontSize: '1.4rem', fontWeight: '800', color: '#34d399' }}>+ R$ 6,90</span>
+                        <span style={{ fontSize: '1.35rem', fontWeight: '800', color: '#059669' }}>+ R$ 6,90</span>
                         <button
                           type="button"
                           onClick={() => setFormData(prev => ({ ...prev, addons: { ...prev.addons, wantsVideo: !prev.addons?.wantsVideo } }))}
                           style={{
                             padding: '10px 20px',
-                            borderRadius: '24px',
+                            borderRadius: '999px',
                             border: 'none',
-                            fontWeight: 'bold',
+                            fontWeight: '800',
                             fontSize: '0.88rem',
                             cursor: 'pointer',
-                            transition: 'all 0.3s ease',
-                            background: formData.addons?.wantsVideo ? 'linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)' : 'rgba(139, 92, 246, 0.2)',
-                            color: formData.addons?.wantsVideo ? '#fff' : '#c084fc',
-                            boxShadow: formData.addons?.wantsVideo ? '0 4px 15px rgba(139, 92, 246, 0.4)' : 'none'
+                            transition: 'all 0.25s ease',
+                            background: formData.addons?.wantsVideo ? 'linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)' : '#f1f5f9',
+                            color: formData.addons?.wantsVideo ? '#fff' : '#475569',
+                            boxShadow: formData.addons?.wantsVideo ? '0 4px 15px rgba(139, 92, 246, 0.35)' : 'none',
                           }}
                         >
                           {formData.addons?.wantsVideo ? '✓ Adicionado' : '+ Adicionar'}
@@ -2199,7 +2281,7 @@ export default function CriarMusica() {
                       </div>
                     </div>
                     {formData.addons?.wantsVideo && (
-                      <div style={{ marginTop: '12px', padding: '10px 14px', background: 'rgba(52, 211, 153, 0.1)', borderRadius: '10px', border: '1px solid rgba(52, 211, 153, 0.2)', fontSize: '0.82rem', color: '#34d399', fontWeight: '600' }}>
+                      <div style={{ marginTop: '14px', padding: '10px 14px', background: '#ecfdf5', borderRadius: '12px', border: '1px solid #a7f3d0', fontSize: '0.82rem', color: '#059669', fontWeight: '700' }}>
                         ✅ Após o pagamento, você poderá enviar as fotos para montagem do vídeo.
                       </div>
                     )}
@@ -2211,7 +2293,7 @@ export default function CriarMusica() {
                       type="button"
                       onClick={() => setStep(7)}
                       className="btn btn-primary"
-                      style={{ width: '100%', padding: '16px', fontSize: '1.1rem', fontWeight: 'bold', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', boxShadow: '0 4px 15px rgba(16, 185, 129, 0.4)', border: 'none', color: '#fff', cursor: 'pointer', borderRadius: '12px' }}
+                      style={{ width: '100%', padding: '16px', fontSize: '1.08rem', fontWeight: '800', background: 'linear-gradient(135deg, #059669 0%, #047857 100%)', boxShadow: '0 6px 20px rgba(5, 150, 105, 0.3)', border: 'none', color: '#fff', cursor: 'pointer', borderRadius: '14px' }}
                     >
                       💳 {formData.addons?.wantsVideo ? `Liberar Música + Vídeo (R$ ${getTotalPrice().toFixed(2).replace('.', ',')})` : 'Liberar Músicas Completas (R$ 9,99)'}
                     </button>
@@ -2220,7 +2302,7 @@ export default function CriarMusica() {
                       type="button"
                       onClick={handleCreateNewSongFromScratch}
                       className="btn btn-secondary"
-                      style={{ width: '100%', padding: '14px', fontSize: '0.95rem', cursor: 'pointer', borderRadius: '12px' }}
+                      style={{ width: '100%', padding: '14px', fontSize: '0.95rem', cursor: 'pointer', borderRadius: '14px' }}
                     >
                       🔄 Criar Outra Música do Zero
                     </button>
@@ -2237,64 +2319,121 @@ export default function CriarMusica() {
             <p style={styles.stepSubtitle}>Pagamento seguro embutido no próprio site com liberação instantânea</p>
 
             {paymentErrorMessage && (
-              <div style={{ padding: '16px 20px', background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.4)', borderRadius: '14px', marginBottom: '24px', color: '#fca5a5', fontWeight: 'bold', fontSize: '0.95rem', textAlign: 'center' }}>
+              <div style={{ padding: '16px 20px', background: '#fef2f2', border: '1.5px solid #fecaca', borderRadius: '16px', marginBottom: '24px', color: '#dc2626', fontWeight: 'bold', fontSize: '0.95rem', textAlign: 'center', boxShadow: '0 4px 14px rgba(220, 38, 38, 0.08)' }}>
                 {paymentErrorMessage}
               </div>
             )}
 
             <div className="responsive-grid-2" style={{ maxWidth: '100%', overflowX: 'hidden' }}>
               {/* Resumo do Pedido */}
-              <div style={styles.checkoutSummary} className="glass-card">
-                <h3 style={{ fontSize: '1.2rem', marginBottom: '20px', color: 'var(--primary)' }}>Resumo do Pedido</h3>
+              <div style={styles.checkoutSummary}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+                  <div
+                    style={{
+                      width: '38px',
+                      height: '38px',
+                      borderRadius: '10px',
+                      backgroundColor: '#f5f3ff',
+                      border: '1px solid #ddd6fe',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '1.15rem',
+                      flexShrink: 0,
+                    }}
+                  >
+                    📋
+                  </div>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: '800', color: '#0f172a', margin: 0 }}>
+                    Resumo do Pedido
+                  </h3>
+                </div>
                 
                 <div style={{ ...styles.summaryItem, flexWrap: 'wrap', gap: '8px' }}>
-                  <span>Pacote Promocional (2 Músicas Completas)</span>
-                  <span style={{ fontWeight: '700', color: 'var(--success)' }}>R$ 9,99</span>
+                  <span style={{ color: '#475569', fontWeight: '600' }}>Pacote Promocional (2 Músicas Completas)</span>
+                  <span style={{ fontWeight: '800', color: '#059669' }}>R$ 9,99</span>
                 </div>
 
                 {formData.addons?.wantsVideo && (
-                  <div style={{ ...styles.summaryItem, flexWrap: 'wrap', gap: '8px', marginTop: '8px' }}>
-                    <span>🎬 Vídeo Homenagem com Fotos</span>
-                    <span style={{ fontWeight: '700', color: 'var(--success)' }}>R$ 6,90</span>
+                  <div style={{ ...styles.summaryItem, flexWrap: 'wrap', gap: '8px', marginTop: '4px' }}>
+                    <span style={{ color: '#475569', fontWeight: '600' }}>🎬 Vídeo Homenagem com Fotos</span>
+                    <span style={{ fontWeight: '800', color: '#059669' }}>R$ 6,90</span>
                   </div>
                 )}
 
-                <div style={{ ...styles.summaryItem, flexWrap: 'wrap', gap: '8px', fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '8px' }}>
+                <div style={{ ...styles.summaryItem, flexWrap: 'wrap', gap: '8px', fontSize: '0.85rem', color: '#64748b', marginTop: '4px' }}>
                   <span>Desconto Aplicado ({formData.addons?.wantsVideo ? '68' : '71'}% OFF)</span>
-                  <span style={{ color: 'var(--warning)', fontWeight: 'bold' }}>- R$ {formData.addons?.wantsVideo ? '50,00' : '50,00'}</span>
+                  <span style={{ color: '#d97706', fontWeight: '700' }}>- R$ {formData.addons?.wantsVideo ? '50,00' : '50,00'}</span>
                 </div>
 
-                <hr style={{ border: 'none', borderTop: '1px solid var(--border-color)', margin: '20px 0' }} />
+                <hr style={{ border: 'none', borderTop: '1px solid #f1f5f9', margin: '14px 0' }} />
                 
                 <div style={{ ...styles.summaryItem, flexWrap: 'wrap', gap: '8px', fontSize: '1.3rem', fontWeight: '800' }}>
-                  <span>Total Geral:</span>
+                  <span style={{ color: '#0f172a' }}>Total Geral:</span>
                   <span className="gradient-text">R$ {getTotalPrice().toFixed(2).replace('.', ',')}</span>
                 </div>
 
-                <div style={{ marginTop: '20px', fontSize: '0.9rem', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <p>👤 <strong>Cliente:</strong> {formData.customerName}</p>
-                  <p>📱 <strong>WhatsApp:</strong> {formData.customerPhone}</p>
-                  <p>🎧 <strong>Conteúdo:</strong> 2 Músicas MP3 HD + Capa Exclusiva{formData.addons?.wantsVideo ? ' + Vídeo Homenagem' : ''}</p>
+                <div style={{ marginTop: '16px', padding: '14px 16px', backgroundColor: '#f8fafc', borderRadius: '14px', border: '1px solid #e2e8f0', fontSize: '0.88rem', color: '#475569', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <p style={{ margin: 0 }}>👤 <strong style={{ color: '#0f172a' }}>Cliente:</strong> {formData.customerName}</p>
+                  <p style={{ margin: 0 }}>📱 <strong style={{ color: '#0f172a' }}>WhatsApp:</strong> {formData.customerPhone}</p>
+                  <p style={{ margin: 0 }}>🎧 <strong style={{ color: '#0f172a' }}>Conteúdo:</strong> 2 Músicas MP3 HD + Capa Exclusiva{formData.addons?.wantsVideo ? ' + Vídeo Homenagem' : ''}</p>
                 </div>
 
-                <hr style={{ border: 'none', borderTop: '1px solid var(--border-color)', margin: '20px 0' }} />
+                <hr style={{ border: 'none', borderTop: '1px solid #f1f5f9', margin: '14px 0' }} />
 
                 <button
                   type="button"
                   onClick={handleCreateNewSongFromScratch}
                   className="btn btn-secondary"
-                  style={{ width: '100%', padding: '12px 16px', fontSize: '0.9rem', cursor: 'pointer', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                  style={{ width: '100%', padding: '12px 16px', fontSize: '0.9rem', cursor: 'pointer', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
                 >
                   🔄 Criar Outra Música do Zero
                 </button>
               </div>
 
               {/* Opções de Pagamento Embutidas no Site */}
-              <div className="glass-card" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '100%' }}>
-                <h3 style={{ fontSize: '1.2rem', color: 'var(--text-primary)', fontWeight: '700' }}>⚡ Pagamento via PIX Instantâneo</h3>
+              <div
+                style={{
+                  backgroundColor: '#ffffff',
+                  borderRadius: '24px',
+                  border: '1px solid #eef2f6',
+                  boxShadow: '0 10px 40px rgba(0,0,0,0.04)',
+                  padding: '28px 24px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '16px',
+                  maxWidth: '100%',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div
+                    style={{
+                      width: '38px',
+                      height: '38px',
+                      borderRadius: '10px',
+                      backgroundColor: '#ecfdf5',
+                      border: '1px solid #a7f3d0',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '1.15rem',
+                      flexShrink: 0,
+                    }}
+                  >
+                    ⚡
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: '1.2rem', color: '#0f172a', fontWeight: '800', margin: 0 }}>
+                      Pagamento via PIX Instantâneo
+                    </h3>
+                    <span style={{ fontSize: '0.78rem', color: '#059669', fontWeight: '700' }}>
+                      ✓ Liberação automática e imediata
+                    </span>
+                  </div>
+                </div>
 
                 {/* Área de Pagamento PIX Transparente */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '8px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '6px' }}>
                     {!pixInfo ? (
                       <button
                         type="button"
@@ -2372,18 +2511,18 @@ export default function CriarMusica() {
                           }
                         }}
                         className="btn btn-primary"
-                        style={{ padding: '16px', fontSize: '1.05rem', background: 'linear-gradient(135deg, #059669 0%, #047857 100%)' }}
+                        style={{ padding: '16px', fontSize: '1.05rem', fontWeight: '800', borderRadius: '14px', background: 'linear-gradient(135deg, #059669 0%, #047857 100%)', boxShadow: '0 4px 16px rgba(5, 150, 105, 0.3)' }}
                       >
                         {isGeneratingPix ? '⏳ Gerando PIX...' : `⚡ Gerar QR Code do PIX (R$ ${getTotalPrice().toFixed(2).replace('.', ',')})`}
                       </button>
                     ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', background: 'var(--bg-secondary)', padding: '20px', borderRadius: '16px', border: '1.5px solid var(--border-color)', maxWidth: '100%' }}>
-                        <span style={{ fontSize: '0.85rem', color: 'var(--success)', fontWeight: 'bold' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', background: '#f8fafc', padding: '24px 20px', borderRadius: '20px', border: '1.5px solid #e2e8f0', maxWidth: '100%' }}>
+                        <span style={{ fontSize: '0.88rem', color: '#059669', fontWeight: '800', backgroundColor: '#ecfdf5', padding: '4px 14px', borderRadius: '999px', border: '1px solid #a7f3d0' }}>
                           ✅ QR Code PIX Gerado com Sucesso!
                         </span>
 
                         {pixPollingTimedOut && (
-                          <div style={{ width: '100%', padding: '12px 16px', background: 'rgba(234, 179, 8, 0.15)', border: '1px solid rgba(234, 179, 8, 0.4)', borderRadius: '10px', color: '#facc15', fontSize: '0.85rem', textAlign: 'center' }}>
+                          <div style={{ width: '100%', padding: '12px 16px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '12px', color: '#92400e', fontSize: '0.85rem', textAlign: 'center' }}>
                             Ainda não recebemos a confirmação automática deste pagamento. Se você já
                             pagou, use o botão &quot;Já Paguei&quot; abaixo para verificar manualmente.
                           </div>
@@ -2392,21 +2531,21 @@ export default function CriarMusica() {
                         {/* QR Code como caminho principal: parte dos clientes não localizava o
                             botão de copiar e desistia do pagamento. */}
                         <div style={{ textAlign: 'center' }}>
-                          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '10px' }}>
+                          <p style={{ fontSize: '0.86rem', color: '#475569', marginBottom: '10px' }}>
                             Abra o app do seu banco e aponte a câmera para o QR Code:
                           </p>
                           <PixQrCode payload={pixInfo.qrCode} />
                         </div>
 
                         <div style={{ width: '100%' }}>
-                          <label htmlFor="pix-copia-cola-criar" style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
+                          <label htmlFor="pix-copia-cola-criar" style={{ fontSize: '0.82rem', color: '#475569', display: 'block', marginBottom: '6px', fontWeight: '600' }}>
                             Ou use o código PIX Copia e Cola:
                           </label>
                           <textarea
                             id="pix-copia-cola-criar"
                             readOnly
                             value={pixInfo.qrCode || ''}
-                            style={{ width: '100%', height: '70px', background: '#FFFFFF', color: '#0f172a', border: '1.5px solid var(--border-color)', borderRadius: '8px', padding: '10px', fontSize: '0.75rem', fontFamily: 'monospace', resize: 'none' }}
+                            style={{ width: '100%', height: '70px', background: '#FFFFFF', color: '#0f172a', border: '1.5px solid #cbd5e1', borderRadius: '12px', padding: '10px 12px', fontSize: '0.78rem', fontFamily: 'monospace', resize: 'none', boxSizing: 'border-box' }}
                           />
                         </div>
 
@@ -2429,13 +2568,14 @@ export default function CriarMusica() {
                           style={{
                             width: '100%',
                             padding: '14px',
-                            borderRadius: '10px',
+                            borderRadius: '12px',
                             border: 'none',
-                            background: pixCopied ? 'var(--success)' : 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                            background: pixCopied ? '#059669' : 'linear-gradient(135deg, #059669 0%, #047857 100%)',
                             color: '#FFFFFF',
-                            fontWeight: 'bold',
+                            fontWeight: '800',
                             fontSize: '1rem',
-                            cursor: 'pointer'
+                            cursor: 'pointer',
+                            boxShadow: '0 4px 14px rgba(5, 150, 105, 0.25)'
                           }}
                         >
                           {pixCopied ? '✅ Código PIX Copiado!' : '📋 Copiar Código PIX'}
@@ -2478,21 +2618,21 @@ export default function CriarMusica() {
                           style={{
                             width: '100%',
                             padding: '14px',
-                            borderRadius: '10px',
+                            borderRadius: '12px',
                             border: 'none',
                             background: 'linear-gradient(135deg, #7c3aed 0%, #4c1d95 100%)',
                             color: '#FFFFFF',
-                            fontWeight: 'bold',
+                            fontWeight: '800',
                             fontSize: '1rem',
                             cursor: 'pointer',
-                            marginTop: '8px',
-                            boxShadow: '0 4px 12px rgba(124, 58, 237, 0.3)'
+                            marginTop: '4px',
+                            boxShadow: '0 4px 14px rgba(124, 58, 237, 0.3)'
                           }}
                         >
                           ⚡ Já Fiz o Pagamento / Validar Agora
                         </button>
 
-                        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '10px', textAlign: 'center' }}>
+                        <p style={{ fontSize: '0.84rem', color: '#64748b', marginTop: '6px', textAlign: 'center', lineHeight: 1.4 }}>
                           A liberação é automática assim que o pagamento for confirmado. Não precisa enviar comprovante.
                         </p>
                       </div>
@@ -2509,6 +2649,26 @@ export default function CriarMusica() {
 
   return (
     <div style={styles.wrapper}>
+      {/* Elementos Decorativos Flutuantes Suaves no Fundo (como no padrão visual do mockup) */}
+      <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0, overflow: 'hidden' }} aria-hidden="true">
+        {/* Nota musical translúcida no canto superior esquerdo */}
+        <div style={{ position: 'absolute', top: '10%', left: '3%', fontSize: '2.5rem', opacity: 0.16, transform: 'rotate(-15deg)', filter: 'drop-shadow(0 4px 10px rgba(245, 158, 11, 0.2))' }}>
+          🎵
+        </div>
+        {/* Brilho translúcido no canto superior direito */}
+        <div style={{ position: 'absolute', top: '14%', right: '4%', fontSize: '2.2rem', opacity: 0.18, transform: 'rotate(12deg)', filter: 'drop-shadow(0 4px 10px rgba(236, 72, 153, 0.2))' }}>
+          ✨
+        </div>
+        {/* Nota musical translúcida no canto médio direito */}
+        <div style={{ position: 'absolute', top: '46%', right: '2%', fontSize: '2.4rem', opacity: 0.14, transform: 'rotate(15deg)', filter: 'drop-shadow(0 4px 10px rgba(245, 158, 11, 0.2))' }}>
+          🎵
+        </div>
+        {/* Notas duplas no canto inferior esquerdo */}
+        <div style={{ position: 'absolute', bottom: '12%', left: '4%', fontSize: '2.4rem', opacity: 0.14, transform: 'rotate(-8deg)', filter: 'drop-shadow(0 4px 10px rgba(124, 58, 237, 0.2))' }}>
+          🎶
+        </div>
+      </div>
+
       {/* Header Estúdio Musical Premium */}
       <header style={styles.header} className="glass-panel">
         <div style={{ ...styles.headerContainer, justifyContent: 'space-between', alignItems: 'center' }}>
@@ -2526,7 +2686,7 @@ export default function CriarMusica() {
       </header>
 
       {/* Main content container */}
-      <main style={{ flex: 1, padding: '32px 0 100px 0' }}>
+      <main style={{ flex: 1, padding: '32px 0 100px 0', position: 'relative', zIndex: 1 }}>
         <div className="container" style={{ maxWidth: '900px' }}>
           
           {/* Wizard step indicators */}
