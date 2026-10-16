@@ -47,3 +47,7 @@ local-worker/node_modules/
 local-worker/.env
 local-worker/.env*.local
 local-worker/perfil-chrome/
+
+# protótipos paralelos
+prototype-chat/
+prototype/

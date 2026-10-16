@@ -46,14 +46,14 @@ function AvisoPrevia60s() {
         gap: '9px',
         marginTop: '12px',
         padding: '10px 13px',
-        backgroundColor: '#fffbeb',
-        border: '1px solid #fde68a',
+        backgroundColor: '#f5f3ff',
+        border: '1px solid #ddd6fe',
         borderRadius: '12px',
       }}
     >
-      <span style={{ fontSize: '1rem', lineHeight: 1.3, flexShrink: 0 }}>🔒</span>
-      <p style={{ margin: 0, fontSize: '0.79rem', color: '#92400e', fontWeight: '700', lineHeight: 1.4 }}>
-        Prévia de 60 segundos. O pagamento libera as 2 versões completas em MP3 HD.
+      <span style={{ fontSize: '1rem', lineHeight: 1.3, flexShrink: 0 }}>🎧</span>
+      <p style={{ margin: 0, fontSize: '0.79rem', color: '#5b21b6', fontWeight: '700', lineHeight: 1.4 }}>
+        Você está ouvindo a <strong>Versão 1 completa</strong>. O pagamento libera o download em MP3 e a <strong>Versão 2 inteiramente grátis</strong>!
       </p>
     </div>
   );
@@ -943,26 +943,12 @@ function EntregaContent() {
   // O corte aqui é de produto, não de segurança: o áudio completo continua acessível a quem
   // inspecionar a rede. O que o pagamento protege de verdade é o download em MP3 HD, o vídeo, a
   // carta e a retrospectiva.
-  const podeOuvirInteira = isPaid;
-
-  // Pop-up do corte: abre no instante em que a prévia para. Antes, o único sinal era uma linha de
-  // texto abaixo do player, e parte dos clientes entendia que a música tinha falhado em vez de
-  // entender que faltava pagar. Uma vez por carregamento da página — reabrir a cada replay vira
-  // armadilha, e quem fechou já entendeu o recado.
+  // Prévia completa da Versão 1 para quem não pagou. A Versão 2 fica bloqueada como incentivo.
   const [showPreviaModal, setShowPreviaModal] = useState(false);
   const previaModalJaMostrado = useRef(false);
 
-  const handleAudioTimeUpdate = (e) => {
-    if (podeOuvirInteira) return;
-    const audio = e.target;
-    if (audio.currentTime > 60) {
-      audio.pause();
-      audio.currentTime = 60;
-      if (!previaModalJaMostrado.current) {
-        previaModalJaMostrado.current = true;
-        setShowPreviaModal(true);
-      }
-    }
+  const handleAudioTimeUpdate = () => {
+    // Versão 1 agora toca inteira sem interrupção de 60s
   };
 
   // Versão que toca na página pública de presente (/homenagem). Quem escolhe é quem montou a
@@ -1140,16 +1126,19 @@ function EntregaContent() {
     second: { currentTime: 0, duration: 60, isPlaying: false },
   });
 
-  const formatAudioTime = (seconds, capAt60 = false) => {
+  const formatAudioTime = (seconds) => {
     if (!seconds || isNaN(seconds)) return '0:00';
-    let val = Math.floor(seconds);
-    if (capAt60 && val > 60) val = 60;
+    const val = Math.floor(seconds);
     const m = Math.floor(val / 60);
     const s = val % 60;
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
   const toggleAudioPlay = (slot) => {
+    if (slot === 'second' && !isPaid) {
+      document.getElementById('pagamento')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
     const currentEl = slot === 'primary' ? primaryAudioElRef.current : secondAudioElRef.current;
     const otherEl = slot === 'primary' ? secondAudioElRef.current : primaryAudioElRef.current;
     const otherSlot = slot === 'primary' ? 'second' : 'primary';
@@ -1564,9 +1553,9 @@ function EntregaContent() {
                         maxWidth: '440px',
                       }}
                     >
-                      Você está ouvindo uma prévia de <strong style={{ color: '#1e293b' }}>60</strong> segundos.
-                      {' '}Desbloqueie as <strong style={{ color: '#1e293b' }}>2 versões completas</strong> em MP3 HD
-                      {' '}e escolha os <strong style={{ color: '#1e293b' }}>extras</strong> que quiser.
+                      Você está ouvindo a <strong style={{ color: '#1e293b' }}>Versão 1 completa</strong>.
+                      {' '}Desbloqueie o <strong style={{ color: '#1e293b' }}>download em MP3 HD</strong> e ganhe a
+                      {' '}<strong style={{ color: '#1e293b' }}>Versão 2 inteiramente grátis</strong>!
                     </p>
 
                     <button
@@ -1765,9 +1754,9 @@ function EntregaContent() {
                           <input
                             type="range"
                             min="0"
-                            max={isPaid ? (audioProgress.primary.duration || 60) : 60}
+                            max={audioProgress.primary.duration || 100}
                             step="0.5"
-                            value={Math.min(audioProgress.primary.currentTime, isPaid ? (audioProgress.primary.duration || 60) : 60)}
+                            value={audioProgress.primary.currentTime}
                             onChange={(e) => handleAudioSeek('primary', e.target.value)}
                             style={{
                               width: '100%',
@@ -1780,8 +1769,8 @@ function EntregaContent() {
                             }}
                           />
                           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.74rem', color: '#64748b', fontWeight: '600', marginTop: '4px' }}>
-                            <span>{formatAudioTime(audioProgress.primary.currentTime, !isPaid)}</span>
-                            <span>{isPaid ? formatAudioTime(audioProgress.primary.duration) : '0:60'}</span>
+                            <span>{formatAudioTime(audioProgress.primary.currentTime)}</span>
+                            <span>{formatAudioTime(audioProgress.primary.duration || 0)}</span>
                           </div>
                         </div>
                       </div>
@@ -1799,7 +1788,7 @@ function EntregaContent() {
                           ...prev,
                           primary: {
                             currentTime: e.target.currentTime,
-                            duration: e.target.duration || 60,
+                            duration: e.target.duration || prev.primary.duration || 60,
                             isPlaying: !e.target.paused,
                           },
                         }));
@@ -1828,6 +1817,10 @@ function EntregaContent() {
                           ...prev,
                           primary: { ...prev.primary, isPlaying: false, currentTime: 0 },
                         }));
+                        if (!isPaid && !previaModalJaMostrado.current) {
+                          previaModalJaMostrado.current = true;
+                          setShowPreviaModal(true);
+                        }
                       }}
                       style={{ display: 'none' }}
                       src={primaryAudioUrl}
@@ -1874,188 +1867,245 @@ function EntregaContent() {
                   </div>
                 )}
 
-                {/* Audio Player 2 (Prévia Versão 2) - Imagem 4 */}
+                {/* Audio Player 2 / Card Versão 2 (Bônus Grátis) */}
                 {secondAudioUrl && (
-                  <div
-                    style={isPaid ? {
-                      ...styles.audioPlayerContainer,
-                      backgroundColor: 'rgba(255,255,255,0.05)',
-                      border: '1px solid rgba(255,255,255,0.12)',
-                      backdropFilter: 'blur(6px)',
-                    } : {
-                      backgroundColor: '#ffffff',
-                      borderRadius: '16px',
-                      padding: '16px',
-                      border: '1.5px solid #fce7f3',
-                      boxShadow: '0 4px 14px rgba(236, 72, 153, 0.06)',
-                      width: '100%',
-                      boxSizing: 'border-box',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                      <h4 style={{ fontSize: '0.96rem', margin: 0, fontWeight: '700', color: isPaid ? '#f1f5f9' : '#ec4899', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span>🎧</span> Prévia (Versão 2)
-                      </h4>
-                      {isPaid ? (
+                  isPaid ? (
+                    <div
+                      style={{
+                        ...styles.audioPlayerContainer,
+                        backgroundColor: 'rgba(255,255,255,0.05)',
+                        border: '1px solid rgba(255,255,255,0.12)',
+                        backdropFilter: 'blur(6px)',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                        <h4 style={{ fontSize: '0.96rem', margin: 0, fontWeight: '700', color: '#f1f5f9', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span>🎧</span> Versão 2 (Arranjo Alternativo)
+                        </h4>
                         <span style={{ fontSize: '0.7rem', color: '#c084fc', backgroundColor: 'rgba(168,85,247,0.12)', padding: '3px 9px', borderRadius: '10px', border: '1px solid rgba(168,85,247,0.3)', fontWeight: '700' }}>
-                          Estúdio NSMusic
+                          Bônus Liberado ✓
                         </span>
-                      ) : (
-                        <span style={{ fontSize: '1.2rem', color: '#ec4899' }}>🔊</span>
-                      )}
-                    </div>
-
-                    {audioReadyState.second !== 'ready' && (
-                      <div style={{ padding: '16px 0', textAlign: 'center' }}>
-                        {audioReadyState.second === 'failed' ? (
-                          <>
-                            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '10px' }}>
-                              Não conseguimos carregar o áudio agora. Isso costuma resolver em instantes.
-                            </p>
-                            <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
-                              <button type="button" onClick={() => handleAudioRetryClick('second')} className="btn btn-secondary" style={{ padding: '8px 16px', fontSize: '0.82rem' }}>
-                                Tentar novamente
-                              </button>
-                              <a
-                                href={`${linkWhatsapp(whatsappSuporte, `Olá! Não consigo carregar a prévia do pedido #${orderId || ''} (${order?.honoreeName || 'música personalizada'}).`)}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="entrega-whatsapp-btn"
-                                style={{ padding: '8px 16px', fontSize: '0.82rem' }}
-                              >
-                                Falar no WhatsApp 📲
-                              </a>
-                            </div>
-                          </>
-                        ) : (
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '10px 0' }}>
-                            <div style={styles.spinner} />
-                            <span style={{ fontSize: '0.84rem', color: '#64748b' }}>Preparando sua prévia...</span>
-                          </div>
-                        )}
                       </div>
-                    )}
 
-                    {/* Custom Player Controls Versão 2 (Imagem 4) */}
-                    {audioReadyState.second === 'ready' && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '6px' }}>
-                        {/* Play/Pause Button */}
-                        <button
-                          type="button"
-                          onClick={() => toggleAudioPlay('second')}
-                          aria-label={audioProgress.second.isPlaying ? 'Pausar versão 2' : 'Tocar versão 2'}
-                          style={{
-                            width: '44px',
-                            height: '44px',
-                            borderRadius: '50%',
-                            background: 'linear-gradient(135deg, #f472b6 0%, #ec4899 100%)',
-                            border: 'none',
-                            color: '#ffffff',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            cursor: 'pointer',
-                            boxShadow: '0 3px 10px rgba(236, 72, 153, 0.35)',
-                            flexShrink: 0,
-                          }}
-                        >
-                          {audioProgress.second.isPlaying ? (
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                              <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
-                            </svg>
+                      {audioReadyState.second !== 'ready' && (
+                        <div style={{ padding: '16px 0', textAlign: 'center' }}>
+                          {audioReadyState.second === 'failed' ? (
+                            <>
+                              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '10px' }}>
+                                Não conseguimos carregar o áudio agora. Isso costuma resolver em instantes.
+                              </p>
+                              <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                                <button type="button" onClick={() => handleAudioRetryClick('second')} className="btn btn-secondary" style={{ padding: '8px 16px', fontSize: '0.82rem' }}>
+                                  Tentar novamente
+                                </button>
+                                <a
+                                  href={`${linkWhatsapp(whatsappSuporte, `Olá! Não consigo carregar a segunda versão do pedido #${orderId || ''} (${order?.honoreeName || 'música personalizada'}).`)}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="entrega-whatsapp-btn"
+                                  style={{ padding: '8px 16px', fontSize: '0.82rem' }}
+                                >
+                                  Falar no WhatsApp 📲
+                                </a>
+                              </div>
+                            </>
                           ) : (
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style={{ marginLeft: '2px' }}>
-                              <path d="M8 5v14l11-7z" />
-                            </svg>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '10px 0' }}>
+                              <div style={styles.spinner} />
+                              <span style={{ fontSize: '0.84rem', color: '#64748b' }}>Carregando sua segunda música...</span>
+                            </div>
                           )}
-                        </button>
+                        </div>
+                      )}
 
-                        {/* Scrubber & Timestamps */}
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <input
-                            type="range"
-                            min="0"
-                            max={isPaid ? (audioProgress.second.duration || 60) : 60}
-                            step="0.5"
-                            value={Math.min(audioProgress.second.currentTime, isPaid ? (audioProgress.second.duration || 60) : 60)}
-                            onChange={(e) => handleAudioSeek('second', e.target.value)}
+                      {/* Custom Player Controls Versão 2 */}
+                      {audioReadyState.second === 'ready' && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '6px' }}>
+                          {/* Play/Pause Button */}
+                          <button
+                            type="button"
+                            onClick={() => toggleAudioPlay('second')}
+                            aria-label={audioProgress.second.isPlaying ? 'Pausar versão 2' : 'Tocar versão 2'}
                             style={{
-                              width: '100%',
-                              height: '6px',
-                              borderRadius: '999px',
-                              accentColor: '#ec4899',
+                              width: '44px',
+                              height: '44px',
+                              borderRadius: '50%',
+                              background: 'linear-gradient(135deg, #f472b6 0%, #ec4899 100%)',
+                              border: 'none',
+                              color: '#ffffff',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
                               cursor: 'pointer',
-                              outline: 'none',
-                              display: 'block',
+                              boxShadow: '0 3px 10px rgba(236, 72, 153, 0.35)',
+                              flexShrink: 0,
                             }}
-                          />
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.74rem', color: '#64748b', fontWeight: '600', marginTop: '4px' }}>
-                            <span>{formatAudioTime(audioProgress.second.currentTime, !isPaid)}</span>
-                            <span>{isPaid ? formatAudioTime(audioProgress.second.duration) : '0:60'}</span>
+                          >
+                            {audioProgress.second.isPlaying ? (
+                              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                              </svg>
+                            ) : (
+                              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style={{ marginLeft: '2px' }}>
+                                <path d="M8 5v14l11-7z" />
+                              </svg>
+                            )}
+                          </button>
+
+                          {/* Scrubber & Timestamps */}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <input
+                              type="range"
+                              min="0"
+                              max={audioProgress.second.duration || 100}
+                              step="0.5"
+                              value={audioProgress.second.currentTime}
+                              onChange={(e) => handleAudioSeek('second', e.target.value)}
+                              style={{
+                                width: '100%',
+                                height: '6px',
+                                borderRadius: '999px',
+                                accentColor: '#ec4899',
+                                cursor: 'pointer',
+                                outline: 'none',
+                                display: 'block',
+                              }}
+                            />
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.74rem', color: '#64748b', fontWeight: '600', marginTop: '4px' }}>
+                              <span>{formatAudioTime(audioProgress.second.currentTime)}</span>
+                              <span>{formatAudioTime(audioProgress.second.duration || 0)}</span>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    )}
+                      )}
 
-                    <audio
-                      key={secondAudioUrl}
-                      ref={secondAudioElRef}
-                      controlsList={!isPaid ? "nodownload noplaybackrate" : undefined}
-                      onContextMenu={(e) => !isPaid && e.preventDefault()}
-                      onTimeUpdate={(e) => {
-                        handleAudioTimeUpdate(e);
-                        setAudioProgress((prev) => ({
-                          ...prev,
-                          second: {
-                            currentTime: e.target.currentTime,
-                            duration: e.target.duration || 60,
-                            isPlaying: !e.target.paused,
-                          },
-                        }));
-                      }}
-                      onCanPlay={() => handleAudioReady('second')}
-                      onError={() => handleAudioError('second')}
-                      onPlay={() => {
-                        markPreviewListened(orderId);
-                        setAudioProgress((prev) => ({
-                          ...prev,
-                          second: { ...prev.second, isPlaying: true },
-                          primary: { ...prev.primary, isPlaying: false },
-                        }));
-                        if (primaryAudioElRef.current && !primaryAudioElRef.current.paused) {
-                          primaryAudioElRef.current.pause();
-                        }
-                      }}
-                      onPause={() => {
-                        setAudioProgress((prev) => ({
-                          ...prev,
-                          second: { ...prev.second, isPlaying: false },
-                        }));
-                      }}
-                      onEnded={() => {
-                        setAudioProgress((prev) => ({
-                          ...prev,
-                          second: { ...prev.second, isPlaying: false, currentTime: 0 },
-                        }));
-                      }}
-                      style={{ display: 'none' }}
-                      src={secondAudioUrl}
-                    />
+                      <audio
+                        key={secondAudioUrl}
+                        ref={secondAudioElRef}
+                        onTimeUpdate={(e) => {
+                          setAudioProgress((prev) => ({
+                            ...prev,
+                            second: {
+                              currentTime: e.target.currentTime,
+                              duration: e.target.duration || prev.second.duration || 60,
+                              isPlaying: !e.target.paused,
+                            },
+                          }));
+                        }}
+                        onCanPlay={() => handleAudioReady('second')}
+                        onError={() => handleAudioError('second')}
+                        onPlay={() => {
+                          markPreviewListened(orderId);
+                          setAudioProgress((prev) => ({
+                            ...prev,
+                            second: { ...prev.second, isPlaying: true },
+                            primary: { ...prev.primary, isPlaying: false },
+                          }));
+                          if (primaryAudioElRef.current && !primaryAudioElRef.current.paused) {
+                            primaryAudioElRef.current.pause();
+                          }
+                        }}
+                        onPause={() => {
+                          setAudioProgress((prev) => ({
+                            ...prev,
+                            second: { ...prev.second, isPlaying: false },
+                          }));
+                        }}
+                        onEnded={() => {
+                          setAudioProgress((prev) => ({
+                            ...prev,
+                            second: { ...prev.second, isPlaying: false, currentTime: 0 },
+                          }));
+                        }}
+                        style={{ display: 'none' }}
+                        src={secondAudioUrl}
+                      />
 
-                    {isPaid && audioReadyState.second === 'ready' && (
-                      <div style={{ ...styles.downloadGrid, marginTop: '16px' }}>
-                        <button
-                          onClick={() => handleDownload(secondAudioUrl, `Musica_V2_${order?.honoreeName || 'Homenagem'}.mp3`)}
-                          className="btn"
-                          style={{ ...styles.downloadBtn, border: '1.5px solid rgba(255,255,255,0.25)', background: 'rgba(255,255,255,0.08)', color: '#fff', cursor: 'pointer' }}
+                      {audioReadyState.second === 'ready' && (
+                        <div style={{ ...styles.downloadGrid, marginTop: '16px' }}>
+                          <button
+                            onClick={() => handleDownload(secondAudioUrl, `Musica_V2_${order?.honoreeName || 'Homenagem'}.mp3`)}
+                            className="btn"
+                            style={{ ...styles.downloadBtn, border: '1.5px solid rgba(255,255,255,0.25)', background: 'rgba(255,255,255,0.08)', color: '#fff', cursor: 'pointer' }}
+                          >
+                            ⬇ Baixar MP3 (V2 Bônus)
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    /* Card de Bloqueio da Versão 2 (Bônus Grátis) */
+                    <div
+                      style={{
+                        backgroundColor: '#ffffff',
+                        borderRadius: '18px',
+                        padding: '18px 20px',
+                        border: '2px dashed #f472b6',
+                        background: 'linear-gradient(180deg, #fff5f9 0%, #ffffff 100%)',
+                        boxShadow: '0 4px 16px rgba(236, 72, 153, 0.08)',
+                        width: '100%',
+                        boxSizing: 'border-box',
+                        position: 'relative',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '1.4rem' }}>🎁</span>
+                          <div>
+                            <h4 style={{ fontSize: '0.98rem', margin: 0, fontWeight: '800', color: '#be185d' }}>
+                              Versão 2 (Arranjo Alternativo)
+                            </h4>
+                            <span style={{ fontSize: '0.74rem', color: '#9d174d', fontWeight: '600' }}>
+                              Segundo arranjo musical exclusivo gravado em estúdio
+                            </span>
+                          </div>
+                        </div>
+                        <span
+                          style={{
+                            fontSize: '0.72rem',
+                            fontWeight: '800',
+                            color: '#ffffff',
+                            background: 'linear-gradient(135deg, #ec4899 0%, #be185d 100%)',
+                            padding: '4px 10px',
+                            borderRadius: '20px',
+                            boxShadow: '0 2px 8px rgba(236,72,153,0.3)',
+                          }}
                         >
-                          ⬇ Baixar MP3 (V2 Bônus)
-                        </button>
+                          BÔNUS 100% GRÁTIS
+                        </span>
                       </div>
-                    )}
 
-                    {!isPaid && <AvisoPrevia60s />}
-                  </div>
+                      <p style={{ fontSize: '0.84rem', color: '#475569', margin: '8px 0 14px', lineHeight: 1.45 }}>
+                        Você já pode ouvir a <strong>Versão 1 completa</strong> no player acima. Ao confirmar o pedido, esta <strong>Versão 2 é liberada inteiramente grátis</strong> com download em MP3 HD para sempre!
+                      </p>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          document.getElementById('pagamento')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '13px 16px',
+                          borderRadius: '12px',
+                          border: 'none',
+                          background: 'linear-gradient(135deg, #ec4899 0%, #db2777 100%)',
+                          color: '#ffffff',
+                          fontWeight: '800',
+                          fontSize: '0.92rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '8px',
+                          cursor: 'pointer',
+                          boxShadow: '0 4px 14px rgba(236, 72, 153, 0.35)',
+                        }}
+                      >
+                        <span>🔒</span>
+                        <span>Pagar e Liberar 2ª Música Grátis</span>
+                      </button>
+                    </div>
+                  )
                 )}
 
                 {/* Atalho para a escada de preços. O aviso de prévia limitada saiu daqui e foi para
@@ -3538,7 +3588,7 @@ function EntregaContent() {
             onPagar={irParaPagamento}
             honoreeName={order?.honoreeName || ''}
             precoTexto={valorCobradoTexto}
-            ctaLabel="Liberar a música completa"
+            ctaLabel="Liberar Download + 2ª Música Grátis"
           />
 
           <PreviaProntaModal

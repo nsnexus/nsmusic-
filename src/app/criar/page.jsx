@@ -2037,7 +2037,7 @@ export default function CriarMusica() {
             ) : (
               <div>
                 <h1 style={styles.stepTitle}>Sua Música Está Pronta! 🎧</h1>
-                <p style={styles.stepSubtitle}>Ouça as prévias de 60 segundos geradas em estúdio. As 2 versões estão inclusas pelo valor promocional!</p>
+                <p style={styles.stepSubtitle}>Ouça a Versão 1 completa gerada em estúdio! Pague e libere o download em MP3 + a Versão 2 inteiramente grátis.</p>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '680px', margin: '24px auto 0' }}>
                   
@@ -2065,16 +2065,64 @@ export default function CriarMusica() {
                     onPreviaEncerrada={aoEncerrarPrevia}
                   />
 
-                  {/* Versão 2 Preview Card */}
+                  {/* Versão 2 Locked Bonus Card */}
                   {formData.sunoTracks[1] && (
-                    <CustomAudioPreview
-                      src={getAudioUrl(formData.sunoTracks[1])}
-                      label={`Versão ${formData.honoreeName || 'Personalizada'} (Arranjo 2)`}
-                      badge="VERSÃO 2 - ARRANJO ALTERNATIVO BÔNUS"
-                      isBonus={true}
-                      orderId={orderId}
-                      onPreviaEncerrada={aoEncerrarPrevia}
-                    />
+                    <div
+                      className="glass-card"
+                      style={{
+                        padding: '24px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '14px',
+                        border: '2px dashed rgba(236, 72, 153, 0.45)',
+                        backgroundColor: 'rgba(236, 72, 153, 0.04)',
+                        borderRadius: '16px',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                        <div>
+                          <span style={{ background: 'linear-gradient(135deg, #ec4899 0%, #be185d 100%)', color: '#fff', padding: '4px 12px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 'bold' }}>
+                            🎁 BÔNUS EXCLUSIVO 100% GRÁTIS
+                          </span>
+                          <h3 style={{ fontSize: '1.2rem', fontWeight: '700', marginTop: '8px', color: '#fff' }}>
+                            🎵 Versão {formData.honoreeName || 'Personalizada'} (Arranjo Alternativo)
+                          </h3>
+                        </div>
+                        <span style={{ fontSize: '0.85rem', color: '#ec4899', fontWeight: 'bold' }}>
+                          Liberada Após o Pagamento 🔒
+                        </span>
+                      </div>
+
+                      <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.5' }}>
+                        O estúdio gerou um <strong>segundo arranjo exclusivo</strong> com ritmo e estilo alternativos para sua homenagem. Ouça a Versão 1 completa acima e garanta seu pedido para desbloquear o download de ambas em MP3 HD!
+                      </p>
+
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', padding: '12px 16px', background: 'rgba(0, 0, 0, 0.3)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <span style={{ fontSize: '1.4rem' }}>🔒</span>
+                          <span style={{ fontSize: '0.85rem', color: '#f472b6', fontWeight: '600' }}>
+                            Versão 2 bloqueada — Liberada gratuitamente com seu pedido
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setStep(7)}
+                          style={{
+                            padding: '9px 18px',
+                            borderRadius: '10px',
+                            border: 'none',
+                            background: 'linear-gradient(135deg, #ec4899 0%, #db2777 100%)',
+                            color: '#fff',
+                            fontWeight: '700',
+                            fontSize: '0.85rem',
+                            cursor: 'pointer',
+                            boxShadow: '0 2px 10px rgba(236,72,153,0.3)',
+                          }}
+                        >
+                          Liberar Grátis 🔓
+                        </button>
+                      </div>
+                    </div>
                   )}
 
                   {/* Card: Não gostou do resultado? Chame no WhatsApp */}
@@ -2650,7 +2698,7 @@ export default function CriarMusica() {
         onPagar={() => { setShowPreviaModal(false); setStep(7); }}
         honoreeName={formData.honoreeName || ''}
         precoTexto={`R$ ${getTotalPrice().toFixed(2).replace('.', ',')}`}
-        ctaLabel="Liberar as músicas completas"
+        ctaLabel="Liberar Download + 2ª Música Grátis"
       />
     </div>
   );

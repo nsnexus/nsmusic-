@@ -16,7 +16,7 @@ export default function PreviaEncerradaModal({
   onPagar,
   honoreeName = '',
   precoTexto = '',
-  ctaLabel = 'Liberar a música completa',
+  ctaLabel = 'Liberar Download + 2ª Música Grátis',
 }) {
   // Esc fecha, e a página atrás não rola enquanto o pop-up está aberto (senão o dedo no celular
   // arrasta o fundo em vez do card).
@@ -37,9 +37,9 @@ export default function PreviaEncerradaModal({
   const nome = honoreeName?.trim();
 
   const beneficios = [
-    ['🎵', <>As <strong>2 versões completas</strong>, do começo ao fim</>],
-    ['⬇️', <>Download em <strong>MP3 HD</strong>, para sempre</>],
-    ['🎁', <>Página de presente para <strong>enviar no WhatsApp</strong></>],
+    ['⬇️', <>Download em <strong>MP3 HD da Versão 1</strong> para sempre</>],
+    ['🎁', <><strong>Versão 2 inteiramente grátis</strong> (arranjo musical alternativo)</>],
+    ['📱', <>Página de presente para <strong>enviar no WhatsApp</strong></>],
   ];
 
   return (
@@ -92,29 +92,25 @@ export default function PreviaEncerradaModal({
         </button>
 
         <div style={{ position: 'relative' }}>
-          <div style={{ fontSize: '2rem', marginBottom: '6px' }}>🔒</div>
+          <div style={{ fontSize: '2.2rem', marginBottom: '6px' }}>🎉</div>
 
           {/* `color` explícito: a regra global de h1..h6 em globals.css usa var(--text-primary),
               que é escuro — sem isto o título some no fundo escuro deste card. */}
           <h3 style={{ fontFamily: 'var(--font-family-title)', fontSize: '1.45rem', fontWeight: '800', margin: '0 0 8px', lineHeight: 1.25, color: '#fff' }}>
-            A música não acaba aqui
+            Gostou da Música?
           </h3>
 
           <p style={{ fontSize: '0.9rem', color: 'rgba(255,255,255,0.78)', margin: '0 0 16px', lineHeight: 1.5 }}>
-            Você ouviu os primeiros <strong style={{ color: '#fff' }}>60 segundos</strong>
-            {nome ? <> da homenagem para <strong style={{ color: '#fff' }}>{nome}</strong></> : null}.
-            O resto já está gravado, esperando você.
+            Você ouviu a <strong style={{ color: '#fff' }}>Versão 1 completa</strong>
+            {nome ? <> da homenagem para <strong style={{ color: '#fff' }}>{nome}</strong></> : null}!
+            Garanta seu pedido para baixar em MP3 HD e liberar a <strong style={{ color: '#f472b6' }}>Versão 2 100% grátis</strong>.
           </p>
 
-          {/* Barra: o trecho ouvido contra a música inteira. Mostra em um olhar o que falta. */}
-          <div style={{ marginBottom: '18px' }}>
-            <div style={{ height: '7px', borderRadius: '999px', background: 'rgba(255,255,255,0.12)', overflow: 'hidden' }}>
-              <div style={{ width: '32%', height: '100%', borderRadius: '999px', background: 'linear-gradient(90deg, #a855f7 0%, #ec4899 100%)' }} />
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px', fontSize: '0.7rem', color: 'rgba(255,255,255,0.55)', fontWeight: '600' }}>
-              <span>0:60 — prévia</span>
-              <span>música completa 🔒</span>
-            </div>
+          {/* Status badge: Versão 1 ouvida vs Versão 2 esperando */}
+          <div style={{ marginBottom: '18px', padding: '10px 14px', background: 'rgba(255,255,255,0.07)', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.12)', display: 'flex', justifyContent: 'space-around', alignItems: 'center', fontSize: '0.78rem' }}>
+            <span style={{ color: '#34d399', fontWeight: '700' }}>✓ Versão 1 Ouvida</span>
+            <span style={{ color: 'rgba(255,255,255,0.3)' }}>|</span>
+            <span style={{ color: '#f472b6', fontWeight: '700' }}>🎁 Versão 2 Grátis Inclusa</span>
           </div>
 
           <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 18px', display: 'flex', flexDirection: 'column', gap: '9px', textAlign: 'left' }}>
