@@ -60,6 +60,9 @@ export async function GET(req) {
         if (metaConf.valor.META_MARKETING_ACCESS_TOKEN) {
           env.META_MARKETING_ACCESS_TOKEN = metaConf.valor.META_MARKETING_ACCESS_TOKEN;
         }
+        if (metaConf.valor.META_MARKETING_ACCESS_TOKEN_2) {
+          env.META_MARKETING_ACCESS_TOKEN_2 = metaConf.valor.META_MARKETING_ACCESS_TOKEN_2;
+        }
       }
     } catch (e) {
       console.warn('[ads-metrics] Erro ao carregar meta_ads_config:', e?.message);
@@ -305,9 +308,9 @@ export async function POST(req) {
 
   try {
     const body = await req.json().catch(() => null);
-    const { accountId, accessToken } = body || {};
+    const { accountId, accessToken, accessToken2 } = body || {};
 
-    if (!accountId && !accessToken) {
+    if (!accountId && !accessToken && !accessToken2) {
       return NextResponse.json({ error: 'Informe o ID da conta ou Token' }, { status: 400 });
     }
 
@@ -323,6 +326,7 @@ export async function POST(req) {
       ...current,
       META_AD_ACCOUNT_ID: accountId ? normalizeMetaAccountId(accountId) : current.META_AD_ACCOUNT_ID,
       META_MARKETING_ACCESS_TOKEN: accessToken ? String(accessToken).trim() : current.META_MARKETING_ACCESS_TOKEN,
+      META_MARKETING_ACCESS_TOKEN_2: accessToken2 ? String(accessToken2).trim() : current.META_MARKETING_ACCESS_TOKEN_2,
       updated_at: new Date().toISOString(),
     };
 

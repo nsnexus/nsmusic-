@@ -7,6 +7,32 @@ import { readEnvValue } from './envValue.js';
 // Cache em memória (TTL: 5 min)
 const adsCache = new Map();
 
+let cachedUsdRate = { rate: 5.20, timestamp: 0 };
+
+/**
+ * Obtém a cotação comercial atual de USD para BRL com cache em memória de 1 hora.
+ */
+export async function getUsdToBrlRate() {
+  const now = Date.now();
+  if (cachedUsdRate.timestamp && now - cachedUsdRate.timestamp < 60 * 60 * 1000) {
+    return cachedUsdRate.rate;
+  }
+  try {
+    const res = await fetch('https://economia.awesomeapi.com.br/last/USD-BRL');
+    if (res.ok) {
+      const data = await res.json();
+      const bid = Number(data?.USDBRL?.bid);
+      if (Number.isFinite(bid) && bid > 0) {
+        cachedUsdRate = { rate: bid, timestamp: now };
+        return bid;
+      }
+    }
+  } catch (e) {
+    console.warn('[adsSpend] Erro ao buscar cotação USD/BRL:', e?.message);
+  }
+  return cachedUsdRate.rate || 5.20;
+}
+
 function getCacheKey(channel, since, until) {
   return `${channel}_${since}_${until}`;
 }
@@ -50,9 +76,11 @@ export function normalizeMetaAccountId(id) {
  */
 export async function fetchMetaDailySpend({ since, until }, env = {}) {
   const accountIdRaw = readEnvValue(env, 'META_AD_ACCOUNT_ID');
-  const token = readEnvValue(env, 'META_MARKETING_ACCESS_TOKEN');
+  const token1 = readEnvValue(env, 'META_MARKETING_ACCESS_TOKEN');
+  const token2 = readEnvValue(env, 'META_MARKETING_ACCESS_TOKEN_2');
+  const tokens = [token1, token2].filter(Boolean);
 
-  if (!accountIdRaw || !token) {
+  if (!accountIdRaw || tokens.length === 0) {
     return { ok: false, reason: 'not_configured', byDate: {}, total: 0 };
   }
 
@@ -61,7 +89,7 @@ export async function fetchMetaDailySpend({ since, until }, env = {}) {
     return { ok: false, reason: 'not_configured', byDate: {}, total: 0 };
   }
 
-  const cacheKey = `${getCacheKey('meta', since, until)}_${actIds.slice().sort().join('_')}`;
+  const cacheKey = `${getCacheKey('meta', since, until)}_${actIds.slice().sort().join('_')}_${tokens.map(t => t.slice(-6)).join('_')}`;
   const cached = adsCache.get(cacheKey);
   const now = Date.now();
 
@@ -78,29 +106,37 @@ export async function fetchMetaDailySpend({ since, until }, env = {}) {
 
     await Promise.all(
       actIds.map(async (actId) => {
-        try {
-          const url = `https://graph.facebook.com/v20.0/${encodeURIComponent(actId)}/insights?time_range=${encodeURIComponent(timeRange)}&time_increment=1&fields=spend&access_token=${encodeURIComponent(token)}`;
-          const res = await fetch(url);
-          if (!res.ok) {
-            const errText = await res.text().catch(() => '');
-            console.warn(`[adsSpend] Erro ao consultar Meta Insights para ${actId} (HTTP ${res.status}):`, errText.slice(0, 300));
-            return;
-          }
-
-          const json = await res.json().catch(() => null);
-          if (Array.isArray(json?.data)) {
-            anyOk = true;
-            for (const row of json.data) {
-              const dateKey = row.date_start; // YYYY-MM-DD
-              const spend = Number(row.spend) || 0;
-              if (dateKey) {
-                byDate[dateKey] = (byDate[dateKey] || 0) + spend;
-                total += spend;
-              }
+        for (const token of tokens) {
+          try {
+            const url = `https://graph.facebook.com/v20.0/${encodeURIComponent(actId)}/insights?time_range=${encodeURIComponent(timeRange)}&time_increment=1&fields=spend,account_currency&access_token=${encodeURIComponent(token)}`;
+            const res = await fetch(url);
+            if (!res.ok) {
+              const errText = await res.text().catch(() => '');
+              console.warn(`[adsSpend] Tentativa com token para ${actId} falhou (HTTP ${res.status}):`, errText.slice(0, 200));
+              continue;
             }
+
+            const json = await res.json().catch(() => null);
+            if (Array.isArray(json?.data)) {
+              anyOk = true;
+              for (const row of json.data) {
+                const dateKey = row.date_start; // YYYY-MM-DD
+                const currency = String(row.account_currency || 'BRL').toUpperCase();
+                let spend = Number(row.spend) || 0;
+                if (currency === 'USD') {
+                  const usdRate = await getUsdToBrlRate();
+                  spend = spend * usdRate;
+                }
+                if (dateKey) {
+                  byDate[dateKey] = (byDate[dateKey] || 0) + spend;
+                  total += spend;
+                }
+              }
+              break; // Token funcionou para esta conta
+            }
+          } catch (e) {
+            console.warn(`[adsSpend] Falha ao consultar conta ${actId}:`, e?.message);
           }
-        } catch (e) {
-          console.warn(`[adsSpend] Falha ao consultar conta ${actId}:`, e?.message);
         }
       })
     );
@@ -205,9 +241,11 @@ export async function getConsolidatedAdsSpend({ since, until }, env = {}) {
  */
 export async function fetchMetaAdLevelInsights({ since, until }, env = {}) {
   const accountIdRaw = readEnvValue(env, 'META_AD_ACCOUNT_ID');
-  const token = readEnvValue(env, 'META_MARKETING_ACCESS_TOKEN');
+  const token1 = readEnvValue(env, 'META_MARKETING_ACCESS_TOKEN');
+  const token2 = readEnvValue(env, 'META_MARKETING_ACCESS_TOKEN_2');
+  const tokens = [token1, token2].filter(Boolean);
 
-  if (!accountIdRaw || !token) {
+  if (!accountIdRaw || tokens.length === 0) {
     return { ok: false, reason: 'not_configured', ads: [] };
   }
 
@@ -216,7 +254,7 @@ export async function fetchMetaAdLevelInsights({ since, until }, env = {}) {
     return { ok: false, reason: 'not_configured', ads: [] };
   }
 
-  const cacheKey = `${getCacheKey('meta_ad_level', since, until)}_${actIds.slice().sort().join('_')}`;
+  const cacheKey = `${getCacheKey('meta_ad_level', since, until)}_${actIds.slice().sort().join('_')}_${tokens.map(t => t.slice(-6)).join('_')}`;
   const cached = adsCache.get(cacheKey);
   const now = Date.now();
 
@@ -232,37 +270,50 @@ export async function fetchMetaAdLevelInsights({ since, until }, env = {}) {
 
     await Promise.all(
       actIds.map(async (actId) => {
-        try {
-          const url = `https://graph.facebook.com/v20.0/${encodeURIComponent(actId)}/insights?level=ad&fields=ad_id,ad_name,campaign_id,campaign_name,adset_id,adset_name,spend,impressions,clicks,cpc,ctr&time_range=${encodeURIComponent(timeRange)}&limit=500&access_token=${encodeURIComponent(token)}`;
-          const res = await fetch(url);
-          if (!res.ok) {
-            const errText = await res.text().catch(() => '');
-            console.warn(`[adsSpend] Erro ao consultar Meta Ad Insights para ${actId} (HTTP ${res.status}):`, errText.slice(0, 300));
-            return;
-          }
-
-          const json = await res.json().catch(() => null);
-          if (Array.isArray(json?.data)) {
-            anyOk = true;
-            for (const row of json.data) {
-              ads.push({
-                accountId: actId,
-                adId: String(row.ad_id || ''),
-                adName: String(row.ad_name || 'Sem nome'),
-                campaignId: String(row.campaign_id || ''),
-                campaignName: String(row.campaign_name || 'Campanha sem nome'),
-                adsetId: String(row.adset_id || ''),
-                adsetName: String(row.adset_name || ''),
-                spend: Number(row.spend) || 0,
-                impressions: Number(row.impressions) || 0,
-                clicks: Number(row.clicks) || 0,
-                cpc: Number(row.cpc) || 0,
-                ctr: Number(row.ctr) || 0,
-              });
+        for (const token of tokens) {
+          try {
+            const url = `https://graph.facebook.com/v20.0/${encodeURIComponent(actId)}/insights?level=ad&fields=ad_id,ad_name,campaign_id,campaign_name,adset_id,adset_name,spend,impressions,clicks,cpc,ctr,account_currency&time_range=${encodeURIComponent(timeRange)}&limit=500&access_token=${encodeURIComponent(token)}`;
+            const res = await fetch(url);
+            if (!res.ok) {
+              const errText = await res.text().catch(() => '');
+              console.warn(`[adsSpend] Tentativa de ad insights com token para ${actId} falhou (HTTP ${res.status}):`, errText.slice(0, 200));
+              continue;
             }
+
+            const json = await res.json().catch(() => null);
+            if (Array.isArray(json?.data)) {
+              anyOk = true;
+              for (const row of json.data) {
+                const currency = String(row.account_currency || 'BRL').toUpperCase();
+                let spend = Number(row.spend) || 0;
+                let cpc = Number(row.cpc) || 0;
+                if (currency === 'USD') {
+                  const usdRate = await getUsdToBrlRate();
+                  spend = spend * usdRate;
+                  cpc = cpc * usdRate;
+                }
+                ads.push({
+                  accountId: actId,
+                  adId: String(row.ad_id || ''),
+                  adName: String(row.ad_name || 'Sem nome'),
+                  campaignId: String(row.campaign_id || ''),
+                  campaignName: String(row.campaign_name || 'Campanha sem nome'),
+                  adsetId: String(row.adset_id || ''),
+                  adsetName: String(row.adset_name || ''),
+                  spend: Math.round(spend * 100) / 100,
+                  impressions: Number(row.impressions) || 0,
+                  clicks: Number(row.clicks) || 0,
+                  cpc: Math.round(cpc * 100) / 100,
+                  ctr: Number(row.ctr) || 0,
+                  currency,
+                  originalSpend: Number(row.spend) || 0,
+                });
+              }
+              break; // Token funcionou para esta conta
+            }
+          } catch (e) {
+            console.warn(`[adsSpend] Falha ao consultar ad insights para ${actId}:`, e?.message);
           }
-        } catch (e) {
-          console.warn(`[adsSpend] Falha ao consultar ad insights para ${actId}:`, e?.message);
         }
       })
     );

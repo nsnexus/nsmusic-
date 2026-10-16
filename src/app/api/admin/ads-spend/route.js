@@ -64,6 +64,9 @@ export async function GET(req) {
         if (metaConf.valor.META_MARKETING_ACCESS_TOKEN) {
           env.META_MARKETING_ACCESS_TOKEN = metaConf.valor.META_MARKETING_ACCESS_TOKEN;
         }
+        if (metaConf.valor.META_MARKETING_ACCESS_TOKEN_2) {
+          env.META_MARKETING_ACCESS_TOKEN_2 = metaConf.valor.META_MARKETING_ACCESS_TOKEN_2;
+        }
       }
     } catch (e) {
       console.warn('[ads-spend] Aviso ao carregar meta_ads_config:', e?.message);
