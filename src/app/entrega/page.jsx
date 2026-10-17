@@ -75,7 +75,11 @@ function EntregaContent() {
   // Enquanto o pedido estiver com a URL temporaria da Kie.ai (audiostream), pede a troca pela
   // definitiva por tras da tela. O cliente segue ouvindo o stream, que funciona nos primeiros
   // minutos; o onSnapshot abaixo troca a fonte do player sozinho quando a definitiva chegar.
-  usePromoverAudio(orderId, order);
+  usePromoverAudio(orderId, order, (newAudioFiles) => {
+    if (Array.isArray(newAudioFiles) && newAudioFiles.length > 0) {
+      setOrder(prev => prev ? { ...prev, audioFiles: newAudioFiles, audioUrl: newAudioFiles[0] } : prev);
+    }
+  });
 
   // Estados do Checkout PIX para pedidos pendentes
   const [pixInfo, setPixInfo] = useState({ qrCode: '', qrCodeBase64: '', paymentId: '' });
@@ -131,31 +135,79 @@ function EntregaContent() {
   // Edição da foto de capa — pedido 11/09/2026 ("cliente poder editar a foto de capa dele").
   const [isUploadingCover, setIsUploadingCover] = useState(false);
   const [coverUploadError, setCoverUploadError] = useState('');
-  const coverInputRef = useRef(null);
+
+  // Processa e normaliza imagem para JPEG compatível com todos os navegadores (incluindo iPhone HEIC/PNG)
+  const processImageToJpeg = (file) => {
+    return new Promise((resolve) => {
+      try {
+        if (!file || (!file.type?.startsWith('image/') && !file.name?.match(/\.(jpe?g|png|webp|heic|heif|gif)$/i))) {
+          return resolve(file);
+        }
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const img = new window.Image();
+          img.onload = () => {
+            try {
+              const canvas = document.createElement('canvas');
+              const MAX_DIM = 1200;
+              let width = img.width;
+              let height = img.height;
+              if (width > height && width > MAX_DIM) {
+                height = Math.round((height * MAX_DIM) / width);
+                width = MAX_DIM;
+              } else if (height > MAX_DIM) {
+                width = Math.round((width * MAX_DIM) / height);
+                height = MAX_DIM;
+              }
+              canvas.width = width;
+              canvas.height = height;
+              const ctx = canvas.getContext('2d');
+              if (!ctx) return resolve(file);
+              ctx.drawImage(img, 0, 0, width, height);
+              canvas.toBlob((blob) => {
+                if (blob) {
+                  resolve(new File([blob], 'capa.jpg', { type: 'image/jpeg' }));
+                } else {
+                  resolve(file);
+                }
+              }, 'image/jpeg', 0.85);
+            } catch (canvasErr) {
+              resolve(file);
+            }
+          };
+          img.onerror = () => resolve(file);
+          img.src = e.target.result;
+        };
+        reader.onerror = () => resolve(file);
+        reader.readAsDataURL(file);
+      } catch (err) {
+        resolve(file);
+      }
+    });
+  };
 
   const handleCoverChange = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = ''; // permite escolher o MESMO arquivo de novo depois (ex: tentar de novo após erro)
-    if (!file || !orderId) return;
+    const targetOrderId = order?.id || orderId;
+    if (!file || !targetOrderId) return;
 
-    if (!file.type?.startsWith('image/')) {
+    if (!file.type?.startsWith('image/') && !file.name?.match(/\.(jpe?g|png|webp|heic|heif|gif)$/i)) {
       setCoverUploadError('Escolha um arquivo de imagem.');
       return;
     }
-    if (file.size > 10 * 1024 * 1024) {
-      setCoverUploadError('A imagem é muito grande. Escolha uma de até 10MB.');
+    if (file.size > 15 * 1024 * 1024) {
+      setCoverUploadError('A imagem é muito grande. Escolha uma de até 15MB.');
       return;
     }
 
     setCoverUploadError('');
     setIsUploadingCover(true);
     try {
-      // Mesmo tratamento de imagem já usado pra fotos da retrospectiva/vídeo — nunca falha o upload
-      // por causa disso, devolve o arquivo original se a compressão der errado (ver imageCompress.js).
-      const arquivo = await compressImage(file);
+      const arquivo = await processImageToJpeg(file);
       const uploadData = new FormData();
       uploadData.append('file', arquivo, 'capa.jpg');
-      const uploadRes = await fetch(`/api/media/upload?folder=photos&orderId=${encodeURIComponent(orderId)}`, {
+      const uploadRes = await fetch(`/api/media/upload?folder=photos&orderId=${encodeURIComponent(targetOrderId)}`, {
         method: 'POST',
         body: uploadData
       });
@@ -168,11 +220,14 @@ function EntregaContent() {
       }
       const url = resJson.url;
 
-      await fetch('/api/orders/client-update', {
+      const updateRes = await fetch('/api/orders/client-update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId, coverUrl: url })
+        body: JSON.stringify({ orderId: targetOrderId, coverUrl: url })
       });
+      if (!updateRes.ok) {
+        throw new Error('Falha ao salvar a nova foto de capa no pedido');
+      }
       setOrder(prev => prev ? { ...prev, coverUrl: url } : prev);
     } catch (err) {
       console.error('[entrega] Falha ao trocar a foto de capa:', err?.message);
@@ -585,6 +640,8 @@ function EntregaContent() {
   }, [orderId, order?.videoUrl, order?.videoStatus]);
 
 
+  const [downloadingSlot, setDownloadingSlot] = useState(null); // 'primary' | 'second' | null
+
   // Acrescenta ?download=<nome> à URL do proxy: é o que faz o servidor mandar Content-Disposition e
   // o navegador BAIXAR em vez de tocar (ver src/app/api/audio/proxy/route.js).
   const withDownloadFlag = (url, filename) => {
@@ -596,10 +653,12 @@ function EntregaContent() {
     return `${base}${base.includes('?') ? '&' : '?'}download=${encodeURIComponent(safeName)}`;
   };
 
-  const handleDownload = async (url, filename) => {
+  const handleDownload = async (url, filename, slot = 'primary') => {
+    if (downloadingSlot) return;
     const downloadUrl = withDownloadFlag(url, filename);
     if (!downloadUrl) return;
 
+    setDownloadingSlot(slot);
     try {
       // 1. Tenta baixar via fetch + Blob: cria URL local blob: que o navegador obrigatoriamente
       // salva como arquivo para download no disco, sem jamais abrir o tocador de áudio
@@ -618,19 +677,22 @@ function EntregaContent() {
       }
     } catch (e) {
       console.warn('[entrega] Fallback para download direto via link:', e);
+    } finally {
+      setDownloadingSlot(null);
     }
 
     try {
       const link = document.createElement('a');
       link.href = downloadUrl;
       link.setAttribute('download', filename);
-      link.rel = 'noopener';
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
       document.body.appendChild(link);
       link.click();
       link.parentNode.removeChild(link);
     } catch (err) {
       console.warn('Erro ao iniciar o download:', err);
-      window.location.href = downloadUrl;
+      window.open(downloadUrl, '_blank', 'noopener');
     }
   };
 
@@ -1229,12 +1291,19 @@ function EntregaContent() {
 
   const handleQueroMinhaVozFromModal = () => {
     handleClosePreviaProntaModal();
-    const precoComboVoz = getPriceForSku('combo_voz') || 24.89;
-    escolherFaixa(precoComboVoz, 'combo_voz');
-    if (typeof document !== 'undefined') {
-      const el = document.getElementById('pagamento');
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (isPaid) {
+      setAbaProduto('voz');
+      if (typeof window !== 'undefined') {
+        window.scrollTo({ top: 180, behavior: 'smooth' });
+      }
+    } else {
+      const precoComboVoz = getPriceForSku('combo_voz') || 24.89;
+      escolherFaixa(precoComboVoz, 'combo_voz');
+      if (typeof document !== 'undefined') {
+        const el = document.getElementById('pagamento');
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
       }
     }
   };
@@ -1326,6 +1395,7 @@ function EntregaContent() {
             <div className="entrega-tabs" role="tablist">
               {[
                 { id: 'musica', label: '🎵 Música' },
+                { id: 'voz', label: '🎙️ Minha Voz', hasBadge: true },
                 { id: 'karaoke', label: '🎤 Karaokê', hasBadge: true },
                 { id: 'retrospectiva', label: '📖 Retrospectiva', hasBadge: true },
                 { id: 'carta', label: '💌 Carta', hasBadge: true },
@@ -1590,17 +1660,25 @@ function EntregaContent() {
                   <img src={coverUrl} alt="Capa da música" style={styles.coverImg} />
 
                   <input
-                    ref={coverInputRef}
+                    id="cover-file-input"
                     type="file"
                     accept="image/*"
                     onChange={handleCoverChange}
-                    style={{ display: 'none' }}
-                    aria-label="Trocar foto de capa"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => coverInputRef.current?.click()}
                     disabled={isUploadingCover}
+                    style={{
+                      position: 'absolute',
+                      width: '1px',
+                      height: '1px',
+                      padding: 0,
+                      margin: '-1px',
+                      overflow: 'hidden',
+                      clip: 'rect(0, 0, 0, 0)',
+                      whiteSpace: 'nowrap',
+                      border: 0,
+                    }}
+                  />
+                  <label
+                    htmlFor="cover-file-input"
                     title="Trocar foto de capa"
                     style={{
                       position: 'absolute',
@@ -1624,7 +1702,7 @@ function EntregaContent() {
                     }}
                   >
                     {isUploadingCover ? '⏳ Enviando...' : '✏️ Trocar capa'}
-                  </button>
+                  </label>
 
                   {!isPaid && (
                     <div
@@ -1826,7 +1904,7 @@ function EntregaContent() {
                       src={primaryAudioUrl}
                     />
 
-                    {isPaid && audioReadyState.primary === 'ready' && (
+                    {isPaid && (
                       <>
                         {navegadorInApp && (
                           <div style={{ marginTop: '14px', padding: '12px 14px', borderRadius: '10px', background: 'rgba(251, 191, 36, 0.12)', border: '1px solid rgba(251, 191, 36, 0.4)' }}>
@@ -1853,11 +1931,13 @@ function EntregaContent() {
                         )}
                         <div style={{ ...styles.downloadGrid, marginTop: '16px' }}>
                           <button
-                            onClick={() => handleDownload(primaryAudioUrl, `Musica_V1_${order?.honoreeName || 'Homenagem'}.mp3`)}
+                            type="button"
+                            onClick={() => handleDownload(primaryAudioUrl, `Musica_V1_${order?.honoreeName || 'Homenagem'}.mp3`, 'primary')}
+                            disabled={downloadingSlot === 'primary'}
                             className="btn btn-primary"
-                            style={{ ...styles.downloadBtn, border: 'none', cursor: 'pointer' }}
+                            style={{ ...styles.downloadBtn, border: 'none', cursor: downloadingSlot === 'primary' ? 'not-allowed' : 'pointer', opacity: downloadingSlot === 'primary' ? 0.75 : 1 }}
                           >
-                            ⬇ Baixar MP3 (V1)
+                            {downloadingSlot === 'primary' ? '⏳ Baixando MP3 (V1)...' : '⬇ Baixar MP3 (V1)'}
                           </button>
                         </div>
                       </>
@@ -2021,14 +2101,16 @@ function EntregaContent() {
                         src={secondAudioUrl}
                       />
 
-                      {audioReadyState.second === 'ready' && (
+                      {isPaid && (
                         <div style={{ ...styles.downloadGrid, marginTop: '16px' }}>
                           <button
-                            onClick={() => handleDownload(secondAudioUrl, `Musica_V2_${order?.honoreeName || 'Homenagem'}.mp3`)}
+                            type="button"
+                            onClick={() => handleDownload(secondAudioUrl, `Musica_V2_${order?.honoreeName || 'Homenagem'}.mp3`, 'second')}
+                            disabled={downloadingSlot === 'second'}
                             className="btn"
-                            style={{ ...styles.downloadBtn, border: '1.5px solid rgba(255,255,255,0.25)', background: 'rgba(255,255,255,0.08)', color: '#fff', cursor: 'pointer' }}
+                            style={{ ...styles.downloadBtn, border: '1.5px solid rgba(255,255,255,0.25)', background: 'rgba(255,255,255,0.08)', color: '#fff', cursor: downloadingSlot === 'second' ? 'not-allowed' : 'pointer', opacity: downloadingSlot === 'second' ? 0.75 : 1 }}
                           >
-                            ⬇ Baixar MP3 (V2 Bônus)
+                            {downloadingSlot === 'second' ? '⏳ Baixando MP3 (V2)...' : '⬇ Baixar MP3 (V2 Bônus)'}
                           </button>
                         </div>
                       )}
@@ -3547,6 +3629,13 @@ function EntregaContent() {
 
             </div>
           </div>
+          )}
+
+          {/* Aba Minha Voz — clonagem de voz e regeração com a voz do cliente */}
+          {isPaid && abaProduto === 'voz' && (
+            <div id="card-voz" style={{ maxWidth: '680px', margin: '0 auto', width: '100%' }}>
+              <VozClienteAddonCard orderId={order?.id || orderId} order={order} />
+            </div>
           )}
 
           {/* Aba Karaokê — add-on isolado da música, vídeo 16:9 HD com legenda animada */}

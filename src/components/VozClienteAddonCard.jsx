@@ -38,7 +38,7 @@ export default function VozClienteAddonCard({ orderId, order }) {
   const audioChunksRef = useRef([]);
   const timerRef = useRef(null);
 
-  const hasAccess = unlocked || order?.hasCustomVoiceAccess || order?.customVoiceAddonPaid || order?.extras?.customVoiceAddonPaid;
+  const hasAccess = unlocked || order?.hasCustomVoiceAccess || order?.customVoiceAddonPaid || order?.extras?.customVoiceAddonPaid || order?.extras?.hasCustomVoiceAccess;
   const customerPhone = order?.customerPhone || order?.customer_phone || '';
 
   // Verifica se o cliente já possui voz cadastrada pelo telefone
