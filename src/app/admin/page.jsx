@@ -1837,13 +1837,18 @@ export default function AdminDashboard() {
                       <tbody>
                         {filteredOrders.map((o) => {
                           const isSelected = selectedOrderIds.includes(o.id);
+                          const isPaid = o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'PAGO';
                           return (
                             <tr
                               key={o.id}
                               className="admin-order-row"
                               onClick={() => router.push(`/admin/pedidos/${o.id}`)}
                               title="Clique para abrir detalhes do pedido"
-                              style={{ ...styles.tr, backgroundColor: isSelected ? '#f1f5f9' : '#ffffff' }}
+                              style={{
+                                ...styles.tr,
+                                backgroundColor: isSelected ? '#f1f5f9' : isPaid ? '#f0fdf4' : '#ffffff',
+                                borderLeft: isPaid ? '4px solid #22c55e' : '4px solid transparent'
+                              }}
                             >
                               <td style={styles.td}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
