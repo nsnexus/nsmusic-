@@ -6,9 +6,7 @@ import Image from 'next/image';
 import { useSearchParams } from 'next/navigation';
 import { primeAudioContext } from '@/lib/audioContext';
 import { AUDIO_CACHE_VERSION } from '@/lib/audioCacheVersion';
-import ExtrasOfferModal from '@/components/ExtrasOfferModal';
 import PixQrCode from '@/components/PixQrCode';
-import PreviaProntaModal from '@/components/PreviaProntaModal';
 import PlaybackAddonCard from '@/components/PlaybackAddonCard';
 import KaraokeAddonCard from '@/components/KaraokeAddonCard';
 import CartaAddonCard from '@/components/CartaAddonCard';
@@ -243,8 +241,6 @@ function EntregaContent() {
     }
   }, [order?.slideshowImages]);
 
-  // Pop-up e Preço do Vídeo Homenagem
-  const [showVideoModal, setShowVideoModal] = useState(false);
   // Abas dos produtos depois de pago (pedido 04/09/2026) — antes tudo ficava empilhado numa rolagem
   // só; 'musica' cobre também o Playback (instrumental), por ser derivado da mesma faixa.
   const [abaProduto, setAbaProduto] = useState('musica');
@@ -449,20 +445,6 @@ function EntregaContent() {
   const [cartaLiberadaLocal, setCartaLiberadaLocal] = useState(false);
   const jaTemRetrospectiva = Boolean(order?.hasRetrospectivaAccess || order?.retrospectivaAddonPaid || retrospectivaLiberadaLocal);
   const jaTemCarta = Boolean(order?.hasCartaAccess || order?.cartaAddonPaid || cartaLiberadaLocal);
-
-  // Exibe o pop-up de oferta do vídeo automaticamente ao carregar a tela de entrega
-  useEffect(() => {
-    if (order && !order.videoUrl && !order.hasVideoAccess && !promo && typeof window !== 'undefined') {
-      const dismissed = sessionStorage.getItem(`video_modal_dismissed_${orderId}`);
-      const ocultoSempre = localStorage.getItem('nsmusic_extras_modal_oculto') === '1';
-      const previaProntaDismissed = sessionStorage.getItem(`previa_pronta_modal_${orderId}`);
-      // Não sobrepõe o modal de início da prévia se ainda não foi dispensado
-      if (!dismissed && !ocultoSempre && (previaProntaDismissed || isPaid)) {
-        const timer = setTimeout(() => setShowVideoModal(true), 1200);
-        return () => clearTimeout(timer);
-      }
-    }
-  }, [order, orderId, isPaid]);
 
   // O evento de Purchase (Facebook Pixel / Meta Ads) NÃO é mais disparado aqui no cliente — movido
   // pro servidor (src/lib/payments.js:applyPaymentApproval, via src/lib/metaCapi.js), no único ponto
@@ -1258,58 +1240,6 @@ function EntregaContent() {
     }, 400);
   };
 
-  // Pop-up de início da prévia: recepciona o cliente avisando que a música
-  // está pronta, recomendando fones de ouvido e oferecendo a novidade de clonagem de voz.
-  const [showPreviaProntaModal, setShowPreviaProntaModal] = useState(false);
-
-  useEffect(() => {
-    if (!order || isPaid || typeof window === 'undefined') return;
-    const temAudio = Boolean(order.audioUrl || order.audioFiles?.length > 0 || order.audioIds?.length > 0);
-    if (!temAudio) return;
-
-    const dismissed = sessionStorage.getItem(`previa_pronta_modal_${orderId}`);
-    if (!dismissed) {
-      const timer = setTimeout(() => {
-        setShowPreviaProntaModal(true);
-      }, 600);
-      return () => clearTimeout(timer);
-    }
-  }, [order, orderId, isPaid]);
-
-  const handleClosePreviaProntaModal = () => {
-    setShowPreviaProntaModal(false);
-    if (typeof window !== 'undefined' && orderId) {
-      sessionStorage.setItem(`previa_pronta_modal_${orderId}`, 'true');
-    }
-  };
-
-  const handlePlayPreviewFromModal = () => {
-    handleClosePreviaProntaModal();
-    const el = primaryAudioElRef.current;
-    if (el && el.paused) {
-      toggleAudioPlay('primary');
-    }
-  };
-
-  const handleQueroMinhaVozFromModal = () => {
-    handleClosePreviaProntaModal();
-    if (isPaid) {
-      setAbaProduto('voz');
-      if (typeof window !== 'undefined') {
-        window.scrollTo({ top: 180, behavior: 'smooth' });
-      }
-    } else {
-      const precoComboVoz = getPriceForSku('combo_voz') || 24.89;
-      escolherFaixa(precoComboVoz, 'combo_voz');
-      if (typeof document !== 'undefined') {
-        const el = document.getElementById('pagamento');
-        if (el) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-      }
-    }
-  };
-
   if (loading) {
     return (
       <div style={styles.wrapper} className="flex-center">
@@ -1361,36 +1291,53 @@ function EntregaContent() {
       >
         <div className="entrega-header-container">
           <div className="entrega-header-nav">
-            <Link href="/" style={{ display: 'flex', alignItems: 'center' }}>
-              <Image src="/logo.png" alt="NSMusic" width={36} height={36} style={{ height: '36px', width: 'auto' }} priority />
+            <Link href="/" className="entrega-brand" aria-label="NS Music - página inicial">
+              <Image src="/logo.png" alt="NS Music" width={48} height={48} className="entrega-brand-logo" priority />
             </Link>
-            <Link href="/criar" className="btn btn-primary entrega-header-action" style={{ padding: '6px 12px', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '4px', textDecoration: 'none', minHeight: '36px' }}>
-              ✨ <span>Nova Música</span>
-            </Link>
-            <Link href="/minhas-musicas" className="btn btn-secondary entrega-header-action" aria-label="Minhas músicas" style={{ padding: '6px 12px', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '4px', textDecoration: 'none', minHeight: '36px' }}>
-              🎵 <span>Minhas Músicas</span>
-            </Link>
+            {isPaid && (
+              <Link href="/criar" className="btn btn-primary entrega-header-action" style={{ padding: '6px 12px', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '4px', textDecoration: 'none', minHeight: '36px' }}>
+                ✨ <span>Nova Música</span>
+              </Link>
+            )}
           </div>
-          <span 
-            className="entrega-status-badge"
-            style={{
-              color: isPaid ? 'var(--success)' : '#d97706',
-              borderColor: isPaid ? 'rgba(16, 185, 129, 0.2)' : '#fde68a',
-              backgroundColor: isPaid ? 'rgba(16, 185, 129, 0.05)' : '#fffbeb',
-              fontWeight: '700',
-              borderRadius: '999px',
-              padding: '5px 14px',
-              fontSize: '0.82rem',
-            }}
-          >
-            {isPaid ? '✨ Entrega Liberada' : '⏳ Aguardando pagamento'}
-          </span>
+          <div className="entrega-header-meta">
+            <span
+              className="entrega-status-badge"
+              style={{
+                color: isPaid ? 'var(--success)' : '#916d26',
+                borderColor: isPaid ? 'rgba(16, 185, 129, 0.2)' : '#f0e1c2',
+                backgroundColor: isPaid ? 'rgba(16, 185, 129, 0.05)' : '#fff5df',
+                fontWeight: '700',
+                borderRadius: '999px',
+                padding: '5px 14px',
+                fontSize: '0.82rem',
+              }}
+            >
+              {isPaid ? '✨ Entrega liberada' : 'Prévia disponível'}
+            </span>
+            {!isPaid && (
+              <Link href="/conta" className="btn btn-primary entrega-account-link">
+                Minha conta
+              </Link>
+            )}
+          </div>
         </div>
       </header>
 
       {/* Main content */}
       <main className="entrega-main">
         <div className="entrega-container">
+
+          {!isPaid && (
+            <section className="entrega-preview-intro" aria-labelledby="entrega-preview-title">
+              <span>SUA HISTÓRIA JÁ VIROU MÚSICA</span>
+              <h1 id="entrega-preview-title">Ouça o começo de um presente inesquecível.</h1>
+              <p>
+                Esta é uma prévia gratuita de 60 segundos para {order?.honoreeName || 'a pessoa homenageada'}.
+                Gostou? Escolha como quer emocionar.
+              </p>
+            </section>
+          )}
 
           {/* Abas dos produtos — no topo da área de conteúdo (após confirmação do pagamento) */}
           {isPaid && (
@@ -3604,86 +3551,6 @@ function EntregaContent() {
               />
             </div>
           )}
-
-          {/* Pop-up de extras: vídeo, retrospectiva e carta na mesma interrupção (substituiu o
-              VideoOfferModal, que oferecia só o vídeo — decisão do dono do estúdio, 03/09/2026).
-              Virou seletor de PACOTE de verdade em 04/09/2026 — achado: antes de pagar, clicar em
-              retrospectiva/carta só tentava rolar até um card que nem existia ainda (só aparece com
-              isPaid), então "clicava e nada acontecia". Agora, se ainda não pagou, cada opção gera
-              o combo certo na hora (preço muda de verdade); se já pagou, some do pop-up (jaTem*) e,
-              nos raros casos em que ainda aparecer, cai no card do add-on já visível. */}
-
-          <PreviaProntaModal
-            isOpen={showPreviaProntaModal && !isPaid}
-            onClose={handleClosePreviaProntaModal}
-            onPlayPreview={handlePlayPreviewFromModal}
-            onQueroMinhaVoz={handleQueroMinhaVozFromModal}
-            honoreeName={order?.honoreeName || 'alguém especial'}
-            customerName={order?.customerName || ''}
-          />
-
-          <ExtrasOfferModal
-            isOpen={showVideoModal}
-            honoreeName={order?.honoreeName || 'alguém especial'}
-            isPaid={isPaid}
-            jaTemVideo={Boolean(hasVideoAccess || order?.hasVideoAccess)}
-            jaTemCarta={jaTemCarta}
-            jaTemRetrospectiva={jaTemRetrospectiva}
-            onClose={(naoMostrarMais) => {
-              setShowVideoModal(false);
-              if (typeof window !== 'undefined' && orderId) {
-                sessionStorage.setItem(`video_modal_dismissed_${orderId}`, 'true');
-                // "Não mostrar de novo" vale para todos os pedidos deste navegador e sobrevive ao
-                // fechamento da aba. O dismiss por pedido acima é só da sessão.
-                if (naoMostrarMais) localStorage.setItem('nsmusic_extras_modal_oculto', '1');
-              }
-            }}
-            onSelect={(sku) => {
-              setShowVideoModal(false);
-              if (typeof window !== 'undefined' && orderId) {
-                sessionStorage.setItem(`video_modal_dismissed_${orderId}`, 'true');
-              }
-
-              const combosPreDePagamento = {
-                video_addon: 'combo',
-                carta_addon: 'combo_carta',
-                retrospectiva_addon: 'combo_retrospectiva',
-                combo: 'combo',
-                combo_carta: 'combo_carta',
-                combo_retrospectiva: 'combo_retrospectiva',
-                audio_only: 'audio_only',
-              };
-
-              if (!isPaid) {
-                const targetSku = combosPreDePagamento[sku] || sku || 'combo';
-                const p = pacotesEntrega.find((x) => x.sku === targetSku);
-                if (p) {
-                  escolherFaixa(p.valor, targetSku);
-                } else {
-                  escolherFaixa(getPriceForSku(targetSku) || 16.89, targetSku);
-                }
-                if (typeof window !== 'undefined') {
-                  const el = document.getElementById('pagamento');
-                  if (el) el.scrollIntoView({ behavior: 'smooth' });
-                }
-                return;
-              }
-
-              if (sku === 'video_addon') {
-                setSelectedPackage('video_addon');
-                setPendingVideoPix(true);
-                handleGeneratePix('video_addon', true);
-                return;
-              }
-
-              // Retrospectiva e carta pós-pagamento são add-ons cujo card mora na aba própria dele
-              // (ver abaProduto) — os cards cuidam da própria cobrança. Trocar de aba é mais honesto
-              // que abrir uma segunda cobrança por cima.
-              setAbaProduto(sku === 'retrospectiva_addon' ? 'retrospectiva' : 'carta');
-            }}
-          />
-
-
 
         </div>
       </main>

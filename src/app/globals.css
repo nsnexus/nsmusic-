@@ -831,6 +831,60 @@ label {
   flex-wrap: wrap;
 }
 
+.entrega-brand {
+  display: inline-flex;
+  align-items: center;
+  line-height: 0;
+}
+
+.entrega-brand-logo {
+  width: 48px;
+  height: 48px;
+  border-radius: 13px;
+}
+
+.entrega-header-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.entrega-account-link {
+  min-height: 36px;
+  padding: 7px 13px;
+  font-size: 0.8rem;
+  text-decoration: none;
+}
+
+.entrega-preview-intro {
+  max-width: 760px;
+  margin: 4px auto 30px;
+  text-align: center;
+}
+
+.entrega-preview-intro > span {
+  color: #767386;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+}
+
+.entrega-preview-intro h1 {
+  color: #222035;
+  font-size: clamp(1.8rem, 4vw, 2.3rem);
+  letter-spacing: -0.045em;
+  line-height: 1.15;
+  margin: 10px 0;
+}
+
+.entrega-preview-intro p {
+  color: #767386;
+  font-size: 0.94rem;
+  line-height: 1.6;
+  margin: 0 auto;
+  max-width: 620px;
+}
+
 .entrega-status-badge {
   font-size: 0.8rem;
   font-weight: 700;
@@ -841,11 +895,37 @@ label {
 }
 
 @media (max-width: 480px) {
+  .entrega-header-container {
+    flex-wrap: nowrap;
+  }
+
+  .entrega-brand-logo {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+  }
+
+  .entrega-header-meta {
+    gap: 6px;
+  }
+
+  .entrega-account-link {
+    padding: 7px 10px;
+    font-size: 0.76rem;
+  }
+
   .entrega-status-badge {
     font-size: 0.74rem;
     padding: 4px 10px;
-    width: 100%;
-    text-align: center;
+    width: auto;
+  }
+
+  .entrega-preview-intro {
+    margin: 2px auto 22px;
+  }
+
+  .entrega-preview-intro h1 {
+    font-size: 1.75rem;
   }
 }
 
