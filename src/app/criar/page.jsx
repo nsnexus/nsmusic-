@@ -13,7 +13,6 @@ import { styles } from './wizardStyles';
 import { occasions } from './wizardOptions';
 import { getStoredTrafficSource, isOrderFromTikTok } from '@/lib/trafficSource';
 import CustomAudioPreview from './CustomAudioPreview';
-import PreviaEncerradaModal from '@/components/PreviaEncerradaModal';
 import { usePromoverAudio } from '@/lib/usePromoverAudio';
 import { calcularCota, COTA_POR_COMPRA } from '@/lib/cotaGeracoes';
 import WizardSteps from './WizardSteps';
@@ -1424,16 +1423,6 @@ export default function CriarMusica() {
     }
   };
 
-  // Pop-up do corte da prévia — ver src/components/PreviaEncerradaModal.jsx. Uma vez por visita:
-  // são dois players na tela (arranjo 1 e 2) e reabrir no segundo vira armadilha.
-  const [showPreviaModal, setShowPreviaModal] = useState(false);
-  const previaModalJaMostrado = useRef(false);
-
-  const aoEncerrarPrevia = () => {
-    if (previaModalJaMostrado.current) return;
-    previaModalJaMostrado.current = true;
-    setShowPreviaModal(true);
-  };
 
   // A Kie.ai entrega primeiro uma URL de streaming temporaria e so depois o MP3 final. Esta tela e
   // onde o cliente ouve primeiro, entao ela segue tocando o stream (que funciona nos primeiros
@@ -2116,7 +2105,6 @@ export default function CriarMusica() {
                     badge={`VERSÃO 1 - ESTILO ${formData.musicStyle?.toUpperCase() || 'PRINCIPAL'}`}
                     isBonus={false}
                     orderId={orderId}
-                    onPreviaEncerrada={aoEncerrarPrevia}
                   />
 
                   {/* Versão 2 Preview Card */}
@@ -2127,7 +2115,6 @@ export default function CriarMusica() {
                       badge="VERSÃO 2 - ARRANJO ALTERNATIVO BÔNUS"
                       isBonus={true}
                       orderId={orderId}
-                      onPreviaEncerrada={aoEncerrarPrevia}
                     />
                   )}
 
@@ -2801,16 +2788,6 @@ export default function CriarMusica() {
         </div>
       )}
 
-      {/* Pop-up do corte da prévia de 60s. O CTA leva ao passo de pagamento (7), que é onde o PIX
-          desta tela vive — não manda o cliente para outra página no meio da emoção. */}
-      <PreviaEncerradaModal
-        isOpen={showPreviaModal}
-        onClose={() => setShowPreviaModal(false)}
-        onPagar={() => { setShowPreviaModal(false); setStep(7); }}
-        honoreeName={formData.honoreeName || ''}
-        precoTexto={`R$ ${getTotalPrice().toFixed(2).replace('.', ',')}`}
-        ctaLabel="Liberar as músicas completas"
-      />
     </div>
   );
 }
