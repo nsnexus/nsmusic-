@@ -24,7 +24,19 @@ const ALLOWED_CLIENT_FIELDS = new Set([
   'audioUrl',
   'audioFiles',
   'package',
-  'total'
+  'total',
+  'customerName',
+  'customerPhone',
+  'customerEmail',
+  'honoreeName',
+  'relationship',
+  'recipientType',
+  'occasion',
+  'story',
+  'importantMoments',
+  'musicStyle',
+  'musicMood',
+  'voiceType'
 ]);
 
 export async function POST(req) {

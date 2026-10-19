@@ -29,16 +29,13 @@ export async function POST(req) {
     const formData = await req.json();
     const authenticatedCustomer = await getCustomer(req, env);
 
-    // M-13 no AUDIT_REPORT.md: o consentimento aos termos precisa ser real (checkbox marcado pelo
-    // cliente), verificado no servidor — nunca aceito por padrão.
-    if (formData.termsAccepted !== true) {
-      return NextResponse.json({ error: 'É necessário aceitar os Termos de Uso para continuar.' }, { status: 400 });
-    }
+    // O aceite dos termos é implícito ao avançar na criação
+    const isWizardStep = typeof formData.productionStatus === 'string' && formData.productionStatus.startsWith('ETAPA_');
 
-    // A história é obrigatória, exceto quando o cliente já cola uma letra própria completa
+    // A história só é estritamente obrigatória quando avançando para a geração de letra (Etapa 5)
     const hasStory = Boolean(formData.story && formData.story.trim().length >= 10);
     const hasCustomLyrics = Boolean(formData.lyrics && formData.lyrics.trim().length >= 20);
-    if (!hasStory && !hasCustomLyrics) {
+    if (!isWizardStep && !hasStory && !hasCustomLyrics) {
       return NextResponse.json({ error: 'A história da homenagem é obrigatória para a criação do pedido.' }, { status: 400 });
     }
 
@@ -102,7 +99,7 @@ export async function POST(req) {
       termsAcceptedAt: createdAtIso,
       whatsappRequested: Boolean(formData.customerPhone),
       paymentStatus: 'AGUARDANDO_PAGAMENTO',
-      productionStatus: formData.lyrics ? 'LETRA_CRIADA' : 'EM_PRODUCAO',
+      productionStatus: formData.productionStatus || (formData.lyrics ? 'LETRA_CRIADA' : 'EM_PRODUCAO'),
       createdAt: createdAtIso,
       updatedAt: createdAtIso,
       // Atribuição de plataforma de aquisição e tráfego

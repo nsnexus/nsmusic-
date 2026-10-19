@@ -772,8 +772,14 @@ export default function AdminDashboard() {
       case 'VERSOES_EM_PRODUCAO':
         return '#7c3aed'; // roxo
       case 'LETRA_GERADA':
+      case 'LETRA_CRIADA':
       case 'AGUARDANDO_APROVACAO':
         return '#d97706'; // laranja
+      case 'ETAPA_1':
+      case 'ETAPA_2':
+      case 'ETAPA_3':
+      case 'ETAPA_4':
+        return '#2563eb'; // azul
       default:
         return '#64748b'; // cinza
     }
@@ -1672,7 +1678,12 @@ export default function AdminDashboard() {
                       onChange={(e) => setProductionStatusFilter(e.target.value)}
                       style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.85rem', color: '#0f172a' }}
                     >
-                      <option value="ALL">Todos</option>
+                      <option value="ALL">Todos os status</option>
+                      <option value="ETAPA_1">Etapa 1 (Pessoa)</option>
+                      <option value="ETAPA_2">Etapa 2 (História)</option>
+                      <option value="ETAPA_3">Etapa 3 (Som)</option>
+                      <option value="ETAPA_4">Etapa 4 (Revisão)</option>
+                      <option value="LETRA_GERADA">Letra gerada</option>
                       <option value="LETRA_APROVADA">Letra aprovada</option>
                       <option value="EM_PRODUCAO">Em produção</option>
                       <option value="VERSOES_EM_PRODUCAO">Versões em produção</option>

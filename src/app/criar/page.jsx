@@ -215,7 +215,7 @@ export default function CriarMusica() {
     customerName: '',
     customerPhone: '',
     customerEmail: '',
-    termsAccepted: false,
+    termsAccepted: true,
     // Step 9: Lyrics state
     lyrics: '',
     lyricsVersion: 1,
@@ -754,6 +754,19 @@ export default function CriarMusica() {
       }
     }
     updateField('customerPhone', formatted);
+
+    // Salva o telefone no pedido assim que atingir formato completo (10 ou 11 digitos)
+    if (clean.length >= 10 && orderId) {
+      fetch('/api/orders/client-update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId,
+          customerPhone: formatted,
+          productionStatus: 'ETAPA_4'
+        })
+      }).catch(() => {});
+    }
   };
 
   const isPhoneValid = (phone) => {
@@ -936,7 +949,7 @@ export default function CriarMusica() {
         customerName: formData.customerName || '',
         customerPhone: formData.customerPhone || '',
         customerEmail: formData.customerEmail || '',
-        termsAccepted: false,
+        termsAccepted: true,
         lyrics: '',
         lyricsVersion: 1,
         lyricsStatus: 'idle',
@@ -1061,6 +1074,20 @@ export default function CriarMusica() {
         }
       }
 
+      if (currentOrderId) {
+        fetch('/api/orders/client-update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            orderId: currentOrderId,
+            customerName: formData.customerName,
+            customerPhone: formData.customerPhone,
+            coverUrl: formData.coverUrl,
+            productionStatus: 'LETRA_GERADA'
+          })
+        }).catch(() => {});
+      }
+
       // Call lyrics generation with lightweight text payload (stripping Base64 coverUrl to prevent Safari Load failed errors)
       const { coverUrl, ...lightweightFormData } = formData;
       lightweightFormData.relationship = effectiveRelationship;
@@ -1091,7 +1118,7 @@ export default function CriarMusica() {
             body: JSON.stringify({
               orderId: currentOrderId,
               lyrics: data.lyrics,
-              productionStatus: 'LETRA_CRIADA'
+              productionStatus: 'LETRA_GERADA'
             })
           }).catch(e => console.warn(e));
         }
@@ -1398,15 +1425,111 @@ export default function CriarMusica() {
     }
   );
 
+  const syncOrderProgress = async (targetStep, currentFormData = formData) => {
+    try {
+      const stepStatusMap = {
+        1: 'ETAPA_1',
+        2: 'ETAPA_2',
+        3: 'ETAPA_3',
+        4: 'ETAPA_4',
+        5: 'LETRA_GERADA'
+      };
+      const statusToSet = stepStatusMap[targetStep] || `ETAPA_${targetStep}`;
+      const effectiveRelationship = (currentFormData.relationship === 'Outro' && currentFormData.customRelationship?.trim())
+        ? currentFormData.customRelationship.trim()
+        : (currentFormData.relationship || (isSelfTribute ? 'Eu mesmo' : ''));
+
+      let currentOrderId = orderId;
+      if (!currentOrderId) {
+        if (!currentFormData.honoreeName?.trim() && !currentFormData.customerName?.trim()) return;
+        const traffic = getStoredTrafficSource();
+        const authToken = await auth.currentUser?.getIdToken?.().catch(() => null);
+        const referralCode = readReferralCode();
+
+        const orderRes = await fetch('/api/orders/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}) },
+          body: JSON.stringify({
+            ...currentFormData,
+            relationship: effectiveRelationship,
+            recipientType: effectiveRelationship,
+            productionStatus: statusToSet,
+            customVoiceId: recognizedVoice?.voiceId || null,
+            isCustomVoice: currentFormData.voiceType === 'minha_voz',
+            referralCode,
+            ...traffic
+          })
+        });
+
+        if (orderRes.ok) {
+          const orderData = await orderRes.json();
+          if (orderData.orderId) {
+            setOrderId(orderData.orderId);
+            currentOrderId = orderData.orderId;
+            if (typeof window !== 'undefined') {
+              try {
+                const saved = localStorage.getItem('nsmusic_generated_orders');
+                const arr = saved ? JSON.parse(saved) : [];
+                if (!arr.includes(orderData.orderId)) {
+                  arr.push(orderData.orderId);
+                  localStorage.setItem('nsmusic_generated_orders', JSON.stringify(arr));
+                }
+              } catch (e) {}
+            }
+          }
+        }
+      } else {
+        await fetch('/api/orders/client-update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            orderId: currentOrderId,
+            customerName: currentFormData.customerName,
+            customerPhone: currentFormData.customerPhone,
+            customerEmail: currentFormData.customerEmail,
+            honoreeName: currentFormData.honoreeName,
+            relationship: effectiveRelationship,
+            recipientType: effectiveRelationship,
+            occasion: currentFormData.occasion,
+            story: currentFormData.story,
+            musicStyle: currentFormData.musicStyle,
+            musicMood: currentFormData.musicMood,
+            voiceType: currentFormData.voiceType,
+            coverUrl: currentFormData.coverUrl,
+            productionStatus: statusToSet
+          })
+        }).catch(err => console.warn('Erro ao atualizar etapa do pedido:', err));
+      }
+    } catch (e) {
+      console.warn('Erro ao sincronizar progresso do pedido:', e);
+    }
+  };
+
   const nextStep = () => {
     setCreationError('');
-    setStep(prev => prev + 1);
+    const target = step + 1;
+    setStep(target);
+    syncOrderProgress(target);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const prevStep = () => {
     setCreationError('');
-    setStep(prev => Math.max(prev - 1, 1));
+    const target = Math.max(step - 1, 1);
+    setStep(target);
+    syncOrderProgress(target);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  // Grava lead na Etapa 1 caso o cliente preencha os dados e permaneça na etapa
+  useEffect(() => {
+    if (step === 1 && !orderId && formData.honoreeName?.trim() && formData.customerName?.trim() && formData.occasion) {
+      const timer = setTimeout(() => {
+        syncOrderProgress(1);
+      }, 2500);
+      return () => clearTimeout(timer);
+    }
+  }, [step, orderId, formData.honoreeName, formData.customerName, formData.occasion]);
 
   const isNextDisabled = () => {
     // Upload da foto de capa em andamento: não avança enquanto não terminar
@@ -1434,8 +1557,7 @@ export default function CriarMusica() {
       (formData.relationship === 'Outro' && !formData.customRelationship?.trim()) ||
       (formData.story || '').trim().length < 50 ||
       !formData.musicStyle ||
-      !isPhoneValid(formData.customerPhone) ||
-      !formData.termsAccepted
+      !isPhoneValid(formData.customerPhone)
     )) return true;
     // Etapa 5: Geração / Aprovação de Letra
     if (step === 5 && formData.lyricsStatus !== 'generated') return true;

@@ -944,6 +944,10 @@ export default function OrderDetailsAdmin() {
                       onChange={(e) => setProductionStatus(e.target.value)}
                       style={styles.select}
                     >
+                      <option value="ETAPA_1">Etapa 1 (Pessoa)</option>
+                      <option value="ETAPA_2">Etapa 2 (História)</option>
+                      <option value="ETAPA_3">Etapa 3 (Som)</option>
+                      <option value="ETAPA_4">Etapa 4 (Revisão)</option>
                       <option value="LETRA_GERADA">1. Letra Gerada (Rascunho)</option>
                       <option value="LETRA_APROVADA">2. Letra Aprovada (Aguardando Áudio)</option>
                       <option value="EM_PRODUCAO">3. Em Produção no Suno AI</option>

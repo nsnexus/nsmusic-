@@ -118,8 +118,9 @@ export default function CreationSteps({ step, formData: data, updateField, isLis
       {data.coverUrl && <Image src={data.coverUrl} alt="Sua foto de capa" width={96} height={96} unoptimized className="nx-upload-preview" />}
       <Field label="Seu WhatsApp para receber o link" help="Enviaremos o link para você acompanhar e ouvir a sua música."><input type="tel" inputMode="tel" autoComplete="tel" value={data.customerPhone || ''} onChange={e => handlePhoneChange(e.target.value)} placeholder="(11) 99999-9999" aria-invalid={phoneVerifyStatus === 'invalid'} /></Field>
       {phoneVerifyMessage && <p className="nx-helper" role="status" style={{ color: phoneVerifyStatus === 'valid' ? '#16a34a' : phoneVerifyStatus === 'invalid' ? '#dc2626' : undefined, fontWeight: phoneVerifyStatus === 'valid' || phoneVerifyStatus === 'invalid' ? 600 : undefined }}>{phoneVerifyMessage.replace('❌ ', '')}</p>}
-      {checkingVoice && <p className="nx-helper">Verificando suas preferências de voz…</p>}
-      <label className="nx-consent"><input type="checkbox" checked={Boolean(data.termsAccepted)} onChange={e => updateField('termsAccepted', e.target.checked)} /><span>Li e aceito os <Link href="/termos-de-uso" target="_blank" rel="noopener noreferrer">Termos de Uso</Link> e a <Link href="/politica-de-privacidade" target="_blank" rel="noopener noreferrer">Política de Privacidade</Link>.</span></label>
+      <p className="nx-helper" style={{ fontSize: '0.8rem', color: '#94a3b8', margin: '10px 0 4px 0' }}>
+        Ao prosseguir, você concorda com nossos <Link href="/termos-de-uso" target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'underline' }}>Termos de Uso</Link> e <Link href="/politica-de-privacidade" target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'underline' }}>Política de Privacidade</Link>.
+      </p>
       <p className="nx-helper">Você revisa a letra antes de gerar a música. A foto é opcional.</p>
     </section>
   );

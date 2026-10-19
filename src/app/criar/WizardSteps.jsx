@@ -1097,26 +1097,17 @@ export default function WizardSteps({
 
               {/* Termos de Uso */}
               <div>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-                  <input
-                    type="checkbox"
-                    id="termsAccepted"
-                    checked={formData.termsAccepted || false}
-                    onChange={(e) => updateField('termsAccepted', e.target.checked)}
-                    style={{ marginTop: '3px', width: '18px', height: '18px', flexShrink: 0, cursor: 'pointer' }}
-                  />
-                  <label htmlFor="termsAccepted" style={{ fontSize: '0.82rem', color: '#64748b', lineHeight: '1.4', cursor: 'pointer' }}>
-                    Li e aceito os{' '}
-                    <Link href="/termos-de-uso" target="_blank" style={{ color: 'var(--primary)', fontWeight: '600' }}>
-                      Termos de Uso
-                    </Link>
-                    {' '}e a{' '}
-                    <Link href="/politica-de-privacidade" target="_blank" style={{ color: 'var(--primary)', fontWeight: '600' }}>
-                      Política de Privacidade
-                    </Link>
-                    . *
-                  </label>
-                </div>
+                <p style={{ fontSize: '0.82rem', color: '#64748b', lineHeight: '1.4', margin: '4px 0 0 0' }}>
+                  Ao prosseguir, você concorda com nossos{' '}
+                  <Link href="/termos-de-uso" target="_blank" style={{ color: 'var(--primary)', fontWeight: '600', textDecoration: 'underline' }}>
+                    Termos de Uso
+                  </Link>
+                  {' '}e a{' '}
+                  <Link href="/politica-de-privacidade" target="_blank" style={{ color: 'var(--primary)', fontWeight: '600', textDecoration: 'underline' }}>
+                    Política de Privacidade
+                  </Link>
+                  .
+                </p>
               </div>
             </div>
           </div>
