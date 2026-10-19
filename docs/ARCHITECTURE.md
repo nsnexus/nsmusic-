@@ -1,5 +1,7 @@
 # NS Music — Arquitetura
 
+> Atualização 2026-10: `supabase/credits.sql` acrescenta carteira contábil, compras de crédito e indicações. A Efí confirma cada compra; só então a função SQL atômica lança o saldo. Créditos não vencem. A indicação paga 1 crédito por primeira compra confirmada e outro a cada cinco confirmações.
+
 > Complementa [CODEBASE_MAP.md](CODEBASE_MAP.md) (onde estão as coisas). Aqui: como as peças conversam e por quê.
 > Atualizado em 2026-08 após os Lotes 0-8 do [audit/FIX_PLAN.md](audit/FIX_PLAN.md).
 

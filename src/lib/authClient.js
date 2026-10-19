@@ -17,6 +17,12 @@ export async function getAdminAuthToken(force = false) {
   return token;
 }
 
+export async function signInWithGoogle(redirectTo) {
+  if (!supabase?.auth) throw new Error('Serviço de autenticação não configurado.');
+  const target = redirectTo || (typeof window !== 'undefined' ? `${window.location.origin}/conta` : '');
+  return supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: target } });
+}
+
 export async function signInWithEmailAndPassword(_unusedAuth, email, password) {
   if (!supabase?.auth) throw new Error('Serviço de autenticação não configurado.');
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });

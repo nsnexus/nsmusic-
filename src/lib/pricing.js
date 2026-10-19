@@ -29,6 +29,21 @@ export const SKU_PRICES = {
   recovery_combo_48h: 6.99,
 };
 
+// Créditos não vencem. Preço e quantidade ficam aqui para nunca serem aceitos do navegador.
+export const CREDIT_PACKAGES = {
+  creditos_1: { credits: 1, price: 9.99, label: '1 crédito' },
+  creditos_5: { credits: 5, price: 29.90, label: '5 créditos' },
+  creditos_10: { credits: 10, price: 49.90, label: '10 créditos' },
+};
+
+export function getCreditPackage(sku) {
+  return CREDIT_PACKAGES[sku] || null;
+}
+
+export function getCreditCostForSku(sku) {
+  return sku === 'carta_addon' ? 0.5 : 1;
+}
+
 export function getPriceForSku(sku) {
   const price = SKU_PRICES[sku];
   return typeof price === 'number' ? price : null;

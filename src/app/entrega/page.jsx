@@ -1376,11 +1376,11 @@ function EntregaContent() {
             <Link href="/" style={{ display: 'flex', alignItems: 'center' }}>
               <Image src="/logo.png" alt="NSMusic" width={36} height={36} style={{ height: '36px', width: 'auto' }} priority />
             </Link>
-            <Link href="/criar" className="btn btn-primary" style={{ padding: '6px 12px', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '4px', textDecoration: 'none', minHeight: '36px' }}>
-              ✨ Nova Música
+            <Link href="/criar" className="btn btn-primary entrega-header-action" style={{ padding: '6px 12px', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '4px', textDecoration: 'none', minHeight: '36px' }}>
+              ✨ <span>Nova Música</span>
             </Link>
-            <Link href="/minhas-musicas" className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '4px', textDecoration: 'none', minHeight: '36px' }}>
-              🎵 Minhas Músicas
+            <Link href="/minhas-musicas" className="btn btn-secondary entrega-header-action" aria-label="Minhas músicas" style={{ padding: '6px 12px', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '4px', textDecoration: 'none', minHeight: '36px' }}>
+              🎵 <span>Minhas Músicas</span>
             </Link>
           </div>
           <span 

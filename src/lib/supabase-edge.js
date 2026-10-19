@@ -310,6 +310,21 @@ export class NativeSupabaseClient {
     return new SupabaseTableQuery(this.url, this.apiKey, tableName);
   }
 
+  async rpc(functionName, params = {}, options = {}) {
+    try {
+      const res = await fetch(`${this.url.replace(/\/$/, '')}/rest/v1/rpc/${encodeURIComponent(functionName)}`, {
+        method: 'POST',
+        headers: { apikey: this.apiKey, Authorization: `Bearer ${this.apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(params),
+        signal: AbortSignal.timeout(options.timeout || 12000),
+      });
+      if (!res.ok) return { data: null, error: { message: `HTTP ${res.status}: ${await res.text().catch(() => '')}` } };
+      return { data: await res.json().catch(() => null), error: null };
+    } catch (err) {
+      return { data: null, error: { message: err.message || 'Erro ao executar operação no banco.' } };
+    }
+  }
+
   get auth() {
     const notifyAuthChange = (event, session) => {
       if (typeof window !== 'undefined') {
@@ -509,10 +524,74 @@ export class NativeSupabaseClient {
         return { error: null };
       },
 
+      signInWithOAuth: async ({ provider, options = {} }) => {
+        try {
+          const redirectTo = options.redirectTo || (typeof window !== 'undefined' ? window.location.href : '');
+          const authUrl = `${this.url.replace(/\/$/, '')}/auth/v1/authorize?provider=${encodeURIComponent(provider)}&redirect_to=${encodeURIComponent(redirectTo)}`;
+          if (typeof window !== 'undefined') {
+            window.location.href = authUrl;
+          }
+          return { data: { url: authUrl }, error: null };
+        } catch (err) {
+          return { data: null, error: { message: err.message || 'Erro ao iniciar login OAuth' } };
+        }
+      },
+
+      parseUrlHashSession: () => {
+        if (typeof window === 'undefined' || !window.location.hash) return null;
+        const hash = window.location.hash.substring(1);
+        if (!hash.includes('access_token=')) return null;
+        try {
+          const params = new URLSearchParams(hash);
+          const accessToken = params.get('access_token');
+          const refreshToken = params.get('refresh_token');
+          if (!accessToken) return null;
+
+          let userData = null;
+          try {
+            const parts = accessToken.split('.');
+            if (parts.length === 3) {
+              const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+              userData = JSON.parse(decodeURIComponent(escape(atob(base64))));
+            }
+          } catch {}
+
+          const user = normalizeUser({
+            id: userData?.sub || userData?.id,
+            email: userData?.email || '',
+            user_metadata: userData?.user_metadata || {},
+          }, accessToken);
+
+          localStorage.setItem('supabase_auth_token', accessToken);
+          localStorage.setItem('supabase_admin_token', accessToken);
+          if (user) {
+            localStorage.setItem('supabase_auth_user', JSON.stringify(user));
+            localStorage.setItem('supabase_admin_user', JSON.stringify(user));
+          }
+          if (refreshToken) {
+            localStorage.setItem('supabase_auth_refresh_token', refreshToken);
+            localStorage.setItem('supabase_admin_refresh_token', refreshToken);
+          }
+
+          const cleanUrl = window.location.pathname + window.location.search;
+          window.history.replaceState(null, '', cleanUrl);
+
+          const session = { access_token: accessToken, refresh_token: refreshToken, user };
+          notifyAuthChange('SIGNED_IN', session);
+          return session;
+        } catch (e) {
+          console.warn('[supabase-auth] Falha ao processar token do hash:', e.message);
+          return null;
+        }
+      },
+
       onAuthStateChange: (callback) => {
         if (typeof window === 'undefined') {
           return { data: { subscription: { unsubscribe: () => {} } } };
         }
+
+        // Tenta capturar sessão vinda de redirect OAuth (Google, etc.) pelo hash da URL
+        try { this.auth.parseUrlHashSession(); } catch {}
 
         // Emite imediatamente o estado atual
         const token = localStorage.getItem('supabase_auth_token') || localStorage.getItem('supabase_admin_token');

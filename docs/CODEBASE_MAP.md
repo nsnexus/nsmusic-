@@ -2,7 +2,7 @@
 
 > Índice de navegação. Não contém código. Use-o para localizar o arquivo certo **antes** de abrir qualquer coisa.
 > Arquitetura e diagramas: [ARCHITECTURE.md](ARCHITECTURE.md). Problemas conhecidos: [audit/AUDIT_REPORT.md](audit/AUDIT_REPORT.md).
-> Atualizado em 2026-08 após os Lotes 0-8 do [audit/FIX_PLAN.md](audit/FIX_PLAN.md).
+> Atualizado em 2026-10: inclui carteira de créditos, indicação e Supabase como banco operacional.
 
 ## Visão geral
 
@@ -60,6 +60,7 @@ Lote 7, para o raciocínio completo).
 | `/acompanhar` | `src/app/acompanhar/page.jsx` | Pública por `?orderId=` |
 | `/homenagem` | `src/app/homenagem/page.jsx` | Pública por `?orderId=` — gate por `paymentStatus` (C-07 corrigido) |
 | `/minhas-musicas` | `src/app/minhas-musicas/page.jsx` | Firebase Auth (cliente) ou busca por telefone/e-mail (`where` exato, não mais varredura completa — C-08) |
+| `/conta` | `src/app/conta/page.jsx` | Supabase Auth — carteira de créditos, PIX de recarga e link de indicação |
 | `/login` | `src/app/login/page.jsx` | Pública |
 | `/admin` | `src/app/admin/page.jsx` | Firebase Auth + checagem de e-mail no browser (só UX — autorização real é no servidor desde o Lote 1); listagem paginada (M-09) |
 | `/admin/login` | `src/app/admin/login/page.jsx` | Pública |
@@ -80,6 +81,10 @@ para o que ainda depende de rate limiting externo (A-04/A-12, não implementado 
 | `POST /api/orders/delete` | `orders/delete/route.js:POST` | Exclusão lógica (`deletedAt`) + remove `suno_tasks` associadas (M-07) | Admin |
 | `GET /api/orders/search` | `orders/search/route.js:GET` | Busca por `orderId` (exata) ou substring em nome/homenageado (limitada aos 300 mais recentes) | Admin |
 | `POST /api/payments/create` | `payments/create/route.js` | Deriva o valor do catálogo (`src/lib/pricing.js`) por `sku`; cria cobrança real na Efí (`src/lib/efi.js:createPixCharge`); persiste `paymentIntentId` (txid)/`expectedAmount`/`paymentIntentSku` | Pública |
+| `GET /api/credits/account` | `credits/account/route.js` | Saldo, extrato e código de indicação da conta autenticada | Cliente autenticado |
+| `POST /api/credits/purchase` | `credits/purchase/route.js` | Cria PIX Efí para 1, 5 ou 10 créditos; preço vem do catálogo | Cliente autenticado |
+| `GET /api/credits/status` | `credits/status/route.js` | Reconsulta Efí e lança saldo idempotentemente por txid | Cliente autenticado |
+| `POST /api/credits/redeem` | `credits/redeem/route.js` | Debita saldo e libera produto do pedido na mesma transação | Cliente autenticado |
 | `GET /api/payments/status` | `payments/status/route.js` | Consulta a Efí (`getChargeStatus`) e chama `src/lib/payments.js:applyPaymentApproval` | Pública |
 | `POST /api/webhooks/efi` | `webhooks/efi/route.js` | Segredo `?secret=` (se configurado) + reconsulta `getChargeStatus` antes de aprovar; chama `applyPaymentApproval` | Segredo na URL |
 | `POST /api/gateway/v1/charges` | `gateway/v1/charges/route.js:POST` | Cria cobrança Pix para sistemas externos (NSNexus Pay); persiste em `gateway_charges` | Chave de API (`GATEWAY_API_KEY`) |
@@ -104,6 +109,7 @@ para o que ainda depende de rate limiting externo (A-04/A-12, não implementado 
 | Arquivo | Responsabilidade |
 |---|---|
 | `supabaseDb.js` | Operações CRUD e geração de pedidos nativas no Supabase PostgREST (`generateOrderId`, `getOrder`, `createOrder`, `updateOrder`, `softDeleteOrder`, `getSunoTask`, `saveSunoTask`) |
+| `credits.js` | Consulta de carteira e confirmação idempotente de compra de créditos |
 | `supabase-edge.js` | Cliente PostgREST Supabase nativo com zero dependências externas — compatível com Edge Runtime da Cloudflare e Node |
 | `supabase.js` | Re-export do cliente Supabase para o front-end e utilitários públicos |
 | `supabaseSync.js` | Mapeador Firestore -> Postgres e helpers de espelhamento não-bloqueante (`mirrorOrderToSupabase`, `mirrorPaymentToSupabase`, `mirrorTaskToSupabase`) |

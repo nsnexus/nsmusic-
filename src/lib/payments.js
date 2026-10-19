@@ -210,6 +210,20 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
 
   if (txResult.applied) {
     if (!txResult.isVideoOnly && !txResult.isPlaybackOnly && !txResult.isCartaOnly && !txResult.isRetroOnly && !txResult.isKaraokeOnly && !txResult.isVoiceOnly) {
+      // Recompensa a indicação somente no primeiro pagamento principal confirmado.
+      // Falha desta recompensa nunca pode desfazer nem bloquear a compra do cliente.
+      if (txResult.orderData?.userId) {
+        try {
+          const { getSupabaseEdge } = await import('./supabase-edge.js');
+          const supabase = getSupabaseEdge(env);
+          await supabase?.rpc('reward_referral_for_order', {
+            p_order_id: orderId,
+            p_referee_user_id: txResult.orderData.userId,
+          });
+        } catch (referralError) {
+          console.warn('[payments] Falha ao conceder crédito de indicação:', referralError.message);
+        }
+      }
       await notifyPaymentApproved(orderId, txResult.orderData, {}, env);
 
       // Contador de vendas da vitrine da home (stats/_live)

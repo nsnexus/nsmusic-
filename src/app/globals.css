@@ -723,6 +723,38 @@ label {
   padding: 20px 0;
 }
 
+/* Jornada mobile: a ação de avançar permanece grande, previsível e acima da área segura.
+   As regras são visuais; não alteram etapas, geração ou pagamento. */
+@media (max-width: 639px) {
+  .criar-header { position: sticky !important; top: 0; z-index: 50; }
+  .criar-header-inner { min-height: 58px; padding: 9px 14px !important; }
+  .criar-header .header-mini-eq { display: none; }
+  .criar-back-link { min-width: 40px; padding: 8px 10px !important; }
+  .criar-back-link span { display: none; }
+  .criar-main { padding: 18px 0 calc(100px + env(safe-area-inset-bottom)) !important; }
+  .criar-container { padding-left: 14px !important; padding-right: 14px !important; }
+  .criar-progress { height: 8px !important; border-radius: 999px; }
+  .criar-step-content { margin-top: 20px !important; }
+  .criar-navigation-dock {
+    padding: 10px 0 calc(10px + env(safe-area-inset-bottom)) !important;
+    background: rgba(247, 248, 252, 0.94) !important;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-top: 1px solid var(--border-color);
+  }
+  .criar-navigation-inner { padding: 0 14px !important; }
+  .criar-nav-back { min-width: 48px; padding: 12px !important; }
+  .criar-nav-next { flex: 1; min-height: 52px !important; padding: 12px 16px !important; font-size: 1rem !important; }
+
+  .entrega-main { padding: 14px 0 calc(28px + env(safe-area-inset-bottom)); }
+  .entrega-header-container { flex-wrap: nowrap; padding: 9px 12px; }
+  .entrega-header-nav { flex-wrap: nowrap; gap: 6px; min-width: 0; }
+  .entrega-header-action { min-width: 38px; padding: 7px 9px !important; }
+  .entrega-header-action span { display: none; }
+  .entrega-card { margin-bottom: 16px; }
+  .entrega-tabs { position: sticky; top: 0; z-index: 20; margin-left: -2px; margin-right: -2px; width: calc(100% + 4px); }
+}
+
 @media (min-width: 768px) {
   .entrega-main {
     padding: 40px 0;

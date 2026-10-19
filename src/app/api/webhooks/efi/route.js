@@ -59,6 +59,15 @@ async function processPixItem(item, env) {
   if (!charge || charge.status !== 'CONCLUIDA') return;
 
   const transactionAmount = Number(charge.valor?.original);
+  // Créditos não pertencem a um pedido. Ainda assim, só entram no saldo depois da
+  // reconsulta à Efí acima; a função SQL é idempotente por txid.
+  try {
+    const { approveCreditPurchase } = await import('@/lib/credits');
+    const creditResult = await approveCreditPurchase(txid, transactionAmount, env);
+    if (creditResult?.found) return;
+  } catch (creditErr) {
+    console.warn('[Webhook Efí] Falha ao processar créditos:', creditErr.message);
+  }
   let orderId = await findOrderIdByTxid(txid, env);
 
   if (!orderId && charge.solicitacaoPagador) {

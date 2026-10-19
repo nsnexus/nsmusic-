@@ -7,6 +7,7 @@ import { createOrder } from '@/lib/supabaseDb';
 import { isContactBlocked } from '@/lib/blocklist';
 import { generateUniqueOrderNumber } from '@/lib/orderNumber';
 import { generatePhoneVariants } from '@/lib/orderLookup';
+import { getCustomer } from '@/lib/auth';
 
 export const runtime = 'edge';
 export { generateUniqueOrderNumber };
@@ -25,6 +26,7 @@ export async function POST(req) {
     } catch (e) {}
 
     const formData = await req.json();
+    const authenticatedCustomer = await getCustomer(req, env);
 
     // M-13 no AUDIT_REPORT.md: o consentimento aos termos precisa ser real (checkbox marcado pelo
     // cliente), verificado no servidor — nunca aceito por padrão.
@@ -71,7 +73,9 @@ export async function POST(req) {
 
     const orderPayload = {
       orderNumber,
-      userId: formData.userId || null,
+      // Nunca vincule o pedido a um userId fornecido pelo navegador. Se houver
+      // sessão válida, a conta vem do token confirmado pelo Supabase.
+      userId: authenticatedCustomer?.uid || null,
       customerName: formData.customerName || 'Cliente',
       customerPhone: formData.customerPhone || '',
       customerEmail: formData.customerEmail || '',
@@ -109,6 +113,20 @@ export async function POST(req) {
     };
 
     const created = await createOrder(orderPayload, env);
+
+    // A indicação é opcional, mas só pode ser registrada para uma conta autenticada.
+    // O crédito em si continua bloqueado até o pagamento confirmado no servidor.
+    if (authenticatedCustomer?.uid && typeof formData.referralCode === 'string') {
+      const code = formData.referralCode.trim().toLowerCase();
+      if (code) {
+        const { getSupabaseEdge } = await import('@/lib/supabase-edge');
+        const supabase = getSupabaseEdge(env);
+        const { data: referrer } = await supabase.from('credit_accounts').select('user_id').eq('referral_code', code).maybeSingle();
+        if (referrer?.user_id && referrer.user_id !== authenticatedCustomer.uid) {
+          await supabase.from('referrals').upsert({ referee_user_id: authenticatedCustomer.uid, referrer_user_id: referrer.user_id }, { onConflict: 'referee_user_id' });
+        }
+      }
+    }
 
     console.log(`[API /orders/create] Pedido criado com sucesso! ID: ${created.id}, Número: ${created.orderNumber}`);
 

@@ -52,6 +52,21 @@ function extractBearerToken(req) {
   return match ? match[1].trim() : null;
 }
 
+/** Cliente autenticado comum. Use para qualquer saldo, crédito ou dado de conta. */
+export async function requireCustomer(req, env = {}) {
+  const account = await getCustomer(req, env);
+  if (!account) return { ok: false, status: 401, error: 'Faça login para acessar sua conta.' };
+  return { ok: true, uid: account.uid, email: account.email, emailVerified: account.emailVerified };
+}
+
+export async function getCustomer(req, env = {}) {
+  const token = extractBearerToken(req);
+  if (!token) return null;
+
+  const account = await verifySupabaseToken(token, env);
+  return account || null;
+}
+
 /**
  * Exige que a requisição traga um token de Supabase válido, pertencente a uma conta com
  * o role `admin` OU cujo e-mail está na allowlist `ADMIN_EMAILS`.

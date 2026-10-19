@@ -298,6 +298,12 @@ export const notifyMusicReady = async (orderRefOrId, orderData, orderIdParam, op
     deliveryUrl,
   }, env);
 
+  if (sendResult.ignored) {
+    await updateOrder(orderId, { whatsappSending: false, readyTemplateSending: false }, env).catch(() => {});
+    console.log(`Mensagem do WhatsApp (música pronta) ignorada pela trava (${sendResult.ignored}) — pedido ${orderId}`);
+    return { sent: false, reason: sendResult.ignored };
+  }
+
   if (sendResult.success) {
     await updateOrder(orderId, {
       whatsappSent: true,

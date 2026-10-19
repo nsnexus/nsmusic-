@@ -1057,15 +1057,18 @@ export default function CriarMusica() {
       if (!currentOrderId) {
         try {
           const traffic = getStoredTrafficSource();
+          const authToken = await auth.currentUser?.getIdToken?.();
+          const referralCode = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('ref') : null;
           const orderRes = await fetch('/api/orders/create', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}) },
             body: JSON.stringify({
               ...formData,
               relationship: effectiveRelationship,
               recipientType: effectiveRelationship,
               customVoiceId: recognizedVoice?.voiceId || null,
               isCustomVoice: formData.voiceType === 'minha_voz',
+              referralCode,
               ...traffic
             })
           });
@@ -1223,15 +1226,18 @@ export default function CriarMusica() {
             : (formData.relationship || (isSelfTribute ? 'Eu mesmo' : ''));
 
           const traffic = getStoredTrafficSource();
+          const authToken = await auth.currentUser?.getIdToken?.();
+          const referralCode = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('ref') : null;
           const createRes = await fetch('/api/orders/create', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}) },
             body: JSON.stringify({
               ...formData,
               relationship: effectiveRelationship,
               recipientType: effectiveRelationship,
               customVoiceId: recognizedVoice?.voiceId || null,
               isCustomVoice: formData.voiceType === 'minha_voz',
+              referralCode,
               userId: auth.currentUser ? auth.currentUser.uid : null,
               ...traffic
             })
@@ -1361,13 +1367,6 @@ export default function CriarMusica() {
                   productionStatus: 'AUDIO_GERADO'
                 })
               }).catch(e => console.warn("Aviso ao atualizar ordem:", e));
-
-              // Dispara a notificação de WhatsApp via backend
-              fetch('/api/whatsapp/notify', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ orderId: targetOrder })
-              }).catch(e => console.warn("Erro ao notificar WhatsApp:", e));
 
               // sunoStatus fica em 'generating' (tela de loading, com o CTA de WhatsApp já visível)
               // até aqui de propósito — só vira 'generated' (tela de prévia com os players, mais
@@ -2622,45 +2621,45 @@ export default function CriarMusica() {
       </div>
 
       {/* Header Estúdio Musical Premium */}
-      <header style={styles.header} className="glass-panel">
-        <div style={{ ...styles.headerContainer, justifyContent: 'space-between', alignItems: 'center' }}>
+      <header style={styles.header} className="glass-panel criar-header">
+        <div style={{ ...styles.headerContainer, justifyContent: 'space-between', alignItems: 'center' }} className="criar-header-inner">
           
           {/* Logo & Marca NSMusic com Animação SVG */}
           <Link href="/" style={{ textDecoration: 'none' }}>
             <BrandLogo />
           </Link>
 
-          <Link href="/" className="btn btn-secondary" style={{ padding: '8px 14px', fontSize: '0.82rem', minHeight: '36px' }}>
-            🏠 Voltar ao Início
+          <Link href="/" className="btn btn-secondary criar-back-link" style={{ padding: '8px 14px', fontSize: '0.82rem', minHeight: '36px' }}>
+            🏠 <span>Voltar ao Início</span>
           </Link>
 
         </div>
       </header>
 
       {/* Main content container */}
-      <main style={{ flex: 1, padding: '32px 0 100px 0', position: 'relative', zIndex: 1 }}>
-        <div className="container" style={{ maxWidth: '900px' }}>
+      <main className="criar-main" style={{ flex: 1, padding: '32px 0 100px 0', position: 'relative', zIndex: 1 }}>
+        <div className="container criar-container" style={{ maxWidth: '900px' }}>
           
           {/* Wizard step indicators */}
           {step <= totalWizardSteps && (
-            <div style={styles.progressBarBg}>
+            <div style={styles.progressBarBg} className="criar-progress" aria-label={`Etapa ${step} de ${totalWizardSteps}`}>
               <div style={{ ...styles.progressBarFill, width: `${(step / totalWizardSteps) * 100}%` }} />
             </div>
           )}
 
           {/* Form step renderers */}
-          <div style={{ marginTop: '32px' }}>
+          <div style={{ marginTop: '32px' }} className="criar-step-content">
             {step <= totalWizardSteps ? renderWizardStep() : renderWorkflowStep()}
           </div>
 
           {/* Fixed Bottom Navigation Dock */}
           {formData.lyricsStatus !== 'generating' && formData.sunoStatus !== 'generating' && (step <= totalWizardSteps || step === 5) && (
-            <div style={styles.navigationControls}>
-              <div className="container" style={{ width: '100%', maxWidth: '900px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+            <div style={styles.navigationControls} className="criar-navigation-dock">
+              <div className="container criar-navigation-inner" style={{ width: '100%', maxWidth: '900px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
                 {step > 1 ? (
                   <button 
                     onClick={prevStep} 
-                    className="btn btn-secondary"
+                    className="btn btn-secondary criar-nav-back"
                     style={{ padding: '12px 20px', fontSize: '0.95rem', minHeight: '46px' }}
                   >
                     ← Voltar
@@ -2674,7 +2673,7 @@ export default function CriarMusica() {
                     <button 
                       onClick={step === totalWizardSteps ? handleSaveAndGenerateLyrics : nextStep}
                       disabled={isNextDisabled() || (step === totalWizardSteps && isSubmitting)}
-                      className="btn btn-primary"
+                      className="btn btn-primary criar-nav-next"
                       style={{
                         padding: '12px 28px',
                         fontSize: '0.95rem',
@@ -2694,7 +2693,7 @@ export default function CriarMusica() {
                         <button
                           onClick={handleApproveLyrics}
                           disabled={isNextDisabled() || isSubmitting}
-                          className="btn btn-primary"
+                          className="btn btn-primary criar-nav-next"
                           style={{
                             padding: '12px 28px',
                             fontSize: '0.95rem',
@@ -2712,7 +2711,7 @@ export default function CriarMusica() {
                         <button
                           onClick={handleApproveLyrics}
                           disabled={isNextDisabled() || isSubmitting}
-                          className="btn btn-primary"
+                          className="btn btn-primary criar-nav-next"
                           style={{
                             padding: '12px 28px',
                             fontSize: '0.95rem',

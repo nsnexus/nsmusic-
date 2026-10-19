@@ -8,7 +8,9 @@ export { resolveDeliveryUrl, resolveCriarUrl, formatToWhatsAppNumber, cleanWhats
 // Memória local de processos Edge para proteção anti-rajada e anti-spam imediata
 const inMemoryPhoneMessageLocks = new Map();
 const inMemoryPaymentConfirmedLocks = new Map();
+const inMemoryMusicReadyLocks = new Map();
 const PAYMENT_CONFIRMED_COOLDOWN_MS = 15 * 60 * 1000; // 15 minutos de proteção por cliente
+const MUSIC_READY_COOLDOWN_MS = 15 * 60 * 1000; // 15 minutos de proteção para aviso de música pronta
 const GENERAL_DUPLICATE_COOLDOWN_MS = 30 * 1000; // 30 segundos para a mesma mensagem exata
 
 /**
@@ -44,28 +46,33 @@ export async function shouldBlockWhatsAppMessage(phone, message, env = {}) {
   const cleanPhone = String(phone || '').replace(/\D/g, '');
   const now = Date.now();
   const isPaymentMsg = /pagamento.*(?:confirmado|aprovado|caiu)|🎉.*pagamento/i.test(message);
+  const isMusicReadyMsg = /musica_pronta|música.*pronta/i.test(message);
 
-  if (isPaymentMsg) {
-    const lastSentPayment = inMemoryPaymentConfirmedLocks.get(cleanPhone);
-    if (lastSentPayment && (now - lastSentPayment < PAYMENT_CONFIRMED_COOLDOWN_MS)) {
-      console.warn(`[WhatsApp Anti-Spam] Mensagem de confirmação de pagamento para ${cleanPhone} descartada (cooldown de 15min ativo, enviado há ${Math.round((now - lastSentPayment) / 1000)}s).`);
-      return { block: true, reason: 'payment_confirmed_cooldown' };
+  if (isPaymentMsg || isMusicReadyMsg) {
+    const lockType = isPaymentMsg ? 'payment' : 'music_ready';
+    const cooldownMs = isPaymentMsg ? PAYMENT_CONFIRMED_COOLDOWN_MS : MUSIC_READY_COOLDOWN_MS;
+    const memoryMap = isPaymentMsg ? inMemoryPaymentConfirmedLocks : inMemoryMusicReadyLocks;
+
+    const lastSent = memoryMap.get(cleanPhone);
+    if (lastSent && (now - lastSent < cooldownMs)) {
+      console.warn(`[WhatsApp Anti-Spam] Mensagem de ${lockType} para ${cleanPhone} descartada (cooldown de 15min ativo, enviado há ${Math.round((now - lastSent) / 1000)}s).`);
+      return { block: true, reason: `${lockType}_cooldown` };
     }
     // Trava imediatamente na memória de forma síncrona
-    inMemoryPaymentConfirmedLocks.set(cleanPhone, now);
+    memoryMap.set(cleanPhone, now);
 
-    // Trava distribuída na tabela config do Supabase (para proteger entre múltiplos workers da Cloudflare)
+    // Trava distribuída na tabela config do Supabase (para proteger entre múltiplos workers da Cloudflare e requisições simultâneas)
     try {
       const { getSupabaseEdge } = await import('./supabase-edge.js');
       const supabase = getSupabaseEdge(env);
       if (supabase) {
-        const lockKey = `lock_payment_sent_${cleanPhone}`;
+        const lockKey = `lock_${lockType}_sent_${cleanPhone}`;
         const { data: existingLock } = await supabase.from('config').select('valor').eq('chave', lockKey).maybeSingle();
         if (existingLock?.valor?.at) {
           const sentAt = Date.parse(existingLock.valor.at);
-          if (!Number.isNaN(sentAt) && (now - sentAt < PAYMENT_CONFIRMED_COOLDOWN_MS)) {
-            console.warn(`[WhatsApp Anti-Spam] Trava distribuída ativa no Supabase para ${cleanPhone}. Descartando disparo repetido.`);
-            return { block: true, reason: 'payment_confirmed_distributed_lock' };
+          if (!Number.isNaN(sentAt) && (now - sentAt < cooldownMs)) {
+            console.warn(`[WhatsApp Anti-Spam] Trava distribuída ativa no Supabase para ${cleanPhone} (${lockType}). Descartando disparo repetido.`);
+            return { block: true, reason: `${lockType}_distributed_lock` };
           }
         }
         await supabase.from('config').upsert({
