@@ -7,6 +7,8 @@ import { useSearchParams } from 'next/navigation';
 import { primeAudioContext } from '@/lib/audioContext';
 import { AUDIO_CACHE_VERSION } from '@/lib/audioCacheVersion';
 import PixQrCode from '@/components/PixQrCode';
+import ProductWorkspace from '@/components/delivery/ProductWorkspace';
+import VideoEditor from '@/components/delivery/VideoEditor';
 import PlaybackAddonCard from '@/components/PlaybackAddonCard';
 import KaraokeAddonCard from '@/components/KaraokeAddonCard';
 import CartaAddonCard from '@/components/CartaAddonCard';
@@ -794,7 +796,7 @@ function EntregaContent() {
   // (promoção de recuperação, ou audio_only).
   const handleGeneratePix = async (explicitSku = null, isSecondary = false, valorImpacto = null) => {
     if (!order) return;
-    if (isSecondary) setPendingVideoPix(true);
+    if (isSecondary) { setPixError(''); setPendingVideoPix(true); }
     else {
       setPixError('');
       setPixLoading(true);
@@ -846,7 +848,7 @@ function EntregaContent() {
     // retentativa automática (ver o useEffect de geração), empilhando pop-ups por cima da página e
     // deixando o cliente sem nenhum caminho para pagar.
     if (isSecondary) {
-      alert(resultado.error);
+      setPixError(resultado.error);
       setPendingVideoPix(false);
     } else {
       setPixError(resultado.error);
@@ -1268,6 +1270,226 @@ function EntregaContent() {
   // Default beautiful dynamic cover
   const coverUrl = order?.coverUrl || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=600&auto=format&fit=crop';
 
+  const handleCreateVideo = async () => {
+      const totalCount = existingPhotos.length + newPhotoFiles.length;
+      if (!orderId || totalCount < 10 || totalCount > 20 || isUploadingPhotos || !hasVideoAccess) return;
+
+      // Destrava o áudio AQUI, síncrono e antes de qualquer await: o
+      // upload das fotos leva minutos e, quando a renderização enfim
+      // começa, o navegador já não autoriza iniciar áudio — era essa a
+      // causa dos vídeos entregues mudos (ver src/lib/audioContext.js).
+      primeAudioContext();
+
+      setIsUploadingPhotos(true);
+      setPhotoError('');
+      try {
+        const finalUrls = [...existingPhotos];
+
+        // Upload de novas fotos locais caso existam
+        if (newPhotoFiles.length > 0) {
+          setUploadProgressMsg('Enviando novas fotos para o servidor...');
+          for (let i = 0; i < newPhotoFiles.length; i++) {
+            const file = newPhotoFiles[i];
+            setUploadProgressMsg(`Enviando foto ${i + 1} de ${newPhotoFiles.length}...`);
+            // Comprime antes de subir: upload muito mais rápido no 4G,
+            // menos memória durante a renderização do vídeo e menos
+            // Storage (as fotos agora ficam guardadas pra Retrospectiva).
+            // Nunca falha o upload por causa disso — em erro devolve o
+            // arquivo original (ver src/lib/imageCompress.js).
+            const arquivo = await compressImage(file);
+            const uploadData = new FormData();
+            uploadData.append('file', arquivo, `photo_${i}.jpg`);
+            const uploadRes = await fetch(`/api/media/upload?folder=slideshow&orderId=${encodeURIComponent(orderId)}`, {
+              method: 'POST',
+              body: uploadData
+            });
+            if (!uploadRes.ok) {
+              throw new Error(`Falha no upload da foto ${i + 1}`);
+            }
+            const resJson = await uploadRes.json();
+            if (!resJson?.url) {
+              throw new Error(`URL da foto ${i + 1} não retornada`);
+            }
+            finalUrls.push(resJson.url);
+          }
+          setExistingPhotos(finalUrls);
+          setNewPhotoFiles([]);
+        }
+
+        // Salva lista final no Supabase
+        await fetch('/api/orders/client-update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderId, slideshowImages: finalUrls, videoStatus: 'GERANDO' })
+        }).catch(e => console.warn(e));
+
+        setUploadProgressMsg('Iniciando geração do vídeo slideshow MP4 HD... 10%');
+
+        // Define a faixa de áudio escolhida pelo usuário
+        const targetAudioUrl = selectedVideoTrack === 'v2' && secondAudioUrl ? secondAudioUrl : primaryAudioUrl;
+
+        let generatedVideoUrl = null;
+
+        // 1. Tenta renderizar via VPS de alta velocidade (FFmpeg dedicado)
+        try {
+          setUploadProgressMsg('Conectando ao estúdio de renderização rápida... 15%');
+          const vpsRes = await fetch('/api/video/render', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              orderId,
+              imageUrls: finalUrls,
+              selectedVideoTrack,
+            }),
+          });
+
+          const vpsData = await vpsRes.json().catch(() => ({}));
+          if (vpsRes.ok && vpsData?.vpsEnabled) {
+            setUploadProgressMsg('Renderizando seu vídeo com FFmpeg em alta definição... 25%');
+
+            // Polling a cada 3s aguardando conclusão na VPS (máx 120s)
+            const startTime = Date.now();
+            while (Date.now() - startTime < 120000) {
+              await new Promise((resolve) => setTimeout(resolve, 3000));
+              const checkRes = await fetch(`/api/orders/${encodeURIComponent(orderId)}?t=${Date.now()}`, { cache: 'no-store' });
+              if (checkRes.ok) {
+                const checkData = await checkRes.json().catch(() => ({}));
+                const updatedOrder = checkData?.order || checkData;
+                const progress = updatedOrder?.videoProgress || updatedOrder?.video_progress || 35;
+                setUploadProgressMsg(`Renderizando com qualidade máxima... ${Math.min(95, progress)}%`);
+
+                const vStatus = updatedOrder?.videoStatus || updatedOrder?.video_status;
+                const vUrl = updatedOrder?.videoUrl || updatedOrder?.video_url;
+
+                if (vStatus === 'CONCLUIDO' && vUrl) {
+                  generatedVideoUrl = vUrl;
+                  setOrder(prev => prev ? { ...prev, videoUrl: vUrl, videoStatus: 'CONCLUIDO', slideshowImages: [] } : prev);
+                  setExistingPhotos([]);
+                  break;
+                }
+                if (vStatus === 'ERRO') {
+                  throw new Error(updatedOrder?.videoError || updatedOrder?.video_error || 'Falha no processador de vídeo.');
+                }
+              }
+            }
+          }
+        } catch (vpsErr) {
+          console.warn('[Video] Falha na VPS, utilizando gerador local de segurança:', vpsErr?.message);
+        }
+
+        // 2. Fallback de segurança: se a VPS não estiver ativa ou falhar, roda no navegador
+        if (!generatedVideoUrl) {
+          setUploadProgressMsg('Gerando vídeo slideshow MP4 HD no aparelho... 10%');
+          const { createSlideshowVideo } = await import('@/lib/videoGenerator');
+          generatedVideoUrl = await createSlideshowVideo(
+            orderId,
+            finalUrls,
+            targetAudioUrl,
+            order,
+            (percent) => setUploadProgressMsg(`Renderizando vídeo MP4 HD... ${percent}%`)
+          );
+        }
+
+        setOrder(prev => prev ? { ...prev, videoUrl: generatedVideoUrl, videoStatus: 'CONCLUIDO', slideshowImages: [] } : prev);
+        setExistingPhotos([]);
+
+        // Com o vídeo já gerado e salvo, as fotos originais não servem mais
+        // pra nada — apaga do R2 pra não acumular espaço.
+        try {
+          await Promise.all(
+            finalUrls.map((url) => fetch('/api/media/upload', {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ url })
+            }).catch((e) => {
+              console.warn('Falha ao apagar foto do slideshow:', e?.message);
+            }))
+          );
+          await fetch('/api/orders/client-update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ orderId, slideshowImages: [] })
+          }).catch(e => console.warn(e));
+        } catch (cleanupErr) {
+          console.warn('Falha ao limpar fotos do slideshow:', cleanupErr?.message);
+        }
+
+        setUploadProgressMsg('Seu vídeo está pronto.');
+      } catch (err) {
+        console.error("Erro no envio/geração do vídeo:", err);
+        setPhotoError(err.message || "Erro ao gerar vídeo. Tente novamente.");
+      } finally {
+        setIsUploadingPhotos(false);
+      }
+  };
+  const handleDownloadVideo = () => {
+      // A extensão precisa bater com o container real do arquivo (mp4 ou
+      // webm, conforme o que o navegador conseguiu gravar — ver
+      // src/lib/videoGenerator.js) para o WhatsApp reconhecer o arquivo
+      // baixado. O fetch passa pelo /api/image-proxy (mesma origem) porque
+      // buscar a URL do Firebase Storage direto costuma esbarrar em CORS,
+      // o que fazia handleDownload cair no fallback de abrir em nova aba
+      // em vez de baixar.
+      const videoExt = order.videoUrl.split('?')[0].split('.').pop().toLowerCase();
+      const ext = videoExt === 'webm' ? 'webm' : 'mp4';
+      const nomeArquivo = `Homenagem_${order?.honoreeName || 'Video'}.${ext}`;
+      const proxiedUrl = `/api/image-proxy?url=${encodeURIComponent(order.videoUrl)}`;
+
+      // O proxy roda no Edge e não aguenta arquivo muito grande (achado
+      // 03/09/2026: um vídeo de 136 MB estourava o limite de memória do
+      // Worker, a rota devolvia JSON de erro e o navegador salvava esse
+      // JSON — o cliente recebia um ".json" em vez do vídeo). Conferir
+      // ANTES com HEAD: se o proxy não conseguir servir, manda o link
+      // direto do Storage, que ao menos abre o vídeo pra salvar na mão.
+      (async () => {
+        let proxyOk = false;
+        try {
+          const teste = await fetch(proxiedUrl, { method: 'HEAD' });
+          proxyOk = teste.ok && !(teste.headers.get('content-type') || '').includes('application/json');
+        } catch (e) {
+          proxyOk = false;
+        }
+
+        if (proxyOk) {
+          handleDownload(proxiedUrl, nomeArquivo);
+        } else {
+          console.warn('[entrega] Proxy não conseguiu servir o vídeo; abrindo o arquivo direto.');
+          window.open(order.videoUrl, '_blank', 'noopener');
+        }
+      })();
+  };
+  const handleAddVideoPhotos = event => {
+    const incoming = Array.from(event.target.files || []);
+    event.target.value = '';
+    if (isUploadingPhotos) return;
+    if (existingPhotos.length + newPhotoFiles.length + incoming.length > 20) {
+      setPhotoError('Escolha até 20 fotos no total.'); return;
+    }
+    setPhotoError(''); setNewPhotoFiles(previous => [...previous, ...incoming]);
+  };
+  const handleRemoveVideoPhoto = async index => {
+    if (isUploadingPhotos) return;
+    const previous = existingPhotos;
+    const updated = previous.filter((_, i) => i !== index);
+    setExistingPhotos(updated); setPhotoError('');
+    try {
+      const response = await fetch('/api/orders/client-update', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orderId, slideshowImages: updated }) });
+      if (!response.ok) throw new Error('Não foi possível salvar a remoção. Tente novamente.');
+    } catch (error) { setExistingPhotos(previous); setPhotoError(error.message || 'Não foi possível remover a foto.'); }
+  };
+
+  if (isPaid && ['video', 'carta', 'retrospectiva'].includes(abaProduto)) {
+    return <ProductWorkspace product={abaProduto} honoree={order?.honoreeName} onProduct={setAbaProduto}>
+      {abaProduto === 'video' && <VideoEditor order={order} orderId={orderId} access={hasVideoAccess}
+        existingPhotos={existingPhotos} files={newPhotoFiles} busy={isUploadingPhotos} progress={uploadProgressMsg} error={photoError}
+        onAddPhotos={handleAddVideoPhotos} onRemovePhoto={handleRemoveVideoPhoto} onRemoveFile={index => setNewPhotoFiles(items => items.filter((_, i) => i !== index))}
+        tracks={[primaryAudioUrl, secondAudioUrl].filter(Boolean)} selectedTrack={selectedVideoTrack} onTrack={setSelectedVideoTrack}
+        onGenerate={handleCreateVideo} onDownload={handleDownloadVideo} pix={videoPixInfo} pendingPix={pendingVideoPix}
+        pixError={pixError} timedOut={videoPixPollingTimedOut} onBuy={() => { setSelectedPackage('video_addon'); handleGeneratePix('video_addon', true); }} />}
+      {abaProduto === 'carta' && <CartaAddonCard orderId={orderId} order={order} onUnlocked={() => setCartaLiberadaLocal(true)} onCartaCriada={texto => setOrder(previous => previous ? { ...previous, cartaTexto: texto, cartaStatus: 'READY' } : previous)} />}
+      {abaProduto === 'retrospectiva' && <RetrospectivaAddonCard orderId={orderId} order={order} onUnlocked={() => setRetrospectivaLiberadaLocal(true)} />}
+    </ProductWorkspace>;
+  }
   if (!isPaid || abaProduto === 'musica') {
     return <DeliveryExperience order={order} orderId={orderId} paid={isPaid} tracks={[primaryAudioUrl, secondAudioUrl]}
       promo={promo} onDownload={handleDownload} downloadingSlot={downloadingSlot} onCoverChange={handleCoverChange}
@@ -2258,506 +2480,7 @@ function EntregaContent() {
               {/* SLOT 3 (Desktop: Col 1 Bottom / Mobile: Item 3): Checkout PIX ou Vídeo/QR/Playback */}
               <div className="entrega-grid-col-1-bottom" style={styles.mediaSide}>
 
-                {/* SEÇÃO VÍDEO HOMENAGEM (10 A 20 FOTOS) */}
-                {isPaid && (
-                  <div className="glass-card" style={{ padding: '24px', borderRadius: '16px', marginTop: '20px', border: '1.5px solid rgba(236, 72, 153, 0.35)', background: 'linear-gradient(135deg, rgba(236, 72, 153, 0.12) 0%, rgba(168, 85, 247, 0.12) 100%)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
-                      <span style={{ fontSize: '1.8rem' }}>🎬</span>
-                      <div>
-                        <h4 style={{ fontSize: '1.1rem', fontWeight: '800', margin: 0, fontFamily: 'var(--font-family-title)', color: '#ffffff' }}>
-                          Vídeo Homenagem com Suas Fotos (MP4)
-                        </h4>
-                        <p style={{ fontSize: '0.85rem', color: '#cbd5e1', margin: 0 }}>
-                          {hasVideoAccess || order?.hasVideoAccess ? 'Envie entre 10 e 20 fotos para gerar um vídeo especial sincronizado com a música!' : 'Adicione o Vídeo Homenagem ao seu pedido por apenas +R$ 6,90!'}
-                        </p>
-                      </div>
-                    </div>
-
-                    {(!hasVideoAccess && !order?.hasVideoAccess) && (pendingVideoPix || videoPixInfo.qrCode) ? (
-                      <div style={{ marginTop: '14px', backgroundColor: 'rgba(0,0,0,0.45)', border: '1px solid rgba(255,255,255,0.12)', padding: '20px', borderRadius: '12px', textAlign: 'center' }}>
-                        <p style={{ fontSize: '0.95rem', fontWeight: 'bold', color: '#10b981', marginBottom: '12px' }}>
-                          ⚡ Pague R$ 6,90 via PIX para liberar o Vídeo Homenagem
-                        </p>
-                        {!videoPixInfo.qrCode ? (
-                          <div style={{ padding: '20px 0' }}>
-                            <div style={styles.spinner} />
-                            <p style={{ fontSize: '0.85rem', color: '#cbd5e1', marginTop: '8px' }}>Gerando PIX com aprovação instantânea...</p>
-                          </div>
-                        ) : (
-                          <>
-                            <div style={{ marginBottom: '12px' }}>
-                              <PixQrCode
-                                payload={videoPixInfo.qrCode}
-                                size={200}
-                                label="QR Code para pagamento do Vídeo Homenagem via PIX"
-                              />
-                            </div>
-                            <div style={{ marginBottom: '10px', textAlign: 'left' }}>
-                              <label htmlFor="pix-copia-cola-video" style={{ fontSize: '0.8rem', color: '#cbd5e1', display: 'block', marginBottom: '6px' }}>
-                                Ou use o código PIX Copia e Cola:
-                              </label>
-                              <textarea
-                                id="pix-copia-cola-video"
-                                readOnly
-                                value={videoPixInfo.qrCode}
-                                style={{ width: '100%', height: '64px', background: '#FFFFFF', color: '#0f172a', border: '1.5px solid var(--border-color)', borderRadius: '8px', padding: '10px', fontSize: '0.72rem', fontFamily: 'monospace', resize: 'none' }}
-                              />
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                navigator.clipboard.writeText(videoPixInfo.qrCode);
-                                setPixCopied(true);
-                                setTimeout(() => setPixCopied(false), 3000);
-                              }}
-                              className="btn btn-primary"
-                              style={{ width: '100%', padding: '12px', borderRadius: '8px', fontWeight: 'bold', background: 'linear-gradient(135deg, #059669 0%, #047857 100%)', border: 'none', color: '#fff', cursor: 'pointer' }}
-                            >
-                              {pixCopied ? '✅ Código PIX Copiado!' : '📋 Copiar Código PIX (R$ 6,90)'}
-                            </button>
-                          </>
-                        )}
-                        {videoPixPollingTimedOut && (
-                          <div style={{ width: '100%', marginTop: '10px', padding: '10px 14px', background: 'rgba(234, 179, 8, 0.15)', border: '1px solid rgba(234, 179, 8, 0.4)', borderRadius: '10px', color: '#facc15', fontSize: '0.8rem', textAlign: 'center' }}>
-                            Ainda não recebemos a confirmação deste pagamento. Se você já pagou,
-                            atualize a página em alguns instantes.
-                          </div>
-                        )}
-                      </div>
-                    ) : !hasVideoAccess && !order?.hasVideoAccess && !order?.videoUrl ? (
-                      <div style={{ marginTop: '14px', backgroundColor: 'rgba(0,0,0,0.45)', border: '1px solid rgba(255,255,255,0.12)', padding: '16px', borderRadius: '12px', textAlign: 'center' }}>
-                        <p style={{ fontSize: '0.92rem', color: '#e2e8f0', marginBottom: '12px', lineHeight: '1.5' }}>
-                          Crie um filme inesquecível com 10 a 20 fotos de <strong style={{ color: '#ffffff' }}>{order?.honoreeName || 'alguém especial'}</strong> sincronizadas com a música!
-                        </p>
-                        <button
-                          type="button"
-                          disabled={pendingVideoPix}
-                          onClick={() => {
-                            setSelectedPackage('video_addon');
-                            setPendingVideoPix(true);
-                            handleGeneratePix('video_addon', true);
-                          }}
-                          className="btn btn-primary"
-                          style={{ padding: '12px 20px', fontSize: '0.92rem', fontWeight: 'bold', background: 'linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%)', border: 'none', cursor: 'pointer', opacity: pendingVideoPix ? 0.6 : 1 }}
-                        >
-                          {pendingVideoPix ? 'Gerando PIX...' : '✨ Adicionar Vídeo Homenagem (+ R$ 6,90)'}
-                        </button>
-                      </div>
-                    ) : order?.videoUrl ? (
-                      <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                        <div style={{ borderRadius: '12px', overflow: 'hidden', backgroundColor: '#000', border: '1px solid var(--border-color)' }}>
-                          <video src={order.videoUrl} controls style={{ width: '100%', maxHeight: '350px', objectFit: 'contain' }} />
-                        </div>
-                        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              // A extensão precisa bater com o container real do arquivo (mp4 ou
-                              // webm, conforme o que o navegador conseguiu gravar — ver
-                              // src/lib/videoGenerator.js) para o WhatsApp reconhecer o arquivo
-                              // baixado. O fetch passa pelo /api/image-proxy (mesma origem) porque
-                              // buscar a URL do Firebase Storage direto costuma esbarrar em CORS,
-                              // o que fazia handleDownload cair no fallback de abrir em nova aba
-                              // em vez de baixar.
-                              const videoExt = order.videoUrl.split('?')[0].split('.').pop().toLowerCase();
-                              const ext = videoExt === 'webm' ? 'webm' : 'mp4';
-                              const nomeArquivo = `Homenagem_${order?.honoreeName || 'Video'}.${ext}`;
-                              const proxiedUrl = `/api/image-proxy?url=${encodeURIComponent(order.videoUrl)}`;
-
-                              // O proxy roda no Edge e não aguenta arquivo muito grande (achado
-                              // 03/09/2026: um vídeo de 136 MB estourava o limite de memória do
-                              // Worker, a rota devolvia JSON de erro e o navegador salvava esse
-                              // JSON — o cliente recebia um ".json" em vez do vídeo). Conferir
-                              // ANTES com HEAD: se o proxy não conseguir servir, manda o link
-                              // direto do Storage, que ao menos abre o vídeo pra salvar na mão.
-                              (async () => {
-                                let proxyOk = false;
-                                try {
-                                  const teste = await fetch(proxiedUrl, { method: 'HEAD' });
-                                  proxyOk = teste.ok && !(teste.headers.get('content-type') || '').includes('application/json');
-                                } catch (e) {
-                                  proxyOk = false;
-                                }
-
-                                if (proxyOk) {
-                                  handleDownload(proxiedUrl, nomeArquivo);
-                                } else {
-                                  console.warn('[entrega] Proxy não conseguiu servir o vídeo; abrindo o arquivo direto.');
-                                  window.open(order.videoUrl, '_blank', 'noopener');
-                                }
-                              })();
-                            }}
-                            className="btn btn-primary"
-                            style={{ flex: '1 1 130px', padding: '10px 14px', fontSize: '0.88rem', textAlign: 'center', border: 'none', cursor: 'pointer', minWidth: '130px', boxSizing: 'border-box' }}
-                          >
-                            ⬇ Baixar Vídeo HD
-                          </button>
-                          <a 
-                            href={`/h/${orderId}`} 
-                            target="_blank" 
-                            rel="noopener noreferrer" 
-                            className="btn btn-secondary" 
-                            style={{ flex: '1 1 130px', padding: '10px 14px', fontSize: '0.88rem', textAlign: 'center', textDecoration: 'none', minWidth: '130px', boxSizing: 'border-box', color: '#ffffff', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.08)' }}
-                          >
-                            ✨ Ver Página do Homenageado
-                          </a>
-                        </div>
-                      </div>
-                    ) : (
-                      <div style={{ marginTop: '16px' }}>
-                        {(isUploadingPhotos || order?.videoStatus === 'GERANDO') ? (
-                          <div style={{ textAlign: 'center', padding: '24px 14px', backgroundColor: 'rgba(0,0,0,0.25)', borderRadius: '12px' }}>
-                            <div style={styles.spinner} />
-                            <p style={{ fontSize: '1rem', fontWeight: 'bold', marginTop: '14px', color: '#ffffff' }}>
-                              {uploadProgressMsg || 'Renderizando seu vídeo slideshow MP4 em alta definição...'}
-                            </p>
-                            <p style={{ fontSize: '0.82rem', color: '#cbd5e1', marginTop: '6px' }}>
-                              ⚡ Processando na VPS com FFmpeg. O vídeo ficará pronto automaticamente em cerca de 40 segundos!
-                            </p>
-                          </div>
-                        ) : (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                            {(existingPhotos.length > 0 || newPhotoFiles.length > 0) && (
-                              <div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                                  <span style={{ fontSize: '0.88rem', fontWeight: 'bold', color: '#ffffff' }}>
-                                    📸 Fotos Selecionadas: {existingPhotos.length + newPhotoFiles.length} de 20
-                                  </span>
-                                  <span style={{ fontSize: '0.78rem', color: (existingPhotos.length + newPhotoFiles.length < 10 || existingPhotos.length + newPhotoFiles.length > 20) ? 'var(--warning)' : 'var(--success)' }}>
-                                    (Mínimo 10 | Máximo 20)
-                                  </span>
-                                </div>
-
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(75px, 1fr))', gap: '8px', maxHeight: '220px', overflowY: 'auto', padding: '6px', backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)' }}>
-                                  {existingPhotos.map((url, idx) => (
-                                    <div key={`existing-${idx}`} style={{ position: 'relative', width: '100%', height: '75px', borderRadius: '8px', overflow: 'hidden', border: '1px solid rgba(236, 72, 153, 0.4)' }}>
-                                      <img src={url} alt={`Foto ${idx + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                      <button
-                                        type="button"
-                                        title="Remover foto"
-                                        onClick={async () => {
-                                          const updated = existingPhotos.filter((_, i) => i !== idx);
-                                          setExistingPhotos(updated);
-                                          if (orderId) {
-                                            await fetch('/api/orders/client-update', {
-                                              method: 'POST',
-                                              headers: { 'Content-Type': 'application/json' },
-                                              body: JSON.stringify({ orderId, slideshowImages: updated })
-                                            }).catch(e => console.warn(e));
-                                          }
-                                        }}
-                                        style={{ position: 'absolute', top: '3px', right: '3px', backgroundColor: '#ef4444', color: '#fff', border: 'none', borderRadius: '50%', width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', boxShadow: '0 2px 4px rgba(0,0,0,0.5)' }}
-                                      >
-                                        ✕
-                                      </button>
-                                    </div>
-                                  ))}
-
-                                  {newPhotoFiles.map((file, idx) => {
-                                    const previewUrl = URL.createObjectURL(file);
-                                    return (
-                                      <div key={`new-${idx}`} style={{ position: 'relative', width: '100%', height: '75px', borderRadius: '8px', overflow: 'hidden', border: '1.5px dashed #3b82f6' }}>
-                                        <img src={previewUrl} alt={`Foto Nova ${idx + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                        <button
-                                          type="button"
-                                          title="Remover foto"
-                                          onClick={() => {
-                                            setNewPhotoFiles(prev => prev.filter((_, i) => i !== idx));
-                                          }}
-                                          style={{ position: 'absolute', top: '3px', right: '3px', backgroundColor: '#ef4444', color: '#fff', border: 'none', borderRadius: '50%', width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', boxShadow: '0 2px 4px rgba(0,0,0,0.5)' }}
-                                        >
-                                          ✕
-                                        </button>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            )}
-
-                            {(existingPhotos.length + newPhotoFiles.length < 20) && (
-                              <label 
-                                style={{ 
-                                  display: 'flex', 
-                                  alignItems: 'center', 
-                                  justifyContent: 'center', 
-                                  gap: '8px', 
-                                  padding: '12px', 
-                                  backgroundColor: 'rgba(59, 130, 246, 0.1)', 
-                                  border: '1.5px dashed #3b82f6', 
-                                  borderRadius: '10px', 
-                                  cursor: 'pointer', 
-                                  color: '#60a5fa', 
-                                  fontWeight: 'bold', 
-                                  fontSize: '0.85rem' 
-                                }}
-                              >
-                                <span>➕ Adicionar Fotos ({20 - (existingPhotos.length + newPhotoFiles.length)} vagas restantes)</span>
-                                <input 
-                                  type="file" 
-                                  multiple 
-                                  accept="image/png, image/jpeg, image/webp" 
-                                  style={{ display: 'none' }}
-                                  onChange={(e) => {
-                                    const files = Array.from(e.target.files || []);
-                                    const total = existingPhotos.length + newPhotoFiles.length + files.length;
-                                    if (total > 20) {
-                                      setPhotoError(`O limite máximo é de 20 fotos (Você já tem ${existingPhotos.length + newPhotoFiles.length} fotos e tentou adicionar mais ${files.length}).`);
-                                    } else {
-                                      setPhotoError('');
-                                      setNewPhotoFiles(prev => [...prev, ...files]);
-                                    }
-                                  }}
-                                />
-                              </label>
-                            )}
-
-                            {photoError && (
-                              <p style={{ fontSize: '0.82rem', color: 'var(--danger)', margin: 0, textAlign: 'center', fontWeight: 'bold' }}>
-                                ⚠️ {photoError}
-                              </p>
-                            )}
-
-                            {secondAudioUrl && (
-                              <div style={{ backgroundColor: 'rgba(0,0,0,0.25)', padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)' }}>
-                                <p style={{ fontSize: '0.85rem', fontWeight: 'bold', margin: '0 0 8px 0', color: '#ffffff' }}>
-                                  🎵 Escolha qual versão da música tocar no vídeo:
-                                </p>
-                                <div style={{ display: 'flex', gap: '8px' }}>
-                                  <button
-                                    type="button"
-                                    onClick={() => setSelectedVideoTrack('v1')}
-                                    style={{
-                                      flex: 1,
-                                      padding: '8px 10px',
-                                      borderRadius: '8px',
-                                      border: selectedVideoTrack === 'v1' ? '2px solid var(--primary)' : '1px solid var(--border-color)',
-                                      backgroundColor: selectedVideoTrack === 'v1' ? 'rgba(236, 72, 153, 0.18)' : 'rgba(0,0,0,0.2)',
-                                      color: selectedVideoTrack === 'v1' ? '#fff' : '#cbd5e1',
-                                      fontWeight: 'bold',
-                                      fontSize: '0.82rem',
-                                      cursor: 'pointer'
-                                    }}
-                                  >
-                                    {selectedVideoTrack === 'v1' ? '✓ ' : ''}Versão 1 (Principal)
-                                  </button>
-
-                                  <button
-                                    type="button"
-                                    onClick={() => setSelectedVideoTrack('v2')}
-                                    style={{
-                                      flex: 1,
-                                      padding: '8px 10px',
-                                      borderRadius: '8px',
-                                      border: selectedVideoTrack === 'v2' ? '2px solid var(--secondary)' : '1px solid var(--border-color)',
-                                      backgroundColor: selectedVideoTrack === 'v2' ? 'rgba(168, 85, 247, 0.18)' : 'rgba(0,0,0,0.2)',
-                                      color: selectedVideoTrack === 'v2' ? '#fff' : '#cbd5e1',
-                                      fontWeight: 'bold',
-                                      fontSize: '0.82rem',
-                                      cursor: 'pointer'
-                                    }}
-                                  >
-                                    {selectedVideoTrack === 'v2' ? '✓ ' : ''}Versão 2 (Bônus)
-                                  </button>
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Aviso de troca de aba — a causa mais comum de vídeo mudo é o usuário
-                                trocar de aba durante a geração, o que estrangula o requestAnimationFrame
-                                e dessincroniza áudio/vídeo. */}
-                            {(existingPhotos.length + newPhotoFiles.length >= 10 && existingPhotos.length + newPhotoFiles.length <= 20) && (
-                              <div style={{
-                                backgroundColor: 'rgba(251, 191, 36, 0.12)',
-                                border: '1px solid rgba(251, 191, 36, 0.35)',
-                                borderRadius: '10px',
-                                padding: '10px 14px',
-                                marginBottom: '8px',
-                                display: 'flex',
-                                alignItems: 'flex-start',
-                                gap: '8px'
-                              }}>
-                                <span style={{ fontSize: '1.1rem', flexShrink: 0 }}>⚠️</span>
-                                <p style={{
-                                  margin: 0,
-                                  fontSize: '0.8rem',
-                                  color: '#fbbf24',
-                                  lineHeight: '1.4'
-                                }}>
-                                  <strong>Importante:</strong> Durante a geração do vídeo, <strong>não troque de aba</strong> nem minimize o navegador.
-                                  Isso pode fazer o vídeo sair sem áudio. O processo leva alguns minutos.
-                                </p>
-                              </div>
-                            )}
-
-                            {/* Botão de Criação / Re-geração do Vídeo */}
-                            {(existingPhotos.length + newPhotoFiles.length >= 10 && existingPhotos.length + newPhotoFiles.length <= 20) && (
-                              <button
-                                type="button"
-                                onClick={async () => {
-                                  const totalCount = existingPhotos.length + newPhotoFiles.length;
-                                  if (!orderId || totalCount < 10) return;
-
-                                  // Destrava o áudio AQUI, síncrono e antes de qualquer await: o
-                                  // upload das fotos leva minutos e, quando a renderização enfim
-                                  // começa, o navegador já não autoriza iniciar áudio — era essa a
-                                  // causa dos vídeos entregues mudos (ver src/lib/audioContext.js).
-                                  primeAudioContext();
-
-                                  setIsUploadingPhotos(true);
-                                  setPhotoError('');
-                                  try {
-                                    const finalUrls = [...existingPhotos];
-
-                                    // Upload de novas fotos locais caso existam
-                                    if (newPhotoFiles.length > 0) {
-                                      setUploadProgressMsg('Enviando novas fotos para o servidor...');
-                                      for (let i = 0; i < newPhotoFiles.length; i++) {
-                                        const file = newPhotoFiles[i];
-                                        setUploadProgressMsg(`Enviando foto ${i + 1} de ${newPhotoFiles.length}...`);
-                                        // Comprime antes de subir: upload muito mais rápido no 4G,
-                                        // menos memória durante a renderização do vídeo e menos
-                                        // Storage (as fotos agora ficam guardadas pra Retrospectiva).
-                                        // Nunca falha o upload por causa disso — em erro devolve o
-                                        // arquivo original (ver src/lib/imageCompress.js).
-                                        const arquivo = await compressImage(file);
-                                        const uploadData = new FormData();
-                                        uploadData.append('file', arquivo, `photo_${i}.jpg`);
-                                        const uploadRes = await fetch(`/api/media/upload?folder=slideshow&orderId=${encodeURIComponent(orderId)}`, {
-                                          method: 'POST',
-                                          body: uploadData
-                                        });
-                                        if (!uploadRes.ok) {
-                                          throw new Error(`Falha no upload da foto ${i + 1}`);
-                                        }
-                                        const resJson = await uploadRes.json();
-                                        if (!resJson?.url) {
-                                          throw new Error(`URL da foto ${i + 1} não retornada`);
-                                        }
-                                        finalUrls.push(resJson.url);
-                                      }
-                                      setExistingPhotos(finalUrls);
-                                      setNewPhotoFiles([]);
-                                    }
-
-                                    // Salva lista final no Supabase
-                                    await fetch('/api/orders/client-update', {
-                                      method: 'POST',
-                                      headers: { 'Content-Type': 'application/json' },
-                                      body: JSON.stringify({ orderId, slideshowImages: finalUrls, videoStatus: 'GERANDO' })
-                                    }).catch(e => console.warn(e));
-
-                                    setUploadProgressMsg('Iniciando geração do vídeo slideshow MP4 HD... 10%');
-
-                                    // Define a faixa de áudio escolhida pelo usuário
-                                    const targetAudioUrl = selectedVideoTrack === 'v2' && secondAudioUrl ? secondAudioUrl : primaryAudioUrl;
-
-                                    let generatedVideoUrl = null;
-
-                                    // 1. Tenta renderizar via VPS de alta velocidade (FFmpeg dedicado)
-                                    try {
-                                      setUploadProgressMsg('Conectando ao estúdio de renderização rápida... 15%');
-                                      const vpsRes = await fetch('/api/video/render', {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({
-                                          orderId,
-                                          imageUrls: finalUrls,
-                                          selectedVideoTrack,
-                                        }),
-                                      });
-
-                                      const vpsData = await vpsRes.json().catch(() => ({}));
-                                      if (vpsRes.ok && vpsData?.vpsEnabled) {
-                                        setUploadProgressMsg('Renderizando seu vídeo com FFmpeg em alta definição... 25%');
-
-                                        // Polling a cada 3s aguardando conclusão na VPS (máx 120s)
-                                        const startTime = Date.now();
-                                        while (Date.now() - startTime < 120000) {
-                                          await new Promise((resolve) => setTimeout(resolve, 3000));
-                                          const checkRes = await fetch(`/api/orders/${encodeURIComponent(orderId)}?t=${Date.now()}`, { cache: 'no-store' });
-                                          if (checkRes.ok) {
-                                            const checkData = await checkRes.json().catch(() => ({}));
-                                            const updatedOrder = checkData?.order || checkData;
-                                            const progress = updatedOrder?.videoProgress || updatedOrder?.video_progress || 35;
-                                            setUploadProgressMsg(`Renderizando com qualidade máxima... ${Math.min(95, progress)}%`);
-
-                                            const vStatus = updatedOrder?.videoStatus || updatedOrder?.video_status;
-                                            const vUrl = updatedOrder?.videoUrl || updatedOrder?.video_url;
-
-                                            if (vStatus === 'CONCLUIDO' && vUrl) {
-                                              generatedVideoUrl = vUrl;
-                                              setOrder(prev => prev ? { ...prev, videoUrl: vUrl, videoStatus: 'CONCLUIDO', slideshowImages: [] } : prev);
-                                              setExistingPhotos([]);
-                                              break;
-                                            }
-                                            if (vStatus === 'ERRO') {
-                                              throw new Error(updatedOrder?.videoError || updatedOrder?.video_error || 'Falha no processador de vídeo.');
-                                            }
-                                          }
-                                        }
-                                      }
-                                    } catch (vpsErr) {
-                                      console.warn('[Video] Falha na VPS, utilizando gerador local de segurança:', vpsErr?.message);
-                                    }
-
-                                    // 2. Fallback de segurança: se a VPS não estiver ativa ou falhar, roda no navegador
-                                    if (!generatedVideoUrl) {
-                                      setUploadProgressMsg('Gerando vídeo slideshow MP4 HD no aparelho... 10%');
-                                      const { createSlideshowVideo } = await import('@/lib/videoGenerator');
-                                      generatedVideoUrl = await createSlideshowVideo(
-                                        orderId,
-                                        finalUrls,
-                                        targetAudioUrl,
-                                        order,
-                                        (percent) => setUploadProgressMsg(`Renderizando vídeo MP4 HD... ${percent}%`)
-                                      );
-                                    }
-
-                                    setOrder(prev => prev ? { ...prev, videoUrl: generatedVideoUrl, videoStatus: 'CONCLUIDO', slideshowImages: [] } : prev);
-                                    setExistingPhotos([]);
-
-                                    // Com o vídeo já gerado e salvo, as fotos originais não servem mais
-                                    // pra nada — apaga do R2 pra não acumular espaço.
-                                    try {
-                                      await Promise.all(
-                                        finalUrls.map((url) => fetch('/api/media/upload', {
-                                          method: 'DELETE',
-                                          headers: { 'Content-Type': 'application/json' },
-                                          body: JSON.stringify({ url })
-                                        }).catch((e) => {
-                                          console.warn('Falha ao apagar foto do slideshow:', e?.message);
-                                        }))
-                                      );
-                                      await fetch('/api/orders/client-update', {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({ orderId, slideshowImages: [] })
-                                      }).catch(e => console.warn(e));
-                                    } catch (cleanupErr) {
-                                      console.warn('Falha ao limpar fotos do slideshow:', cleanupErr?.message);
-                                    }
-
-                                    alert("🎉 Seu Vídeo Homenagem foi gerado com sucesso!");
-                                  } catch (err) {
-                                    console.error("Erro no envio/geração do vídeo:", err);
-                                    setPhotoError(err.message || "Erro ao gerar vídeo. Tente novamente.");
-                                  } finally {
-                                    setIsUploadingPhotos(false);
-                                  }
-                                }}
-                                className="btn btn-primary"
-                                style={{ padding: '12px', fontSize: '0.95rem', fontWeight: 'bold', width: '100%', border: 'none', cursor: 'pointer', background: 'linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%)' }}
-                              >
-                                🎬 Criar Vídeo Homenagem MP4 ({existingPhotos.length + newPhotoFiles.length} Fotos)
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
+                {/* O editor de vídeo usa o workspace dedicado acima. */}
 
                 {/* SE PAGO: QR Code section */}
                 {isPaid ? (

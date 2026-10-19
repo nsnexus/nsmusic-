@@ -735,8 +735,9 @@ export default function CriarMusica() {
     }, 150);
   };
 
-  const handlePhoneChange = (value) => {
-    const clean = value.replace(/\D/g, '').slice(0, 11);
+  const handlePhoneChange = (input) => {
+    const raw = typeof input === 'string' ? input : (input?.target?.value ?? '');
+    const clean = String(raw).replace(/\D/g, '').slice(0, 11);
     let formatted = clean;
     if (clean.length > 0) {
       formatted = `(${clean.slice(0, 2)}`;

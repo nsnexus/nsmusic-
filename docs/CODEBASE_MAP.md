@@ -10,6 +10,7 @@
 
 - `src/components/creation/CreationSteps.jsx`: quatro etapas do formulário; `StudioProgress.jsx`: espera da geração.
 - `src/components/delivery/DeliveryExperience.jsx`: prévia, checkout e entrega; `SongCard.jsx`, `PurchaseCheckout.jsx`, `SecondSongOffer.jsx`: componentes do fluxo.
+- `src/components/delivery/ProductWorkspace.jsx`: navegação dos editores de vídeo, carta e retrospectiva; `VideoEditor.jsx`, `CartaEditor.jsx` e `RetrospectivaEditor.jsx`: apresentação mobile/desktop. `EditorParts.jsx` reúne seções, seleção de faixa e compartilhamento. Os controllers `CartaAddonCard.jsx` e `RetrospectivaAddonCard.jsx` preservam as integrações existentes.
 - `src/app/conta/page.jsx`: biblioteca autenticada, saldo e indicação; `/minhas-musicas` redireciona para `/conta`.
 - `src/components/account/OrderClaim.jsx` e `ReferralCard.jsx`: confirmação de titularidade e convite.
 - `src/app/api/orders/claim/route.js` e `claim-code/route.js`: vínculo por prova do navegador ou código enviado ao WhatsApp cadastrado.
