@@ -4,9 +4,11 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { auth, onAuthStateChanged } from '@/lib/authClient';
 import PixQrCode from '@/components/PixQrCode';
-import OrderClaim from '@/components/account/OrderClaim';
 
-export default function SecondSongOffer({ orderId }) {
+export default function SecondSongOffer({ orderId, order }) {
+  const hasVideo = Boolean(order?.hasVideoAccess || order?.videoAddonPaid || order?.videoUrl || order?.has_video_access);
+  const paidAmount = Number(order?.expectedAmount || order?.extras?.paidAmount || order?.extras?.expectedAmount || 0);
+  const isEligibleOrder = Boolean(hasVideo || paidAmount >= 16.89);
   const [user, setUser] = useState(null);
   const [ready, setReady] = useState(false);
   const [offer, setOffer] = useState(null);
@@ -94,12 +96,11 @@ export default function SecondSongOffer({ orderId }) {
     finally { lock.current = false; setBusy(false); }
   };
 
-  if (!ready || hidden || (offer && !offer.eligible && !offer.purchased)) return null;
+  if (!ready || hidden || (order && !isEligibleOrder) || (offer && !offer.eligible && !offer.purchased)) return null;
   if (success || offer?.purchased) return <section className="nx-card"><p className="nx-message nx-success" role="status">Seu crédito para a próxima surpresa já está na carteira.{balance !== null ? ` Saldo: ${balance} crédito(s).` : ''}</p><div className="nx-checkout-actions"><Link className="nx-button nx-primary" href="/criar?novo=1">Criar próxima música</Link><Link className="nx-button" href="/conta">Usar depois</Link></div></section>;
   return <section className="nx-card" aria-label="Oferta opcional para sua próxima música">
     <div className="nx-second-offer" style={{ borderRadius: 14, padding: 20 }}><div><span className="nx-eyebrow">Uma próxima surpresa</span><h2>Já pensou em quem vai ser a próxima?</h2><p>Garanta <strong>1 crédito por R$ 4,99</strong> para sua próxima música. Use quando quiser: seus créditos não vencem.</p><p className="nx-helper">Compra adicional opcional. Sua música já está liberada. Uma utilização por conta elegível; o crédito também serve nos demais produtos da carteira.</p></div><div><div className="nx-offer-amount">R$ 4,99</div>{!user ? <Link className="nx-button nx-primary" href={`/login?redirect=${encodeURIComponent(redirect)}`}>Entrar e consultar oferta</Link> : <button type="button" className="nx-button nx-primary" disabled={busy || !offer?.eligible} onClick={buy}>{busy ? 'Preparando…' : !offer ? 'Verificando oferta…' : 'Confirmar 1 crédito por R$ 4,99'}</button>}<br /><button type="button" className="nx-text-button" onClick={() => setHidden(true)}>Agora não</button></div></div>
     {message && <p className="nx-message" role="status">{message}</p>}
-    {needsClaim && user && <OrderClaim orderId={orderId} onClaim={() => { setNeedsClaim(false); setMessage(''); setRetry(value => value + 1); }} />}
     {pix?.qrCode && <><h3 style={{ marginTop: 20 }}>PIX da compra adicional · R$ 4,99</h3><div className="nx-checkout-actions"><button type="button" className="nx-button nx-primary" onClick={async () => { try { await navigator.clipboard.writeText(pix.qrCode); setMessage('Código da compra adicional copiado.'); } catch { setMessage('Selecione o código abaixo para copiar manualmente.'); } }}>Copiar PIX</button><button type="button" className="nx-button" disabled={checking} onClick={check}>{checking ? 'Consultando…' : 'Já paguei o crédito'}</button></div><textarea className="nx-pix-code" aria-label="Código PIX da compra adicional" readOnly value={pix.qrCode} /><details className="nx-details"><summary>Ver QR Code</summary><div className="nx-pix-qr"><PixQrCode payload={pix.qrCode} /></div></details></>}
   </section>;
 }

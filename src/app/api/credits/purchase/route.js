@@ -24,6 +24,23 @@ export async function POST(req) {
     if (!pack) return NextResponse.json({ error: 'Pacote de créditos inválido.' }, { status: 400 });
     const supabase = getSupabaseEdge(env);
     if (!supabase) throw new Error('Carteira indisponível neste ambiente.');
+    if (packageSku === 'creditos_pos_compra_1') {
+      if (!orderId) return NextResponse.json({ error: 'Pedido obrigatório para esta oferta.' }, { status: 400 });
+      const { data: orderData } = await supabase
+        .from('orders')
+        .select('id, has_video_access, extras')
+        .eq('id', orderId)
+        .single();
+      const { data: payments } = await supabase
+        .from('payments')
+        .select('amount')
+        .eq('order_id', orderId);
+      const totalPaid = (payments || []).reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
+      const hasVideo = Boolean(orderData?.has_video_access || orderData?.extras?.hasVideoAccess);
+      if (!hasVideo && totalPaid < 16.89) {
+        return NextResponse.json({ error: 'Esta oferta é exclusiva para pedidos com Música + Vídeo (a partir de R$ 16,90).' }, { status: 409 });
+      }
+    }
     const key = typeof requestKey === 'string' && /^[A-Za-z0-9_-]{8,100}$/.test(requestKey) ? requestKey : crypto.randomUUID();
     const txid = crypto.randomUUID().replace(/-/g, '').toUpperCase();
     stage = 'reservation';

@@ -60,7 +60,7 @@ export async function POST(req) {
     });
     if (reservationError || !intent) return NextResponse.json({ error: 'Não foi possível reservar seu PIX. Tente novamente.' }, { status: 503 });
 
-    let charge = intent.qr_code ? { txid: intent.txid, pixCopiaECola: intent.qr_code } : null;
+    let charge = intent.qr_code && intent.provider === 'efi' ? { txid: intent.txid, pixCopiaECola: intent.qr_code } : null;
     let provider = intent.provider || 'efi';
     if (!charge) {
       try {

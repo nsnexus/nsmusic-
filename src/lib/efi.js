@@ -214,7 +214,11 @@ export async function getChargeStatus(txid, env) {
   if (!res.ok) {
     if (res.status === 404) return null;
     const errText = await res.text().catch(() => '');
-    throw new Error(`Falha ao consultar cobrança Pix na Efí (HTTP ${res.status}): ${errText}`);
+    if (res.status === 400 && (errText.includes('cobranca_nao_encontrada') || errText.includes('não encontrada'))) return null;
+    const err = new Error(`Falha ao consultar cobrança Pix na Efí (HTTP ${res.status}): ${errText}`);
+    err.efiStatus = res.status;
+    err.efiStage = 'cob_query';
+    throw err;
   }
 
   return res.json();

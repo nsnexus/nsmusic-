@@ -5,7 +5,13 @@ vi.mock('@/lib/efi', () => ({ createPixCharge: (...args) => { state.events.push(
 vi.mock('@/lib/credits', () => ({ approveCreditPurchase: (...args) => state.approve(...args) }));
 vi.mock('@/lib/supabase-edge', () => ({ getSupabaseEdge: () => ({
   rpc: async (name, args) => { state.events.push('reserve'); state.rpc(name, args); return { data: state.reservation, error: state.reserveError }; },
-  from: () => ({ eq() { return this; }, update: async () => ({ error: state.storedError }) }),
+  from: () => ({
+    eq() { return this; },
+    update: async () => ({ error: state.storedError }),
+    select() { return this; },
+    single: async () => ({ data: { id: 'paid-order', has_video_access: true } }),
+    then(resolve) { resolve({ data: [{ amount: 16.90 }] }); }
+  }),
 }) }));
 const { POST } = await import('@/app/api/credits/purchase/route');
 const request = body => new Request('https://example.test/api/credits/purchase', { method: 'POST', body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } });

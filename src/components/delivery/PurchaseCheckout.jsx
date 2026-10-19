@@ -7,7 +7,6 @@ import { auth } from '@/lib/authClient';
 import { requestPixCharge } from '@/lib/pixCheckout';
 import { deliveryPackages, formatBrl } from '@/lib/deliveryPackages';
 import { getPriceForSku } from '@/lib/pricing';
-import OrderClaim from '@/components/account/OrderClaim';
 
 const MAX_AGE = 55 * 60 * 1000;
 export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStatus, onReceipt, onApproved }) {
@@ -127,7 +126,6 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
       {!pix && !busy && error && <button type="button" className="nx-button nx-primary" onClick={generate}>Tentar PIX novamente</button>}
       {!pix && !recovery && <div className="nx-checkout-actions"><button type="button" className="nx-button" disabled={busy} onClick={useCredits}>Confirmar uso de {pack.credits} crédito(s)</button></div>}
       {balance !== null && <p className="nx-helper">Saldo consultado: {balance} crédito(s). Créditos não vencem. <Link href="/conta">Minha conta</Link></p>}
-      {needsClaim && <OrderClaim orderId={orderId} onClaim={() => { setNeedsClaim(false); setError(''); setMessage('Pedido vinculado. Você já pode confirmar o uso dos créditos.'); }} />}
       {pix?.qrCode && <><p className="nx-helper">Copie o código, abra o aplicativo do seu banco e escolha PIX Copia e Cola. Depois de pagar, volte para esta página.</p><div className="nx-checkout-actions"><button type="button" className="nx-button nx-primary" onClick={async () => { try { await navigator.clipboard.writeText(pix.qrCode); setMessage('Código PIX copiado. Cole no aplicativo do seu banco.'); } catch { setError('Não foi possível copiar. Selecione o código abaixo para copiar manualmente.'); } }}>Copiar código PIX</button><button type="button" className="nx-button" onClick={check} disabled={checking}>{checking ? 'Consultando…' : 'Já paguei'}</button></div><label className="nx-field"><span>Código PIX Copia e Cola</span><textarea className="nx-pix-code" readOnly value={pix.qrCode} /></label><details className="nx-details"><summary>Ver QR Code para pagar em outro aparelho</summary><div className="nx-pix-qr"><PixQrCode payload={pix.qrCode} /></div></details>{pix.provider === 'static' && <><p className="nx-message">Após pagar este PIX de contingência, envie seu comprovante para conferência.</p><label className="nx-field"><span>Anexar comprovante</span><input type="file" accept="image/*,application/pdf" disabled={receiptStatus === 'uploading'} onChange={event => { const file = event.target.files?.[0]; if (file) onReceipt(file); }} /></label>{receiptStatus === 'uploading' && <p role="status">Conferindo seu comprovante…</p>}{receiptStatus === 'failed' && <p className="nx-message nx-error">Não conseguimos confirmar. Use o suporte no final da página para enviar o comprovante.</p>}</>}</>}
       {message && <p className="nx-message" role="status">{message}</p>}
       <p className="nx-helper">A liberação acontece quando o pagamento é confirmado. Sua música continua salva se você fechar esta página.</p>
