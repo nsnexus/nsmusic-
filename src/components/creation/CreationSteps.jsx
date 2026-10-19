@@ -69,7 +69,7 @@ export default function CreationSteps({ step, formData: data, updateField, isLis
       </Field>}
       {data.relationship === 'Outro' && <Field label="Qual é a relação de vocês?"><input value={data.customRelationship || ''} onChange={e => updateField('customRelationship', e.target.value)} placeholder="Ex.: minha sogra" maxLength={100} /></Field>}
       <div className="nx-field-row">
-        <Field label="Nome de quem vai receber"><input value={data.honoreeName || ''} readOnly={isSelfTribute} onChange={e => updateField('honoreeName', e.target.value)} placeholder={isSelfTribute ? 'Seu próprio nome' : 'Ex.: Helena'} autoComplete="off" maxLength={100} /></Field>
+        <Field label="Nome Homenageado"><input value={data.honoreeName || ''} readOnly={isSelfTribute} onChange={e => updateField('honoreeName', e.target.value)} placeholder={isSelfTribute ? 'Seu próprio nome' : 'Ex.: Helena'} autoComplete="off" maxLength={100} /></Field>
         <Field label="Seu primeiro nome"><input value={data.customerName || ''} onChange={e => { updateField('customerName', e.target.value); if (isSelfTribute) updateField('honoreeName', e.target.value); }} placeholder="Ex.: Mariana" autoComplete="given-name" maxLength={100} /></Field>
       </div>
       {isSelfTribute && <p className="nx-helper">Esta homenagem será para você. Seu nome aparece nos dois campos.</p>}

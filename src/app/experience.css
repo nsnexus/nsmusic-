@@ -46,6 +46,7 @@
 .nx-helper { margin: 12px 0; }
 .nx-field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .nx-field-row .nx-field { min-width: 0; margin-top: 0; }
+.nx-field-row .nx-field > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .nx-form-column { max-width: 660px; margin: auto; }
 .nx-card { background: white; border: 1px solid var(--nx-line); border-radius: 21px; padding: 26px; min-width: 0; }
 .nx-card p { color: var(--nx-muted); }
