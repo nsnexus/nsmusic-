@@ -66,7 +66,7 @@ export function serviceJsonLd() {
 export function faqJsonLd() {
   const perguntas = [
     ['Preciso pagar para ouvir a música?',
-      'Você ouve a prévia completa da primeira versão sem pagar nada. O pagamento por Pix libera o download em MP3 HD e a segunda versão inteiramente grátis.'],
+      'Você ouve uma prévia de 60 segundos das duas versões sem pagar nada. O pagamento por Pix libera as músicas completas em MP3 HD e os extras.'],
     ['Como é feita a criação da música?',
       'Você insere os detalhes da história e escolhe o estilo. Nossa inteligência artificial cria a letra poética e compõe os arranjos vocais e instrumentais de estúdio com alta definição.'],
     ['Recebo 2 versões da minha música?',

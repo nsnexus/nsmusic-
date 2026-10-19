@@ -210,7 +210,7 @@ export default function PreviaProntaModal({
         </button>
 
         <span style={{ fontSize: '0.74rem', color: '#64748b', display: 'block' }}>
-          🎧 Prévia gratuita da Versão 1 completa. Pague e libere a Versão 2 grátis!
+          🔒 Prévia gratuita de 60 segundos com as 2 versões completas disponíveis.
         </span>
       </div>
     </div>

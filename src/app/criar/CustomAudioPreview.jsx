@@ -31,23 +31,37 @@ export default function CustomAudioPreview({ src, label, badge, isBonus, orderId
     }
   };
 
-  // Versão 1 toca completa sem corte de 60s
+  // Prévia de 60 segundos. Liberamos a música inteira e revertemos:
+  // a conversão caiu porque gravavam pelo celular a música toda.
   const handleTimeUpdate = () => {
     if (!audioRef.current) return;
     const curr = audioRef.current.currentTime;
-    setCurrentTime(curr);
+    if (curr >= 60) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 60;
+      setIsPlaying(false);
+      // Avisa a página uma única vez por corte, para ela abrir o pop-up de pagamento.
+      if (!showEndedNotice) onPreviaEncerrada?.();
+      setShowEndedNotice(true);
+    } else if (showEndedNotice) {
+      setShowEndedNotice(false);
+    }
+    setCurrentTime(Math.min(curr, 60));
   };
 
   const handleLoadedMetadata = () => {
     if (!audioRef.current) return;
-    setDuration(audioRef.current.duration || 0);
+    setDuration(Math.min(audioRef.current.duration || 60, 60));
   };
 
   const handleSeek = (e) => {
     if (!audioRef.current) return;
-    const newTime = parseFloat(e.target.value);
+    const newTime = Math.min(parseFloat(e.target.value), 60);
     audioRef.current.currentTime = newTime;
     setCurrentTime(newTime);
+    if (newTime < 60 && showEndedNotice) {
+      setShowEndedNotice(false);
+    }
   };
 
   const handleError = () => {
@@ -192,9 +206,9 @@ export default function CustomAudioPreview({ src, label, badge, isBonus, orderId
               <input
                 type="range"
                 min="0"
-                max={duration || 100}
+                max={duration || 60}
                 step="0.1"
-                value={currentTime}
+                value={Math.min(currentTime, 60)}
                 onChange={handleSeek}
                 style={{
                   width: '100%',
@@ -204,10 +218,17 @@ export default function CustomAudioPreview({ src, label, badge, isBonus, orderId
               />
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: '#64748b', fontWeight: '600' }}>
                 <span>{formatTime(currentTime)}</span>
-                <span>{formatTime(duration)}</span>
+                <span>0:60 (Prévia)</span>
               </div>
             </div>
           </div>
+
+          {showEndedNotice && (
+            <div style={{ padding: '10px 14px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '12px', fontSize: '0.82rem', color: '#b91c1c', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span>🔒</span>
+              <span>Prévia de 60s finalizada. Avance para liberar as 2 versões completas em MP3 HD!</span>
+            </div>
+          )}
         </div>
       ) : (
         <div style={{ fontSize: '0.9rem', color: '#64748b', fontStyle: 'italic', padding: '14px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
@@ -216,8 +237,8 @@ export default function CustomAudioPreview({ src, label, badge, isBonus, orderId
       )}
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', color: '#64748b' }}>
-        <span>🎧</span>
-        <span>Prévia da Versão 1 completa. O download em MP3 HD e a Versão 2 são liberados após o pagamento.</span>
+        <span>🔒</span>
+        <span>Prévia de 60s. As 2 versões completas em MP3 HD são liberadas após o pagamento.</span>
       </div>
     </div>
   );
