@@ -3,6 +3,7 @@ import { getRequestContext } from '@cloudflare/next-on-pages';
 import { applyPaymentApproval } from '@/lib/payments';
 import { applyGatewayPaymentApproval } from '@/lib/gateway';
 import { getChargeStatus } from '@/lib/efi';
+import { confirmedPixAmount } from '@/lib/confirmedPixAmount';
 
 export const runtime = 'edge';
 
@@ -63,7 +64,7 @@ async function processPixItem(item, env) {
   // reconsulta à Efí acima; a função SQL é idempotente por txid.
   try {
     const { approveCreditPurchase } = await import('@/lib/credits');
-    const creditResult = await approveCreditPurchase(txid, transactionAmount, env);
+    const creditResult = await approveCreditPurchase(txid, confirmedPixAmount(charge), env);
     if (creditResult?.found) return;
   } catch (creditErr) {
     console.warn('[Webhook Efí] Falha ao processar créditos:', creditErr.message);

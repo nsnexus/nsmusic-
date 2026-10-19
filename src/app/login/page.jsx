@@ -31,10 +31,10 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
 
   const getTargetUrl = () => {
-    if (typeof window === 'undefined') return '/minhas-musicas';
+    if (typeof window === 'undefined') return '/conta';
     const params = new URLSearchParams(window.location.search);
     const red = params.get('redirect');
-    return (red && red.startsWith('/')) ? red : '/minhas-musicas';
+    return (red && red.startsWith('/') && !red.startsWith('//') && !red.includes('\\')) ? red : '/conta';
   };
 
   const handleGoogleLogin = async () => {

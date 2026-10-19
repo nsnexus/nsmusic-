@@ -11,7 +11,8 @@ export async function GET(req) {
   const customer = await requireCustomer(req, env);
   if (!customer.ok) return NextResponse.json({ error: customer.error }, { status: customer.status });
   try {
-    return NextResponse.json(await getCreditAccount(customer.uid, env), { headers: { 'Cache-Control': 'no-store' } });
+    const page = Math.max(0, Math.min(10000, Number.parseInt(new URL(req.url).searchParams.get('page') || '0', 10) || 0));
+    return NextResponse.json(await getCreditAccount(customer.uid, env, page), { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
     return NextResponse.json({ error: error.message }, { status: 503 });
   }

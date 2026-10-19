@@ -30,9 +30,11 @@ describe('getPriceForSku', () => {
 });
 
 describe('skuGrantsCartaAccess / skuGrantsRetrospectivaAccess', () => {
-  it('combo_carta concede carta; combo_retrospectiva concede retrospectiva; nunca cruzado', () => {
+  it('pacotes novos concedem os itens cumulativos apresentados na compra', () => {
     expect(skuGrantsCartaAccess('combo_carta')).toBe(true);
-    expect(skuGrantsCartaAccess('combo_retrospectiva')).toBe(false);
+    expect(skuGrantsCartaAccess('combo_retrospectiva')).toBe(true);
+    expect(skuGrantsCartaAccess('combo')).toBe(true);
+    expect(skuGrantsVideoAccess('combo_retrospectiva')).toBe(true);
     expect(skuGrantsRetrospectivaAccess('combo_retrospectiva')).toBe(true);
     expect(skuGrantsRetrospectivaAccess('combo_carta')).toBe(false);
   });

@@ -7,6 +7,16 @@
 
 ## 1. Arquitetura atual
 
+### Atualização da experiência — 19/10/2026
+
+O banco operacional é Supabase/Postgres, acessado no Edge por `supabase-edge.js` e `supabaseDb.js`; as mídias ficam no Cloudflare R2. A descrição Firebase abaixo é histórica e não representa a persistência atual.
+
+O formulário passa por quatro etapas e encaminha a música pronta para `/entrega`. A biblioteca em `/conta` consulta apenas os pedidos do usuário autenticado. Pedidos de visitante só são vinculados após prova por cookie HttpOnly ou código enviado ao WhatsApp já registrado no pedido; telefone informado pelo navegador não prova identidade.
+
+A carteira existente é estendida pela migração `20261019_customer_experience.sql`, sem recriar o livro-razão. Reservas de compras e PIX usam funções Postgres; preço da oferta de um crédito por R$ 4,99 é definido no servidor e na reserva SQL, com elegibilidade por pedido pago pertencente à conta e limite de uma oferta por conta. Crédito só é aprovado após confirmação do valor efetivamente recebido pelo provedor. Créditos continuam sem vencimento.
+
+Publicação: aplicar a migração incremental antes do aplicativo; não reaplicar `credits.sql`. Reversão do aplicativo deve preservar tabelas, histórico e cobranças pendentes. Testes com simulações não substituem validação real de login, titularidade e pagamento com pedido próprio. Implementação local ainda sem validação manual completa ou publicação confirmada.
+
 Aplicação Next.js 14 monolítica rodando **inteiramente no Edge da Cloudflare Pages**, sem servidor
 Node.js, sem banco relacional e sem camada de serviço. O Firestore é acessado com o **SDK cliente do
 Firebase** tanto no browser quanto dentro das rotas Edge — o projeto não usa Firebase Admin SDK em

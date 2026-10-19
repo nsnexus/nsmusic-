@@ -131,7 +131,7 @@ export function generateTxid(orderId) {
  * @param {object} env - contexto de ambiente resolvido pela rota chamadora (ver módulo acima)
  * @returns {Promise<{txid: string, pixCopiaECola: string, status: string}>}
  */
-export async function createPixCharge({ orderId, amount, description }, env) {
+export async function createPixCharge({ orderId, amount, description, txid: reservedTxid }, env) {
   if (!orderId || typeof amount !== 'number' || amount <= 0) {
     throw new Error('createPixCharge requer orderId e amount válidos.');
   }
@@ -143,7 +143,8 @@ export async function createPixCharge({ orderId, amount, description }, env) {
 
   const accessToken = await getAccessToken(env);
   const relayFetch = getRelayFetch(env);
-  const txid = generateTxid(orderId);
+  const txid = reservedTxid || generateTxid(orderId);
+  if (!/^[A-Za-z0-9]{26,35}$/.test(txid)) throw new Error('Identificação de cobrança inválida.');
 
   const body = {
     calendario: { expiracao: 3600 },

@@ -34,14 +34,16 @@ export const CREDIT_PACKAGES = {
   creditos_1: { credits: 1, price: 9.99, label: '1 crédito' },
   creditos_5: { credits: 5, price: 29.90, label: '5 créditos' },
   creditos_10: { credits: 10, price: 49.90, label: '10 créditos' },
+  creditos_pos_compra_1: { credits: 1, price: 4.99, label: '1 crédito para a próxima música', postPurchase: true },
 };
 
 export function getCreditPackage(sku) {
-  return CREDIT_PACKAGES[sku] || null;
+  return Object.prototype.hasOwnProperty.call(CREDIT_PACKAGES, sku) ? CREDIT_PACKAGES[sku] : null;
 }
 
 export function getCreditCostForSku(sku) {
-  return sku === 'carta_addon' ? 0.5 : 1;
+  const costs = { audio_only: 1, video_addon: 1, carta_addon: 0.5, retrospectiva_addon: 1, playback_addon: 1, karaoke_addon: 1, custom_voice_addon: 1, combo_carta: 1.5, combo: 2.5, combo_retrospectiva: 3.5, combo_voz: 2 };
+  return Object.prototype.hasOwnProperty.call(costs, sku) ? costs[sku] : null;
 }
 
 export function getPriceForSku(sku) {
@@ -52,12 +54,12 @@ export function getPriceForSku(sku) {
 // Um SKU "inclui vídeo" quando concede acesso ao add-on de vídeo (ver A-13 no AUDIT_REPORT.md —
 // antes disso era decidido por uma heurística de valor, frágil a qualquer cobrança futura de 6.90).
 export function skuGrantsVideoAccess(sku) {
-  return sku === 'combo' || sku === 'video_addon' || sku === 'recovery_combo_24h' || sku === 'recovery_combo_48h';
+  return sku === 'combo' || sku === 'combo_retrospectiva' || sku === 'video_addon' || sku === 'recovery_combo_24h' || sku === 'recovery_combo_48h';
 }
 
 // Mesma ideia de skuGrantsVideoAccess, para os combos música+carta e música+retrospectiva.
 export function skuGrantsCartaAccess(sku) {
-  return sku === 'combo_carta';
+  return sku === 'combo_carta' || sku === 'combo' || sku === 'combo_retrospectiva';
 }
 
 export function skuGrantsRetrospectivaAccess(sku) {

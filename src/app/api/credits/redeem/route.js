@@ -15,7 +15,7 @@ export async function POST(req) {
     const { orderId, sku } = await req.json();
     if (!orderId || typeof orderId !== 'string') return NextResponse.json({ error: 'Pedido inválido.' }, { status: 400 });
     const cost = getCreditCostForSku(sku);
-    if (!['audio_only', 'video_addon', 'carta_addon', 'retrospectiva_addon', 'playback_addon', 'karaoke_addon', 'custom_voice_addon'].includes(sku)) {
+    if (cost === null) {
       return NextResponse.json({ error: 'Produto inválido para pagamento com créditos.' }, { status: 400 });
     }
     const supabase = getSupabaseEdge(env);

@@ -41,8 +41,8 @@ export function generateStaticTxid(orderId) {
 //
 // `pixKey` é opcional — default é a chave do checkout normal (fallback paliativo do pagamento real).
 // A página de apoio/gorjeta (/apoie) passa uma chave diferente (e-mail) sem afetar esse fallback.
-export function generateStaticPixPayload(amount, orderId, pixKey = PIX_KEY) {
-  const txid = generateStaticTxid(orderId);
+export function generateStaticPixPayload(amount, orderId, pixKey = PIX_KEY, reservedTxid = null) {
+  const txid = reservedTxid || generateStaticTxid(orderId);
   const valorStr = amount.toFixed(2);
 
   const mai = emv('00', GUI) + emv('01', pixKey);

@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NS Music · Nova experiência — conceito</title>
+  <style>
+    :root { --paper:#faf8f5; --surface:#fff; --ink:#29232d; --muted:#6c636f; --purple:#67408b; --line:#e7e0e8; --rose:#f2e8ec; --green:#25674f; --error:#a62943; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--paper); color:var(--ink); font:16px/1.55 'Segoe UI',Arial,sans-serif; }
+    button,input,textarea,select { font:inherit; }
+    button,a,input,select,textarea { -webkit-tap-highlight-color:transparent; }
+    button { cursor:pointer; }
+    button:disabled { cursor:default; opacity:.65; }
+    a { color:var(--purple); }
+    button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible { outline:3px solid #ba98d5; outline-offset:3px; }
+    [hidden] { display:none!important; }
+    .concept { background:#302335; color:#eee6f0; padding:9px 18px; text-align:center; font-size:12px; }
+    .concept a { color:#fff; }
+    header { background:#ffffffed; border-bottom:1px solid var(--line); }
+    .header-inner { max-width:1160px; margin:auto; min-height:80px; padding:12px 28px; display:flex; align-items:center; justify-content:space-between; gap:16px; }
+    .brand { display:flex; align-items:center; gap:11px; font-size:17px; font-weight:750; color:var(--ink); text-decoration:none; letter-spacing:-.5px; }
+    .brand img { width:45px; height:45px; border-radius:12px; }
+    .quiet { font-size:14px; color:var(--muted); text-decoration:none; }
+    .views { max-width:1104px; margin:22px auto 0; padding:0 0 13px; display:flex; gap:7px; border-bottom:1px solid var(--line); overflow-x:auto; }
+    .view { border:0; color:var(--muted); background:none; padding:10px 17px; border-radius:9px; white-space:nowrap; font-size:14px; }
+    .view[aria-pressed="true"] { background:#ece3f2; color:var(--purple); font-weight:700; }
+    main { max-width:1160px; margin:auto; padding:30px 28px 55px; }
+    .creation-layout { display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr); gap:64px; align-items:start; }
+    .eyebrow { text-transform:uppercase; letter-spacing:.14em; font-size:11px; font-weight:750; color:var(--purple); }
+    h1 { font-size:clamp(30px,3.1vw,43px); line-height:1.13; letter-spacing:-1.5px; margin:13px 0; font-weight:700; }
+    h2 { font-size:25px; letter-spacing:-.6px; line-height:1.25; margin:0 0 10px; }
+    h3 { font-size:18px; margin:0 0 7px; }
+    p { margin:0 0 18px; color:var(--muted); }
+    .sub { font-size:15px; max-width:500px; }
+    .progress { display:flex; gap:6px; margin:17px 0 27px; }
+    .progress i { height:4px; flex:1; background:#e5dfe7; border-radius:8px; }
+    .progress i.done { background:var(--purple); }
+    .recipient-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin:24px 0 12px; }
+    .recipient { border:1px solid var(--line); background:white; border-radius:17px; padding:5px; overflow:hidden; text-align:left; color:var(--ink); }
+    .recipient img { display:block; width:100%; height:135px; object-fit:cover; border-radius:12px; }
+    .recipient b { display:flex; justify-content:space-between; align-items:center; padding:11px 9px 6px; font-size:15px; }
+    .recipient b span { width:18px; height:18px; border:1px solid #bcb1c2; border-radius:50%; display:grid; place-items:center; font-size:11px; }
+    .recipient[aria-pressed="true"] { border:2px solid var(--purple); padding:4px; box-shadow:0 3px 14px #67408b12; }
+    .recipient[aria-pressed="true"] b span { background:var(--purple); border-color:var(--purple); color:white; }
+    .chips { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 22px; }
+    .chip { background:white; border:1px solid var(--line); border-radius:24px; padding:8px 13px; color:var(--muted); font-size:13px; min-height:40px; }
+    .chip[aria-pressed="true"] { color:var(--purple); border-color:var(--purple); background:#f4edf8; }
+    .field { display:block; margin:19px 0; }
+    .field > span,legend { display:block; font-size:14px; font-weight:650; margin-bottom:7px; }
+    input,select,textarea { width:100%; min-height:49px; border:1px solid #cfc5d1; border-radius:10px; padding:11px 13px; color:var(--ink); background:white; }
+    textarea { min-height:175px; resize:vertical; }
+    input::placeholder,textarea::placeholder { color:#877c8c; }
+    .field small { display:block; color:var(--muted); font-size:12px; margin-top:6px; }
+    .row { display:grid; grid-template-columns:1fr 1fr; gap:13px; }
+    .row .field { margin-top:0; }
+    fieldset { border:0; padding:0; margin:22px 0 12px; min-width:0; }
+    .btn { display:inline-flex; align-items:center; justify-content:center; gap:9px; min-height:49px; padding:12px 20px; border:1px solid var(--line); border-radius:11px; background:white; color:var(--ink); text-decoration:none; font-weight:650; font-size:14px; }
+    .btn.primary { background:var(--purple); color:white; border-color:var(--purple); }
+    .btn.soft { background:#f0e7f5; color:var(--purple); border-color:#e4d5ee; }
+    .btn.text { border:0; background:transparent; color:var(--muted); }
+    .wide { width:100%; }
+    .actions { display:flex; justify-content:space-between; gap:12px; margin-top:25px; }
+    .actions .primary { flex:1; }
+    .hint { margin:11px 0 0; color:var(--muted); font-size:12px; text-align:center; }
+    .editorial { margin-top:16px; background:#ece3dc; border-radius:24px; overflow:hidden; }
+    .editorial img { display:block; width:100%; height:400px; object-fit:cover; object-position:43% center; }
+    .editorial figcaption { padding:28px; }
+    .editorial .quote { font:29px/1.18 Georgia,serif; color:#493b40; letter-spacing:-.6px; margin:0 0 12px; }
+    .editorial p { margin:0; font-size:14px; }
+    .trust { display:flex; flex-wrap:wrap; gap:8px 15px; margin-top:22px; font-size:12px; color:var(--muted); }
+    .trust span:before { content:'✓ '; color:var(--green); }
+    .card { background:white; border:1px solid var(--line); border-radius:20px; padding:25px; }
+    .choice-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:20px 0; }
+    .sound { text-align:left; border:1px solid var(--line); background:white; border-radius:12px; padding:17px; min-height:75px; color:var(--ink); }
+    .sound[aria-pressed="true"] { border-color:var(--purple); background:#f6effa; color:var(--purple); }
+    .sound small { display:block; color:var(--muted); font-size:12px; margin-top:3px; }
+    .center-head { text-align:center; max-width:650px; margin:7px auto 30px; }
+    .center-head h1 { font-size:36px; }
+    .delivery-layout { display:grid; grid-template-columns:minmax(0,1.5fr) minmax(0,1fr); gap:24px; }
+    .music-top { display:flex; gap:22px; align-items:center; }
+    .cover { width:160px; height:172px; border-radius:13px; object-fit:cover; object-position:35% center; }
+    .music-top h2 { font:28px/1.15 Georgia,serif; margin-top:9px; }
+    .music-top p { font-size:13px; margin:0; }
+    .tag { display:inline-block; padding:4px 9px; border-radius:6px; background:#f1eaf6; color:var(--purple); font-size:11px; }
+    .versions { display:flex; gap:8px; padding:5px; border-radius:10px; background:#f5f1f6; margin:24px 0 15px; }
+    .versions button { flex:1; border:0; background:transparent; padding:9px; font-size:13px; color:var(--muted); border-radius:7px; }
+    .versions button[aria-pressed="true"] { background:white; color:var(--purple); box-shadow:0 2px 6px #3023350b; }
+    audio { width:100%; height:46px; }
+    .lock { margin-top:17px; padding:13px 15px; background:#f5f1f6; border-radius:10px; font-size:12px; color:var(--muted); }
+    .benefits { background:#f0e8ec; border-color:#e9dce3; display:flex; flex-direction:column; justify-content:center; }
+    .benefits h2 { font:31px/1.15 Georgia,serif; }
+    .benefits p { font-size:14px; }
+    .checklist { padding:0; list-style:none; margin:10px 0 22px; font-size:14px; }
+    .checklist li { margin:9px 0; }
+    .checklist li:before { content:'✓'; margin-right:10px; color:var(--purple); }
+    .section-head { margin:35px 0 17px; }
+    .section-head p { margin:0; font-size:14px; }
+    .packages { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }
+    .package { background:white; border:1px solid var(--line); border-radius:15px; text-align:left; padding:21px 17px; color:var(--ink); }
+    .package[aria-pressed="true"] { border:2px solid var(--purple); padding:20px 16px; background:#fcf9ff; }
+    .package strong { display:block; font-size:15px; margin:11px 0; }
+    .package .price { font-size:28px; font-weight:700; letter-spacing:-1px; }
+    .package small { display:block; font-size:12px; color:var(--muted); margin-top:13px; }
+    .checkout { display:flex; gap:20px; align-items:center; justify-content:space-between; margin-top:16px; }
+    .checkout p { font-size:13px; margin:4px 0 0; }
+    .success { color:var(--green); font-size:13px; margin-bottom:12px; }
+    .song-actions { display:flex; gap:10px; margin-top:18px; }
+    .song-actions > :first-child { flex:1; }
+    details { border-top:1px solid var(--line); padding-top:17px; margin-top:23px; font-size:14px; }
+    summary { cursor:pointer; }
+    details p { margin-top:12px; }
+    .post-layout { max-width:860px; margin:auto; }
+    .post-layout > .card { margin-bottom:20px; }
+    .offer { background:#f1e8ed; border-color:#e7d5df; display:grid; grid-template-columns:1fr auto; gap:22px; align-items:center; }
+    .offer h2 { font:30px/1.12 Georgia,serif; max-width:430px; margin-top:10px; }
+    .offer p { max-width:470px; font-size:14px; }
+    .offer-price { text-align:center; }
+    .offer-price strong { font-size:38px; letter-spacing:-1.5px; }
+    .offer-price small { display:block; font-size:12px; color:var(--muted); margin-bottom:12px; }
+    .offer-price .btn { width:100%; }
+    .offer-note { font-size:11px!important; margin:12px 0 0!important; }
+    .referral { display:flex; gap:30px; align-items:center; justify-content:space-between; }
+    .referral p { font-size:14px; max-width:500px; margin-bottom:0; }
+    .referral-panel { max-width:820px; margin:auto; }
+    .stats { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin:24px 0; }
+    .stat { background:#f7f3f8; border-radius:12px; padding:20px; }
+    .stat strong { display:block; font-size:29px; }
+    .stat span { font-size:12px; color:var(--muted); }
+    .milestones { display:flex; gap:8px; margin:18px 0; }
+    .milestones i { height:9px; background:#e6dfe9; flex:1; border-radius:5px; }
+    .milestones i.done { background:var(--purple); }
+    .message { border-radius:10px; background:#f3eef7; padding:14px; font-size:14px; color:var(--purple); margin:18px 0; }
+    .message.error { color:var(--error); background:#fbeef1; }
+    .footer { text-align:center; color:var(--muted); font-size:11px; margin-top:45px; }
+    @media(max-width:800px) {
+      .header-inner { padding:11px 20px; min-height:68px; }
+      .brand { font-size:15px; }.brand img { width:39px; height:39px; }
+      .views { margin:15px 20px 0; }.view { padding:9px 13px; font-size:13px; }
+      main { padding:25px 20px 35px; }
+      .creation-layout,.delivery-layout { grid-template-columns:1fr; gap:22px; }
+      .creation-layout { max-width:560px; margin:auto; }
+      h1 { font-size:32px; letter-spacing:-1px; }
+      .editorial { margin:12px 0 0; }.editorial img { height:240px; }.editorial figcaption { padding:23px; }.editorial .quote { font-size:25px; }
+      .recipient img { height:120px; }.card { padding:21px; }.benefits h2 { font-size:27px; }
+      .music-top { gap:16px; }.cover { width:112px; height:133px; }.music-top h2 { font-size:24px; }
+      .center-head { text-align:left; }.center-head h1 { font-size:30px; }
+      .packages { grid-template-columns:1fr 1fr; }.package { padding:16px 13px; }.package[aria-pressed="true"] { padding:15px 12px; }
+      .package .price { font-size:24px; }.package strong { font-size:14px; }.package .eyebrow { font-size:9px; }
+      .checkout,.referral { flex-direction:column; align-items:stretch; gap:17px; }
+      .offer { grid-template-columns:1fr; gap:13px; }.offer-price { text-align:left; }.offer-price strong { font-size:32px; }
+      .offer h2 { font-size:28px; }.offer .offer-price .btn { margin-top:8px; }.offer-price small { display:inline-block; margin-left:12px; }
+      .stats { gap:8px; }.stat { padding:13px; }.stat strong { font-size:25px; }.stat span { font-size:11px; }
+    }
+    @media(max-width:360px) { main { padding-inline:16px; }.views { margin-inline:16px; }.recipient img { height:100px; }.row { grid-template-columns:1fr; gap:0; }.package { padding:14px 10px; }.package[aria-pressed="true"] { padding:13px 9px; }.music-top h2 { font-size:21px; }.brand span { display:none; } }
+    @media(prefers-reduced-motion:reduce) { * { scroll-behavior:auto!important; } }
+  </style>
+</head>
+<body>
+  <div class="concept">Conceito navegável · Dados ilustrativos · Nenhuma cobrança é criada · <a href="../../plans/2026-10-19-experiencia-conversao.md">Ler o projeto de implementação</a></div>
+  <header><div class="header-inner"><a class="brand" href="#" aria-label="NS Music — início do conceito"><img src="assets/logo.png" width="45" height="45" alt="Logo NS Music"><span>Histórias que viram música.</span></a><button class="btn text" type="button" data-view="referrals">Minha conta</button></div></header>
+  <nav class="views" aria-label="Telas do conceito">
+    <button class="view" type="button" data-view="creation" aria-pressed="true">01 · Criar música</button>
+    <button class="view" type="button" data-view="preview" aria-pressed="false">02 · Ouvir e escolher</button>
+    <button class="view" type="button" data-view="paid" aria-pressed="false">03 · Depois da compra</button>
+    <button class="view" type="button" data-view="referrals" aria-pressed="false">04 · Indicações</button>
+  </nav>
+  <main>
+    <section data-screen="creation" aria-label="Criação da música">
+      <div class="creation-layout">
+        <div>
+          <div class="eyebrow" id="step-label">1 de 4 · A pessoa</div>
+          <div class="progress" aria-hidden="true"><i class="done"></i><i></i><i></i><i></i></div>
+          <form id="creation-form">
+            <div data-step="1">
+              <h1>Para quem é<br>essa música?</h1>
+              <p class="sub">Comece por alguém que merece ouvir o quanto é especial.</p>
+              <div class="recipient-grid" role="group" aria-label="Tipo de homenagem">
+                <button class="recipient" data-recipient="family" aria-pressed="true" type="button"><img src="assets/familia-editorial.webp" width="640" height="426" alt="Mãe e filha abraçadas"><b>Minha família <span aria-hidden="true">✓</span></b></button>
+                <button class="recipient" data-recipient="love" aria-pressed="false" type="button"><img src="assets/amor-editorial.webp" width="640" height="426" alt="Casal em um abraço"><b>Meu amor <span aria-hidden="true"></span></b></button>
+              </div>
+              <div class="chips" role="group" aria-label="Outras relações"><button class="chip" type="button" data-recipient="friend" aria-pressed="false">Amizade</button><button class="chip" type="button" data-recipient="self" aria-pressed="false">Para mim</button><button class="chip" type="button" data-recipient="other" aria-pressed="false">Outra pessoa</button></div>
+              <label class="field"><span>O que essa pessoa é sua?</span><select id="relationship" required><option value="">Escolha a relação</option>Mãe</option><option>Pai</option><option>Filha</option><option>Filho</option><option>Avó</option><option>Avô</option><option>Irmã</option><option>Irmão</option><option>Outra relação</option></select></label>
+              <div class="row"><label class="field"><span>Nome de quem vai receber</span><input id="honoree" autocomplete="off" placeholder="Ex.: Helena" maxlength="80" required></label><label class="field"><span>Seu primeiro nome</span><input id="sender" autocomplete="given-name" placeholder="Ex.: Mariana" maxlength="80" required></label></div>
+              <label class="field"><span>Qual é a ocasião?</span><select id="occasion" required><option value="">Selecione o motivo</option><option>Aniversário</option><option>Agradecimento</option><option>Declaração de amor</option><option>Homenagem</option><option>Outra ocasião</option></select></label>
+            </div>
+            <div data-step="2" hidden>
+              <h1>Uma história que<br>só vocês têm.</h1><p class="sub" id="story-sub">Conte o que torna essa pessoa tão especial. Não precisa escrever bonito, só do seu jeito.</p>
+              <label class="field"><span>O que você gostaria de dizer?</span><textarea id="story" placeholder="Uma lembrança, um agradecimento, uma frase de vocês..." minlength="50" required></textarea><small id="story-count">Conte um pouquinho mais: pelo menos 50 caracteres.</small></label>
+              <div class="chips" role="group" aria-label="Ajuda para contar sua história"><button class="chip" type="button" data-prompt="Uma lembrança que guardo com carinho é ">Uma lembrança</button><button class="chip" type="button" data-prompt="O que mais admiro em você é ">Uma qualidade</button><button class="chip" type="button" data-prompt="Se eu pudesse te dizer uma coisa hoje, seria ">Uma mensagem</button></div>
+              <p class="sub">Na versão final, você também poderá ditar sua história. O texto sempre poderá ser revisado.</p>
+            </div>
+            <div data-step="3" hidden>
+              <h1>E como essa<br>história vai soar?</h1><p class="sub">Escolha um estilo que tenha a ver com vocês.</p>
+              <div class="choice-grid" role="group" aria-label="Estilo musical"><button type="button" class="sound" data-sound="Romântica" aria-pressed="true">Romântica<small>Intimista e cheia de carinho</small></button><button type="button" class="sound" data-sound="Sertanejo" aria-pressed="false">Sertanejo<small>Uma declaração para cantar junto</small></button><button type="button" class="sound" data-sound="MPB" aria-pressed="false">MPB<small>Leve e próxima do coração</small></button><button type="button" class="sound" data-sound="Gospel" aria-pressed="false">Gospel<small>Fé, gratidão e esperança</small></button></div>
+              <div class="row"><label class="field"><span>Clima da música</span><select id="mood"><option>Emocionante</option><option>Alegre</option><option>Calma</option><option>Nostálgica</option></select></label><label class="field"><span>Voz</span><select id="voice"><option>Feminina</option><option>Masculina</option><option>Dueto</option></select></label></div>
+              <p class="sub">Seleção resumida para este conceito. A versão final manterá todos os estilos e preferências existentes.</p>
+            </div>
+            <div data-step="4" hidden>
+              <h1>Seu presente<br>começa assim.</h1><p class="sub">Confira os detalhes antes de criar a letra.</p>
+              <div class="card"><span class="eyebrow" id="review-occasion">Homenagem</span><h2 id="review-name" style="margin-top:10px">Para Helena</h2><p id="review-description"></p><p id="review-story" style="font-size:14px;margin:0"></p></div>
+              <label class="field"><span>Seu WhatsApp para receber o link</span><input type="tel" inputmode="tel" autocomplete="tel" id="phone" placeholder="(11) 99999-9999"><small>Somente demonstração. Nenhum número é enviado ou salvo por este conceito.</small></label>
+              <p class="sub">Na versão final, você revisa a letra antes de gerar a música e pode adicionar sua foto de capa.</p>
+            </div>
+            <div class="actions"><button class="btn text" id="back" type="button" hidden>← Voltar</button><button class="btn primary" id="next" type="submit">Continuar para a história →</button></div>
+            <p class="hint">Prévia de 60 segundos grátis. Música completa a partir de R$ 9,99.</p>
+          </form>
+        </div>
+        <aside>
+          <figure class="editorial"><img src="assets/familia-editorial.webp" width="1280" height="853" alt="Mãe ouvindo música junto da filha"><figcaption><p class="quote">Tem sentimento que<br>merece virar canção.</p><p>Você conta a história. Ela ganha letra, melodia e um lugar especial na memória.</p></figcaption></figure>
+          <div class="trust"><span>Ouça antes de comprar</span><span>Pagamento único</span><span>Presente feito por você</span></div>
+        </aside>
+      </div>
+    </section>
+    <section data-screen="preview" hidden aria-label="Prévia e escolha do pacote">
+      <div class="center-head"><span class="eyebrow">Sua história já virou música</span><h1>O começo de um presente inesquecível.</h1><p>Ouça a prévia. Depois, escolha como quer emocionar.</p></div>
+      <div class="delivery-layout">
+        <article class="card"><div class="music-top"><img class="cover" src="assets/familia-editorial.webp" width="160" height="172" alt="Capa editorial da homenagem"><div><span class="tag">FEITA COM CARINHO</span><h2>Uma canção<br>para Helena</h2><p>De Mariana, com amor.</p></div></div><div class="versions" role="group" aria-label="Versões demonstrativas"><button type="button" aria-pressed="true" data-version="1">Versão 1</button><button type="button" aria-pressed="false" data-version="2">Versão 2</button></div><audio id="preview-audio" controls preload="none" aria-label="Áudio demonstrativo de aniversário, até 60 segundos" src="../../../public/audio/feliz-aniversario.mp3"></audio><div class="lock">Prévia de até 60 segundos. A compra libera as duas versões completas e os arquivos MP3.</div><p class="hint">Exemplo de aniversário do projeto. Os botões de versão demonstram a seleção; este conceito tem apenas um áudio de exemplo.</p></article>
+        <aside class="card benefits"><h2>Você escolhe o tamanho dessa surpresa.</h2><p>A música já conta a sua história. Palavras e fotos podem completar o presente.</p><ul class="checklist"><li>Duas versões completas</li><li>Arquivos MP3 para guardar</li><li>Página de presente para compartilhar</li></ul><a class="btn primary" href="#packages">Escolher meu presente ↓</a></aside>
+      </div>
+      <div class="section-head" id="packages"><h2>Como você quer emocionar?</h2><p>Pagamento único. Veja exatamente o que está incluído.</p></div>
+      <div class="packages" role="group" aria-label="Pacotes demonstrativos">
+        <button class="package" type="button" data-package="0" aria-pressed="true"><span class="eyebrow">O essencial</span><strong>Só a música</strong><div class="price">R$ 9,99</div><small>2 versões completas<br>Página de presente</small></button>
+        <button class="package" type="button" data-package="1" aria-pressed="false"><span class="eyebrow">Suas palavras</span><strong>Música + carta</strong><div class="price">R$ 13,98</div><small>Tudo de Só a música<br>+ Carta virtual</small></button>
+        <button class="package" type="button" data-package="2" aria-pressed="false"><span class="eyebrow">Suas memórias</span><strong>Música + vídeo</strong><div class="price">R$ 16,89</div><small>Música + carta<br>+ Vídeo com fotos</small></button>
+        <button class="package" type="button" data-package="3" aria-pressed="false"><span class="eyebrow">Cada detalhe</span><strong>Presente completo</strong><div class="price">R$ 19,98</div><small>Música + carta + vídeo<br>+ Retrospectiva</small></button>
+      </div>
+      <div class="card checkout"><div><strong id="selected-package">Só a música · R$ 9,99</strong><p id="selected-includes">Duas versões completas e página de presente.</p></div><button class="btn primary" id="review-purchase" type="button">Revisar meu presente →</button></div>
+      <div class="card" id="purchase-review" hidden style="margin-top:16px"><h2>Confira seu presente</h2><p id="purchase-text"></p><p>Na versão final, este passo permite confirmar PIX ou uso de créditos. Selecionar um pacote não gera cobrança.</p><button class="btn primary" type="button" data-view="paid">Ver conceito da entrega após pagar →</button></div>
+    </section>
+    <section data-screen="paid" hidden aria-label="Entrega após pagamento e oferta opcional">
+      <div class="post-layout">
+        <div class="success">✓ Exemplo de pagamento confirmado · Sua música vem primeiro.</div>
+        <article class="card"><div class="music-top"><img class="cover" src="assets/familia-editorial.webp" width="160" height="172" alt="Capa editorial da música"><div><span class="eyebrow">Seu presente</span><h2>Uma canção<br>para Helena</h2><p>De Mariana, com todo carinho.</p></div></div><div class="versions"><button type="button" aria-pressed="true" data-version="1">Versão 1</button><button type="button" aria-pressed="false" data-version="2">Versão 2</button></div><audio controls preload="none" aria-label="Áudio demonstrativo completo de aniversário" src="../../../public/audio/feliz-aniversario.mp3"></audio><div class="song-actions"><a class="btn primary" href="../../../public/audio/feliz-aniversario.mp3" download="NSMusic-exemplo-aniversario.mp3">Baixar áudio de exemplo</a><button class="btn" type="button" id="share-gift" aria-label="Compartilhar presente" title="Compartilhar presente">↗</button></div><p class="hint">Áudio demonstrativo; não é uma música gerada para os nomes da tela.</p><details><summary>Ver a letra e os itens do presente</summary><p>Na tela funcional, aqui aparece a letra real do pedido. Itens comprados mostram ações como escrever carta, adicionar fotos e baixar vídeo.</p></details></article>
+        <article class="card offer" id="second-offer"><div><span class="eyebrow">Uma próxima surpresa</span><h2>Já pensou em quem vai ser a próxima?</h2><p>Garanta <strong>1 crédito por R$ 4,99</strong> para sua próxima música. Use quando quiser: seus créditos não vencem.</p><p class="offer-note">Compra adicional opcional. Sua música já está liberada. O crédito segue os usos da carteira.</p></div><div class="offer-price"><strong>R$ 4,99</strong><small>1 crédito · sem assinatura</small><button class="btn primary" type="button" id="buy-offer">Quero meu crédito</button><button class="btn text" type="button" id="skip-offer">Agora não</button></div></article>
+        <div class="message" id="offer-result" hidden role="status"></div>
+        <article class="card referral"><div><span class="eyebrow">Compartilhe algo bom</span><h2 style="margin-top:10px">Sua indicação também pode virar música.</h2><p>Ganhe 1 crédito por novo comprador indicado. A cada 5 confirmados, mais 1 de bônus.</p></div><button class="btn soft" type="button" data-view="referrals">Ver minhas indicações →</button></article>
+      </div>
+    </section>
+    <section data-screen="referrals" hidden aria-label="Conceito da área de indicações">
+      <div class="referral-panel"><span class="eyebrow">Minha conta · Indicações</span><h1>Espalhe emoção.<br>Ganhe novas canções.</h1><p>Cada novo comprador indicado rende 1 crédito após uma compra elegível confirmada. Ao completar 5, você recebe mais 1 de bônus.</p><div class="card"><span class="tag">DADOS ILUSTRATIVOS</span><div class="stats"><div class="stat"><strong>3</strong><span>Compradores confirmados</span></div><div class="stat"><strong>2</strong><span>Indicações aguardando compra</span></div><div class="stat"><strong>3</strong><span>Créditos ganhos</span></div></div><strong>Faltam 2 compradores para o próximo bônus.</strong><div class="milestones" aria-label="3 de 5 compradores confirmados"><i class="done"></i><i class="done"></i><i class="done"></i><i></i><i></i></div><p>5 compradores = 5 créditos + 1 de bônus. Seus créditos não vencem.</p><div class="message">Na versão final, seu link pessoal aparece aqui. Este conceito não cria um código válido nem contabiliza indicações.</div><button class="btn primary" type="button" id="referral-demo">Como será o convite?</button><div class="message" id="referral-message" hidden>“Criei uma música para alguém especial e queria te mostrar a ideia. Você conta a história, ouve uma prévia grátis e decide se quer comprar.” + seu link pessoal.</div></div></div>
+    </section>
+    <div class="message" id="notice" role="status" hidden></div>
+    <footer class="footer">NS Music · Conceito de experiência v2 · Fotografias editoriais geradas por IA, sem vínculo com clientes reais.<br>Os dados deste formulário ficam apenas na memória da página. Nada é enviado ao servidor.</footer>
+  </main>
+  <script>
+    const screens = [...document.querySelectorAll('[data-screen]')];
+    const notice = document.querySelector('#notice');
+    function showView(name) {
+      document.querySelectorAll('audio').forEach(audio => audio.pause());
+      screens.forEach(screen => { screen.hidden = screen.dataset.screen !== name; });
+      document.querySelectorAll('.view').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.view === name)));
+      notice.hidden = true;
+      window.scrollTo({ top:0, behavior:'auto' });
+    }
+    document.querySelectorAll('[data-view]').forEach(button => button.addEventListener('click', () => showView(button.dataset.view)));
+    document.querySelector('.brand').addEventListener('click', event => { event.preventDefault(); showView('creation'); });
+    let step = 1;
+    let selfTribute = false;
+    let sound = 'Romântica';
+    const labels = ['A pessoa','A história','O som','Revisar'];
+    const nextLabels = ['Continuar para a história →','Escolher o som →','Revisar meu presente →','Ver conceito da prévia →'];
+    const form = document.querySelector('#creation-form');
+    const sender = document.querySelector('#sender');
+    const honoree = document.querySelector('#honoree');
+    const relation = document.querySelector('#relationship');
+    function setStep(value) {
+      step = value;
+      document.querySelectorAll('[data-step]').forEach(el => { el.hidden = Number(el.dataset.step) !== step; });
+      document.querySelector('#step-label').textContent = `${step} de 4 · ${labels[step-1]}`;
+      document.querySelectorAll('.progress i').forEach((el,index) => el.classList.toggle('done', index < step));
+      document.querySelector('#next').textContent = nextLabels[step-1];
+      document.querySelector('#back').hidden = step === 1;
+      document.querySelector('#story-sub').textContent = `Conte o que torna ${honoree.value.trim() || 'essa pessoa'} especial. Não precisa escrever bonito, só do seu jeito.`;
+      if(step === 4) {
+        document.querySelector('#review-occasion').textContent = document.querySelector('#occasion').value;
+        document.querySelector('#review-name').textContent = `Para ${honoree.value.trim()}`;
+        document.querySelector('#review-description').textContent = `De ${sender.value.trim()} · ${sound} · ${document.querySelector('#mood').value} · Voz ${document.querySelector('#voice').value.toLowerCase()}`;
+        document.querySelector('#review-story').textContent = document.querySelector('#story').value;
+      }
+      window.scrollTo({ top:0, behavior:'auto' });
+    }
+    form.noValidate = true;
+    form.addEventListener('submit', event => {
+      event.preventDefault();
+      if(step === 2 && document.querySelector('#story').value.trim().length < 50) {
+        document.querySelector('#story').setCustomValidity('Conte sua história com pelo menos 50 caracteres.');
+      }
+      const fields = [...document.querySelector(`[data-step="${step}"]`).querySelectorAll('input,textarea,select')];
+      const invalid = fields.find(field => !field.checkValidity());
+      if(invalid) { invalid.reportValidity(); return; }
+      if(step === 4) { showView('preview'); return; }
+      setStep(step+1);
+    });
+    document.querySelector('#back').addEventListener('click', () => setStep(Math.max(1,step-1)));
+    const relations = { family:['Mãe','Pai','Filha','Filho','Avó','Avô','Irmã','Irmão','Outra relação'], love:['Esposa','Marido','Namorada','Namorado','Noiva','Noivo'], friend:['Amiga','Amigo'], self:['Eu mesmo(a)'], other:['Outra relação'] };
+    document.querySelectorAll('[data-recipient]').forEach(button => button.addEventListener('click', () => {
+      document.querySelectorAll('[data-recipient]').forEach(el => {
+        const chosen = el === button;
+        el.setAttribute('aria-pressed', String(chosen));
+        const marker = el.querySelector('b span');
+        if(marker) marker.textContent = chosen ? '✓' : '';
+      });
+      relation.replaceChildren();
+      const placeholder = new Option('Escolha a relação','');
+      relation.add(placeholder);
+      relations[button.dataset.recipient].forEach(value => relation.add(new Option(value,value)));
+      selfTribute = button.dataset.recipient === 'self';
+      honoree.readOnly = selfTribute;
+      if(selfTribute) { relation.value = 'Eu mesmo(a)'; honoree.value = sender.value; }
+    }));
+    sender.addEventListener('input', () => { if(selfTribute) honoree.value = sender.value; });
+    document.querySelector('#story').addEventListener('input', event => {
+      event.target.setCustomValidity('');
+      document.querySelector('#story-count').textContent = `${event.target.value.trim().length} caracteres · pelo menos 50 para começar.`;
+    });
+    document.querySelectorAll('[data-prompt]').forEach(button => button.addEventListener('click', () => {
+      const input = document.querySelector('#story');
+      input.value += `${input.value ? '\n' : ''}${button.dataset.prompt}`;
+      input.dispatchEvent(new Event('input'));
+      input.focus();
+    }));
+    document.querySelectorAll('[data-sound]').forEach(button => button.addEventListener('click', () => {
+      sound = button.dataset.sound;
+      document.querySelectorAll('[data-sound]').forEach(el => el.setAttribute('aria-pressed', String(el === button)));
+    }));
+    document.querySelectorAll('[data-version]').forEach(button => button.addEventListener('click', () => {
+      button.parentElement.querySelectorAll('[data-version]').forEach(el => el.setAttribute('aria-pressed', String(el === button)));
+    }));
+    document.querySelector('#preview-audio').addEventListener('timeupdate', event => {
+      const audio = event.target;
+      if(audio.currentTime >= 60) { audio.pause(); audio.currentTime = 0; }
+    });
+    const plans = [
+      { name:'Só a música',price:'9,99',details:'Duas versões completas e página de presente.' },
+      { name:'Música + carta',price:'13,98',details:'Duas versões completas, página de presente e carta virtual.' },
+      { name:'Música + vídeo',price:'16,89',details:'Música, página de presente, vídeo com fotos e carta virtual.' },
+      { name:'Presente completo',price:'19,98',details:'Música, página de presente, retrospectiva, vídeo e carta virtual.' }
+    ];
+    let plan = plans[0];
+    document.querySelectorAll('[data-package]').forEach(button => button.addEventListener('click', () => {
+      plan = plans[Number(button.dataset.package)];
+      document.querySelectorAll('[data-package]').forEach(el => el.setAttribute('aria-pressed', String(el === button)));
+      document.querySelector('#selected-package').textContent = `${plan.name} · R$ ${plan.price}`;
+      document.querySelector('#selected-includes').textContent = plan.details;
+      document.querySelector('#purchase-review').hidden = true;
+    }));
+    document.querySelector('#review-purchase').addEventListener('click', () => {
+      const review = document.querySelector('#purchase-review');
+      review.hidden = false;
+      document.querySelector('#purchase-text').textContent = `${plan.name} por R$ ${plan.price}. ${plan.details}`;
+      review.scrollIntoView({ block:'center' });
+    });
+    document.querySelector('#buy-offer').addEventListener('click', () => {
+      const result = document.querySelector('#offer-result');
+      result.hidden = false;
+      result.textContent = 'Na implementação: validar sua elegibilidade e conta, revisar a compra adicional e só então gerar o PIX de R$ 4,99. Este conceito não cria cobrança nem adiciona saldo.';
+      result.scrollIntoView({ block:'center' });
+    });
+    document.querySelector('#skip-offer').addEventListener('click', () => {
+      document.querySelector('#second-offer').hidden = true;
+      document.querySelector('#offer-result').hidden = true;
+    });
+    document.querySelector('#share-gift').addEventListener('click', () => {
+      notice.hidden = false;
+      notice.textContent = 'Na versão final, este botão compartilha somente o presente liberado. O convite de indicação tem um link próprio.';
+      notice.scrollIntoView({ block:'center' });
+    });
+    document.querySelector('#referral-demo').addEventListener('click', () => {
+      document.querySelector('#referral-message').hidden = false;
+    });
+  </script>
+</body>
+</html>

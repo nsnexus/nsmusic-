@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
+import { getSupabaseEdge } from '@/lib/supabase-edge';
 
 export const runtime = 'edge';
 
@@ -25,8 +26,12 @@ export async function GET(req) {
       return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 });
     }
 
+    // Only reconcile rewards for verified payments. The WhatsApp recovery campaign stays off.
+    const supabase = getSupabaseEdge(env);
+    const reconciled = supabase ? await supabase.rpc('reconcile_pending_referrals', { p_limit: 50 }) : null;
     return NextResponse.json({
       success: true,
+      referralRewardsReconciled: reconciled?.error ? 0 : Number(reconciled?.data) || 0,
       message: 'Régua de recuperação via WhatsApp não-oficial desativada (notificação oficial enviada na entrega).',
       results: { total: 0, eligible: 0, processed: 0, sent: [] }
     });

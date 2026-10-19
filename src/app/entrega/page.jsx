@@ -26,6 +26,9 @@ import { identifyTikTok, trackTikTok } from '@/lib/tiktokPixel';
 import { trackGooglePurchase } from '@/lib/googleAds';
 import { trackFbPurchase } from '@/lib/metaPixel';
 import { isOrderFromMeta, isOrderFromTikTok } from '@/lib/trafficSource';
+import DeliveryExperience from '@/components/delivery/DeliveryExperience';
+
+function refreshDelivery() { window.location.reload(); }
 
 /**
  * Tarja de prévia limitada, exibida DENTRO do card de cada versão.
@@ -851,17 +854,7 @@ function EntregaContent() {
     }
   };
 
-  // Gera o PIX automaticamente se o pedido não estiver pago.
-  //
-  // `!pixError` no guarda é o que impede o laço infinito: sem ele, uma falha zerava pixLoading com
-  // pixInfo.qrCode ainda vazio, o efeito disparava de novo na hora e o cliente via o mesmo erro
-  // repetidamente, sem nunca conseguir pagar. Com a trava, a falha para o ciclo e a retomada passa a
-  // ser explícita, pelo botão "Tentar novamente" (que limpa pixError).
-  useEffect(() => {
-    if (order && !isPaid && !pixInfo.qrCode && !pixLoading && !pixError) {
-      handleGeneratePix();
-    }
-  }, [order, isPaid, pixInfo.qrCode, pixLoading, pixError]);
+  // A nova experiência só cria PIX após revisão e confirmação explícita.
 
   // Polling em tempo real para confirmação de pagamento PIX (Áudio Principal) com fallback Firestore
   useEffect(() => {
@@ -1035,7 +1028,6 @@ function EntregaContent() {
   };
 
   const irParaPagamento = () => {
-    setShowPreviaModal(false);
     if (typeof document !== 'undefined') {
       document.getElementById('pagamento')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
@@ -1276,8 +1268,16 @@ function EntregaContent() {
   // Default beautiful dynamic cover
   const coverUrl = order?.coverUrl || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=600&auto=format&fit=crop';
 
+  if (!isPaid || abaProduto === 'musica') {
+    return <DeliveryExperience order={order} orderId={orderId} paid={isPaid} tracks={[primaryAudioUrl, secondAudioUrl]}
+      promo={promo} onDownload={handleDownload} downloadingSlot={downloadingSlot} onCoverChange={handleCoverChange}
+      uploadingCover={isUploadingCover} coverError={coverUploadError} onChooseGiftTrack={escolherMusicaHomenagem}
+      onProduct={setAbaProduto} onCharge={setPixInfo} receiptStatus={receiptStatus} onReceipt={handleReceiptUpload}
+      onApproved={refreshDelivery} supportUrl={linkWhatsapp(whatsappSuporte, `Olá! Preciso de ajuda com o pedido ${order?.orderNumber || orderId}.`)} />;
+  }
+
   return (
-    <div style={isPaid ? { ...styles.wrapper, backgroundColor: '#07030d' } : styles.wrapper}>
+    <div className={`nx-legacy-${abaProduto}`} style={isPaid ? { ...styles.wrapper, backgroundColor: '#07030d' } : styles.wrapper}>
       {/* Header */}
       <header
         style={{
@@ -1344,6 +1344,8 @@ function EntregaContent() {
             <div className="entrega-tabs" role="tablist">
               {[
                 { id: 'musica', label: '🎵 Música' },
+                { id: 'video', label: 'Vídeo' },
+                { id: 'playback', label: 'Playback' },
                 { id: 'voz', label: '🎙️ Minha Voz', hasBadge: true },
                 { id: 'karaoke', label: '🎤 Karaokê', hasBadge: true },
                 { id: 'retrospectiva', label: '📖 Retrospectiva', hasBadge: true },
@@ -1415,7 +1417,7 @@ function EntregaContent() {
             />
           )}
 
-          {(!isPaid || abaProduto === 'musica') && (
+          {isPaid && ['video', 'playback'].includes(abaProduto) && (
           <div
             style={isPaid ? {
               ...styles.deliveryCard,
@@ -2894,7 +2896,7 @@ function EntregaContent() {
                     não teria como ser gerado, e ninguém deve pagar por isso. */}
                 {isPaid && order?.audioIds?.length > 0
                   && (order?.sunoProvider && order.sunoProvider !== 'kie' ? Boolean(order?.audioUrl) : Boolean(order?.sunoTaskId)) && (
-                  <PlaybackAddonCard orderId={orderId} order={order} />
+                  <div id="card-playback"><PlaybackAddonCard orderId={orderId} order={order} /></div>
                 )}
 
                 {/* Add-on de Vídeo Karaokê (letra sincronizada estilo karaokê + playback instrumental 16:9 HD) */}

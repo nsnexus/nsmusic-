@@ -15,13 +15,14 @@ import { getStoredTrafficSource, isOrderFromTikTok } from '@/lib/trafficSource';
 import CustomAudioPreview from './CustomAudioPreview';
 import { usePromoverAudio } from '@/lib/usePromoverAudio';
 import { calcularCota, COTA_POR_COMPRA } from '@/lib/cotaGeracoes';
-import WizardSteps from './WizardSteps';
+import WizardSteps from '@/components/creation/CreationSteps';
 import PixQrCode from '@/components/PixQrCode';
 import { requestPixCharge } from '@/lib/pixCheckout';
 import { useWhatsappSuporte, linkWhatsapp } from '@/lib/useWhatsappSuporte';
 import { lerConfigSite } from '@/lib/configSite';
-import { StudioLyricsAnimation, StudioAudioAnimation } from '@/components/StudioAnimations';
+import { StudioLyricsAnimation, StudioAudioAnimation } from '@/components/creation/StudioProgress';
 import { IconeCelularWhatsApp } from '@/components/AppIcons';
+import { readReferralCode } from '@/lib/referralTracking';
 
 // Tempo na tela de produção depois do qual o cliente sempre ganha uma saída (conferir de novo,
 // recomeçar ou chamar no WhatsApp). Maior que o corte de 6 min do polling de propósito: só entra
@@ -41,28 +42,7 @@ const VALID_BRAZIL_DDDS = new Set([
   '91', '92', '93', '94', '95', '96', '97', '98', '99',
 ]);
 
-function BrandLogo() {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-      <Image src="/logo.png" alt="NSMusic" width={38} height={38} style={{ height: '38px', width: 'auto' }} priority />
-      <span style={{
-        fontSize: '1.3rem',
-        fontWeight: '900',
-        background: 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)',
-        WebkitBackgroundClip: 'text',
-        WebkitTextFillColor: 'transparent',
-        letterSpacing: '-0.3px'
-      }}>
-        NSMusic
-      </span>
-      <div className="header-mini-eq">
-        <div className="header-mini-bar" style={{ animationDelay: '0.1s' }}></div>
-        <div className="header-mini-bar" style={{ animationDelay: '0.4s' }}></div>
-        <div className="header-mini-bar" style={{ animationDelay: '0.2s' }}></div>
-      </div>
-    </div>
-  );
-}
+
 
 export default function CriarMusica() {
   // Número do suporte vem da configuração editável no painel (src/lib/configSite.js), não do código.
@@ -77,6 +57,10 @@ export default function CriarMusica() {
   const [isSelfTribute, setIsSelfTribute] = useState(false);
   const [customLyricsMode, setCustomLyricsMode] = useState(false);
   const [pastedLyricsText, setPastedLyricsText] = useState('');
+  const [creationError, setCreationError] = useState('');
+
+  useEffect(() => { readReferralCode(); }, []);
+
 
   useEffect(() => {
     let ativo = true;
@@ -259,6 +243,12 @@ export default function CriarMusica() {
   });
 
   const totalWizardSteps = 4; // Fluxo otimizado em 4 etapas (Etapa 1: Ocasião + Nomes; Etapa 2: História; Etapa 3: Ritmo/Clima/Voz; Etapa 4: Resumo + Capa + WhatsApp)
+  // One preview/checkout destination for a fresh creation and a WhatsApp return visit.
+  useEffect(() => {
+    if (orderId && (step >= 7 || (step === 6 && formData.sunoStatus === 'generated'))) {
+      window.location.replace(`/entrega?orderId=${encodeURIComponent(orderId)}`);
+    }
+  }, [step, orderId, formData.sunoStatus]);
   const audio1Ref = useRef(null);
   const audio2Ref = useRef(null);
   const recognitionRef = useRef(null);
@@ -605,21 +595,7 @@ export default function CriarMusica() {
     return () => clearTimeout(timer);
   }, [step, formData.sunoStatus]);
 
-  const [audioProgressPct, setAudioProgressPct] = useState(0);
-  useEffect(() => {
-    if (formData.sunoStatus !== 'generating') {
-      setAudioProgressPct(0);
-      return;
-    }
-    const inicio = Date.now();
-    const interval = setInterval(() => {
-      const elapsedSec = (Date.now() - inicio) / 1000;
-      // Curva assintótica: sobe rápido no início, desacelera perto do teto — nunca ultrapassa 95%.
-      const pct = 95 * (1 - Math.exp(-elapsedSec / 60));
-      setAudioProgressPct(pct);
-    }, 500);
-    return () => clearInterval(interval);
-  }, [formData.sunoStatus]);
+
 
 
   // Valor promocional dinâmico: R$ 9,99 (só música) ou R$ 16,89 (música + vídeo)
@@ -628,22 +604,7 @@ export default function CriarMusica() {
   const getAddonsPrice = () => getVideoAddonPrice();
   const getTotalPrice = () => 9.99 + getVideoAddonPrice();
 
-  // Gerenciamento de Tema Claro / Escuro
-  const [theme, setTheme] = useState('dark');
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const savedTheme = localStorage.getItem('nsmusic_theme') || 'dark';
-      setTheme(savedTheme);
-      document.documentElement.setAttribute('data-theme', savedTheme);
-    }
-  }, []);
 
-  const toggleTheme = () => {
-    const nextTheme = theme === 'dark' ? 'light' : 'dark';
-    setTheme(nextTheme);
-    document.documentElement.setAttribute('data-theme', nextTheme);
-    localStorage.setItem('nsmusic_theme', nextTheme);
-  };
 
   // Ditado por Voz (Web Speech API) sem duplicação de texto no mobile
   const [isListening, setIsListening] = useState(false);
@@ -652,7 +613,7 @@ export default function CriarMusica() {
     if (typeof window === 'undefined') return;
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      alert("Seu navegador não possui suporte ao recurso de voz. Por favor, digite a história.");
+      setCreationError("Seu navegador não possui suporte ao recurso de voz. Por favor, digite a história.");
       return;
     }
 
@@ -682,7 +643,7 @@ export default function CriarMusica() {
       recognition.onend = () => {
         setIsListening(false);
         if (!voiceDictationGotResultRef.current && !voiceDictationErrorHandledRef.current) {
-          alert('Não conseguimos captar sua fala. Verifique se o microfone está liberado para este site e tente falar logo após clicar em "Ditar por Voz".');
+          setCreationError('Não conseguimos captar sua fala. Verifique se o microfone está liberado para este site e tente falar logo após clicar em "Ditar por Voz".');
         }
       };
 
@@ -691,11 +652,11 @@ export default function CriarMusica() {
         voiceDictationErrorHandledRef.current = true;
         if (event.error === 'aborted') return; // parada manual (usuário clicou em parar) — sem aviso
         if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-          alert('O microfone está bloqueado para este site. Permita o acesso ao microfone nas configurações do navegador e tente de novo.');
+          setCreationError('O microfone está bloqueado para este site. Permita o acesso ao microfone nas configurações do navegador e tente de novo.');
         } else if (event.error === 'no-speech') {
-          alert('Não conseguimos ouvir nada. Tente falar logo após clicar em "Ditar por Voz", bem próximo do microfone.');
+          setCreationError('Não conseguimos ouvir nada. Tente falar logo após clicar em "Ditar por Voz", bem próximo do microfone.');
         } else {
-          alert('Não foi possível usar o ditado por voz agora. Tente novamente ou digite a história.');
+          setCreationError('Não foi possível usar o ditado por voz agora. Tente novamente ou digite a história.');
         }
       };
 
@@ -816,7 +777,7 @@ export default function CriarMusica() {
     if (!file) return;
 
     if (file.size > 10 * 1024 * 1024) {
-      alert("A imagem selecionada é muito grande. Escolha uma imagem de até 10MB.");
+      setCreationError("A imagem selecionada é muito grande. Escolha uma imagem de até 10MB.");
       return;
     }
 
@@ -831,7 +792,7 @@ export default function CriarMusica() {
 
     const failUpload = (mensagem) => {
       setIsUploadingCover(false);
-      alert(mensagem);
+      setCreationError(mensagem);
     };
 
     const reader = new FileReader();
@@ -897,7 +858,7 @@ export default function CriarMusica() {
             updateField('coverUrl', resJson.url);
           } catch (err) {
             console.error("Erro ao enviar foto de capa para o R2:", err);
-            alert("Falha ao enviar a foto de capa. Tente novamente.");
+            setCreationError("Falha ao enviar a foto de capa. Tente novamente.");
           } finally {
             setIsUploadingCover(false);
           }
@@ -1006,17 +967,17 @@ export default function CriarMusica() {
 
     // Validações rigorosas antes de iniciar a geração da letra
     if (!formData.occasion || !formData.honoreeName?.trim()) {
-      alert('Por favor, preencha a ocasião e o nome do homenageado na Etapa 1.');
+      setCreationError('Por favor, preencha a ocasião e o nome do homenageado na Etapa 1.');
       setStep(1);
       return;
     }
     if ((formData.story || '').trim().length < 50) {
-      alert('Por favor, conte a história com no mínimo 50 caracteres na Etapa 2 para que a letra fique linda e exclusiva.');
+      setCreationError('Por favor, conte a história com no mínimo 50 caracteres na Etapa 2 para que a letra fique linda e exclusiva.');
       setStep(2);
       return;
     }
     if (!formData.musicStyle || !formData.musicMood || !formData.voiceType) {
-      alert('Por favor, selecione o ritmo, clima e voz na Etapa 3.');
+      setCreationError('Por favor, selecione o ritmo, clima e voz na Etapa 3.');
       setStep(3);
       return;
     }
@@ -1027,7 +988,7 @@ export default function CriarMusica() {
       const { isBlocked, manualBlock } = await checkUserLimit(formData.customerPhone, formData.customerEmail);
       if (isBlocked || manualBlock) {
         setIsSubmitting(false);
-        alert('Este contato foi bloqueado para novas gerações na plataforma. Entre em contato com o suporte para mais informações.');
+        setCreationError('Este contato foi bloqueado para novas gerações na plataforma. Entre em contato com o suporte para mais informações.');
         return;
       }
 
@@ -1057,7 +1018,7 @@ export default function CriarMusica() {
         try {
           const traffic = getStoredTrafficSource();
           const authToken = await auth.currentUser?.getIdToken?.();
-          const referralCode = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('ref') : null;
+          const referralCode = readReferralCode();
           const orderRes = await fetch('/api/orders/create', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}) },
@@ -1091,7 +1052,7 @@ export default function CriarMusica() {
             const errData = await orderRes.json().catch(() => ({}));
             setIsSubmitting(false);
             updateField('lyricsStatus', 'idle');
-            alert(errData?.error || 'Este contato foi bloqueado para novas gerações na plataforma. Entre em contato com o suporte.');
+            setCreationError(errData?.error || 'Este contato foi bloqueado para novas gerações na plataforma. Entre em contato com o suporte.');
             return;
           }
         } catch (orderErr) {
@@ -1226,7 +1187,7 @@ export default function CriarMusica() {
 
           const traffic = getStoredTrafficSource();
           const authToken = await auth.currentUser?.getIdToken?.();
-          const referralCode = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('ref') : null;
+          const referralCode = readReferralCode();
           const createRes = await fetch('/api/orders/create', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}) },
@@ -1250,7 +1211,7 @@ export default function CriarMusica() {
           } else if (createRes.status === 403) {
             const errData = await createRes.json().catch(() => ({}));
             setIsSubmitting(false);
-            alert(errData?.error || 'Este contato foi bloqueado para novas gerações na plataforma. Entre em contato com o suporte.');
+            setCreationError(errData?.error || 'Este contato foi bloqueado para novas gerações na plataforma. Entre em contato com o suporte.');
             return;
           }
         } catch (e) {
@@ -1437,10 +1398,12 @@ export default function CriarMusica() {
   );
 
   const nextStep = () => {
+    setCreationError('');
     setStep(prev => prev + 1);
   };
 
   const prevStep = () => {
+    setCreationError('');
     setStep(prev => Math.max(prev - 1, 1));
   };
 
@@ -1584,7 +1547,7 @@ export default function CriarMusica() {
                     onClick={async () => {
                       const trimmed = (pastedLyricsText || '').trim();
                       if (trimmed.length < 15) {
-                        alert('Por favor, cole uma letra com pelo menos 15 caracteres.');
+                        setCreationError('Por favor, cole uma letra com pelo menos 15 caracteres.');
                         return;
                       }
                       updateField('lyrics', trimmed);
@@ -1871,34 +1834,7 @@ export default function CriarMusica() {
                   <span>{studioAudioPhrases[audioStepIdx] || 'Gravando vocais e ajustando afinação e interpretações...'}</span>
                 </div>
 
-                {/* Barra de Progresso com Percentual */}
-                <div style={{ maxWidth: '420px', margin: '0 auto' }}>
-                  <div
-                    role="progressbar"
-                    aria-valuenow={Math.round(audioProgressPct)}
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-label="Progresso da produção da música"
-                    style={{ width: '100%', height: '11px', borderRadius: '999px', background: '#f1f5f9', overflow: 'hidden' }}
-                  >
-                    <div
-                      style={{
-                        width: `${Math.max(audioProgressPct, 6)}%`,
-                        height: '100%',
-                        borderRadius: '999px',
-                        background: 'linear-gradient(90deg, #ec4899 0%, #8b5cf6 100%)',
-                        transition: 'width 0.5s ease',
-                      }}
-                    />
-                  </div>
-                  <div style={{ color: '#475569', fontSize: '0.95rem', marginTop: '6px', fontWeight: '800' }}>
-                    {Math.round(audioProgressPct)}%
-                  </div>
-                </div>
-
-                <p style={{ color: '#64748b', fontSize: '0.84rem', marginTop: '12px', lineHeight: 1.45, maxWidth: '440px', margin: '12px auto 0' }}>
-                  ⏱️ Isso leva cerca de 2 minutos. Estamos gerando 2 versões diferentes para você escolher sua favorita!
-                </p>
+                <p className="nx-helper" role="status">A produção está em andamento. O tempo pode variar; você recebe o link quando as versões estiverem prontas.</p>
 
                 {/* Card verde de notificação WhatsApp (Imagem 2) */}
                 <div
@@ -2548,9 +2484,9 @@ export default function CriarMusica() {
                                 }
                               }
 
-                              alert('🔄 Pagamento ainda em processamento. Se você já pagou, aguarde alguns segundos e tente novamente!');
+                              setCreationError('🔄 Pagamento ainda em processamento. Se você já pagou, aguarde alguns segundos e tente novamente!');
                             } catch (e) {
-                              alert('Erro ao conectar com o servidor.');
+                              setCreationError('Erro ao conectar com o servidor.');
                             }
                           }}
                           style={{
@@ -2585,56 +2521,31 @@ export default function CriarMusica() {
     }
   };
 
+  if (orderId && (step >= 7 || (step === 6 && formData.sunoStatus === 'generated'))) {
+    return <main className="nx-experience nx-delivery-main"><p className="nx-message" role="status">Sua música está pronta. Abrindo sua prévia…</p><Link className="nx-button nx-primary" href={`/entrega?orderId=${encodeURIComponent(orderId)}`}>Ouvir minha música</Link></main>;
+  }
+
   return (
-    <div style={styles.wrapper}>
-      {/* Elementos Decorativos Flutuantes Suaves no Fundo (como no padrão visual do mockup) */}
-      <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0, overflow: 'hidden' }} aria-hidden="true">
-        {/* Nota musical translúcida no canto superior esquerdo */}
-        <div style={{ position: 'absolute', top: '10%', left: '3%', fontSize: '2.5rem', opacity: 0.16, transform: 'rotate(-15deg)', filter: 'drop-shadow(0 4px 10px rgba(245, 158, 11, 0.2))' }}>
-          🎵
-        </div>
-        {/* Brilho translúcido no canto superior direito */}
-        <div style={{ position: 'absolute', top: '14%', right: '4%', fontSize: '2.2rem', opacity: 0.18, transform: 'rotate(12deg)', filter: 'drop-shadow(0 4px 10px rgba(236, 72, 153, 0.2))' }}>
-          ✨
-        </div>
-        {/* Nota musical translúcida no canto médio direito */}
-        <div style={{ position: 'absolute', top: '46%', right: '2%', fontSize: '2.4rem', opacity: 0.14, transform: 'rotate(15deg)', filter: 'drop-shadow(0 4px 10px rgba(245, 158, 11, 0.2))' }}>
-          🎵
-        </div>
-        {/* Notas duplas no canto inferior esquerdo */}
-        <div style={{ position: 'absolute', bottom: '12%', left: '4%', fontSize: '2.4rem', opacity: 0.14, transform: 'rotate(-8deg)', filter: 'drop-shadow(0 4px 10px rgba(124, 58, 237, 0.2))' }}>
-          🎶
-        </div>
-      </div>
-
-      {/* Header Estúdio Musical Premium */}
-      <header style={styles.header} className="glass-panel criar-header">
-        <div style={{ ...styles.headerContainer, justifyContent: 'space-between', alignItems: 'center' }} className="criar-header-inner">
-          
-          {/* Logo & Marca NSMusic com Animação SVG */}
-          <Link href="/" style={{ textDecoration: 'none' }}>
-            <BrandLogo />
-          </Link>
-
-          <Link href="/" className="btn btn-secondary criar-back-link" style={{ padding: '8px 14px', fontSize: '0.82rem', minHeight: '36px' }}>
-            🏠 <span>Voltar ao Início</span>
-          </Link>
-
-        </div>
-      </header>
+    <div className="nx-experience nx-creation" style={{ ...styles.wrapper, backgroundColor: '#faf8f5' }}>
+      <header className="nx-header"><div className="nx-header-inner">
+        <Link href="/" className="nx-brand"><Image src="/logo.png" alt="NS Music" width={44} height={44} priority /><span>Histórias que viram música.</span></Link>
+        <Link href="/conta" className="nx-account-link">Minha conta</Link>
+      </div></header>
 
       {/* Main content container */}
       <main className="criar-main" style={{ flex: 1, padding: '32px 0 100px 0', position: 'relative', zIndex: 1 }}>
-        <div className="container criar-container" style={{ maxWidth: '900px' }}>
+        <div className="container criar-container" style={{ maxWidth: '1120px' }}>
           
           {/* Wizard step indicators */}
           {step <= totalWizardSteps && (
-            <div style={styles.progressBarBg} className="criar-progress" aria-label={`Etapa ${step} de ${totalWizardSteps}`}>
-              <div style={{ ...styles.progressBarFill, width: `${(step / totalWizardSteps) * 100}%` }} />
+            <div className="nx-creation-progress" aria-label={`Etapa ${step} de ${totalWizardSteps}`}>
+              <span className="nx-eyebrow">{step} de 4 · {['A pessoa', 'A história', 'O som', 'Revisar'][step - 1]}</span>
+              <div className="nx-progress-segments" aria-hidden="true">{[1, 2, 3, 4].map(n => <i key={n} className={n <= step ? 'is-complete' : ''} />)}</div>
             </div>
           )}
 
           {/* Form step renderers */}
+          {creationError && <div className="nx-message nx-error" role="alert">{creationError}<br /><button type="button" className="nx-text-button" onClick={() => setCreationError('')}>Entendi</button></div>}
           <div style={{ marginTop: '32px' }} className="criar-step-content">
             {step <= totalWizardSteps ? renderWizardStep() : renderWorkflowStep()}
           </div>
@@ -2672,7 +2583,7 @@ export default function CriarMusica() {
                       {/* Botão desabilitado sem explicação lê como travamento. Diz o motivo. */}
                       {isUploadingCover
                         ? '⏳ Enviando foto...'
-                        : (step === totalWizardSteps ? 'Criar Letra →' : 'Continuar →')}
+                        : ['Continuar para a história →', 'Escolher o som →', 'Revisar meu presente →', 'Criar minha letra →'][step - 1]}
                     </button>
                   ) : (
                     step === 5 && (
@@ -2719,74 +2630,7 @@ export default function CriarMusica() {
         </div>
       </main>
 
-      {/* Modal de Limite de Prévias Gratuitas Atingido */}
-      {showLimitModal && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.85)',
-          backdropFilter: 'blur(10px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 9999,
-          padding: '20px'
-        }}>
-          <div className="glass-card" style={{
-            maxWidth: '520px',
-            width: '100%',
-            padding: '32px',
-            borderRadius: '24px',
-            border: '1px solid rgba(239, 68, 68, 0.4)',
-            textAlign: 'center',
-            background: 'linear-gradient(135deg, rgba(20, 20, 35, 0.95) 0%, rgba(35, 20, 45, 0.95) 100%)',
-            boxShadow: '0 20px 50px rgba(0,0,0,0.6)'
-          }}>
-            <div style={{ fontSize: '3rem', marginBottom: '12px' }}>🚫</div>
-            <h2 style={{ fontSize: '1.5rem', fontWeight: '800', color: '#fff', marginBottom: '12px' }}>
-              Você usou todas as suas gerações
-            </h2>
-            <p style={{ fontSize: '0.95rem', color: 'var(--text-secondary)', lineHeight: '1.6', marginBottom: '24px' }}>
-              Escolha uma das músicas que você já criou e libere por apenas <strong style={{ color: '#34d399' }}>R$ 9,99</strong> — cada música que você leva libera <strong style={{ color: '#fff' }}>mais {COTA_POR_COMPRA} gerações</strong> para você continuar criando.
-            </p>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {orderId && (
-                <button
-                  onClick={() => {
-                    setShowLimitModal(false);
-                    if (step < 7) setStep(7);
-                  }}
-                  className="btn btn-primary"
-                  style={{ width: '100%', padding: '14px', fontSize: '1rem', fontWeight: 'bold' }}
-                >
-                  🎵 Ver Minha Última Música Gerada (R$ 9,99)
-                </button>
-              )}
-
-              <a
-                href={linkWhatsapp(whatsappSuporte, 'Olá, gostaria de liberar mais criações de músicas no NSMusic!')}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn btn-secondary"
-                style={{ width: '100%', padding: '12px', fontSize: '0.95rem', display: 'inline-block', textAlign: 'center' }}
-              >
-                💬 Falar com o Suporte no WhatsApp
-              </a>
-
-              <button
-                onClick={() => setShowLimitModal(false)}
-                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.85rem', cursor: 'pointer', marginTop: '6px' }}
-              >
-                Fechar aviso
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {showLimitModal && <section className="nx-card nx-form-column" role="status" style={{ marginBottom: 100 }}><h2>Vamos continuar por uma das suas músicas?</h2><p>Você pode acessar seus pedidos ou falar com a equipe sobre novas criações.</p><div className="nx-checkout-actions"><Link href="/conta" className="nx-button nx-primary">Ver minhas músicas</Link><a href={linkWhatsapp(whatsappSuporte, 'Olá! Preciso de ajuda para continuar minha criação.')} className="nx-button" target="_blank" rel="noopener noreferrer">Falar com a equipe</a><button className="nx-text-button" type="button" onClick={() => setShowLimitModal(false)}>Fechar aviso</button></div></section>}
 
     </div>
   );

@@ -1,67 +1,33 @@
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
 import { getSupabaseEdge } from '@/lib/supabase-edge';
-import { mapSupabaseOrderToFirestore } from '@/lib/supabaseSync';
-import { generatePhoneVariants } from '@/lib/orderLookup';
+import { requireCustomer } from '@/lib/auth';
 
 export const runtime = 'edge';
 
 export async function GET(req) {
+  let env = {};
+  try { env = getRequestContext()?.env || {}; } catch {}
+  const customer = await requireCustomer(req, env);
+  if (!customer.ok) return NextResponse.json({ error: customer.error }, { status: customer.status });
   try {
-    let env = {};
-    try {
-      const ctx = getRequestContext();
-      if (ctx?.env) env = ctx.env;
-    } catch (e) {}
-
-    const { searchParams } = new URL(req.url);
-    const phone = searchParams.get('phone')?.trim() || '';
-    const email = searchParams.get('email')?.trim() || '';
-    const userId = searchParams.get('userId')?.trim() || '';
-    const order = searchParams.get('order')?.trim() || searchParams.get('orderNumber')?.trim() || searchParams.get('orderId')?.trim() || '';
-
-    if (!phone && !email && !userId && !order) {
-      return NextResponse.json({ error: 'Informe telefone, e-mail, pedido ou userId para busca' }, { status: 400 });
-    }
-
+    const page = Math.max(0, Math.min(10000, Number.parseInt(new URL(req.url).searchParams.get('page') || '0', 10) || 0));
     const supabase = getSupabaseEdge(env);
-    if (!supabase) {
-      return NextResponse.json({ orders: [] });
-    }
-
-    let q = supabase.from('orders').select('*').is('deleted_at', null);
-
-    if (order) {
-      q = q.or(`id.eq.${order},order_number.eq.${order}`);
-    } else if (phone) {
-      const variants = generatePhoneVariants(phone);
-      if (variants.length > 0) {
-        q = q.in('customer_phone', variants.slice(0, 25));
-      } else {
-        return NextResponse.json({ orders: [] });
-      }
-    } else if (email) {
-      q = q.ilike('customer_email', email);
-    } else if (userId) {
-      q = q.eq('user_id', userId);
-    }
-
-    const { data, error } = await q
-      .neq('production_status', 'RASCUNHO')
-      .neq('production_status', 'CONFIG')
-      .order('created_at', { ascending: false })
-      .limit(20);
-
-    if (error) {
-      console.warn('[my-orders] Erro no Supabase:', error.message);
-      return NextResponse.json({ orders: [] });
-    }
-
-    const orders = (data || []).map(mapSupabaseOrderToFirestore).filter(Boolean);
-    return NextResponse.json({ orders });
-
-  } catch (error) {
-    console.error('[my-orders] Erro geral:', error.message);
-    return NextResponse.json({ error: 'Erro ao buscar pedidos' }, { status: 500 });
+    if (!supabase) throw new Error('Conta indisponível.');
+    const { data, error } = await supabase.from('orders')
+      .select('id,order_number,honoree_name,cover_url,music_style,payment_status,production_status,created_at')
+      .eq('user_id', customer.uid).is('deleted_at', null)
+      .neq('production_status', 'RASCUNHO').neq('production_status', 'CONFIG')
+      .order('created_at', { ascending: false }).range(page * 20, page * 20 + 20);
+    if (error) throw error;
+    return NextResponse.json({
+      orders: (data || []).slice(0, 20).map(row => ({
+        id: row.id, orderNumber: row.order_number, honoreeName: row.honoree_name,
+        coverUrl: row.cover_url, musicStyle: row.music_style, paymentStatus: row.payment_status,
+        productionStatus: row.production_status, createdAt: row.created_at,
+      })), hasMore: (data || []).length > 20,
+    }, { headers: { 'Cache-Control': 'no-store' } });
+  } catch {
+    return NextResponse.json({ error: 'Não foi possível carregar suas músicas. Tente novamente.' }, { status: 503 });
   }
 }

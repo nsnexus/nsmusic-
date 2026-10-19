@@ -1,6 +1,6 @@
 import { getSupabaseEdge } from './supabase-edge.js';
 
-export async function getCreditAccount(userId, env = {}) {
+export async function getCreditAccount(userId, env = {}, page = 0) {
   const supabase = getSupabaseEdge(env);
   if (!supabase) throw new Error('Carteira indisponível neste ambiente.');
 
@@ -13,9 +13,8 @@ export async function getCreditAccount(userId, env = {}) {
   }
 
   const { data: ledger, error: ledgerError } = await supabase.from('credit_ledger')
-    .select('id,amount,reason,order_id,created_at').eq('user_id', userId).order('created_at', { ascending: false }).limit(50);
+    .select('id,amount,reason,order_id,created_at').eq('user_id', userId).order('created_at', { ascending: false }).range(page * 50, page * 50 + 50);
   if (ledgerError) throw new Error('Não foi possível consultar o histórico de créditos.');
-  const balance = (ledger || []).reduce((total, entry) => total + Number(entry.amount || 0), 0);
 
   const { data: rawReferrals } = await supabase.from('referrals')
     .select('created_at, rewarded_at, qualifying_order_id')
@@ -24,17 +23,19 @@ export async function getCreditAccount(userId, env = {}) {
     .limit(50);
 
   const referrals = rawReferrals || [];
-  const referralsCount = referrals.length;
-  const referralsRewarded = referrals.filter(r => Boolean(r.rewarded_at)).length;
-  const referralsBonusCredits = Math.floor(referralsRewarded / 5);
-  const referralsEarnedCredits = referralsRewarded + referralsBonusCredits;
+  const { data: summary, error: summaryError } = await supabase.rpc('customer_credit_summary', { p_user_id: userId });
+  if (summaryError || !summary) throw new Error('Não foi possível calcular seu saldo. Tente novamente em instantes.');
+  const referralsCount = Number(summary.total) || 0;
+  const referralsRewarded = Number(summary.rewarded) || 0;
+  const referralsEarnedCredits = Number(summary.earnedCredits) || 0;
   const nextBonusProgress = referralsRewarded % 5;
   const nextBonusRemaining = (5 - nextBonusProgress) % 5 || 5;
 
   return {
-    balance,
+    balance: Number(summary.balance) || 0,
     referralCode: account.referral_code,
-    ledger: ledger || [],
+    ledger: (ledger || []).slice(0, 50),
+    ledgerHasMore: (ledger || []).length > 50,
     referrals: {
       total: referralsCount,
       rewarded: referralsRewarded,

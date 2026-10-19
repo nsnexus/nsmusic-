@@ -6,6 +6,20 @@
 
 ## Visão geral
 
+### Experiência do cliente — 19/10/2026 (implementação local)
+
+- `src/components/creation/CreationSteps.jsx`: quatro etapas do formulário; `StudioProgress.jsx`: espera da geração.
+- `src/components/delivery/DeliveryExperience.jsx`: prévia, checkout e entrega; `SongCard.jsx`, `PurchaseCheckout.jsx`, `SecondSongOffer.jsx`: componentes do fluxo.
+- `src/app/conta/page.jsx`: biblioteca autenticada, saldo e indicação; `/minhas-musicas` redireciona para `/conta`.
+- `src/components/account/OrderClaim.jsx` e `ReferralCard.jsx`: confirmação de titularidade e convite.
+- `src/app/api/orders/claim/route.js` e `claim-code/route.js`: vínculo por prova do navegador ou código enviado ao WhatsApp cadastrado.
+- `src/app/api/credits/offer/route.js`: elegibilidade da oferta pós-compra, calculada no servidor.
+- `src/lib/orderClaim.js`, `confirmedPixAmount.js`, `referralTracking.js`, `deliveryPackages.js`: prova de titularidade, valor recebido, origem do convite e catálogo de apresentação.
+- `supabase/migrations/20261019_customer_experience.sql`: atualização incremental da carteira existente e reservas de PIX.
+- `src/app/experience.css` e `public/experiencia/`: visual responsivo e imagens editoriais.
+
+Banco operacional: Supabase/Postgres via PostgREST; mídias: Cloudflare R2. Referências a Firebase abaixo são históricas.
+
 Plataforma de **músicas personalizadas geradas por IA**. O cliente preenche um wizard com a história do
 homenageado, a IA escreve a letra, a Suno (via Kie.ai) grava o áudio, o cliente ouve uma prévia e paga
 PIX (R$ 9,99) para liberar os MP3 completos. Add-on de vídeo slideshow por + R$ 6,90.

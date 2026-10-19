@@ -8,6 +8,7 @@ import { isContactBlocked } from '@/lib/blocklist';
 import { generateUniqueOrderNumber } from '@/lib/orderNumber';
 import { generatePhoneVariants } from '@/lib/orderLookup';
 import { getCustomer } from '@/lib/auth';
+import { claimCookieName, hashOrderClaim } from '@/lib/orderClaim';
 
 export const runtime = 'edge';
 export { generateUniqueOrderNumber };
@@ -56,6 +57,9 @@ export async function POST(req) {
 
     const orderNumber = await generateUniqueOrderNumber(env);
     const createdAtIso = new Date().toISOString();
+    const claimToken = `${crypto.randomUUID()}${crypto.randomUUID()}`;
+    const referralCode = typeof formData.referralCode === 'string' && /^[a-z0-9]{6,32}$/.test(formData.referralCode.trim().toLowerCase())
+      ? formData.referralCode.trim().toLowerCase() : null;
 
     // Suporte a voz personalizada do cliente (timbre clonado)
     let customVoiceId = formData.customVoiceId || formData.custom_voice_id || null;
@@ -76,6 +80,8 @@ export async function POST(req) {
       // Nunca vincule o pedido a um userId fornecido pelo navegador. Se houver
       // sessão válida, a conta vem do token confirmado pelo Supabase.
       userId: authenticatedCustomer?.uid || null,
+      ownerClaimHash: await hashOrderClaim(claimToken),
+      referralCode,
       customerName: formData.customerName || 'Cliente',
       customerPhone: formData.customerPhone || '',
       customerEmail: formData.customerEmail || '',
@@ -123,18 +129,21 @@ export async function POST(req) {
         const supabase = getSupabaseEdge(env);
         const { data: referrer } = await supabase.from('credit_accounts').select('user_id').eq('referral_code', code).maybeSingle();
         if (referrer?.user_id && referrer.user_id !== authenticatedCustomer.uid) {
-          await supabase.from('referrals').upsert({ referee_user_id: authenticatedCustomer.uid, referrer_user_id: referrer.user_id }, { onConflict: 'referee_user_id' });
+          const { error } = await supabase.rpc('attach_referral_to_customer', { p_user_id: authenticatedCustomer.uid, p_code: code });
+          if (error) console.warn('[orders/create] Indicação aguardando conciliação.');
         }
       }
     }
 
     console.log(`[API /orders/create] Pedido criado com sucesso! ID: ${created.id}, Número: ${created.orderNumber}`);
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       orderId: created.id,
       orderNumber: created.orderNumber
     }, { status: 200 });
+    response.cookies.set(claimCookieName(created.id), claimToken, { httpOnly: true, secure: new URL(req.url).protocol === 'https:', sameSite: 'lax', path: '/', maxAge: 30 * 24 * 60 * 60 });
+    return response;
 
   } catch (error) {
     console.error("Erro na API /api/orders/create:", error);

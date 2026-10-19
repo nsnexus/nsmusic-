@@ -181,14 +181,14 @@ describe('applyPaymentApproval', () => {
     expect(store['orderComboCarta'].cartaAddonPaid).toBe(true);
   });
 
-  it('combo_retrospectiva aprovado: escreve paymentStatus E concede hasRetrospectivaAccess, sem tocar carta/vídeo', async () => {
+  it('combo_retrospectiva aprovado: libera música, retrospectiva, carta e vídeo do pacote anunciado', async () => {
     store['orderComboRetro'] = { paymentIntentSku: 'combo_retrospectiva', paymentId: null };
     const result = await applyPaymentApproval('orderComboRetro', 'crr1', { status: 'approved', transaction_amount: 19.98 });
     expect(result.applied).toBe(true);
     expect(store['orderComboRetro'].paymentStatus).toBe('PAGAMENTO_APROVADO');
     expect(store['orderComboRetro'].hasRetrospectivaAccess).toBe(true);
-    expect(store['orderComboRetro'].hasCartaAccess).toBeUndefined();
-    expect(store['orderComboRetro'].hasVideoAccess).toBeUndefined();
+    expect(store['orderComboRetro'].hasCartaAccess).toBe(true);
+    expect(store['orderComboRetro'].hasVideoAccess).toBe(true);
   });
 
   it('achado 04/09/2026: estorno do combo (música+vídeo) também revoga hasVideoAccess, não só paymentStatus', async () => {

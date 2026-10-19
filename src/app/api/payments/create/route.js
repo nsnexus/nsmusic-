@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
-import { getOrder, updateOrder } from '@/lib/supabaseDb';
+import { getOrder } from '@/lib/supabaseDb';
 import { getPriceForSku } from '@/lib/pricing';
+import { createPixCharge, getChargeStatus, generateTxid } from '@/lib/efi';
+import { getSupabaseEdge } from '@/lib/supabase-edge';
 import { generateStaticPixPayload } from '@/lib/pixStatic';
-import { createPixCharge } from '@/lib/efi';
 
 export const runtime = 'edge';
 
@@ -51,47 +52,35 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Pedido não encontrado.' }, { status: 404 });
     }
 
-    let charge;
-    let provider = 'static';
+    const supabase = getSupabaseEdge(env);
+    if (!supabase) return NextResponse.json({ error: 'Pagamento indisponível no momento.' }, { status: 503 });
+    const { data: intent, error: reservationError } = await supabase.rpc('reserve_order_payment', {
+      p_order_id: existingOrderData.id, p_sku: sku, p_amount: amount,
+      p_txid: generateTxid(existingOrderData.id),
+    });
+    if (reservationError || !intent) return NextResponse.json({ error: 'Não foi possível reservar seu PIX. Tente novamente.' }, { status: 503 });
 
-    try {
-      charge = await createPixCharge({ orderId, amount, description: `Pedido NS Music ${orderId}` }, env);
-      provider = 'efi';
-    } catch (errEfi) {
-      console.warn('[api/payments/create] Efí falhou, caindo para PIX Estático:', errEfi.message);
-      charge = generateStaticPixPayload(amount, orderId);
-      provider = 'static';
-    }
-
-    try {
-      const prevIds = Array.isArray(existingOrderData.previousPaymentIntentIds)
-        ? [...existingOrderData.previousPaymentIntentIds]
-        : [];
-      if (existingOrderData.paymentIntentId && existingOrderData.paymentIntentId !== charge.txid) {
-        if (!prevIds.includes(existingOrderData.paymentIntentId)) {
-          prevIds.push(existingOrderData.paymentIntentId);
-        }
+    let charge = intent.qr_code ? { txid: intent.txid, pixCopiaECola: intent.qr_code } : null;
+    let provider = intent.provider || 'efi';
+    if (!charge) {
+      try {
+        const existing = await getChargeStatus(intent.txid, env);
+        charge = existing || await createPixCharge({ orderId: existingOrderData.id, amount, description: `Pedido NS Music ${existingOrderData.id}`, txid: intent.txid }, env);
+        provider = 'efi';
+      } catch (error) {
+        // Preserve the existing contingency flow. The stable reservation also identifies
+        // the receipt, while an uncertain dynamic charge can still be reconciled.
+        charge = generateStaticPixPayload(amount, existingOrderData.id, undefined, intent.txid);
+        provider = 'static';
       }
-
-      const skuByTxid = { ...(existingOrderData.paymentIntentSkuByTxid || {}), [charge.txid]: sku };
-      const amountByTxid = { ...(existingOrderData.paymentIntentAmountByTxid || {}), [charge.txid]: amount };
-
-      const agora = new Date().toISOString();
-      const updates = {
-        paymentIntentId: charge.txid,
-        paymentIntentSku: sku,
-        expectedAmount: amount,
-        paymentIntentSkuByTxid: skuByTxid,
-        paymentIntentAmountByTxid: amountByTxid,
-        previousPaymentIntentIds: prevIds,
-        updatedAt: agora,
-      };
-
-      await updateOrder(orderId, updates, env);
-    } catch (err) {
-      console.error('[api/payments/create] Falha ao persistir paymentIntent no pedido:', err.message);
-      return NextResponse.json({ error: 'Falha ao registrar a intenção de pagamento. Tente novamente.' }, { status: 500 });
+      if (!charge?.pixCopiaECola) return NextResponse.json({ error: 'A cobrança não está disponível. Consulte o pagamento ou tente novamente.' }, { status: 503 });
+      const saved = await supabase.from('order_payment_intents').eq('id', intent.id).update({ qr_code: charge.pixCopiaECola, txid: charge.txid, provider });
+      if (saved.error) return NextResponse.json({ error: 'Não foi possível registrar o PIX. Tente novamente para recuperar a cobrança.' }, { status: 503 });
     }
+    const recorded = await supabase.rpc('record_order_payment_intent', {
+      p_order_id: existingOrderData.id, p_txid: charge.txid, p_sku: sku, p_amount: amount,
+    });
+    if (recorded.error || !recorded.data) return NextResponse.json({ error: 'Não foi possível associar o PIX ao pedido. Tente novamente.' }, { status: 503 });
 
     return NextResponse.json({
       paymentId: charge.txid,
