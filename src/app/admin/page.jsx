@@ -21,6 +21,7 @@ import TabelaTimbresClientes from '@/components/admin/TabelaTimbresClientes';
 import AbaFinanceiro from '@/components/admin/AbaFinanceiro';
 import AbaRemixCover from '@/components/admin/AbaRemixCover';
 import AbaContas from '@/components/admin/AbaContas';
+import FunilStatusCards from '@/components/admin/FunilStatusCards';
 
 const getSavedAdminFilter = (key, fallback) => {
   if (typeof window === 'undefined') return fallback;
@@ -1522,9 +1523,19 @@ export default function AdminDashboard() {
             </div>
           ) : activeTab === 'ORDERS' ? (
             <div>
-              {/* Cards de faturamento/vendas/pedidos do período — pedido 12/09/2026, ver comentário
-                  em src/components/FaturamentoCards.jsx pro porquê de ser consulta própria. */}
               <FaturamentoCards dateFrom={dateFrom} dateTo={dateTo} reloadTrigger={reloadTrigger} />
+
+              {/* Funil de conversão e abandono por etapa com filtros rápidos por clique */}
+              <FunilStatusCards
+                orders={orders}
+                dateFrom={dateFrom}
+                dateTo={dateTo}
+                reloadTrigger={reloadTrigger}
+                activeProductionFilter={productionStatusFilter}
+                onSelectProductionFilter={(st) => setProductionStatusFilter(st)}
+                activePaymentFilter={paymentStatusFilter}
+                onSelectPaymentFilter={(st) => setPaymentStatusFilter(st)}
+              />
 
               {/* Tabela por dia, mapa de calor por horário e mapa por estado moraram aqui até
                   12/09/2026 — pedido do dono pra ficarem em /admin/dashboard junto do resto da
