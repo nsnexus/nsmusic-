@@ -360,6 +360,14 @@ export default function AdminDashboard() {
     return null;
   };
 
+  const isOrderPreLyrics = (o) => {
+    if (!o) return true;
+    if (o.lyrics && o.lyrics.trim().length > 10) return false;
+    if (o.paymentStatus === 'PAGO' || o.paymentStatus === 'PAGAMENTO_APROVADO') return false;
+    const st = o.productionStatus;
+    return st === 'ETAPA_1' || st === 'ETAPA_2' || st === 'ETAPA_3' || st === 'ETAPA_4' || st === 'RASCUNHO';
+  };
+
   const getFilteredOrders = () => {
     let result = orders;
 
@@ -418,7 +426,10 @@ export default function AdminDashboard() {
       );
     }
 
-    if (productionStatusFilter !== 'ALL') {
+    if (productionStatusFilter === 'ALL') {
+      // Regra solicitada: não exibir pedidos das etapas preliminares (antes de gerar letra) na tabela principal
+      result = result.filter(o => !isOrderPreLyrics(o));
+    } else if (productionStatusFilter !== 'TODOS_INCLUINDO_RASCUNHOS') {
       result = result.filter(o => o.productionStatus === productionStatusFilter);
     }
 
@@ -460,6 +471,11 @@ export default function AdminDashboard() {
       counts[phone] = (counts[phone] || 0) + 1;
     }
     return counts;
+  }, [orders]);
+
+  // Contagem de pedidos reais a partir da etapa de Letra Gerada (excluindo etapas preliminares 1 a 4)
+  const activeOrdersCount = useMemo(() => {
+    return orders.filter(o => !isOrderPreLyrics(o)).length;
   }, [orders]);
 
   // Os cards de faturamento/vendas/pedidos do topo viraram um componente próprio (pedido 12/09/2026:
@@ -923,7 +939,7 @@ export default function AdminDashboard() {
                   outline: 'none',
                 }}
               >
-                <option value="ORDERS">📦 Pedidos ({orders.length})</option>
+                <option value="ORDERS">📦 Pedidos ({activeOrdersCount})</option>
                 <option value="CONTAS">👤 Contas & Créditos</option>
                 <option value="FINANCEIRO">💰 Financeiro (Receitas & Despesas)</option>
                 <option value="STUCK">💰 Conferir Pagamentos</option>
@@ -947,7 +963,7 @@ export default function AdminDashboard() {
                   color: activeTab === 'ORDERS' ? '#ffffff' : '#334155',
                 }}
               >
-                📦 Pedidos ({orders.length})
+                📦 Pedidos ({activeOrdersCount})
               </button>
               <button
                 onClick={() => setActiveTab('CONTAS')}
@@ -1689,7 +1705,8 @@ export default function AdminDashboard() {
                       onChange={(e) => setProductionStatusFilter(e.target.value)}
                       style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.85rem', color: '#0f172a' }}
                     >
-                      <option value="ALL">Todos os status</option>
+                      <option value="ALL">A partir da Letra (padrão)</option>
+                      <option value="TODOS_INCLUINDO_RASCUNHOS">Todos (incluindo etapas 1 a 4)</option>
                       <option value="ETAPA_1">Etapa 1 (Pessoa)</option>
                       <option value="ETAPA_2">Etapa 2 (História)</option>
                       <option value="ETAPA_3">Etapa 3 (Som)</option>
@@ -1785,7 +1802,7 @@ export default function AdminDashboard() {
                         fontSize: '0.88rem',
                       }}
                     >
-                      <option value="ALL">Todos os pedidos ({orders.length})</option>
+                      <option value="ALL">Todos os pedidos ({activeOrdersCount})</option>
                       <option value="NEW">Novos ({orders.filter(o => o.paymentStatus === 'PAGAMENTO_APROVADO' && o.productionStatus === 'LETRA_APROVADA').length})</option>
                       <option value="PRODUCTION">Em Produção ({orders.filter(o => o.productionStatus === 'EM_PRODUCAO' || o.productionStatus === 'VERSOES_EM_PRODUCAO').length})</option>
                       <option value="FINISHED">Finalizados ({orders.filter(o => o.productionStatus === 'FINALIZADO' || o.productionStatus === 'ENTREGUE').length})</option>
@@ -1797,7 +1814,7 @@ export default function AdminDashboard() {
                       onClick={() => setFilter('ALL')} 
                       style={{ ...styles.filterBtn, borderBottom: filter === 'ALL' ? '3px solid #7c3aed' : 'none', color: filter === 'ALL' ? '#7c3aed' : '#64748b', fontWeight: filter === 'ALL' ? 'bold' : '600' }}
                     >
-                      Todos ({orders.length})
+                      Todos ({activeOrdersCount})
                     </button>
                     <button 
                       onClick={() => setFilter('NEW')} 
