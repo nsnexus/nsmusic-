@@ -282,13 +282,13 @@ export default function VozClienteAddonCard({ orderId, order }) {
 
   return (
     <div style={{
-      marginTop: '24px',
+      marginTop: '16px',
       padding: '24px',
       borderRadius: '20px',
-      background: 'linear-gradient(145deg, #18181b, #09090b)',
-      border: '1px solid #27272a',
-      boxShadow: '0 10px 30px rgba(0,0,0,0.3)',
-      color: '#f4f4f5'
+      background: '#ffffff',
+      border: '1.5px solid #e2e8f0',
+      boxShadow: '0 4px 20px -2px rgba(0,0,0,0.05)',
+      color: '#0f172a'
     }}>
       {/* Cabeçalho do Card */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '16px' }}>
@@ -301,7 +301,8 @@ export default function VozClienteAddonCard({ orderId, order }) {
           alignItems: 'center',
           justifyContent: 'center',
           fontSize: '26px',
-          boxShadow: '0 4px 14px rgba(245, 158, 11, 0.4)'
+          boxShadow: '0 4px 14px rgba(245, 158, 11, 0.25)',
+          color: '#ffffff'
         }}>
           🎙️
         </div>
@@ -311,34 +312,34 @@ export default function VozClienteAddonCard({ orderId, order }) {
             fontWeight: '700',
             letterSpacing: '0.06em',
             textTransform: 'uppercase',
-            color: '#fbbf24',
-            background: 'rgba(251, 191, 36, 0.1)',
+            color: '#b45309',
+            background: '#fef3c7',
             padding: '3px 8px',
             borderRadius: '6px'
           }}>
             Tecnologia Exclusiva de IA
           </span>
-          <h3 style={{ margin: '4px 0 0', fontSize: '1.25rem', fontWeight: '800', color: '#ffffff' }}>
+          <h3 style={{ margin: '4px 0 0', fontSize: '1.25rem', fontWeight: '800', color: '#0f172a' }}>
             Cantar com a Minha Própria Voz
           </h3>
         </div>
       </div>
 
-      <p style={{ fontSize: '0.88rem', color: '#a1a1aa', lineHeight: 1.5, margin: '0 0 18px' }}>
+      <p style={{ fontSize: '0.88rem', color: '#475569', lineHeight: 1.5, margin: '0 0 18px' }}>
         Nossa Inteligência Artificial clona o seu timbre a partir de uma gravação rápida de 20 segundos e regera esta mesma música cantada exatamente por você!
       </p>
 
       {/* CASO JÁ TENHA ACESSO LIBERADO (PAGO) */}
       {hasAccess ? (
         <div style={{
-          background: 'rgba(245, 158, 11, 0.06)',
-          border: '1px solid rgba(245, 158, 11, 0.3)',
+          background: '#fef3c7',
+          border: '1px solid #fde68a',
           borderRadius: '16px',
           padding: '20px',
           textAlign: 'center'
         }}>
           <div style={{ fontSize: '1.8rem', marginBottom: '8px' }}>✨</div>
-          <h4 style={{ margin: '0 0 6px', fontSize: '1.1rem', color: '#fbbf24', fontWeight: '700' }}>
+          <h4 style={{ margin: '0 0 6px', fontSize: '1.15rem', color: '#92400e', fontWeight: '800' }}>
             Acesso VIP Liberado!
           </h4>
 
@@ -408,11 +409,12 @@ export default function VozClienteAddonCard({ orderId, order }) {
             gap: '8px',
             marginBottom: '16px',
             padding: '12px 16px',
-            background: 'rgba(255,255,255,0.03)',
+            background: '#f8fafc',
+            border: '1.5px solid #e2e8f0',
             borderRadius: '12px'
           }}>
-            <span style={{ fontSize: '1.6rem', fontWeight: '900', color: '#ffffff' }}>R$ 14,90</span>
-            <span style={{ fontSize: '0.8rem', color: '#71717a' }}>taxa única de clonagem + regravação</span>
+            <span style={{ fontSize: '1.6rem', fontWeight: '900', color: '#0f172a' }}>R$ 14,90</span>
+            <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: '600' }}>taxa única de clonagem + regravação</span>
           </div>
 
           {pixInfo.qrCode ? (

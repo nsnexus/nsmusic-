@@ -187,37 +187,38 @@ export default function PlaybackAddonCard({ orderId, order }) {
   }, [hasAccess, currentPlaybackStatus, currentPlaybackUrl, orderId]);
 
   const estiloCartao = {
-    padding: '20px',
-    borderRadius: '16px',
-    background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(236, 72, 153, 0.15) 100%)',
-    border: '1.5px solid rgba(139, 92, 246, 0.35)',
+    padding: '24px',
+    borderRadius: '20px',
+    background: '#ffffff',
+    border: '1.5px solid #e2e8f0',
     marginTop: '16px',
-    color: '#ffffff',
+    color: '#0f172a',
     boxSizing: 'border-box',
     width: '100%',
     maxWidth: '100%',
     overflow: 'hidden',
+    boxShadow: '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
   };
 
   // 1. Tela de Compra / PIX (Quando ainda não pagou)
   if (!hasAccess) {
     return (
-      <div className="glass-card" style={estiloCartao}>
+      <div style={estiloCartao}>
         {pixInfo.paymentId ? (
           <div style={{ textAlign: 'center' }}>
-            <p style={{ fontSize: '0.95rem', fontWeight: '700', marginBottom: '10px', color: '#ffffff' }}>
+            <p style={{ fontSize: '1rem', fontWeight: '800', marginBottom: '10px', color: '#0f172a' }}>
               Escaneie pra liberar o Playback (Instrumental)
             </p>
             <PixQrCode payload={pixInfo.qrCode} size={180} label="QR Code para pagamento do Playback via PIX" />
             <div style={{ margin: '12px 0 10px', textAlign: 'left' }}>
-              <label htmlFor="pix-copia-cola-playback" style={{ fontSize: '0.8rem', color: '#cbd5e1', display: 'block', marginBottom: '6px' }}>
+              <label htmlFor="pix-copia-cola-playback" style={{ fontSize: '0.8rem', color: '#64748b', display: 'block', marginBottom: '6px', fontWeight: '600' }}>
                 Ou use o código PIX Copia e Cola:
               </label>
               <textarea
                 id="pix-copia-cola-playback"
                 readOnly
                 value={pixInfo.qrCode}
-                style={{ width: '100%', height: '60px', background: '#FFFFFF', color: '#0f172a', border: '1.5px solid var(--border-color)', borderRadius: '8px', padding: '10px', fontSize: '0.72rem', fontFamily: 'monospace', resize: 'none' }}
+                style={{ width: '100%', height: '60px', background: '#f8fafc', color: '#0f172a', border: '1.5px solid #cbd5e1', borderRadius: '8px', padding: '10px', fontSize: '0.72rem', fontFamily: 'monospace', resize: 'none' }}
               />
             </div>
             <button
@@ -228,15 +229,15 @@ export default function PlaybackAddonCard({ orderId, order }) {
                 setTimeout(() => setPixCopied(false), 3000);
               }}
               className="btn btn-primary"
-              style={{ width: '100%', padding: '11px', borderRadius: '8px', fontWeight: 'bold', border: 'none', cursor: 'pointer' }}
+              style={{ width: '100%', padding: '12px', borderRadius: '10px', fontWeight: 'bold', border: 'none', cursor: 'pointer', background: 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)', color: '#ffffff' }}
             >
               {pixCopied ? '✅ Código PIX Copiado!' : '📋 Copiar Código PIX (R$ 4,99)'}
             </button>
-            <p style={{ fontSize: '0.78rem', color: '#cbd5e1', marginTop: '10px' }}>
+            <p style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '10px' }}>
               Assim que o pagamento for identificado, a nossa IA inicia a separação instrumental automaticamente!
             </p>
             {pollingTimedOut && (
-              <p style={{ fontSize: '0.8rem', color: '#cbd5e1', marginTop: '10px' }}>
+              <p style={{ fontSize: '0.8rem', color: '#d97706', marginTop: '10px' }}>
                 Ainda não identificamos o pagamento. Se já pagou, aguarde mais um instante — a confirmação
                 pode demorar alguns segundos.
               </p>
@@ -244,19 +245,19 @@ export default function PlaybackAddonCard({ orderId, order }) {
           </div>
         ) : (
           <div style={{ textAlign: 'center' }}>
-            <h4 style={{ fontSize: '1.05rem', marginBottom: '6px', fontFamily: 'var(--font-family-title)', color: '#ffffff' }}>
+            <h4 style={{ fontSize: '1.15rem', marginBottom: '6px', fontFamily: 'var(--font-family-title)', color: '#0f172a', fontWeight: '800' }}>
               🎧 Gerar Playback (Instrumental)
             </h4>
-            <p style={{ fontSize: '0.85rem', color: '#cbd5e1', marginBottom: '14px', lineHeight: '1.4' }}>
-              A versão da sua música sem voz, com arranjo instrumental isolado em estúdio por IA — por apenas <strong style={{ color: '#34d399' }}>R$ 4,99</strong>.
+            <p style={{ fontSize: '0.88rem', color: '#475569', marginBottom: '14px', lineHeight: '1.5' }}>
+              A versão da sua música sem voz, com arranjo instrumental isolado em estúdio por IA — por apenas <strong style={{ color: '#059669', fontSize: '1.05rem' }}>R$ 4,99</strong>.
               <br />
-              <span style={{ fontSize: '0.8rem', color: '#a78bfa' }}>
+              <span style={{ fontSize: '0.82rem', color: '#7c3aed', fontWeight: '600' }}>
                 ✨ Você também ganha o download da faixa vocal acapella isolada!
               </span>
             </p>
             {temEscolha && (
               <div style={{ marginBottom: '14px', textAlign: 'left' }}>
-                <p style={{ fontSize: '0.85rem', fontWeight: '700', marginBottom: '8px', textAlign: 'center', color: '#ffffff' }}>
+                <p style={{ fontSize: '0.85rem', fontWeight: '700', marginBottom: '8px', textAlign: 'center', color: '#0f172a' }}>
                   Qual das 2 versões você quer transformar em playback?
                 </p>
                 {faixas.map((id, i) => (
@@ -313,14 +314,14 @@ export default function PlaybackAddonCard({ orderId, order }) {
   // 2. Playback Pronto (Sucesso!)
   if ((currentPlaybackStatus === 'READY' || order?.playbackStatus === 'READY') && currentPlaybackUrl) {
     return (
-      <div className="glass-card" style={{ ...estiloCartao, textAlign: 'center' }}>
-        <div style={{ display: 'inline-block', background: 'rgba(52, 211, 153, 0.2)', border: '1px solid #34d399', borderRadius: '20px', padding: '4px 14px', fontSize: '0.8rem', color: '#34d399', fontWeight: '700', marginBottom: '12px' }}>
+      <div style={{ ...estiloCartao, textAlign: 'center' }}>
+        <div style={{ display: 'inline-block', background: '#ecfdf5', border: '1px solid #10b981', borderRadius: '20px', padding: '4px 14px', fontSize: '0.8rem', color: '#047857', fontWeight: '700', marginBottom: '12px' }}>
           ✨ Playback Concluído
         </div>
-        <h4 style={{ fontSize: '1.1rem', marginBottom: '8px', fontFamily: 'var(--font-family-title)', color: '#ffffff' }}>
+        <h4 style={{ fontSize: '1.2rem', marginBottom: '8px', fontFamily: 'var(--font-family-title)', color: '#0f172a', fontWeight: '800' }}>
           🎧 Seu Playback Instrumental está pronto!
         </h4>
-        <p style={{ fontSize: '0.82rem', color: '#cbd5e1', marginBottom: '14px' }}>
+        <p style={{ fontSize: '0.86rem', color: '#475569', marginBottom: '14px' }}>
           Áudio sem a voz original, pronto para você cantar junto ou usar como trilha:
         </p>
         <audio controls src={buildAudioProxySrc(currentPlaybackUrl)} style={{ width: '100%', marginBottom: '12px' }} />
@@ -328,15 +329,15 @@ export default function PlaybackAddonCard({ orderId, order }) {
           href={`/api/audio/proxy?url=${encodeURIComponent(currentPlaybackUrl)}&download=${encodeURIComponent(`playback-${identificacao}.mp3`)}`}
           download={`playback-${identificacao}.mp3`}
           className="btn btn-primary"
-          style={{ padding: '10px 18px', fontSize: '0.85rem', textDecoration: 'none', display: 'inline-block', marginBottom: currentVocalUrl ? '16px' : '0' }}
+          style={{ padding: '12px 22px', fontSize: '0.9rem', textDecoration: 'none', display: 'inline-block', marginBottom: currentVocalUrl ? '16px' : '0', background: 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)', color: '#ffffff', borderRadius: '10px', fontWeight: '700' }}
         >
           💾 Baixar Playback (Instrumental)
         </a>
 
         {/* Faixa vocal acapella isolada (bônus de estúdio) */}
         {currentVocalUrl && (
-          <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.15)', textAlign: 'center' }}>
-            <p style={{ fontSize: '0.85rem', fontWeight: '700', color: '#a78bfa', marginBottom: '6px' }}>
+          <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid #e2e8f0', textAlign: 'center' }}>
+            <p style={{ fontSize: '0.88rem', fontWeight: '700', color: '#7c3aed', marginBottom: '6px' }}>
               🎤 Faixa Vocal Isolada (Acapella Bônus)
             </p>
             <audio controls src={buildAudioProxySrc(currentVocalUrl)} style={{ width: '100%', marginBottom: '10px' }} />
@@ -344,7 +345,7 @@ export default function PlaybackAddonCard({ orderId, order }) {
               href={`/api/audio/proxy?url=${encodeURIComponent(currentVocalUrl)}&download=${encodeURIComponent(`vocal-${identificacao}.mp3`)}`}
               download={`vocal-${identificacao}.mp3`}
               className="btn btn-secondary"
-              style={{ padding: '8px 14px', fontSize: '0.8rem', textDecoration: 'none', display: 'inline-block' }}
+              style={{ padding: '8px 16px', fontSize: '0.82rem', textDecoration: 'none', display: 'inline-block', borderRadius: '8px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', fontWeight: '600' }}
             >
               💾 Baixar Faixa Vocal
             </a>
@@ -357,20 +358,20 @@ export default function PlaybackAddonCard({ orderId, order }) {
   // 3. Em Processamento / Gerando na VPS
   if (currentPlaybackStatus === 'GERANDO' || isTriggering) {
     return (
-      <div className="glass-card" style={{ ...estiloCartao, textAlign: 'center' }}>
-        <div style={{ fontSize: '2rem', marginBottom: '10px', animation: 'spin 2s linear infinite' }}>
+      <div style={{ ...estiloCartao, textAlign: 'center' }}>
+        <div style={{ fontSize: '2.4rem', marginBottom: '10px', animation: 'spin 2s linear infinite' }}>
           ⏳
         </div>
-        <h4 style={{ fontSize: '1.05rem', marginBottom: '8px', fontFamily: 'var(--font-family-title)', color: '#ffffff' }}>
+        <h4 style={{ fontSize: '1.2rem', marginBottom: '8px', fontFamily: 'var(--font-family-title)', color: '#0f172a', fontWeight: '800' }}>
           🎧 Separando Voz e Instrumentos...
         </h4>
-        <p style={{ fontSize: '0.85rem', color: '#cbd5e1', marginBottom: '14px', lineHeight: 1.45 }}>
-          Nossa inteligência artificial de estúdio está processando sua música na VPS para isolar o arranjo instrumental com máxima fidelidade.
+        <p style={{ fontSize: '0.88rem', color: '#475569', marginBottom: '14px', lineHeight: 1.5 }}>
+          Nossa inteligência artificial de estúdio está processando sua música para isolar o arranjo instrumental com máxima fidelidade.
         </p>
-        <div style={{ width: '100%', height: '8px', background: 'rgba(255,255,255,0.15)', borderRadius: '4px', overflow: 'hidden', marginBottom: '12px' }}>
-          <div style={{ width: '70%', height: '100%', background: 'linear-gradient(90deg, #8b5cf6, #ec4899)', borderRadius: '4px', animation: 'pulse 1.5s infinite' }} />
+        <div style={{ width: '100%', height: '8px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden', marginBottom: '12px' }}>
+          <div style={{ width: '70%', height: '100%', background: 'linear-gradient(90deg, #7c3aed, #ec4899)', borderRadius: '4px' }} />
         </div>
-        <p style={{ fontSize: '0.78rem', color: '#a78bfa' }}>
+        <p style={{ fontSize: '0.82rem', color: '#7c3aed', fontWeight: '600' }}>
           ⏱️ Tempo estimado: cerca de 1 minuto. Esta página atualizará automaticamente assim que estiver pronto!
         </p>
       </div>
@@ -383,14 +384,14 @@ export default function PlaybackAddonCard({ orderId, order }) {
     : '';
 
   return (
-    <div className="glass-card" style={{ ...estiloCartao, textAlign: 'center' }}>
-      <div style={{ display: 'inline-block', background: 'rgba(52, 211, 153, 0.2)', border: '1px solid #34d399', borderRadius: '20px', padding: '4px 14px', fontSize: '0.8rem', color: '#34d399', fontWeight: '700', marginBottom: '12px' }}>
+    <div style={{ ...estiloCartao, textAlign: 'center' }}>
+      <div style={{ display: 'inline-block', background: '#ecfdf5', border: '1px solid #10b981', borderRadius: '20px', padding: '4px 14px', fontSize: '0.8rem', color: '#047857', fontWeight: '700', marginBottom: '12px' }}>
         ✅ Playback Liberado!
       </div>
-      <h4 style={{ fontSize: '1.05rem', marginBottom: '8px', fontFamily: 'var(--font-family-title)', color: '#ffffff' }}>
+      <h4 style={{ fontSize: '1.2rem', marginBottom: '8px', fontFamily: 'var(--font-family-title)', color: '#0f172a', fontWeight: '800' }}>
         Pronto para separar a voz do instrumental
       </h4>
-      <p style={{ fontSize: '0.85rem', color: '#cbd5e1', marginBottom: '16px', lineHeight: 1.45 }}>
+      <p style={{ fontSize: '0.88rem', color: '#475569', marginBottom: '16px', lineHeight: 1.5 }}>
         {temEscolha
           ? 'Escolha qual versão da sua música você deseja transformar em Playback Instrumental:'
           : 'Seu acesso está liberado! Clique abaixo para iniciar a separação vocal por IA de estúdio:'}
@@ -407,8 +408,8 @@ export default function PlaybackAddonCard({ orderId, order }) {
                 gap: '8px',
                 padding: '12px 14px',
                 borderRadius: '12px',
-                border: `1.5px solid ${faixaEscolhida === i ? 'var(--secondary)' : 'rgba(255,255,255,0.18)'}`,
-                backgroundColor: faixaEscolhida === i ? 'rgba(236, 72, 153, 0.22)' : 'rgba(0,0,0,0.3)',
+                border: `1.5px solid ${faixaEscolhida === i ? '#7c3aed' : '#e2e8f0'}`,
+                backgroundColor: faixaEscolhida === i ? '#faf5ff' : '#f8fafc',
                 marginBottom: '10px',
                 cursor: 'pointer',
                 boxSizing: 'border-box',
@@ -424,12 +425,12 @@ export default function PlaybackAddonCard({ orderId, order }) {
                     checked={faixaEscolhida === i}
                     onChange={() => setFaixaEscolhida(i)}
                   />
-                  <span style={{ fontSize: '0.9rem', fontWeight: '700', color: '#ffffff' }}>
+                  <span style={{ fontSize: '0.9rem', fontWeight: '700', color: '#0f172a' }}>
                     Versão {i + 1}
                   </span>
                 </div>
                 {faixaEscolhida === i && (
-                  <span style={{ fontSize: '0.75rem', color: '#ec4899', fontWeight: '600' }}>
+                  <span style={{ fontSize: '0.75rem', color: '#7c3aed', fontWeight: '700' }}>
                     ✓ Selecionada
                   </span>
                 )}

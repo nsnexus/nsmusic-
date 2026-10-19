@@ -371,6 +371,33 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
 
     if (txResult.isKaraokeOnly) {
       try {
+        const { numeroDoDono } = await import('./agentTools.js');
+        const { sendWhatsAppTextMessage } = await import('./whatsapp.js');
+        const freshData = await getOrder(orderId, env);
+        const orderInfo = freshData || txResult.orderData || {};
+        const numPedido = orderInfo.orderNumber || orderId;
+        const nomeCliente = orderInfo.customerName || 'Cliente';
+        const telCliente = orderInfo.customerPhone || 'Sem telefone';
+        const homenageado = orderInfo.honoreeName || 'Homenageado';
+        const estilo = orderInfo.musicStyle || 'Estilo não informado';
+        const linkAdmin = `https://nsmusic.com.br/admin/pedidos/${orderId}`;
+        const linkEntrega = `https://nsmusic.com.br/entrega?orderId=${orderId}`;
+
+        const msgKaraoke = `🎤 *NOVO VÍDEO KARAOKÊ CONTRATADO!*\n\n`
+          + `O cliente acabou de pagar pelo Karaokê e aguarda a sua produção manual.\n\n`
+          + `📋 *Pedido:* ${numPedido}\n`
+          + `👤 *Cliente:* ${nomeCliente} (${telCliente})\n`
+          + `❤️ *Homenageado:* ${homenageado}\n`
+          + `🎵 *Estilo:* ${estilo}\n\n`
+          + `🔗 *Painel Admin:* ${linkAdmin}\n`
+          + `🔗 *Página do Cliente:* ${linkEntrega}`;
+
+        await sendWhatsAppTextMessage(numeroDoDono(env), msgKaraoke, env);
+      } catch (errKaraokeNotif) {
+        console.warn('[payments] Falha ao enviar WhatsApp para o dono sobre o Karaokê:', errKaraokeNotif.message);
+      }
+
+      try {
         const freshData = await getOrder(orderId, env);
         const hasMultiple = Array.isArray(freshData?.audioFiles) && freshData.audioFiles.length > 1;
         const hasChosen = Boolean(freshData?.karaokeChosenAudioUrl || (freshData?.karaokeChosenTrackIndex !== undefined && freshData?.karaokeChosenTrackIndex !== null));

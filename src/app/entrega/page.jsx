@@ -1478,7 +1478,7 @@ function EntregaContent() {
     } catch (error) { setExistingPhotos(previous); setPhotoError(error.message || 'Não foi possível remover a foto.'); }
   };
 
-  if (isPaid && ['video', 'carta', 'retrospectiva'].includes(abaProduto)) {
+  if (isPaid && ['video', 'carta', 'retrospectiva', 'playback', 'karaoke', 'voz'].includes(abaProduto)) {
     return <ProductWorkspace product={abaProduto} honoree={order?.honoreeName} onProduct={setAbaProduto}>
       {abaProduto === 'video' && <VideoEditor order={order} orderId={orderId} access={hasVideoAccess}
         existingPhotos={existingPhotos} files={newPhotoFiles} busy={isUploadingPhotos} progress={uploadProgressMsg} error={photoError}
@@ -1488,6 +1488,9 @@ function EntregaContent() {
         pixError={pixError} timedOut={videoPixPollingTimedOut} onBuy={() => { setSelectedPackage('video_addon'); handleGeneratePix('video_addon', true); }} />}
       {abaProduto === 'carta' && <CartaAddonCard orderId={orderId} order={order} onUnlocked={() => setCartaLiberadaLocal(true)} onCartaCriada={texto => setOrder(previous => previous ? { ...previous, cartaTexto: texto, cartaStatus: 'READY' } : previous)} />}
       {abaProduto === 'retrospectiva' && <RetrospectivaAddonCard orderId={orderId} order={order} onUnlocked={() => setRetrospectivaLiberadaLocal(true)} />}
+      {abaProduto === 'playback' && <div id="card-playback"><PlaybackAddonCard orderId={orderId} order={order} /></div>}
+      {abaProduto === 'karaoke' && <KaraokeAddonCard orderId={orderId} order={order} />}
+      {abaProduto === 'voz' && <VozClienteAddonCard orderId={orderId} order={order} />}
     </ProductWorkspace>;
   }
   if (!isPaid || abaProduto === 'musica') {

@@ -1,13 +1,12 @@
 "use client";
+
 import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
-import HeroVideoBackground from '@/components/HeroVideoBackground';
 import Image from 'next/image';
 import { Sparkles, Gift, Headphones, Star, Clock, ShieldCheck, Music, Flame, Check, ChevronDown, Heart } from 'lucide-react';
 import { faqJsonLd, howToJsonLd } from '@/lib/structuredData';
 import { ocasioes } from '@/lib/ocasioes';
 
-// Milhar com ponto, padrão brasileiro (1924 -> 1.924).
 const formatarNumero = (n) => Number(n || 0).toLocaleString('pt-BR');
 
 export default function Home() {
@@ -16,16 +15,10 @@ export default function Home() {
   const [audioTime, setAudioTime] = useState('0:00');
   const [faqOpen, setFaqOpen] = useState({});
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  
+
   const audioRef = useRef(null);
   const examplesSectionRef = useRef(null);
 
-  // Prova social com número real (stats/_live, uma leitura só — ver src/lib/liveStats.js).
-  // Começa com os números conhecidos no dia em que isso entrou no ar: assim a home nunca pisca
-  // "+0 músicas" enquanto a consulta não volta, nem some se a consulta falhar.
-  // A base guarda GERAÇÕES; cada geração entrega 2 versões, então as músicas exibidas são x2.
-  // Os valores iniciais são os reais medidos no dia em que isso entrou no ar: a home nunca pisca
-  // "+0 músicas" enquanto a consulta não volta, nem some se a consulta falhar.
   const [stats, setStats] = useState({ generations: 2423, sales: 962 });
 
   useEffect(() => {
@@ -33,8 +26,6 @@ export default function Home() {
     fetch('/api/stats/public')
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
-        // Só sobrescreve com número maior que zero: contador ainda não semeado devolveria 0 e faria
-        // a vitrine anunciar menos do que o estúdio realmente entregou.
         if (ativo && d && (d.generations > 0 || d.sales > 0)) {
           setStats({ generations: d.generations || 0, sales: d.sales || 0 });
         }
@@ -91,8 +82,6 @@ export default function Home() {
     }
   ];
 
-  // Iniciais em vez de foto de banco de imagens — os depoimentos citam nomes reais de clientes,
-  // usar rosto de banco de imagens junto seria enganoso (auditoria de identidade visual, 2026-08-02).
   const getInitials = (name) => name.split(/[\s&]+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
 
   const stopAudio = () => {
@@ -167,46 +156,55 @@ export default function Home() {
   };
 
   return (
-    <div style={styles.wrapper}>
-      {/* FAQ e passo a passo em Schema.org. Ficam aqui, não no layout raiz: as páginas de ocasião
-          publicam o FAQPage delas, e dois FAQPage no mesmo documento invalidam os dois. */}
+    <div className="nx-experience" style={styles.wrapper}>
+      {/* Schema.org SEO */}
       <script
         type="application/ld+json"
-        // eslint-disable-next-line react/no-danger
         dangerouslySetInnerHTML={{ __html: JSON.stringify([faqJsonLd(), howToJsonLd()]) }}
       />
 
-      {/* Header / Navbar */}
-      <header style={styles.header} className="glass-panel header-dark">
-        <div style={styles.headerContainer}>
-          <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none' }}>
-            <Image src="/logo.png" alt="NSMusic" width={38} height={38} style={{ height: '38px', width: 'auto' }} priority />
-            <span className="gradient-text" style={{ fontSize: '1.3rem', fontWeight: '900', letterSpacing: '-0.5px' }}>
-              NSMusic
+      {/* Header / Navbar Padrão Editorial */}
+      <header className="nx-header">
+        <div className="nx-header-inner">
+          <Link href="/" className="nx-brand">
+            <Image src="/logo.png" alt="NS Music" width={40} height={40} priority />
+            <span style={{ fontSize: '1.15rem', fontWeight: '800', color: '#29232d', letterSpacing: '-0.02em' }}>
+              NS Music
             </span>
           </Link>
 
           {/* Desktop Nav */}
-          <nav className="nav-menu">
-            <a href="#como-funciona" className="nav-menu-link">Como Funciona</a>
-            <a href="#exemplos" className="nav-menu-link">Exemplos</a>
-            <a href="#depoimentos" className="nav-menu-link">Depoimentos</a>
-            <a href="#oferta" className="nav-menu-link">Oferta</a>
-            <a href="#faq" className="nav-menu-link">Dúvidas</a>
+          <nav className="nav-menu" style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
+            <a href="#como-funciona" className="nav-menu-link" style={{ fontSize: '0.88rem', color: '#6c636f', fontWeight: '600', textDecoration: 'none' }}>Como Funciona</a>
+            <a href="#exemplos" className="nav-menu-link" style={{ fontSize: '0.88rem', color: '#6c636f', fontWeight: '600', textDecoration: 'none' }}>Exemplos</a>
+            <a href="#depoimentos" className="nav-menu-link" style={{ fontSize: '0.88rem', color: '#6c636f', fontWeight: '600', textDecoration: 'none' }}>Depoimentos</a>
+            <a href="#oferta" className="nav-menu-link" style={{ fontSize: '0.88rem', color: '#6c636f', fontWeight: '600', textDecoration: 'none' }}>Oferta</a>
+            <a href="#faq" className="nav-menu-link" style={{ fontSize: '0.88rem', color: '#6c636f', fontWeight: '600', textDecoration: 'none' }}>Dúvidas</a>
           </nav>
 
-          <div style={styles.headerActions}>
-            <Link href="/minhas-musicas" className="btn btn-secondary desktop-only" style={{ padding: '8px 14px', fontSize: '0.85rem', minHeight: '38px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-              <Music size={15} aria-hidden="true" /> Minhas Músicas
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <Link href="/conta" className="nx-account-link" style={{ fontSize: '0.88rem', fontWeight: '650' }}>
+              Minha conta
             </Link>
-            <Link href="/criar" className="btn btn-primary" style={{ padding: '8px 16px', fontSize: '0.85rem', minHeight: '38px', whiteSpace: 'nowrap' }}>
-              Criar R$ 9,99
+            <Link
+              href="/criar"
+              className="nx-button nx-primary"
+              style={{
+                padding: '9px 18px',
+                fontSize: '0.88rem',
+                minHeight: '40px',
+                fontWeight: '700',
+                borderRadius: '10px',
+                textDecoration: 'none'
+              }}
+            >
+              Criar por R$ 9,99
             </Link>
 
             {/* Mobile Hamburger Button */}
-            <button 
-              type="button" 
-              className="mobile-nav-toggle" 
+            <button
+              type="button"
+              className="mobile-nav-toggle"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               aria-label="Toggle Menu"
             >
@@ -220,259 +218,228 @@ export default function Home() {
 
       {/* Mobile Navigation Drawer */}
       {mobileMenuOpen && (
-        <div className="mobile-menu-drawer">
-          <a href="#como-funciona" className="nav-menu-link" style={{ fontSize: '1.25rem' }} onClick={() => setMobileMenuOpen(false)}>Como Funciona</a>
-          <a href="#exemplos" className="nav-menu-link" style={{ fontSize: '1.25rem' }} onClick={() => setMobileMenuOpen(false)}>Exemplos</a>
-          <a href="#depoimentos" className="nav-menu-link" style={{ fontSize: '1.25rem' }} onClick={() => setMobileMenuOpen(false)}>Depoimentos</a>
-          <a href="#oferta" className="nav-menu-link" style={{ fontSize: '1.25rem' }} onClick={() => setMobileMenuOpen(false)}>Oferta</a>
-          <a href="#faq" className="nav-menu-link" style={{ fontSize: '1.25rem' }} onClick={() => setMobileMenuOpen(false)}>Dúvidas</a>
+        <div className="mobile-menu-drawer" style={{ background: '#ffffff', borderBottom: '1px solid #e7e0e8', padding: '20px' }}>
+          <a href="#como-funciona" className="nav-menu-link" style={{ fontSize: '1.1rem', color: '#29232d', padding: '8px 0', textDecoration: 'none', display: 'block' }} onClick={() => setMobileMenuOpen(false)}>Como Funciona</a>
+          <a href="#exemplos" className="nav-menu-link" style={{ fontSize: '1.1rem', color: '#29232d', padding: '8px 0', textDecoration: 'none', display: 'block' }} onClick={() => setMobileMenuOpen(false)}>Exemplos</a>
+          <a href="#depoimentos" className="nav-menu-link" style={{ fontSize: '1.1rem', color: '#29232d', padding: '8px 0', textDecoration: 'none', display: 'block' }} onClick={() => setMobileMenuOpen(false)}>Depoimentos</a>
+          <a href="#oferta" className="nav-menu-link" style={{ fontSize: '1.1rem', color: '#29232d', padding: '8px 0', textDecoration: 'none', display: 'block' }} onClick={() => setMobileMenuOpen(false)}>Oferta</a>
+          <a href="#faq" className="nav-menu-link" style={{ fontSize: '1.1rem', color: '#29232d', padding: '8px 0', textDecoration: 'none', display: 'block' }} onClick={() => setMobileMenuOpen(false)}>Dúvidas</a>
           
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%', maxWidth: '280px', marginTop: '12px' }}>
-            <Link href="/criar" className="btn btn-primary" style={{ width: '100%' }} onClick={() => setMobileMenuOpen(false)}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '16px' }}>
+            <Link href="/criar" className="nx-button nx-primary" style={{ textAlign: 'center', textDecoration: 'none' }} onClick={() => setMobileMenuOpen(false)}>
               Criar 2 Músicas por R$ 9,99
             </Link>
-            <Link href="/minhas-musicas" className="btn btn-secondary" style={{ width: '100%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }} onClick={() => setMobileMenuOpen(false)}>
-              <Music size={16} aria-hidden="true" /> Acessar Minhas Músicas
+            <Link href="/conta" className="nx-button" style={{ textAlign: 'center', textDecoration: 'none' }} onClick={() => setMobileMenuOpen(false)}>
+              Minha Conta & Músicas
             </Link>
           </div>
         </div>
       )}
 
-      {/* Hero Section — fundo escuro ecoando a logo (azul/violeta/magenta), pedido do usuário em 2026-08-02 */}
-      <section style={{ ...styles.hero, position: 'relative' }} className="hero-dark">
-        {/* Vídeo de fundo (10s em câmera lenta, ~30s, em loop) — substituiu os orbs animados.
-            Fica atrás de tudo; o conteúdo abaixo sobe com zIndex/position própria. */}
-        <HeroVideoBackground />
-        <div className="container" style={{ position: 'relative', zIndex: 1, width: '100%' }}>
-          <div className="hero-conteudo">
-          <div style={{ ...styles.heroBadge, display: 'inline-flex', alignItems: 'center', gap: '8px', animationDelay: '0s' }} className="hero-rise">
-            <Sparkles size={15} aria-hidden="true" />
-            <span>Composta por IA, do zero, pra vocês</span>
+      {/* Hero Section Editorial */}
+      <section style={styles.heroSection}>
+        <div style={{ maxWidth: '860px', margin: '0 auto', textAlign: 'center', padding: '0 20px' }}>
+          <div style={styles.heroBadge}>
+            <Sparkles size={14} color="#67408b" aria-hidden="true" />
+            <span>Músicas Personalizadas de Alta Fidelidade</span>
           </div>
 
-          <h1 style={{ ...styles.heroTitle, animationDelay: '0.1s' }} className="hero-rise">
-            Uma canção que <span className="hero-gradient-text">só existe porque </span>
-            {/* "vocês existem" ganha o traço curvo do mockup. O SVG fica DENTRO do span para
-                acompanhar a quebra de linha do título — um traço posicionado por cima, em
-                coordenadas fixas, sairia do lugar assim que a frase quebrasse em outro ponto. */}
-            <span className="hero-gradient-text hero-sublinhado">
-              vocês existem
-              <svg viewBox="0 0 300 14" preserveAspectRatio="none" aria-hidden="true">
-                <defs>
-                  <linearGradient id="tracoHero" x1="0" y1="0" x2="1" y2="0">
-                    <stop offset="0%" stopColor="#38BDF8" />
-                    <stop offset="50%" stopColor="#A855F7" />
-                    <stop offset="100%" stopColor="#EC4899" />
-                  </linearGradient>
-                </defs>
-                <path
-                  d="M4 10 C 70 3, 150 2, 296 6"
-                  fill="none"
-                  stroke="url(#tracoHero)"
-                  strokeWidth="6"
-                  strokeLinecap="round"
-                />
-              </svg>
-            </span>
+          <h1 style={styles.heroTitle}>
+            A história de quem você ama, transformada em uma canção inesquecível.
           </h1>
 
-          <p style={{ ...styles.heroSubtitle, animationDelay: '0.2s' }} className="hero-rise">
-            Nossa IA escreve a letra, compõe a melodia e canta a história de vocês do zero, com qualidade de estúdio, pronta em minutos. Uma canção assim nunca existiu, porque a sua história é só sua.
+          <p style={styles.heroSubtitle}>
+            Você conta os momentos marcantes e sentimentos. Em poucos minutos, entregamos duas versões completas em áudio profissional com letra e melodia emocionantes.
           </p>
 
-          <div style={{ ...styles.heroActions, animationDelay: '0.3s' }} className="hero-rise hero-botoes">
-            <Link href="/criar" className="btn btn-primary" style={{ ...styles.heroPrimaryCta, display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-              <Gift size={18} aria-hidden="true" /> Criar nossa música agora
+          <div style={styles.heroActions}>
+            <Link
+              href="/criar"
+              className="nx-button nx-primary"
+              style={{
+                fontSize: '1.05rem',
+                padding: '16px 32px',
+                borderRadius: '12px',
+                fontWeight: '700',
+                textDecoration: 'none',
+                boxShadow: '0 4px 14px rgba(103, 64, 139, 0.25)'
+              }}
+            >
+              <Gift size={18} aria-hidden="true" /> Criar Minha Música por R$ 9,99 ➔
             </Link>
-            <a href="#exemplos" className="btn" style={{ ...styles.heroSecondaryCta, display: 'inline-flex', alignItems: 'center', gap: '8px', color: '#F4F1FF', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.14)' }}>
-              <Headphones size={18} aria-hidden="true" /> Ouvir amostras
+            <a
+              href="#exemplos"
+              className="nx-button"
+              style={{
+                fontSize: '1rem',
+                padding: '16px 26px',
+                borderRadius: '12px',
+                fontWeight: '600',
+                textDecoration: 'none'
+              }}
+            >
+              <Headphones size={18} aria-hidden="true" /> Ouvir Amostras
             </a>
           </div>
 
-          <div style={{ ...styles.heroTrust, color: '#ADA3D9', animationDelay: '0.5s' }} className="hero-rise hero-prova">
-            {/* Cada item: ícone + valor em destaque + rótulo embaixo, como no mockup. Em grid (e não
-                em linha que quebra sozinha) porque com 4 itens a quebra deixava um sobrando
-                desalinhado no meio da caixa. */}
-            <span className="hero-prova-item">
-              <Heart size={17} aria-hidden="true" />
-              <span>
+          {/* Prova Social com números reais */}
+          <div style={styles.heroTrust}>
+            <div style={styles.trustItem}>
+              <Heart size={18} color="#67408b" aria-hidden="true" />
+              <div>
                 <strong>+{formatarNumero(stats.generations * 2)}</strong>
-                músicas produzidas
-              </span>
-            </span>
-            <span className="hero-prova-item">
-              <Star size={17} aria-hidden="true" />
-              <span>
+                <small>músicas produzidas</small>
+              </div>
+            </div>
+            <div style={styles.trustItem}>
+              <Star size={18} color="#f59e0b" fill="#f59e0b" aria-hidden="true" />
+              <div>
                 <strong>+{formatarNumero(stats.sales)}</strong>
-                clientes satisfeitos
-              </span>
-            </span>
-            <span className="hero-prova-item">
-              <Clock size={17} aria-hidden="true" />
-              <span>
-                <strong>Entrega</strong>
-                rápida
-              </span>
-            </span>
-            <span className="hero-prova-item">
-              <ShieldCheck size={17} aria-hidden="true" />
-              <span>
-                <strong>Garantia</strong>
-                de aprovação
-              </span>
-            </span>
-          </div>
+                <small>presentes entregues</small>
+              </div>
+            </div>
+            <div style={styles.trustItem}>
+              <Clock size={18} color="#059669" aria-hidden="true" />
+              <div>
+                <strong>2 a 3 minutos</strong>
+                <small>entrega no WhatsApp</small>
+              </div>
+            </div>
+            <div style={styles.trustItem}>
+              <ShieldCheck size={18} color="#2563eb" aria-hidden="true" />
+              <div>
+                <strong>Prévia grátis</strong>
+                <small>ouça antes de pagar</small>
+              </div>
+            </div>
           </div>
         </div>
-
-        {/* Curva de transição pro conteúdo claro (mockup aprovado, 03/09/2026): o branco sobe nas
-            laterais e desce no centro. Feito em SVG, e não com border-radius, porque a curva precisa
-            manter o formato em qualquer largura — `preserveAspectRatio="none"` estica só na
-            horizontal. Fica por cima do vídeo e sem interferir em clique. */}
-        <svg
-          viewBox="0 0 1440 110"
-          preserveAspectRatio="none"
-          aria-hidden="true"
-          className="hero-curva"
-        >
-          <path d="M0,0 C 400,88 1040,88 1440,0 L1440,110 L0,110 Z" fill="var(--bg-primary)" />
-        </svg>
       </section>
 
-      {/* How it works Section */}
+      {/* Seção Como Funciona */}
       <section id="como-funciona" style={styles.section}>
-        <div className="container">
+        <div style={styles.container}>
           <div style={styles.sectionHeader}>
+            <span className="nx-eyebrow">Simples e Rápido</span>
             <h2 style={styles.sectionTitle}>Como Funciona?</h2>
-            <p style={styles.sectionSubtitle}>Em apenas 3 passos simples você presenteia quem ama com uma canção própria. E você ouve uma prévia da música pronta antes de pagar.</p>
+            <p style={styles.sectionSubtitle}>
+              Em apenas 3 passos simples você presenteia quem ama com uma canção própria, ouvindo a prévia antes de pagar.
+            </p>
           </div>
 
           <div style={styles.stepsGrid}>
-            <div style={styles.stepCard} className="glass-card">
+            <div style={styles.stepCard}>
               <div style={styles.stepNumber}>1</div>
               <h3 style={styles.stepTitle}>Conte os Detalhes</h3>
-              <p style={styles.stepText}>Preencha o nome do presenteado, a ocasião especial e os fatos mais marcantes da sua história.</p>
+              <p style={styles.stepText}>Preencha o nome do presenteado, a ocasião especial e os fatos e lembranças mais marcantes da sua história.</p>
             </div>
-            
-            <div style={styles.stepCard} className="glass-card">
+
+            <div style={styles.stepCard}>
               <div style={styles.stepNumber}>2</div>
               <h3 style={styles.stepTitle}>Revise a Letra</h3>
               <p style={styles.stepText}>Nosso estúdio escreve versos poéticos e emocionantes. Você aprova e ajusta tudo com alterações ilimitadas.</p>
             </div>
 
-            <div style={styles.stepCard} className="glass-card">
+            <div style={styles.stepCard}>
               <div style={styles.stepNumber}>3</div>
-              <h3 style={styles.stepTitle}>Ouça a Prévia</h3>
-              <p style={styles.stepText}>Sintetizamos a melodia e as vozes de estúdio. Você ouve a prévia das 2 versões antes de pagar. O Pix de R$ 9,99 libera as músicas completas em MP3 HD com capa digital.</p>
+              <h3 style={styles.stepTitle}>Ouça a Prévia e Libere</h3>
+              <p style={styles.stepText}>Sintetizamos a melodia e vozes de estúdio. Você ouve as 2 versões antes de pagar. O Pix de R$ 9,99 libera os arquivos em MP3 HD com capa digital.</p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Visual Demo Songs Section */}
+      {/* Seção Exemplos com Player Interativo */}
       <section id="exemplos" ref={examplesSectionRef} style={styles.sectionAlt}>
-        <div className="container">
+        <div style={styles.container}>
           <div style={styles.sectionHeader}>
-            <h2 style={styles.sectionTitle}>Músicas demonstrativas</h2>
-            <p style={styles.sectionSubtitle}>Ouça a qualidade dos arranjos e a emoção das vozes produzidas pelo nosso estúdio.</p>
+            <span className="nx-eyebrow">Qualidade de Estúdio</span>
+            <h2 style={styles.sectionTitle}>Músicas Demonstrativas</h2>
+            <p style={styles.sectionSubtitle}>Ouça a riqueza dos arranjos e a emoção das vozes produzidas pelo nosso estúdio.</p>
           </div>
 
-          <div className="horizontal-scroll-mobile">
+          <div style={styles.examplesGrid}>
             {examples.map((item) => (
-              <div 
-                key={item.id} 
-                className="glass-card" 
-                style={{ 
-                  padding: '20px', 
-                  borderRadius: '20px', 
-                  display: 'flex', 
-                  flexDirection: 'column', 
-                  gap: '14px', 
-                  background: playingId === item.id
-                    ? 'linear-gradient(145deg, #EEF0FE 0%, #FDF0F7 100%)'
-                    : '#FFFDF9',
-                  borderColor: playingId === item.id
-                    ? 'var(--primary)'
-                    : 'var(--border-color)',
-                  boxShadow: playingId === item.id
-                    ? '0 12px 35px rgba(79, 70, 229, 0.2)'
-                    : 'var(--card-shadow)',
-                  position: 'relative' 
+              <div
+                key={item.id}
+                style={{
+                  ...styles.exampleCard,
+                  borderColor: playingId === item.id ? '#67408b' : '#e7e0e8',
+                  boxShadow: playingId === item.id ? '0 10px 30px rgba(103, 64, 139, 0.12)' : '0 2px 8px rgba(0,0,0,0.03)'
                 }}
               >
-                {/* Album Cover */}
-                <div style={{ position: 'relative', width: '100%', aspectRatio: '1', borderRadius: '14px', overflow: 'hidden', boxShadow: '0 8px 20px rgba(0,0,0,0.12)' }}>
-                  <img 
-                    src={item.cover} 
-                    alt={item.title} 
-                    style={{ 
-                      width: '100%', 
-                      height: '100%', 
-                      objectFit: 'cover', 
-                      transform: playingId === item.id ? 'scale(1.05)' : 'scale(1)', 
-                      transition: 'transform 0.4s ease' 
-                    }} 
+                {/* Capa com Botão Play Central */}
+                <div style={{ position: 'relative', width: '100%', aspectRatio: '1', borderRadius: '14px', overflow: 'hidden' }}>
+                  <img
+                    src={item.cover}
+                    alt={item.title}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                      transform: playingId === item.id ? 'scale(1.04)' : 'scale(1)',
+                      transition: 'transform 0.4s ease'
+                    }}
                   />
-                  
-                  <div style={{ 
-                    position: 'absolute', 
-                    inset: 0, 
-                    background: playingId === item.id 
-                      ? 'rgba(79, 70, 229, 0.25)'
-                      : 'rgba(0, 0, 0, 0.2)', 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'center' 
-                  }}>
-                    <button 
+                  <div
+                    style={{
+                      position: 'absolute',
+                      inset: 0,
+                      background: playingId === item.id ? 'rgba(103, 64, 139, 0.25)' : 'rgba(0, 0, 0, 0.2)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                  >
+                    <button
                       type="button"
                       onClick={() => togglePlay(item.id)}
                       style={{
-                        width: '60px',
-                        height: '60px',
+                        width: '56px',
+                        height: '56px',
                         borderRadius: '50%',
                         border: 'none',
-                        background: playingId === item.id ? 'var(--primary)' : '#FFFFFF',
-                        color: playingId === item.id ? '#FFFFFF' : 'var(--primary)',
-                        fontSize: '1.4rem',
+                        background: playingId === item.id ? '#67408b' : '#ffffff',
+                        color: playingId === item.id ? '#ffffff' : '#67408b',
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        boxShadow: '0 8px 25px rgba(0, 0, 0, 0.2)',
-                        transition: 'all 0.25s ease'
+                        boxShadow: '0 4px 15px rgba(0, 0, 0, 0.2)',
+                        transition: 'transform 0.2s'
                       }}
+                      title={playingId === item.id ? 'Pausar' : 'Ouvir amostra'}
                     >
                       {playingId === item.id ? (
-                        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" /></svg>
                       ) : (
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" style={{ marginLeft: '3px' }}><path d="M8 5v14l11-7z"/></svg>
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" style={{ marginLeft: '3px' }}><path d="M8 5v14l11-7z" /></svg>
                       )}
                     </button>
                   </div>
                 </div>
 
-                {/* Track Details */}
+                {/* Detalhes da faixa */}
                 <div>
-                  <span style={{ fontSize: '0.75rem', background: 'var(--primary-light)', color: 'var(--primary)', padding: '4px 10px', borderRadius: '20px', fontWeight: '700' }}>
+                  <span style={{ fontSize: '0.75rem', background: '#f2eaf8', color: '#67408b', padding: '4px 10px', borderRadius: '20px', fontWeight: '700' }}>
                     {item.style}
                   </span>
-                  <h3 style={{ fontSize: '1.2rem', fontWeight: '800', marginTop: '8px', color: 'var(--text-primary)' }}>{item.title}</h3>
-                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '2px' }}>{item.occasion}</p>
+                  <h3 style={{ fontSize: '1.15rem', fontWeight: '800', marginTop: '8px', color: '#29232d' }}>{item.title}</h3>
+                  <p style={{ fontSize: '0.84rem', color: '#6c636f', marginTop: '2px' }}>{item.occasion}</p>
                 </div>
 
-                {/* Audio Progress Bar */}
+                {/* Barra de Progresso do Áudio */}
                 {playingId === item.id && (
                   <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <div style={{ width: '100%', height: '6px', background: '#E2E8F0', borderRadius: '10px', overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${audioProgress}%`, background: 'var(--primary)', transition: 'width 0.1s linear' }} />
+                    <div style={{ width: '100%', height: '6px', background: '#e7e0e8', borderRadius: '10px', overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${audioProgress}%`, background: '#67408b', transition: 'width 0.1s linear' }} />
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem' }}>
-                      <span style={{ color: 'var(--success)', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--success)' }} />
+                      <span style={{ color: '#059669', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#059669' }} />
                         Tocando amostra...
                       </span>
-                      <span style={{ color: 'var(--text-muted)', fontFamily: 'monospace' }}>{audioTime}</span>
+                      <span style={{ color: '#6c636f', fontFamily: 'monospace' }}>{audioTime}</span>
                     </div>
                   </div>
                 )}
@@ -482,92 +449,103 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Offer Banner Section */}
+      {/* Banner de Oferta */}
       <section id="oferta" style={styles.section}>
-        {/* Card compacto. A versão anterior ocupava quase uma tela inteira: título de 2,2rem,
-            preço de 3rem e lista com bastante respiro. Encolhido em 21/09/2026 a pedido do dono
-            ("tá feio e muito grande") — mesmo conteúdo, densidade maior, e o botão passa a caber
-            na tela junto com os benefícios em vez de ficar abaixo da dobra. */}
-        <div className="container" style={{ maxWidth: '560px' }}>
+        <div style={{ maxWidth: '580px', margin: '0 auto', padding: '0 20px' }}>
           <div
-            className="glass-card"
             style={{
-              padding: '24px 20px',
-              borderRadius: '18px',
-              border: '1.5px solid var(--primary)',
-              background: 'linear-gradient(135deg, #EEF0FE 0%, #FDF0F7 100%)',
+              padding: '32px 28px',
+              borderRadius: '24px',
+              border: '2px solid #67408b',
+              background: '#ffffff',
               textAlign: 'center',
-              boxShadow: '0 10px 24px rgba(79, 70, 229, 0.10)',
+              boxShadow: '0 12px 30px rgba(103, 64, 139, 0.08)'
             }}
           >
-            <span style={{ background: 'var(--primary)', color: '#FFFDF9', padding: '4px 12px', borderRadius: '20px', fontWeight: '800', fontSize: '0.7rem', letterSpacing: '0.5px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-              <Flame size={12} aria-hidden="true" /> OFERTA POR TEMPO LIMITADO
+            <span style={{ background: '#f2eaf8', color: '#67408b', padding: '5px 14px', borderRadius: '20px', fontWeight: '800', fontSize: '0.75rem', letterSpacing: '0.5px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+              <Flame size={14} color="#67408b" aria-hidden="true" /> PACOTE COMPLETO DE ESTÚDIO
             </span>
 
-            <h2 style={{ fontSize: '1.3rem', fontWeight: '800', marginTop: '12px', color: 'var(--text-primary)', lineHeight: 1.25 }}>
-              Pacote 2 Músicas Completas em Estúdio
+            <h2 style={{ fontSize: '1.45rem', fontWeight: '800', marginTop: '14px', color: '#29232d', lineHeight: 1.25 }}>
+              2 Músicas Completas em Estúdio
             </h2>
 
-            <div style={{ margin: '10px 0 14px', display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: '10px' }}>
-              <span style={{ fontSize: '0.95rem', color: 'var(--text-muted)', textDecoration: 'line-through' }}>
+            <div style={{ margin: '14px 0 16px', display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '1.05rem', color: '#6c636f', textDecoration: 'line-through' }}>
                 R$ 69,90
               </span>
-              <span style={{ fontSize: '2rem', fontWeight: '900', color: 'var(--success)', lineHeight: 1 }}>
+              <span style={{ fontSize: '2.4rem', fontWeight: '900', color: '#059669', lineHeight: 1 }}>
                 R$ 9,99
               </span>
             </div>
 
-            <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 16px', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 20px', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {[
                 <><strong>2 músicas completas</strong>, em estilos diferentes</>,
                 <>Prévia das duas <strong>antes de pagar</strong></>,
                 'Download ilimitado em MP3 HD',
-                'Capa digital personalizada',
-                'Alterações ilimitadas na composição',
-                'Liberação imediata após o PIX',
+                'Capa digital personalizada com a foto',
+                'Alterações ilimitadas na letra',
+                'Liberação imediata pelo PIX',
               ].map((text, idx) => (
-                <li key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '7px', fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
-                  <Check size={15} color="var(--success)" style={{ flexShrink: 0, marginTop: '3px' }} aria-hidden="true" />
+                <li key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '0.9rem', color: '#475569', lineHeight: 1.4 }}>
+                  <Check size={16} color="#059669" style={{ flexShrink: 0, marginTop: '3px' }} aria-hidden="true" />
                   <span>{text}</span>
                 </li>
               ))}
             </ul>
 
-            <Link href="/criar" className="btn btn-primary" style={{ fontSize: '0.95rem', padding: '13px 20px', width: '100%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px', textAlign: 'center', whiteSpace: 'normal' }}>
-              <Gift size={17} style={{ flexShrink: 0 }} aria-hidden="true" /> Criar minha música por R$ 9,99
+            <Link
+              href="/criar"
+              className="nx-button nx-primary"
+              style={{
+                fontSize: '1.02rem',
+                padding: '15px 24px',
+                width: '100%',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                textDecoration: 'none',
+                borderRadius: '12px',
+                fontWeight: '700'
+              }}
+            >
+              <Gift size={18} aria-hidden="true" /> Criar Minha Música por R$ 9,99
             </Link>
           </div>
         </div>
       </section>
 
-      {/* Testimonials Section */}
+      {/* Seção Depoimentos */}
       <section id="depoimentos" style={styles.sectionAlt}>
-        <div className="container">
+        <div style={styles.container}>
           <div style={styles.sectionHeader}>
+            <span className="nx-eyebrow">Histórias Reais</span>
             <h2 style={styles.sectionTitle}>Depoimentos de quem já presenteou</h2>
             <p style={styles.sectionSubtitle}>Veja as reações de quem transformou momentos em canções inesquecíveis.</p>
           </div>
 
-          <div className="horizontal-scroll-mobile">
+          <div style={styles.testimonialsGrid}>
             {testimonials.map((item, idx) => (
-              <div key={idx} className="glass-card" style={{ padding: '24px', borderRadius: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div key={idx} style={styles.testimonialCard}>
                 <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                  <div style={{ width: '52px', height: '52px', borderRadius: '50%', background: 'var(--accent-light)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', fontSize: '1.05rem', flexShrink: 0 }}>
+                  <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: '#f2eaf8', color: '#67408b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: '0.95rem', flexShrink: 0 }}>
                     {getInitials(item.name)}
                   </div>
                   <div>
-                    <h4 style={{ fontSize: '1.05rem', fontWeight: '800' }}>{item.name}</h4>
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{item.relation}</span>
+                    <h4 style={{ fontSize: '1rem', fontWeight: '800', color: '#29232d', margin: 0 }}>{item.name}</h4>
+                    <span style={{ fontSize: '0.78rem', color: '#6c636f' }}>{item.relation}</span>
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: '2px', color: '#EC4899' }} aria-label={`${item.rating} de 5 estrelas`}>
+                <div style={{ display: 'flex', gap: '2px', color: '#f59e0b' }} aria-label={`${item.rating} de 5 estrelas`}>
                   {Array.from({ length: item.rating }).map((_, i) => (
-                    <Star key={i} size={16} fill="currentColor" strokeWidth={0} aria-hidden="true" />
+                    <Star key={i} size={15} fill="currentColor" strokeWidth={0} aria-hidden="true" />
                   ))}
                 </div>
 
-                <p style={{ fontSize: '0.92rem', color: 'var(--text-secondary)', lineHeight: '1.6', fontStyle: 'italic' }}>
+                <p style={{ fontSize: '0.88rem', color: '#475569', lineHeight: '1.6', fontStyle: 'italic', margin: 0 }}>
                   &ldquo;{item.comment}&rdquo;
                 </p>
               </div>
@@ -576,41 +554,78 @@ export default function Home() {
         </div>
       </section>
 
-      {/* FAQ Section */}
+      {/* Seção Dúvidas / FAQ */}
       <section id="faq" style={styles.section}>
-        <div className="container" style={{ maxWidth: '800px' }}>
+        <div style={{ maxWidth: '800px', margin: '0 auto', padding: '0 20px' }}>
           <div style={styles.sectionHeader}>
-            <h2 style={styles.sectionTitle}>Perguntas Frequentes</h2>
-            <p style={styles.sectionSubtitle}>Tudo o que você precisa saber sobre a criação das músicas.</p>
+            <span className="nx-eyebrow">Dúvidas Frequentes</span>
+            <h2 style={styles.sectionTitle}>Perguntas e Respostas</h2>
+            <p style={styles.sectionSubtitle}>Tudo o que você precisa saber sobre a criação e entrega da sua música.</p>
           </div>
-          
-          <div style={styles.faqList}>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {[
               {
                 q: 'Como é feita a criação da música?',
-                a: 'Você insere os detalhes da história e escolhe o estilo. Nossa inteligência artificial cria a letra poética e compõe os arranjos vocais e instrumentais de estúdio com alta definição.',
+                a: 'Você insere os detalhes da história e escolhe o estilo musical. Nossa tecnologia cria a letra poética e sintetiza os arranjos vocais e instrumentais de estúdio com máxima fidelidade.',
               },
               {
                 q: 'Recebo 2 versões da minha música?',
-                a: 'Sim! No pacote promocional de R$ 9,99 você recebe 2 versões completas da sua música em arranjos musicais diferentes.',
+                a: 'Sim! No pacote de R$ 9,99 você recebe 2 versões completas da sua canção em arranjos musicais diferentes para escolher ou guardar as duas.',
               },
               {
                 q: 'Como recebo a música pronta?',
-                a: 'Assim que o pagamento for concluído, você pode salvar sua conta e acessar o painel "Minhas Músicas" para ouvir e fazer o download ilimitado dos arquivos em MP3 HD. Além disso, enviamos o link no seu WhatsApp.',
+                a: 'Assim que o pagamento for confirmado, você acessa seu painel na mesma hora para ouvir e baixar em MP3 HD, e também enviamos o link direto no seu WhatsApp.',
               },
               {
                 q: 'Qual o tempo de geração?',
                 a: 'A letra e os áudios são gerados e liberados em cerca de 2 a 3 minutos diretamente no aplicativo.',
               },
             ].map((item, idx) => (
-              <div key={idx} style={styles.faqItem} className="glass-card">
-                <button onClick={() => toggleFaq(idx)} style={styles.faqQuestion} aria-expanded={!!faqOpen[idx]}>
+              <div
+                key={idx}
+                style={{
+                  background: '#ffffff',
+                  border: '1px solid #e7e0e8',
+                  borderRadius: '14px',
+                  padding: '16px 20px',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => toggleFaq(idx)}
+                  style={{
+                    width: '100%',
+                    background: 'none',
+                    border: 'none',
+                    color: '#29232d',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    fontSize: '0.98rem',
+                    fontWeight: '700',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    padding: 0
+                  }}
+                  aria-expanded={!!faqOpen[idx]}
+                >
                   <span>{item.q}</span>
-                  <ChevronDown size={18} aria-hidden="true" style={{ transform: faqOpen[idx] ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', color: 'var(--primary)', flexShrink: 0 }} />
+                  <ChevronDown
+                    size={18}
+                    aria-hidden="true"
+                    style={{
+                      transform: faqOpen[idx] ? 'rotate(180deg)' : 'none',
+                      transition: 'transform 0.2s',
+                      color: '#67408b',
+                      flexShrink: 0
+                    }}
+                  />
                 </button>
                 {faqOpen[idx] && (
-                  <div style={styles.faqAnswer}>
-                    <p>{item.a}</p>
+                  <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #f1f5f9', color: '#475569', fontSize: '0.9rem', lineHeight: '1.6' }}>
+                    <p style={{ margin: 0 }}>{item.a}</p>
                   </div>
                 )}
               </div>
@@ -619,28 +634,27 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Ocasiões. Além de ajudar quem chegou indeciso, é o caminho por onde o buscador descobre
-          as páginas de ocasião — página sem link de dentro do site custa muito mais para indexar. */}
-      <section className="container" style={{ padding: '30px 0 10px' }}>
-        <h2 style={{ fontSize: '1.1rem', fontWeight: '800', marginBottom: '14px', textAlign: 'center' }}>
+      {/* Ocasiões Especiais */}
+      <section style={{ maxWidth: '1060px', margin: '0 auto', padding: '30px 20px 50px' }}>
+        <h2 style={{ fontSize: '1.15rem', fontWeight: '800', marginBottom: '16px', textAlign: 'center', color: '#29232d' }}>
           Música personalizada por ocasião
         </h2>
-        {/* Grade em vez de linha que quebra: os títulos têm comprimentos muito diferentes, e no
-            celular cada um virava uma linha de largura própria — a coluna ficava serrilhada. */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '8px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
           {ocasioes.map((o) => (
             <Link
               key={o.slug}
               href={`/${o.slug}`}
               style={{
-                padding: '11px 14px',
-                borderRadius: '999px',
-                fontSize: '0.88rem',
-                fontWeight: '600',
-                border: '1px solid var(--border-color)',
-                color: 'var(--text-secondary)',
+                padding: '12px 14px',
+                borderRadius: '12px',
+                fontSize: '0.86rem',
+                fontWeight: '650',
+                background: '#ffffff',
+                border: '1px solid #e7e0e8',
+                color: '#475569',
                 textDecoration: 'none',
                 textAlign: 'center',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
               }}
             >
               {o.titulo.replace(' Personalizada com IA', '').replace(' com IA', '')}
@@ -649,20 +663,24 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer style={styles.footer}>
-        <div className="container" style={styles.footerContainer}>
-          <div style={styles.footerBrand}>
-            <Image src="/logo.png" alt="NSMusic" width={36} height={36} style={{ height: '36px', width: 'auto', marginBottom: '8px' }} />
-            <p style={styles.footerTagline}>Eternizando momentos marcantes através de acordes e versos únicos.</p>
-          </div>
-          
-          <div className="footer-rights" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <div className="footer-links" style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-              <Link href="/politica-de-privacidade" style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Política de Privacidade</Link>
-              <Link href="/termos-de-uso" style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Termos de Uso</Link>
+      {/* Footer Padrão Editorial */}
+      <footer style={{ background: '#ffffff', borderTop: '1px solid #e7e0e8', padding: '40px 0' }}>
+        <div style={{ maxWidth: '1160px', margin: '0 auto', padding: '0 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+              <Image src="/logo.png" alt="NS Music" width={32} height={32} />
+              <span style={{ fontWeight: '800', color: '#29232d', fontSize: '1rem' }}>NS Music</span>
             </div>
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>© {new Date().getFullYear()} NSMusic. Todos os direitos reservados.</p>
+            <p style={{ fontSize: '0.82rem', color: '#6c636f', margin: 0 }}>Eternizando momentos marcantes através de versos e melodias exclusivas.</p>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', textAlign: 'right' }}>
+            <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+              <Link href="/politica-de-privacidade" style={{ fontSize: '0.82rem', color: '#6c636f', textDecoration: 'none' }}>Política de Privacidade</Link>
+              <Link href="/termos-de-uso" style={{ fontSize: '0.82rem', color: '#6c636f', textDecoration: 'none' }}>Termos de Uso</Link>
+              <Link href="/conta" style={{ fontSize: '0.82rem', color: '#67408b', fontWeight: '600', textDecoration: 'none' }}>Minha Conta</Link>
+            </div>
+            <p style={{ fontSize: '0.8rem', color: '#94a3b8', margin: 0 }}>© {new Date().getFullYear()} NS Music. Todos os direitos reservados.</p>
           </div>
         </div>
       </footer>
@@ -675,218 +693,165 @@ const styles = {
     minHeight: '100vh',
     display: 'flex',
     flexDirection: 'column',
-    backgroundColor: 'var(--bg-primary)',
+    backgroundColor: '#faf8f5',
   },
-  header: {
-    position: 'sticky',
-    top: 0,
-    zIndex: 100,
-    borderTop: 'none',
-    borderLeft: 'none',
-    borderRight: 'none',
-    // Cor real vem de .header-dark (globals.css) — mantido aqui só como fallback se o CSS não carregar.
-    backgroundColor: 'rgba(8, 5, 20, 0.88)',
-  },
-  headerContainer: {
-    maxWidth: '1200px',
-    margin: '0 auto',
-    padding: '12px 20px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  headerActions: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '10px',
-  },
-  hero: {
-    position: 'relative',
-    padding: '96px 0 76px 0',
-    // Altura maior desde que a hero passou a ter vídeo de fundo (03/09/2026): com o padding sozinho
-    // a arte aparecia numa faixa fina e cortada. `min-height` (não `height`) para o bloco ainda
-    // crescer se o texto quebrar em mais linhas no celular.
-    minHeight: '88vh',
-    textAlign: 'center',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  heroContainer: {
-    position: 'relative',
-    zIndex: 1,
-    maxWidth: '850px',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
+  heroSection: {
+    padding: '70px 0 60px 0',
+    background: 'linear-gradient(180deg, #f7f1f9 0%, #faf8f5 100%)',
+    borderBottom: '1px solid #e7e0e8',
   },
   heroBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '8px',
     padding: '7px 16px',
     borderRadius: '100px',
     fontSize: '0.82rem',
-    fontWeight: '600',
-    marginBottom: '24px',
-    color: '#F4F1FF',
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    border: '1px solid rgba(255,255,255,0.14)',
+    fontWeight: '700',
+    marginBottom: '20px',
+    color: '#67408b',
+    backgroundColor: '#f2eaf8',
+    border: '1px solid #e5d6ee',
   },
   heroTitle: {
-    fontSize: '2.6rem',
-    lineHeight: '1.15',
+    fontFamily: 'Georgia, serif',
+    fontSize: 'clamp(2.1rem, 4vw, 3.2rem)',
+    lineHeight: '1.14',
+    letterSpacing: '-0.025em',
     marginBottom: '18px',
-    color: '#F4F1FF',
+    color: '#29232d',
+    fontWeight: '700',
   },
   heroSubtitle: {
-    fontSize: '1.1rem',
+    fontSize: '1.08rem',
     lineHeight: '1.65',
-    color: '#ADA3D9',
-    maxWidth: '620px',
-    marginBottom: '32px',
+    color: '#6c636f',
+    maxWidth: '660px',
+    margin: '0 auto 32px auto',
   },
-  // Direção/largura ficam na classe .hero-botoes (globals.css), não aqui: estilo inline vence
-  // media query, então mantê-los aqui impedia os botões de ficarem lado a lado no desktop.
   heroActions: {
     display: 'flex',
     gap: '12px',
-    marginBottom: '28px',
-  },
-  heroPrimaryCta: {
-    fontSize: '1.1rem',
-    padding: '16px 28px',
-    width: '100%',
-  },
-  heroSecondaryCta: {
-    fontSize: '1.05rem',
-    padding: '14px 28px',
-    width: '100%',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+    marginBottom: '36px',
   },
   heroTrust: {
-    display: 'flex',
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
     gap: '16px',
-    flexWrap: 'wrap',
+    marginTop: '20px',
+    paddingTop: '24px',
+    borderTop: '1px solid #e7e0e8',
+  },
+  trustItem: {
+    display: 'flex',
+    alignItems: 'center',
     justifyContent: 'center',
-    fontSize: '0.82rem',
-    fontWeight: '700',
-    color: 'var(--text-muted)',
+    gap: '10px',
+    textAlign: 'left',
+    fontSize: '0.88rem',
+    color: '#475569',
+  },
+  container: {
+    maxWidth: '1160px',
+    margin: '0 auto',
+    padding: '0 24px',
   },
   section: {
-    padding: '60px 0',
+    padding: '70px 0',
   },
   sectionAlt: {
-    padding: '60px 0',
-    backgroundColor: 'var(--bg-secondary)',
+    padding: '70px 0',
+    backgroundColor: '#ffffff',
+    borderTop: '1px solid #e7e0e8',
+    borderBottom: '1px solid #e7e0e8',
   },
   sectionHeader: {
     textAlign: 'center',
-    marginBottom: '36px',
+    maxWidth: '680px',
+    margin: '0 auto 40px auto',
   },
   sectionTitle: {
+    fontFamily: 'Georgia, serif',
     fontSize: '2rem',
-    marginBottom: '10px',
-    fontWeight: '800',
+    letterSpacing: '-0.02em',
+    color: '#29232d',
+    margin: '8px 0 10px 0',
+    fontWeight: '700',
   },
   sectionSubtitle: {
-    fontSize: '1rem',
-    color: 'var(--text-muted)',
+    fontSize: '0.98rem',
+    color: '#6c636f',
+    lineHeight: '1.55',
+    margin: 0,
   },
   stepsGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
-    gap: '20px',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+    gap: '24px',
   },
   stepCard: {
+    background: '#ffffff',
+    border: '1px solid #e7e0e8',
+    borderRadius: '20px',
     padding: '30px 24px',
     display: 'flex',
     flexDirection: 'column',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
   },
   stepNumber: {
-    width: '40px',
-    height: '40px',
+    width: '42px',
+    height: '42px',
     borderRadius: '50%',
-    background: 'var(--primary)',
+    background: '#f2eaf8',
+    color: '#67408b',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     fontWeight: '800',
-    fontSize: '1.1rem',
+    fontSize: '1.15rem',
     marginBottom: '16px',
-    color: '#FFFFFF',
   },
   stepTitle: {
-    fontSize: '1.2rem',
+    fontSize: '1.15rem',
+    fontWeight: '800',
+    color: '#29232d',
     marginBottom: '10px',
-    fontWeight: '700',
   },
   stepText: {
-    color: 'var(--text-secondary)',
+    color: '#6c636f',
     lineHeight: '1.6',
-    fontSize: '0.92rem',
+    fontSize: '0.9rem',
+    margin: 0,
   },
-  offerList: {
-    listStyle: 'none',
-    padding: 0,
-    margin: '20px auto',
-    maxWidth: '520px',
-    textAlign: 'left',
+  examplesGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+    gap: '24px',
+  },
+  exampleCard: {
+    padding: '20px',
+    borderRadius: '20px',
+    background: '#ffffff',
+    border: '1.5px solid #e7e0e8',
     display: 'flex',
     flexDirection: 'column',
-    gap: '10px',
-    fontSize: '1rem',
-    color: 'var(--text-secondary)',
+    gap: '14px',
+    transition: 'all 0.2s ease',
   },
-  faqList: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '12px',
-  },
-  faqItem: {
-    padding: '6px 20px',
-    overflow: 'hidden',
-  },
-  faqQuestion: {
-    width: '100%',
-    background: 'none',
-    border: 'none',
-    color: 'var(--text-primary)',
-    padding: '14px 0',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    fontSize: '1rem',
-    fontWeight: '700',
-    textAlign: 'left',
-    cursor: 'pointer',
-    outline: 'none',
-  },
-  faqAnswer: {
-    padding: '0 0 16px 0',
-    color: 'var(--text-secondary)',
-    lineHeight: '1.6',
-    fontSize: '0.92rem',
-    borderTop: '1px solid var(--border-color)',
-    paddingTop: '12px',
-  },
-  footer: {
-    marginTop: 'auto',
-    borderTop: '1px solid var(--border-color)',
-    backgroundColor: '#FFFFFF',
-    padding: '36px 0',
-  },
-  footerContainer: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    flexWrap: 'wrap',
+  testimonialsGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
     gap: '20px',
   },
-  footerBrand: {
-    flex: 1,
-    minWidth: '240px',
-  },
-  footerTagline: {
-    fontSize: '0.85rem',
-    color: 'var(--text-muted)',
+  testimonialCard: {
+    background: '#faf8f5',
+    border: '1px solid #e7e0e8',
+    borderRadius: '20px',
+    padding: '24px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '14px',
   },
 };

@@ -20,31 +20,44 @@ import Image from 'next/image';
 import TabelaTimbresClientes from '@/components/admin/TabelaTimbresClientes';
 import AbaFinanceiro from '@/components/admin/AbaFinanceiro';
 import AbaRemixCover from '@/components/admin/AbaRemixCover';
+import AbaContas from '@/components/admin/AbaContas';
+
+const getSavedAdminFilter = (key, fallback) => {
+  if (typeof window === 'undefined') return fallback;
+  try {
+    const val = sessionStorage.getItem(`ns_admin_${key}`);
+    return val !== null ? JSON.parse(val) : fallback;
+  } catch (e) {
+    return fallback;
+  }
+};
 
 export default function AdminDashboard() {
   const [user, setUser] = useState(null);
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [orders, setOrders] = useState([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
-  const [filter, setFilter] = useState('ALL'); // 'ALL', 'NEW', 'PRODUCTION', 'FINISHED'
-  const [purchaseTypeTab, setPurchaseTypeTab] = useState('ALL'); // 'ALL', 'MUSIC', 'VIDEO'
+
   // Padrão "hoje" — reduz leituras do Firestore no carregamento inicial (ver where() na query de orders).
   const todayLocalStr = () => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   };
-  const [dateFrom, setDateFrom] = useState(todayLocalStr);
-  const [dateTo, setDateTo] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  const [filter, setFilter] = useState(() => getSavedAdminFilter('filter', 'ALL')); // 'ALL', 'NEW', 'PRODUCTION', 'FINISHED'
+  const [purchaseTypeTab, setPurchaseTypeTab] = useState(() => getSavedAdminFilter('purchaseTypeTab', 'ALL')); // 'ALL', 'MUSIC', 'VIDEO'
+  const [dateFrom, setDateFrom] = useState(() => getSavedAdminFilter('dateFrom', todayLocalStr()));
+  const [dateTo, setDateTo] = useState(() => getSavedAdminFilter('dateTo', ''));
+  const [searchQuery, setSearchQuery] = useState(() => getSavedAdminFilter('searchQuery', ''));
+  const [debouncedSearch, setDebouncedSearch] = useState(() => getSavedAdminFilter('searchQuery', ''));
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(searchQuery), 350);
     return () => clearTimeout(t);
   }, [searchQuery]);
-  const [paymentStatusFilter, setPaymentStatusFilter] = useState('ALL');
-  const [productionStatusFilter, setProductionStatusFilter] = useState('ALL');
-  const [providerFilter, setProviderFilter] = useState('ALL');
-  const [sortBy, setSortBy] = useState('createdAt_desc'); // 'createdAt_desc'|'createdAt_asc'|'paidAt_desc'|'paidAt_asc'
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState(() => getSavedAdminFilter('paymentStatusFilter', 'ALL'));
+  const [productionStatusFilter, setProductionStatusFilter] = useState(() => getSavedAdminFilter('productionStatusFilter', 'ALL'));
+  const [providerFilter, setProviderFilter] = useState(() => getSavedAdminFilter('providerFilter', 'ALL'));
+  const [sortBy, setSortBy] = useState(() => getSavedAdminFilter('sortBy', 'createdAt_desc')); // 'createdAt_desc'|'createdAt_asc'|'paidAt_desc'|'paidAt_asc'
 
   // Controle de auto-atualização em tempo real e renovação de token
   const [reloadTrigger, setReloadTrigger] = useState(0);
@@ -77,10 +90,25 @@ export default function AdminDashboard() {
   const [selectedOrderIds, setSelectedOrderIds] = useState([]);
   const [deletingOrders, setDeletingOrders] = useState(false);
 
-  // 'ORDERS' | 'STUCK' | 'LIMITES' | 'AJUSTES'. Ajustes reúne o que é CONFIGURAÇÃO (robô do WhatsApp, número
-  // do suporte) — antes vivia no topo da lista de pedidos, competindo por atenção com o trabalho
-  // do dia (pedido do dono do estúdio, 25/09/2026).
-  const [activeTab, setActiveTab] = useState('ORDERS');
+  // 'ORDERS' | 'CONTAS' | 'STUCK' | 'LIMITES' | 'AJUSTES' | 'FINANCEIRO' | 'TIMBRES' | 'REMIX'
+  const [activeTab, setActiveTab] = useState(() => getSavedAdminFilter('activeTab', 'ORDERS'));
+
+  // Salva os filtros no sessionStorage para preservá-los ao navegar para um pedido e voltar
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      sessionStorage.setItem('ns_admin_filter', JSON.stringify(filter));
+      sessionStorage.setItem('ns_admin_purchaseTypeTab', JSON.stringify(purchaseTypeTab));
+      sessionStorage.setItem('ns_admin_dateFrom', JSON.stringify(dateFrom));
+      sessionStorage.setItem('ns_admin_dateTo', JSON.stringify(dateTo));
+      sessionStorage.setItem('ns_admin_searchQuery', JSON.stringify(searchQuery));
+      sessionStorage.setItem('ns_admin_paymentStatusFilter', JSON.stringify(paymentStatusFilter));
+      sessionStorage.setItem('ns_admin_productionStatusFilter', JSON.stringify(productionStatusFilter));
+      sessionStorage.setItem('ns_admin_providerFilter', JSON.stringify(providerFilter));
+      sessionStorage.setItem('ns_admin_sortBy', JSON.stringify(sortBy));
+      sessionStorage.setItem('ns_admin_activeTab', JSON.stringify(activeTab));
+    } catch (e) {}
+  }, [filter, purchaseTypeTab, dateFrom, dateTo, searchQuery, paymentStatusFilter, productionStatusFilter, providerFilter, sortBy, activeTab]);
 
   // Número de WhatsApp do suporte, editável aqui em vez de hardcoded no código (pedido 21/09/2026:
   // o número principal foi suspenso e o dono vai alternar de volta em dois dias — trocar isso não
@@ -889,6 +917,7 @@ export default function AdminDashboard() {
                 }}
               >
                 <option value="ORDERS">📦 Pedidos ({orders.length})</option>
+                <option value="CONTAS">👤 Contas & Créditos</option>
                 <option value="FINANCEIRO">💰 Financeiro (Receitas & Despesas)</option>
                 <option value="STUCK">💰 Conferir Pagamentos</option>
                 <option value="TIMBRES">📋 Timbres de Voz (Clientes)</option>
@@ -912,6 +941,17 @@ export default function AdminDashboard() {
                 }}
               >
                 📦 Pedidos ({orders.length})
+              </button>
+              <button
+                onClick={() => setActiveTab('CONTAS')}
+                style={{
+                  ...styles.tabBtn,
+                  backgroundColor: activeTab === 'CONTAS' ? '#7c3aed' : '#e2e8f0',
+                  color: activeTab === 'CONTAS' ? '#ffffff' : '#334155',
+                  fontWeight: '700',
+                }}
+              >
+                👤 Contas & Créditos
               </button>
               <button
                 onClick={() => setActiveTab('FINANCEIRO')}
@@ -1023,7 +1063,9 @@ export default function AdminDashboard() {
       <main style={{ flex: 1, padding: '32px 0' }}>
         <div className="container" style={{ maxWidth: '1280px', margin: '0 auto', padding: '0 20px' }}>
           
-          {activeTab === 'FINANCEIRO' ? (
+          {activeTab === 'CONTAS' ? (
+            <AbaContas authUser={user} />
+          ) : activeTab === 'FINANCEIRO' ? (
             <AbaFinanceiro />
           ) : activeTab === 'REMIX' ? (
             <AbaRemixCover />

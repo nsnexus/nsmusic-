@@ -48,6 +48,8 @@ export default function OrderDetailsAdmin() {
   const [checkPaymentMsg, setCheckPaymentMsg] = useState('');
   const [copiedClientLink, setCopiedClientLink] = useState(false);
   const [copiedImpactLink, setCopiedImpactLink] = useState(false);
+  const [copiedLyrics, setCopiedLyrics] = useState(false);
+  const [copiedTags, setCopiedTags] = useState(false);
 
   const [sunoPrompt, setSunoPrompt] = useState('');
 
@@ -345,6 +347,31 @@ export default function OrderDetailsAdmin() {
     navigator.clipboard.writeText(url);
     setCopiedImpactLink(true);
     setTimeout(() => setCopiedImpactLink(false), 3000);
+  };
+
+  const handleCopyLyrics = () => {
+    if (typeof window === 'undefined') return;
+    const textToCopy = lyrics || order?.lyrics || order?.sunoTracks?.[0]?.prompt || '';
+    if (!textToCopy) return;
+    navigator.clipboard.writeText(textToCopy);
+    setCopiedLyrics(true);
+    setTimeout(() => setCopiedLyrics(false), 3000);
+  };
+
+  const handleCopyTags = () => {
+    if (typeof window === 'undefined') return;
+    let tagsToCopy = sunoPrompt;
+    if (!tagsToCopy && order) {
+      try {
+        tagsToCopy = buildSunoPayload(order).tags;
+      } catch (e) {
+        tagsToCopy = `${order.musicStyle || 'Pop'}, ${order.musicMood || 'Emocionante'}`;
+      }
+    }
+    if (!tagsToCopy) return;
+    navigator.clipboard.writeText(tagsToCopy);
+    setCopiedTags(true);
+    setTimeout(() => setCopiedTags(false), 3000);
   };
 
   const handleDownload = async (url, filename) => {
@@ -659,7 +686,39 @@ export default function OrderDetailsAdmin() {
                     ? '🔇 Ainda não deu play na prévia'
                     : '— Pedido de antes do rastreamento de prévia (09/09/2026), sem esse dado'}
               </p>
-              <div style={{ display: 'flex', gap: '8px', marginTop: '10px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={handleCopyLyrics}
+                  style={{
+                    ...styles.quickActionBtn,
+                    background: copiedLyrics ? '#059669' : 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)',
+                    color: '#fff',
+                    fontWeight: '700',
+                    border: 'none',
+                    boxShadow: '0 2px 6px rgba(124, 58, 237, 0.25)',
+                    cursor: 'pointer'
+                  }}
+                  title="Copiar a letra completa da música para gerar no Suno"
+                >
+                  {copiedLyrics ? '✅ Letra copiada!' : '📋 Copiar Letra'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCopyTags}
+                  style={{
+                    ...styles.quickActionBtn,
+                    background: copiedTags ? '#059669' : 'linear-gradient(135deg, #db2777 0%, #9333ea 100%)',
+                    color: '#fff',
+                    fontWeight: '700',
+                    border: 'none',
+                    boxShadow: '0 2px 6px rgba(219, 39, 119, 0.25)',
+                    cursor: 'pointer'
+                  }}
+                  title="Copiar prompt de estilo / tags musicais para colar no Suno"
+                >
+                  {copiedTags ? '✅ Tags copiadas!' : '🏷️ Copiar Tags / Estilo'}
+                </button>
                 {order.customerPhone && (
                   <a
                     href={`https://wa.me/${formatToWhatsAppNumber(order.customerPhone)}`}

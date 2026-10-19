@@ -188,32 +188,33 @@ export default function KaraokeAddonCard({ orderId, order }) {
 
   return (
     <div style={{
-      background: 'linear-gradient(135deg, rgba(30, 20, 50, 0.95) 0%, rgba(20, 15, 35, 0.95) 100%)',
-      border: '1px solid rgba(168, 85, 247, 0.4)',
+      background: '#ffffff',
+      border: '1.5px solid #e2e8f0',
       borderRadius: '20px',
       padding: '24px',
-      marginTop: '20px',
-      boxShadow: '0 10px 30px rgba(0, 0, 0, 0.4)',
+      marginTop: '16px',
+      boxShadow: '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
       position: 'relative',
       overflow: 'hidden',
+      color: '#0f172a'
     }}>
       {/* Badge Superior */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ fontSize: '1.8rem' }}>🎤</span>
           <div>
-            <h3 style={{ fontSize: '1.25rem', fontWeight: '800', color: '#fff', margin: 0 }}>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: '800', color: '#0f172a', margin: 0 }}>
               Vídeo Karaokê Widescreen
             </h3>
-            <p style={{ fontSize: '0.85rem', color: '#c084fc', margin: '2px 0 0 0' }}>
+            <p style={{ fontSize: '0.85rem', color: '#7c3aed', margin: '2px 0 0 0', fontWeight: '600' }}>
               Playback instrumental + Letra sincronizada na TV
             </p>
           </div>
         </div>
         <span style={{
-          backgroundColor: 'rgba(168, 85, 247, 0.2)',
-          color: '#d8b4fe',
-          border: '1px solid rgba(168, 85, 247, 0.5)',
+          backgroundColor: '#f5f3ff',
+          color: '#7c3aed',
+          border: '1px solid #ddd6fe',
           padding: '4px 10px',
           borderRadius: '20px',
           fontSize: '0.75rem',
@@ -228,15 +229,15 @@ export default function KaraokeAddonCard({ orderId, order }) {
       {!hasAccess ? (
         // Estado: Oferta de Compra (Não Pago)
         <div>
-          <p style={{ fontSize: '0.95rem', color: '#cbd5e1', lineHeight: '1.6', marginBottom: '18px' }}>
+          <p style={{ fontSize: '0.92rem', color: '#475569', lineHeight: '1.6', marginBottom: '18px' }}>
             Transforme a música da sua homenagem em um <strong>show de karaokê na Smart TV</strong>! 
             Removemos a voz da música (mantendo o instrumental original impecável) e colocamos a letra sincronizada na tela 
-            com as palavras acendendo em dourado no segundo exato de cantar.
+            com as palavras acendendo no segundo exato de cantar.
           </p>
 
           {temEscolha && (
             <div style={{ marginBottom: '16px', textAlign: 'left' }}>
-              <p style={{ fontSize: '0.88rem', fontWeight: '700', marginBottom: '8px', color: '#fff' }}>
+              <p style={{ fontSize: '0.88rem', fontWeight: '700', marginBottom: '8px', color: '#0f172a' }}>
                 Qual versão da música você quer transformar em Karaokê?
               </p>
               {arquivosFaixas.map((audioSrc, i) => (
@@ -248,8 +249,8 @@ export default function KaraokeAddonCard({ orderId, order }) {
                     gap: '8px',
                     padding: '10px 14px',
                     borderRadius: '10px',
-                    border: `1.5px solid ${faixaEscolhida === i ? '#a855f7' : 'rgba(255,255,255,0.1)'}`,
-                    backgroundColor: faixaEscolhida === i ? 'rgba(168, 85, 247, 0.2)' : 'rgba(0,0,0,0.3)',
+                    border: `1.5px solid ${faixaEscolhida === i ? '#7c3aed' : '#e2e8f0'}`,
+                    backgroundColor: faixaEscolhida === i ? '#faf5ff' : '#f8fafc',
                     marginBottom: '8px',
                     cursor: 'pointer',
                   }}
@@ -261,7 +262,7 @@ export default function KaraokeAddonCard({ orderId, order }) {
                       checked={faixaEscolhida === i}
                       onChange={() => setFaixaEscolhida(i)}
                     />
-                    <span style={{ fontSize: '0.9rem', fontWeight: '600', color: '#fff' }}>
+                    <span style={{ fontSize: '0.9rem', fontWeight: '600', color: '#0f172a' }}>
                       Versão {i + 1}
                     </span>
                   </div>
@@ -277,19 +278,19 @@ export default function KaraokeAddonCard({ orderId, order }) {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            background: 'rgba(0, 0, 0, 0.3)',
+            background: '#f8fafc',
             borderRadius: '14px',
             padding: '16px',
             marginBottom: '18px',
-            border: '1px solid rgba(255, 255, 255, 0.05)',
+            border: '1.5px solid #e2e8f0',
             flexWrap: 'wrap',
             gap: '12px'
           }}>
             <div>
-              <div style={{ fontSize: '0.8rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Valor único promocional</div>
+              <div style={{ fontSize: '0.8rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: '700' }}>Valor único promocional</div>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
-                <span style={{ fontSize: '1.5rem', fontWeight: '800', color: '#34d399' }}>R$ 9,90</span>
-                <span style={{ fontSize: '0.85rem', color: '#64748b', textDecoration: 'line-through' }}>R$ 29,90</span>
+                <span style={{ fontSize: '1.6rem', fontWeight: '800', color: '#059669' }}>R$ 9,90</span>
+                <span style={{ fontSize: '0.85rem', color: '#94a3b8', textDecoration: 'line-through' }}>R$ 29,90</span>
               </div>
             </div>
 
@@ -300,7 +301,7 @@ export default function KaraokeAddonCard({ orderId, order }) {
                 disabled={loading}
                 className="btn btn-primary"
                 style={{
-                  background: 'linear-gradient(135deg, #9333ea 0%, #7928ca 100%)',
+                  background: 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)',
                   color: '#fff',
                   border: 'none',
                   padding: '12px 24px',
@@ -311,7 +312,7 @@ export default function KaraokeAddonCard({ orderId, order }) {
                   display: 'flex',
                   alignItems: 'center',
                   gap: '8px',
-                  boxShadow: '0 4px 15px rgba(147, 51, 234, 0.4)'
+                  boxShadow: '0 4px 14px rgba(124, 58, 237, 0.3)'
                 }}
               >
                 {loading ? 'Gerando PIX...' : '🎤 Quero o Vídeo Karaokê'}
@@ -328,17 +329,17 @@ export default function KaraokeAddonCard({ orderId, order }) {
           {/* Card com o QR Code do PIX */}
           {pixInfo.qrCode && (
             <div style={{
-              background: 'rgba(15, 10, 25, 0.9)',
+              background: '#f8fafc',
               borderRadius: '16px',
               padding: '20px',
-              border: '1px solid rgba(168, 85, 247, 0.4)',
+              border: '1.5px solid #e2e8f0',
               textAlign: 'center'
             }}>
-              <h4 style={{ color: '#fff', fontSize: '1rem', fontWeight: '700', marginBottom: '8px' }}>
+              <h4 style={{ color: '#0f172a', fontSize: '1.05rem', fontWeight: '800', marginBottom: '8px' }}>
                 Pague R$ 9,90 via PIX para liberar seu Karaokê
               </h4>
-              <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginBottom: '16px' }}>
-                Assim que você pagar, o vídeo karaokê começa a ser gerado automaticamente na hora.
+              <p style={{ color: '#64748b', fontSize: '0.85rem', marginBottom: '16px' }}>
+                Assim que você pagar, a equipe inicia a produção manual do seu vídeo karaokê.
               </p>
 
               <PixQrCode
@@ -489,13 +490,13 @@ export default function KaraokeAddonCard({ orderId, order }) {
           ) : (
             // Acesso liberado, aguardando o cliente escolher a versão e iniciar
             <div style={{ textAlign: 'center', padding: '10px 0' }}>
-              <div style={{ display: 'inline-block', background: 'rgba(52, 211, 153, 0.2)', border: '1px solid #34d399', borderRadius: '20px', padding: '4px 14px', fontSize: '0.8rem', color: '#34d399', fontWeight: '700', marginBottom: '12px' }}>
+              <div style={{ display: 'inline-block', background: '#ecfdf5', border: '1px solid #10b981', borderRadius: '20px', padding: '4px 14px', fontSize: '0.8rem', color: '#047857', fontWeight: '700', marginBottom: '12px' }}>
                 ✅ Vídeo Karaokê Liberado!
               </div>
-              <h4 style={{ color: '#fff', fontSize: '1.1rem', fontWeight: '700', marginBottom: '6px' }}>
+              <h4 style={{ color: '#0f172a', fontSize: '1.2rem', fontWeight: '800', marginBottom: '6px' }}>
                 Pronto para criar seu Karaokê Widescreen
               </h4>
-              <p style={{ color: '#cbd5e1', fontSize: '0.85rem', maxWidth: '500px', margin: '0 auto 16px auto', lineHeight: '1.5' }}>
+              <p style={{ color: '#475569', fontSize: '0.88rem', maxWidth: '500px', margin: '0 auto 16px auto', lineHeight: '1.5' }}>
                 {temEscolha
                   ? 'Escolha abaixo qual versão da sua música você deseja transformar em Vídeo Karaokê para cantar na Smart TV:'
                   : 'Clique no botão abaixo para iniciar a renderização em Full HD com letra sincronizada:'}
@@ -512,8 +513,8 @@ export default function KaraokeAddonCard({ orderId, order }) {
                         gap: '8px',
                         padding: '12px 14px',
                         borderRadius: '12px',
-                        border: `1.5px solid ${faixaEscolhida === i ? '#a855f7' : 'rgba(255,255,255,0.1)'}`,
-                        backgroundColor: faixaEscolhida === i ? 'rgba(168, 85, 247, 0.25)' : 'rgba(0,0,0,0.3)',
+                        border: `1.5px solid ${faixaEscolhida === i ? '#7c3aed' : '#e2e8f0'}`,
+                        backgroundColor: faixaEscolhida === i ? '#faf5ff' : '#f8fafc',
                         marginBottom: '10px',
                         cursor: 'pointer',
                         transition: 'all 0.2s ease',
@@ -527,12 +528,12 @@ export default function KaraokeAddonCard({ orderId, order }) {
                             checked={faixaEscolhida === i}
                             onChange={() => setFaixaEscolhida(i)}
                           />
-                          <span style={{ fontSize: '0.92rem', fontWeight: '700', color: '#fff' }}>
+                          <span style={{ fontSize: '0.92rem', fontWeight: '700', color: '#0f172a' }}>
                             Versão {i + 1}
                           </span>
                         </div>
                         {faixaEscolhida === i && (
-                          <span style={{ fontSize: '0.75rem', color: '#d8b4fe', fontWeight: '600' }}>
+                          <span style={{ fontSize: '0.75rem', color: '#7c3aed', fontWeight: '700' }}>
                             ✓ Selecionada
                           </span>
                         )}
@@ -557,7 +558,7 @@ export default function KaraokeAddonCard({ orderId, order }) {
                 disabled={isTriggering}
                 className="btn btn-primary"
                 style={{
-                  background: 'linear-gradient(135deg, #9333ea 0%, #7928ca 100%)',
+                  background: 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)',
                   color: '#fff',
                   border: 'none',
                   padding: '14px 28px',
@@ -565,7 +566,7 @@ export default function KaraokeAddonCard({ orderId, order }) {
                   fontWeight: '700',
                   fontSize: '1rem',
                   cursor: isTriggering ? 'not-allowed' : 'pointer',
-                  boxShadow: '0 4px 15px rgba(147, 51, 234, 0.4)',
+                  boxShadow: '0 4px 15px rgba(124, 58, 237, 0.35)',
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '8px',
