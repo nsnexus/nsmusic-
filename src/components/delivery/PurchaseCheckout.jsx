@@ -30,13 +30,18 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
   useEffect(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(`pixInfo_${orderId}`) || 'null');
-      if (saved?.qrCode && saved.generatedAt && Date.now() - new Date(saved.generatedAt).getTime() < MAX_AGE && (catalog.some(item => item.sku === saved.sku) || saved.sku === `recovery_combo_${promo}`)) {
+      const allowedSku = recovery ? saved?.sku === `recovery_combo_${promo}` : catalog.some(item => item.sku === saved?.sku);
+      if (saved?.qrCode && saved.generatedAt && Date.now() - new Date(saved.generatedAt).getTime() < MAX_AGE && allowedSku) {
         setPix(saved); setSelected(saved.sku); setReview(true); onCharge?.(saved);
       }
     } catch {}
     // Catalog and onCharge are derived render values; restore once per order.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderId, promo]);
+
+  useEffect(() => {
+    if (review) panel.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [review]);
 
   useEffect(() => {
     if (!pix?.paymentId) return;
@@ -58,10 +63,16 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
 
   const generate = async () => {
     if (busyRef.current) return;
+    setReview(true);
+    if (pix?.qrCode && pix.sku === pack.sku && Date.now() - new Date(pix.generatedAt).getTime() < MAX_AGE) {
+      panel.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
     busyRef.current = true; setBusy(true); setError('');
     try {
       const result = await requestPixCharge({ orderId, sku: pack.sku });
       if (!result.ok) throw new Error(result.error);
+      if (!result.data?.paymentId || !result.data?.qrCode) throw new Error('Não foi possível preparar o código PIX. Tente novamente.');
       const charge = { ...result.data, sku: pack.sku, generatedAt: new Date().toISOString() };
       setPix(charge); onCharge?.(charge);
       try { localStorage.setItem(`pixInfo_${orderId}`, JSON.stringify(charge)); } catch {}
@@ -106,13 +117,15 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
 
   return <section id="pagamento" aria-label="Escolher e comprar seu presente">
     <div className="nx-section-heading"><h2>Como você quer emocionar?</h2><p>Todas as opções incluem as duas versões completas. Pagamento único, sem assinatura.</p></div>
-    {!recovery && <><div className="nx-package-grid" role="group" aria-label="Pacotes">{catalog.slice(0, 4).map(item => <button type="button" className="nx-package" key={item.sku} aria-pressed={selected === item.sku} disabled={busy} onClick={() => choose(item.sku)}><span className="nx-eyebrow">{item.eyebrow}</span><strong>{item.label}</strong><span className="nx-package-price">{formatBrl(item.price)}</span><ul>{item.includes.map(line => <li key={line}>{line}</li>)}</ul></button>)}</div><details className="nx-details"><summary>Também quero conhecer a opção com minha voz</summary><p className="nx-helper">Música + minha voz: {formatBrl(catalog[4].price)}. Você envia uma gravação para personalizar o timbre após a compra. Este pacote não inclui carta, vídeo ou retrospectiva.</p><button type="button" className="nx-button" disabled={busy} onClick={() => choose('combo_voz')}>Escolher música + minha voz</button></details></>}
-    <div className="nx-card nx-checkout-summary"><div><strong>{pack.label} · {formatBrl(pack.price)}</strong><p>{pack.includes.join(' · ')}</p></div><button type="button" className="nx-button nx-primary" disabled={busy} onClick={() => { setReview(true); setTimeout(() => panel.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0); }}>Revisar meu presente →</button></div>
+    {!recovery && <><div className="nx-package-grid" role="group" aria-label="Pacotes">{catalog.slice(0, 4).map(item => <button type="button" className={`nx-package${item.sku === 'combo' ? ' nx-package-featured' : ''}`} key={item.sku} aria-pressed={selected === item.sku} disabled={busy} onClick={() => choose(item.sku)}>{item.sku === 'combo' && <span className="nx-package-badge">Mais comprado</span>}<span className="nx-eyebrow">{item.eyebrow}</span><strong>{item.label}</strong><span className="nx-package-price">{formatBrl(item.price)}</span><ul>{item.includes.map(line => <li key={line}>{line}</li>)}</ul></button>)}</div><details className="nx-details"><summary>Também quero conhecer a opção com minha voz</summary><p className="nx-helper">Música + minha voz: {formatBrl(catalog[4].price)}. Você envia uma gravação para personalizar o timbre após a compra. Este pacote não inclui carta, vídeo ou retrospectiva.</p><button type="button" className="nx-button" disabled={busy} onClick={() => choose('combo_voz')}>Escolher música + minha voz</button></details></>}
+    <div className="nx-card nx-checkout-summary"><div><strong>{pack.label} · {formatBrl(pack.price)}</strong><p>{pack.includes.join(' · ')}</p></div><button type="button" className="nx-button nx-primary" disabled={busy} onClick={generate}>{busy ? 'Preparando seu PIX…' : 'Adquirir meu presente →'}</button></div>
+    {!recovery && !pix && <button type="button" className="nx-text-button nx-credit-alternative" disabled={busy} onClick={() => { setReview(true); panel.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}>Prefiro usar meus créditos</button>}
     {review && <div className="nx-card nx-checkout-panel" ref={panel}>
-      <span className="nx-eyebrow">Confira seu presente</span><h2>{pack.label}</h2><ul className="nx-checklist">{pack.includes.map(item => <li key={item}>{item}</li>)}</ul><div className="nx-checkout-total">{formatBrl(pack.price)}</div>
+      <span className="nx-eyebrow">Pagamento do seu presente</span><h2>{pack.label}</h2><ul className="nx-checklist">{pack.includes.map(item => <li key={item}>{item}</li>)}</ul><div className="nx-checkout-total">{formatBrl(pack.price)}</div>
       {error && <p className="nx-message nx-error" role="alert">{error}</p>}
       {busy && <p className="nx-message" role="status">Preparando seu pagamento…</p>}
-      {!pix && <div className="nx-checkout-actions"><button type="button" className="nx-button nx-primary" disabled={busy} onClick={generate}>Gerar PIX de {formatBrl(pack.price)}</button>{!recovery && <button type="button" className="nx-button" disabled={busy} onClick={useCredits}>Confirmar uso de {pack.credits} crédito(s)</button>}</div>}
+      {!pix && !busy && error && <button type="button" className="nx-button nx-primary" onClick={generate}>Tentar PIX novamente</button>}
+      {!pix && !recovery && <div className="nx-checkout-actions"><button type="button" className="nx-button" disabled={busy} onClick={useCredits}>Confirmar uso de {pack.credits} crédito(s)</button></div>}
       {balance !== null && <p className="nx-helper">Saldo consultado: {balance} crédito(s). Créditos não vencem. <Link href="/conta">Minha conta</Link></p>}
       {needsClaim && <OrderClaim orderId={orderId} onClaim={() => { setNeedsClaim(false); setError(''); setMessage('Pedido vinculado. Você já pode confirmar o uso dos créditos.'); }} />}
       {pix?.qrCode && <><p className="nx-helper">Copie o código, abra o aplicativo do seu banco e escolha PIX Copia e Cola. Depois de pagar, volte para esta página.</p><div className="nx-checkout-actions"><button type="button" className="nx-button nx-primary" onClick={async () => { try { await navigator.clipboard.writeText(pix.qrCode); setMessage('Código PIX copiado. Cole no aplicativo do seu banco.'); } catch { setError('Não foi possível copiar. Selecione o código abaixo para copiar manualmente.'); } }}>Copiar código PIX</button><button type="button" className="nx-button" onClick={check} disabled={checking}>{checking ? 'Consultando…' : 'Já paguei'}</button></div><label className="nx-field"><span>Código PIX Copia e Cola</span><textarea className="nx-pix-code" readOnly value={pix.qrCode} /></label><details className="nx-details"><summary>Ver QR Code para pagar em outro aparelho</summary><div className="nx-pix-qr"><PixQrCode payload={pix.qrCode} /></div></details>{pix.provider === 'static' && <><p className="nx-message">Após pagar este PIX de contingência, envie seu comprovante para conferência.</p><label className="nx-field"><span>Anexar comprovante</span><input type="file" accept="image/*,application/pdf" disabled={receiptStatus === 'uploading'} onChange={event => { const file = event.target.files?.[0]; if (file) onReceipt(file); }} /></label>{receiptStatus === 'uploading' && <p role="status">Conferindo seu comprovante…</p>}{receiptStatus === 'failed' && <p className="nx-message nx-error">Não conseguimos confirmar. Use o suporte no final da página para enviar o comprovante.</p>}</>}</>}

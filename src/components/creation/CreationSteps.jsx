@@ -54,30 +54,27 @@ export default function CreationSteps({ step, formData: data, updateField, isLis
   };
 
   if (step === 1) return (
-    <div className="nx-creation-layout">
-      <section>
-        <h1>Para quem é<br />essa música?</h1>
-        <p className="nx-subtitle">Comece por alguém que merece ouvir o quanto é especial.</p>
-        <div className="nx-recipient-grid" role="group" aria-label="Tipo de homenagem">
-          {groups.slice(0, 2).map(group => <button key={group.id} type="button" className="nx-recipient" aria-pressed={activeGroup === group.id} onClick={() => pickGroup(group.id)}>
-            <Image unoptimized src={group.photo} alt="" width={640} height={426} sizes="(max-width: 800px) 44vw, 250px" priority />
-            <span>{group.label}<i aria-hidden="true">{activeGroup === group.id ? '✓' : ''}</i></span>
-          </button>)}
-        </div>
-        <div className="nx-chips" role="group" aria-label="Outras relações">{groups.slice(2).map(group => <button key={group.id} type="button" aria-pressed={activeGroup === group.id} onClick={() => pickGroup(group.id)}>{group.label}</button>)}</div>
-        {!isSelfTribute && <Field label="O que essa pessoa é sua?">
-          <select value={data.relationship || ''} onChange={e => { updateField('relationship', e.target.value); updateField('recipientType', e.target.value); }}><option value="">Escolha a relação</option>{options.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}</select>
-        </Field>}
-        {data.relationship === 'Outro' && <Field label="Qual é a relação de vocês?"><input value={data.customRelationship || ''} onChange={e => updateField('customRelationship', e.target.value)} placeholder="Ex.: minha sogra" maxLength={100} /></Field>}
-        <div className="nx-field-row">
-          <Field label="Nome de quem vai receber"><input value={data.honoreeName || ''} readOnly={isSelfTribute} onChange={e => updateField('honoreeName', e.target.value)} placeholder={isSelfTribute ? 'Seu próprio nome' : 'Ex.: Helena'} autoComplete="off" maxLength={100} /></Field>
-          <Field label="Seu primeiro nome"><input value={data.customerName || ''} onChange={e => { updateField('customerName', e.target.value); if (isSelfTribute) updateField('honoreeName', e.target.value); }} placeholder="Ex.: Mariana" autoComplete="given-name" maxLength={100} /></Field>
-        </div>
-        {isSelfTribute && <p className="nx-helper">Esta homenagem será para você. Seu nome aparece nos dois campos.</p>}
-        <Field label="Qual é a ocasião?"><select value={data.occasion || ''} onChange={e => updateField('occasion', e.target.value)}><option value="">Escolha o motivo</option>{occasions.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}</select></Field>
-      </section>
-      <CreationEditorial />
-    </div>
+    <section className="nx-form-column">
+      <h1>Para quem é<br />essa música?</h1>
+      <p className="nx-subtitle">Comece por alguém que merece ouvir o quanto é especial.</p>
+      <div className="nx-recipient-grid" role="group" aria-label="Tipo de homenagem">
+        {groups.slice(0, 2).map(group => <button key={group.id} type="button" className="nx-recipient" aria-pressed={activeGroup === group.id} onClick={() => pickGroup(group.id)}>
+          <Image unoptimized src={group.photo} alt="" width={640} height={426} sizes="(max-width: 800px) 44vw, 250px" priority />
+          <span>{group.label}<i aria-hidden="true">{activeGroup === group.id ? '✓' : ''}</i></span>
+        </button>)}
+      </div>
+      <div className="nx-chips" role="group" aria-label="Outras relações">{groups.slice(2).map(group => <button key={group.id} type="button" aria-pressed={activeGroup === group.id} onClick={() => pickGroup(group.id)}>{group.label}</button>)}</div>
+      {!isSelfTribute && <Field label="O que essa pessoa é sua?">
+        <select value={data.relationship || ''} onChange={e => { updateField('relationship', e.target.value); updateField('recipientType', e.target.value); }}><option value="">Escolha a relação</option>{options.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}</select>
+      </Field>}
+      {data.relationship === 'Outro' && <Field label="Qual é a relação de vocês?"><input value={data.customRelationship || ''} onChange={e => updateField('customRelationship', e.target.value)} placeholder="Ex.: minha sogra" maxLength={100} /></Field>}
+      <div className="nx-field-row">
+        <Field label="Nome de quem vai receber"><input value={data.honoreeName || ''} readOnly={isSelfTribute} onChange={e => updateField('honoreeName', e.target.value)} placeholder={isSelfTribute ? 'Seu próprio nome' : 'Ex.: Helena'} autoComplete="off" maxLength={100} /></Field>
+        <Field label="Seu primeiro nome"><input value={data.customerName || ''} onChange={e => { updateField('customerName', e.target.value); if (isSelfTribute) updateField('honoreeName', e.target.value); }} placeholder="Ex.: Mariana" autoComplete="given-name" maxLength={100} /></Field>
+      </div>
+      {isSelfTribute && <p className="nx-helper">Esta homenagem será para você. Seu nome aparece nos dois campos.</p>}
+      <Field label="Qual é a ocasião?"><select value={data.occasion || ''} onChange={e => updateField('occasion', e.target.value)}><option value="">Escolha o motivo</option>{occasions.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}</select></Field>
+    </section>
   );
 
   if (step === 2) return (

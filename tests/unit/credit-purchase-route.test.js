@@ -29,7 +29,7 @@ describe('compra segura de crédito adicional', () => {
   });
   it('não cobra quando o servidor recusa a elegibilidade', async () => {
     state.reservation = null; state.reserveError = { message: 'offer_not_eligible' };
-    expect((await POST(request({ packageSku: 'creditos_pos_compra_1', orderId: 'other-order' }))).status).toBe(503);
+    expect((await POST(request({ packageSku: 'creditos_pos_compra_1', orderId: 'other-order' }))).status).toBe(409);
     expect(state.create).not.toHaveBeenCalled();
   });
   it('recupera a cobrança pendente sem criar outra', async () => {
@@ -48,5 +48,27 @@ describe('compra segura de crédito adicional', () => {
     state.reservation.status = 'APROVADO';
     const res = await POST(request({ packageSku: 'creditos_pos_compra_1', orderId: 'paid-order' }));
     expect((await res.json()).status).toBe('approved'); expect(state.create).not.toHaveBeenCalled();
+  });
+  it('não confunde falha de autenticação PIX com elegibilidade de pacote normal', async () => {
+    state.reservation.package_sku = 'creditos_5';
+    const failure = new Error('Falha ao autenticar (HTTP 401): sensitive-provider-body');
+    failure.efiStatus = 401;
+    state.status.mockRejectedValue(failure);
+    const response = await POST(request({ packageSku: 'creditos_5' }));
+    const body = await response.json();
+    expect(response.status).toBe(503);
+    expect(body.code).toBe('CREDIT_PIX_PROVIDER_AUTH');
+    expect(body.error).toContain('configuração');
+    expect(body.error).not.toContain('oferta');
+    expect(JSON.stringify(body)).not.toContain('sensitive-provider-body');
+    expect(state.create).not.toHaveBeenCalled();
+    expect(state.approve).not.toHaveBeenCalled();
+  });
+  it('identifica falha na reserva sem expor detalhes do banco', async () => {
+    state.reservation = null; state.reserveError = { message: 'SQL internal-private-detail' };
+    const response = await POST(request({ packageSku: 'creditos_1' }));
+    const body = await response.json();
+    expect(body.code).toBe('CREDIT_RESERVATION_FAILED');
+    expect(JSON.stringify(body)).not.toContain('internal-private-detail');
   });
 });
