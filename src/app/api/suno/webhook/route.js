@@ -96,7 +96,7 @@ export async function POST(req) {
 
     if (!taskId) {
       console.error('[Webhook Suno] Webhook recebido sem taskId');
-      return NextResponse.json({ error: 'Missing task_id' }, { status: 200 });
+      return NextResponse.json({ error: 'Missing task_id', code: 200, msg: 'Missing task_id' }, { status: 200 });
     }
 
     // Se o webhook reporta falha direta (ex: Unifically com status="failed"):
@@ -112,14 +112,15 @@ export async function POST(req) {
           reason: `webhook_failed_${data.error_message || 'unknown'}`
         });
       }
-      return NextResponse.json({ success: true, handled: 'failed_retry_initiated' }, { status: 200 });
+      return NextResponse.json({ success: true, code: 200, msg: 'success', handled: 'failed_retry_initiated' }, { status: 200 });
     }
 
     // Salva no banco e garante a entrega da notificação de WhatsApp antes de finalizar
     await updateTaskResult(taskId, data, null, env);
-    return NextResponse.json({ success: true }, { status: 200 });
+    return NextResponse.json({ success: true, code: 200, msg: 'success' }, { status: 200 });
   } catch (error) {
     console.error('[Webhook Suno] Erro processando webhook:', error.message);
-    return NextResponse.json({ error: error.message }, { status: 200 });
+    return NextResponse.json({ error: error.message, code: 200 }, { status: 200 });
   }
 }
+

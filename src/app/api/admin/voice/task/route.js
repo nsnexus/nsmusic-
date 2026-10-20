@@ -37,22 +37,26 @@ export async function POST(req) {
         return NextResponse.json({ error: 'voiceUrl é obrigatório para solicitar a frase.' }, { status: 400 });
       }
 
+      const requestPayload = {
+        model: 'ai-music-api/validation-phrase',
+        input: {
+          voice_url: voiceUrl,
+          vocal_start_s: Number(vocalStart) || 0,
+          vocal_end_s: Number(vocalEnd) || 20,
+          language: String(language || 'pt')
+        }
+      };
+      if (body.callBackUrl) {
+        requestPayload.callBackUrl = body.callBackUrl;
+      }
+
       const res = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${kieApiKey}`
         },
-        body: JSON.stringify({
-          model: 'ai-music-api/validation-phrase',
-          callBackUrl: callBackUrl,
-          input: {
-            voice_url: voiceUrl,
-            vocal_start_s: Number(vocalStart) || 0,
-            vocal_end_s: Number(vocalEnd) || 20,
-            language: String(language || 'pt')
-          }
-        }),
+        body: JSON.stringify(requestPayload),
         signal: AbortSignal.timeout(15000)
       });
 
@@ -99,17 +103,21 @@ export async function POST(req) {
       if (verifyPhraseId) inputPayload.verify_phrase_id = verifyPhraseId;
       if (voiceRecordingId) inputPayload.voice_recording_id = voiceRecordingId;
 
+      const createPayload = {
+        model: 'ai-music-api/create-voice',
+        input: inputPayload
+      };
+      if (body.callBackUrl) {
+        createPayload.callBackUrl = body.callBackUrl;
+      }
+
       const res = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${kieApiKey}`
         },
-        body: JSON.stringify({
-          model: 'ai-music-api/create-voice',
-          callBackUrl: callBackUrl,
-          input: inputPayload
-        }),
+        body: JSON.stringify(createPayload),
         signal: AbortSignal.timeout(15000)
       });
 
@@ -153,6 +161,7 @@ export async function POST(req) {
           const subRes = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${encodeURIComponent(tId)}`, {
             headers: {
               'Authorization': `Bearer ${kieApiKey}`,
+              'Content-Type': 'application/json',
               'Accept': 'application/json'
             },
             signal: AbortSignal.timeout(6000)
@@ -186,7 +195,7 @@ export async function POST(req) {
       if (!effectiveAccountId) effectiveAccountId = '70147233';
       if (!effectiveVoiceRecord) effectiveVoiceRecord = 'b4fa71e2-b681-4b1c-97f7-812a9ed0effa';
 
-      if (!effectivePersonaId) effectivePersonaId = '706e6d15-3830-47dd-8cdf-f7635defb8d6';
+      if (!effectivePersonaId) effectivePersonaId = voiceId || '706e6d15-3830-47dd-8cdf-f7635defb8d6';
 
       const generatePayload = {
         prompt: prompt,
@@ -197,9 +206,11 @@ export async function POST(req) {
         title: title.substring(0, 80),
         callBackUrl: callBackUrl,
         personaId: effectivePersonaId,
+        personaTaskId: effectivePersonaId,
         voiceId: effectivePersonaId,
         persona_id: effectivePersonaId,
         persona_model: 'voice_persona',
+        personaModel: 'voice_persona',
         account_id: String(effectiveAccountId),
         accountId: String(effectiveAccountId),
         suno_user_id: String(effectiveAccountId),
@@ -450,6 +461,7 @@ export async function GET(req) {
         const subRes = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${encodeURIComponent(voiceId)}`, {
           headers: {
             'Authorization': `Bearer ${kieApiKey}`,
+            'Content-Type': 'application/json',
             'Accept': 'application/json'
           },
           signal: AbortSignal.timeout(6000)
