@@ -36,7 +36,9 @@ const ALLOWED_CLIENT_FIELDS = new Set([
   'importantMoments',
   'musicStyle',
   'musicMood',
-  'voiceType'
+  'voiceType',
+  'pixRequestedAt',
+  'pixGeneratedAt'
 ]);
 
 export async function POST(req) {

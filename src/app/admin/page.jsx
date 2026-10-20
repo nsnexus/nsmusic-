@@ -22,6 +22,7 @@ import AbaFinanceiro from '@/components/admin/AbaFinanceiro';
 import AbaRemixCover from '@/components/admin/AbaRemixCover';
 import AbaContas from '@/components/admin/AbaContas';
 import FunilStatusCards from '@/components/admin/FunilStatusCards';
+import { hasOrderGeneratedPix } from '@/lib/pixCheckout';
 
 const getSavedAdminFilter = (key, fallback) => {
   if (typeof window === 'undefined') return fallback;
@@ -364,6 +365,7 @@ export default function AdminDashboard() {
     if (!o) return true;
     if (o.lyrics && o.lyrics.trim().length > 10) return false;
     if (o.paymentStatus === 'PAGO' || o.paymentStatus === 'PAGAMENTO_APROVADO') return false;
+    if (hasOrderGeneratedPix(o)) return false;
     const st = o.productionStatus;
     return st === 'ETAPA_1' || st === 'ETAPA_2' || st === 'ETAPA_3' || st === 'ETAPA_4' || st === 'RASCUNHO';
   };
@@ -392,10 +394,10 @@ export default function AdminDashboard() {
     } else if (purchaseTypeTab === 'VIDEO') {
       result = result.filter(o => o.videoAddonPaid);
     } else if (purchaseTypeTab === 'PIX_COPIADO') {
-      // Copiou o código Pix e ainda não consta pago
+      // Clicou para gerar PIX ou copiou o código e ainda não consta pago
       result = result.filter(o => {
-        const copiou = o.pixCopiedAt || o.extras?.pixCopiedAt;
-        return copiou && o.paymentStatus !== 'PAGAMENTO_APROVADO' && o.paymentStatus !== 'PAGO';
+        const isPaid = o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'PAGO';
+        return !isPaid && hasOrderGeneratedPix(o);
       });
     }
 
@@ -429,6 +431,12 @@ export default function AdminDashboard() {
     if (productionStatusFilter === 'ALL') {
       // Regra solicitada: não exibir pedidos das etapas preliminares (antes de gerar letra) na tabela principal
       result = result.filter(o => !isOrderPreLyrics(o));
+    } else if (productionStatusFilter === 'PIX_GERADO') {
+      // Filtro dos cards: pedidos onde o cliente gerou o PIX mas ainda não pagou
+      result = result.filter(o => {
+        const isPaid = o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'PAGO';
+        return !isPaid && hasOrderGeneratedPix(o);
+      });
     } else if (productionStatusFilter !== 'TODOS_INCLUINDO_RASCUNHOS') {
       result = result.filter(o => o.productionStatus === productionStatusFilter);
     }
@@ -1619,7 +1627,7 @@ export default function AdminDashboard() {
                     <option value="ALL">📋 Todas as vendas</option>
                     <option value="MUSIC">🎵 Vendas de música</option>
                     <option value="VIDEO">🎬 Vendas de vídeo</option>
-                    <option value="PIX_COPIADO">📋 Copiou PIX e não pagou</option>
+                    <option value="PIX_COPIADO">⚡ Gerou PIX e não pagou</option>
                   </select>
                 </div>
 
@@ -1628,7 +1636,7 @@ export default function AdminDashboard() {
                     { id: 'ALL', label: 'Todas as vendas' },
                     { id: 'MUSIC', label: '🎵 Vendas de música' },
                     { id: 'VIDEO', label: '🎬 Vendas de vídeo' },
-                    { id: 'PIX_COPIADO', label: '📋 Copiou PIX e não pagou' },
+                    { id: 'PIX_COPIADO', label: '⚡ Gerou PIX e não pagou' },
                   ].map(tab => (
                     <button
                       key={tab.id}
@@ -1716,6 +1724,7 @@ export default function AdminDashboard() {
                       <option value="EM_PRODUCAO">Em produção</option>
                       <option value="VERSOES_EM_PRODUCAO">Versões em produção</option>
                       <option value="AUDIO_GERADO">Áudio gerado</option>
+                      <option value="PIX_GERADO">⚡ Gerou PIX (Pendente)</option>
                       <option value="FINALIZADO">Finalizado</option>
                       <option value="ENTREGUE">Entregue</option>
                     </select>
@@ -1916,7 +1925,28 @@ export default function AdminDashboard() {
                                     {/* 2. Ícone de onde veio o cliente (Facebook, TikTok, etc.) */}
                                     <PlatformIcon order={o} size={15} />
 
-                                    {/* 3. Se copiou o código Pix */}
+                                    {/* 3. Se gerou o código Pix (clicou para gerar QR code) */}
+                                    {(() => {
+                                      const pixGen = hasOrderGeneratedPix(o);
+                                      const pixDate = o.pixGeneratedAt || o.extras?.pixGeneratedAt;
+                                      return pixGen ? (
+                                        <span
+                                          title={pixDate ? `Gerou o Pix em ${new Date(pixDate).toLocaleString('pt-BR')}` : 'Gerou o QR Code do Pix (cobrança ativa)'}
+                                          style={{ fontSize: '0.85rem', cursor: 'help', lineHeight: 1 }}
+                                        >
+                                          ⚡
+                                        </span>
+                                      ) : (
+                                        <span
+                                          title="Ainda não clicou para gerar o Pix"
+                                          style={{ fontSize: '0.85rem', cursor: 'help', opacity: 0.25, lineHeight: 1 }}
+                                        >
+                                          ⚡
+                                        </span>
+                                      );
+                                    })()}
+
+                                    {/* 4. Se copiou o código Pix */}
                                     {(() => {
                                       const pixCopied = o.pixCopiedAt || o.extras?.pixCopiedAt;
                                       return pixCopied ? (
@@ -2025,6 +2055,11 @@ export default function AdminDashboard() {
                                   <span style={{ ...styles.statusBadge, border: `1px solid ${getStatusBadgeColor(o.productionStatus)}44`, color: getStatusBadgeColor(o.productionStatus), backgroundColor: `${getStatusBadgeColor(o.productionStatus)}10` }}>
                                     {o.productionStatus || 'PENDENTE'}
                                   </span>
+                                  {o.paymentStatus !== 'PAGO' && o.paymentStatus !== 'PAGAMENTO_APROVADO' && hasOrderGeneratedPix(o) && (
+                                    <span title="Cliente clicou para gerar o PIX e a cobrança está aberta aguardando pagamento" style={{ fontSize: '0.7rem', fontWeight: '800', color: '#b45309', backgroundColor: '#fef3c7', padding: '1px 6px', borderRadius: '6px', border: '1px solid #fde68a', display: 'inline-flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap' }}>
+                                      ⚡ PIX Gerado
+                                    </span>
+                                  )}
                                   {o.sunoProvider === 'suno_local' && (
                                     <span title="Música gerada pelo seu Robô Local (Suno PC) - Custo R$ 0,00" style={{ fontSize: '0.7rem', fontWeight: '700', color: '#0369a1', backgroundColor: '#e0f2fe', padding: '1px 6px', borderRadius: '6px', border: '1px solid #bae6fd', display: 'inline-flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap' }}>
                                       🖥️ Robô PC

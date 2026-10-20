@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
-import { getOrder } from '@/lib/supabaseDb';
+import { getOrder, updateOrder } from '@/lib/supabaseDb';
 import { getPriceForSku } from '@/lib/pricing';
 import { createPixCharge, getChargeStatus, generateTxid } from '@/lib/efi';
 import { getSupabaseEdge } from '@/lib/supabase-edge';
@@ -81,6 +81,18 @@ export async function POST(req) {
       p_order_id: existingOrderData.id, p_txid: charge.txid, p_sku: sku, p_amount: amount,
     });
     if (recorded.error || !recorded.data) return NextResponse.json({ error: 'Não foi possível associar o PIX ao pedido. Tente novamente.' }, { status: 503 });
+
+    // Registra carimbo de PIX gerado e garante status de aguardando pagamento
+    const agora = new Date().toISOString();
+    await updateOrder(existingOrderData.id, {
+      pixGeneratedAt: agora,
+      pixGeneratedLastAt: agora,
+      paymentStatus: existingOrderData.paymentStatus === 'PAGO' || existingOrderData.paymentStatus === 'PAGAMENTO_APROVADO'
+        ? existingOrderData.paymentStatus
+        : 'AGUARDANDO_PAGAMENTO',
+    }, env).catch((e) => {
+      console.warn('[payments/create] Aviso ao carimbar pixGeneratedAt:', e?.message);
+    });
 
     return NextResponse.json({
       paymentId: charge.txid,

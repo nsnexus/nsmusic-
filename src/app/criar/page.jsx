@@ -2450,7 +2450,8 @@ export default function CriarMusica() {
                                   body: JSON.stringify({
                                     orderId,
                                     total: getTotalPrice(),
-                                    package: formData.selectedPackage
+                                    package: formData.selectedPackage,
+                                    pixRequestedAt: new Date().toISOString()
                                   })
                                 });
                               } catch (e) {

@@ -691,3 +691,6 @@ async function revokeApproval(orderRefOrId, paymentId, status, env = {}) {
     return { applied: false, reason: 'update_failed' };
   }
 }
+
+export { hasOrderGeneratedPix } from './pixCheckout.js';
+

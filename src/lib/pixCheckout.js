@@ -65,3 +65,28 @@ export async function requestPixCharge({ orderId, sku, isSecondaryPayment = fals
 
   return { ok: false, error: ultimoErro };
 }
+
+/**
+ * Verifica se o pedido gerou PIX (seja agora ou historicamente).
+ * Checa tanto os novos campos (pixGeneratedAt, pixRequestedAt) quanto
+ * os rastros históricos (paymentIntentId, pixCopiedAt, intent em extras/metadata).
+ *
+ * @param {object} order
+ * @returns {boolean}
+ */
+export function hasOrderGeneratedPix(order) {
+  if (!order || typeof order !== 'object') return false;
+
+  if (order.pixGeneratedAt || order.pixRequestedAt) return true;
+
+  const extras = order.extras || {};
+  if (extras.pixGeneratedAt || extras.pixRequestedAt || extras.pixCopiedAt) return true;
+  if (extras.paymentIntentId || extras.pixTxid || extras.txid) return true;
+
+  if (order.pixCopiedAt || order.pixTxid || order.txid) return true;
+
+  const metadata = order.metadata || {};
+  if (metadata.pixGeneratedAt || metadata.pixRequestedAt || metadata.paymentIntentId) return true;
+
+  return false;
+}
