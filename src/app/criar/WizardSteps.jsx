@@ -643,7 +643,7 @@ export default function WizardSteps({
                   marginTop: '2px',
                 }}
               >
-                🎤
+                <Mic size={20} color="#7c3aed" aria-hidden="true" />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <label style={{ fontSize: '0.94rem', fontWeight: '700', color: '#0f172a', marginBottom: '8px', display: 'block' }}>

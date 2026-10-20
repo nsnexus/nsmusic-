@@ -209,7 +209,7 @@ export default function CriarMusica() {
     // Step 7
     requiredNames: '',
     requiredPhrase: '',
-    voiceType: 'masculina',
+    voiceType: '',
     coverUrl: '', // URL do Firebase Storage (ver M-08 no AUDIT_REPORT.md — nunca base64)
     // Step 8
     customerName: '',
@@ -944,7 +944,7 @@ export default function CriarMusica() {
         musicMood: '',
         requiredNames: '',
         requiredPhrase: '',
-        voiceType: 'masculina',
+        voiceType: '',
         coverUrl: '',
         customerName: formData.customerName || '',
         customerPhone: formData.customerPhone || '',
