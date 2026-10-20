@@ -296,6 +296,7 @@ export const notifyMusicReady = async (orderRefOrId, orderData, orderIdParam, op
     customerName: currentOrder.customerName,
     honoreeName: currentOrder.honoreeName,
     deliveryUrl,
+    videoUrl: currentOrder.previewVideoUrl || currentOrder.preview_video_url || currentOrder.extras?.previewVideoUrl || null,
   }, env);
 
   if (sendResult.ignored) {

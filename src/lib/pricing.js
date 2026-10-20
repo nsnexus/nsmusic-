@@ -27,6 +27,8 @@ export const SKU_PRICES = {
   combo_voz: 24.89,
   recovery_combo_24h: 9.99,
   recovery_combo_48h: 6.99,
+  segunda_musica: 4.99,
+  creditos_pos_compra_1: 4.99,
 };
 
 // Créditos não vencem. Preço e quantidade ficam aqui para nunca serem aceitos do navegador.

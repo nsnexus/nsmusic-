@@ -23,8 +23,9 @@ export default function OrderDetailsAdmin() {
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
-
   // Editable fields
+  const [customerName, setCustomerName] = useState('');
+  const [honoreeName, setHonoreeName] = useState('');
   const [productionStatus, setProductionStatus] = useState('');
   const [lyrics, setLyrics] = useState('');
   const [audioUrl, setAudioUrl] = useState('');
@@ -111,6 +112,8 @@ export default function OrderDetailsAdmin() {
 
         if (data) {
           setOrder(data);
+          setCustomerName(data.customerName || data.customer_name || '');
+          setHonoreeName(data.honoreeName || data.honoree_name || '');
           setProductionStatus(data.productionStatus || 'LETRA_APROVADA');
           setPaymentStatus(data.paymentStatus || 'PENDENTE');
           setHasVideoAccess(Boolean(data.hasVideoAccess || data.videoAddonPaid));
@@ -167,6 +170,8 @@ export default function OrderDetailsAdmin() {
 
     const updatePayload = {
       orderId,
+      customerName,
+      honoreeName,
       productionStatus,
       paymentStatus,
       hasVideoAccess,
@@ -208,6 +213,8 @@ export default function OrderDetailsAdmin() {
       }
       setOrder(prev => ({
         ...prev,
+        customerName,
+        honoreeName,
         productionStatus,
         paymentStatus,
         hasVideoAccess,
@@ -768,6 +775,29 @@ export default function OrderDetailsAdmin() {
               <form onSubmit={handleSaveOrder}>
                 <div style={styles.card}>
                   <h3 style={styles.cardTitle}>Gerenciamento de Produção</h3>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+                    <div style={styles.formGroup}>
+                      <label style={styles.label}>Nome do Cliente 👤</label>
+                      <input
+                        type="text"
+                        value={customerName}
+                        onChange={(e) => setCustomerName(e.target.value)}
+                        style={styles.input}
+                        placeholder="Nome do cliente"
+                      />
+                    </div>
+                    <div style={styles.formGroup}>
+                      <label style={styles.label}>Nome do Homenageado 🎁</label>
+                      <input
+                        type="text"
+                        value={honoreeName}
+                        onChange={(e) => setHonoreeName(e.target.value)}
+                        style={styles.input}
+                        placeholder="Nome do homenageado"
+                      />
+                    </div>
+                  </div>
                   
                   <div style={styles.formGroup}>
                     <label style={styles.label}>Status do Pagamento 💳</label>

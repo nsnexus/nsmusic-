@@ -1,6 +1,7 @@
 import { getRequestContext } from '@cloudflare/next-on-pages';
 import { DOMINIO_CANONICO } from './siteUrl.js';
 import { resolveDeliveryUrl, resolveCriarUrl, formatToWhatsAppNumber, cleanWhatsAppId, buildAudioDownloadLink } from './whatsappTemplates.js';
+import { lerConfigSite, normalizarNumeroWhatsapp, WHATSAPP_SUPORTE_PADRAO } from './configSite.js';
 import { enviarMusicaProntaCloud, enviarPagamentoConfirmadoCloud, getCloudApiConfig } from './whatsappCloudApi.js';
 
 export { resolveDeliveryUrl, resolveCriarUrl, formatToWhatsAppNumber, cleanWhatsAppId, buildAudioDownloadLink };
@@ -287,10 +288,93 @@ const comFallbackCloudApi = async (resultado, enviar, env = {}) => {
 const primeiroNome = (nome) => String(nome || '').trim().split(/\s+/)[0] || 'Cliente';
 
 /**
+ * Monta o texto de legenda para envio da prévia de vídeo leve no WhatsApp.
+ * Obtém dinamicamente o WhatsApp de suporte configurado pelo admin no painel.
+ */
+export async function buildPreviewVideoCaption({ customerName, honoreeName, deliveryUrl }, env = {}) {
+  const nome = primeiroNome(customerName);
+  const saudacao = nome ? `Olá, ${nome}! 🎵✨` : 'Olá! 🎵✨';
+  const paraQuem = honoreeName ? ` para ${honoreeName}` : '';
+  const cfgSite = await lerConfigSite(env).catch(() => ({}));
+  const numSuporte = normalizarNumeroWhatsapp(cfgSite?.whatsappSuporte) || WHATSAPP_SUPORTE_PADRAO;
+
+  return `${saudacao}
+
+A música exclusiva que você criou${paraQuem} acabou de ficar pronta no nosso estúdio!
+Dá o play para ouvir a prévia de 60 segundos com a capa oficial da sua música. Ficou emocionante demais! 🎶
+
+👉 Acesse a página abaixo para ouvir as versões completas e liberar o download dos seus MP3 em alta qualidade:
+${deliveryUrl}
+
+⚠️ *Esta é uma mensagem automática.* Caso precise de suporte, fale com o administrador no WhatsApp: https://wa.me/${numSuporte}`;
+}
+
+/**
+ * Envia arquivo de mídia (vídeo / áudio / imagem) via Evolution API na VPS
+ */
+export const sendEvolutionMediaMessage = async (phone, { mediaUrl, caption, fileName = 'previa_musica.mp4', mediaType = 'video', mimeType = 'video/mp4' }, env = {}) => {
+  if (isTestOrMockPhone(phone)) {
+    return { success: true, mocked: true };
+  }
+
+  const { baseUrl, instanceName, token, enabled } = await getEvolutionConfig(env);
+  const formattedNumber = formatToWhatsAppNumber(phone);
+
+  if (!formattedNumber || !enabled) {
+    return { success: false, error: 'Evolution API não configurado ou número inválido.' };
+  }
+
+  const numbersToSend = [formattedNumber];
+  if (formattedNumber.startsWith('55') && formattedNumber.length === 13 && formattedNumber[4] === '9') {
+    const withoutNine = `${formattedNumber.substring(0, 4)}${formattedNumber.substring(5)}`;
+    numbersToSend.push(withoutNine);
+  }
+
+  let lastError = '';
+  for (let i = 0; i < numbersToSend.length; i++) {
+    const num = numbersToSend[i];
+    try {
+      console.log(`[Evolution API] Enviando mídia (${mediaType}) (variante ${i + 1}/${numbersToSend.length})...`);
+      const res = await fetch(`${baseUrl}/message/sendMedia/${instanceName}`, {
+        method: 'POST',
+        headers: {
+          'apikey': token,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          number: num,
+          mediatype: mediaType,
+          mimetype: mimeType,
+          caption: caption,
+          media: mediaUrl,
+          fileName: fileName
+        }),
+        signal: AbortSignal.timeout(15000),
+      });
+
+      if (res.ok) {
+        console.log('[Evolution API] ✅ Mídia enviada com sucesso pela VPS.');
+        return { success: true, provider: 'evolution', phoneUsed: num };
+      }
+
+      const errData = await res.json().catch(() => ({}));
+      lastError = JSON.stringify(errData?.response?.message || errData?.message || `HTTP ${res.status}`);
+      console.error(`[Evolution API] Erro ao enviar mídia (variante ${i + 1}):`, res.status, lastError);
+    } catch (err) {
+      lastError = err.message;
+      console.error(`[Evolution API] Falha de rede ao enviar mídia (variante ${i + 1}):`, err.message);
+    }
+  }
+
+  return { success: false, error: lastError };
+};
+
+
+/**
  * Envia a mensagem de "música pronta" avisando que as 2 versões ficaram prontas com o link de entrega.
  * Disparado EXCLUSIVAMENTE via API Oficial da Meta (WhatsApp Cloud API).
  */
-export const sendMusicReadyTemplate = async (phone, { customerName, honoreeName, deliveryUrl }, env = {}) => {
+export const sendMusicReadyTemplate = async (phone, { customerName, honoreeName, deliveryUrl, videoUrl }, env = {}) => {
   const name = customerName || 'Cliente';
   const honoree = honoreeName || 'alguém especial';
   const url = deliveryUrl || DOMINIO_CANONICO;
@@ -299,6 +383,24 @@ export const sendMusicReadyTemplate = async (phone, { customerName, honoreeName,
   const guard = await shouldBlockWhatsAppMessage(phone, `musica_pronta_${url}`, env);
   if (guard.block) {
     return { success: true, ignored: guard.reason, phoneUsed: formatToWhatsAppNumber(phone) };
+  }
+
+  const cfgSite = await lerConfigSite(env).catch(() => ({}));
+  const supportPhone = normalizarNumeroWhatsapp(cfgSite?.whatsappSuporte) || WHATSAPP_SUPORTE_PADRAO;
+
+  // 1. Se tiver URL de vídeo prévia disponível, envia diretamente o vídeo com a legenda formatada via Evolution API
+  if (videoUrl) {
+    const caption = await buildPreviewVideoCaption({ customerName: name, honoreeName: honoree, deliveryUrl: url }, env);
+    const mediaRes = await sendEvolutionMediaMessage(phone, {
+      mediaUrl: videoUrl,
+      caption,
+      fileName: 'previa_musica.mp4'
+    }, env);
+
+    if (mediaRes.success) {
+      return mediaRes;
+    }
+    console.warn('[WhatsApp] Falha ao enviar vídeo de prévia via Evolution. Prosseguindo com aviso em texto:', mediaRes.error);
   }
 
   let cloudError = '';
@@ -315,12 +417,13 @@ export const sendMusicReadyTemplate = async (phone, { customerName, honoreeName,
   const evoConfig = await getEvolutionConfig(env);
   if (evoConfig.enabled) {
     console.log(`[WhatsApp] Enviando aviso de música pronta via Evolution API para ${phone}...`);
+    const cleanSupport = normalizarNumeroWhatsapp(supportPhone) || WHATSAPP_SUPORTE_PADRAO;
     const message = `${primeiroNome(name) ? `Oi, ${primeiroNome(name)}! ` : 'Oi! '}A música de ${honoree} ficou pronta. 🎧
 
-Gravei 2 versões, com arranjos diferentes, pra você escolher. Ouça aqui:
+Gravei 2 versões, com arranjos diferentes, pra você escolher. Dá o play e ouça aqui:
 ${url}
 
-Se precisar de qualquer coisa, é só me chamar.`;
+⚠️ *Esta é uma mensagem automática.* Caso precise de suporte ou queira falar conosco, chame o administrador no WhatsApp: https://wa.me/${cleanSupport}`;
     const evoRes = await sendEvolutionTextMessage(phone, message, env);
     if (evoRes.success) return evoRes;
     return { success: false, error: `${cloudError ? `cloud_api: ${cloudError} | ` : ''}evolution: ${evoRes.error}` };

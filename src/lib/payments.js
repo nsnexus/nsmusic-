@@ -80,13 +80,15 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
       const isRetroOnly = sku === 'retrospectiva_addon';
       const isKaraokeOnly = sku === 'karaoke_addon';
       const isVoiceOnly = sku === 'custom_voice_addon';
-      const isAddonOnly = isVideoOnly || isPlaybackOnly || isCartaOnly || isRetroOnly || isKaraokeOnly || isVoiceOnly;
+      const isSecondSongOnly = sku === 'segunda_musica' || sku === 'creditos_pos_compra_1';
+      const isAddonOnly = isVideoOnly || isPlaybackOnly || isCartaOnly || isRetroOnly || isKaraokeOnly || isVoiceOnly || isSecondSongOnly;
       const dedupKey = isVideoOnly ? 'videoPaymentId'
         : isPlaybackOnly ? 'playbackPaymentId'
         : isCartaOnly ? 'cartaPaymentId'
         : isRetroOnly ? 'retrospectivaPaymentId'
         : isKaraokeOnly ? 'karaokePaymentId'
         : isVoiceOnly ? 'customVoicePaymentId'
+        : isSecondSongOnly ? 'secondSongPaymentId'
         : 'paymentId';
 
       const existingPaymentId = String(orderData[dedupKey] || '').trim().toUpperCase();
@@ -139,6 +141,12 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
           updates.customVoicePaymentId = String(paymentId);
           updates.customVoicePaidAt = nowIso;
           updates.customVoicePaidAmount = valorPago;
+        } else if (isSecondSongOnly) {
+          updates.hasSecondSongAccess = true;
+          updates.secondSongPaid = true;
+          updates.secondSongPaymentId = String(paymentId);
+          updates.secondSongPaidAt = nowIso;
+          updates.secondSongPaidAmount = valorPago;
         } else {
           // C-09: paymentStatus só é escrito neste ramo — os add-ons isolados nunca o alteram.
           updates.paymentStatus = 'PAGAMENTO_APROVADO';
@@ -185,6 +193,7 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
           else if (isRetroOnly) paymentKind = 'retrospectiva';
           else if (isKaraokeOnly) paymentKind = 'karaoke';
           else if (isVoiceOnly) paymentKind = 'voz';
+          else if (isSecondSongOnly) paymentKind = 'segunda_musica';
 
           const confirmedAmount = Number(payment.transaction_amount) || getPriceForSku(sku) || 9.99;
           await mirrorPaymentToSupabase({
@@ -198,7 +207,7 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
         } catch {}
 
         const grantedCartaViaCombo = skuGrantsCartaAccess(sku);
-        txResult = { applied: true, sku, isVideoOnly, isPlaybackOnly, isCartaOnly, isRetroOnly, isKaraokeOnly, isVoiceOnly, grantedCartaViaCombo, orderData };
+        txResult = { applied: true, sku, isVideoOnly, isPlaybackOnly, isCartaOnly, isRetroOnly, isKaraokeOnly, isVoiceOnly, isSecondSongOnly, grantedCartaViaCombo, orderData };
       }
     }
   } catch (err) {
@@ -209,7 +218,7 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
   }
 
   if (txResult.applied) {
-    if (!txResult.isVideoOnly && !txResult.isPlaybackOnly && !txResult.isCartaOnly && !txResult.isRetroOnly && !txResult.isKaraokeOnly && !txResult.isVoiceOnly) {
+    if (!txResult.isVideoOnly && !txResult.isPlaybackOnly && !txResult.isCartaOnly && !txResult.isRetroOnly && !txResult.isKaraokeOnly && !txResult.isVoiceOnly && !txResult.isSecondSongOnly) {
       // Recompensa a indicação somente no primeiro pagamento principal confirmado.
       // Falha desta recompensa nunca pode desfazer nem bloquear a compra do cliente.
       if (txResult.orderData?.userId) {

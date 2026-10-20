@@ -172,3 +172,88 @@ export async function renderSlideshowVideo({
     });
   });
 }
+
+/**
+ * Renderiza uma prévia leve de 60 segundos com imagem estática (capa da música).
+ * Otimizada especificamente para WhatsApp (baixa resolução SD, bitrate contido, tamanho < 2MB).
+ *
+ * @param {Object} params
+ * @param {string} params.coverFile - Caminho do arquivo da capa
+ * @param {string} params.audioFile - Caminho do áudio MP3
+ * @param {string} params.outputFilePath - Caminho do arquivo MP4 de saída
+ * @param {number} [params.duration=60] - Duração em segundos (padrão 60s)
+ * @param {number} [params.width=540] - Largura SD
+ * @param {number} [params.height=540] - Altura SD (quadrado padrão WhatsApp)
+ * @param {Function} [params.onProgress] - Callback de progresso
+ */
+export async function renderPreviewVideo({
+  coverFile,
+  audioFile,
+  outputFilePath,
+  duration = 60,
+  width = 540,
+  height = 540,
+  onProgress = null
+}) {
+  const normCover = coverFile.replace(/\\/g, '/');
+  const normAudio = audioFile.replace(/\\/g, '/');
+  const normOutput = outputFilePath.replace(/\\/g, '/');
+
+  // Filtro leve SD: escala e centraliza imagem sem distorção em 540x540
+  const videoFilter = `scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},format=yuv420p`;
+
+  const args = [
+    '-y',
+    '-loop', '1',
+    '-i', normCover,
+    '-i', normAudio,
+    '-t', String(duration),
+    '-vf', videoFilter,
+    '-af', `afade=t=out:st=${Math.max(0, duration - 2)}:d=2`,
+    '-c:v', 'libx264',
+    '-preset', 'veryfast',
+    '-crf', '28',
+    '-r', '15',
+    '-c:a', 'aac',
+    '-b:a', '96k',
+    '-ar', '44100',
+    '-shortest',
+    '-movflags', '+faststart',
+    normOutput
+  ];
+
+  return new Promise((resolve, reject) => {
+    console.log(`[FFmpeg-Preview] Iniciando renderização leve (60s SD): ${args.join(' ')}`);
+    const proc = spawn('ffmpeg', args);
+
+    let stderr = '';
+    proc.stderr.on('data', (data) => {
+      const msg = data.toString();
+      stderr += msg;
+      const match = msg.match(/time=(\d{2}):(\d{2}):(\d{2}\.\d{2})/);
+      if (match && onProgress) {
+        const hours = parseFloat(match[1]);
+        const mins = parseFloat(match[2]);
+        const secs = parseFloat(match[3]);
+        const currentSecs = hours * 3600 + mins * 60 + secs;
+        const percent = Math.min(99, Math.round((currentSecs / duration) * 100));
+        onProgress(percent);
+      }
+    });
+
+    proc.on('close', async (code) => {
+      if (code === 0) {
+        console.log(`[FFmpeg-Preview] Prévia concluída com sucesso: ${outputFilePath}`);
+        if (onProgress) onProgress(100);
+        return resolve({ outputPath: outputFilePath, duration });
+      }
+      console.error(`[FFmpeg-Preview] Erro na renderização. Código ${code}: ${stderr.slice(-300)}`);
+      reject(new Error(`Falha no FFmpeg Preview (código ${code}): ${stderr.slice(-300)}`));
+    });
+
+    proc.on('error', (err) => {
+      console.error('[FFmpeg-Preview] Erro ao spawnar processo:', err);
+      reject(new Error(`FFmpeg não encontrado ou falhou ao executar: ${err.message}`));
+    });
+  });
+}

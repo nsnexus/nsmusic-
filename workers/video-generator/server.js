@@ -6,7 +6,7 @@ import express from 'express';
 import path from 'node:path';
 import { AsyncQueue } from './src/queue.js';
 import { downloadJobAssets } from './src/downloader.js';
-import { renderSlideshowVideo } from './src/ffmpegRunner.js';
+import { renderSlideshowVideo, renderPreviewVideo } from './src/ffmpegRunner.js';
 import { uploadVideoToR2 } from './src/r2Uploader.js';
 import { updateOrderStatus } from './src/orderUpdater.js';
 import { alignLyricsWithWhisper, generateAssKaraokeFile, renderKaraokeVideo } from './src/karaokeGenerator.js';
@@ -249,6 +249,101 @@ export function createApp(config = process.env) {
       }
     }).catch(err => {
       console.error(`[Karaoke:${orderId}] Erro na fila do karaokê:`, err?.message);
+    });
+  });
+
+  // Endpoint de solicitação de renderização de prévia de 60s leve para WhatsApp
+  app.post('/render-preview', authMiddleware, async (req, res) => {
+    const { orderId, coverUrl, audioUrl, duration = 60, title, sync = false } = req.body || {};
+
+    if (!orderId) {
+      return res.status(400).json({ error: 'orderId é obrigatório' });
+    }
+    if (!audioUrl) {
+      return res.status(400).json({ error: 'audioUrl é obrigatório' });
+    }
+    if (!coverUrl) {
+      return res.status(400).json({ error: 'coverUrl é obrigatório' });
+    }
+
+    const jobKey = `preview_${orderId}`;
+    if (queue.isOrderProcessing(jobKey)) {
+      return res.status(409).json({
+        error: 'A prévia deste pedido já está sendo processada.',
+        orderId,
+      });
+    }
+
+    const runPreviewJob = async () => {
+      console.log(`[Preview:${orderId}] 🎵 Iniciando renderização da prévia de ${duration}s para "${title || orderId}"...`);
+      let assetContext = null;
+
+      try {
+        await updateOrderStatus(orderId, { previewVideoStatus: 'GERANDO' }, config).catch(() => {});
+
+        // Baixa a imagem da capa e o áudio
+        assetContext = await downloadJobAssets(orderId, [coverUrl], audioUrl);
+
+        const outputMp4Path = path.join(assetContext.workDir, `preview_${orderId}.mp4`);
+
+        await renderPreviewVideo({
+          coverFile: assetContext.imageFiles[0],
+          audioFile: assetContext.audioFile,
+          outputFilePath: outputMp4Path,
+          duration: Math.min(Math.max(Number(duration) || 60, 15), 90),
+          width: 540,
+          height: 540,
+        });
+
+        // Checa tamanho gerado
+        const fsPromises = await import('node:fs/promises');
+        const stat = await fsPromises.stat(outputMp4Path);
+        const sizeMb = (stat.size / (1024 * 1024)).toFixed(2);
+        console.log(`[Preview:${orderId}] 📦 Tamanho final da prévia: ${sizeMb} MB`);
+
+        // Upload para o Cloudflare R2
+        const previewUrl = await uploadVideoToR2(outputMp4Path, `preview_${orderId}`, config);
+
+        // Atualiza pedido no Supabase
+        await updateOrderStatus(orderId, {
+          previewVideoUrl: previewUrl,
+          previewVideoStatus: 'CONCLUIDO',
+        }, config).catch(() => {});
+
+        console.log(`[Preview:${orderId}] ✅ Prévia pronta (${sizeMb} MB)! URL: ${previewUrl}`);
+        return { success: true, previewUrl, sizeMb, duration };
+
+      } catch (err) {
+        console.error(`[Preview:${orderId}] ❌ Erro ao gerar prévia:`, err);
+        await updateOrderStatus(orderId, {
+          previewVideoStatus: 'ERRO',
+        }, config).catch(() => {});
+        throw err;
+      } finally {
+        if (assetContext?.cleanup) {
+          await assetContext.cleanup();
+        }
+      }
+    };
+
+    if (sync) {
+      try {
+        const result = await runPreviewJob();
+        return res.json(result);
+      } catch (err) {
+        return res.status(500).json({ error: err.message || 'Erro ao renderizar prévia' });
+      }
+    }
+
+    res.status(202).json({
+      success: true,
+      message: 'Renderização de prévia enfileirada com sucesso',
+      orderId,
+      queue: queue.getStats(),
+    });
+
+    queue.enqueue(jobKey, runPreviewJob).catch(err => {
+      console.error(`[Preview:${orderId}] Erro geral na fila:`, err?.message);
     });
   });
 

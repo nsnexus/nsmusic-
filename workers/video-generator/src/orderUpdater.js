@@ -79,6 +79,16 @@ export async function updateOrderStatus(orderId, params, config = process.env) {
   }
 
   try {
+    if (params.previewVideoUrl !== undefined || params.previewVideoStatus !== undefined) {
+      const { data: cur } = await supabase.from('orders').select('extras').eq('id', orderId).maybeSingle();
+      const curExtras = (cur?.extras && typeof cur.extras === 'object') ? cur.extras : {};
+      updates.extras = {
+        ...curExtras,
+        ...(params.previewVideoUrl !== undefined ? { previewVideoUrl: params.previewVideoUrl } : {}),
+        ...(params.previewVideoStatus !== undefined ? { previewVideoStatus: params.previewVideoStatus } : {}),
+      };
+    }
+
     const { data, error } = await supabase
       .from('orders')
       .update(updates)

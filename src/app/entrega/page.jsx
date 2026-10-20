@@ -249,7 +249,7 @@ function EntregaContent() {
   // Abas dos produtos depois de pago (pedido 04/09/2026) — antes tudo ficava empilhado numa rolagem
   // só; 'musica' cobre também o Playback (instrumental), por ser derivado da mesma faixa.
   const [abaProduto, setAbaProduto] = useState('musica');
-  const [selectedPackage, setSelectedPackage] = useState('audio_only'); // 'audio_only', 'combo' (16.89), 'video_addon' (6.90)
+  const [selectedPackage, setSelectedPackage] = useState('combo'); // 'combo' (16.89 pré-selecionado por padrão)
   const [hasVideoAccessState, setHasVideoAccessState] = useState(false);
 
   useEffect(() => {
@@ -349,58 +349,90 @@ function EntregaContent() {
   // pediu a volta no mesmo dia — um clique a mais entre chegar na tela e ver o QR custa venda.
   // Quem puxa para cima agora é o selo MAIS ESCOLHIDO na faixa de R$ 16,89, não a ausência de
   // escolha (ver faixasDeImpacto em src/lib/pricing.js).
-  const pacotesEntrega = [
+    const pacotesEntrega = [
+    {
+      sku: 'combo',
+      nomePacote: 'Combo Especial com Vídeo',
+      subtitulo: 'A homenagem mais completa e emocionante',
+      icone: <IconeVideo size={22} color="#ffffff" />,
+      iconBg: 'linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)',
+      priceColor: '#7c3aed',
+      valor: getPriceForSku('combo') || 16.89,
+      destaque: '👑 MAIS ESCOLHIDO',
+      destaquePrincipal: true,
+      tagline: 'Economize R$ 6,90 no vídeo',
+      titulo: '2 versões completas',
+      linhas: ['+ Vídeo Homenagem', '+ Carta Virtual'],
+      itens: [
+        { texto: '2 Versões completas em áudio MP3 HD (sem cortes)', destaque: false },
+        { texto: 'Vídeo Homenagem emocionante com fotos sincronizadas', destaque: true, tag: '🎁 Brinde Especial' },
+        { texto: 'Carta Virtual interativa com dedicatória e envelope', destaque: true },
+        { texto: 'Página exclusiva de presente pronta para emocionar', destaque: false },
+      ],
+    },
     {
       sku: 'audio_only',
-      icone: <IconeMusica />,
-      iconBg: '#dcfce7',
-      iconColor: '#16a34a',
+      nomePacote: 'Somente as Músicas',
+      subtitulo: 'Ideal para quem deseja apenas os arquivos de áudio',
+      icone: <IconeMusica size={22} color="#ffffff" />,
+      iconBg: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
       priceColor: '#059669',
+      valor: getPriceForSku('audio_only') || 9.99,
       titulo: '2 versões completas',
       linhas: ['em MP3 HD'],
-      valor: getPriceForSku('audio_only') || 9.99,
+      itens: [
+        { texto: '2 Versões completas em áudio MP3 HD (sem cortes)', destaque: false },
+        { texto: 'Página com player exclusivo para ouvir e baixar', destaque: false },
+      ],
     },
     {
       sku: 'combo_carta',
-      icone: <IconeCarta />,
-      iconBg: '#fce7f3',
-      iconColor: '#ec4899',
-      priceColor: '#1e293b',
+      nomePacote: 'Música + Carta Virtual',
+      subtitulo: 'Áudios em alta qualidade + declaração especial',
+      icone: <IconeCarta size={22} color="#ffffff" />,
+      iconBg: 'linear-gradient(135deg, #ec4899 0%, #be185d 100%)',
+      priceColor: '#be185d',
+      valor: getPriceForSku('combo_carta') || 13.98,
       titulo: '2 versões completas',
       linhas: ['+ Carta Virtual'],
-      valor: getPriceForSku('combo_carta') || 13.98,
-    },
-    {
-      sku: 'combo',
-      icone: <IconeVideo />,
-      iconBg: '#ede9fe',
-      iconColor: '#8b5cf6',
-      priceColor: '#7c3aed',
-      titulo: '2 versões completas',
-      linhas: ['+ Vídeo Homenagem', '+ Carta Virtual'],
-      valor: getPriceForSku('combo') || 16.89,
-      destaque: '👑 MAIS ESCOLHIDO',
+      itens: [
+        { texto: '2 Versões completas em áudio MP3 HD (sem cortes)', destaque: false },
+        { texto: 'Carta Virtual interativa com envelope e selo exclusivo', destaque: true },
+        { texto: 'Página exclusiva de presente pronta para presentear', destaque: false },
+      ],
     },
     {
       sku: 'combo_retrospectiva',
-      icone: <IconeRetrospectiva />,
-      iconBg: '#fef3c7',
-      iconColor: '#f59e0b',
-      priceColor: '#1e293b',
+      nomePacote: 'Super Retrospectiva',
+      subtitulo: 'Linha do tempo completa com todas as suas fotos',
+      icone: <IconeRetrospectiva size={22} color="#ffffff" />,
+      iconBg: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+      priceColor: '#b45309',
+      valor: getPriceForSku('combo_retrospectiva') || 19.98,
       titulo: '2 versões completas',
       linhas: ['+ Retrospectiva + Vídeo Homenagem', '+ Carta Virtual'],
-      valor: getPriceForSku('combo_retrospectiva') || 19.98,
+      itens: [
+        { texto: '2 Versões completas em áudio MP3 HD', destaque: false },
+        { texto: 'Retrospectiva com linha do tempo de fotos e memórias', destaque: true },
+        { texto: 'Vídeo Homenagem + Carta Virtual inclusos', destaque: false },
+      ],
     },
     {
       sku: 'combo_voz',
+      nomePacote: 'Voz Clonada por IA (VIP)',
+      subtitulo: 'Você cantando a música com a sua própria voz',
       icone: <span style={{ fontSize: '1.25rem' }}>🎤</span>,
-      iconBg: '#fef3c7',
-      iconColor: '#d97706',
-      priceColor: '#b45309',
-      titulo: '2 versões completas',
-      linhas: ['+ Voz Clonada do Cliente (IA)'],
+      iconBg: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+      priceColor: '#4338ca',
       valor: getPriceForSku('combo_voz') || 24.89,
       destaque: '✨ NOVO',
+      titulo: '2 versões completas',
+      linhas: ['+ Voz Clonada do Cliente (IA)'],
+      itens: [
+        { texto: '2 Versões completas em áudio MP3 HD', destaque: false },
+        { texto: 'Sua própria voz cantando afinada por inteligência artificial', destaque: true, tag: 'Tecnologia IA' },
+        { texto: 'Todos os benefícios dos outros pacotes inclusos', destaque: false },
+      ],
     },
   ];
 
@@ -2676,8 +2708,8 @@ function EntregaContent() {
                       </p>
                     </div>
 
-                    {!promo && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '9px', marginBottom: '18px' }}>
+                                        {!promo && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px', width: '100%' }}>
                         {pacotesEntrega.map((pacote) => {
                           const isSelected = valorEscolhido !== null && Math.abs(valorEscolhido - pacote.valor) < 0.01;
 
@@ -2695,132 +2727,193 @@ function EntregaContent() {
                               }}
                               style={{
                                 display: 'flex',
-                                alignItems: 'center',
-                                gap: '10px',
-                                padding: '12px 14px',
-                                borderRadius: '16px',
-                                border: isSelected ? '2px solid #8b5cf6' : '1.5px solid #e2e8f0',
-                                backgroundColor: isSelected ? '#faf5ff' : '#ffffff',
+                                flexDirection: 'column',
+                                padding: pacote.destaquePrincipal ? '15px 16px 14px' : '13px 15px',
+                                borderRadius: '18px',
+                                border: isSelected
+                                  ? (pacote.destaquePrincipal ? '2px solid #8b5cf6' : '2px solid #6366f1')
+                                  : (pacote.destaquePrincipal ? '1.5px solid #d8b4fe' : '1.5px solid #e2e8f0'),
+                                backgroundColor: isSelected
+                                  ? (pacote.destaquePrincipal ? '#faf5ff' : '#f8fafc')
+                                  : (pacote.destaquePrincipal ? '#ffffff' : '#ffffff'),
                                 cursor: pixLoading ? 'default' : 'pointer',
                                 position: 'relative',
                                 textAlign: 'left',
-                                transition: 'all 0.15s ease',
-                                boxShadow: isSelected ? '0 4px 14px rgba(139, 92, 246, 0.12)' : 'none',
+                                transition: 'all 0.2s ease',
+                                boxShadow: isSelected
+                                  ? (pacote.destaquePrincipal
+                                      ? '0 10px 25px -4px rgba(139, 92, 246, 0.22), 0 0 0 1px rgba(139, 92, 246, 0.2)'
+                                      : '0 6px 18px -3px rgba(99, 102, 241, 0.15)')
+                                  : (pacote.destaquePrincipal ? '0 4px 14px rgba(139, 92, 246, 0.08)' : '0 2px 6px rgba(0, 0, 0, 0.02)'),
+                                transform: isSelected && pacote.destaquePrincipal ? 'scale(1.01)' : 'none',
                               }}
                             >
-                              {/* Badge "👑 MAIS ESCOLHIDO" */}
+                              {/* Badge de Destaque Flutuante */}
                               {pacote.destaque && (
                                 <span
                                   style={{
                                     position: 'absolute',
-                                    top: '-10px',
-                                    right: '14px',
-                                    background: 'linear-gradient(90deg, #8b5cf6 0%, #ec4899 100%)',
+                                    top: '-11px',
+                                    right: '16px',
+                                    background: pacote.destaquePrincipal
+                                      ? 'linear-gradient(90deg, #7c3aed 0%, #db2777 100%)'
+                                      : 'linear-gradient(90deg, #6366f1 0%, #8b5cf6 100%)',
                                     color: '#ffffff',
-                                    fontSize: '0.62rem',
+                                    fontSize: '0.66rem',
                                     fontWeight: '800',
-                                    padding: '2px 9px',
+                                    padding: '3px 11px',
                                     borderRadius: '999px',
-                                    boxShadow: '0 2px 8px rgba(139, 92, 246, 0.4)',
+                                    boxShadow: '0 3px 10px rgba(124, 58, 237, 0.35)',
                                     letterSpacing: '0.04em',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    zIndex: 2,
                                   }}
                                 >
                                   {pacote.destaque}
                                 </span>
                               )}
 
-                              {/* Preço na ESQUERDA (Imagem 1) */}
-                              <div
-                                style={{
-                                  fontWeight: '800',
-                                  fontSize: '1.02rem',
-                                  color: isSelected ? '#7c3aed' : (pacote.priceColor || '#1e293b'),
-                                  whiteSpace: 'nowrap',
-                                  minWidth: '78px',
-                                }}
-                              >
-                                R$ {pacote.valor.toFixed(2).replace('.', ',')}
-                              </div>
-
-                              {/* Divisor Vertical */}
-                              <div
-                                style={{
-                                  width: '1px',
-                                  height: '32px',
-                                  backgroundColor: isSelected ? '#e9d5ff' : '#e2e8f0',
-                                  flexShrink: 0,
-                                }}
-                              />
-
-                              {/* Ícone em Soft Square Colorido (Imagem 1) */}
-                              <div
-                                style={{
-                                  width: '36px',
-                                  height: '36px',
-                                  borderRadius: '10px',
-                                  backgroundColor: pacote.iconBg || '#f1f5f9',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  fontSize: '1.1rem',
-                                  flexShrink: 0,
-                                }}
-                              >
-                                {pacote.icone}
-                              </div>
-
-                              {/* Conteúdo de Texto no MEIO */}
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <div
-                                  style={{
-                                    fontWeight: '700',
-                                    fontSize: '0.88rem',
-                                    color: '#1e293b',
-                                    lineHeight: 1.25,
-                                    marginBottom: '2px',
-                                  }}
-                                >
-                                  {pacote.titulo}
-                                </div>
-                                {pacote.linhas?.map((linha, idx) => (
+                              {/* Linha Superior: Ícone + Títulos + Preço + Radio */}
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+                                {/* Ícone estilizado em gradiente + Nome do Pacote */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flex: 1 }}>
                                   <div
-                                    key={idx}
                                     style={{
-                                      fontSize: '0.76rem',
-                                      color: '#64748b',
-                                      lineHeight: 1.3,
+                                      width: '40px',
+                                      height: '40px',
+                                      borderRadius: '12px',
+                                      background: pacote.iconBg || '#f1f5f9',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      flexShrink: 0,
+                                      boxShadow: isSelected ? '0 4px 10px rgba(0, 0, 0, 0.12)' : 'none',
                                     }}
                                   >
-                                    {linha}
+                                    {pacote.icone}
                                   </div>
-                                ))}
-                              </div>
 
-                              {/* Radio Circle na DIREITA (Imagem 1) */}
-                              <div
-                                style={{
-                                  width: '20px',
-                                  height: '20px',
-                                  borderRadius: '50%',
-                                  border: isSelected ? '2px solid #8b5cf6' : '2px solid #cbd5e1',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  flexShrink: 0,
-                                  backgroundColor: '#ffffff',
-                                }}
-                              >
-                                {isSelected && (
+                                  <div style={{ minWidth: 0 }}>
+                                    <div
+                                      style={{
+                                        fontWeight: '800',
+                                        fontSize: '0.96rem',
+                                        color: isSelected && pacote.destaquePrincipal ? '#6b21a8' : '#1e293b',
+                                        lineHeight: 1.25,
+                                        letterSpacing: '-0.01em',
+                                      }}
+                                    >
+                                      {pacote.nomePacote || pacote.titulo}
+                                    </div>
+                                    <div
+                                      style={{
+                                        fontSize: '0.74rem',
+                                        color: isSelected && pacote.destaquePrincipal ? '#9333ea' : '#64748b',
+                                        lineHeight: 1.3,
+                                        marginTop: '2px',
+                                        fontWeight: isSelected && pacote.destaquePrincipal ? '600' : '400',
+                                      }}
+                                    >
+                                      {pacote.subtitulo || (pacote.linhas ? pacote.linhas.join(' ') : '')}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Preço e Seletor Radio */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+                                  <div style={{ textAlign: 'right' }}>
+                                    <div
+                                      style={{
+                                        fontWeight: '900',
+                                        fontSize: pacote.destaquePrincipal ? '1.24rem' : '1.12rem',
+                                        color: isSelected ? (pacote.priceColor || '#7c3aed') : '#1e293b',
+                                        whiteSpace: 'nowrap',
+                                        letterSpacing: '-0.02em',
+                                      }}
+                                    >
+                                      R$ {pacote.valor.toFixed(2).replace('.', ',')}
+                                    </div>
+                                    {pacote.tagline && (
+                                      <div style={{ fontSize: '0.66rem', color: '#16a34a', fontWeight: '700' }}>
+                                        {pacote.tagline}
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Radio Circle com Checkmark SVG */}
                                   <div
                                     style={{
-                                      width: '10px',
-                                      height: '10px',
+                                      width: '22px',
+                                      height: '22px',
                                       borderRadius: '50%',
-                                      backgroundColor: '#8b5cf6',
+                                      border: isSelected ? '2px solid #8b5cf6' : '2px solid #cbd5e1',
+                                      backgroundColor: isSelected ? '#8b5cf6' : '#ffffff',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      flexShrink: 0,
+                                      transition: 'all 0.2s ease',
+                                      boxShadow: isSelected ? '0 0 0 3px rgba(139, 92, 246, 0.2)' : 'none',
                                     }}
-                                  />
-                                )}
+                                  >
+                                    {isSelected && (
+                                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+                                        <polyline points="20 6 9 17 4 12" />
+                                      </svg>
+                                    )}
+                                  </div>
+                                </div>
                               </div>
+
+                              {/* Checklist de Recursos Inclusos no Pacote */}
+                              {pacote.itens && pacote.itens.length > 0 && (
+                                <div
+                                  style={{
+                                    marginTop: '11px',
+                                    paddingTop: '9px',
+                                    borderTop: isSelected ? '1px solid #ede9fe' : '1px solid #f1f5f9',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '5px',
+                                  }}
+                                >
+                                  {pacote.itens.map((item, idx) => (
+                                    <div
+                                      key={idx}
+                                      style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '7px',
+                                        fontSize: '0.76rem',
+                                        color: item.destaque ? '#0f172a' : '#64748b',
+                                        fontWeight: item.destaque ? '700' : '500',
+                                      }}
+                                    >
+                                      <span style={{ color: item.destaque ? '#16a34a' : '#8b5cf6', fontSize: '0.82rem', fontWeight: 'bold' }}>
+                                        ✓
+                                      </span>
+                                      <span style={{ flex: 1 }}>{item.texto}</span>
+                                      {item.tag && (
+                                        <span
+                                          style={{
+                                            fontSize: '0.62rem',
+                                            fontWeight: '800',
+                                            padding: '1px 6px',
+                                            borderRadius: '6px',
+                                            backgroundColor: '#dcfce7',
+                                            color: '#15803d',
+                                            border: '1px solid #bbf7d0',
+                                          }}
+                                        >
+                                          {item.tag}
+                                        </span>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           );
                         })}

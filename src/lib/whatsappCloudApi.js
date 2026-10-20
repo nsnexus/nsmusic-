@@ -115,10 +115,19 @@ export async function sendCloudApiTemplate(phone, templateName, variaveis = [], 
       return sendCloudApiTemplate(phone, templateName, variaveis, {}, env);
     }
 
-    // Se falhou com 4 variáveis e o template na Meta tiver 3:
-    if (!res.ok && variaveis.length > 3 && data?.error?.message?.includes('parameters')) {
-      console.warn('[CloudAPI] Falha de contagem de parâmetros, tentando com 3 variáveis...', data?.error?.message);
+    // Fallback bidirecional de parâmetros para compatibilidade com o template na Meta:
+    // Se enviamos 4 variáveis e o template espera 3 (ou não aceita parâmetros no final):
+    if (!res.ok && variaveis.length > 3 && (data?.error?.message?.includes('parameters') || data?.error?.message?.includes('localizable_params'))) {
+      console.warn('[CloudAPI] Template espera 3 variáveis (sem parâmetro extra no final). Tentando com 3 variáveis...', data?.error?.message);
       return sendCloudApiTemplate(phone, templateName, [variaveis[0], variaveis[1], variaveis[2]], {}, env);
+    }
+    // Se enviamos 3 variáveis e o template exige 4 (incluindo link dinâmico de suporte):
+    if (!res.ok && variaveis.length === 3 && (data?.error?.message?.includes('parameters') || data?.error?.message?.includes('localizable_params'))) {
+      const cfgSite = await lerConfigSite(env).catch(() => ({}));
+      const numSuporte = normalizarNumeroWhatsapp(cfgSite?.whatsappSuporte) || WHATSAPP_SUPORTE_PADRAO;
+      const linkSuporte = `https://wa.me/${numSuporte}`;
+      console.warn('[CloudAPI] Template exige 4 variáveis. Tentando com link dinâmico de suporte...', data?.error?.message);
+      return sendCloudApiTemplate(phone, templateName, [...variaveis, linkSuporte], {}, env);
     }
 
     // A mensagem de erro da Meta é específica e vale no log: template não aprovado, número não
