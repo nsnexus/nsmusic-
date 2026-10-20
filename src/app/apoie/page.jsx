@@ -164,14 +164,26 @@ export default function ApoiePage() {
               </div>
 
               <div style={{ marginBottom: '12px', textAlign: 'left' }}>
-                <label htmlFor="pix-copia-cola-apoie" style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
-                  Ou use o código PIX Copia e Cola:
-                </label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <label htmlFor="pix-copia-cola-apoie" style={{ fontSize: '0.8rem', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                    Ou use o código PIX Copia e Cola:
+                  </label>
+                  <span style={{ fontSize: '0.72rem', color: copied ? 'var(--primary)' : '#64748b', fontWeight: '600' }}>
+                    {copied ? '✅ Copiado!' : '👆 Clique na caixa para copiar'}
+                  </span>
+                </div>
                 <textarea
                   id="pix-copia-cola-apoie"
                   readOnly
                   value={pixInfo.pixCopiaECola}
-                  style={{ width: '100%', height: '70px', background: '#FFFFFF', color: '#0f172a', border: '1.5px solid var(--border-color)', borderRadius: '8px', padding: '10px', fontSize: '0.72rem', fontFamily: 'monospace', resize: 'none', boxSizing: 'border-box' }}
+                  onClick={(e) => {
+                    try {
+                      e.target?.select?.();
+                    } catch (_) {}
+                    handleCopy();
+                  }}
+                  title="Clique para copiar o código Pix"
+                  style={{ width: '100%', height: '70px', background: copied ? 'var(--primary-light)' : '#FFFFFF', color: '#0f172a', border: `1.5px solid ${copied ? 'var(--primary)' : 'var(--border-color)'}`, borderRadius: '8px', padding: '10px', fontSize: '0.72rem', fontFamily: 'monospace', resize: 'none', boxSizing: 'border-box', cursor: 'pointer', transition: 'all 0.2s ease' }}
                 />
               </div>
 

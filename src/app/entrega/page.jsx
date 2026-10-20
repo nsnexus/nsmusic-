@@ -2893,14 +2893,48 @@ function EntregaContent() {
                             </div>
 
                             <div style={{ marginBottom: '10px' }}>
-                              <label htmlFor="pix-copia-cola-musica" style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
-                                Ou use o código PIX Copia e Cola:
-                              </label>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                                <label htmlFor="pix-copia-cola-musica" style={{ fontSize: '0.8rem', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                                  Ou use o código PIX Copia e Cola:
+                                </label>
+                                <span style={{ fontSize: '0.72rem', color: pixCopied ? 'var(--success)' : '#64748b', fontWeight: '600' }}>
+                                  {pixCopied ? '✅ Copiado!' : '👆 Clique na caixa para copiar'}
+                                </span>
+                              </div>
                               <textarea
                                 id="pix-copia-cola-musica"
                                 readOnly
                                 value={pixInfo.qrCode}
-                                style={{ width: '100%', height: '70px', background: '#FFFFFF', color: '#0f172a', border: '1.5px solid var(--border-color)', borderRadius: '8px', padding: '10px', fontSize: '0.75rem', fontFamily: 'monospace', resize: 'none' }}
+                                onClick={(e) => {
+                                  try {
+                                    e.target?.select?.();
+                                  } catch (_) {}
+                                  if (pixInfo?.qrCode) {
+                                    try {
+                                      if (navigator?.clipboard?.writeText) {
+                                        navigator.clipboard.writeText(pixInfo.qrCode).catch(() => {});
+                                      }
+                                    } catch (_) {}
+                                    setPixCopied(true);
+                                    marcarPixCopiado(orderId);
+                                    setTimeout(() => setPixCopied(false), 3000);
+                                  }
+                                }}
+                                title="Clique para copiar o código Pix"
+                                style={{
+                                  width: '100%',
+                                  height: '70px',
+                                  background: pixCopied ? '#ecfdf5' : '#FFFFFF',
+                                  color: '#0f172a',
+                                  border: `1.5px solid ${pixCopied ? 'var(--success)' : 'var(--border-color)'}`,
+                                  borderRadius: '8px',
+                                  padding: '10px',
+                                  fontSize: '0.75rem',
+                                  fontFamily: 'monospace',
+                                  resize: 'none',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.2s ease',
+                                }}
                               />
                             </div>
 

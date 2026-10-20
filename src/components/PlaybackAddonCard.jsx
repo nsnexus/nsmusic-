@@ -211,14 +211,47 @@ export default function PlaybackAddonCard({ orderId, order }) {
             </p>
             <PixQrCode payload={pixInfo.qrCode} size={180} label="QR Code para pagamento do Playback via PIX" />
             <div style={{ margin: '12px 0 10px', textAlign: 'left' }}>
-              <label htmlFor="pix-copia-cola-playback" style={{ fontSize: '0.8rem', color: '#64748b', display: 'block', marginBottom: '6px', fontWeight: '600' }}>
-                Ou use o código PIX Copia e Cola:
-              </label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <label htmlFor="pix-copia-cola-playback" style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: '600', cursor: 'pointer' }}>
+                  Ou use o código PIX Copia e Cola:
+                </label>
+                <span style={{ fontSize: '0.72rem', color: pixCopied ? '#7c3aed' : '#64748b', fontWeight: '600' }}>
+                  {pixCopied ? '✅ Copiado!' : '👆 Clique na caixa para copiar'}
+                </span>
+              </div>
               <textarea
                 id="pix-copia-cola-playback"
                 readOnly
                 value={pixInfo.qrCode}
-                style={{ width: '100%', height: '60px', background: '#f8fafc', color: '#0f172a', border: '1.5px solid #cbd5e1', borderRadius: '8px', padding: '10px', fontSize: '0.72rem', fontFamily: 'monospace', resize: 'none' }}
+                onClick={(e) => {
+                  try {
+                    e.target?.select?.();
+                  } catch (_) {}
+                  if (pixInfo?.qrCode) {
+                    try {
+                      if (navigator?.clipboard?.writeText) {
+                        navigator.clipboard.writeText(pixInfo.qrCode).catch(() => {});
+                      }
+                    } catch (_) {}
+                    setPixCopied(true);
+                    setTimeout(() => setPixCopied(false), 3000);
+                  }
+                }}
+                title="Clique para copiar o código Pix"
+                style={{
+                  width: '100%',
+                  height: '60px',
+                  background: pixCopied ? '#f5f3ff' : '#f8fafc',
+                  color: '#0f172a',
+                  border: `1.5px solid ${pixCopied ? '#7c3aed' : '#cbd5e1'}`,
+                  borderRadius: '8px',
+                  padding: '10px',
+                  fontSize: '0.72rem',
+                  fontFamily: 'monospace',
+                  resize: 'none',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
               />
             </div>
             <button

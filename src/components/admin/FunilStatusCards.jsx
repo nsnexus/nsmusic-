@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { getAdminAuthToken } from '@/lib/authClient';
-import { hasOrderGeneratedPix } from '@/lib/pixCheckout';
 
 /**
  * FunilStatusCards
@@ -67,20 +66,12 @@ export default function FunilStatusCards({
     let letraGerada = 0;
     let emProducao = 0;
     let audioGerado = 0;
-    let pixGerado = 0;
     let pagos = 0;
 
     for (const o of orders) {
       const isPaid = o.paymentStatus === 'PAGO' || o.paymentStatus === 'PAGAMENTO_APROVADO';
       if (isPaid) {
         pagos++;
-        continue;
-      }
-
-      // Cliente clicou para gerar PIX (ou copiou o PIX) e aguarda pagamento
-      const hasPix = hasOrderGeneratedPix(o);
-      if (hasPix) {
-        pixGerado++;
         continue;
       }
 
@@ -110,7 +101,6 @@ export default function FunilStatusCards({
       letraGerada,
       emProducao,
       audioGerado,
-      pixGerado,
       pagos,
       pctEtapa1: calcPct(etapa1),
       pctEtapa2: calcPct(etapa2),
@@ -119,7 +109,6 @@ export default function FunilStatusCards({
       pctLetra: calcPct(letraGerada),
       pctProducao: calcPct(emProducao),
       pctAudio: calcPct(audioGerado),
-      pctPixGerado: calcPct(pixGerado),
       pctPagos: calcPct(pagos),
     };
   }, [orders]);
@@ -242,30 +231,15 @@ export default function FunilStatusCards({
       type: 'PRODUCTION',
       value: 'AUDIO_GERADO',
       title: 'Áudio Ouvido',
-      sub: 'Ouviu sem gerar PIX',
+      sub: 'Aguardando PIX',
       icon: '🎧',
       count: stats.audioGerado,
       pct: stats.pctAudio,
-      badge: 'Pararam no player',
-      badgeColor: '#e0f2fe',
-      badgeTextColor: '#0369a1',
-      active: activeProductionFilter === 'AUDIO_GERADO',
-      borderAccent: '#38bdf8',
-    },
-    {
-      id: 'pix_gerado',
-      type: 'PRODUCTION',
-      value: 'PIX_GERADO',
-      title: 'Gerou PIX',
-      sub: 'Aguardando pagamento',
-      icon: '⚡',
-      count: stats.pixGerado,
-      pct: stats.pctPixGerado,
       badge: '🔥 Quase comprando',
-      badgeColor: '#fef3c7',
-      badgeTextColor: '#b45309',
-      active: activeProductionFilter === 'PIX_GERADO',
-      borderAccent: '#f59e0b',
+      badgeColor: '#fee2e2',
+      badgeTextColor: '#b91c1c',
+      active: activeProductionFilter === 'AUDIO_GERADO',
+      borderAccent: '#ef4444',
     },
     {
       id: 'pagos',

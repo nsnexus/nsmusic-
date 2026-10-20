@@ -2535,49 +2535,104 @@ export default function CriarMusica() {
                           <PixQrCode payload={pixInfo.qrCode} />
                         </div>
 
-                        <div style={{ width: '100%' }}>
-                          <label htmlFor="pix-copia-cola-criar" style={{ fontSize: '0.82rem', color: '#475569', display: 'block', marginBottom: '6px', fontWeight: '600' }}>
-                            Ou use o código PIX Copia e Cola:
-                          </label>
-                          <textarea
-                            id="pix-copia-cola-criar"
-                            readOnly
-                            value={pixInfo.qrCode || ''}
-                            style={{ width: '100%', height: '70px', background: '#FFFFFF', color: '#0f172a', border: '1.5px solid #cbd5e1', borderRadius: '12px', padding: '10px 12px', fontSize: '0.78rem', fontFamily: 'monospace', resize: 'none', boxSizing: 'border-box' }}
-                          />
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (pixInfo.qrCode) {
-                              navigator.clipboard.writeText(pixInfo.qrCode);
-                              setPixCopied(true);
-                              setTimeout(() => setPixCopied(false), 3000);
-                              if (orderId) {
-                                fetch('/api/payments/pix-copied', {
-                                  method: 'POST',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ orderId }),
-                                }).catch(() => {});
+                        {(() => {
+                          const copyPixAction = (targetEl) => {
+                            if (!pixInfo?.qrCode) return;
+                            try {
+                              if (targetEl && typeof targetEl.select === 'function') {
+                                targetEl.select();
                               }
+                            } catch (_) {}
+
+                            let copiedOk = false;
+                            try {
+                              if (navigator?.clipboard?.writeText) {
+                                navigator.clipboard.writeText(pixInfo.qrCode);
+                                copiedOk = true;
+                              }
+                            } catch (_) {}
+
+                            if (!copiedOk) {
+                              try {
+                                const tempArea = document.createElement('textarea');
+                                tempArea.value = pixInfo.qrCode;
+                                tempArea.setAttribute('readonly', '');
+                                tempArea.style.position = 'absolute';
+                                tempArea.style.left = '-9999px';
+                                document.body.appendChild(tempArea);
+                                tempArea.select();
+                                document.execCommand('copy');
+                                document.body.removeChild(tempArea);
+                              } catch (_) {}
                             }
-                          }}
-                          style={{
-                            width: '100%',
-                            padding: '14px',
-                            borderRadius: '12px',
-                            border: 'none',
-                            background: pixCopied ? '#059669' : 'linear-gradient(135deg, #059669 0%, #047857 100%)',
-                            color: '#FFFFFF',
-                            fontWeight: '800',
-                            fontSize: '1rem',
-                            cursor: 'pointer',
-                            boxShadow: '0 4px 14px rgba(5, 150, 105, 0.25)'
-                          }}
-                        >
-                          {pixCopied ? '✅ Código PIX Copiado!' : '📋 Copiar Código PIX'}
-                        </button>
+
+                            setPixCopied(true);
+                            setTimeout(() => setPixCopied(false), 3000);
+                            if (orderId) {
+                              fetch('/api/payments/pix-copied', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ orderId }),
+                              }).catch(() => {});
+                            }
+                          };
+
+                          return (
+                            <>
+                              <div style={{ width: '100%' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                                  <label htmlFor="pix-copia-cola-criar" style={{ fontSize: '0.82rem', color: '#475569', fontWeight: '600', cursor: 'pointer' }}>
+                                    Ou use o código PIX Copia e Cola:
+                                  </label>
+                                  <span style={{ fontSize: '0.72rem', color: pixCopied ? '#059669' : '#64748b', fontWeight: '600' }}>
+                                    {pixCopied ? '✅ Copiado!' : '👆 Clique na caixa para copiar'}
+                                  </span>
+                                </div>
+                                <textarea
+                                  id="pix-copia-cola-criar"
+                                  readOnly
+                                  value={pixInfo.qrCode || ''}
+                                  onClick={(e) => copyPixAction(e.target)}
+                                  title="Clique para copiar o código Pix"
+                                  style={{
+                                    width: '100%',
+                                    height: '70px',
+                                    background: pixCopied ? '#ecfdf5' : '#FFFFFF',
+                                    color: '#0f172a',
+                                    border: `1.5px solid ${pixCopied ? '#059669' : '#cbd5e1'}`,
+                                    borderRadius: '12px',
+                                    padding: '10px 12px',
+                                    fontSize: '0.78rem',
+                                    fontFamily: 'monospace',
+                                    resize: 'none',
+                                    boxSizing: 'border-box',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s ease',
+                                  }}
+                                />
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={(e) => copyPixAction(e.currentTarget)}
+                                style={{
+                                  width: '100%',
+                                  padding: '14px',
+                                  borderRadius: '12px',
+                                  border: 'none',
+                                  background: pixCopied ? '#059669' : 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                                  color: '#FFFFFF',
+                                  fontWeight: '800',
+                                  fontSize: '1rem',
+                                  cursor: 'pointer',
+                                  boxShadow: '0 4px 14px rgba(5, 150, 105, 0.25)'
+                                }}
+                              >
+                                {pixCopied ? '✅ Código PIX Copiado!' : '📋 Copiar Código PIX'}
+                              </button>
+                            </>
+                          );
+                        })()}
 
                         <button
                           type="button"
