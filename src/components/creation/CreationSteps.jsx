@@ -3,6 +3,7 @@
 import React, { useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { Mic } from 'lucide-react';
 import { occasions, recipients, stylesList, moods } from '@/app/criar/wizardOptions';
 
 const groups = [
@@ -82,12 +83,12 @@ export default function CreationSteps({ step, formData: data, updateField, isLis
       <h1>Uma história que<br />só vocês têm.</h1>
       <p className="nx-subtitle">O que torna {data.honoreeName || 'essa pessoa'} especial? Não precisa escrever bonito, só do seu jeito.</p>
       <Field label="O que você gostaria de dizer?" help={`${(data.story || '').trim().length} caracteres · conte pelo menos 50 para começar.`}>
-        <textarea value={data.story || ''} onChange={e => updateField('story', e.target.value)} placeholder="Conte uma lembrança, o que mais admira nessa pessoa e o que gostaria que ela sentisse ao ouvir..." rows={8} />
+        <textarea value={data.story || ''} onChange={e => updateField('story', e.target.value)} placeholder="Conte uma lembrança, o que mais admira nessa pessoa e o que gostaria que ela sentisse ao ouvir…" rows={8} />
       </Field>
       <div className="nx-chips" role="group" aria-label="Ideias para sua história">{[
         ['Uma lembrança', 'Uma lembrança que guardo com carinho é '], ['Uma qualidade', 'O que mais admiro em você é '], ['Uma mensagem', 'Hoje eu queria te dizer que '],
       ].map(([title, prompt]) => <button key={title} type="button" onClick={() => appendStoryPrompt(prompt)}>{title}</button>)}</div>
-      <button type="button" className={`nx-button ${isListening ? 'nx-recording' : ''}`} onClick={toggleVoiceDictation} aria-pressed={isListening}>{isListening ? 'Parar de gravar' : 'Prefiro contar por voz'}</button>
+      <button type="button" className={`nx-button ${isListening ? 'nx-recording' : ''}`} onClick={toggleVoiceDictation} aria-pressed={isListening} style={{ minHeight: '48px', display: 'inline-flex', alignItems: 'center', gap: '8px' }}><Mic size={18} aria-hidden="true" /><span>{isListening ? 'Parar de gravar' : 'Prefiro contar por voz'}</span></button>
       <p className="nx-helper">Você pode revisar o texto antes de continuar. O ditado depende do suporte do seu navegador.</p>
       <details className="nx-details"><summary>Quero incluir nomes ou uma frase especial</summary><Field label="Nomes que precisam aparecer"><input value={data.requiredNames || ''} onChange={e => updateField('requiredNames', e.target.value)} placeholder="Ex.: meus filhos Pedro e Laura" /></Field><Field label="Uma frase de vocês"><input value={data.requiredPhrase || ''} onChange={e => updateField('requiredPhrase', e.target.value)} placeholder="Ex.: sempre ao seu lado" /></Field></details>
     </section>
@@ -118,7 +119,7 @@ export default function CreationSteps({ step, formData: data, updateField, isLis
       {data.coverUrl && <Image src={data.coverUrl} alt="Sua foto de capa" width={96} height={96} unoptimized className="nx-upload-preview" />}
       <Field label="Seu WhatsApp para receber o link" help="Enviaremos o link para você acompanhar e ouvir a sua música."><input type="tel" inputMode="tel" autoComplete="tel" value={data.customerPhone || ''} onChange={e => handlePhoneChange(e.target.value)} placeholder="(11) 99999-9999" aria-invalid={phoneVerifyStatus === 'invalid'} /></Field>
       {phoneVerifyMessage && <p className="nx-helper" role="status" style={{ color: phoneVerifyStatus === 'valid' ? '#16a34a' : phoneVerifyStatus === 'invalid' ? '#dc2626' : undefined, fontWeight: phoneVerifyStatus === 'valid' || phoneVerifyStatus === 'invalid' ? 600 : undefined }}>{phoneVerifyMessage.replace('❌ ', '')}</p>}
-      <p className="nx-helper" style={{ fontSize: '0.8rem', color: '#94a3b8', margin: '10px 0 4px 0' }}>
+      <p className="nx-helper" style={{ fontSize: '0.82rem', color: '#534b57', margin: '10px 0 4px 0' }}>
         Ao prosseguir, você concorda com nossos <Link href="/termos-de-uso" target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'underline' }}>Termos de Uso</Link> e <Link href="/politica-de-privacidade" target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'underline' }}>Política de Privacidade</Link>.
       </p>
       <p className="nx-helper">Você revisa a letra antes de gerar a música. A foto é opcional.</p>

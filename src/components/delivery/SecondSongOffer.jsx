@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { Gift, Sparkles, CheckCircle2, Check, ArrowRight } from 'lucide-react';
 import PixQrCode from '@/components/PixQrCode';
 
 export default function SecondSongOffer({ orderId, order }) {
@@ -25,6 +26,11 @@ export default function SecondSongOffer({ orderId, order }) {
   const [success, setSuccess] = useState(alreadyPurchased);
   const [message, setMessage] = useState('');
   const lock = useRef(false);
+
+  // Sincroniza se o pedido já vier com segunda música confirmada
+  useEffect(() => {
+    if (alreadyPurchased) setSuccess(true);
+  }, [alreadyPurchased]);
 
   // Polling automático do PIX da segunda música
   useEffect(() => {
@@ -140,19 +146,56 @@ export default function SecondSongOffer({ orderId, order }) {
 
   if (success) {
     return (
-      <section className="nx-card" style={{ background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(6, 78, 59, 0.25) 100%)', border: '1px solid #10b981', borderRadius: '14px', padding: '24px', textAlign: 'center', margin: '24px 0' }}>
+      <section
+        className="nx-card"
+        style={{
+          margin: '32px 0',
+          border: '1.5px solid #86efac',
+          borderRadius: '21px',
+          background: 'linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%)',
+          padding: '32px 24px',
+          textAlign: 'center',
+          boxShadow: '0 4px 20px rgba(16, 185, 129, 0.08)',
+        }}
+      >
         <div style={{ fontSize: '2.5rem', marginBottom: '8px' }}>🎉</div>
-        <h3 style={{ color: '#10b981', fontSize: '1.25rem', fontWeight: '800', marginBottom: '8px' }}>
-          Oferta de Segunda Música Confirmada!
+        <span
+          style={{
+            display: 'inline-block',
+            fontSize: '0.72rem',
+            fontWeight: '800',
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            color: '#15803d',
+            background: '#dcfce7',
+            padding: '4px 12px',
+            borderRadius: '999px',
+            marginBottom: '10px',
+          }}
+        >
+          Crédito Promocional Garantido
+        </span>
+        <h3 style={{ font: '1.8rem/1.25 Georgia, serif', color: '#14532d', margin: '0 0 10px' }}>
+          Sua Próxima Música já está Desbloqueada!
         </h3>
-        <p style={{ color: '#e2e8f0', fontSize: '0.95rem', marginBottom: '18px', lineHeight: 1.5 }}>
-          Seu crédito promocional de <strong>R$ 4,99</strong> já está garantido. Você pode criar uma nova música personalizada agora mesmo ou quando quiser!
+        <p style={{ color: '#166534', fontSize: '0.95rem', maxWidth: '540px', margin: '0 auto 22px', lineHeight: 1.6 }}>
+          Seu crédito promocional de <strong>R$ 4,99</strong> foi confirmado com sucesso. Ele não tem prazo de validade e você pode criar uma nova música personalizada agora mesmo ou quando desejar.
         </p>
-        <div className="nx-checkout-actions" style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
           <Link
-            className="nx-button nx-primary btn btn-primary"
+            className="nx-button nx-primary"
             href={`/criar?novo=1&origem=segunda_musica&orderRef=${encodeURIComponent(orderId)}`}
-            style={{ padding: '12px 24px', fontSize: '1rem', fontWeight: 'bold', textDecoration: 'none' }}
+            style={{
+              padding: '14px 28px',
+              fontSize: '1rem',
+              fontWeight: 'bold',
+              background: '#059669',
+              borderColor: '#059669',
+              color: '#ffffff',
+              borderRadius: '12px',
+              textDecoration: 'none',
+              boxShadow: '0 4px 14px rgba(5, 150, 105, 0.3)',
+            }}
           >
             ✨ Criar Minha Próxima Música Agora
           </Link>
@@ -162,104 +205,225 @@ export default function SecondSongOffer({ orderId, order }) {
   }
 
   return (
-    <section className="nx-card" aria-label="Oferta opcional para sua próxima música" style={{ margin: '24px 0', border: '1px solid rgba(236, 72, 153, 0.35)', borderRadius: '14px', overflow: 'hidden', background: 'linear-gradient(135deg, rgba(30, 15, 45, 0.8) 0%, rgba(15, 10, 25, 0.95) 100%)' }}>
-      <div className="nx-second-offer" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+    <section
+      className="nx-card"
+      aria-label="Oferta opcional para sua próxima música"
+      style={{
+        margin: '32px 0',
+        border: '1.5px solid #e7d5df',
+        borderRadius: '21px',
+        background: '#ffffff',
+        padding: '30px 28px',
+        boxShadow: '0 4px 22px rgba(103, 64, 139, 0.06)',
+      }}
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+        {/* Cabeçalho com narrativa e oferta */}
         <div>
-          <span className="nx-eyebrow" style={{ color: '#ec4899', fontSize: '0.8rem', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            🎁 Oferta VIP Pós-Compra
+          <span
+            className="nx-eyebrow"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              background: '#f4edf8',
+              color: '#67408b',
+              padding: '4px 12px',
+              borderRadius: '999px',
+              fontSize: '0.72rem',
+              fontWeight: '800',
+              letterSpacing: '0.06em',
+              textTransform: 'uppercase',
+            }}
+          >
+            <><Gift size={14} style={{ color: "#67408b" }} aria-hidden="true" /><span>Presente VIP Pós-Compra · 50% OFF</span></>
           </span>
-          <h2 style={{ color: '#ffffff', fontSize: '1.35rem', fontWeight: '800', marginTop: '6px', marginBottom: '10px' }}>
+
+          <h2
+            style={{
+              font: '1.85rem/1.25 Georgia, serif',
+              color: '#29232d',
+              margin: '12px 0 8px',
+              letterSpacing: '-0.02em',
+            }}
+          >
             Já pensou em quem vai ser a próxima pessoa homenageada?
           </h2>
-          <p style={{ color: '#cbd5e1', fontSize: '0.92rem', lineHeight: 1.5, marginBottom: '8px' }}>
-            Por ser um cliente especial e ter adquirido o pacote completo, você desbloqueou o direito de criar uma <strong style={{ color: '#34d399' }}>segunda música por apenas R$ 4,99</strong> (mais de 50% de desconto!).
+
+          <p
+            style={{
+              color: '#6c636f',
+              fontSize: '0.96rem',
+              lineHeight: 1.6,
+              margin: '0 0 12px',
+              maxWidth: '640px',
+            }}
+          >
+            Por ser um cliente especial e ter adquirido o pacote completo, você desbloqueou o direito exclusivo de criar uma{' '}
+            <strong style={{ color: '#67408b' }}>segunda música personalizada por apenas R$ 4,99</strong> (mais de 50% de desconto!).
           </p>
-          <p className="nx-helper" style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
-            Compra adicional opcional. A sua música atual já está 100% liberada. Este crédito não tem prazo de validade.
+
+          {/* Comparativo de Preço */}
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', margin: '14px 0 8px' }}>
+            <span style={{ fontSize: '1.1rem', color: '#8c828f', textDecoration: 'line-through', fontWeight: '500', fontVariantNumeric: 'tabular-nums' }}>
+              R$ 9,99
+            </span>
+            <span style={{ fontSize: '2.4rem', fontWeight: '850', color: '#059669', letterSpacing: '-0.03em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
+              R$ 4,99
+            </span>
+            <span style={{ fontSize: '0.74rem', fontWeight: '800', background: '#dcfce7', color: '#15803d', padding: '3px 9px', borderRadius: '6px', letterSpacing: '0.02em' }}>
+              ECONOMIZE R$ 5,00
+            </span>
+          </div>
+
+          <p className="nx-helper" style={{ fontSize: '0.82rem', color: '#534b57', margin: '4px 0 0' }}>
+            Compra adicional opcional. A sua música atual já está 100% liberada. Este crédito não tem prazo de validade e fica salvo na sua conta.
           </p>
         </div>
 
-        <div>
-          <div className="nx-offer-amount" style={{ fontSize: '1.6rem', fontWeight: '900', color: '#34d399', marginBottom: '12px' }}>
-            R$ 4,99
+        {/* Bloco de Botão ou PIX */}
+        {!pix?.qrCode ? (
+          <div style={{ display: 'flex', gap: '14px', alignItems: 'center', flexWrap: 'wrap', marginTop: '4px' }}>
+            <button
+              type="button"
+              className="nx-button nx-primary"
+              disabled={busy}
+              onClick={handleBuy}
+              style={{
+                padding: '14px 26px',
+                fontSize: '1rem',
+                fontWeight: '700',
+                borderRadius: '12px',
+                cursor: busy ? 'default' : 'pointer',
+                background: 'var(--nx-purple, #67408b)',
+                color: '#ffffff',
+                border: 'none',
+                boxShadow: '0 4px 14px rgba(103, 64, 139, 0.25)',
+              }}
+            >
+              {busy ? 'Gerando PIX de R$ 4,99…' : (<span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}><span>Quero 1 música por R$ 4,99</span><Sparkles size={17} aria-hidden="true" /></span>)}
+            </button>
+            <button
+              type="button"
+              className="nx-text-button"
+              onClick={() => setHidden(true)}
+              style={{ color: '#8c828f', fontSize: '0.88rem', cursor: 'pointer', textDecoration: 'underline' }}
+            >
+              Agora não
+            </button>
           </div>
-          
-          {!pix?.qrCode ? (
-            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                className="nx-button nx-primary btn btn-primary"
-                disabled={busy}
-                onClick={handleBuy}
-                style={{ padding: '12px 20px', fontSize: '0.95rem', fontWeight: 'bold', cursor: busy ? 'default' : 'pointer' }}
-              >
-                {busy ? 'Gerando PIX de R$ 4,99...' : '✨ Quero 1 Música por R$ 4,99'}
-              </button>
-              <button
-                type="button"
-                className="nx-text-button"
-                onClick={() => setHidden(true)}
-                style={{ background: 'transparent', border: 'none', color: '#94a3b8', fontSize: '0.85rem', cursor: 'pointer', textDecoration: 'underline' }}
-              >
-                Agora não
-              </button>
-            </div>
-          ) : (
-            <div style={{ marginTop: '16px', background: 'rgba(0, 0, 0, 0.3)', padding: '16px', borderRadius: '10px' }}>
-              <h3 style={{ fontSize: '1.05rem', fontWeight: 'bold', color: '#ffffff', marginBottom: '8px' }}>
+        ) : (
+          <div
+            style={{
+              marginTop: '10px',
+              background: '#faf8f5',
+              border: '1.5px solid #e7d5df',
+              padding: '22px',
+              borderRadius: '16px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: '8px', flexWrap: 'wrap' }}>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: '800', color: '#29232d', margin: 0 }}>
                 PIX da Oferta Promocional · R$ 4,99
               </h3>
-              <p style={{ fontSize: '0.85rem', color: '#cbd5e1', marginBottom: '12px' }}>
-                Copie o código abaixo ou clique diretamente nele para pagar pelo aplicativo do seu banco:
-              </p>
-
-              <div className="nx-checkout-actions" style={{ display: 'flex', gap: '10px', marginBottom: '12px', flexWrap: 'wrap' }}>
-                <button
-                  type="button"
-                  className="nx-button nx-primary btn btn-primary"
-                  onClick={() => copyPixCode(pix.qrCode)}
-                  style={{ padding: '10px 18px', fontSize: '0.88rem', fontWeight: 'bold' }}
-                >
-                  {pixCopied ? '✅ Código Copiado!' : '📋 Copiar Código PIX'}
-                </button>
-                <button
-                  type="button"
-                  className="nx-button btn"
-                  disabled={checking}
-                  onClick={handleCheckNow}
-                  style={{ padding: '10px 16px', fontSize: '0.88rem' }}
-                >
-                  {checking ? 'Consultando...' : '🔄 Já paguei'}
-                </button>
-              </div>
-
-              <textarea
-                className="nx-pix-code"
-                aria-label="Código PIX da compra adicional"
-                readOnly
-                value={pix.qrCode}
-                onClick={(e) => {
-                  e.target.select();
-                  copyPixCode(pix.qrCode);
-                }}
-                title="Clique para selecionar e copiar"
-                style={{ width: '100%', height: '80px', fontSize: '0.78rem', padding: '8px', borderRadius: '6px', cursor: 'pointer', backgroundColor: '#0f172a', color: '#38bdf8', border: '1px solid #334155' }}
-              />
-
-              <details className="nx-details" style={{ marginTop: '12px' }}>
-                <summary style={{ color: '#a78bfa', cursor: 'pointer', fontSize: '0.85rem' }}>Ver QR Code na tela</summary>
-                <div className="nx-pix-qr" style={{ padding: '12px', display: 'flex', justifyContent: 'center' }}>
-                  <PixQrCode payload={pix.qrCode} />
-                </div>
-              </details>
+              <span style={{ fontSize: '0.78rem', color: '#059669', fontWeight: '700', background: '#dcfce7', padding: '2px 8px', borderRadius: '6px' }}>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}><CheckCircle2 size={13} aria-hidden="true" /><span>Aprovação imediata</span></span>
+              </span>
             </div>
-          )}
-        </div>
+
+            <p style={{ fontSize: '0.86rem', color: '#6c636f', marginBottom: '14px', lineHeight: 1.5 }}>
+              Copie o código abaixo e pague no app do seu banco pelo <strong>PIX Copia e Cola</strong>. Assim que pagar, o crédito é liberado automaticamente:
+            </p>
+
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '12px', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="nx-button nx-primary"
+                onClick={() => copyPixCode(pix.qrCode)}
+                style={{
+                  padding: '11px 20px',
+                  fontSize: '0.9rem',
+                  fontWeight: 'bold',
+                  borderRadius: '10px',
+                  background: 'var(--nx-purple, #67408b)',
+                  color: '#ffffff',
+                  border: 'none',
+                  cursor: 'pointer',
+                }}
+              >
+                {pixCopied ? '✅ Código Copiado!' : '📋 Copiar Código PIX'}
+              </button>
+              <button
+                type="button"
+                className="nx-button"
+                disabled={checking}
+                onClick={handleCheckNow}
+                style={{
+                  padding: '11px 18px',
+                  fontSize: '0.9rem',
+                  borderRadius: '10px',
+                  background: '#ffffff',
+                  border: '1px solid #cbd5e1',
+                  color: '#29232d',
+                  cursor: checking ? 'default' : 'pointer',
+                }}
+              >
+                {checking ? 'Consultando…' : '🔄 Já paguei'}
+              </button>
+            </div>
+
+            <textarea
+              className="nx-pix-code"
+              aria-label="Código PIX da compra adicional"
+              readOnly
+              value={pix.qrCode}
+              onClick={(e) => {
+                try { e.target.select(); } catch (_) {}
+                copyPixCode(pix.qrCode);
+              }}
+              title="Clique para selecionar e copiar"
+              style={{
+                width: '100%',
+                height: '70px',
+                fontSize: '0.78rem',
+                fontFamily: 'monospace',
+                padding: '10px 12px',
+                borderRadius: '10px',
+                cursor: 'pointer',
+                backgroundColor: '#ffffff',
+                color: '#29232d',
+                border: '1.5px solid #cbd5e1',
+                resize: 'none',
+              }}
+            />
+
+            <details className="nx-details" style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px solid #e7d5df' }}>
+              <summary style={{ color: '#67408b', cursor: 'pointer', fontSize: '0.86rem', fontWeight: '600' }}>
+                Ver QR Code para escanear em outro celular
+              </summary>
+              <div style={{ padding: '16px', display: 'flex', justifyContent: 'center' }}>
+                <PixQrCode payload={pix.qrCode} size={180} />
+              </div>
+            </details>
+          </div>
+        )}
       </div>
 
       {message && (
-        <div style={{ padding: '0 24px 16px' }}>
-          <p className="nx-message" role="status" style={{ fontSize: '0.85rem', color: message.startsWith('✅') ? '#34d399' : '#f87171', margin: 0 }}>
+        <div style={{ marginTop: '14px' }}>
+          <p
+            className="nx-message"
+            role="status"
+            style={{
+              fontSize: '0.86rem',
+              color: message.startsWith('✅') ? '#059669' : '#dc2626',
+              margin: 0,
+              padding: '10px 14px',
+              borderRadius: '10px',
+              background: message.startsWith('✅') ? '#f0fdf4' : '#fef2f2',
+              border: `1px solid ${message.startsWith('✅') ? '#bbf7d0' : '#fecaca'}`,
+            }}
+          >
             {message}
           </p>
         </div>

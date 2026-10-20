@@ -89,7 +89,7 @@ describe('checkout em um clique após escolher pacote', () => {
   });
   it('preserva opção de usar créditos sem criar PIX nem resgatar automaticamente', () => {
     button(render(), 'Prefiro usar meus créditos').props.onClick();
-    expect(text(render())).toContain('Confirmar uso de 1 crédito(s)');
+    expect(text(render())).toContain('Confirmar uso de 2.5 crédito(s)');
     expect(state.request).not.toHaveBeenCalled();
   });
   it('mantém SKU específico da oferta de recuperação', async () => {

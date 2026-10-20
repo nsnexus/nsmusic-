@@ -302,8 +302,8 @@ export default function PlaybackAddonCard({ orderId, order }) {
                       gap: '8px',
                       padding: '10px 12px',
                       borderRadius: '8px',
-                      border: `1.5px solid ${faixaEscolhida === i ? 'var(--secondary)' : 'rgba(255,255,255,0.18)'}`,
-                      backgroundColor: faixaEscolhida === i ? 'rgba(236, 72, 153, 0.18)' : 'rgba(0,0,0,0.3)',
+                      border: faixaEscolhida === i ? '2px solid #7c3aed' : '1.5px solid #e2e8f0',
+                      backgroundColor: faixaEscolhida === i ? '#faf5ff' : '#f8fafc',
                       marginBottom: '8px',
                       cursor: 'pointer',
                       boxSizing: 'border-box',
@@ -317,7 +317,7 @@ export default function PlaybackAddonCard({ orderId, order }) {
                         checked={faixaEscolhida === i}
                         onChange={() => setFaixaEscolhida(i)}
                       />
-                      <span style={{ fontSize: '0.88rem', fontWeight: '600', color: '#ffffff' }}>Faixa {i + 1}</span>
+                      <span style={{ fontSize: '0.88rem', fontWeight: '700', color: faixaEscolhida === i ? '#7c3aed' : '#1e293b' }}>Faixa {i + 1}</span>
                     </div>
                     {arquivosFaixas[i] && (
                       <audio controls src={buildAudioProxySrc(arquivosFaixas[i])} style={{ width: '100%', maxWidth: '100%', height: '36px' }} />

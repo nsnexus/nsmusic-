@@ -1,15 +1,15 @@
 /* Customer experience only; admin and public gift pages keep their own themes. */
 .nx-experience {
-  --nx-paper: #faf8f5; --nx-ink: #29232d; --nx-muted: #6c636f; --nx-purple: #67408b; --nx-line: #e7e0e8;
+  --nx-paper: #faf8f5; --nx-ink: #29232d; --nx-muted: #4e4653; --nx-purple: #67408b; --nx-line: #e7e0e8;
   --primary: #67408b; --primary-hover: #54316f; --primary-light: #f2eaf8;
-  --text-primary: #29232d; --text-secondary: #6c636f; --text-muted: #6c636f; --bg-primary: #faf8f5;
+  --text-primary: #29232d; --text-secondary: #4e4653; --text-muted: #4e4653; --bg-primary: #faf8f5;
   background: var(--nx-paper); color: var(--nx-ink); min-height: 100vh;
   font-family: var(--font-family-body); line-height: 1.55;
 }
 .nx-experience *, .nx-experience *::before, .nx-experience *::after { box-sizing: border-box; }
 .nx-experience button, .nx-experience input, .nx-experience select, .nx-experience textarea { font: inherit; }
 .nx-experience button, .nx-experience a { -webkit-tap-highlight-color: transparent; }
-.nx-experience button:focus-visible, .nx-experience a:focus-visible, .nx-experience input:focus-visible, .nx-experience select:focus-visible, .nx-experience textarea:focus-visible, .nx-experience summary:focus-visible { outline: 3px solid #ba98d5; outline-offset: 3px; }
+.nx-experience button:focus-visible, .nx-experience a:focus-visible, .nx-experience input:focus-visible, .nx-experience select:focus-visible, .nx-experience textarea:focus-visible, .nx-experience summary:focus-visible { outline: 2px solid var(--nx-purple); outline-offset: 3px; }
 .nx-experience button:disabled { cursor: default; opacity: .65; }
 .nx-header { background: #ffffffed; border-bottom: 1px solid var(--nx-line); position: relative; z-index: 20; }
 .nx-header-inner { max-width: 1160px; margin: auto; min-height: 78px; padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
@@ -17,8 +17,8 @@
 .nx-brand img { width: 44px; height: 44px; border-radius: 12px; }
 .nx-brand span { font-size: 14px; font-weight: 600; }
 .nx-account-link { font-size: 14px; color: var(--nx-purple); font-weight: 650; text-decoration: none; padding: 11px 0; }
-.nx-experience h1 { color: var(--nx-ink); font-size: clamp(2rem, 3.5vw, 2.8rem); line-height: 1.12; letter-spacing: -.04em; margin: 12px 0 16px; }
-.nx-experience h2 { font-size: 1.5rem; line-height: 1.25; letter-spacing: -.025em; margin: 8px 0 12px; color: var(--nx-ink); }
+.nx-experience h1 { color: var(--nx-ink); font-size: clamp(2rem, 3.5vw, 2.8rem); line-height: 1.12; letter-spacing: -.04em; margin: 12px 0 16px; text-wrap: balance; }
+.nx-experience h2 { font-size: 1.5rem; line-height: 1.25; letter-spacing: -.025em; margin: 8px 0 12px; color: var(--nx-ink); text-wrap: balance; }
 .nx-experience h3 { font-size: 1.05rem; margin: 0 0 8px; color: var(--nx-ink); }
 .nx-subtitle { color: var(--nx-muted); font-size: 1rem; max-width: 540px; line-height: 1.65; margin: 0 0 22px; }
 .nx-eyebrow { text-transform: uppercase; letter-spacing: .13em; font-size: .69rem; font-weight: 750; color: var(--nx-purple); }
@@ -35,7 +35,7 @@
 .nx-recipient[aria-pressed="true"] { border: 2px solid var(--nx-purple); padding: 4px; box-shadow: 0 3px 14px #67408b12; }
 .nx-recipient[aria-pressed="true"] i { color: white; background: var(--nx-purple); border-color: var(--nx-purple); }
 .nx-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 22px; }
-.nx-chips button { background: white; border: 1px solid var(--nx-line); border-radius: 24px; min-height: 42px; padding: 9px 14px; color: var(--nx-muted); font-size: .83rem; cursor: pointer; }
+.nx-chips button { background: white; border: 1px solid var(--nx-line); border-radius: 24px; min-height: 44px; padding: 10px 16px; color: var(--nx-muted); font-size: .86rem; cursor: pointer; transition: all 0.2s ease; }
 .nx-chips button[aria-pressed="true"] { color: var(--nx-purple); border-color: var(--nx-purple); background: #f4edf8; }
 .nx-field { display: flex; flex-direction: column; gap: 7px; margin: 20px 0; }
 .nx-field > span { font-size: .9rem; font-weight: 650; color: var(--nx-ink); }
@@ -116,12 +116,12 @@
 .nx-package-badge { position: absolute; left: 14px; right: 14px; top: 0; padding: 5px 10px; text-align: center; background: var(--nx-purple); color: white; border-radius: 0 0 9px 9px; font-size: .67rem; font-weight: 700; letter-spacing: .04em; }
 .nx-credit-alternative { display: block; margin: 16px auto 0; }
 .nx-package strong { display: block; font-size: .98rem; margin: 12px 0; }
-.nx-package-price { display: block; font-size: 1.8rem; font-weight: 750; letter-spacing: -.045em; margin: 10px 0; }
+.nx-package-price { display: block; font-size: 1.8rem; font-weight: 750; letter-spacing: -.045em; margin: 10px 0; font-variant-numeric: tabular-nums; }
 .nx-package ul { padding: 0; list-style: none; color: var(--nx-muted); font-size: .8rem; line-height: 1.7; margin: 0; }
 .nx-checkout-summary { display: flex; gap: 20px; align-items: center; justify-content: space-between; margin-top: 16px; }
 .nx-checkout-summary p { margin: 4px 0 0; font-size: .85rem; }
 .nx-checkout-panel { max-width: 700px; margin: 22px auto; scroll-margin-top: 20px; }
-.nx-checkout-total { font-size: 2.1rem; font-weight: 750; color: var(--nx-purple); margin: 12px 0; letter-spacing: -.04em; }
+.nx-checkout-total { font-size: 2.1rem; font-weight: 750; color: var(--nx-purple); margin: 12px 0; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
 .nx-checkout-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 18px 0; }
 .nx-checkout-actions > * { flex: 1; }
 .nx-message { padding: 14px 16px; border-radius: 11px; color: #594567; background: #f2edf6; font-size: .9rem; line-height: 1.6; margin: 15px 0; }
@@ -139,9 +139,9 @@
 .nx-bonus-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; margin-top: 18px; }
 .nx-bonus-grid .nx-card { padding: 20px; }
 .nx-second-offer { background: #f1e8ed; border-color: #e7d5df; display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: center; }
-.nx-second-offer h2 { font: 1.9rem/1.15 Georgia,serif; max-width: 440px; }
+.nx-second-offer h2 { font: 1.9rem/1.15 Georgia,serif; max-width: 440px; text-wrap: balance; }
 .nx-second-offer p { font-size: .9rem; }
-.nx-offer-amount { font-size: 2.3rem; font-weight: 750; letter-spacing: -.045em; }
+.nx-offer-amount { font-size: 2.3rem; font-weight: 750; letter-spacing: -.045em; font-variant-numeric: tabular-nums; }
 .nx-referral-card { display: flex; gap: 25px; align-items: center; justify-content: space-between; }
 .nx-referral-card p { font-size: .9rem; }
 .nx-extra-options { margin-top: 25px; }
@@ -169,7 +169,11 @@
   .nx-package-grid { grid-template-columns: 1fr; }.nx-sound-grid { gap: 8px; }.nx-sound-grid button { padding: 14px 12px; }
   .nx-delivery-main { padding-inline: 16px; }.nx-song-top img { width: 84px; height: 105px; }.nx-song-top h2 { font-size: 1.3rem; }
 }
-@media(prefers-reduced-motion:reduce) { .nx-progress-line { animation: none; } }
+@media(prefers-reduced-motion:reduce) {
+  html { scroll-behavior: auto; }
+  .nx-progress-line { animation: none; }
+  .nx-package, .nx-recipient, .nx-chips button, .nx-button { transition: none !important; }
+}
 .nx-legacy-video .entrega-grid-col-1-top, .nx-legacy-video .entrega-grid-col-2-top, .nx-legacy-video .entrega-grid-col-2-bottom,
 .nx-legacy-playback .entrega-grid-col-1-top, .nx-legacy-playback .entrega-grid-col-2-top, .nx-legacy-playback .entrega-grid-col-2-bottom { display: none; }
 .nx-legacy-video .entrega-grid, .nx-legacy-playback .entrega-grid { display: block; max-width: 720px; margin: auto; }

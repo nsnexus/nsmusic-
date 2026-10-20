@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 const state = vi.hoisted(() => ({ orders:{}, intents:[], records:[], reserveError:false, nextId:0, provider:vi.fn() }));
-vi.mock('@/lib/supabaseDb',()=>({ getOrder:async id=>state.orders[id]||null }));
+vi.mock('@/lib/supabaseDb',()=>({ getOrder:async id=>state.orders[id]||null,updateOrder:async()=>true }));
 vi.mock('@/lib/efi',()=>({
   generateTxid:()=> 'A'.repeat(26),
   getChargeStatus:async()=>null,
