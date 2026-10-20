@@ -14,6 +14,7 @@ import VendasPorPlataformaCard from '@/components/VendasPorPlataformaCard';
 import KieCreditsBadge from '@/components/admin/KieCreditsBadge';
 import UnificallyCreditsBadge from '@/components/admin/UnificallyCreditsBadge';
 import WhatsAppUsageBadge from '@/components/admin/WhatsAppUsageBadge';
+import { hasMusicaGerada } from '@/lib/stats';
 
 // toISOStr precisa lidar com os dois formatos gravados historicamente (Timestamp do Firestore e
 // string ISO) — mesmo utilitário replicado de admin/page.jsx.
@@ -92,7 +93,9 @@ export default function AdminDashboard() {
       if (createdIso) {
         const d = new Date(createdIso);
         if (d.getFullYear() === year && d.getMonth() + 1 === month) {
-          feito[d.getDate() - 1]++;
+          if (hasMusicaGerada(o)) {
+            feito[d.getDate() - 1]++;
+          }
         }
       }
       const paidIso = toISOStr(o.paidAt);
@@ -222,9 +225,9 @@ export default function AdminDashboard() {
 
           {/* Solicitações x Conversões por dia com rótulos de dados (no final da página) */}
           <div className="glass-card" style={{ marginTop: '32px', padding: '24px', borderRadius: '16px', backgroundColor: '#ffffff', border: '1px solid #e2e8f0' }}>
-            <h3 style={{ fontSize: '1.1rem', fontWeight: '700', color: '#0f172a', margin: '0 0 4px' }}>Solicitações x Conversões por dia</h3>
+            <h3 style={{ fontSize: '1.1rem', fontWeight: '700', color: '#0f172a', margin: '0 0 4px' }}>Músicas Geradas x Conversões por dia</h3>
             <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '0 0 20px' }}>
-              Barras: quantidade feita e convertida por dia. Linha: % de conversão do dia (eixo direito).
+              Barras: quantidade de músicas geradas e convertidas por dia. Linha: % de conversão do dia (eixo direito).
             </p>
             <ConversionChart series={monthlySeries} />
           </div>
@@ -301,7 +304,7 @@ function ConversionChart({ series }) {
           const cH = plotHeight - (yForCount(convertido[i]) - marginTop);
           return (
             <g key={`bars-${i}`}>
-              <title>{`Dia ${day}: ${feito[i]} feito(s), ${convertido[i]} convertido(s) (${percent[i]}%)`}</title>
+              <title>{`Dia ${day}: ${feito[i]} música(s) gerada(s), ${convertido[i]} convertido(s) (${percent[i]}%)`}</title>
               <rect x={cx - barWidth - 1} y={yForCount(feito[i])} width={barWidth} height={Math.max(0, fH)} fill="#3b82f6" rx="1.5" />
               <rect x={cx + 1} y={yForCount(convertido[i])} width={barWidth} height={Math.max(0, cH)} fill="#10b981" rx="1.5" />
               {/* Rótulo de feito */}
@@ -336,7 +339,7 @@ function ConversionChart({ series }) {
 
       <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', marginTop: '12px', fontSize: '0.82rem', color: '#334155' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span style={{ width: '12px', height: '12px', borderRadius: '3px', backgroundColor: '#3b82f6', display: 'inline-block' }} /> Feito
+          <span style={{ width: '12px', height: '12px', borderRadius: '3px', backgroundColor: '#3b82f6', display: 'inline-block' }} /> Músicas Geradas
         </span>
         <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <span style={{ width: '12px', height: '12px', borderRadius: '3px', backgroundColor: '#10b981', display: 'inline-block' }} /> Convertido

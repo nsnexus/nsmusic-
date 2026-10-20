@@ -183,6 +183,30 @@ describe('trafficSource module', () => {
       expect(ttDia2.faturamento).toBeCloseTo(16.89);
       expect(resDia2.totais.faturamento).toBeCloseTo(16.89);
     });
+
+    it('calcula percentual de conversão em cima do total de pedidos com música gerada (não meros acessos/etapas)', () => {
+      const pedidos = [
+        // 10 pedidos iniciados no Facebook Ads, mas apenas 2 geraram música e 1 pagou
+        { id: 'fb-pago', paymentStatus: 'PAGO', paidAmount: 9.99, trafficSource: 'facebook_ads', productionStatus: 'AUDIO_GERADO' },
+        { id: 'fb-musica-nao-paga', paymentStatus: 'AGUARDANDO_PAGAMENTO', trafficSource: 'facebook_ads', productionStatus: 'AUDIO_GERADO', audioUrl: 'https://cdn/preview.mp3' },
+        // 8 rascunhos que pararam nas etapas de formulário (acessos/leads)
+        { id: 'fb-draft-1', paymentStatus: 'AGUARDANDO_PAGAMENTO', trafficSource: 'facebook_ads', productionStatus: 'ETAPA_1' },
+        { id: 'fb-draft-2', paymentStatus: 'AGUARDANDO_PAGAMENTO', trafficSource: 'facebook_ads', productionStatus: 'ETAPA_2' },
+        { id: 'fb-draft-3', paymentStatus: 'AGUARDANDO_PAGAMENTO', trafficSource: 'facebook_ads', productionStatus: 'ETAPA_3' },
+        { id: 'fb-draft-4', paymentStatus: 'AGUARDANDO_PAGAMENTO', trafficSource: 'facebook_ads', productionStatus: 'ETAPA_4' },
+      ];
+
+      const res = calcularMetricasPorPlataforma(pedidos);
+      const fb = res.plataformas.find((p) => p.key === 'facebook_ads');
+
+      expect(fb.pedidosCriados).toBe(6);
+      expect(fb.musicasGeradas).toBe(2);
+      expect(fb.pedidosPagos).toBe(1);
+      // Conversão deve ser 1 pago / 2 músicas geradas = 50%, NÃO 1 / 6 (16.7%)
+      expect(fb.conversao).toBe(50);
+      expect(res.totais.musicasGeradas).toBe(2);
+      expect(res.totais.conversaoGeral).toBe(50);
+    });
   });
 
   describe('isOrderFromMeta', () => {

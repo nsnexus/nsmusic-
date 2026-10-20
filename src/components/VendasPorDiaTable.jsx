@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { usePedidosDoMes, paraData } from '@/lib/usePedidosDoMes';
 import { getPriceForSku } from '@/lib/pricing';
 import { calcularFaturamentoPedido } from '@/lib/trafficSource';
+import { hasMusicaGerada } from '@/lib/stats';
 
 // Tabela "vendas por dia" do dashboard admin (pedido 04/09/2026) — quantidade vendida por produto,
 // por dia do mês, com total no fim. Ver src/lib/usePedidosDoMes.js pro porquê da consulta própria.
@@ -39,7 +40,7 @@ export default function VendasPorDiaTable() {
   const porDia = Array.from({ length: diasNoMes }, (_, i) => ({
     dia: i + 1,
     musicas: 0, videos: 0, playbacks: 0, cartas: 0, retrospectivas: 0,
-    geracoes: 0, pedidosCriados: 0, pedidosPagos: 0,
+    geracoes: 0, pedidosCriados: 0, pedidosComMusica: 0, pedidosPagos: 0,
   }));
 
   const somar = (campo, dataVal) => {
@@ -74,6 +75,7 @@ export default function VendasPorDiaTable() {
           linha.geracoesKie = (linha.geracoesKie || 0) + count;
         }
         linha.pedidosCriados += 1;
+        if (hasMusicaGerada(o)) linha.pedidosComMusica += 1;
         if (musicaPaga || o.videoAddonPaid) linha.pedidosPagos += 1;
       }
     }
@@ -90,7 +92,10 @@ export default function VendasPorDiaTable() {
 
   const KIE_COST_PER_GENERATION = 0.30;
   const faturamentoDia = (linha) => linha.faturamento;
-  const conversaoDia = (linha) => (linha.pedidosCriados > 0 ? (linha.pedidosPagos / linha.pedidosCriados) * 100 : null);
+  const conversaoDia = (linha) => {
+    const base = linha.pedidosComMusica > 0 ? linha.pedidosComMusica : (linha.geracoes > 0 ? linha.geracoes : 0);
+    return base > 0 ? (linha.pedidosPagos / base) * 100 : null;
+  };
 
   const totais = porDia.reduce((acc, linha) => {
     for (const { chave } of PRODUTOS) acc[chave] += linha[chave];
@@ -98,13 +103,14 @@ export default function VendasPorDiaTable() {
     acc.geracoesBot = (acc.geracoesBot || 0) + (linha.geracoesBot || 0);
     acc.geracoesKie = (acc.geracoesKie || 0) + (linha.geracoesKie || 0);
     acc.pedidosCriados += linha.pedidosCriados;
+    acc.pedidosComMusica = (acc.pedidosComMusica || 0) + (linha.pedidosComMusica || 0);
     acc.pedidosPagos += linha.pedidosPagos;
     acc.faturamento += linha.faturamento;
     // Gasto apenas com Kie.ai (Robô local tem custo R$ 0,00)
     acc.gasto += (linha.geracoesKie || 0) * KIE_COST_PER_GENERATION;
     acc.economiaBot = (acc.economiaBot || 0) + ((linha.geracoesBot || 0) * KIE_COST_PER_GENERATION);
     return acc;
-  }, { musicas: 0, videos: 0, playbacks: 0, cartas: 0, retrospectivas: 0, geracoes: 0, geracoesBot: 0, geracoesKie: 0, pedidosCriados: 0, pedidosPagos: 0, faturamento: 0, gasto: 0, economiaBot: 0 });
+  }, { musicas: 0, videos: 0, playbacks: 0, cartas: 0, retrospectivas: 0, geracoes: 0, geracoesBot: 0, geracoesKie: 0, pedidosCriados: 0, pedidosComMusica: 0, pedidosPagos: 0, faturamento: 0, gasto: 0, economiaBot: 0 });
 
   const hoje = new Date();
   const ehMesAtual = hoje.getFullYear() === ano && hoje.getMonth() === mesNum - 1;
@@ -154,7 +160,7 @@ export default function VendasPorDiaTable() {
                 <th style={{ position: 'sticky', top: 0, background: '#fff', textAlign: 'right', padding: '8px 10px', color: '#475569', fontWeight: '700', whiteSpace: 'nowrap' }} title="Chamadas aceitas pela Kie.ai nesse dia, por data de CRIAÇÃO do pedido (não de pagamento)">
                   Gerações
                 </th>
-                <th style={{ position: 'sticky', top: 0, background: '#fff', textAlign: 'right', padding: '8px 10px', color: '#475569', fontWeight: '700', whiteSpace: 'nowrap' }} title="% dos pedidos CRIADOS nesse dia que já converteram em venda (música ou vídeo), não importa quando pagaram">
+                <th style={{ position: 'sticky', top: 0, background: '#fff', textAlign: 'right', padding: '8px 10px', color: '#475569', fontWeight: '700', whiteSpace: 'nowrap' }} title="% dos pedidos com MÚSICA GERADA nesse dia que já converteram em venda (música ou vídeo), não importa quando pagaram">
                   Conversão
                 </th>
               </tr>
@@ -205,7 +211,10 @@ export default function VendasPorDiaTable() {
                   {totais.geracoes}
                 </td>
                 <td style={{ textAlign: 'right', padding: '9px 10px', fontWeight: '800', color: '#0f172a' }}>
-                  {totais.pedidosCriados > 0 ? `${((totais.pedidosPagos / totais.pedidosCriados) * 100).toFixed(0)}%` : '—'}
+                  {(() => {
+                  const baseTotal = (totais.pedidosComMusica || 0) > 0 ? totais.pedidosComMusica : (totais.geracoes > 0 ? totais.geracoes : 0);
+                  return baseTotal > 0 ? `${((totais.pedidosPagos / baseTotal) * 100).toFixed(0)}%` : '—';
+                })()}
                 </td>
               </tr>
             </tfoot>

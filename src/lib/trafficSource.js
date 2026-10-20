@@ -3,6 +3,9 @@
 // Compatível com Cloudflare Pages Edge e Next.js App Router.
 
 import { getPriceForSku, SKU_PRICES } from './pricing.js';
+import { hasMusicaGerada } from './stats.js';
+
+export { hasMusicaGerada };
 
 export const TRAFFIC_STORAGE_KEY = 'nsmusic_traffic_source';
 
@@ -422,16 +425,17 @@ export function calcularFaturamentoPedido(o, diaFiltro = null, mesReferencia = n
  */
 export function calcularMetricasPorPlataforma(pedidos = [], diaFiltro = null, mesReferencia = null) {
   const metricas = {
-    facebook_ads: { ...PLATFORMS.facebook_ads, pedidosCriados: 0, pedidosPagos: 0, faturamento: 0 },
-    tiktok_ads: { ...PLATFORMS.tiktok_ads, pedidosCriados: 0, pedidosPagos: 0, faturamento: 0 },
-    google_ads: { ...PLATFORMS.google_ads, pedidosCriados: 0, pedidosPagos: 0, faturamento: 0 },
-    organico: { ...PLATFORMS.organico, pedidosCriados: 0, pedidosPagos: 0, faturamento: 0 },
-    direto: { ...PLATFORMS.direto, pedidosCriados: 0, pedidosPagos: 0, faturamento: 0 },
+    facebook_ads: { ...PLATFORMS.facebook_ads, pedidosCriados: 0, musicasGeradas: 0, pedidosPagos: 0, faturamento: 0 },
+    tiktok_ads: { ...PLATFORMS.tiktok_ads, pedidosCriados: 0, musicasGeradas: 0, pedidosPagos: 0, faturamento: 0 },
+    google_ads: { ...PLATFORMS.google_ads, pedidosCriados: 0, musicasGeradas: 0, pedidosPagos: 0, faturamento: 0 },
+    organico: { ...PLATFORMS.organico, pedidosCriados: 0, musicasGeradas: 0, pedidosPagos: 0, faturamento: 0 },
+    direto: { ...PLATFORMS.direto, pedidosCriados: 0, musicasGeradas: 0, pedidosPagos: 0, faturamento: 0 },
   };
 
   let faturamentoTotalGeral = 0;
   let pedidosPagosTotalGeral = 0;
   let pedidosCriadosTotalGeral = 0;
+  let musicasGeradasTotalGeral = 0;
 
   const temFiltroDia = diaFiltro !== null && diaFiltro !== undefined && diaFiltro !== '' && diaFiltro !== 'todos';
 
@@ -444,6 +448,11 @@ export function calcularMetricasPorPlataforma(pedidos = [], diaFiltro = null, me
     if (criadoNoPeriodo) {
       target.pedidosCriados += 1;
       pedidosCriadosTotalGeral += 1;
+
+      if (hasMusicaGerada(o)) {
+        target.musicasGeradas += 1;
+        musicasGeradasTotalGeral += 1;
+      }
     }
 
     // Faturamento e pedidos pagos no período
@@ -458,8 +467,10 @@ export function calcularMetricasPorPlataforma(pedidos = [], diaFiltro = null, me
   }
 
   // Calcula taxas e tickets médios
+  // O percentual de conversão é calculado sobre os pedidos com músicas geradas (não de meros acessos/etapas)
   const plataformasArray = Object.values(metricas).map((m) => {
-    const conversao = m.pedidosCriados > 0 ? (m.pedidosPagos / m.pedidosCriados) * 100 : 0;
+    const baseConversao = m.musicasGeradas > 0 ? m.musicasGeradas : (m.pedidosPagos > 0 ? m.pedidosPagos : 0);
+    const conversao = baseConversao > 0 ? (m.pedidosPagos / baseConversao) * 100 : 0;
     const ticketMedio = m.pedidosPagos > 0 ? m.faturamento / m.pedidosPagos : 0;
     const percFaturamento = faturamentoTotalGeral > 0 ? (m.faturamento / faturamentoTotalGeral) * 100 : 0;
 
@@ -477,7 +488,10 @@ export function calcularMetricasPorPlataforma(pedidos = [], diaFiltro = null, me
       faturamento: faturamentoTotalGeral,
       pedidosPagos: pedidosPagosTotalGeral,
       pedidosCriados: pedidosCriadosTotalGeral,
-      conversaoGeral: pedidosCriadosTotalGeral > 0 ? Math.round((pedidosPagosTotalGeral / pedidosCriadosTotalGeral) * 1000) / 10 : 0,
+      musicasGeradas: musicasGeradasTotalGeral,
+      conversaoGeral: musicasGeradasTotalGeral > 0
+        ? Math.round((pedidosPagosTotalGeral / musicasGeradasTotalGeral) * 1000) / 10
+        : (pedidosPagosTotalGeral > 0 ? 100 : 0),
       ticketMedioGeral: pedidosPagosTotalGeral > 0 ? Math.round((faturamentoTotalGeral / pedidosPagosTotalGeral) * 100) / 100 : 0,
     },
   };

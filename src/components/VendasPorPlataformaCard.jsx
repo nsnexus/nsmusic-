@@ -712,7 +712,7 @@ export default function VendasPorPlataformaCard({ monthValue }) {
                         {plat.conversao}%
                       </strong>
                       <span style={{ color: '#94a3b8', fontSize: '0.7rem', display: 'block' }}>
-                        {plat.pedidosCriados} criados
+                        {plat.musicasGeradas || 0} músicas geradas
                       </span>
                     </div>
                   </div>
@@ -765,9 +765,10 @@ export default function VendasPorPlataformaCard({ monthValue }) {
               <thead>
                 <tr style={{ backgroundColor: '#f8fafc', borderBottom: '2px solid #e2e8f0', color: '#475569' }}>
                   <th style={{ padding: '10px 12px', fontWeight: '700' }}>Canal de Conversão</th>
-                  <th style={{ padding: '10px 12px', fontWeight: '700', textAlign: 'right' }}>Pedidos Criados</th>
+                  <th style={{ padding: '10px 12px', fontWeight: '700', textAlign: 'right' }} title="Criações iniciadas na plataforma">Criações</th>
+                  <th style={{ padding: '10px 12px', fontWeight: '700', textAlign: 'right' }} title="Pedidos que tiveram música gerada">Músicas Geradas</th>
                   <th style={{ padding: '10px 12px', fontWeight: '700', textAlign: 'right' }}>Vendas Pagas</th>
-                  <th style={{ padding: '10px 12px', fontWeight: '700', textAlign: 'right' }}>Taxa Conversão</th>
+                  <th style={{ padding: '10px 12px', fontWeight: '700', textAlign: 'right' }} title="Vendas Pagas / Músicas Geradas">Taxa Conversão</th>
                   <th style={{ padding: '10px 12px', fontWeight: '700', textAlign: 'right' }}>Ticket Médio</th>
                   <th style={{ padding: '10px 12px', fontWeight: '700', textAlign: 'right' }}>Faturamento</th>
                   <th style={{ padding: '10px 12px', fontWeight: '700', textAlign: 'right' }}>Invest. Ads</th>
@@ -793,8 +794,11 @@ export default function VendasPorPlataformaCard({ monthValue }) {
                         <PlatformIcon platform={plat.key} size={16} bare style={{ marginRight: '8px' }} />
                         {plat.name}
                       </td>
-                      <td style={{ padding: '10px 12px', textAlign: 'right', color: '#334155' }}>
+                      <td style={{ padding: '10px 12px', textAlign: 'right', color: '#64748b', fontSize: '0.8rem' }}>
                         {plat.pedidosCriados}
+                      </td>
+                      <td style={{ padding: '10px 12px', textAlign: 'right', color: '#334155', fontWeight: '600' }}>
+                        {plat.musicasGeradas || 0}
                       </td>
                       <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '700', color: '#0f172a' }}>
                         {plat.pedidosPagos}
@@ -870,7 +874,8 @@ export default function VendasPorPlataformaCard({ monthValue }) {
               <tfoot>
                 <tr style={{ backgroundColor: '#f1f5f9', borderTop: '2px solid #cbd5e1', fontWeight: '800', color: '#0f172a' }}>
                   <td style={{ padding: '12px' }}>Total Geral {diaSelecionado ? `(${diaAtivoFormatado})` : ''}</td>
-                  <td style={{ padding: '12px', textAlign: 'right' }}>{totais.pedidosCriados}</td>
+                  <td style={{ padding: '12px', textAlign: 'right', color: '#64748b', fontSize: '0.8rem' }}>{totais.pedidosCriados}</td>
+                  <td style={{ padding: '12px', textAlign: 'right', color: '#334155', fontWeight: '700' }}>{totais.musicasGeradas || 0}</td>
                   <td style={{ padding: '12px', textAlign: 'right' }}>{totais.pedidosPagos}</td>
                   <td style={{ padding: '12px', textAlign: 'right', color: '#059669' }}>{totais.conversaoGeral}%</td>
                   <td style={{ padding: '12px', textAlign: 'right' }}>{formatMoney(totais.ticketMedioGeral)}</td>

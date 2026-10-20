@@ -2,12 +2,23 @@
 // Histórico consolidado gravado na tabela `config` do Supabase.
 import { getSupabaseEdge } from './supabase-edge.js';
 
+export function hasMusicaGerada(order) {
+  if (!order) return false;
+  if (order.paymentStatus === 'PAGAMENTO_APROVADO' || order.paymentStatus === 'PAGO') return true;
+  const st = order.productionStatus;
+  if (st === 'AUDIO_GERADO' || st === 'FINALIZADO' || st === 'ENTREGUE') return true;
+  if (typeof order.audioUrl === 'string' && order.audioUrl.trim().length > 0) return true;
+  if (Array.isArray(order.audioFiles) && order.audioFiles.length > 0) return true;
+  if (Array.isArray(order.sunoTracks) && order.sunoTracks.length > 0) return true;
+  return false;
+}
+
 function isPaid(order) {
   return order?.paymentStatus === 'PAGAMENTO_APROVADO' || order?.paymentStatus === 'PAGO';
 }
 
 function hasAudio(order) {
-  return Boolean(order?.audioUrl || (Array.isArray(order?.audioFiles) && order.audioFiles.length > 0));
+  return hasMusicaGerada(order);
 }
 
 /**

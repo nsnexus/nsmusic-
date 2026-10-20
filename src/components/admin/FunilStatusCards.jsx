@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { getAdminAuthToken } from '@/lib/authClient';
+import { hasMusicaGerada } from '@/lib/stats';
 
 /**
  * FunilStatusCards
@@ -67,8 +68,13 @@ export default function FunilStatusCards({
     let emProducao = 0;
     let audioGerado = 0;
     let pagos = 0;
+    let musicasGeradas = 0;
 
     for (const o of orders) {
+      if (hasMusicaGerada(o)) {
+        musicasGeradas++;
+      }
+
       const isPaid = o.paymentStatus === 'PAGO' || o.paymentStatus === 'PAGAMENTO_APROVADO';
       if (isPaid) {
         pagos++;
@@ -92,8 +98,13 @@ export default function FunilStatusCards({
       return ((num / totalOrders) * 100).toFixed(1) + '%';
     };
 
+    // Percentual de conversão sobre o total de pedidos com músicas geradas
+    const totalComMusica = musicasGeradas > 0 ? musicasGeradas : (audioGerado + pagos);
+    const pctConversaoMusica = totalComMusica > 0 ? ((pagos / totalComMusica) * 100).toFixed(1) + '%' : '0%';
+
     return {
       totalOrders,
+      totalComMusica,
       etapa1,
       etapa2,
       etapa3,
@@ -109,7 +120,7 @@ export default function FunilStatusCards({
       pctLetra: calcPct(letraGerada),
       pctProducao: calcPct(emProducao),
       pctAudio: calcPct(audioGerado),
-      pctPagos: calcPct(pagos),
+      pctPagos: pctConversaoMusica,
     };
   }, [orders]);
 
@@ -250,7 +261,7 @@ export default function FunilStatusCards({
       icon: '💰',
       count: stats.pagos,
       pct: stats.pctPagos,
-      badge: '✅ Concluídos',
+      badge: stats.totalComMusica > 0 ? `${stats.pctPagos} das músicas` : '✅ Concluídos',
       badgeColor: '#dcfce7',
       badgeTextColor: '#15803d',
       active: activePaymentFilter === 'PAGAMENTO_APROVADO',
@@ -308,7 +319,7 @@ export default function FunilStatusCards({
                   borderRadius: '12px',
                 }}
               >
-                {stats.totalOrders} criações iniciadas
+                {stats.totalOrders} criações iniciadas • {stats.totalComMusica} músicas geradas
               </span>
             </h3>
             <p style={{ margin: 0, fontSize: '0.78rem', color: '#64748b' }}>
@@ -333,8 +344,9 @@ export default function FunilStatusCards({
               border: '1px solid #e2e8f0',
             }}
           >
-            <span>Conversão Geral:</span>
+            <span>Conversão Geral (Músicas Geradas):</span>
             <span style={{ color: '#16a34a', fontWeight: '800' }}>{stats.pctPagos}</span>
+            <span style={{ color: '#64748b', fontSize: '0.74rem' }}>({stats.pagos} de {stats.totalComMusica} com música)</span>
           </div>
 
           {(activeProductionFilter !== 'ALL' || activePaymentFilter !== 'ALL') && (

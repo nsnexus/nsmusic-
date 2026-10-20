@@ -1,5 +1,6 @@
 import { paraData } from '@/lib/usePedidosDoMes';
 import { getPriceForSku } from '@/lib/pricing';
+import { hasMusicaGerada } from '@/lib/stats';
 
 export const PRODUTOS_RITMO = [
   { chave: 'musica', sku: 'audio_only', getPaidAt: (o) => (o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'PAGO') ? (o.paidAt || o.createdAt) : null },
@@ -116,15 +117,17 @@ export function calculateIntradayPace(pedidos = [], options = {}) {
       const hour = dCriacao.getHours();
       const isPaid = o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'PAGO' || Boolean(o.videoAddonPaid);
 
+      const comMusica = hasMusicaGerada(o);
+
       if (dayKey === todayKey) {
-        todayHourlyCreated[hour] += 1;
+        if (comMusica) todayHourlyCreated[hour] += 1;
         if (isPaid) todayHourlyPaid[hour] += 1;
       } else if (targetPastDaysSet.has(dayKey)) {
         if (!pastDaysCreated[dayKey]) {
           pastDaysCreated[dayKey] = Array(24).fill(0);
           pastDaysPaid[dayKey] = Array(24).fill(0);
         }
-        pastDaysCreated[dayKey][hour] += 1;
+        if (comMusica) pastDaysCreated[dayKey][hour] += 1;
         if (isPaid) pastDaysPaid[dayKey][hour] += 1;
       }
     }
