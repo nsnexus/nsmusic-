@@ -21,6 +21,7 @@ import { getPriceForSku, faixasDeImpacto } from '@/lib/pricing';
 import { markPreviewListened } from '@/lib/previewTracking';
 import { isInAppBrowser } from '@/lib/inAppBrowser';
 import { IconeMusica, IconeCarta, IconeVideo, IconeRetrospectiva, IconeWhatsApp, NotasDecorativas } from '@/components/AppIcons';
+import { Lock, Check, Copy, Share2, Eye, Download, RefreshCw, Sparkles, ExternalLink, Camera, Music, Headphones, Volume2, FileText, CheckCircle2, MessageCircle } from 'lucide-react';
 import { styles } from './entregaStyles';
 import { useWhatsappSuporte, linkWhatsapp } from '@/lib/useWhatsappSuporte';
 import { usePromoverAudio } from '@/lib/usePromoverAudio';
@@ -53,7 +54,7 @@ function AvisoPrevia60s() {
         borderRadius: '12px',
       }}
     >
-      <span style={{ fontSize: '1rem', lineHeight: 1.3, flexShrink: 0 }}>🔒</span>
+      <Lock size={15} color="#92400e" aria-hidden="true" style={{ flexShrink: 0 }} />
       <p style={{ margin: 0, fontSize: '0.79rem', color: '#92400e', fontWeight: '700', lineHeight: 1.4 }}>
         Prévia de 60 segundos. O pagamento libera as 2 versões completas em MP3 HD.
       </p>
@@ -358,14 +359,14 @@ function EntregaContent() {
       iconBg: 'linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)',
       priceColor: '#7c3aed',
       valor: getPriceForSku('combo') || 16.89,
-      destaque: '👑 MAIS ESCOLHIDO',
+      destaque: 'MAIS ESCOLHIDO',
       destaquePrincipal: true,
       tagline: 'Economize R$ 6,90 no vídeo',
       titulo: '2 versões completas',
       linhas: ['+ Vídeo Homenagem', '+ Carta Virtual'],
       itens: [
         { texto: '2 Versões completas em áudio MP3 HD (sem cortes)', destaque: false },
-        { texto: 'Vídeo Homenagem emocionante com fotos sincronizadas', destaque: true, tag: '🎁 Brinde Especial' },
+        { texto: 'Vídeo Homenagem emocionante com fotos sincronizadas', destaque: true, tag: 'Brinde Especial' },
         { texto: 'Carta Virtual interativa com dedicatória e envelope', destaque: true },
         { texto: 'Página exclusiva de presente pronta para emocionar', destaque: false },
       ],
@@ -425,7 +426,7 @@ function EntregaContent() {
       iconBg: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
       priceColor: '#4338ca',
       valor: getPriceForSku('combo_voz') || 24.89,
-      destaque: '✨ NOVO',
+      destaque: 'NOVO',
       titulo: '2 versões completas',
       linhas: ['+ Voz Clonada do Cliente (IA)'],
       itens: [
@@ -1278,7 +1279,7 @@ function EntregaContent() {
   if (!order) {
     return (
       <div style={{ ...styles.wrapper, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '80vh', gap: '16px', textAlign: 'center' }}>
-        <h2 style={{ fontSize: '1.8rem', color: 'var(--text-primary)' }}>Pedido não encontrado 🔍</h2>
+        <h2 style={{ fontSize: '1.8rem', color: 'var(--text-primary)' }}>Pedido não encontrado</h2>
         <p style={{ color: 'var(--text-secondary)' }}>Verifique o link ou entre em contato com o suporte do estúdio.</p>
         <Link href="/" className="btn btn-primary">Voltar ao início</Link>
       </div>
@@ -1553,7 +1554,7 @@ function EntregaContent() {
             </Link>
             {isPaid && (
               <Link href="/criar" className="btn btn-primary entrega-header-action" style={{ padding: '6px 12px', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '4px', textDecoration: 'none', minHeight: '36px' }}>
-                ✨ <span>Nova Música</span>
+                <Sparkles size={14} color="#f472b6" aria-hidden="true" style={{ display: 'inline', verticalAlign: '-2px', marginRight: 4 }} /> <span>Nova Música</span>
               </Link>
             )}
           </div>
@@ -1570,7 +1571,7 @@ function EntregaContent() {
                 fontSize: '0.82rem',
               }}
             >
-              {isPaid ? '✨ Entrega liberada' : 'Prévia disponível'}
+              {isPaid ? 'Entrega liberada' : 'Prévia disponível'}
             </span>
             {!isPaid && (
               <Link href="/conta" className="btn btn-primary entrega-account-link">
@@ -1600,13 +1601,13 @@ function EntregaContent() {
           {isPaid && (
             <div className="entrega-tabs" role="tablist">
               {[
-                { id: 'musica', label: '🎵 Música' },
+                { id: 'musica', label: 'Música' },
                 { id: 'video', label: 'Vídeo' },
                 { id: 'playback', label: 'Playback' },
-                { id: 'voz', label: '🎙️ Minha Voz', hasBadge: true },
-                { id: 'karaoke', label: '🎤 Karaokê', hasBadge: true },
-                { id: 'retrospectiva', label: '📖 Retrospectiva', hasBadge: true },
-                { id: 'carta', label: '💌 Carta', hasBadge: true },
+                { id: 'voz', label: 'Minha Voz', hasBadge: true },
+                { id: 'karaoke', label: 'Karaokê', hasBadge: true },
+                { id: 'retrospectiva', label: 'Retrospectiva', hasBadge: true },
+                { id: 'carta', label: 'Carta', hasBadge: true },
               ].map((aba) => (
                 <button
                   key={aba.id}
@@ -1754,7 +1755,7 @@ function EntregaContent() {
                           textDecoration: 'none',
                         }}
                       >
-                        📲 Compartilhar no WhatsApp
+                        <Share2 size={14} aria-hidden="true" /> Compartilhar no WhatsApp
                       </a>
                       <button
                         type="button"
@@ -1773,7 +1774,7 @@ function EntregaContent() {
                           cursor: 'pointer',
                         }}
                       >
-                        {copied ? '✅ Link copiado!' : '🔗 Copiar link'}
+                        <>{copied ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />} {copied ? 'Link copiado!' : 'Copiar link'}</>
                       </button>
                     </div>
                   </div>
@@ -1804,10 +1805,10 @@ function EntregaContent() {
                         justifyContent: 'center',
                         margin: '0 auto 12px',
                         fontSize: '1.4rem',
-                      }}
-                    >
-                      🔒
-                    </div>
+                    }}
+                  >
+                    <Lock size={22} color="#7c3aed" aria-hidden="true" />
+                  </div>
 
                     <h2
                       style={{
@@ -1909,7 +1910,7 @@ function EntregaContent() {
                       zIndex: 5,
                     }}
                   >
-                    {isUploadingCover ? '⏳ Enviando...' : '✏️ Trocar capa'}
+                    <><Camera size={14} aria-hidden="true" /> {isUploadingCover ? 'Enviando...' : 'Trocar capa'}</>
                   </label>
 
                   {!isPaid && (
@@ -1959,14 +1960,14 @@ function EntregaContent() {
                   >
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
                       <h4 style={{ fontSize: '0.96rem', margin: 0, fontWeight: '700', color: isPaid ? '#f1f5f9' : '#7c3aed', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span>🎧</span> Prévia (Versão 1)
+                        <Headphones size={16} aria-hidden="true" /> Prévia (Versão 1)
                       </h4>
                       {isPaid ? (
                         <span style={{ fontSize: '0.7rem', color: '#f472b6', backgroundColor: 'rgba(236,72,153,0.12)', padding: '3px 9px', borderRadius: '10px', border: '1px solid rgba(236,72,153,0.3)', fontWeight: '700' }}>
                           Estúdio NSMusic
                         </span>
                       ) : (
-                        <span style={{ fontSize: '1.2rem', color: '#7c3aed' }}>🔊</span>
+                        <Volume2 size={18} color="#7c3aed" aria-hidden="true" />
                       )}
                     </div>
 
@@ -2171,14 +2172,14 @@ function EntregaContent() {
                   >
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
                       <h4 style={{ fontSize: '0.96rem', margin: 0, fontWeight: '700', color: isPaid ? '#f1f5f9' : '#ec4899', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span>🎧</span> Prévia (Versão 2)
+                        <Headphones size={16} aria-hidden="true" /> Prévia (Versão 2)
                       </h4>
                       {isPaid ? (
                         <span style={{ fontSize: '0.7rem', color: '#c084fc', backgroundColor: 'rgba(168,85,247,0.12)', padding: '3px 9px', borderRadius: '10px', border: '1px solid rgba(168,85,247,0.3)', fontWeight: '700' }}>
                           Estúdio NSMusic
                         </span>
                       ) : (
-                        <span style={{ fontSize: '1.2rem', color: '#ec4899' }}>🔊</span>
+                        <Volume2 size={18} color="#ec4899" aria-hidden="true" />
                       )}
                     </div>
 
@@ -2506,7 +2507,7 @@ function EntregaContent() {
                   className="entrega-lyrics-card glass-card"
                 >
                   <h3 style={{ fontSize: '1.25rem', marginBottom: '16px', fontFamily: isPaid ? 'var(--font-family-gala)' : 'var(--font-family-title)', color: isPaid ? '#f472b6' : 'var(--primary)' }}>
-                    Letra Oficial 📜
+                    Letra Oficial
                   </h3>
                   <pre style={isPaid ? { ...styles.lyricsText, color: '#e2e8f0' } : styles.lyricsText}>{order.lyrics || order.sunoTracks?.[0]?.prompt || 'Letra ainda não gerada para esta composição.'}</pre>
                 </div>
@@ -2530,7 +2531,7 @@ function EntregaContent() {
                     }}
                   >
                     <div style={{ flex: 1, width: '100%', minWidth: 0 }}>
-                      <h4 style={{ fontSize: '1.05rem', marginBottom: '8px', fontFamily: 'var(--font-family-title)', color: '#ffffff' }}>Compartilhar Homenagem 🎁</h4>
+                      <h4 style={{ fontSize: '1.05rem', marginBottom: '8px', fontFamily: 'var(--font-family-title)', color: '#ffffff' }}>Compartilhar Homenagem</h4>
                       <p style={{ fontSize: '0.85rem', color: '#cbd5e1', lineHeight: '1.4' }}>
                         Envie o link exclusivo ou salve o QR Code para compartilhar essa linda homenagem diretamente com quem você ama!
                       </p>
@@ -2594,10 +2595,10 @@ function EntregaContent() {
                             alignItems: 'center',
                             gap: '6px',
                             borderRadius: '8px',
-                            minHeight: '36px',
+                            minHeight: '44px',
                           }}
                         >
-                          {copied ? '✅ Link Copiado!' : '🔗 Copiar Link'}
+                          <>{copied ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />} {copied ? 'Link Copiado!' : 'Copiar Link'}</>
                         </button>
                         <a
                           href={`/h/${orderId}`}
@@ -2616,10 +2617,10 @@ function EntregaContent() {
                             border: '1px solid rgba(255,255,255,0.2)',
                             background: 'rgba(255,255,255,0.08)',
                             borderRadius: '8px',
-                            minHeight: '36px',
+                            minHeight: '44px',
                           }}
                         >
-                          👁 Página do Homenageado
+                          <Eye size={15} aria-hidden="true" /> Página do Homenageado
                         </a>
                         <a
                           href={qrCodeUrl}
@@ -2637,10 +2638,10 @@ function EntregaContent() {
                             border: '1px solid rgba(255,255,255,0.2)',
                             background: 'rgba(255,255,255,0.08)',
                             borderRadius: '8px',
-                            minHeight: '36px',
+                            minHeight: '44px',
                           }}
                         >
-                          💾 Salvar QR Code
+                          <Download size={15} aria-hidden="true" /> Salvar QR Code
                         </a>
                       </div>
                     </div>
@@ -2944,7 +2945,7 @@ function EntregaContent() {
                           className="btn btn-primary"
                           style={{ width: '100%', padding: '14px', fontSize: '1rem', fontWeight: 'bold', background: 'linear-gradient(135deg, #059669 0%, #047857 100%)', border: 'none', color: '#fff', cursor: 'pointer' }}
                         >
-                          🔄 Tentar gerar o PIX novamente
+                          <RefreshCw size={16} aria-hidden="true" style={{ display: 'inline', verticalAlign: '-2px', marginRight: 6 }} /> Tentar gerar o PIX novamente
                         </button>
                       </div>
                     ) : (
@@ -3070,7 +3071,7 @@ function EntregaContent() {
                                   boxShadow: '0 4px 14px rgba(5, 150, 105, 0.3)'
                                 }}
                               >
-                                {pixCopied ? '✅ Copiado!' : '📋 Copiar PIX'}
+                                <>{pixCopied ? <Check size={16} aria-hidden="true" style={{ display: 'inline', verticalAlign: '-2px', marginRight: 6 }} /> : <Copy size={16} aria-hidden="true" style={{ display: 'inline', verticalAlign: '-2px', marginRight: 6 }} />} {pixCopied ? 'Copiado!' : 'Copiar PIX'}</>
                               </button>
 
                               {/* Aparece sempre que existir cobrança em aberto — NÃO só depois de
@@ -3098,7 +3099,7 @@ function EntregaContent() {
                                     opacity: checandoPagamento ? 0.65 : 1,
                                   }}
                                 >
-                                  {checandoPagamento ? 'Verificando...' : '🔄 Já paguei'}
+                                  <>{!checandoPagamento && <CheckCircle2 size={16} aria-hidden="true" style={{ display: 'inline', verticalAlign: '-2px', marginRight: 6 }} />} {checandoPagamento ? 'Verificando...' : 'Já paguei'}</>
                                 </button>
                               )}
                             </div>
@@ -3168,7 +3169,7 @@ function EntregaContent() {
                                       gap: '6px'
                                     }}
                                   >
-                                    📲 Mandar no WhatsApp
+                                    <MessageCircle size={18} aria-hidden="true" /> Mandar no WhatsApp
                                   </a>
                                 )}
                               </div>
@@ -3182,7 +3183,7 @@ function EntregaContent() {
                             className="btn btn-primary"
                             style={{ width: '100%', padding: '14px', fontSize: '1rem' }}
                           >
-                            💚 Gerar PIX{valorCobradoTexto ? ` (${valorCobradoTexto})` : ''}
+                            Gerar PIX{valorCobradoTexto ? ` (${valorCobradoTexto})` : ''}
                           </button>
                         )}
 

@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { buildAudioProxySrc } from '@/lib/audioProxy';
 import MedidorAmor from '@/components/MedidorAmor';
 import ReelsViewer from '@/components/ReelsViewer';
+import { Play, Pause } from 'lucide-react';
 
 // Página PÚBLICA da Retrospectiva (add-on, ver src/lib/pricing.js:retrospectiva_addon) — é o link
 // que o cliente manda pra família. Diferente do Vídeo Homenagem, aqui nada é renderizado: abre na
@@ -290,7 +291,7 @@ export function RetrospectivaView({ orderId: propOrderId }) {
                 }}
               >
                 <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '26px', height: '26px', borderRadius: '50%', background: 'rgba(255,255,255,0.22)', fontSize: '0.75rem' }}>
-                  {tocando ? '⏸' : '▶'}
+                  {tocando ? <Pause size={14} aria-hidden="true" /> : <Play size={14} style={{ marginLeft: '2px' }} aria-hidden="true" />}
                 </span>
                 {tocando ? 'Pausar nossa música' : 'Tocar nossa música'}
               </button>
@@ -317,7 +318,7 @@ export function RetrospectivaView({ orderId: propOrderId }) {
               <span style={{ height: '1px', width: '70px', background: 'linear-gradient(90deg, #e9d5ff, transparent)' }} />
             </div>
 
-            <p style={{ fontFamily: 'var(--font-family-gala)', fontSize: '1.05rem', color: '#4c1d95', margin: '0 0 16px' }}>
+            <p style={{ fontFamily: 'var(--font-family-gala)', fontSize: '1.05rem', color: '#4c1d95', margin: '0 0 16px', fontVariantNumeric: 'tabular-nums' }}>
               {String(decorrido.horas).padStart(2, '0')}:{String(decorrido.minutos).padStart(2, '0')}:{String(decorrido.segundos).padStart(2, '0')} e contando 💜
             </p>
 
@@ -329,10 +330,10 @@ export function RetrospectivaView({ orderId: propOrderId }) {
                 { valor: decorrido.segundos, label: 'SEG' },
               ].map((cx) => (
                 <div key={cx.label} style={{ background: '#faf5ff', border: '1px solid #f3e8ff', borderRadius: '12px', padding: '10px 4px' }}>
-                  <div style={{ fontFamily: 'var(--font-family-gala)', fontSize: '1.45rem', fontWeight: '700', color: '#9333ea', lineHeight: 1.1 }}>
+                  <div style={{ fontFamily: 'var(--font-family-gala)', fontSize: '1.45rem', fontWeight: '700', color: '#9333ea', lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>
                     {cx.label === 'DIAS' ? cx.valor : String(cx.valor).padStart(2, '0')}
                   </div>
-                  <div style={{ fontSize: '0.62rem', color: '#a78bfa', letterSpacing: '0.1em', fontWeight: '700', marginTop: '2px' }}>{cx.label}</div>
+                  <div style={{ fontSize: '0.62rem', color: '#7c3aed', letterSpacing: '0.1em', fontWeight: '700', marginTop: '2px' }}>{cx.label}</div>
                 </div>
               ))}
             </div>

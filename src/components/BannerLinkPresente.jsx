@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { Gift, Mail, BookOpen, Edit3, Share2, Copy, Check, Eye, Sparkles, Link2 } from 'lucide-react';
 
 /**
  * Banner superior de compartilhamento para o produto ativo (Música /h/, Carta /c/, Retrospectiva /r/).
@@ -136,7 +137,7 @@ export default function BannerLinkPresente({
               boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
             }}
           >
-            <span>{badgeIconExibido}</span> {badgeTextExibido}
+            <span style={{ display: 'inline-flex', alignItems: 'center' }}>{badgeIconExibido}</span> {badgeTextExibido}
           </span>
           <span style={{ fontSize: '0.8rem', color: '#cbd5e1' }}>
             {subBadgeExibido}
@@ -189,7 +190,7 @@ export default function BannerLinkPresente({
                   boxShadow: '0 6px 18px rgba(244, 63, 94, 0.35)',
                 }}
               >
-                <span>✍️</span> {tipo === 'carta' ? 'Criar e Escrever Carta Agora' : 'Criar Agora'}
+                <Edit3 size={16} aria-hidden="true" /> {tipo === 'carta' ? 'Criar e Escrever Carta Agora' : 'Criar Agora'}
               </button>
             </div>
             <div
@@ -203,7 +204,7 @@ export default function BannerLinkPresente({
                 lineHeight: '1.45',
               }}
             >
-              <strong style={{ color: '#fb923c' }}>💡 Dica:</strong> O link de presente e os botões para compartilhar no WhatsApp serão liberados assim que a cartinha for escrita!
+              <strong style={{ color: '#fb923c', display: 'inline-flex', alignItems: 'center', gap: '4px' }}><Sparkles size={14} color="#fb923c" aria-hidden="true" /> Dica:</strong> O link de presente e os botões para compartilhar no WhatsApp serão liberados assim que a cartinha for escrita!
             </div>
           </div>
         ) : (
@@ -221,7 +222,7 @@ export default function BannerLinkPresente({
                 marginBottom: '14px',
               }}
             >
-              <span style={{ fontSize: '0.9rem', color: '#f472b6' }}>🔗</span>
+              <Link2 size={16} color="#f472b6" aria-hidden="true" style={{ flexShrink: 0 }} />
               <span
                 style={{
                   fontSize: '0.85rem',
@@ -268,7 +269,7 @@ export default function BannerLinkPresente({
                     cursor: 'pointer',
                   }}
                 >
-                  <span>📲</span> {cfg.whatsappLabel}
+                  <Share2 size={16} aria-hidden="true" /> {cfg.whatsappLabel}
                 </a>
               )}
 
@@ -316,7 +317,7 @@ export default function BannerLinkPresente({
                     cursor: 'pointer',
                   }}
                 >
-                  <span>👁️</span> Ver como {nomeHomenageado} vai ver
+                  <Eye size={16} aria-hidden="true" /> Ver como {nomeHomenageado} vai ver
                 </a>
               )}
             </div>
@@ -334,7 +335,7 @@ export default function BannerLinkPresente({
                 lineHeight: '1.45',
               }}
             >
-              <strong style={{ color: '#f472b6' }}>💡 Dica importante:</strong> {cfg.tipText}
+              <strong style={{ color: '#f472b6', display: 'inline-flex', alignItems: 'center', gap: '4px' }}><Sparkles size={14} color="#f472b6" aria-hidden="true" /> Dica importante:</strong> {cfg.tipText}
             </div>
           </>
         )}

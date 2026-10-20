@@ -4,6 +4,7 @@ import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useSearchParams } from 'next/navigation';
+import { Check, Sparkles, Clock, Music, ExternalLink } from 'lucide-react';
 function AcompanharContent() {
   const searchParams = useSearchParams();
   const orderId = searchParams.get('orderId') || searchParams.get('id');
@@ -96,7 +97,7 @@ function AcompanharContent() {
           <Link href="/" style={{ display: 'flex', alignItems: 'center' }}>
             <Image src="/logo.png" alt="NSMusic" width={40} height={40} style={{ height: '40px', width: 'auto' }} priority />
           </Link>
-          <span style={styles.orderBadge}>Pedido: {order.orderNumber}</span>
+          <span style={{ ...styles.orderBadge, fontVariantNumeric: 'tabular-nums' }}>Pedido: {order.orderNumber}</span>
         </div>
       </header>
 
@@ -127,7 +128,7 @@ function AcompanharContent() {
                           boxShadow: step.active ? '0 0 10px var(--primary-glow)' : 'none'
                         }}
                       >
-                        {step.done ? '✓' : ''}
+                        {step.done ? <Check size={14} color="#ffffff" strokeWidth={3} aria-hidden="true" /> : step.active ? <Clock size={12} color="#ffffff" aria-hidden="true" /> : null}
                       </div>
                       {idx < order.timeline.length - 1 && <div style={styles.timelineLine} />}
                     </div>
@@ -158,15 +159,17 @@ function AcompanharContent() {
               </div>
               <div style={styles.detailRow}>
                 <span style={styles.detailLabel}>Faturamento</span>
-                <span style={styles.detailVal}>{order.total}</span>
+                <span style={{ ...styles.detailVal, fontVariantNumeric: 'tabular-nums' }}>{order.total}</span>
               </div>
+
+              <Link href={`/entrega?orderId=${encodeURIComponent(order.id)}`} className="btn btn-primary" style={{ marginTop: '20px', width: '100%', minHeight: '44px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}><Music size={16} aria-hidden="true" /> Acessar Área de Entrega <ExternalLink size={14} aria-hidden="true" /></Link>
 
               {order.addons.length > 0 && (
                 <div style={{ marginTop: '16px', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
                   <h4 style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '8px' }}>Adicionais Incluídos:</h4>
                   {order.addons.map((add, idx) => (
                     <div key={idx} style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>
-                      🌟 {add}
+                      <Sparkles size={14} color="var(--primary)" aria-hidden="true" style={{ display: 'inline', verticalAlign: '-2px', marginRight: '6px' }} /> {add}
                     </div>
                   ))}
                 </div>

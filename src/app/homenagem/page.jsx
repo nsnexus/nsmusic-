@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { Sparkles, Film, Music, Download, Mail, BookOpen, Share2, Heart, Lock, Check } from 'lucide-react';
 import { AUDIO_CACHE_VERSION } from '@/lib/audioCacheVersion';
 
 export function HomenagemView({ orderId: propOrderId }) {
@@ -26,7 +27,7 @@ export function HomenagemView({ orderId: propOrderId }) {
           if (json?.order) setOrder(json.order);
         }
       } catch (err) {
-        console.error("Erro ao carregar homenagem:", err);
+        console.error('Erro ao carregar homenagem:', err);
       } finally {
         setLoading(false);
       }
@@ -35,14 +36,15 @@ export function HomenagemView({ orderId: propOrderId }) {
   }, [orderId]);
 
   const handleShare = () => {
+    const url = window.location.href;
     if (navigator.share) {
       navigator.share({
-        title: `Homenagem para ${order?.honoreeName || 'alguém especial'}`,
-        text: `Assista a essa linda homenagem de música e vídeo preparada especialmente para ${order?.honoreeName || 'você'}! ❤️`,
-        url: window.location.href
+        title: `Uma homenagem para ${order?.honoreeName || 'alguém especial'}`,
+        text: `Preparei uma homenagem especial com música para ${order?.honoreeName || 'você'}! ❤️`,
+        url,
       }).catch(() => {});
     } else {
-      navigator.clipboard.writeText(window.location.href);
+      navigator.clipboard.writeText(url);
       setCopied(true);
       setTimeout(() => setCopied(false), 3000);
     }
@@ -50,19 +52,21 @@ export function HomenagemView({ orderId: propOrderId }) {
 
   if (loading) {
     return (
-      <div style={{ minHeight: '100vh', backgroundColor: '#090d16', color: '#ffffff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
-        <div style={{ width: '50px', height: '50px', borderRadius: '50%', border: '4px solid #ec4899', borderTopColor: 'transparent', animation: 'spin 1s linear infinite' }} />
-        <p style={{ marginTop: '20px', color: '#cbd5e1', fontSize: '1.1rem', fontWeight: '500' }}>Carregando a sua homenagem especial...</p>
+      <div style={{ minHeight: '100vh', backgroundColor: '#08060f', color: '#ffffff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
+        <div style={{ width: '48px', height: '48px', borderRadius: '50%', border: '3px solid rgba(244, 114, 182, 0.2)', borderTopColor: '#f472b6', animation: 'spin 1s linear infinite' }} />
+        <p style={{ marginTop: '20px', color: '#cbd5e1', fontSize: '1rem', fontWeight: '500', letterSpacing: '0.02em' }}>Carregando sua homenagem especial…</p>
       </div>
     );
   }
 
   if (!order) {
     return (
-      <div style={{ minHeight: '100vh', backgroundColor: '#090d16', color: '#ffffff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px', textAlign: 'center' }}>
-        <div style={{ fontSize: '4rem', marginBottom: '16px' }}>🎵</div>
-        <h1 style={{ fontSize: '1.8rem', fontWeight: 'bold', marginBottom: '8px' }}>Homenagem não encontrada</h1>
-        <p style={{ color: '#94a3b8', maxWidth: '400px' }}>O link que você acessou pode estar incorreto ou o pedido ainda não foi concluído.</p>
+      <div style={{ minHeight: '100vh', backgroundColor: '#08060f', color: '#ffffff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px', textAlign: 'center' }}>
+        <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(244, 114, 182, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px', color: '#f472b6' }}>
+          <Music size={32} />
+        </div>
+        <h1 style={{ fontFamily: "var(--font-family-gala, 'Cinzel', Georgia, serif)", fontSize: '1.8rem', fontWeight: '700', marginBottom: '8px', color: '#ffffff' }}>Homenagem não encontrada</h1>
+        <p style={{ color: '#94a3b8', maxWidth: '420px', fontSize: '0.92rem', lineHeight: 1.6 }}>O link que você acessou pode estar incorreto ou o pedido ainda não foi concluído.</p>
       </div>
     );
   }
@@ -70,16 +74,11 @@ export function HomenagemView({ orderId: propOrderId }) {
   const honoreeName = order.honoreeName || 'Alguém Especial';
   const customerName = order.customerName || 'Alguém que te ama muito';
   const songStyle = order.style || order.genre || 'Personalizada';
-  const lyrics = order.lyrics || order.generatedLyrics || 'Esta música foi criada com todo o carinho e emoção para eternizar momentos inesquecíveis.';
+  const lyrics = order.lyrics || order.generatedLyrics || '';
 
-  // Liberação SOMENTE por paymentStatus vindo do Firestore — nunca por parâmetro de URL
-  // (ver C-07/C-01 no AUDIT_REPORT.md: esta rota já foi exploitável via /homenagem?orderId=X).
   const isPaid = order.paymentStatus === 'PAGAMENTO_APROVADO' || order.paymentStatus === 'PAGO';
-  const hasVideo = isPaid && !!order.videoUrl;
+  const hasVideo = isPaid && Boolean(order.videoUrl);
 
-  // Versão escolhida por quem montou a homenagem, na tela de entrega. O presente chega pronto:
-  // uma música para o homenageado ouvir, sem ter que escolher.
-  // Se houver versão salva, usa ela. Se não houver escolha salva, toca a Versão 1 por padrão.
   const todasAsFaixas = isPaid
     ? (order.audioFiles && order.audioFiles.length > 0 ? order.audioFiles : (order.audioUrl ? [order.audioUrl] : []))
     : [];
@@ -94,43 +93,57 @@ export function HomenagemView({ orderId: propOrderId }) {
   const videoUrl = hasVideo ? order.videoUrl : null;
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#090d16', color: '#ffffff', position: 'relative', overflowX: 'hidden', fontFamily: 'system-ui, -apple-system, sans-serif', paddingBottom: '60px' }}>
+    <div style={{ minHeight: '100vh', backgroundColor: '#08060f', color: '#ffffff', position: 'relative', overflowX: 'hidden', fontFamily: 'var(--font-family-body, -apple-system, sans-serif)', paddingBottom: '70px' }}>
       
-      {/* Luzes de Fundo e Brilhos Elegantes */}
-      <div style={{ position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: '1200px', height: '400px', background: 'radial-gradient(circle, rgba(236,72,153,0.15) 0%, rgba(168,85,247,0.1) 50%, rgba(0,0,0,0) 70%)', pointerEvents: 'none' }} />
+      {/* Luzes de Fundo Atmosféricas e Suaves */}
+      <div style={{ position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: '1200px', height: '500px', background: 'radial-gradient(ellipse at 50% 10%, rgba(244, 114, 182, 0.15) 0%, rgba(147, 51, 234, 0.08) 50%, transparent 75%)', pointerEvents: 'none' }} />
 
       {/* Conteúdo Principal */}
-      <main style={{ maxWidth: '900px', margin: '0 auto', padding: '40px 16px', position: 'relative', zIndex: 10 }}>
+      <main style={{ maxWidth: '840px', margin: '0 auto', padding: '44px 20px', position: 'relative', zIndex: 10 }}>
 
-        {/* Cabeçalho Emocionante */}
-        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 16px', borderRadius: '30px', backgroundColor: 'rgba(236, 72, 153, 0.12)', border: '1px solid rgba(236, 72, 153, 0.3)', color: '#f472b6', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '20px' }}>
-            <span>✨ Uma surpresa inesquecível para você</span>
+        {/* Cabeçalho Emocionante com Tipografia de Gala */}
+        <header style={{ textAlign: 'center', marginBottom: '36px' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '6px 16px', borderRadius: '999px', backgroundColor: 'rgba(244, 114, 182, 0.1)', border: '1px solid rgba(244, 114, 182, 0.28)', color: '#f472b6', fontSize: '0.78rem', fontWeight: '700', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '18px' }}>
+            <Sparkles size={13} aria-hidden="true" />
+            <span>Uma surpresa inesquecível para você</span>
           </div>
 
-          <h1 style={{ fontSize: '2.4rem', fontWeight: '900', color: '#ffffff', marginBottom: '12px', lineHeight: '1.2' }}>
-            Uma Homenagem Especial para <span style={{ color: '#ec4899', textDecoration: 'underline', textDecorationColor: 'rgba(236, 72, 153, 0.4)' }}>{honoreeName}</span>
+          <h1 style={{ fontFamily: "var(--font-family-gala, 'Cinzel', Georgia, serif)", fontSize: 'clamp(2rem, 4vw, 2.85rem)', fontWeight: '700', color: '#ffffff', marginBottom: '12px', lineHeight: '1.2', letterSpacing: '-0.02em', textWrap: 'balance' }}>
+            Uma Canção para <span style={{ color: '#f472b6', textDecoration: 'underline', textDecorationColor: 'rgba(244, 114, 182, 0.4)', textUnderlineOffset: '6px' }}>{honoreeName}</span>
           </h1>
 
-          <p style={{ color: '#cbd5e1', fontSize: '1.1rem', maxWidth: '600px', margin: '0 auto', fontWeight: '300' }}>
-            De <strong style={{ color: '#ffffff', fontWeight: '700' }}>{customerName}</strong> com todo carinho e amor ❤️
+          <p style={{ color: '#cbd5e1', fontSize: '1.05rem', maxWidth: '560px', margin: '0 auto', lineHeight: 1.6 }}>
+            De <strong style={{ color: '#ffffff', fontWeight: '700' }}>{customerName}</strong> com todo amor{' '}
+            <Heart size={15} style={{ fill: '#f43f5e', color: '#f43f5e', display: 'inline', verticalAlign: 'middle', marginLeft: '4px' }} aria-hidden="true" />
           </p>
-        </div>
+        </header>
 
-        {/* PLAYER DE VÍDEO OU ÁUDIO EM DESTAQUE */}
-        <div style={{ backgroundColor: 'rgba(15, 23, 42, 0.8)', border: '1.5px solid rgba(255, 255, 255, 0.1)', borderRadius: '24px', padding: '24px', backdropFilter: 'blur(16px)', boxShadow: '0 20px 40px rgba(0,0,0,0.5)', marginBottom: '32px' }}>
-          
+        {/* CARD PRINCIPAL (VÍDEO OU ÁUDIO) */}
+        <section
+          aria-label="Reprodução da homenagem"
+          style={{
+            backgroundColor: 'rgba(20, 14, 32, 0.78)',
+            border: '1px solid rgba(255, 255, 255, 0.12)',
+            borderRadius: '24px',
+            padding: '28px',
+            backdropFilter: 'blur(20px)',
+            boxShadow: '0 24px 60px rgba(0, 0, 0, 0.55)',
+            marginBottom: '28px',
+          }}
+        >
           {videoUrl ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.92rem', fontWeight: 'bold', color: '#ec4899' }}>
-                  <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#ec4899' }} />
-                  🎬 Vídeo Homenagem com Fotos
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '0.95rem', fontWeight: '700', color: '#f472b6' }}>
+                  <Film size={16} aria-hidden="true" />
+                  <span>Vídeo Homenagem com Fotos</span>
                 </span>
-                <span style={{ fontSize: '0.78rem', color: '#94a3b8', backgroundColor: 'rgba(255,255,255,0.06)', padding: '4px 10px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }}>HD 1080p</span>
+                <span style={{ fontSize: '0.75rem', color: '#cbd5e1', backgroundColor: 'rgba(255,255,255,0.08)', padding: '4px 10px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.12)', fontWeight: '600' }}>
+                  HD 1080p
+                </span>
               </div>
               
-              <div style={{ width: '100%', borderRadius: '16px', overflow: 'hidden', backgroundColor: '#000000', border: '1px solid rgba(255,255,255,0.1)', maxHeight: '480px', display: 'flex', justifyContent: 'center' }}>
+              <div style={{ width: '100%', borderRadius: '18px', overflow: 'hidden', backgroundColor: '#000000', border: '1px solid rgba(255,255,255,0.1)', maxHeight: '480px', display: 'flex', justifyContent: 'center' }}>
                 <video
                   src={videoUrl}
                   controls
@@ -141,34 +154,73 @@ export function HomenagemView({ orderId: propOrderId }) {
                   Seu navegador não suporta a exibição de vídeos.
                 </video>
               </div>
+
+              {/* Botão de Download do Vídeo */}
+              <div style={{ marginTop: '10px', display: 'flex', justifyContent: 'center' }}>
+                <a
+                  href={`/api/image-proxy?url=${encodeURIComponent(videoUrl)}`}
+                  download={`Homenagem_${honoreeName}.${videoUrl.split('?')[0].split('.').pop().toLowerCase() === 'webm' ? 'webm' : 'mp4'}`}
+                  rel="noopener noreferrer"
+                  style={{
+                    width: '100%',
+                    maxWidth: '360px',
+                    minHeight: '48px',
+                    padding: '14px 24px',
+                    background: 'linear-gradient(135deg, #ec4899 0%, #a855f7 100%)',
+                    color: '#ffffff',
+                    fontWeight: '700',
+                    fontSize: '0.95rem',
+                    borderRadius: '12px',
+                    textDecoration: 'none',
+                    textAlign: 'center',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    boxShadow: '0 8px 24px rgba(236, 72, 153, 0.35)',
+                    transition: 'transform 0.2s ease',
+                  }}
+                >
+                  <Download size={18} aria-hidden="true" />
+                  <span>Baixar Vídeo MP4 HD</span>
+                </a>
+              </div>
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              <div style={{ textAlign: 'center', padding: '16px 0' }}>
-                {/* Capa personalizada do pedido — antes só existia o ícone genérico de nota musical
-                    aqui, e a foto que o cliente escolheu não aparecia em lugar nenhum desta página
-                    (achado 04/09/2026). Sem capa, mantém o ícone de sempre. */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
+              <div style={{ textAlign: 'center', padding: '12px 0 6px' }}>
                 {order.coverUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={order.coverUrl}
                     alt={`Capa da homenagem para ${honoreeName}`}
-                    style={{ width: '132px', height: '132px', objectFit: 'cover', borderRadius: '50%', margin: '0 auto 14px auto', display: 'block', border: '3px solid rgba(236, 72, 153, 0.55)', boxShadow: '0 0 32px rgba(236, 72, 153, 0.45), 0 8px 24px rgba(0,0,0,0.5)' }}
+                    style={{
+                      width: '140px',
+                      height: '140px',
+                      objectFit: 'cover',
+                      borderRadius: '50%',
+                      margin: '0 auto 16px auto',
+                      display: 'block',
+                      border: '3px solid rgba(244, 114, 182, 0.6)',
+                      boxShadow: '0 0 32px rgba(244, 114, 182, 0.35), 0 8px 24px rgba(0,0,0,0.5)',
+                    }}
                   />
                 ) : (
-                  <div style={{ width: '70px', height: '70px', background: 'linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px auto', boxShadow: '0 8px 24px rgba(236, 72, 153, 0.3)' }}>
-                    <span style={{ fontSize: '2rem' }}>🎵</span>
+                  <div style={{ width: '74px', height: '74px', background: 'linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px auto', boxShadow: '0 8px 24px rgba(236, 72, 153, 0.3)' }}>
+                    <Music size={32} color="#ffffff" aria-hidden="true" />
                   </div>
                 )}
-                <h3 style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#ffffff', margin: '0 0 4px 0' }}>Música Personalizada Exclusiva</h3>
-                <p style={{ fontSize: '0.85rem', color: '#94a3b8', margin: 0 }}>Estilo: {songStyle}</p>
+                <h2 style={{ fontFamily: "var(--font-family-gala, 'Cinzel', Georgia, serif)", fontSize: '1.45rem', fontWeight: '700', color: '#ffffff', margin: '0 0 6px 0' }}>
+                  Canção Personalizada
+                </h2>
+                <p style={{ fontSize: '0.86rem', color: '#94a3b8', margin: 0 }}>Estilo: {songStyle}</p>
               </div>
 
               {!isPaid && (
-                <div style={{ textAlign: 'center', padding: '20px', borderRadius: '16px', backgroundColor: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)' }}>
-                  <span style={{ fontSize: '1.8rem' }}>🔒</span>
-                  <p style={{ fontSize: '0.9rem', color: '#94a3b8', marginTop: '8px' }}>
-                    A homenagem ainda está sendo finalizada. As músicas ficarão disponíveis assim que o pagamento for confirmado.
+                <div style={{ textAlign: 'center', padding: '22px', borderRadius: '16px', backgroundColor: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                  <Lock size={24} style={{ color: '#f472b6', margin: '0 auto 8px' }} />
+                  <p style={{ fontSize: '0.9rem', color: '#cbd5e1', margin: 0, lineHeight: 1.5 }}>
+                    A homenagem ainda está sendo finalizada. O áudio estará disponível assim que a liberação for confirmada.
                   </p>
                 </div>
               )}
@@ -179,24 +231,26 @@ export function HomenagemView({ orderId: propOrderId }) {
                     <div 
                       key={idx}
                       style={{
-                        padding: '16px',
+                        padding: '18px 20px',
                         borderRadius: '16px',
-                        border: activeAudioIndex === idx ? '1.5px solid #ec4899' : '1px solid rgba(255,255,255,0.1)',
-                        backgroundColor: activeAudioIndex === idx ? 'rgba(236, 72, 153, 0.1)' : 'rgba(0, 0, 0, 0.3)'
+                        border: activeAudioIndex === idx ? '1.5px solid #f472b6' : '1px solid rgba(255,255,255,0.1)',
+                        backgroundColor: activeAudioIndex === idx ? 'rgba(244, 114, 182, 0.08)' : 'rgba(0, 0, 0, 0.25)',
+                        transition: 'all 0.2s ease',
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                        <span style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#f1f5f9' }}>
-                          {audioList.length > 1 ? `Versão ${idx + 1}` : 'Áudio em Alta Qualidade (MP3 HD)'}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                        <span style={{ fontSize: '0.92rem', fontWeight: '700', color: '#f1f5f9', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <Music size={15} style={{ color: '#f472b6' }} aria-hidden="true" />
+                          <span>{audioList.length > 1 ? `Versão ${idx + 1}` : 'Gravação Original em Alta Definição'}</span>
                         </span>
-                        <span style={{ fontSize: '0.75rem', color: '#ec4899', backgroundColor: 'rgba(236, 72, 153, 0.12)', padding: '3px 8px', borderRadius: '10px', border: '1px solid rgba(236, 72, 153, 0.3)' }}>
-                          Estúdio NSMusic
+                        <span style={{ fontSize: '0.74rem', color: '#f472b6', backgroundColor: 'rgba(244, 114, 182, 0.12)', padding: '3px 9px', borderRadius: '8px', border: '1px solid rgba(244, 114, 182, 0.3)', fontWeight: '600' }}>
+                          NS Music Studio
                         </span>
                       </div>
                       <audio 
                         src={typeof url === 'string' && (url.startsWith('blob:') || url.startsWith('/api/')) ? url : `/api/audio/proxy?url=${encodeURIComponent(url)}&v=${AUDIO_CACHE_VERSION}`}
                         controls 
-                        style={{ width: '100%', borderRadius: '8px' }} 
+                        style={{ width: '100%', borderRadius: '8px', minHeight: '44px' }} 
                         onPlay={() => setActiveAudioIndex(idx)}
                       />
                     </div>
@@ -205,97 +259,131 @@ export function HomenagemView({ orderId: propOrderId }) {
               )}
             </div>
           )}
+        </section>
 
-          {/* Botão de Download do Vídeo — o atributo `download` do <a> é ignorado pelo navegador
-              para URLs de outra origem (caso do Firebase Storage), então ele só abria o vídeo numa
-              nova aba em vez de baixar. Passando pelo /api/image-proxy (mesma origem), o download
-              funciona de verdade; a extensão também precisa bater com o container real do arquivo
-              (mp4 ou webm — ver src/lib/videoGenerator.js). */}
-          {videoUrl && (
-            <div style={{ marginTop: '24px', paddingTop: '20px', borderTop: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'center' }}>
-              <a
-                href={`/api/image-proxy?url=${encodeURIComponent(videoUrl)}`}
-                download={`Homenagem_${honoreeName}.${videoUrl.split('?')[0].split('.').pop().toLowerCase() === 'webm' ? 'webm' : 'mp4'}`}
-                rel="noopener noreferrer"
-                style={{
-                  width: '100%',
-                  maxWidth: '350px',
-                  padding: '14px 24px',
-                  background: 'linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%)',
-                  color: '#ffffff',
-                  fontWeight: 'bold',
-                  fontSize: '0.95rem',
-                  borderRadius: '12px',
-                  border: 'none',
-                  textDecoration: 'none',
-                  textAlign: 'center',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px',
-                  boxShadow: '0 4px 14px rgba(236, 72, 153, 0.4)'
-                }}
-              >
-                <span>⬇</span> Baixar Vídeo MP4 HD
-              </a>
+        {/* LETRA DA MÚSICA — Apresentação poética da composição */}
+        {lyrics && (
+          <section
+            style={{
+              backgroundColor: 'rgba(20, 14, 32, 0.65)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: '24px',
+              padding: '28px',
+              backdropFilter: 'blur(16px)',
+              boxShadow: '0 16px 40px rgba(0, 0, 0, 0.4)',
+              marginBottom: '28px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+              <Sparkles size={16} style={{ color: '#f472b6' }} aria-hidden="true" />
+              <h2 style={{ fontFamily: "var(--font-family-gala, 'Cinzel', Georgia, serif)", fontSize: '1.25rem', fontWeight: '700', color: '#ffffff', margin: 0 }}>
+                Letra da Canção
+              </h2>
             </div>
-          )}
-        </div>
+            <pre style={{
+              margin: 0,
+              whiteSpace: 'pre-wrap',
+              fontFamily: 'inherit',
+              fontSize: '0.96rem',
+              lineHeight: 1.85,
+              color: '#cbd5e1',
+              maxHeight: '340px',
+              overflowY: 'auto',
+              paddingRight: '10px',
+            }}>
+              {lyrics}
+            </pre>
+          </section>
+        )}
 
-        {/* CARTA VIRTUAL — link pra página própria (/carta), separada desta (achado 04/09/2026: cada
-            add-on precisa da sua própria página compartilhável — música/vídeo aqui, carta com
-            música própria tocando sozinha em /carta, histórico em /retrospectiva). */}
-        {isPaid && order.hasCartaAccess && order.cartaTexto && (
-          <div style={{ marginTop: '32px', textAlign: 'center' }}>
+        {/* BOTÕES DE COMPLEMENTOS (CARTA E RETROSPECTIVA) */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', alignItems: 'center', margin: '28px 0' }}>
+          {isPaid && order.hasCartaAccess && order.cartaTexto && (
             <a
               href={`/c/${orderId}`}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '8px',
-                padding: '14px 24px',
+                minHeight: '48px',
+                padding: '14px 28px',
                 background: 'linear-gradient(135deg, #f472b6 0%, #9d174d 100%)',
                 color: '#ffffff',
-                fontWeight: 'bold',
+                fontWeight: '700',
                 fontSize: '0.95rem',
-                borderRadius: '12px',
+                borderRadius: '14px',
                 textDecoration: 'none',
-                boxShadow: '0 4px 14px rgba(157, 23, 77, 0.4)',
+                boxShadow: '0 8px 24px rgba(157, 23, 77, 0.35)',
+                transition: 'transform 0.2s ease',
               }}
             >
-              💌 Ver sua Carta
+              <Mail size={18} aria-hidden="true" />
+              <span>Abrir sua Carta Virtual</span>
             </a>
-          </div>
-        )}
+          )}
 
-        {/* RETROSPECTIVA — link pra página própria, quando o pedido tem essa página liberada. */}
-        {isPaid && order.hasRetrospectivaAccess && (
-          <div style={{ marginTop: '32px', textAlign: 'center' }}>
+          {isPaid && order.hasRetrospectivaAccess && (
             <a
               href={`/r/${orderId}`}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '8px',
-                padding: '14px 24px',
+                minHeight: '48px',
+                padding: '14px 28px',
                 background: 'linear-gradient(135deg, #a855f7 0%, #3b82f6 100%)',
                 color: '#ffffff',
-                fontWeight: 'bold',
+                fontWeight: '700',
                 fontSize: '0.95rem',
-                borderRadius: '12px',
+                borderRadius: '14px',
                 textDecoration: 'none',
-                boxShadow: '0 4px 14px rgba(168, 85, 247, 0.4)',
+                boxShadow: '0 8px 24px rgba(168, 85, 247, 0.35)',
+                transition: 'transform 0.2s ease',
               }}
             >
-              📖 Ver nossa Retrospectiva completa
+              <BookOpen size={18} aria-hidden="true" />
+              <span>Ver nossa Linha do Tempo e Retrospectiva</span>
             </a>
-          </div>
-        )}
+          )}
 
-        {/* RODAPÉ E CRÉDITOS */}
-        <footer style={{ textAlign: 'center', color: '#64748b', fontSize: '0.85rem', paddingTop: '20px' }}>
-          <p style={{ margin: '0 0 4px 0' }}>Feito com amor e carinho por <strong style={{ color: '#cbd5e1' }}>NSMusic Studio</strong> 🎵</p>
-          <p style={{ margin: 0 }}>© {new Date().getFullYear()} NSMusic. Todos os direitos reservados.</p>
+          {/* Botão de Compartilhar Presente */}
+          <button
+            type="button"
+            onClick={handleShare}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              minHeight: '46px',
+              padding: '12px 24px',
+              background: 'rgba(255, 255, 255, 0.08)',
+              border: '1px solid rgba(255, 255, 255, 0.18)',
+              color: '#ffffff',
+              fontWeight: '600',
+              fontSize: '0.9rem',
+              borderRadius: '12px',
+              cursor: 'pointer',
+              transition: 'background 0.2s ease',
+            }}
+          >
+            {copied ? (
+              <>
+                <Check size={16} style={{ color: '#10b981' }} aria-hidden="true" />
+                <span>Link da homenagem copiado!</span>
+              </>
+            ) : (
+              <>
+                <Share2 size={16} aria-hidden="true" />
+                <span>Compartilhar esta homenagem</span>
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* Rodapé e Assinatura */}
+        <footer style={{ textAlign: 'center', color: '#64748b', fontSize: '0.82rem', paddingTop: '28px', borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
+          <p style={{ margin: '0 0 4px 0' }}>Feito com amor e carinho no <strong style={{ color: '#cbd5e1' }}>NS Music Studio</strong></p>
+          <p style={{ margin: 0 }}>© {new Date().getFullYear()} NS Music. Todos os direitos reservados.</p>
         </footer>
 
       </main>
@@ -306,8 +394,8 @@ export function HomenagemView({ orderId: propOrderId }) {
 export default function HomenagemPage() {
   return (
     <Suspense fallback={
-      <div style={{ minHeight: '100vh', backgroundColor: '#090d16', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
-        <div style={{ width: '40px', height: '40px', borderRadius: '50%', border: '4px solid #ec4899', borderTopColor: 'transparent', animation: 'spin 1s linear infinite' }} />
+      <div style={{ minHeight: '100vh', backgroundColor: '#08060f', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
+        <div style={{ width: '48px', height: '48px', borderRadius: '50%', border: '3px solid rgba(244, 114, 182, 0.2)', borderTopColor: '#f472b6', animation: 'spin 1s linear infinite' }} />
       </div>
     }>
       <HomenagemView />

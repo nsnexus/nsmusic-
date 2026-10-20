@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect } from 'react';
+import { Headphones, Sparkles, Mic, X } from 'lucide-react';
 
 export default function PreviaProntaModal({
   isOpen,
@@ -75,8 +76,8 @@ export default function PreviaProntaModal({
             background: 'rgba(255, 255, 255, 0.08)',
             border: 'none',
             color: '#94a3b8',
-            width: '32px',
-            height: '32px',
+            width: '44px',
+            height: '44px',
             borderRadius: '50%',
             cursor: 'pointer',
             fontSize: '1.1rem',
@@ -87,7 +88,7 @@ export default function PreviaProntaModal({
             transition: 'all 0.2s',
           }}
         >
-          ×
+          <X size={18} aria-hidden="true" />
         </button>
 
         {/* Ícone Animado de Fone de Ouvido */}
@@ -139,7 +140,7 @@ export default function PreviaProntaModal({
           boxSizing: 'border-box',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-            <span style={{ fontSize: '1.2rem' }}>✨</span>
+            <Sparkles size={16} color="#fbbf24" aria-hidden="true" />
             <span style={{ fontSize: '0.86rem', fontWeight: '800', color: '#fbbf24', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               Novidade no Estúdio
             </span>
@@ -175,7 +176,7 @@ export default function PreviaProntaModal({
               boxShadow: '0 4px 12px rgba(245, 158, 11, 0.3)',
             }}
           >
-            <span>🎤</span>
+            <Mic size={16} color="#000000" aria-hidden="true" />
             <span>Quero Cantar com Minha Voz (+ R$ 14,90)</span>
           </button>
         </div>

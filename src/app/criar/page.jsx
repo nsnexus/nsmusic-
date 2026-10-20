@@ -1703,7 +1703,7 @@ export default function CriarMusica() {
                       boxShadow: '0 4px 14px rgba(79, 70, 229, 0.25)'
                     }}
                   >
-                    Salvar e Usar Esta Letra 🎶
+                    Salvar e Usar Esta Letra
                   </button>
 
                   {formData.lyrics && (
@@ -1722,7 +1722,7 @@ export default function CriarMusica() {
               <div style={{ padding: '40px 28px', textAlign: 'center', maxWidth: '600px', margin: '0 auto', backgroundColor: '#ffffff', borderRadius: '24px', border: '1px solid #eef2f6', boxShadow: '0 10px 40px rgba(0,0,0,0.04)' }}>
                 <StudioLyricsAnimation />
                 <h3 style={{ fontFamily: 'var(--font-family-title)', fontSize: '1.5rem', fontWeight: '800', color: '#0f172a', marginTop: '16px' }}>
-                  Estúdio de Composição Ativo ✨
+                  Estúdio de Composição Ativo
                 </h3>
                 <p style={{ color: 'var(--primary)', fontSize: '1rem', fontWeight: '700', marginTop: '10px', minHeight: '32px' }}>
                   {studioLyricsPhrases[lyricsStepIdx]}
@@ -1771,7 +1771,7 @@ export default function CriarMusica() {
                     className="btn btn-primary"
                     style={{ padding: '12px 28px' }}
                   >
-                    Tentar Gerar Novamente 🔄
+                    Tentar Gerar Novamente
                   </button>
                   <button
                     type="button"
@@ -1782,7 +1782,7 @@ export default function CriarMusica() {
                     className="btn btn-secondary"
                     style={{ padding: '12px 20px', fontWeight: '700' }}
                   >
-                    ✍️ Colar Minha Própria Letra
+                    Colar Minha Própria Letra
                   </button>
                 </div>
               </div>
@@ -1882,7 +1882,7 @@ export default function CriarMusica() {
                         className="btn btn-secondary"
                         style={{ width: '100%', padding: '12px', fontSize: '0.92rem', borderRadius: '10px' }}
                       >
-                        Solicitar Ajuste Gratuito ✍️
+                        Solicitar Ajuste Gratuito
                       </button>
                     </div>
 
@@ -1917,7 +1917,7 @@ export default function CriarMusica() {
                           width: '100%',
                         }}
                       >
-                        <span>Falar no WhatsApp 📲</span>
+                        <span>Falar no WhatsApp</span>
                       </a>
                     </div>
                   </div>
@@ -1933,7 +1933,7 @@ export default function CriarMusica() {
               <div style={{ padding: '36px 20px', textAlign: 'center', maxWidth: '580px', margin: '0 auto', background: '#ffffff', borderRadius: '22px', boxShadow: '0 20px 40px -10px rgba(0,0,0,0.07)', border: '1px solid #f1f5f9' }}>
                 <StudioAudioAnimation />
                 <h3 style={{ fontFamily: 'var(--font-family-title, sans-serif)', fontSize: '1.45rem', fontWeight: '800', color: '#1e293b', margin: '14px 0 10px', lineHeight: 1.3 }}>
-                  Produzindo seus 2 Arranjos Musicais 🎧
+                  Produzindo seus 2 Arranjos Musicais
                 </h3>
 
                 {/* Pill com a frase da etapa do áudio */}
@@ -2761,7 +2761,7 @@ export default function CriarMusica() {
                     >
                       {/* Botão desabilitado sem explicação lê como travamento. Diz o motivo. */}
                       {isUploadingCover
-                        ? '⏳ Enviando foto...'
+                        ? 'Enviando foto…'
                         : ['Continuar para a história →', 'Escolher o som →', 'Revisar meu presente →', 'Criar minha letra →'][step - 1]}
                     </button>
                   ) : (
@@ -2793,7 +2793,7 @@ export default function CriarMusica() {
                             padding: '12px 28px',
                             fontSize: '0.95rem',
                             minHeight: '46px',
-                            background: (isNextDisabled() || isSubmitting) ? 'var(--bg-tertiary)' : 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)',
+                            background: (isNextDisabled() || isSubmitting) ? 'var(--bg-tertiary)' : 'var(--nx-purple, #67408b)',
                             color: (isNextDisabled() || isSubmitting) ? 'var(--text-muted)' : '#FFFFFF'
                           }}
                         >

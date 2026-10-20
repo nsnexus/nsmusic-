@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { Lock, Music, Download, Gift, X } from 'lucide-react';
 
 // Pop-up que aparece no segundo em que a prévia de 60s termina.
 //
@@ -37,9 +38,9 @@ export default function PreviaEncerradaModal({
   const nome = honoreeName?.trim();
 
   const beneficios = [
-    ['🎵', <>As <strong>2 versões completas</strong>, do começo ao fim</>],
-    ['⬇️', <>Download em <strong>MP3 HD</strong>, para sempre</>],
-    ['🎁', <>Página de presente para <strong>enviar no WhatsApp</strong></>],
+    { id: 'versoes', Icon: Music, color: '#f472b6', texto: <>As <strong>2 versões completas</strong>, do começo ao fim</> },
+    { id: 'download', Icon: Download, color: '#c084fc', texto: <>Download em <strong>MP3 HD</strong>, para sempre</> },
+    { id: 'presente', Icon: Gift, color: '#ec4899', texto: <>Página de presente para <strong>enviar no WhatsApp</strong></> },
   ];
 
   return (
@@ -86,13 +87,13 @@ export default function PreviaEncerradaModal({
           type="button"
           onClick={onClose}
           aria-label="Fechar"
-          style={{ position: 'absolute', top: '10px', right: '12px', background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.55)', fontSize: '1.3rem', lineHeight: 1, cursor: 'pointer', padding: '4px 6px' }}
+          style={{ position: 'absolute', top: '10px', right: '12px', background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.55)', fontSize: '1.3rem', lineHeight: 1, cursor: 'pointer', minWidth: '44px', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
         >
-          ×
+          <X size={18} aria-hidden="true" />
         </button>
 
         <div style={{ position: 'relative' }}>
-          <div style={{ fontSize: '2rem', marginBottom: '6px' }}>🔒</div>
+          <div style={{ width: '56px', height: '56px', borderRadius: '50%', backgroundColor: 'rgba(236,72,153,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}><Lock size={26} color="#f472b6" aria-hidden="true" /></div>
 
           {/* `color` explícito: a regra global de h1..h6 em globals.css usa var(--text-primary),
               que é escuro — sem isto o título some no fundo escuro deste card. */}
@@ -113,14 +114,14 @@ export default function PreviaEncerradaModal({
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px', fontSize: '0.7rem', color: 'rgba(255,255,255,0.55)', fontWeight: '600' }}>
               <span>0:60 — prévia</span>
-              <span>música completa 🔒</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>música completa <Lock size={12} color="rgba(255,255,255,0.7)" aria-hidden="true" /></span>
             </div>
           </div>
 
           <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 18px', display: 'flex', flexDirection: 'column', gap: '9px', textAlign: 'left' }}>
-            {beneficios.map(([icone, texto], i) => (
-              <li key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.86rem', color: 'rgba(255,255,255,0.85)', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', padding: '9px 12px' }}>
-                <span aria-hidden="true" style={{ fontSize: '1rem' }}>{icone}</span>
+            {beneficios.map(({ id, Icon, color, texto }) => (
+              <li key={id} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.86rem', color: 'rgba(255,255,255,0.85)', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', padding: '9px 12px' }}>
+                <span aria-hidden="true" style={{ display: 'inline-flex', alignItems: 'center' }}><Icon size={16} color={color} aria-hidden="true" /></span>
                 <span>{texto}</span>
               </li>
             ))}

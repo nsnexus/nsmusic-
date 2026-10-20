@@ -3,6 +3,7 @@
 import { Suspense, useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { buildAudioProxySrc } from '@/lib/audioProxy';
+import { Mail, Heart, Play, Pause } from 'lucide-react';
 import CartaCartao from '@/components/CartaCartao';
 
 // Página PÚBLICA da Carta Virtual (add-on, ver src/lib/pricing.js:carta_addon)
@@ -117,7 +118,7 @@ export function CartaView({ orderId: propOrderId }) {
           }}
           aria-label="Abrir a carta"
         >
-          <div style={{ fontSize: '3.4rem', lineHeight: 1 }}>✉️</div>
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: "4px" }}><Mail size={56} style={{ color: "#be185d" }} aria-hidden="true" /></div>
           <div
             style={{
               width: '46px',
@@ -134,9 +135,9 @@ export function CartaView({ orderId: propOrderId }) {
             }}
             aria-hidden="true"
           >
-            <span style={{ fontSize: '1.15rem', filter: 'drop-shadow(0 1px 1px rgba(0,0,0,0.25))' }}>💗</span>
+            <Heart size={20} style={{ fill: "#ffffff", color: "#ffffff", filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.3))" }} aria-hidden="true" />
           </div>
-          <div style={{ marginTop: '18px', fontFamily: 'var(--font-family-title)', fontSize: '1.2rem', color: '#9d174d', fontWeight: '700' }}>
+          <div style={{ marginTop: '18px', fontFamily: "var(--font-family-gala, 'Cinzel', Georgia, serif)", fontSize: '1.2rem', color: '#9d174d', fontWeight: '700' }}>
             {remetente
               ? `Carta Especial de ${remetente}`
               : (honoree ? `Uma carta para ${honoree}` : 'Sua carta chegou')}
@@ -154,8 +155,8 @@ export function CartaView({ orderId: propOrderId }) {
 
           {audioSrc && (
             <div style={{ textAlign: 'center', marginTop: '18px' }}>
-              <button type="button" onClick={togglePlay} className="btn btn-secondary" style={{ padding: '9px 16px', fontSize: '0.82rem', cursor: 'pointer' }}>
-                {tocando ? '⏸ Pausar a música' : '▶️ Tocar a música'}
+              <button type="button" onClick={togglePlay} className="btn btn-secondary" style={{ padding: '12px 22px', minHeight: '44px', fontSize: '0.88rem', fontWeight: '600', cursor: 'pointer', borderRadius: '12px' }}>
+                {tocando ? (<span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><Pause size={15} aria-hidden="true" /><span>Pausar a música</span></span>) : (<span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><Play size={15} aria-hidden="true" /><span>Tocar a música</span></span>)}
               </button>
             </div>
           )}

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { Film, Play, Check, Sparkles, Music, X } from 'lucide-react';
 
 export default function VideoOfferModal({ isOpen, onClose, onSelectVideoOption, honoreeName = 'alguém especial' }) {
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);
@@ -64,8 +65,8 @@ export default function VideoOfferModal({ isOpen, onClose, onSelectVideoOption, 
             position: 'absolute',
             top: '16px',
             right: '16px',
-            width: '32px',
-            height: '32px',
+            width: '44px',
+            height: '44px',
             borderRadius: '50%',
             background: 'rgba(30, 41, 59, 0.8)',
             border: '1px solid rgba(148, 163, 184, 0.2)',
@@ -81,7 +82,7 @@ export default function VideoOfferModal({ isOpen, onClose, onSelectVideoOption, 
           onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(51, 65, 85, 0.9)'; e.currentTarget.style.color = '#fff'; }}
           onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(30, 41, 59, 0.8)'; e.currentTarget.style.color = '#94a3b8'; }}
         >
-          ✕
+          <X size={16} aria-hidden="true" />
         </button>
 
         {/* Badge de Destaque */}
@@ -99,7 +100,7 @@ export default function VideoOfferModal({ isOpen, onClose, onSelectVideoOption, 
           marginBottom: '16px'
         }}>
           <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#ec4899', animation: 'pulse 2s ease-in-out infinite' }} />
-          ✨ OFERTA ESPECIAL EXCLUSIVA
+          OFERTA ESPECIAL EXCLUSIVA
         </div>
 
         {/* Título Principal */}
@@ -113,7 +114,7 @@ export default function VideoOfferModal({ isOpen, onClose, onSelectVideoOption, 
           marginBottom: '8px',
           lineHeight: '1.3'
         }}>
-          Transforme sua Música em um <span style={{ WebkitTextFillColor: '#f472b6' }}>Vídeo Inesquecível! 🎬</span>
+          Transforme sua Música em um <span style={{ WebkitTextFillColor: '#f472b6' }}>Vídeo Inesquecível</span>
         </h2>
 
         <p style={{ color: '#cbd5e1', fontSize: '0.88rem', marginBottom: '20px', lineHeight: '1.6' }}>
@@ -164,16 +165,16 @@ export default function VideoOfferModal({ isOpen, onClose, onSelectVideoOption, 
             alignItems: 'center',
             gap: '6px'
           }}>
-            <span>🎥</span> Veja como fica o seu Vídeo
+            <Film size={14} color="#f9a8d4" aria-hidden="true" /> Veja como fica o seu Vídeo
           </div>
 
           {/* Título do Exemplo */}
           <div style={{ position: 'absolute', bottom: '12px', left: '16px', right: '16px', textAlign: 'center' }}>
             <p style={{ color: '#fff', fontSize: '0.88rem', fontWeight: '700' }}>
-              Homenagem para {honoreeName} ❤️
+              Homenagem para {honoreeName}
             </p>
             <p style={{ color: '#f472b6', fontSize: '0.72rem', fontWeight: '600' }}>
-              🎵 Música + 10 a 20 Fotos Sincronizadas
+              Música + 10 a 20 Fotos Sincronizadas
             </p>
           </div>
 
@@ -192,7 +193,7 @@ export default function VideoOfferModal({ isOpen, onClose, onSelectVideoOption, 
               animation: 'pulse 2s ease-in-out infinite',
               fontSize: '1.1rem'
             }}>
-              ▶
+              <Play size={18} fill="#ffffff" color="#ffffff" style={{ marginLeft: 2 }} aria-hidden="true" />
             </div>
           </div>
         </div>
@@ -200,15 +201,15 @@ export default function VideoOfferModal({ isOpen, onClose, onSelectVideoOption, 
         {/* Benefícios em lista */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '20px', fontSize: '0.85rem', color: '#cbd5e1' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ color: '#34d399', fontWeight: '800' }}>✓</span>
+            <Check size={16} color="#34d399" strokeWidth={3} aria-hidden="true" style={{ flexShrink: 0 }} />
             <span>Fotos animadas com efeito de transição em HD (1080p)</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ color: '#34d399', fontWeight: '800' }}>✓</span>
+            <Check size={16} color="#34d399" strokeWidth={3} aria-hidden="true" style={{ flexShrink: 0 }} />
             <span>Página exclusiva para enviar no WhatsApp do homenageado</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ color: '#34d399', fontWeight: '800' }}>✓</span>
+            <Check size={16} color="#34d399" strokeWidth={3} aria-hidden="true" style={{ flexShrink: 0 }} />
             <span>Download liberado do vídeo em formato .mp4</span>
           </div>
         </div>
@@ -238,7 +239,7 @@ export default function VideoOfferModal({ isOpen, onClose, onSelectVideoOption, 
             onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.02)'; e.currentTarget.style.boxShadow = '0 12px 30px rgba(236, 72, 153, 0.4)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 10px 25px rgba(236, 72, 153, 0.3)'; }}
           >
-            <span>✨ Sim! Adicionar Vídeo por + R$ 6,90</span>
+            <><Sparkles size={16} aria-hidden="true" /> Sim! Adicionar Vídeo por + R$ 6,90</>
           </button>
 
           <button

@@ -73,6 +73,58 @@
   margin: 0;
   padding: 0;
   -webkit-tap-highlight-color: transparent;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(79, 70, 229, 0.28) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: rgba(79, 70, 229, 0.25);
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(79, 70, 229, 0.45);
+}
+
+::selection {
+  background: rgba(79, 70, 229, 0.2);
+  color: inherit;
+}
+
+::-moz-selection {
+  background: rgba(79, 70, 229, 0.2);
+  color: inherit;
+}
+
+input, textarea, select {
+  caret-color: var(--primary, #4F46E5);
+}
+
+:focus-visible {
+  outline: 2px solid var(--primary, #4F46E5);
+  outline-offset: 2px;
+}
+
+/* Tabular numerals for timer countdowns, prices, and statistics (prevents layout jitter) */
+.tabular-nums,
+[data-tabular-nums="true"] {
+  font-variant-numeric: tabular-nums;
+  -webkit-font-feature-settings: 'tnum';
+  font-feature-settings: 'tnum';
+}
+
+/* Balanced text for display and headings without awkward orphans */
+.text-balance {
+  text-wrap: balance;
 }
 
 html {
