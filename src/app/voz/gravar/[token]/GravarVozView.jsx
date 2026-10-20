@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import { converterParaWavBlob } from '@/lib/audioWav';
 
 export default function GravarVozView({ token }) {
   const [carregandoInvite, setCarregandoInvite] = useState(true);
@@ -98,9 +99,10 @@ export default function GravarVozView({ token }) {
         }
       };
 
-      recorder.onstop = () => {
+      recorder.onstop = async () => {
         const type = selectedMime || 'audio/webm';
-        const blob = new Blob(audioChunksRef.current, { type });
+        const rawBlob = new Blob(audioChunksRef.current, { type });
+        const blob = await converterParaWavBlob(rawBlob);
         const url = URL.createObjectURL(blob);
 
         if (tipo === 'amostra') {

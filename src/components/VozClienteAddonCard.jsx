@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { requestPixCharge } from '@/lib/pixCheckout';
 import PixQrCode from './PixQrCode';
 import { useWhatsappSuporte, linkWhatsapp } from '@/lib/useWhatsappSuporte';
+import { converterParaWavBlob } from '@/lib/audioWav';
 
 const MAX_PIX_ATTEMPTS = 3;
 const PIX_POLLING_MAX_ATTEMPTS = 150; // ~10min
@@ -115,8 +116,9 @@ export default function VozClienteAddonCard({ orderId, order }) {
         if (e.data.size > 0) audioChunksRef.current.push(e.data);
       };
 
-      mediaRecorder.onstop = () => {
-        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+      mediaRecorder.onstop = async () => {
+        const rawBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const blob = await converterParaWavBlob(rawBlob);
         const url = URL.createObjectURL(blob);
         if (etapaGravacao === 1) {
           setAmostraBlob(blob);
