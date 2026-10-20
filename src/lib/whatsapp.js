@@ -374,7 +374,7 @@ export const sendEvolutionMediaMessage = async (phone, { mediaUrl, caption, file
  * Envia a mensagem de "música pronta" avisando que as 2 versões ficaram prontas com o link de entrega.
  * Disparado EXCLUSIVAMENTE via API Oficial da Meta (WhatsApp Cloud API).
  */
-export const sendMusicReadyTemplate = async (phone, { customerName, honoreeName, deliveryUrl, videoUrl }, env = {}) => {
+export const sendMusicReadyTemplate = async (phone, { customerName, honoreeName, deliveryUrl, videoUrl, orderData }, env = {}) => {
   const name = customerName || 'Cliente';
   const honoree = honoreeName || 'alguém especial';
   const url = deliveryUrl || DOMINIO_CANONICO;
@@ -388,7 +388,29 @@ export const sendMusicReadyTemplate = async (phone, { customerName, honoreeName,
   const cfgSite = await lerConfigSite(env).catch(() => ({}));
   const supportPhone = normalizarNumeroWhatsapp(cfgSite?.whatsappSuporte) || WHATSAPP_SUPORTE_PADRAO;
 
-  // 1. Se tiver URL de vídeo prévia disponível, envia diretamente o vídeo com a legenda formatada via Evolution API
+  let cloudError = '';
+  const cloudConfig = getCloudApiConfig(env);
+  const resolvedOrderId = orderData?.id || orderData?.orderNumber || (url.match(/orderId=([^&]+)/)?.[1]) || '';
+
+  // 1. Tenta envio oficial via Meta Cloud API Oficial (com vídeo ou texto)
+  if (cloudConfig.enabled) {
+    console.log(`[WhatsApp] Tentando template de música pronta via Meta Cloud API Oficial para ${phone}...`);
+    const payload = {
+      cliente: primeiroNome(name),
+      homenageado: honoree,
+      link: url,
+    };
+    if (videoUrl) payload.videoUrl = videoUrl;
+    if (orderData?.id || orderData?.orderNumber) {
+      payload.orderId = orderData.id || orderData.orderNumber;
+    }
+    const res = await enviarMusicaProntaCloud(phone, payload, env);
+    if (res.success) return res;
+    cloudError = res.error || 'falha';
+    console.warn(`[WhatsApp] Meta Cloud API não conseguiu enviar música pronta (${cloudError}). Tentando contingência via Evolution API...`);
+  }
+
+  // 2. Contingência via Evolution API: Se tiver vídeo prévia, envia vídeo com legenda
   if (videoUrl) {
     const caption = await buildPreviewVideoCaption({ customerName: name, honoreeName: honoree, deliveryUrl: url }, env);
     const mediaRes = await sendEvolutionMediaMessage(phone, {
@@ -401,16 +423,6 @@ export const sendMusicReadyTemplate = async (phone, { customerName, honoreeName,
       return mediaRes;
     }
     console.warn('[WhatsApp] Falha ao enviar vídeo de prévia via Evolution. Prosseguindo com aviso em texto:', mediaRes.error);
-  }
-
-  let cloudError = '';
-  const cloudConfig = getCloudApiConfig(env);
-  if (cloudConfig.enabled) {
-    console.log(`[WhatsApp] Tentando template de música pronta via Meta Cloud API Oficial para ${phone}...`);
-    const res = await enviarMusicaProntaCloud(phone, { cliente: primeiroNome(name), homenageado: honoree, link: url }, env);
-    if (res.success) return res;
-    cloudError = res.error || 'falha';
-    console.warn(`[WhatsApp] Meta Cloud API não conseguiu enviar música pronta (${cloudError}). Tentando contingência via Evolution API...`);
   }
 
   // Contingência / Envio via Evolution API (VPS própria)

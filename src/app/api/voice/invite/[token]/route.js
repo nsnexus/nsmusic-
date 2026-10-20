@@ -89,6 +89,42 @@ export async function POST(req, { params }) {
       status: 'concluido'
     }, env);
 
+    // Vincula a voz clonada a qualquer pedido pendente associado ao telefone
+    const effectivePhone = phone || invite.phone;
+    if (effectivePhone) {
+      try {
+        const { getSupabaseEdge } = await import('@/lib/supabase-edge');
+        const { updateOrder } = await import('@/lib/supabaseDb');
+        const { sanitizePhone } = await import('@/lib/customerVoices');
+        const supabase = getSupabaseEdge(env);
+        const cleanPhone = sanitizePhone(effectivePhone);
+        if (supabase && cleanPhone) {
+          const localDigits = cleanPhone.startsWith('55') ? cleanPhone.slice(2) : cleanPhone;
+          const { data: matchedOrders } = await supabase
+            .from('orders')
+            .select('id, payment_intent_sku, extras, lyrics, custom_voice_id, is_custom_voice')
+            .or(`customer_phone.ilike.%${localDigits}%,customer_phone.ilike.%${cleanPhone}%`)
+            .order('created_at', { ascending: false })
+            .limit(3);
+
+          for (const ord of matchedOrders || []) {
+            const hasComboOrVoice = ord.payment_intent_sku === 'combo_voz' || ord.extras?.hasCustomVoiceAccess || ord.extras?.customVoiceAddonPaid;
+            if (hasComboOrVoice && !ord.custom_voice_id) {
+              await updateOrder(ord.id, {
+                customVoiceId: voiceId,
+                voiceRecordingId: voiceRecordingId || null,
+                isCustomVoice: true,
+                voiceType: 'minha_voz',
+                hasCustomVoiceAccess: true
+              }, env);
+            }
+          }
+        }
+      } catch (linkErr) {
+        console.warn('[voice/invite/token] Não foi possível vincular a pedidos existentes:', linkErr.message);
+      }
+    }
+
     return NextResponse.json({
       ok: true,
       message: 'Voz clonada e vinculada ao contato com sucesso!',

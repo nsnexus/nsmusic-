@@ -253,6 +253,7 @@ export default function GravarVozView({ token }) {
         body: JSON.stringify({
           action: 'create_voice',
           phraseTaskId,
+          voiceUrl: amostraPublicUrl,
           verifyUrl: upData.url,
           voiceName: invite?.customerName || 'Convidado'
         })

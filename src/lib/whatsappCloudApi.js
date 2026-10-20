@@ -39,8 +39,10 @@ export function getCloudApiConfig(env = {}) {
     // Nomes dos templates aprovados, configuráveis por variável para não exigir deploy quando um
     // template for recriado com outro nome (acontece: reprovação da Meta obriga a refazer).
     templateMusicaPronta: ler('WHATSAPP_TEMPLATE_MUSICA') || 'aviso_musica_pronta',
+    templateMusicaProntaVideo: ler('WHATSAPP_TEMPLATE_MUSICA_VIDEO') || 'previa_musica_com_video',
     templatePagamento: ler('WHATSAPP_TEMPLATE_PAGAMENTO') || 'confirmacao_pagamento',
     templatePagamentoDownloads: ler('WHATSAPP_TEMPLATE_PAGAMENTO_DOWNLOADS') || 'confirmacao_pagamento_downloads',
+    templatePagamentoV2: ler('WHATSAPP_TEMPLATE_PAGAMENTO_V2') || 'confirmacao_pagamento_v2',
     enabled: Boolean(token && phoneNumberId),
   };
 }
@@ -54,7 +56,7 @@ export function getCloudApiConfig(env = {}) {
  * @param {{ buttonParam?: string }} opcoes opções extras como parâmetro de botão dinâmico
  * @returns {Promise<{success: boolean, provider?: string, error?: string}>}
  */
-export async function sendCloudApiTemplate(phone, templateName, variaveis = [], { buttonParam } = {}, env = {}) {
+export async function sendCloudApiTemplate(phone, templateName, variaveis = [], { buttonParam, buttonParams, headerVideoUrl, headerImageUrl } = {}, env = {}) {
   const config = getCloudApiConfig(env);
   if (!config.enabled) {
     return { success: false, error: 'Cloud API não configurada (WHATSAPP_ACCESS_TOKEN/WHATSAPP_PHONE_NUMBER_ID).' };
@@ -64,6 +66,19 @@ export async function sendCloudApiTemplate(phone, templateName, variaveis = [], 
   if (!numero) return { success: false, error: 'Telefone inválido.' };
 
   const components = [];
+
+  if (headerImageUrl) {
+    components.push({
+      type: 'header',
+      parameters: [{ type: 'image', image: { link: String(headerImageUrl) } }],
+    });
+  } else if (headerVideoUrl) {
+    components.push({
+      type: 'header',
+      parameters: [{ type: 'video', video: { link: String(headerVideoUrl) } }],
+    });
+  }
+
   if (variaveis.length > 0) {
     components.push({
       type: 'body',
@@ -71,7 +86,16 @@ export async function sendCloudApiTemplate(phone, templateName, variaveis = [], 
     });
   }
 
-  if (buttonParam) {
+  if (Array.isArray(buttonParams) && buttonParams.length > 0) {
+    buttonParams.forEach((param, idx) => {
+      components.push({
+        type: 'button',
+        sub_type: 'url',
+        index: String(idx),
+        parameters: [{ type: 'text', text: String(param) }],
+      });
+    });
+  } else if (buttonParam) {
     components.push({
       type: 'button',
       sub_type: 'url',
@@ -142,14 +166,43 @@ export async function sendCloudApiTemplate(phone, templateName, variaveis = [], 
 }
 
 /**
- * "Sua música ficou pronta" — variáveis: nome do cliente, nome do homenageado, link da entrega, link dinâmico de suporte.
+ * "Sua música ficou pronta" — com suporte a vídeo oficial no header e botão de liberar música.
  */
-export async function enviarMusicaProntaCloud(phone, { cliente, homenageado, link }, env = {}) {
+export async function enviarMusicaProntaCloud(phone, { cliente, homenageado, link, videoUrl, orderId }, env = {}) {
   const config = getCloudApiConfig(env);
   const cfgSite = await lerConfigSite(env);
   const numSuporte = normalizarNumeroWhatsapp(cfgSite?.whatsappSuporte) || WHATSAPP_SUPORTE_PADRAO;
   const linkSuporte = `https://wa.me/${numSuporte}`;
 
+  const resolvedOrderId = orderId || (link ? link.match(/orderId=([^&]+)/)?.[1] : '') || '';
+
+  // 1. Se houver vídeo de prévia e orderId, tenta os templates oficiais com VÍDEO e BOTÃO (UTILITY)
+  if (videoUrl && resolvedOrderId) {
+    const candidateTemplates = [
+      config.templateMusicaProntaVideo,
+      'status_pedido_musica_video',
+      'entrega_pedido_musica_video',
+      'atualizacao_pedido_musica',
+      'notificacao_pedido_pronto',
+    ].filter(Boolean);
+
+    for (const tName of candidateTemplates) {
+      const resVideo = await sendCloudApiTemplate(
+        phone,
+        tName,
+        [cliente, homenageado, linkSuporte],
+        {
+          headerVideoUrl: videoUrl,
+          buttonParam: resolvedOrderId,
+        },
+        env
+      );
+      if (resVideo.success) return resVideo;
+    }
+    console.warn('[CloudAPI] Templates de vídeo ainda não aprovados ou indisponíveis, usando fallback de texto...');
+  }
+
+  // 2. Fallback para o template padrão de texto aprovado
   return sendCloudApiTemplate(
     phone,
     config.templateMusicaPronta,
@@ -160,7 +213,7 @@ export async function enviarMusicaProntaCloud(phone, { cliente, homenageado, lin
 }
 
 /**
- * "Pagamento confirmado" — variáveis: nome do cliente, nome do homenageado, link da entrega, link dinâmico de suporte.
+ * "Pagamento confirmado" — com suporte a banner oficial no header e botões de download direto.
  */
 export async function enviarPagamentoConfirmadoCloud(phone, { cliente, homenageado, link, orderId, audio1, audio2 }, env = {}) {
   const config = getCloudApiConfig(env);
@@ -168,7 +221,26 @@ export async function enviarPagamentoConfirmadoCloud(phone, { cliente, homenagea
   const numSuporte = normalizarNumeroWhatsapp(cfgSite?.whatsappSuporte) || WHATSAPP_SUPORTE_PADRAO;
   const linkSuporte = `https://wa.me/${numSuporte}`;
 
-  // Se os links de download direto estiverem disponíveis, tenta primeiro o template completo com downloads
+  const resolvedOrderId = orderId || (link ? link.match(/orderId=([^&]+)/)?.[1] : '') || '';
+
+  // 1. Tenta o novo template com banner oficial e botões de download direto (v2)
+  if (resolvedOrderId) {
+    const bannerUrl = 'https://nsmusic.nsnexus.com.br/banner-whatsapp.jpg';
+    const resV2 = await sendCloudApiTemplate(
+      phone,
+      config.templatePagamentoV2,
+      [cliente, homenageado, link],
+      {
+        headerImageUrl: bannerUrl,
+        buttonParams: [resolvedOrderId, resolvedOrderId],
+      },
+      env
+    );
+    if (resV2.success) return resV2;
+    console.warn('[CloudAPI] Template v2 de pagamento falhou ou ainda em análise, tentando template legado...', resV2.error);
+  }
+
+  // 2. Se os links de download direto estiverem disponíveis, tenta o template legado com downloads no texto
   if (audio1 && audio2) {
     const resDownloads = await sendCloudApiTemplate(
       phone,
@@ -178,10 +250,10 @@ export async function enviarPagamentoConfirmadoCloud(phone, { cliente, homenagea
       env
     );
     if (resDownloads.success) return resDownloads;
-    console.warn('[CloudAPI] Falha no template com downloads, tentando template padrão aprovado...', resDownloads.error);
+    console.warn('[CloudAPI] Falha no template com downloads no texto, tentando template padrão...', resDownloads.error);
   }
 
-  // Fallback para o template padrão aprovado (4 variáveis)
+  // 3. Fallback para o template padrão aprovado (4 variáveis)
   return sendCloudApiTemplate(
     phone,
     config.templatePagamento,

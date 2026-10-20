@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
 import { readEnvValue } from '@/lib/envValue';
-import { extractAudioTracks } from '@/lib/db';
+import { extractAudioTracks, saveTask } from '@/lib/db';
+import { resolverSiteUrl } from '@/lib/siteUrl';
+import { updateOrder } from '@/lib/supabaseDb';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
@@ -17,6 +19,12 @@ export async function POST(req) {
   if (!kieApiKey) {
     return NextResponse.json({ error: 'Configuração ausente: KIE_API_KEY não definida no servidor.' }, { status: 500 });
   }
+
+  const siteUrl = resolverSiteUrl(readEnvValue(env, 'NEXT_PUBLIC_SITE_URL'));
+  const webhookSecret = readEnvValue(env, 'KIE_WEBHOOK_SECRET');
+  const callBackUrl = webhookSecret
+    ? `${siteUrl}/api/suno/webhook?secret=${encodeURIComponent(webhookSecret)}`
+    : `${siteUrl}/api/suno/webhook`;
 
   try {
     const body = await req.json();
@@ -37,7 +45,7 @@ export async function POST(req) {
         },
         body: JSON.stringify({
           model: 'ai-music-api/validation-phrase',
-          callBackUrl: 'https://nsmusic.nsnexus.com.br/api/suno/webhook',
+          callBackUrl: callBackUrl,
           input: {
             voice_url: voiceUrl,
             vocal_start_s: Number(vocalStart) || 0,
@@ -64,6 +72,7 @@ export async function POST(req) {
     if (action === 'create_voice') {
       const {
         phraseTaskId,
+        voiceUrl,
         verifyUrl,
         voiceName = 'Voz do Cliente',
         description = 'Voz personalizada',
@@ -82,7 +91,7 @@ export async function POST(req) {
       const inputPayload = {
         task_id: phraseTaskId || verifyPhraseId,
         verify_url: verifyUrl,
-        voice_url: verifyUrl,
+        voice_url: voiceUrl || verifyUrl,
         voice_name: voiceName,
         description: description,
         style: style
@@ -98,7 +107,7 @@ export async function POST(req) {
         },
         body: JSON.stringify({
           model: 'ai-music-api/create-voice',
-          callBackUrl: 'https://nsmusic.nsnexus.com.br/api/suno/webhook',
+          callBackUrl: callBackUrl,
           input: inputPayload
         }),
         signal: AbortSignal.timeout(15000)
@@ -119,6 +128,7 @@ export async function POST(req) {
     // 3. Gerar Canção com a Voz Criada (voiceId / personaId)
     if (action === 'generate_song') {
       const {
+        orderId,
         voiceId,
         accountId: clientAccountId,
         voiceRecordingId: clientVoiceRecordingId,
@@ -143,7 +153,7 @@ export async function POST(req) {
           const subRes = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${encodeURIComponent(tId)}`, {
             headers: {
               'Authorization': `Bearer ${kieApiKey}`,
-              'Content-Type': 'application/json'
+              'Accept': 'application/json'
             },
             signal: AbortSignal.timeout(6000)
           });
@@ -185,7 +195,7 @@ export async function POST(req) {
         model: 'V6',
         style: style,
         title: title.substring(0, 80),
-        callBackUrl: 'https://nsmusic.nsnexus.com.br/api/suno/webhook',
+        callBackUrl: callBackUrl,
         personaId: effectivePersonaId,
         voiceId: effectivePersonaId,
         persona_id: effectivePersonaId,
@@ -222,6 +232,29 @@ export async function POST(req) {
       }
 
       const taskId = data?.data?.taskId || data?.data?.task_id || data?.taskId;
+
+      if (orderId && taskId) {
+        try {
+          await saveTask(taskId, 'PROCESSING', null, orderId, {
+            provider: 'kie',
+            customVoiceId: effectivePersonaId
+          }, env);
+
+          await updateOrder(orderId, {
+            productionStatus: 'GERANDO_AUDIO',
+            sunoTaskId: taskId,
+            sunoProvider: 'kie',
+            customVoiceId: effectivePersonaId,
+            isCustomVoice: true,
+            voiceType: 'minha_voz',
+            sunoRequestedAt: new Date().toISOString(),
+            sunoError: null
+          }, env);
+        } catch (dbErr) {
+          console.error('[voice/task] Erro ao registrar tarefa/pedido no banco:', dbErr.message);
+        }
+      }
+
       return NextResponse.json({ ok: true, taskId, raw: data });
     }
 
@@ -258,7 +291,7 @@ export async function GET(req) {
       const res = await fetch(`https://api.kie.ai/api/v1/generate/record-info?taskId=${encodeURIComponent(taskId)}`, {
         headers: {
           'Authorization': `Bearer ${kieApiKey}`,
-          'Content-Type': 'application/json'
+          'Accept': 'application/json'
         },
         signal: AbortSignal.timeout(10000)
       });
@@ -293,7 +326,7 @@ export async function GET(req) {
     const res = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${encodeURIComponent(taskId)}`, {
       headers: {
         'Authorization': `Bearer ${kieApiKey}`,
-        'Content-Type': 'application/json'
+        'Accept': 'application/json'
       },
       signal: AbortSignal.timeout(10000)
     });
@@ -417,7 +450,7 @@ export async function GET(req) {
         const subRes = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${encodeURIComponent(voiceId)}`, {
           headers: {
             'Authorization': `Bearer ${kieApiKey}`,
-            'Content-Type': 'application/json'
+            'Accept': 'application/json'
           },
           signal: AbortSignal.timeout(6000)
         });

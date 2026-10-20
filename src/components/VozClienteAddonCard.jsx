@@ -27,6 +27,7 @@ export default function VozClienteAddonCard({ orderId, order }) {
   const [etapaGravacao, setEtapaGravacao] = useState(1); // 1 = Amostra 20s, 2 = Validação, 3 = Gerando
   const [amostraBlob, setAmostraBlob] = useState(null);
   const [amostraUrl, setAmostraUrl] = useState('');
+  const [amostraR2Url, setAmostraR2Url] = useState('');
   const [fraseValidacao, setFraseValidacao] = useState('');
   const [phraseTaskId, setPhraseTaskId] = useState('');
   const [verificacaoBlob, setVerificacaoBlob] = useState(null);
@@ -159,7 +160,9 @@ export default function VozClienteAddonCard({ orderId, order }) {
       const upData = await upRes.json();
       if (!upRes.ok || !upData.url) throw new Error(upData.error || 'Falha no upload da amostra.');
 
+      setAmostraR2Url(upData.url);
       setStatusMsg('Gerando frase de segurança personalizada...');
+
       // 2. Solicita frase na Kie.ai
       const phraseRes = await fetch('/api/admin/voice/task', {
         method: 'POST',
@@ -186,12 +189,87 @@ export default function VozClienteAddonCard({ orderId, order }) {
         }
       }
 
-      setFraseValidacao(fraseObtida || 'Eu autorizo a criação da minha voz personalizada para minha música.');
+      const nomeCliente = order?.customerName || 'eu';
+      setFraseValidacao(fraseObtida || `Eu, ${nomeCliente}, autorizo o uso do meu timbre de voz para a criação de músicas personalizadas.`);
       setEtapaGravacao(2);
     } catch (err) {
       alert(`Erro: ${err.message}`);
     } finally {
       setProcessandoVoz(false);
+      setStatusMsg('');
+    }
+  };
+
+  // Dispara a regeração da música com a voz e faz polling até concluir
+  const iniciarGeracaoComVoz = async (targetVoiceId, optionalRecordingId = null) => {
+    if (!targetVoiceId) {
+      alert('Timbre de voz não encontrado. Por favor, grave a sua amostra.');
+      return;
+    }
+    setProcessandoVoz(true);
+    setStatusMsg('Iniciando composição com o seu timbre de voz...');
+
+    try {
+      const genRes = await fetch('/api/admin/voice/task', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'generate_song',
+          orderId: order?.id || orderId,
+          voiceId: targetVoiceId,
+          voiceRecordingId: optionalRecordingId || undefined,
+          prompt: order?.lyrics || '',
+          style: order?.musicStyle || 'Acoustic Pop',
+          title: `${order?.honoreeName || 'Música'} (Voz de ${order?.customerName || 'Cliente'})`
+        })
+      });
+      const gData = await genRes.json();
+      if (!genRes.ok || !gData.taskId) {
+        throw new Error(gData.error || 'Falha ao iniciar composição na IA.');
+      }
+
+      const songTaskId = gData.taskId;
+      setStatusMsg('A IA está compondo e cantando sua música com a sua voz... (leva de 1 a 2 minutos)');
+
+      let musicaUrl = '';
+      for (let i = 0; i < 40; i++) {
+        await new Promise(r => setTimeout(r, 4500));
+        const pRes = await fetch(`/api/admin/voice/task?taskId=${encodeURIComponent(songTaskId)}&type=generate`);
+        if (pRes.ok) {
+          const poll = await pRes.json();
+          if (poll.status === 'COMPLETED' && poll.tracks && poll.tracks.length > 0) {
+            musicaUrl = poll.tracks[0]?.audioUrl || poll.tracks[0]?.audio_url || poll.tracks[0];
+            break;
+          }
+          if (poll.status === 'FAILED') {
+            throw new Error('A IA não conseguiu concluir esta geração. Tente novamente.');
+          }
+        }
+
+        // Também confere se a order foi atualizada pelo webhook
+        if (i % 3 === 0 && (orderId || order?.id)) {
+          try {
+            const ordRes = await fetch(`/api/orders/lookup?id=${encodeURIComponent(order?.id || orderId)}`);
+            if (ordRes.ok) {
+              const ordData = await ordRes.json();
+              if (ordData.order?.audioUrl && ordData.order.sunoTaskId === songTaskId) {
+                musicaUrl = ordData.order.audioUrl;
+                break;
+              }
+            }
+          } catch (e) {}
+        }
+      }
+
+      if (musicaUrl) {
+        setMusicaGeradaUrl(musicaUrl);
+      }
+      setEtapaGravacao(3);
+    } catch (err) {
+      alert(`Erro ao gerar música com voz: ${err.message}`);
+    } finally {
+      setProcessandoVoz(false);
+      setStatusMsg('');
     }
   };
 
@@ -209,13 +287,14 @@ export default function VozClienteAddonCard({ orderId, order }) {
       const upData = await upRes.json();
       if (!upRes.ok || !upData.url) throw new Error(upData.error || 'Falha no upload da validação.');
 
-      // 2. Criação do perfil de voz
+      // 2. Criação do perfil de voz na Kie.ai
       const createRes = await fetch('/api/admin/voice/task', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'create_voice',
           phraseTaskId,
+          voiceUrl: amostraR2Url || amostraUrl,
           verifyUrl: upData.url,
           voiceName: order?.customerName || 'Cliente'
         })
@@ -226,13 +305,15 @@ export default function VozClienteAddonCard({ orderId, order }) {
       // 3. Polling da criação do Voice ID
       setStatusMsg('Finalizando seu modelo de voz...');
       let createdVoiceId = '';
-      for (let i = 0; i < 20; i++) {
+      let createdRecordId = '';
+      for (let i = 0; i < 25; i++) {
         await new Promise(r => setTimeout(r, 2500));
         const pRes = await fetch(`/api/admin/voice/task?taskId=${encodeURIComponent(cData.taskId)}&type=job`);
         if (pRes.ok) {
           const poll = await pRes.json();
           if (poll.voiceId || poll.personaId) {
             createdVoiceId = poll.voiceId || poll.personaId;
+            createdRecordId = poll.voiceRecordingId || '';
             break;
           }
         }
@@ -249,34 +330,25 @@ export default function VozClienteAddonCard({ orderId, order }) {
           phone: customerPhone,
           customerName: order?.customerName || 'Cliente',
           voiceId: finalVoiceId,
-          sampleAudioUrl: amostraUrl,
+          voiceRecordingId: createdRecordId,
+          sampleAudioUrl: amostraR2Url || upData.url,
           verifyAudioUrl: upData.url
         })
       });
 
-      // 5. Inicia a regeração da música com a nova voz
-      setStatusMsg('Regerando sua música cantada com a sua voz...');
-      const genRes = await fetch('/api/admin/voice/task', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'generate_song',
-          voiceId: finalVoiceId,
-          prompt: order?.lyrics || '',
-          style: order?.musicStyle || 'Acoustic Pop',
-          title: `${order?.honoreeName || 'Música'} (Voz de ${order?.customerName || 'Cliente'})`
-        })
+      setCustomVoiceData({
+        voiceId: finalVoiceId,
+        voiceRecordingId: createdRecordId,
+        customerName: order?.customerName || 'Cliente'
       });
-      const gData = await genRes.json();
-      if (gData.tracks && gData.tracks.length > 0) {
-        setMusicaGeradaUrl(gData.tracks[0]);
-      }
 
-      setEtapaGravacao(3);
+      // 5. Inicia a regeração da música com a nova voz
+      await iniciarGeracaoComVoz(finalVoiceId, createdRecordId);
     } catch (err) {
       alert(`Erro: ${err.message}`);
     } finally {
       setProcessandoVoz(false);
+      setStatusMsg('');
     }
   };
 
@@ -371,32 +443,73 @@ export default function VozClienteAddonCard({ orderId, order }) {
           ) : (
             <div>
               {customVoiceData ? (
-                <p style={{ fontSize: '0.85rem', color: '#d4d4d8', marginBottom: '16px' }}>
-                  Encontramos seu timbre <strong>{customVoiceData.customerName}</strong> associado a este número.
-                </p>
+                <div style={{ marginBottom: '8px' }}>
+                  <p style={{ fontSize: '0.88rem', color: '#92400e', marginBottom: '14px', lineHeight: 1.4 }}>
+                    Identificamos o seu timbre de voz salvo (<strong>{customVoiceData.customerName}</strong>).
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxWidth: '340px', margin: '0 auto' }}>
+                    <button
+                      type="button"
+                      onClick={() => iniciarGeracaoComVoz(customVoiceData.voiceId, customVoiceData.voiceRecordingId)}
+                      disabled={processandoVoz}
+                      style={{
+                        background: 'linear-gradient(135deg, #10b981, #059669)',
+                        color: '#fff',
+                        border: 'none',
+                        padding: '14px 20px',
+                        borderRadius: '12px',
+                        fontWeight: '800',
+                        fontSize: '0.95rem',
+                        cursor: processandoVoz ? 'not-allowed' : 'pointer',
+                        boxShadow: '0 4px 15px rgba(16, 185, 129, 0.4)'
+                      }}
+                    >
+                      {processandoVoz ? statusMsg : '🎙️ Regerar Música com Minha Voz Salva'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setEtapaGravacao(1); setModalAberto(true); }}
+                      disabled={processandoVoz}
+                      style={{
+                        background: 'transparent',
+                        color: '#b45309',
+                        border: '1.5px solid #d97706',
+                        padding: '10px 18px',
+                        borderRadius: '12px',
+                        fontWeight: '700',
+                        fontSize: '0.85rem',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      🔄 Gravar Novamente / Trocar Amostra
+                    </button>
+                  </div>
+                </div>
               ) : (
-                <p style={{ fontSize: '0.85rem', color: '#d4d4d8', marginBottom: '16px' }}>
-                  Grave uma amostra rápida de 20 segundos para a IA clonar o seu tom de voz.
-                </p>
-              )}
+                <div>
+                  <p style={{ fontSize: '0.85rem', color: '#92400e', marginBottom: '16px' }}>
+                    Grave uma amostra rápida de 20 segundos para a IA clonar o seu tom de voz.
+                  </p>
 
-              <button
-                type="button"
-                onClick={() => setModalAberto(true)}
-                style={{
-                  background: 'linear-gradient(135deg, #f59e0b, #d97706)',
-                  color: '#000',
-                  border: 'none',
-                  padding: '12px 24px',
-                  borderRadius: '12px',
-                  fontWeight: '800',
-                  fontSize: '0.95rem',
-                  cursor: 'pointer',
-                  boxShadow: '0 4px 15px rgba(245, 158, 11, 0.4)'
-                }}
-              >
-                🎤 {customVoiceData ? 'Gerar com Minha Voz / Regravar' : 'Gravar Minha Voz Agora'}
-              </button>
+                  <button
+                    type="button"
+                    onClick={() => { setEtapaGravacao(1); setModalAberto(true); }}
+                    style={{
+                      background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                      color: '#000',
+                      border: 'none',
+                      padding: '12px 24px',
+                      borderRadius: '12px',
+                      fontWeight: '800',
+                      fontSize: '0.95rem',
+                      cursor: 'pointer',
+                      boxShadow: '0 4px 15px rgba(245, 158, 11, 0.4)'
+                    }}
+                  >
+                    🎤 Gravar Minha Voz Agora
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
