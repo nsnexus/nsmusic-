@@ -121,7 +121,9 @@ export default function CriarMusica() {
     }
     trackGooglePurchase({ orderId: idToUse, value: getTotalPrice() });
     setPixInfo(prev => ({ ...prev, status: 'approved' }));
-    window.location.href = `/entrega?orderId=${idToUse}&justPaid=1`;
+    setTimeout(() => {
+      window.location.href = `/entrega?orderId=${idToUse}&justPaid=1`;
+    }, 450);
   };
 
   // Estados do Checkout Transparente

@@ -37,11 +37,24 @@ function normalizeEmailForMatching(email) {
 
 /**
  * Envia um evento de CompletePayment (Purchase) para a Events API do TikTok.
- * @param {{orderId: string, value: number, contentName: string, sku?: string, customerPhone?: string, customerEmail?: string}} params
+ * @param {{orderId: string, value: number, contentName: string, sku?: string, eventId?: string, customerPhone?: string, customerEmail?: string, ttclid?: string, ttp?: string, ip?: string, userAgent?: string, eventTime?: number}} params
  * @param {object} env contexto de ambiente resolvido pela rota chamadora (Cloudflare Pages)
  * @returns {Promise<{sent: boolean, reason?: string}>}
  */
-export async function sendTikTokPurchaseEvent({ orderId, value, contentName, sku, eventId: customEventId, customerPhone, customerEmail }, env) {
+export async function sendTikTokPurchaseEvent({
+  orderId,
+  value,
+  contentName,
+  sku,
+  eventId: customEventId,
+  customerPhone,
+  customerEmail,
+  ttclid,
+  ttp,
+  ip,
+  userAgent,
+  eventTime: customEventTime,
+}, env) {
   const accessToken = readEnvValue(env, 'TIKTOK_EVENTS_API_ACCESS_TOKEN');
   if (!accessToken) {
     console.warn('[tiktok-capi] TIKTOK_EVENTS_API_ACCESS_TOKEN não configurado — evento de CompletePayment não enviado.');
@@ -70,10 +83,30 @@ export async function sendTikTokPurchaseEvent({ orderId, value, contentName, sku
     if (hashedExtId) userData.external_id = hashedExtId;
   }
 
+  // Parâmetros de identificação avançada e clique (essenciais para atribuição direta no TikTok Ads)
+  if (ttclid && typeof ttclid === 'string' && ttclid.trim()) {
+    userData.ttclid = ttclid.trim();
+  }
+
+  if (ttp && typeof ttp === 'string' && ttp.trim()) {
+    userData.ttp = ttp.trim();
+  }
+
+  if (ip && typeof ip === 'string' && ip.trim()) {
+    userData.ip = ip.trim();
+  }
+
+  if (userAgent && typeof userAgent === 'string' && userAgent.trim()) {
+    userData.user_agent = userAgent.trim();
+  }
+
   // Deduplicação estável por pedido e item — mesmo padrão do Pixel do navegador
   const eventId = customEventId || `purchase_${orderId}_${(sku || contentName || 'audio').replace(/\s+/g, '_').toLowerCase()}`;
   const siteUrl = resolverSiteUrl(readEnvValue(env, 'NEXT_PUBLIC_SITE_URL'));
   const eventSourceUrl = `${siteUrl}/entrega?id=${encodeURIComponent(orderId)}`;
+  const effectiveEventTime = typeof customEventTime === 'number' && customEventTime > 0
+    ? Math.floor(customEventTime)
+    : Math.floor(Date.now() / 1000);
 
   const payload = {
     event_source: 'web',
@@ -81,7 +114,7 @@ export async function sendTikTokPurchaseEvent({ orderId, value, contentName, sku
     data: [
       {
         event: 'CompletePayment',
-        event_time: Math.floor(Date.now() / 1000),
+        event_time: effectiveEventTime,
         event_id: eventId,
         user: userData,
         properties: {

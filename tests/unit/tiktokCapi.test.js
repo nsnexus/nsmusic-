@@ -72,4 +72,42 @@ describe('tiktokCapi (TikTok Events API)', () => {
     expect(body.data[0].user.email).toBeDefined();
     expect(body.data[0].user.external_id).toBeDefined();
   });
+
+  it('inclui ttclid, ttp, ip, userAgent e eventTime no payload do TikTok Events API', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ code: 0, message: 'OK' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await sendTikTokPurchaseEvent(
+      {
+        orderId: 'ord-ttclid-1',
+        value: 9.99,
+        contentName: 'Música',
+        sku: 'audio_only',
+        customerPhone: '(11) 98765-4321',
+        ttclid: 'E_C_P_test_click_id_123',
+        ttp: 'test_ttp_cookie_val',
+        ip: '189.10.20.30',
+        userAgent: 'Mozilla/5.0 TestBrowser',
+        eventTime: 1774100000,
+      },
+      {
+        TIKTOK_EVENTS_API_ACCESS_TOKEN: 'test_token',
+        NEXT_PUBLIC_SITE_URL: 'https://nsmusic.ia.br',
+      }
+    );
+
+    expect(result).toEqual({ sent: true });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    const [, options] = fetchMock.mock.calls[0];
+    const body = JSON.parse(options.body);
+    expect(body.data[0].event_time).toBe(1774100000);
+    expect(body.data[0].user.ttclid).toBe('E_C_P_test_click_id_123');
+    expect(body.data[0].user.ttp).toBe('test_ttp_cookie_val');
+    expect(body.data[0].user.ip).toBe('189.10.20.30');
+    expect(body.data[0].user.user_agent).toBe('Mozilla/5.0 TestBrowser');
+  });
 });
