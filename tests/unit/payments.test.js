@@ -275,11 +275,15 @@ describe('applyPaymentApproval', () => {
     await applyPaymentApproval('order12_on', '1212_on', { status: 'approved', transaction_amount: 9.99 });
 
     expect(sendPaymentApprovedTemplateMock).toHaveBeenCalledTimes(1);
-    expect(sendPaymentApprovedTemplateMock).toHaveBeenCalledWith('5511999999999', expect.objectContaining({
-      customerName: 'Maria',
-      honoreeName: 'Vovó Lúcia',
-      audioUrls: ['https://cdn1.suno.ai/a.mp3', 'https://cdn1.suno.ai/b.mp3'],
-    }));
+    expect(sendPaymentApprovedTemplateMock).toHaveBeenCalledWith(
+      '5511999999999',
+      expect.objectContaining({
+        customerName: 'Maria',
+        honoreeName: 'Vovó Lúcia',
+        audioUrls: ['https://cdn1.suno.ai/a.mp3', 'https://cdn1.suno.ai/b.mp3'],
+      }),
+      expect.anything()
+    );
     expect(store['order12_on'].paymentWhatsappSent).toBe(true);
   });
 

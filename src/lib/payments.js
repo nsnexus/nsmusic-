@@ -704,8 +704,8 @@ export async function notifyPaymentApproved(orderRefOrId, orderData, opts = {}, 
       deliveryUrl,
       audioUrls: (mergedData.audioFiles?.length ? mergedData.audioFiles : [mergedData.audioUrl]).filter(Boolean),
       hasVideoAccess: isVideoPurchased(mergedData),
-      orderData: mergedData,
-    });
+      orderData: { ...mergedData, id: orderId },
+    }, env);
 
     // Finaliza a flag de sending
     await updateOrder(orderId, {

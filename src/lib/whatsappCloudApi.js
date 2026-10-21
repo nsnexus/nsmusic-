@@ -40,7 +40,7 @@ export function getCloudApiConfig(env = {}) {
     // template for recriado com outro nome (acontece: reprovação da Meta obriga a refazer).
     templateMusicaPronta: ler('WHATSAPP_TEMPLATE_MUSICA') || 'aviso_musica_pronta',
     templateMusicaProntaVideo: ler('WHATSAPP_TEMPLATE_MUSICA_VIDEO') || 'previa_musica_com_video',
-    templatePagamento: ler('WHATSAPP_TEMPLATE_PAGAMENTO') || 'confirmacao_pagamento',
+    templatePagamento: ler('WHATSAPP_TEMPLATE_PAGAMENTO') || 'confirmacao_pagamento_v2',
     templatePagamentoDownloads: ler('WHATSAPP_TEMPLATE_PAGAMENTO_DOWNLOADS') || 'confirmacao_pagamento_downloads',
     templatePagamentoV2: ler('WHATSAPP_TEMPLATE_PAGAMENTO_V2') || 'confirmacao_pagamento_v2',
     enabled: Boolean(token && phoneNumberId),
@@ -132,11 +132,10 @@ export async function sendCloudApiTemplate(phone, templateName, variaveis = [], 
       return { success: true, provider: 'cloud_api', phoneUsed: numero };
     }
 
-    // Se falhou por causa do botão dinâmico (ex: template cadastrado sem botão dinâmico na Meta),
-    // tenta reenviar apenas com o body:
-    if (!res.ok && buttonParam) {
-      console.warn('[CloudAPI] Falha com componente de botão, tentando envio direto só com body...', data?.error?.message);
-      return sendCloudApiTemplate(phone, templateName, variaveis, {}, env);
+    // Se falhou por causa do componente de botão, tenta reenviar mantendo o header (se houver) e apenas com body:
+    if (!res.ok && (buttonParam || (Array.isArray(buttonParams) && buttonParams.length > 0))) {
+      console.warn('[CloudAPI] Falha com componente de botão, tentando envio sem botões...', data?.error?.message);
+      return sendCloudApiTemplate(phone, templateName, variaveis, { headerImageUrl, headerVideoUrl }, env);
     }
 
     // Fallback bidirecional de parâmetros para compatibilidade com o template na Meta:
@@ -222,14 +221,17 @@ export async function enviarPagamentoConfirmadoCloud(phone, { cliente, homenagea
   const linkSuporte = `https://wa.me/${numSuporte}`;
 
   const resolvedOrderId = orderId || (link ? link.match(/orderId=([^&]+)/)?.[1] : '') || '';
+  const nomeCliente = cliente || 'Cliente';
+  const nomeHomenageado = homenageado || 'alguém especial';
+  const resolvedLink = link || (resolvedOrderId ? `https://nsmusic.nsnexus.com.br/entrega?orderId=${resolvedOrderId}` : 'https://nsmusic.nsnexus.com.br');
 
-  // 1. Tenta o novo template com banner oficial e botões de download direto (v2)
+  // 1. Modelo oficial confirmacao_pagamento_v2 (Banner oficial no header + botões de download direto)
   if (resolvedOrderId) {
     const bannerUrl = 'https://nsmusic.nsnexus.com.br/banner-whatsapp.jpg';
     const resV2 = await sendCloudApiTemplate(
       phone,
       config.templatePagamentoV2,
-      [cliente, homenageado, link],
+      [nomeCliente, nomeHomenageado, resolvedLink],
       {
         headerImageUrl: bannerUrl,
         buttonParams: [resolvedOrderId, resolvedOrderId],
@@ -237,7 +239,7 @@ export async function enviarPagamentoConfirmadoCloud(phone, { cliente, homenagea
       env
     );
     if (resV2.success) return resV2;
-    console.warn('[CloudAPI] Template v2 de pagamento falhou ou ainda em análise, tentando template legado...', resV2.error);
+    console.warn('[CloudAPI] Template confirmacao_pagamento_v2 falhou, tentando template legado...', resV2.error);
   }
 
   // 2. Se os links de download direto estiverem disponíveis, tenta o template legado com downloads no texto
@@ -245,7 +247,7 @@ export async function enviarPagamentoConfirmadoCloud(phone, { cliente, homenagea
     const resDownloads = await sendCloudApiTemplate(
       phone,
       config.templatePagamentoDownloads,
-      [cliente, homenageado, audio1, audio2, link, linkSuporte],
+      [nomeCliente, nomeHomenageado, audio1, audio2, resolvedLink, linkSuporte],
       {},
       env
     );
@@ -253,11 +255,11 @@ export async function enviarPagamentoConfirmadoCloud(phone, { cliente, homenagea
     console.warn('[CloudAPI] Falha no template com downloads no texto, tentando template padrão...', resDownloads.error);
   }
 
-  // 3. Fallback para o template padrão aprovado (4 variáveis)
+  // 3. Fallback para o template padrão aprovado
   return sendCloudApiTemplate(
     phone,
     config.templatePagamento,
-    [cliente, homenageado, link, linkSuporte],
+    [nomeCliente, nomeHomenageado, resolvedLink, linkSuporte],
     {},
     env
   );
