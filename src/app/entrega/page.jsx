@@ -69,6 +69,8 @@ function EntregaContent() {
   const searchParams = useSearchParams();
   const orderId = searchParams.get('orderId') || searchParams.get('id');
   const promo = searchParams.get('promo');
+  const stripeSessionId = searchParams.get('session_id');
+  const paidParam = searchParams.get('paid');
 
   const [loading, setLoading] = useState(true);
   const [order, setOrder] = useState(null);
@@ -256,6 +258,32 @@ function EntregaContent() {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Ao retornar do checkout da Stripe (Cartão), consulta e aprova imediatamente
+  useEffect(() => {
+    if (orderId && (stripeSessionId || paidParam === 'stripe')) {
+      const verifyStripe = async () => {
+        try {
+          const pid = stripeSessionId || order?.paymentIntentId;
+          const url = pid
+            ? `/api/payments/status?orderId=${encodeURIComponent(orderId)}&paymentId=${encodeURIComponent(pid)}`
+            : `/api/payments/status?orderId=${encodeURIComponent(orderId)}`;
+          const res = await fetch(url);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.status === 'approved' || data.status === 'PAGO' || data.status === 'PAGAMENTO_APROVADO') {
+              setIsPaidState(true);
+              setOrder((prev) => (prev ? { ...prev, paymentStatus: 'PAGAMENTO_APROVADO' } : prev));
+            }
+          }
+        } catch (e) {
+          console.warn('[entrega] Erro ao verificar retorno da Stripe:', e);
+        }
+      };
+      verifyStripe();
+    }
+  }, [orderId, stripeSessionId, paidParam, order?.paymentIntentId]);
+
 
   // Recupera videoPixInfo do localStorage ao carregar (idempotência ao recarregar página)
   useEffect(() => {

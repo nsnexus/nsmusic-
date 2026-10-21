@@ -74,11 +74,27 @@ export async function GET(req) {
       }
     }
 
-    // txid da cobrança Efí: vem do parâmetro paymentId (fluxo normal) ou, na ausência dele, do que
-    // foi persistido em /api/payments/create (paymentIntentId).
+    // txid da cobrança Efí ou ID da sessão Stripe (cs_...)
     const txid = paymentId || orderData?.paymentIntentId;
     if (!txid) {
       return jsonNoCache({ status: "pending", error: "Missing parameters" }, 400);
+    }
+
+    // Verificação de cobrança via Stripe Checkout (sessões começam com cs_)
+    if (String(txid).startsWith('cs_')) {
+      try {
+        const { retrieveStripeCheckoutSession } = await import('@/lib/stripe');
+        const session = await retrieveStripeCheckoutSession(txid, env);
+        if (session && session.payment_status === 'paid' && orderId) {
+          const transactionAmount = (session.amount_total || 0) / 100;
+          await applyPaymentApproval(orderId, session.id, { status: 'approved', transaction_amount: transactionAmount }, env);
+          return jsonNoCache({ status: "approved" });
+        }
+        return jsonNoCache({ status: "pending" });
+      } catch (err) {
+        console.warn("[PaymentStatus] Erro ao consultar sessão Stripe:", err?.message);
+        return jsonNoCache({ status: "pending" });
+      }
     }
 
     let charge;

@@ -129,6 +129,7 @@ export default function CriarMusica() {
   // Estados do Checkout Transparente
   const [pixInfo, setPixInfo] = useState(null);
   const [isGeneratingPix, setIsGeneratingPix] = useState(false);
+  const [isPayingCard, setIsPayingCard] = useState(false);
   const [pixCopied, setPixCopied] = useState(false);
 
   const [pixPollingCount, setPixPollingCount] = useState(0);
@@ -268,6 +269,64 @@ export default function CriarMusica() {
   }, []);
 
   const [paymentErrorMessage, setPaymentErrorMessage] = useState('');
+
+  const handlePayWithCard = async () => {
+    if (isPayingCard || isGeneratingPix) return;
+    setIsPayingCard(true);
+    setPaymentErrorMessage('');
+    try {
+      if (orderId) {
+        try {
+          await fetch('/api/orders/client-update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              orderId,
+              total: getTotalPrice(),
+              package: formData.selectedPackage,
+            }),
+          });
+        } catch (e) {
+          console.warn(e);
+        }
+      }
+
+      const sku = formData.addons?.wantsVideo ? 'combo' : 'audio_only';
+      const res = await fetch('/api/payments/stripe/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId, sku }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.checkoutUrl) {
+        throw new Error(data?.error || 'Não foi possível iniciar o pagamento com cartão.');
+      }
+
+      if (typeof window !== 'undefined' && window.fbq) {
+        pushAdvancedMatching(formData.customerPhone, formData.customerEmail);
+        window.fbq('track', 'InitiateCheckout', { value: getTotalPrice(), currency: 'BRL' });
+      }
+
+      identifyTikTok(formData.customerPhone, formData.customerEmail, orderId);
+      trackTikTok('InitiateCheckout', {
+        contents: [
+          {
+            content_id: sku || 'audio_only',
+            content_type: 'product',
+            content_name: 'Música Personalizada com IA',
+          },
+        ],
+        value: getTotalPrice(),
+        currency: 'BRL',
+      });
+
+      window.location.href = data.checkoutUrl;
+    } catch (err) {
+      console.error(err);
+      setPaymentErrorMessage(err?.message || 'Falha ao conectar com o serviço de cartão. Tente novamente.');
+      setIsPayingCard(false);
+    }
+  };
   const [phoneVerifyStatus, setPhoneVerifyStatus] = useState('idle'); // 'idle' | 'valid' | 'invalid'
   const [phoneVerifyMessage, setPhoneVerifyMessage] = useState('');
   const [recognizedVoice, setRecognizedVoice] = useState(null);
@@ -2460,13 +2519,14 @@ export default function CriarMusica() {
                   </div>
                 </div>
 
-                {/* Área de Pagamento PIX Transparente */}
+                {/* Área de Pagamento PIX e Cartão Transparente */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '6px' }}>
                     {!pixInfo ? (
-                      <button
-                        type="button"
-                        disabled={isGeneratingPix}
-                        onClick={async () => {
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        <button
+                          type="button"
+                          disabled={isGeneratingPix || isPayingCard}
+                          onClick={async () => {
                           setIsGeneratingPix(true);
                           setPaymentErrorMessage('');
                           try {
@@ -2542,9 +2602,33 @@ export default function CriarMusica() {
                         className="btn btn-primary"
                         style={{ padding: '16px', fontSize: '1.05rem', fontWeight: '800', borderRadius: '14px', background: 'linear-gradient(135deg, #059669 0%, #047857 100%)', boxShadow: '0 4px 16px rgba(5, 150, 105, 0.3)' }}
                       >
-                        {isGeneratingPix ? '⏳ Gerando PIX...' : `⚡ Gerar QR Code do PIX (R$ ${getTotalPrice().toFixed(2).replace('.', ',')})`}
+                        {isGeneratingPix ? '⏳ Gerando PIX...' : `⚡ Pagar com PIX (R$ ${getTotalPrice().toFixed(2).replace('.', ',')})`}
                       </button>
-                    ) : (
+
+                      <button
+                        type="button"
+                        disabled={isGeneratingPix || isPayingCard}
+                        onClick={handlePayWithCard}
+                        style={{
+                          padding: '16px',
+                          fontSize: '1.05rem',
+                          fontWeight: '800',
+                          borderRadius: '14px',
+                          background: '#ffffff',
+                          color: '#1e293b',
+                          border: '1.5px solid #cbd5e1',
+                          cursor: (isGeneratingPix || isPayingCard) ? 'default' : 'pointer',
+                          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '8px'
+                        }}
+                      >
+                        {isPayingCard ? '⏳ Abrindo Checkout Seguro...' : `💳 Pagar com Cartão de Crédito (R$ ${getTotalPrice().toFixed(2).replace('.', ',')})`}
+                      </button>
+                    </div>
+                  ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', background: '#f8fafc', padding: '24px 20px', borderRadius: '20px', border: '1.5px solid #e2e8f0', maxWidth: '100%' }}>
                         <span style={{ fontSize: '0.88rem', color: '#059669', fontWeight: '800', backgroundColor: '#ecfdf5', padding: '4px 14px', borderRadius: '999px', border: '1px solid #a7f3d0' }}>
                           ✅ QR Code PIX Gerado com Sucesso!
@@ -2715,6 +2799,27 @@ export default function CriarMusica() {
                         >
                           ⚡ Já Fiz o Pagamento / Validar Agora
                         </button>
+
+                        <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #e2e8f0', width: '100%', textAlign: 'center' }}>
+                          <span style={{ fontSize: '0.84rem', color: '#64748b' }}>Prefere pagar no Cartão de Crédito? </span>
+                          <button
+                            type="button"
+                            onClick={handlePayWithCard}
+                            disabled={isPayingCard}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: '#67408b',
+                              fontWeight: '700',
+                              fontSize: '0.86rem',
+                              textDecoration: 'underline',
+                              cursor: isPayingCard ? 'default' : 'pointer',
+                              padding: '2px 4px',
+                            }}
+                          >
+                            {isPayingCard ? 'Abrindo Cartão...' : 'Clique aqui para pagar no Cartão 💳'}
+                          </button>
+                        </div>
 
                         <p style={{ fontSize: '0.84rem', color: '#64748b', marginTop: '6px', textAlign: 'center', lineHeight: 1.4 }}>
                           A liberação é automática assim que o pagamento for confirmado. Não precisa enviar comprovante.

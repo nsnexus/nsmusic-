@@ -61,6 +61,7 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
   const [checking, setChecking] = useState(false);
   const [balance, setBalance] = useState(null);
   const [needsClaim, setNeedsClaim] = useState(false);
+  const [payingCard, setPayingCard] = useState(false);
   const busyRef = useRef(false);
   const panel = useRef(null);
   const attempts = useRef(0);
@@ -146,6 +147,32 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
       setMessage('Falha de conexão. Sua música está salva; tente consultar novamente.');
     } finally {
       setChecking(false);
+    }
+  };
+
+  const payWithCard = async () => {
+    if (busyRef.current || payingCard) return;
+    busyRef.current = true;
+    setPayingCard(true);
+    setError('');
+    try {
+      const res = await fetch('/api/payments/stripe/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId,
+          sku: pack.sku,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.checkoutUrl) {
+        throw new Error(data?.error || 'Não foi possível iniciar o pagamento com cartão.');
+      }
+      window.location.href = data.checkoutUrl;
+    } catch (err) {
+      setError(err?.message || 'Falha ao conectar com o serviço de pagamento com cartão.');
+      setPayingCard(false);
+      busyRef.current = false;
     }
   };
 
@@ -478,26 +505,49 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
           </p>
         </div>
 
-        <button
-          type="button"
-          className="nx-button nx-primary"
-          disabled={busy}
-          onClick={generate}
-          style={{
-            padding: '14px 28px',
-            fontSize: '1rem',
-            fontWeight: '700',
-            borderRadius: '12px',
-            background: 'var(--nx-purple, #67408b)',
-            color: '#ffffff',
-            border: 'none',
-            cursor: busy ? 'default' : 'pointer',
-            boxShadow: '0 4px 14px rgba(103, 64, 139, 0.25)',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {busy ? 'Preparando seu PIX…' : (<><span style={{ marginRight: '6px' }}>Adquirir meu presente</span><ArrowRight size={18} aria-hidden="true" /></>)}
-        </button>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className="nx-button nx-primary"
+            disabled={busy || payingCard}
+            onClick={generate}
+            style={{
+              padding: '14px 22px',
+              fontSize: '0.98rem',
+              fontWeight: '700',
+              borderRadius: '12px',
+              background: 'var(--nx-purple, #67408b)',
+              color: '#ffffff',
+              border: 'none',
+              cursor: (busy || payingCard) ? 'default' : 'pointer',
+              boxShadow: '0 4px 14px rgba(103, 64, 139, 0.25)',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {busy ? 'Preparando seu PIX…' : (<><span style={{ marginRight: '6px' }}>Adquirir meu presente (PIX)</span><ArrowRight size={18} aria-hidden="true" /></>)}
+          </button>
+
+          <button
+            type="button"
+            className="nx-button"
+            disabled={busy || payingCard}
+            onClick={payWithCard}
+            style={{
+              padding: '14px 20px',
+              fontSize: '0.98rem',
+              fontWeight: '700',
+              borderRadius: '12px',
+              background: '#ffffff',
+              color: '#29232d',
+              border: '1.5px solid #cbd5e1',
+              cursor: (busy || payingCard) ? 'default' : 'pointer',
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {payingCard ? 'Abrindo Cartão…' : '💳 Pagar no Cartão'}
+          </button>
+        </div>
       </div>
 
       {!recovery && !pix && (
@@ -661,6 +711,27 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
                   <PixQrCode payload={pix.qrCode} size={180} />
                 </div>
               </details>
+
+              <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px solid #e7d5df', textAlign: 'center' }}>
+                <span style={{ fontSize: '0.84rem', color: '#6c636f' }}>Prefere pagar com Cartão de Crédito? </span>
+                <button
+                  type="button"
+                  onClick={payWithCard}
+                  disabled={payingCard || busy}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#67408b',
+                    fontWeight: '700',
+                    fontSize: '0.85rem',
+                    textDecoration: 'underline',
+                    cursor: (payingCard || busy) ? 'default' : 'pointer',
+                    padding: '2px 4px',
+                  }}
+                >
+                  {payingCard ? 'Abrindo Cartão…' : 'Clique aqui para pagar no Cartão 💳'}
+                </button>
+              </div>
 
               {pix.provider === 'static' && (
                 <div style={{ marginTop: '16px' }}>
