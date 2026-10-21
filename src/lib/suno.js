@@ -368,24 +368,11 @@ async function gerarPelaKie({ orderId, prompt, tags }, env) {
       const order = await getOrder(orderId, env);
       const vId = order?.customVoiceId || order?.extras?.customVoiceId;
       if (vId && (order?.isCustomVoice || order?.voiceType === 'minha_voz' || order?.extras?.isCustomVoice)) {
-        const vAcc = order?.customVoiceAccountId || order?.extras?.accountId || order?.extras?.customVoiceAccountId || '70147233';
-        const vRec = order?.customVoiceRecordId || order?.extras?.voiceRecordingId || order?.extras?.customVoiceRecordId || 'b4fa71e2-b681-4b1c-97f7-812a9ed0effa';
         voicePayload = {
-          personaId: vId,
-          personaTaskId: vId,
-          voiceId: vId,
           persona_id: vId,
+          personaId: vId,
           persona_model: 'voice_persona',
           personaModel: 'voice_persona',
-          account_id: String(vAcc),
-          accountId: String(vAcc),
-          suno_user_id: String(vAcc),
-          persona_voice_user_id: Number(vAcc) || String(vAcc),
-          voice_record: String(vRec),
-          voice_record_id: String(vRec),
-          voice_recording_id: String(vRec),
-          voiceRecord: String(vRec),
-          voiceRecordingId: String(vRec),
         };
       }
     } catch (e) {

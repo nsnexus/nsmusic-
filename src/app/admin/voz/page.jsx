@@ -532,8 +532,6 @@ Com você ao meu lado eu sei onde quero estar`
         body: JSON.stringify({
           action: 'generate_song',
           voiceId: voiceId,
-          accountId: accountId || '70147233',
-          voiceRecordingId: voiceRecordingId || 'b4fa71e2-b681-4b1c-97f7-812a9ed0effa',
           phraseTaskId: phraseTaskId,
           prompt: letraMusica,
           style: estiloMusical,

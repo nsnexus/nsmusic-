@@ -219,7 +219,7 @@ export default function VozClienteAddonCard({ orderId, order }) {
           action: 'generate_song',
           orderId: order?.id || orderId,
           voiceId: targetVoiceId,
-          voiceRecordingId: optionalRecordingId || undefined,
+          phraseTaskId: phraseTaskId || undefined,
           prompt: order?.lyrics || '',
           style: order?.musicStyle || 'Acoustic Pop',
           title: `${order?.honoreeName || 'Música'} (Voz de ${order?.customerName || 'Cliente'})`
@@ -321,7 +321,7 @@ export default function VozClienteAddonCard({ orderId, order }) {
         }
       }
 
-      const finalVoiceId = createdVoiceId || cData.taskId;
+      const finalVoiceId = createdVoiceId || phraseTaskId || cData.taskId;
 
       // 4. Salva a voz no Supabase associando ao telefone do cliente
       await fetch('/api/admin/voice/customers', {
