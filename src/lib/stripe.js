@@ -1,6 +1,7 @@
 /**
  * Utilitários Stripe para Edge Runtime (Cloudflare Pages).
  * Comunicação direta via fetch com a Stripe REST API (zero dependências Node.js).
+ * Suporte a Webhooks com assinatura HMAC-SHA256 (STRIPE_WEBHOOK_SECRET).
  */
 
 import { getPriceForSku } from './pricing.js';
