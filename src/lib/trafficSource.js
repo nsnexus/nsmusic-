@@ -4,6 +4,7 @@
 
 import { getPriceForSku, SKU_PRICES } from './pricing.js';
 import { hasMusicaGerada } from './stats.js';
+import { isStripePayment, calculateStripeFee } from './paymentFees.js';
 
 export { hasMusicaGerada };
 
@@ -367,56 +368,74 @@ export function calcularFaturamentoPedido(o, diaFiltro = null, mesReferencia = n
 
   const musicaPaga = o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'PAGO';
   if (musicaPaga && dataCorrespondeAoDia(o.paidAt || o.createdAt, diaFiltro, mesReferencia)) {
+    let valor = 9.99;
     if (o.paidAmount !== null && o.paidAmount !== undefined && o.paidAmount !== '') {
       const v = Number(o.paidAmount);
-      if (Number.isFinite(v) && v > 0) {
-        total += v;
-      } else {
-        total += 9.99;
-      }
+      if (Number.isFinite(v) && v > 0) valor = v;
     } else {
       const porSku = getPriceForSku(o.paymentIntentSku);
-      if (porSku !== null && o.paymentIntentSku !== 'impacto') {
-        total += porSku;
-      } else {
-        total += 9.99;
-      }
+      if (porSku !== null && o.paymentIntentSku !== 'impacto') valor = porSku;
     }
+
+    if (isStripePayment(o)) {
+      valor = Math.max(0, valor - calculateStripeFee(valor));
+    }
+    total += valor;
   }
 
   // Add-ons comprados SEPARADAMENTE (com id de transação próprio para não duplicar combo)
   if (o.videoPaymentId && (o.hasVideoAccess || o.videoAddonPaid)) {
     if (dataCorrespondeAoDia(o.videoPaidAt || o.paidAt || o.createdAt, diaFiltro, mesReferencia)) {
       const v = Number(o.videoPaidAmount);
-      total += (Number.isFinite(v) && v > 0) ? v : 6.90;
+      let valor = (Number.isFinite(v) && v > 0) ? v : 6.90;
+      if (isStripePayment(o.videoPaymentId)) {
+        valor = Math.max(0, valor - calculateStripeFee(valor));
+      }
+      total += valor;
     }
   }
   if (o.cartaPaymentId && (o.hasCartaAccess || o.cartaAddonPaid)) {
     if (dataCorrespondeAoDia(o.cartaPaidAt || o.paidAt || o.createdAt, diaFiltro, mesReferencia)) {
       const v = Number(o.cartaPaidAmount);
-      total += (Number.isFinite(v) && v > 0) ? v : (getPriceForSku('carta_addon') || 3.99);
+      let valor = (Number.isFinite(v) && v > 0) ? v : (getPriceForSku('carta_addon') || 3.99);
+      if (isStripePayment(o.cartaPaymentId)) {
+        valor = Math.max(0, valor - calculateStripeFee(valor));
+      }
+      total += valor;
     }
   }
   if (o.retrospectivaPaymentId && (o.hasRetrospectivaAccess || o.retrospectivaAddonPaid)) {
     if (dataCorrespondeAoDia(o.retrospectivaPaidAt || o.paidAt || o.createdAt, diaFiltro, mesReferencia)) {
       const v = Number(o.retrospectivaPaidAmount);
-      total += (Number.isFinite(v) && v > 0) ? v : (getPriceForSku('retrospectiva_addon') || 9.99);
+      let valor = (Number.isFinite(v) && v > 0) ? v : (getPriceForSku('retrospectiva_addon') || 9.99);
+      if (isStripePayment(o.retrospectivaPaymentId)) {
+        valor = Math.max(0, valor - calculateStripeFee(valor));
+      }
+      total += valor;
     }
   }
   if (o.playbackPaymentId && (o.hasPlaybackAccess || o.playbackAddonPaid)) {
     if (dataCorrespondeAoDia(o.playbackPaidAt || o.paidAt || o.createdAt, diaFiltro, mesReferencia)) {
       const v = Number(o.playbackPaidAmount);
-      total += (Number.isFinite(v) && v > 0) ? v : (getPriceForSku('playback_addon') || 4.99);
+      let valor = (Number.isFinite(v) && v > 0) ? v : (getPriceForSku('playback_addon') || 4.99);
+      if (isStripePayment(o.playbackPaymentId)) {
+        valor = Math.max(0, valor - calculateStripeFee(valor));
+      }
+      total += valor;
     }
   }
   if (o.karaokePaymentId && (o.hasKaraokeAccess || o.karaokeAddonPaid)) {
     if (dataCorrespondeAoDia(o.karaokePaidAt || o.paidAt || o.createdAt, diaFiltro, mesReferencia)) {
       const v = Number(o.karaokePaidAmount);
-      total += (Number.isFinite(v) && v > 0) ? v : (getPriceForSku('karaoke_addon') || 9.90);
+      let valor = (Number.isFinite(v) && v > 0) ? v : (getPriceForSku('karaoke_addon') || 9.90);
+      if (isStripePayment(o.karaokePaymentId)) {
+        valor = Math.max(0, valor - calculateStripeFee(valor));
+      }
+      total += valor;
     }
   }
 
-  return total;
+  return Math.round(total * 100) / 100;
 }
 
 /**

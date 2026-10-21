@@ -23,6 +23,7 @@ import AbaRemixCover from '@/components/admin/AbaRemixCover';
 import AbaContas from '@/components/admin/AbaContas';
 import FunilStatusCards from '@/components/admin/FunilStatusCards';
 import { hasOrderGeneratedPix } from '@/lib/pixCheckout';
+import { isStripePayment, calculateStripeFee, calculateStripeNet, getPayoutStatus } from '@/lib/paymentFees';
 
 const getSavedAdminFilter = (key, fallback) => {
   if (typeof window === 'undefined') return fallback;
@@ -393,6 +394,13 @@ export default function AdminDashboard() {
       result = result.filter(o => !o.videoAddonPaid);
     } else if (purchaseTypeTab === 'VIDEO') {
       result = result.filter(o => o.videoAddonPaid);
+    } else if (purchaseTypeTab === 'CARD') {
+      result = result.filter(o => isStripePayment(o));
+    } else if (purchaseTypeTab === 'PIX') {
+      result = result.filter(o => {
+        const isPaid = o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'PAGO' || o.paidAt || o.videoAddonPaid;
+        return isPaid && !isStripePayment(o);
+      });
     } else if (purchaseTypeTab === 'PIX_COPIADO') {
       // Clicou para gerar PIX ou copiou o código e ainda não consta pago
       result = result.filter(o => {
@@ -1621,6 +1629,8 @@ export default function AdminDashboard() {
                     <option value="ALL">📋 Todas as vendas</option>
                     <option value="MUSIC">🎵 Vendas de música</option>
                     <option value="VIDEO">🎬 Vendas de vídeo</option>
+                    <option value="CARD">💳 Cartão de Crédito</option>
+                    <option value="PIX">⚡ Só PIX</option>
                     <option value="PIX_COPIADO">📋 Copiou PIX e não pagou</option>
                   </select>
                 </div>
@@ -1630,6 +1640,8 @@ export default function AdminDashboard() {
                     { id: 'ALL', label: 'Todas as vendas' },
                     { id: 'MUSIC', label: '🎵 Vendas de música' },
                     { id: 'VIDEO', label: '🎬 Vendas de vídeo' },
+                    { id: 'CARD', label: '💳 Cartão' },
+                    { id: 'PIX', label: '⚡ PIX' },
                     { id: 'PIX_COPIADO', label: '📋 Copiou PIX e não pagou' },
                   ].map(tab => (
                     <button
@@ -1918,6 +1930,61 @@ export default function AdminDashboard() {
                                     {/* 2. Ícone de onde veio o cliente (Facebook, TikTok, etc.) */}
                                     <PlatformIcon order={o} size={15} />
 
+                                    {/* 2.5 Método de Pagamento: ⚡ PIX ou 💳 Cartão */}
+                                    {(() => {
+                                      const isPaid = o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'PAGO' || o.paidAt || o.videoAddonPaid || o.cartaAddonPaid || o.playbackAddonPaid;
+                                      if (!isPaid) return null;
+                                      const isCard = isStripePayment(o);
+                                      if (isCard) {
+                                        const payout = getPayoutStatus(o.paidAt || o.videoPaidAt || o.createdAt);
+                                        const releaseText = payout.isReleased ? 'Liberado (D+30 concluído)' : `Bloqueado (libera em ~${payout.daysRemaining} dias)`;
+                                        return (
+                                          <span
+                                            title={`💳 Cartão de Crédito (Stripe)\nTaxa deduzida: 3,99% + R$ 0,39\nRepasse: ${releaseText}`}
+                                            style={{
+                                              fontSize: '0.7rem',
+                                              padding: '2px 5px',
+                                              borderRadius: '5px',
+                                              backgroundColor: '#f3e8ff',
+                                              color: '#7c3aed',
+                                              border: '1px solid #d8b4fe',
+                                              fontWeight: '700',
+                                              cursor: 'help',
+                                              display: 'inline-flex',
+                                              alignItems: 'center',
+                                              gap: '2px',
+                                              lineHeight: 1,
+                                              whiteSpace: 'nowrap',
+                                            }}
+                                          >
+                                            💳 Cartão
+                                          </span>
+                                        );
+                                      }
+                                      return (
+                                        <span
+                                          title="⚡ Pago via PIX (Efí Bank) - Repasse Imediato (D+0)"
+                                          style={{
+                                            fontSize: '0.7rem',
+                                            padding: '2px 5px',
+                                            borderRadius: '5px',
+                                            backgroundColor: '#ccfbf1',
+                                            color: '#0f766e',
+                                            border: '1px solid #99f6e4',
+                                            fontWeight: '700',
+                                            cursor: 'help',
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '2px',
+                                            lineHeight: 1,
+                                            whiteSpace: 'nowrap',
+                                          }}
+                                        >
+                                          ⚡ PIX
+                                        </span>
+                                      );
+                                    })()}
+
                                     {/* 3. Se copiou o código Pix */}
                                     {(() => {
                                       const pixCopied = o.pixCopiedAt || o.extras?.pixCopiedAt || (hasOrderGeneratedPix(o) ? (o.pixGeneratedAt || o.extras?.pixGeneratedAt || true) : null);
@@ -1993,6 +2060,10 @@ export default function AdminDashboard() {
                                   const { items, total } = getOrderProductBreakdown(o);
                                   if (items.length === 0) return <span style={{ color: '#94a3b8', fontWeight: '500' }}>Não pago</span>;
                                   const isExpanded = expandedValueRows.has(o.id);
+                                  const isCard = isStripePayment(o);
+                                  const fee = isCard ? calculateStripeFee(total) : 0;
+                                  const net = isCard ? calculateStripeNet(total) : total;
+                                  const payout = isCard ? getPayoutStatus(o.paidAt || o.videoPaidAt || o.createdAt) : null;
                                   return (
                                     <div>
                                       <button
@@ -2005,10 +2076,23 @@ export default function AdminDashboard() {
                                         style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: '#059669', fontWeight: '700', fontSize: 'inherit', fontFamily: 'inherit' }}
                                       >
                                         R$ {total.toFixed(2).replace('.', ',')}
+                                        {isCard && (
+                                          <span style={{ fontSize: '0.68rem', color: '#7c3aed', backgroundColor: '#f3e8ff', padding: '1px 5px', borderRadius: '4px', border: '1px solid #d8b4fe', marginLeft: '4px', whiteSpace: 'nowrap' }}>
+                                            Líq: R$ {net.toFixed(2).replace('.', ',')}
+                                          </span>
+                                        )}
                                         {items.length > 1 && (
                                           <span style={{ fontSize: '0.7rem', color: '#64748b' }}>{isExpanded ? '▲' : '▼'}</span>
                                         )}
                                       </button>
+                                      {isCard && (
+                                        <div style={{ fontSize: '0.67rem', color: '#64748b', fontWeight: '500', marginTop: '2px', lineHeight: 1.2 }}>
+                                          <span>Taxa: -R$ {fee.toFixed(2).replace('.', ',')}</span>
+                                          <span style={{ marginLeft: '4px', color: payout.isReleased ? '#059669' : '#d97706', fontWeight: '600' }}>
+                                            {payout.isReleased ? '• ✅ Liberado' : `• ⏳ Bloq. (~${payout.daysRemaining}d)`}
+                                          </span>
+                                        </div>
+                                      )}
                                       {isExpanded && items.length > 1 && (
                                         <div style={{ marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
                                           {items.map((item) => (

@@ -87,7 +87,12 @@ export async function GET(req) {
         const session = await retrieveStripeCheckoutSession(txid, env);
         if (session && session.payment_status === 'paid' && orderId) {
           const transactionAmount = (session.amount_total || 0) / 100;
-          await applyPaymentApproval(orderId, session.id, { status: 'approved', transaction_amount: transactionAmount }, env);
+          await applyPaymentApproval(orderId, session.id, {
+            status: 'approved',
+            transaction_amount: transactionAmount,
+            method: 'stripe',
+            gateway: 'stripe',
+          }, env);
           return jsonNoCache({ status: "approved" });
         }
         return jsonNoCache({ status: "pending" });

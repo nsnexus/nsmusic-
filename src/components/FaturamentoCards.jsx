@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { getAdminAuthToken } from '@/lib/authClient';
 import { getPriceForSku } from '@/lib/pricing';
+import { calculateStripeFee, calculateStripeNet, isStripePayment, getPayoutStatus } from '@/lib/paymentFees';
 
 // Cards de faturamento do topo do dashboard admin — extraído de admin/page.jsx (pedido 12/09/2026:
 // "os valores não estão batendo" com a tabela Vendas por dia, ver VendasPorDiaTable.jsx).
@@ -188,17 +189,52 @@ export default function FaturamentoCards({ dateFrom, dateTo, reloadTrigger }) {
     return <p style={{ color: '#dc2626', fontSize: '0.9rem', margin: '16px 0' }}>{erro}</p>;
   }
 
-  // Cards de visão geral com separação clara do Robô PC e da Kie.ai
+  // Cálculo de fallback se supaStats não estiver disponível
+  let fallbackPixTotal = 0;
+  let fallbackCardTotal = 0;
+  let fallbackCardFees = 0;
+  let fallbackCardNet = 0;
+  let fallbackCardBlocked = 0;
+  let fallbackCardCount = 0;
+  let fallbackPixCount = 0;
+
+  if (!supaStats && pedidos.length > 0) {
+    for (const o of pedidos) {
+      const isPaid = o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'PAGO' || o.videoAddonPaid;
+      if (!isPaid || !dentroDoPeriodo(o.paidAt || o.createdAt)) continue;
+      const isCard = isStripePayment(o);
+      const valor = Number(o.paidAmount) || AUDIO_PRICE;
+      if (isCard) {
+        fallbackCardCount++;
+        fallbackCardTotal += valor;
+        const fee = calculateStripeFee(valor);
+        const net = Math.max(0, valor - fee);
+        fallbackCardFees += fee;
+        fallbackCardNet += net;
+        const payout = getPayoutStatus(o.paidAt || o.createdAt);
+        if (!payout.isReleased) fallbackCardBlocked += net;
+      } else {
+        fallbackPixCount++;
+        fallbackPixTotal += valor;
+      }
+    }
+  }
+
+  // Cards de visão geral com separação clara de PIX, Cartão (Stripe) D+30 e Robô/Kie
   const cards = supaStats ? [
-    { label: 'Faturamento total', valor: `R$ ${supaStats.faturamentoTotal.toFixed(2).replace('.', ',')}`, cor: '#059669', sub: null },
-    { label: 'Vendas (pagas)', valor: supaStats.vendasCount, cor: '#0f172a', sub: null },
+    { label: 'Faturamento bruto', valor: `R$ ${supaStats.faturamentoTotal.toFixed(2).replace('.', ',')}`, cor: '#059669', sub: `Líquido: R$ ${(supaStats.faturamentoLiquido ?? supaStats.faturamentoTotal).toFixed(2).replace('.', ',')}` },
+    { label: '⚡ Disponível (PIX)', valor: `R$ ${(supaStats.pixTotal ?? supaStats.faturamentoTotal).toFixed(2).replace('.', ',')}`, cor: '#0d9488', sub: `Repasse imediato (${supaStats.pixCount ?? supaStats.vendasCount}x)` },
+    { label: '⏳ A Receber (Cartão)', valor: `R$ ${(supaStats.cardBlocked ?? 0).toFixed(2).replace('.', ',')}`, cor: '#7c3aed', sub: (supaStats.cardFees || 0) > 0 ? `Taxas Stripe: -R$ ${supaStats.cardFees.toFixed(2).replace('.', ',')}` : 'Bloqueado D+30' },
+    { label: 'Vendas (pagas)', valor: supaStats.vendasCount, cor: '#0f172a', sub: supaStats.cardCount > 0 ? `${supaStats.pixCount || 0} PIX • ${supaStats.cardCount} Cartão` : null },
     { label: 'Total Gerações', valor: supaStats.geracoesTotal ?? supaStats.geracoes, cor: '#d97706', sub: null },
     { label: '🖥️ Feitas pelo Robô PC', valor: supaStats.geracoesBot ?? 0, cor: '#0284c7', sub: 'Custo R$ 0,00' },
     { label: '🟣 Feitas pela Kie.ai', valor: supaStats.geracoesKie ?? 0, cor: '#7c3aed', sub: null },
     { label: '💸 Gasto c/ Kie.ai', valor: `R$ ${(supaStats.gastoKie ?? supaStats.gastoGeracao).toFixed(2).replace('.', ',')}`, cor: '#dc2626', sub: `Economia Robô: R$ ${(supaStats.economiaBot ?? 0).toFixed(2).replace('.', ',')}` },
   ] : [
-    { label: 'Faturamento total', valor: `R$ ${faturamentoTotal.toFixed(2).replace('.', ',')}`, cor: '#059669', sub: null },
-    { label: 'Vendas (pagas)', valor: vendasCount, cor: '#0f172a', sub: null },
+    { label: 'Faturamento bruto', valor: `R$ ${faturamentoTotal.toFixed(2).replace('.', ',')}`, cor: '#059669', sub: fallbackCardFees > 0 ? `Líquido: R$ ${(faturamentoTotal - fallbackCardFees).toFixed(2).replace('.', ',')}` : null },
+    { label: '⚡ Disponível (PIX)', valor: `R$ ${(fallbackPixTotal || faturamentoTotal).toFixed(2).replace('.', ',')}`, cor: '#0d9488', sub: `Repasse imediato (${fallbackPixCount || vendasCount}x)` },
+    { label: '⏳ A Receber (Cartão)', valor: `R$ ${fallbackCardBlocked.toFixed(2).replace('.', ',')}`, cor: '#7c3aed', sub: fallbackCardFees > 0 ? `Taxas Stripe: -R$ ${fallbackCardFees.toFixed(2).replace('.', ',')}` : 'Bloqueado D+30' },
+    { label: 'Vendas (pagas)', valor: vendasCount, cor: '#0f172a', sub: fallbackCardCount > 0 ? `${fallbackPixCount} PIX • ${fallbackCardCount} Cartão` : null },
     { label: 'Total Gerações', valor: geracoes, cor: '#d97706', sub: null },
     { label: '🖥️ Feitas pelo Robô PC', valor: geracoesBot, cor: '#0284c7', sub: 'Custo R$ 0,00' },
     { label: '🟣 Feitas pela Kie.ai', valor: geracoesKie, cor: '#7c3aed', sub: null },

@@ -79,6 +79,8 @@ export async function POST(req) {
           {
             status: 'approved',
             transaction_amount: transactionAmount,
+            method: 'stripe',
+            gateway: 'stripe',
           },
           env
         );

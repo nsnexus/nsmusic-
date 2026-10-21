@@ -15,6 +15,7 @@ import { resolveDeliveryUrl } from './whatsappTemplates.js';
 import { sendMetaPurchaseEvent } from './metaCapi.js';
 import { sendTikTokPurchaseEvent } from './tiktokCapi.js';
 import { isOrderFromMeta, isOrderFromTikTok } from './trafficSource.js';
+import { isStripePayment, calculateStripeFee, calculateStripeNet, getPayoutStatus } from './paymentFees.js';
 
 const REVOKING_STATUSES = new Set(['cancelled', 'refunded', 'charged_back']);
 
@@ -104,6 +105,18 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
         const nowIso = new Date().toISOString();
         const updates = { updatedAt: nowIso };
         const valorPago = Number(payment.transaction_amount) || 0;
+        const isStripe = isStripePayment(paymentId) || payment?.method === 'stripe' || payment?.gateway === 'stripe';
+        const stripeFee = isStripe ? calculateStripeFee(valorPago) : 0;
+        const netAmount = isStripe ? calculateStripeNet(valorPago) : valorPago;
+        const payoutEstimatedAt = isStripe ? getPayoutStatus(nowIso).releaseDate?.toISOString() : null;
+
+        if (isStripe) {
+          updates.paymentMethod = 'credit_card';
+          updates.paymentGateway = 'stripe';
+        } else if (!orderData.paymentMethod) {
+          updates.paymentMethod = 'pix';
+          updates.paymentGateway = 'efi';
+        }
 
         if (isVideoOnly) {
           updates.hasVideoAccess = true;
@@ -111,42 +124,77 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
           updates.videoPaymentId = String(paymentId);
           updates.videoPaidAt = nowIso;
           updates.videoPaidAmount = valorPago;
+          if (isStripe) {
+            updates.videoStripeFee = stripeFee;
+            updates.videoNetAmount = netAmount;
+            updates.videoPayoutEstimatedAt = payoutEstimatedAt;
+          }
         } else if (isPlaybackOnly) {
           updates.hasPlaybackAccess = true;
           updates.playbackAddonPaid = true;
           updates.playbackPaymentId = String(paymentId);
           updates.playbackPaidAt = nowIso;
           updates.playbackPaidAmount = valorPago;
+          if (isStripe) {
+            updates.playbackStripeFee = stripeFee;
+            updates.playbackNetAmount = netAmount;
+            updates.playbackPayoutEstimatedAt = payoutEstimatedAt;
+          }
         } else if (isRetroOnly) {
           updates.hasRetrospectivaAccess = true;
           updates.retrospectivaAddonPaid = true;
           updates.retrospectivaPaymentId = String(paymentId);
           updates.retrospectivaPaidAt = nowIso;
           updates.retrospectivaPaidAmount = valorPago;
+          if (isStripe) {
+            updates.retrospectivaStripeFee = stripeFee;
+            updates.retrospectivaNetAmount = netAmount;
+            updates.retrospectivaPayoutEstimatedAt = payoutEstimatedAt;
+          }
         } else if (isCartaOnly) {
           updates.hasCartaAccess = true;
           updates.cartaAddonPaid = true;
           updates.cartaPaymentId = String(paymentId);
           updates.cartaPaidAt = nowIso;
           updates.cartaPaidAmount = valorPago;
+          if (isStripe) {
+            updates.cartaStripeFee = stripeFee;
+            updates.cartaNetAmount = netAmount;
+            updates.cartaPayoutEstimatedAt = payoutEstimatedAt;
+          }
         } else if (isKaraokeOnly) {
           updates.hasKaraokeAccess = true;
           updates.karaokeAddonPaid = true;
           updates.karaokePaymentId = String(paymentId);
           updates.karaokePaidAt = nowIso;
           updates.karaokePaidAmount = valorPago;
+          if (isStripe) {
+            updates.karaokeStripeFee = stripeFee;
+            updates.karaokeNetAmount = netAmount;
+            updates.karaokePayoutEstimatedAt = payoutEstimatedAt;
+          }
         } else if (isVoiceOnly) {
           updates.hasCustomVoiceAccess = true;
           updates.customVoiceAddonPaid = true;
           updates.customVoicePaymentId = String(paymentId);
           updates.customVoicePaidAt = nowIso;
           updates.customVoicePaidAmount = valorPago;
+          if (isStripe) {
+            updates.customVoiceStripeFee = stripeFee;
+            updates.customVoiceNetAmount = netAmount;
+            updates.customVoicePayoutEstimatedAt = payoutEstimatedAt;
+          }
         } else if (isSecondSongOnly) {
           updates.hasSecondSongAccess = true;
           updates.secondSongPaid = true;
           updates.secondSongPaymentId = String(paymentId);
           updates.secondSongPaidAt = nowIso;
           updates.secondSongPaidAmount = valorPago;
+          if (isStripe) {
+            updates.secondSongStripeFee = stripeFee;
+            updates.secondSongNetAmount = netAmount;
+            updates.secondSongPayoutEstimatedAt = payoutEstimatedAt;
+          }
         } else {
           // C-09: paymentStatus só é escrito neste ramo — os add-ons isolados nunca o alteram.
           updates.paymentStatus = 'PAGAMENTO_APROVADO';
@@ -154,6 +202,12 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
           updates.paidAt = nowIso;
           updates.paidAmount = valorPago;
           updates.paidSku = sku || null;
+
+          if (isStripe) {
+            updates.stripeFee = stripeFee;
+            updates.netAmount = netAmount;
+            updates.payoutEstimatedAt = payoutEstimatedAt;
+          }
 
           const brindes = sku === 'impacto' ? brindesPorValorPago(valorPago) : { carta: false, video: false, retrospectiva: false };
 

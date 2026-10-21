@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
 import { requireAdmin } from '@/lib/auth';
 import { getSupabaseEdge } from '@/lib/supabase-edge';
+import { calculateStripeFee } from '@/lib/paymentFees';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
@@ -72,6 +73,7 @@ export async function GET(req) {
       let vQuery = supabase.from('vendas_por_dia').select('*');
       let pQuery = supabase.from('producao_por_dia').select('*');
       let oQuery = supabase.from('orders').select('suno_provider, suno_generation_count').is('deleted_at', null).neq('production_status', 'CONFIG');
+      let payQuery = supabase.from('payments').select('txid, amount, paid_at');
 
       const diaFrom = toSpDay(dateFrom);
       const diaTo = toSpDay(dateTo);
@@ -84,6 +86,7 @@ export async function GET(req) {
       }
       if (fromIso) {
         oQuery = oQuery.gte('created_at', fromIso);
+        payQuery = payQuery.gte('paid_at', fromIso);
       }
       if (diaTo) {
         vQuery = vQuery.lte('dia', diaTo);
@@ -91,9 +94,10 @@ export async function GET(req) {
       }
       if (toIso) {
         oQuery = oQuery.lte('created_at', toIso);
+        payQuery = payQuery.lte('paid_at', toIso);
       }
 
-      const [vRes, pRes, oRes] = await Promise.all([vQuery, pQuery, oQuery]);
+      const [vRes, pRes, oRes, payRes] = await Promise.all([vQuery, pQuery, oQuery, payQuery]);
 
       if (vRes.error) throw new Error(vRes.error.message);
       if (pRes.error) throw new Error(pRes.error.message);
@@ -101,10 +105,55 @@ export async function GET(req) {
       const vData = vRes.data || [];
       const pData = pRes.data || [];
       const oData = oRes?.data || [];
+      const payData = payRes?.data || [];
 
       const faturamentoTotal = vData.reduce((acc, r) => acc + (Number(r.faturamento) || 0), 0);
       const vendasCount = vData.reduce((acc, r) => acc + (Number(r.pedidos_pagos) || 0), 0);
       const geracoesGerais = pData.reduce((acc, r) => acc + (Number(r.geracoes) || 0), 0);
+
+      // Métricas de divisão PIX vs Cartão (Stripe) e repasse D+30
+      let pixTotal = 0;
+      let cardTotal = 0;
+      let cardFees = 0;
+      let cardNet = 0;
+      let cardBlocked = 0;
+      let cardReleased = 0;
+      let pixCount = 0;
+      let cardCount = 0;
+
+      const now = Date.now();
+      const PAYOUT_MS = 30 * 24 * 60 * 60 * 1000;
+
+      for (const p of payData) {
+        const amt = Number(p.amount) || 0;
+        const isCard = String(p.txid || '').startsWith('cs_') || String(p.txid || '').startsWith('pi_');
+        if (isCard) {
+          cardCount++;
+          cardTotal += amt;
+          const fee = calculateStripeFee(amt);
+          const net = Math.max(0, Math.round((amt - fee) * 100) / 100);
+          cardFees += fee;
+          cardNet += net;
+
+          const paidTime = new Date(p.paid_at).getTime();
+          if (!Number.isNaN(paidTime) && (now >= paidTime + PAYOUT_MS)) {
+            cardReleased += net;
+          } else {
+            cardBlocked += net;
+          }
+        } else {
+          pixCount++;
+          pixTotal += amt;
+        }
+      }
+
+      // Se não houver dados em payments (legado), o faturamentoTotal equivale ao PIX
+      if (payData.length === 0 && faturamentoTotal > 0) {
+        pixTotal = faturamentoTotal;
+        pixCount = vendasCount;
+      }
+
+      const faturamentoLiquido = Math.round((pixTotal + cardNet) * 100) / 100;
 
       let geracoesBot = 0;
       let geracoesKie = 0;
@@ -131,6 +180,15 @@ export async function GET(req) {
       return NextResponse.json({
         ok: true,
         faturamentoTotal,
+        faturamentoLiquido,
+        pixTotal: Math.round(pixTotal * 100) / 100,
+        pixCount,
+        cardTotal: Math.round(cardTotal * 100) / 100,
+        cardFees: Math.round(cardFees * 100) / 100,
+        cardNet: Math.round(cardNet * 100) / 100,
+        cardBlocked: Math.round(cardBlocked * 100) / 100,
+        cardReleased: Math.round(cardReleased * 100) / 100,
+        cardCount,
         vendasCount,
         geracoes: geracoesTotal,
         geracoesTotal,

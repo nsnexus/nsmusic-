@@ -13,6 +13,7 @@ import { buildAudioProxySrc } from '@/lib/audioProxy';
 import PlatformIcon from '@/components/admin/PlatformIcon';
 import OrderWhatsAppFeedbackCard from '@/components/admin/OrderWhatsAppFeedbackCard';
 import { getOrderPlatform, PLATFORMS } from '@/lib/trafficSource';
+import { isStripePayment, calculateStripeFee, calculateStripeNet, getPayoutStatus } from '@/lib/paymentFees';
 import Link from 'next/link';
 import Image from 'next/image';
 
@@ -953,6 +954,48 @@ export default function OrderDetailsAdmin() {
                       <option value="PAGO">PAGO</option>
                       <option value="RECUSADO">RECUSADO</option>
                     </select>
+
+                    {/* Detalhamento do Método de Pagamento e Taxas */}
+                    {(() => {
+                      const isPaid = order.paymentStatus === 'PAGAMENTO_APROVADO' || order.paymentStatus === 'PAGO' || order.paidAt || order.videoAddonPaid;
+                      if (!isPaid) return null;
+                      const isCard = isStripePayment(order);
+                      const gross = Number(order.paidAmount) || Number(order.total) || 9.99;
+                      const fee = isCard ? calculateStripeFee(gross) : 0;
+                      const net = isCard ? calculateStripeNet(gross) : gross;
+                      const payout = isCard ? getPayoutStatus(order.paidAt || order.videoPaidAt || order.createdAt) : null;
+                      return (
+                        <div style={{ marginTop: '12px', padding: '12px', borderRadius: '10px', backgroundColor: isCard ? '#faf5ff' : '#f0fdfa', border: `1px solid ${isCard ? '#e9d5ff' : '#ccfbf1'}` }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', flexWrap: 'wrap', gap: '6px' }}>
+                            <span style={{ fontSize: '0.85rem', fontWeight: '800', color: isCard ? '#7c3aed' : '#0f766e', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              {isCard ? '💳 Cartão de Crédito (Stripe)' : '⚡ PIX (Efí Bank)'}
+                            </span>
+                            <span style={{ fontSize: '0.75rem', fontWeight: '700', padding: '2px 8px', borderRadius: '6px', backgroundColor: isCard ? (payout?.isReleased ? '#dcfce7' : '#fef3c7') : '#dcfce7', color: isCard ? (payout?.isReleased ? '#15803d' : '#b45309') : '#15803d' }}>
+                              {isCard ? (payout?.isReleased ? '✅ Repasse Liberado' : `⏳ Bloqueado D+30 (~${payout?.daysRemaining} dias)`) : '✅ Repasse Imediato (D+0)'}
+                            </span>
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', fontSize: '0.8rem' }}>
+                            <div>
+                              <span style={{ color: '#64748b', display: 'block', fontSize: '0.72rem' }}>Bruto Pago</span>
+                              <strong style={{ color: '#0f172a' }}>R$ {gross.toFixed(2).replace('.', ',')}</strong>
+                            </div>
+                            <div>
+                              <span style={{ color: '#64748b', display: 'block', fontSize: '0.72rem' }}>Taxa Stripe</span>
+                              <strong style={{ color: isCard ? '#dc2626' : '#64748b' }}>{isCard ? `-R$ ${fee.toFixed(2).replace('.', ',')}` : 'R$ 0,00'}</strong>
+                            </div>
+                            <div>
+                              <span style={{ color: '#64748b', display: 'block', fontSize: '0.72rem' }}>Líquido Real</span>
+                              <strong style={{ color: '#059669', fontSize: '0.9rem' }}>R$ {net.toFixed(2).replace('.', ',')}</strong>
+                            </div>
+                          </div>
+                          {isCard && payout?.releaseDate && !payout?.isReleased && (
+                            <p style={{ margin: '8px 0 0', fontSize: '0.74rem', color: '#6d28d9' }}>
+                              🗓️ Previsão de liberação no saldo Stripe: <strong>{payout.releaseDate.toLocaleDateString('pt-BR')}</strong> (30 dias após a compra).
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })()}
 
                     {order.paymentStatus !== 'PAGAMENTO_APROVADO' && order.paymentStatus !== 'PAGO' ? (
                       <div style={{ marginTop: '8px' }}>
