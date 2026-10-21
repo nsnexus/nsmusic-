@@ -7,8 +7,8 @@ import { getPriceForSku } from '@/lib/pricing';
 import { formatBrl } from '@/lib/deliveryPackages';
 import { buildAudioProxySrc } from '@/lib/audioProxy';
 
-export function EditorSection({ number, title, description, children, className = '' }) {
-  return <section className={`nx-card nx-editor-section ${className}`}><div className="nx-editor-section-head"><span className="nx-section-number" aria-hidden="true">{number}</span><div><h2>{title}</h2>{description && <p>{description}</p>}</div></div>{children}</section>;
+export function EditorSection({ id, number, title, description, children, className = '' }) {
+  return <section id={id} className={`nx-card nx-editor-section ${className}`}><div className="nx-editor-section-head"><span className="nx-section-number" aria-hidden="true">{number}</span><div><h2>{title}</h2>{description && <p>{description}</p>}</div></div>{children}</section>;
 }
 
 export function ShareLinks({ url, label = 'presente', disabled = false }) {

@@ -14,8 +14,47 @@ const groups = [
   { id: 'other', label: 'Outra pessoa', relations: [] },
 ];
 
-function Field({ label, children, help }) {
-  return <label className="nx-field"><span>{label}</span>{children}{help && <small>{help}</small>}</label>;
+function Field({ label, children, help, isMissing = false, missingText = 'Falta preencher' }) {
+  return (
+    <label
+      className="nx-field"
+      data-missing={isMissing ? "true" : undefined}
+      style={{
+        position: 'relative',
+        borderRadius: isMissing ? '12px' : '0px',
+        padding: isMissing ? '8px 10px' : '0px',
+        margin: isMissing ? '8px 0' : '20px 0',
+        backgroundColor: isMissing ? '#fffdf7' : 'transparent',
+        border: isMissing ? '1.5px dashed #f59e0b' : '1px solid transparent',
+        transition: 'all 0.25s ease'
+      }}
+    >
+      <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
+        <span>{label}</span>
+        {isMissing && (
+          <span
+            style={{
+              fontSize: '0.72rem',
+              fontWeight: 600,
+              color: '#b45309',
+              backgroundColor: '#fef3c7',
+              padding: '2px 8px',
+              borderRadius: '10px',
+              border: '1px solid #fde68a',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}
+          >
+            <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#f59e0b', display: 'inline-block' }} />
+            {missingText}
+          </span>
+        )}
+      </span>
+      {children}
+      {help && <small>{help}</small>}
+    </label>
+  );
 }
 
 export function CreationEditorial() {
@@ -65,44 +104,185 @@ export default function CreationSteps({ step, formData: data, updateField, isLis
         </button>)}
       </div>
       <div className="nx-chips" role="group" aria-label="Outras relações">{groups.slice(2).map(group => <button key={group.id} type="button" aria-pressed={activeGroup === group.id} onClick={() => pickGroup(group.id)}>{group.label}</button>)}</div>
-      {!isSelfTribute && <Field label="O que essa pessoa é sua?">
-        <select value={data.relationship || ''} onChange={e => { updateField('relationship', e.target.value); updateField('recipientType', e.target.value); }}><option value="">Escolha a relação</option>{options.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}</select>
-      </Field>}
-      {data.relationship === 'Outro' && <Field label="Qual é a relação de vocês?"><input value={data.customRelationship || ''} onChange={e => updateField('customRelationship', e.target.value)} placeholder="Ex.: minha sogra" maxLength={100} /></Field>}
+      {!isSelfTribute && (
+        <Field label="O que essa pessoa é sua?" isMissing={!data.relationship} missingText="Falta selecionar">
+          <select
+            value={data.relationship || ''}
+            onChange={e => { updateField('relationship', e.target.value); updateField('recipientType', e.target.value); }}
+            style={!data.relationship ? { borderColor: '#f59e0b', backgroundColor: '#fffdf5' } : {}}
+          >
+            <option value="">Escolha a relação</option>
+            {options.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
+          </select>
+        </Field>
+      )}
+      {data.relationship === 'Outro' && (
+        <Field label="Qual é a relação de vocês?" isMissing={!data.customRelationship?.trim()} missingText="Falta especificar">
+          <input
+            value={data.customRelationship || ''}
+            onChange={e => updateField('customRelationship', e.target.value)}
+            placeholder="Ex.: minha sogra"
+            maxLength={100}
+            style={!data.customRelationship?.trim() ? { borderColor: '#f59e0b', backgroundColor: '#fffdf5' } : {}}
+          />
+        </Field>
+      )}
       <div className="nx-field-row">
-        <Field label="Nome Homenageado"><input value={data.honoreeName || ''} readOnly={isSelfTribute} onChange={e => updateField('honoreeName', e.target.value)} placeholder={isSelfTribute ? 'Seu próprio nome' : 'Ex.: Helena'} autoComplete="off" maxLength={100} /></Field>
-        <Field label="Seu primeiro nome"><input value={data.customerName || ''} onChange={e => { updateField('customerName', e.target.value); if (isSelfTribute) updateField('honoreeName', e.target.value); }} placeholder="Ex.: Mariana" autoComplete="given-name" maxLength={100} /></Field>
+        <Field label="Nome Homenageado" isMissing={!data.honoreeName?.trim()} missingText="Falta preencher">
+          <input
+            value={data.honoreeName || ''}
+            readOnly={isSelfTribute}
+            onChange={e => updateField('honoreeName', e.target.value)}
+            placeholder={isSelfTribute ? 'Seu próprio nome' : 'Ex.: Helena'}
+            autoComplete="off"
+            maxLength={100}
+            style={!data.honoreeName?.trim() ? { borderColor: '#f59e0b', backgroundColor: '#fffdf5' } : {}}
+          />
+        </Field>
+        <Field label="Seu primeiro nome" isMissing={!data.customerName?.trim()} missingText="Falta preencher">
+          <input
+            value={data.customerName || ''}
+            onChange={e => { updateField('customerName', e.target.value); if (isSelfTribute) updateField('honoreeName', e.target.value); }}
+            placeholder="Ex.: Mariana"
+            autoComplete="given-name"
+            maxLength={100}
+            style={!data.customerName?.trim() ? { borderColor: '#f59e0b', backgroundColor: '#fffdf5' } : {}}
+          />
+        </Field>
       </div>
       {isSelfTribute && <p className="nx-helper">Esta homenagem será para você. Seu nome aparece nos dois campos.</p>}
-      <Field label="Qual é a ocasião?"><select value={data.occasion || ''} onChange={e => updateField('occasion', e.target.value)}><option value="">Escolha o motivo</option>{occasions.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}</select></Field>
+      <Field label="Qual é a ocasião?" isMissing={!data.occasion} missingText="Falta escolher">
+        <select
+          value={data.occasion || ''}
+          onChange={e => updateField('occasion', e.target.value)}
+          style={!data.occasion ? { borderColor: '#f59e0b', backgroundColor: '#fffdf5' } : {}}
+        >
+          <option value="">Escolha o motivo</option>
+          {occasions.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+        </select>
+      </Field>
     </section>
   );
 
-  if (step === 2) return (
-    <section className="nx-form-column">
-      <h1>Uma história que<br />só vocês têm.</h1>
-      <p className="nx-subtitle">O que torna {data.honoreeName || 'essa pessoa'} especial? Não precisa escrever bonito, só do seu jeito.</p>
-      <Field label="O que você gostaria de dizer?" help={`${(data.story || '').trim().length} caracteres · conte pelo menos 50 para começar.`}>
-        <textarea value={data.story || ''} onChange={e => updateField('story', e.target.value)} placeholder="Conte uma lembrança, o que mais admira nessa pessoa e o que gostaria que ela sentisse ao ouvir…" rows={8} />
-      </Field>
-      <div className="nx-chips" role="group" aria-label="Ideias para sua história">{[
-        ['Uma lembrança', 'Uma lembrança que guardo com carinho é '], ['Uma qualidade', 'O que mais admiro em você é '], ['Uma mensagem', 'Hoje eu queria te dizer que '],
-      ].map(([title, prompt]) => <button key={title} type="button" onClick={() => appendStoryPrompt(prompt)}>{title}</button>)}</div>
-      <button type="button" className={`nx-button ${isListening ? 'nx-recording' : ''}`} onClick={toggleVoiceDictation} aria-pressed={isListening} style={{ minHeight: '48px', display: 'inline-flex', alignItems: 'center', gap: '8px' }}><Mic size={18} aria-hidden="true" /><span>{isListening ? 'Parar de gravar' : 'Prefiro contar por voz'}</span></button>
-      <p className="nx-helper">Você pode revisar o texto antes de continuar. O ditado depende do suporte do seu navegador.</p>
-      <details className="nx-details"><summary>Quero incluir nomes ou uma frase especial</summary><Field label="Nomes que precisam aparecer"><input value={data.requiredNames || ''} onChange={e => updateField('requiredNames', e.target.value)} placeholder="Ex.: meus filhos Pedro e Laura" /></Field><Field label="Uma frase de vocês"><input value={data.requiredPhrase || ''} onChange={e => updateField('requiredPhrase', e.target.value)} placeholder="Ex.: sempre ao seu lado" /></Field></details>
-    </section>
-  );
+  if (step === 2) {
+    const storyLen = (data.story || '').trim().length;
+    const isStoryMissing = storyLen < 50;
+    return (
+      <section className="nx-form-column">
+        <h1>Uma história que<br />só vocês têm.</h1>
+        <p className="nx-subtitle">O que torna {data.honoreeName || 'essa pessoa'} especial? Não precisa escrever bonito, só do seu jeito.</p>
+        <Field
+          label="O que você gostaria de dizer?"
+          help={`${storyLen} caracteres · conte pelo menos 50 para começar.`}
+          isMissing={isStoryMissing}
+          missingText={storyLen === 0 ? 'Falta contar a história (mínimo 50 letras)' : `Faltam ${50 - storyLen} letras para o mínimo (50)`}
+        >
+          <textarea
+            value={data.story || ''}
+            onChange={e => updateField('story', e.target.value)}
+            placeholder="Conte uma lembrança, o que mais admira nessa pessoa e o que gostaria que ela sentisse ao ouvir…"
+            rows={8}
+            style={isStoryMissing ? { borderColor: '#f59e0b', backgroundColor: '#fffdf5' } : {}}
+          />
+        </Field>
+        <div className="nx-chips" role="group" aria-label="Ideias para sua história">{[
+          ['Uma lembrança', 'Uma lembrança que guardo com carinho é '], ['Uma qualidade', 'O que mais admiro em você é '], ['Uma mensagem', 'Hoje eu queria te dizer que '],
+        ].map(([title, prompt]) => <button key={title} type="button" onClick={() => appendStoryPrompt(prompt)}>{title}</button>)}</div>
+        <button type="button" className={`nx-button ${isListening ? 'nx-recording' : ''}`} onClick={toggleVoiceDictation} aria-pressed={isListening} style={{ minHeight: '48px', display: 'inline-flex', alignItems: 'center', gap: '8px' }}><Mic size={18} aria-hidden="true" /><span>{isListening ? 'Parar de gravar' : 'Prefiro contar por voz'}</span></button>
+        <p className="nx-helper">Você pode revisar o texto antes de continuar. O ditado depende do suporte do seu navegador.</p>
+        <details className="nx-details"><summary>Quero incluir nomes ou uma frase especial</summary><Field label="Nomes que precisam aparecer"><input value={data.requiredNames || ''} onChange={e => updateField('requiredNames', e.target.value)} placeholder="Ex.: meus filhos Pedro e Laura" /></Field><Field label="Uma frase de vocês"><input value={data.requiredPhrase || ''} onChange={e => updateField('requiredPhrase', e.target.value)} placeholder="Ex.: sempre ao seu lado" /></Field></details>
+      </section>
+    );
+  }
 
   if (step === 3) {
     const mainIds = ['Romântica', 'Sertanejo', 'MPB / Bossa Nova', 'Gospel / Adoração', 'Pop', 'Samba / Pagode'];
     const visibleStyles = showAllStyles ? stylesList : stylesList.filter(s => mainIds.includes(s.id) || s.id === data.musicStyle);
+    const isStyleMissing = !data.musicStyle;
     return (
       <section className="nx-form-column">
         <h1>Como essa história<br />vai soar?</h1><p className="nx-subtitle">Escolha um estilo que tenha a ver com vocês.</p>
-        <div className="nx-sound-grid" role="group" aria-label="Estilo musical">{visibleStyles.map(style => <button key={style.id} type="button" aria-pressed={data.musicStyle === style.id} onClick={() => updateField('musicStyle', style.id)}><strong>{style.label}</strong><small>{style.desc}</small></button>)}</div>
-        <button type="button" className="nx-text-button" onClick={() => setShowAllStyles(v => !v)}>{showAllStyles ? 'Mostrar menos estilos' : 'Ver todos os estilos'}</button>
-        <div className="nx-field-row"><Field label="Clima da música"><select value={data.musicMood || ''} onChange={e => updateField('musicMood', e.target.value)}><option value="">Escolha o clima</option>{moods.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}</select></Field><Field label="Voz"><select value={data.voiceType || ''} onChange={e => updateField('voiceType', e.target.value)}><option value="">Escolha a voz</option><option value="masculina">Masculina</option><option value="feminina">Feminina</option><option value="dueto">Dueto</option>{recognizedVoice && <option value="minha_voz">Minha voz cadastrada</option>}</select></Field></div>
+        
+        <div
+          data-missing={isStyleMissing ? "true" : undefined}
+          style={isStyleMissing ? {
+            borderRadius: '14px',
+            padding: '10px 12px',
+            margin: '10px 0',
+            backgroundColor: '#fffdf7',
+            border: '1.5px dashed #f59e0b',
+            transition: 'all 0.25s ease'
+          } : { transition: 'all 0.25s ease' }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
+            <span style={{ fontSize: '0.9rem', fontWeight: 650, color: 'var(--nx-ink)' }}>Estilo musical</span>
+            {isStyleMissing && (
+              <span
+                style={{
+                  fontSize: '0.72rem',
+                  fontWeight: 600,
+                  color: '#b45309',
+                  backgroundColor: '#fef3c7',
+                  padding: '2px 8px',
+                  borderRadius: '10px',
+                  border: '1px solid #fde68a',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}
+              >
+                <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#f59e0b', display: 'inline-block' }} />
+                Falta escolher o estilo
+              </span>
+            )}
+          </div>
+          <div className="nx-sound-grid" role="group" aria-label="Estilo musical">
+            {visibleStyles.map(style => (
+              <button key={style.id} type="button" aria-pressed={data.musicStyle === style.id} onClick={() => updateField('musicStyle', style.id)}>
+                <strong>{style.label}</strong>
+                <small>{style.desc}</small>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <button type="button" className="nx-text-button" onClick={() => setShowAllStyles(v => !v)}>
+          {showAllStyles ? 'Mostrar menos estilos' : 'Ver todos os estilos'}
+        </button>
+
+        <div className="nx-field-row">
+          <Field
+            label="Clima da música"
+            isMissing={!data.musicMood}
+            missingText="Falta selecionar"
+          >
+            <select
+              value={data.musicMood || ''}
+              onChange={e => updateField('musicMood', e.target.value)}
+              style={!data.musicMood ? { borderColor: '#f59e0b', backgroundColor: '#fffdf5' } : {}}
+            >
+              <option value="">Escolha o clima</option>
+              {moods.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+            </select>
+          </Field>
+          <Field
+            label="Voz"
+            isMissing={!data.voiceType}
+            missingText="Falta escolher"
+          >
+            <select
+              value={data.voiceType || ''}
+              onChange={e => updateField('voiceType', e.target.value)}
+              style={!data.voiceType ? { borderColor: '#f59e0b', backgroundColor: '#fffdf5' } : {}}
+            >
+              <option value="">Escolha a voz</option>
+              <option value="masculina">Masculina</option>
+              <option value="feminina">Feminina</option>
+              <option value="dueto">Dueto</option>
+              {recognizedVoice && <option value="minha_voz">Minha voz cadastrada</option>}
+            </select>
+          </Field>
+        </div>
         <p className="nx-helper">As preferências orientam a composição. Você ouve a prévia antes de decidir pela compra.</p>
       </section>
     );
@@ -117,7 +297,23 @@ export default function CreationSteps({ step, formData: data, updateField, isLis
       <Field label="Foto de capa (opcional)" help="Você também pode adicionar ou trocar a foto depois."><input type="file" accept="image/*" disabled={isUploadingCover} onChange={handleImageUpload} /></Field>
       {isUploadingCover && <p className="nx-helper" role="status">Enviando sua foto…</p>}
       {data.coverUrl && <Image src={data.coverUrl} alt="Sua foto de capa" width={96} height={96} unoptimized className="nx-upload-preview" />}
-      <Field label="Seu WhatsApp para receber o link" help="Enviaremos o link para você acompanhar e ouvir a sua música."><input type="tel" inputMode="tel" autoComplete="tel" value={data.customerPhone || ''} onChange={e => handlePhoneChange(e.target.value)} placeholder="(11) 99999-9999" aria-invalid={phoneVerifyStatus === 'invalid'} /></Field>
+      <Field
+        label="Seu WhatsApp para receber o link"
+        help="Enviaremos o link para você acompanhar e ouvir a sua música."
+        isMissing={phoneVerifyStatus !== 'valid'}
+        missingText={!data.customerPhone ? 'WhatsApp obrigatório' : 'DDD + número de celular'}
+      >
+        <input
+          type="tel"
+          inputMode="tel"
+          autoComplete="tel"
+          value={data.customerPhone || ''}
+          onChange={e => handlePhoneChange(e.target.value)}
+          placeholder="(11) 99999-9999"
+          aria-invalid={phoneVerifyStatus === 'invalid'}
+          style={phoneVerifyStatus !== 'valid' && data.customerPhone ? { borderColor: '#f59e0b', backgroundColor: '#fffdf5' } : {}}
+        />
+      </Field>
       {phoneVerifyMessage && <p className="nx-helper" role="status" style={{ color: phoneVerifyStatus === 'valid' ? '#16a34a' : phoneVerifyStatus === 'invalid' ? '#dc2626' : undefined, fontWeight: phoneVerifyStatus === 'valid' || phoneVerifyStatus === 'invalid' ? 600 : undefined }}>{phoneVerifyMessage.replace('❌ ', '')}</p>}
       <p className="nx-helper" style={{ fontSize: '0.82rem', color: '#534b57', margin: '10px 0 4px 0' }}>
         Ao prosseguir, você concorda com nossos <Link href="/termos-de-uso" target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'underline' }}>Termos de Uso</Link> e <Link href="/politica-de-privacidade" target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'underline' }}>Política de Privacidade</Link>.

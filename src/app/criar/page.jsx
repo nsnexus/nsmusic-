@@ -1570,6 +1570,35 @@ export default function CriarMusica() {
     return false;
   };
 
+  const getMissingSummary = (curStep, data, selfTribute) => {
+    if (curStep === 1) {
+      const missing = [];
+      if (!data.occasion) missing.push('Ocasião');
+      if (!selfTribute && !data.relationship?.trim()) missing.push('Relação');
+      if (data.relationship === 'Outro' && !data.customRelationship?.trim()) missing.push('Especificar relação');
+      if (!data.honoreeName?.trim()) missing.push('Nome homenageado');
+      if (!data.customerName?.trim()) missing.push('Seu nome');
+      return missing.length ? `Falta preencher: ${missing.join(', ')}` : '';
+    }
+    if (curStep === 2) {
+      const len = (data.story || '').trim().length;
+      if (len === 0) return 'Escreva pelo menos 50 caracteres da história';
+      return `Faltam ${50 - len} caracteres para o mínimo (50)`;
+    }
+    if (curStep === 3) {
+      const missing = [];
+      if (!data.musicStyle) missing.push('Estilo');
+      if (!data.musicMood) missing.push('Clima da música');
+      if (!data.voiceType) missing.push('Voz');
+      return missing.length ? `Falta selecionar: ${missing.join(' e ')}` : '';
+    }
+    if (curStep === 4) {
+      if (!isPhoneValid(data.customerPhone)) return 'Informe um WhatsApp com DDD válido';
+      return 'Confira os dados para continuar';
+    }
+    return '';
+  };
+
   const renderWizardStep = () => (
     <WizardSteps
       step={step}
@@ -2747,26 +2776,61 @@ export default function CriarMusica() {
                   <div />
                 )}
                 
-                <div>
-                  {step <= totalWizardSteps ? (
-                    <button 
-                      onClick={step === totalWizardSteps ? handleSaveAndGenerateLyrics : nextStep}
-                      disabled={isNextDisabled() || (step === totalWizardSteps && isSubmitting)}
-                      className="btn btn-primary criar-nav-next"
-                      style={{
-                        padding: '12px 28px',
-                        fontSize: '0.95rem',
-                        minHeight: '46px',
-                        background: (isNextDisabled() || (step === totalWizardSteps && isSubmitting)) ? 'var(--bg-tertiary)' : 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)',
-                        color: (isNextDisabled() || (step === totalWizardSteps && isSubmitting)) ? 'var(--text-muted)' : '#FFFFFF'
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
+                  {step <= totalWizardSteps && isNextDisabled() && !isUploadingCover && (
+                    <div
+                      onClick={() => {
+                        const el = document.querySelector('[data-missing="true"]');
+                        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
                       }}
+                      style={{
+                        fontSize: '0.78rem',
+                        color: '#92400e',
+                        backgroundColor: '#fffbeb',
+                        border: '1px solid #fde68a',
+                        padding: '4px 10px',
+                        borderRadius: '8px',
+                        fontWeight: 600,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        cursor: 'pointer',
+                        boxShadow: '0 2px 6px rgba(245, 158, 11, 0.1)'
+                      }}
+                      title="Clique para ir até o item pendente"
                     >
-                      {/* Botão desabilitado sem explicação lê como travamento. Diz o motivo. */}
-                      {isUploadingCover
-                        ? 'Enviando foto…'
-                        : ['Continuar para a história →', 'Escolher o som →', 'Revisar meu presente →', 'Criar minha letra →'][step - 1]}
-                    </button>
-                  ) : (
+                      <span>⚠️</span>
+                      <span>{getMissingSummary(step, formData, isSelfTribute)}</span>
+                    </div>
+                  )}
+
+                  <div
+                    onClick={() => {
+                      if (step <= totalWizardSteps && isNextDisabled() && !isUploadingCover) {
+                        const el = document.querySelector('[data-missing="true"]');
+                        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                      }
+                    }}
+                  >
+                    {step <= totalWizardSteps ? (
+                      <button 
+                        onClick={step === totalWizardSteps ? handleSaveAndGenerateLyrics : nextStep}
+                        disabled={isNextDisabled() || (step === totalWizardSteps && isSubmitting)}
+                        className="btn btn-primary criar-nav-next"
+                        style={{
+                          padding: '12px 28px',
+                          fontSize: '0.95rem',
+                          minHeight: '46px',
+                          background: (isNextDisabled() || (step === totalWizardSteps && isSubmitting)) ? 'var(--bg-tertiary)' : 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)',
+                          color: (isNextDisabled() || (step === totalWizardSteps && isSubmitting)) ? 'var(--text-muted)' : '#FFFFFF'
+                        }}
+                      >
+                        {/* Botão desabilitado sem explicação lê como travamento. Diz o motivo. */}
+                        {isUploadingCover
+                          ? 'Enviando foto…'
+                          : ['Continuar para a história →', 'Escolher o som →', 'Revisar meu presente →', 'Criar minha letra →'][step - 1]}
+                      </button>
+                    ) : (
                     step === 5 && (
                       contingencyMode ? (
                         <button
@@ -2804,6 +2868,7 @@ export default function CriarMusica() {
                       )
                     )
                   )}
+                  </div>
                 </div>
               </div>
             </div>
