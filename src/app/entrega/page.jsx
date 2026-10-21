@@ -499,14 +499,14 @@ function EntregaContent() {
     if (!isPaid) return;
 
     // Disparo de CompletePayment para TikTok Pixel: somente se a venda for atribuída ao TikTok Ads
-    if (isOrderFromTikTok(order)) {
+    const isFromWhatsApp = typeof navigator !== 'undefined' && /WhatsApp/i.test(navigator.userAgent || '');
+    const alreadySentTtByServer = Boolean(order.ttPurchaseSent || order.extras?.ttPurchaseSent);
+    if (isOrderFromTikTok(order) && !isFromWhatsApp && !alreadySentTtByServer) {
       const purchaseKey = `tt_purchase_${orderId}`;
       if (typeof window !== 'undefined' && !localStorage.getItem(purchaseKey)) {
         localStorage.setItem(purchaseKey, '1');
         identifyTikTok(order.customerPhone, order.customerEmail, orderId);
-        const purchaseValue = typeof order.paidAmount === 'number' && order.paidAmount > 0
-          ? order.paidAmount
-          : (typeof order.amount === 'number' && order.amount > 0 ? order.amount : 9.99);
+        const purchaseValue = 9.99;
         const eventId = `purchase_${orderId}_musica`;
         trackTikTok('CompletePayment', {
           contents: [
@@ -533,13 +533,12 @@ function EntregaContent() {
     }
 
     // Disparo de Purchase para Meta (Facebook Pixel): somente se a venda for atribuída ao Meta/Facebook/Instagram Ads
-    if (isOrderFromMeta(order)) {
+    const alreadySentMetaByServer = Boolean(order.metaPurchaseSent || order.extras?.metaPurchaseSent);
+    if (isOrderFromMeta(order) && !isFromWhatsApp && !alreadySentMetaByServer) {
       const fbPurchaseKey = `fb_purchase_${orderId}`;
       if (typeof window !== 'undefined' && !localStorage.getItem(fbPurchaseKey)) {
         localStorage.setItem(fbPurchaseKey, '1');
-        const purchaseValue = typeof order.paidAmount === 'number' && order.paidAmount > 0
-          ? order.paidAmount
-          : (typeof order.amount === 'number' && order.amount > 0 ? order.amount : 9.99);
+        const purchaseValue = 9.99;
 
         trackFbPurchase({
           orderId,

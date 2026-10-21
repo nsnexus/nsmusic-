@@ -252,8 +252,19 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
         : txResult.isRetroOnly ? 'retro' : 'musica';
       const eventId = `purchase_${orderId}_${productKey}`;
 
-      // Meta CAPI: Somente envia se o pedido veio de anúncio do Facebook/Instagram
-      if (isMeta) {
+      const isAddonPayment = Boolean(
+        txResult.isVideoOnly ||
+        txResult.isPlaybackOnly ||
+        txResult.isCartaOnly ||
+        txResult.isRetroOnly ||
+        txResult.isKaraokeOnly ||
+        txResult.isVoiceOnly ||
+        txResult.isSecondSongOnly
+      );
+
+      // Meta CAPI: Somente envia se o pedido veio de anúncio do Facebook/Instagram E for a compra principal (música)
+      // Conforme diretriz do produtor: add-ons NUNCA devem contar como compras no Facebook para contar apenas novos clientes compradores
+      if (isMeta && !isAddonPayment) {
         let shouldSendMeta = false;
         if (freshData) {
           if (!freshData[sentField] && !freshData[sendingField]) {
@@ -282,8 +293,8 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
         }
       }
 
-      // TikTok Events API: Somente envia se o pedido veio de anúncio do TikTok
-      if (isTikTok) {
+      // TikTok Events API: Somente envia se o pedido veio de anúncio do TikTok E for a compra principal (música)
+      if (isTikTok && !isAddonPayment) {
         let shouldSendTikTok = false;
         if (freshData) {
           if (!freshData[ttSentField] && !freshData[ttSendingField]) {
