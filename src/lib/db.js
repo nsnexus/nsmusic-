@@ -202,10 +202,14 @@ export const updateTaskResult = async (taskId, result, overrideOrderId = null, e
       const isRegeracao = isAguardandoNovaGeracao || isNovoTrack || isNovaTarefa;
       const isMesmaMusicaJaArquivada = orderTemAudioNosso && !isRegeracao;
 
+      const { appendAudioHistory } = await import('./audioHistory.js');
+      const updatedHistory = appendAudioHistory(orderData, tracks, taskId, 'suno');
+
       const updates = {
         audioUrl: isMesmaMusicaJaArquivada ? orderData.audioUrl : primaryAudio,
         audioFiles: isMesmaMusicaJaArquivada ? orderData.audioFiles : audioFiles,
         audioIds: audioIds.length > 0 ? audioIds : (orderData.audioIds || []),
+        audioHistory: updatedHistory,
         productionStatus: 'AUDIO_GERADO',
         sunoTaskId: taskId,
         updatedAt: new Date().toISOString()
@@ -244,6 +248,28 @@ export const updateTaskResult = async (taskId, result, overrideOrderId = null, e
         finalUpdates.audioUrl = archiveResult.files[0];
         if (archiveResult.arquivou) {
           finalUpdates.audioArchivedAt = new Date().toISOString();
+        }
+
+        if (Array.isArray(updatedHistory)) {
+          finalUpdates.audioHistory = updatedHistory.map((ver) => {
+            if (ver.taskId === taskId) {
+              return {
+                ...ver,
+                tracks: (ver.tracks || []).map((tr, idx) => ({
+                  ...tr,
+                  audioUrl: archiveResult.files[idx] || tr.audioUrl,
+                  audio_url: archiveResult.files[idx] || tr.audio_url
+                }))
+              };
+            }
+            return ver;
+          });
+          await updateOrder(orderId, {
+            audioHistory: finalUpdates.audioHistory,
+            audioFiles: finalUpdates.audioFiles,
+            audioUrl: finalUpdates.audioUrl,
+            audioArchivedAt: finalUpdates.audioArchivedAt
+          }, env).catch(() => {});
         }
       }
 

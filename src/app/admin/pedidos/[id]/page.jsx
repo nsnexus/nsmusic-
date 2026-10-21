@@ -60,6 +60,11 @@ export default function OrderDetailsAdmin() {
   const [generatedTracks, setGeneratedTracks] = useState([]);
   const [sunoError, setSunoError] = useState('');
 
+  // Histórico de versões de áudio geradas
+  const [audioHistory, setAudioHistory] = useState([]);
+  const [restoringVersionId, setRestoringVersionId] = useState(null);
+  const [expandedLyricsVersionId, setExpandedLyricsVersionId] = useState(null);
+
   const router = useRouter();
   const params = useParams();
   const orderId = params.id;
@@ -140,6 +145,9 @@ export default function OrderDetailsAdmin() {
           // com a MESMA função usada na geração normal do cliente, pra nunca divergir (ver topo de
           // src/lib/sunoPayload.js).
           setSunoPrompt(data.sunoPrompt || buildSunoPayload(data).tags);
+          if (Array.isArray(data.audioHistory)) {
+            setAudioHistory(data.audioHistory);
+          }
         } else {
           setOrder({
             orderNumber: orderId,
@@ -189,6 +197,7 @@ export default function OrderDetailsAdmin() {
       lyrics,
       audioUrl,
       audioFiles: [audioUrl, audioUrl2].filter(Boolean),
+      audioHistory: audioHistory || [],
       wavUrl,
       wavFiles: wavUrl ? [wavUrl] : [],
       videoFile: videoUrl,
@@ -232,6 +241,7 @@ export default function OrderDetailsAdmin() {
         lyrics,
         audioUrl,
         audioFiles: [audioUrl, audioUrl2].filter(Boolean),
+        audioHistory,
         wavUrl,
         videoFile: videoUrl,
         qrCodeFile: qrCodeUrl,
@@ -322,6 +332,9 @@ export default function OrderDetailsAdmin() {
             setHasRetrospectivaAccess(Boolean(freshData.hasRetrospectivaAccess || freshData.retrospectivaAddonPaid));
             setHasKaraokeAccess(Boolean(freshData.hasKaraokeAccess || freshData.karaokeAddonPaid));
             setHasCustomVoiceAccess(Boolean(freshData.hasCustomVoiceAccess || freshData.customVoiceAddonPaid || freshData.extras?.hasCustomVoiceAccess || freshData.extras?.customVoiceAddonPaid));
+            if (Array.isArray(freshData.audioHistory)) {
+              setAudioHistory(freshData.audioHistory);
+            }
           }
         }
         setCheckPaymentMsg('✅ Pagamento confirmado na Efí e aprovado agora!');
@@ -469,6 +482,132 @@ export default function OrderDetailsAdmin() {
     }
   };
 
+  const handleRestoreVersion = async (version) => {
+    if (!version || !Array.isArray(version.audioFiles) || version.audioFiles.length === 0) {
+      alert('Esta versão não possui faixas de áudio válidas para restaurar.');
+      return;
+    }
+
+    const versionLabel = `Versão ${version.version || ''}`;
+    const confirmMsg = `Deseja restaurar a ${versionLabel} como o áudio ATIVO do pedido?\n\n` +
+      `Isso atualizará os links de áudio na tela de entrega do cliente imediatamente para as faixas desta versão.`;
+
+    if (!window.confirm(confirmMsg)) {
+      return;
+    }
+
+    setRestoringVersionId(version.id);
+    try {
+      const newAudioUrl = version.audioFiles[0] || version.audioUrl || '';
+      const newAudioUrl2 = version.audioFiles[1] || '';
+      const newAudioFiles = [newAudioUrl, newAudioUrl2].filter(Boolean);
+
+      const updatedHistory = (audioHistory || []).map((v) => ({
+        ...v,
+        active: v.id === version.id || v.version === version.version
+      }));
+
+      const token = await getAdminAuthToken();
+      const res = await fetch('/api/orders/update', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({
+          orderId,
+          audioUrl: newAudioUrl,
+          audioFiles: newAudioFiles,
+          audioHistory: updatedHistory,
+          updatedAt: new Date().toISOString()
+        })
+      });
+
+      if (!res.ok) {
+        throw new Error('Falha ao comunicar com o servidor ao restaurar versão.');
+      }
+
+      setAudioUrl(newAudioUrl);
+      setAudioUrl2(newAudioUrl2);
+      setAudioHistory(updatedHistory);
+      setOrder(prev => ({
+        ...prev,
+        audioUrl: newAudioUrl,
+        audioFiles: newAudioFiles,
+        audioHistory: updatedHistory
+      }));
+
+      setSuccessMsg(`✅ ${versionLabel} restaurada com sucesso! O cliente já está ouvindo esta versão.`);
+      setTimeout(() => setSuccessMsg(''), 5000);
+    } catch (err) {
+      console.error('Erro ao restaurar versão:', err);
+      alert(`❌ Erro ao restaurar versão: ${err.message}`);
+    } finally {
+      setRestoringVersionId(null);
+    }
+  };
+
+  const handleSetTrackAsPrimary = async (url, label = 'Faixa') => {
+    if (!url) return;
+    if (!window.confirm(`Deseja definir "${label}" como o Áudio Principal (Versão 1) do pedido?`)) return;
+
+    try {
+      const newAudioFiles = [url, audioUrl2].filter(Boolean);
+      const token = await getAdminAuthToken();
+      const res = await fetch('/api/orders/update', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({
+          orderId,
+          audioUrl: url,
+          audioFiles: newAudioFiles,
+          updatedAt: new Date().toISOString()
+        })
+      });
+      if (!res.ok) throw new Error('Falha ao atualizar.');
+
+      setAudioUrl(url);
+      setOrder(prev => ({ ...prev, audioUrl: url, audioFiles: newAudioFiles }));
+      setSuccessMsg(`✅ "${label}" definida como Áudio Principal!`);
+      setTimeout(() => setSuccessMsg(''), 4000);
+    } catch (e) {
+      alert(`❌ Erro ao definir áudio principal: ${e.message}`);
+    }
+  };
+
+  const handleSetTrackAsSecondary = async (url, label = 'Faixa') => {
+    if (!url) return;
+    if (!window.confirm(`Deseja definir "${label}" como Áudio Secundário (Bônus) do pedido?`)) return;
+
+    try {
+      const newAudioFiles = [audioUrl, url].filter(Boolean);
+      const token = await getAdminAuthToken();
+      const res = await fetch('/api/orders/update', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({
+          orderId,
+          audioFiles: newAudioFiles,
+          updatedAt: new Date().toISOString()
+        })
+      });
+      if (!res.ok) throw new Error('Falha ao atualizar.');
+
+      setAudioUrl2(url);
+      setOrder(prev => ({ ...prev, audioFiles: newAudioFiles }));
+      setSuccessMsg(`✅ "${label}" definida como Áudio Secundário!`);
+      setTimeout(() => setSuccessMsg(''), 4000);
+    } catch (e) {
+      alert(`❌ Erro ao definir áudio secundário: ${e.message}`);
+    }
+  };
+
   const getSunoStylePrompt = () => buildSunoPayload(order || {}).tags;
 
   const handleGenerateSuno = async () => {
@@ -585,6 +724,9 @@ export default function OrderDetailsAdmin() {
                   }
                   if (freshData.productionStatus) {
                     setProductionStatus(freshData.productionStatus);
+                  }
+                  if (Array.isArray(freshData.audioHistory)) {
+                    setAudioHistory(freshData.audioHistory);
                   }
                 }
               }
@@ -1206,6 +1348,275 @@ export default function OrderDetailsAdmin() {
                         </div>
                       ))}
                     </div>
+                  </div>
+                )}
+              </div>
+
+                            {/* Card de Histórico de Versões de Música */}
+              <div style={styles.card}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid #e2e8f0', paddingBottom: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <h3 style={{ fontSize: '1.15rem', fontWeight: '800', color: '#0f172a', margin: 0 }}>
+                      Histórico de Versões 🎵
+                    </h3>
+                    <span style={{ fontSize: '0.75rem', fontWeight: '700', padding: '2px 8px', borderRadius: '12px', background: '#f1f5f9', color: '#475569' }}>
+                      {audioHistory.length} {audioHistory.length === 1 ? 'versão' : 'versões'}
+                    </span>
+                  </div>
+                </div>
+
+                <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '16px', lineHeight: '1.4' }}>
+                  Todas as versões geradas pelo Suno AI ficam salvas aqui. Você pode ouvir qualquer faixa gerada anteriormente e restaurá-la com 1 clique caso o cliente prefira a versão anterior.
+                </p>
+
+                {audioHistory.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '24px 16px', background: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1' }}>
+                    <span style={{ fontSize: '1.8rem', display: 'block', marginBottom: '8px' }}>🎧</span>
+                    <p style={{ fontSize: '0.85rem', color: '#64748b', margin: 0 }}>
+                      Nenhuma versão anterior registrada no histórico ainda.
+                    </p>
+                    <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '4px' }}>
+                      Ao gerar novos áudios no Suno AI, eles aparecerão aqui com opção de restauração rápida.
+                    </p>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    {audioHistory.map((ver, vIdx) => {
+                      const isCurrentActive = ver.active || (
+                        ver.audioUrl && (ver.audioUrl === audioUrl || (Array.isArray(ver.audioFiles) && ver.audioFiles.includes(audioUrl)))
+                      );
+                      const formattedDate = ver.createdAt
+                        ? new Date(ver.createdAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+                        : 'Data n/d';
+                      const tracksList = Array.isArray(ver.audioFiles) && ver.audioFiles.length > 0
+                        ? ver.audioFiles
+                        : (ver.audioUrl ? [ver.audioUrl] : []);
+
+                      const isLyricsExpanded = expandedLyricsVersionId === ver.id;
+
+                      return (
+                        <div
+                          key={ver.id || `ver-${vIdx}`}
+                          style={{
+                            padding: '16px',
+                            backgroundColor: isCurrentActive ? '#f0fdf4' : '#ffffff',
+                            borderRadius: '12px',
+                            border: isCurrentActive ? '2px solid #86efac' : '1px solid #e2e8f0',
+                            boxShadow: isCurrentActive ? '0 2px 8px rgba(34, 197, 94, 0.12)' : '0 1px 3px rgba(0,0,0,0.04)',
+                            transition: 'all 0.2s ease'
+                          }}
+                        >
+                          {/* Cabeçalho da versão */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
+                            <div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                <span style={{ fontSize: '0.95rem', fontWeight: '800', color: isCurrentActive ? '#15803d' : '#0f172a' }}>
+                                  {ver.label || `Versão ${ver.version || audioHistory.length - vIdx}`}
+                                </span>
+                                {isCurrentActive ? (
+                                  <span style={{ fontSize: '0.7rem', fontWeight: '800', padding: '2px 8px', borderRadius: '6px', background: '#22c55e', color: '#ffffff', letterSpacing: '0.5px' }}>
+                                    ⭐ ATIVA NO PEDIDO
+                                  </span>
+                                ) : (
+                                  <span style={{ fontSize: '0.7rem', fontWeight: '600', padding: '2px 8px', borderRadius: '6px', background: '#f1f5f9', color: '#64748b' }}>
+                                    Anterior
+                                  </span>
+                                )}
+                                {ver.provider && (
+                                  <span style={{ fontSize: '0.68rem', padding: '1px 6px', borderRadius: '4px', background: '#f3e8ff', color: '#7e22ce', fontWeight: '600' }}>
+                                    {ver.provider === 'suno_local' ? '🖥️ Suno PC' : ver.provider === 'kie' ? '🟣 Kie.ai' : ver.provider}
+                                  </span>
+                                )}
+                              </div>
+                              <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '2px' }}>
+                                Gerado em: {formattedDate} {ver.taskId ? `· ID: ${String(ver.taskId).slice(0, 8)}...` : ''}
+                              </div>
+                            </div>
+
+                            {/* Botão de Restaurar Versão Inteira */}
+                            {!isCurrentActive && (
+                              <button
+                                type="button"
+                                onClick={() => handleRestoreVersion(ver)}
+                                disabled={restoringVersionId === ver.id}
+                                style={{
+                                  fontSize: '0.78rem',
+                                  padding: '6px 12px',
+                                  backgroundColor: restoringVersionId === ver.id ? '#94a3b8' : '#7c3aed',
+                                  color: '#ffffff',
+                                  border: 'none',
+                                  borderRadius: '6px',
+                                  fontWeight: '700',
+                                  cursor: restoringVersionId === ver.id ? 'default' : 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  boxShadow: '0 1px 3px rgba(124, 58, 237, 0.2)'
+                                }}
+                                title="Restaura esta versão inteira como ativa para o cliente"
+                              >
+                                {restoringVersionId === ver.id ? '⏳ Restaurando...' : '🔄 Restaurar esta Versão'}
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Prompt de Estilo / Tags da versão */}
+                          {(ver.tags || ver.sunoPrompt) && (
+                            <div style={{ marginBottom: '10px', fontSize: '0.75rem', background: isCurrentActive ? '#ffffff' : '#f8fafc', padding: '6px 10px', borderRadius: '6px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                              <span style={{ color: '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                🏷️ <strong>Tags:</strong> {ver.tags || ver.sunoPrompt}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => copyToClipboard(ver.tags || ver.sunoPrompt, 'Tags da versão copiadas!')}
+                                style={{ background: 'none', border: 'none', color: '#7c3aed', fontSize: '0.72rem', fontWeight: 'bold', cursor: 'pointer', padding: 0, flexShrink: 0 }}
+                              >
+                                Copiar
+                              </button>
+                            </div>
+                          )}
+
+                          {/* Letra da versão (se salva e diferente) */}
+                          {ver.lyrics && (
+                            <div style={{ marginBottom: '12px' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => setExpandedLyricsVersionId(isLyricsExpanded ? null : ver.id)}
+                                  style={{ background: 'none', border: 'none', color: '#6366f1', fontSize: '0.75rem', fontWeight: '600', cursor: 'pointer', padding: 0 }}
+                                >
+                                  {isLyricsExpanded ? '▼ Ocultar letra desta versão' : '▶ Ver letra usada nesta versão'}
+                                </button>
+                                {isLyricsExpanded && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setLyrics(ver.lyrics);
+                                      alert('Letra desta versão copiada para o campo de edição do pedido!');
+                                    }}
+                                    style={{ background: 'none', border: 'none', color: '#059669', fontSize: '0.72rem', fontWeight: 'bold', cursor: 'pointer', padding: 0 }}
+                                  >
+                                    Usar esta letra no pedido
+                                  </button>
+                                )}
+                              </div>
+                              {isLyricsExpanded && (
+                                <pre style={{ marginTop: '6px', padding: '10px', background: '#f8fafc', borderRadius: '6px', fontSize: '0.75rem', color: '#334155', maxHeight: '180px', overflowY: 'auto', whiteSpace: 'pre-wrap', border: '1px solid #e2e8f0', fontFamily: 'inherit' }}>
+                                  {ver.lyrics}
+                                </pre>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Faixas de Áudio desta versão */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            {tracksList.map((trackUrl, tIdx) => {
+                              const isThisPrimary = trackUrl === audioUrl;
+                              const isThisSecondary = trackUrl === audioUrl2;
+                              const trackLabel = `Faixa ${tIdx + 1} ${tIdx === 0 ? '(Principal)' : '(Bônus)'}`;
+
+                              return (
+                                <div
+                                  key={`${ver.id || vIdx}-t-${tIdx}`}
+                                  style={{
+                                    padding: '10px 12px',
+                                    backgroundColor: isThisPrimary ? '#ecfdf5' : isThisSecondary ? '#eff6ff' : '#f8fafc',
+                                    borderRadius: '8px',
+                                    border: isThisPrimary ? '1px solid #a7f3d0' : isThisSecondary ? '1px solid #bfdbfe' : '1px solid #e2e8f0',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '8px'
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span style={{ fontSize: '0.8rem', fontWeight: '700', color: '#0f172a' }}>
+                                      🎵 {trackLabel}
+                                      {isThisPrimary && (
+                                        <span style={{ marginLeft: '6px', fontSize: '0.7rem', color: '#059669', fontWeight: '800' }}>
+                                          [Áudio Principal Ativo]
+                                        </span>
+                                      )}
+                                      {isThisSecondary && (
+                                        <span style={{ marginLeft: '6px', fontSize: '0.7rem', color: '#2563eb', fontWeight: '800' }}>
+                                          [Bônus Ativo]
+                                        </span>
+                                      )}
+                                    </span>
+                                  </div>
+
+                                  {/* Tocador de Áudio */}
+                                  <audio
+                                    src={buildAudioProxySrc(trackUrl)}
+                                    controls
+                                    preload="none"
+                                    style={{ width: '100%', height: '36px' }}
+                                  />
+
+                                  {/* Botões rápidos de controle da faixa */}
+                                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                                    {!isThisPrimary && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleSetTrackAsPrimary(trackUrl, `${ver.label || 'V' + ver.version} - ${trackLabel}`)}
+                                        style={{
+                                          fontSize: '0.72rem',
+                                          padding: '4px 8px',
+                                          backgroundColor: '#e0e7ff',
+                                          color: '#3730a3',
+                                          border: '1px solid #c7d2fe',
+                                          borderRadius: '5px',
+                                          fontWeight: '600',
+                                          cursor: 'pointer'
+                                        }}
+                                        title="Define esta faixa isolada como o áudio principal do pedido"
+                                      >
+                                        ⭐ Usar como Principal
+                                      </button>
+                                    )}
+                                    {!isThisSecondary && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleSetTrackAsSecondary(trackUrl, `${ver.label || 'V' + ver.version} - ${trackLabel}`)}
+                                        style={{
+                                          fontSize: '0.72rem',
+                                          padding: '4px 8px',
+                                          backgroundColor: '#eff6ff',
+                                          color: '#1d4ed8',
+                                          border: '1px solid #bfdbfe',
+                                          borderRadius: '5px',
+                                          fontWeight: '600',
+                                          cursor: 'pointer'
+                                        }}
+                                        title="Define esta faixa isolada como o áudio bônus do pedido"
+                                      >
+                                        ➕ Usar como Bônus
+                                      </button>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDownload(trackUrl, `${order.orderNumber || orderId}-v${ver.version || vIdx + 1}-faixa${tIdx + 1}.mp3`)}
+                                      style={{
+                                        fontSize: '0.72rem',
+                                        padding: '4px 8px',
+                                        backgroundColor: '#f1f5f9',
+                                        color: '#334155',
+                                        border: '1px solid #cbd5e1',
+                                        borderRadius: '5px',
+                                        fontWeight: '600',
+                                        cursor: 'pointer'
+                                      }}
+                                      title="Baixar MP3 desta faixa"
+                                    >
+                                      ⬇️ Baixar MP3
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
