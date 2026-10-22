@@ -39,7 +39,7 @@ export function getCloudApiConfig(env = {}) {
     // Nomes dos templates aprovados, configuráveis por variável para não exigir deploy quando um
     // template for recriado com outro nome (acontece: reprovação da Meta obriga a refazer).
     templateMusicaPronta: ler('WHATSAPP_TEMPLATE_MUSICA') || 'aviso_musica_pronta',
-    templateMusicaProntaVideo: ler('WHATSAPP_TEMPLATE_MUSICA_VIDEO') || 'previa_musica_com_video',
+    templateMusicaProntaVideo: ler('WHATSAPP_TEMPLATE_MUSICA_VIDEO') || 'entrega_pedido_musica_video',
     templatePagamento: ler('WHATSAPP_TEMPLATE_PAGAMENTO') || 'confirmacao_pagamento_v2',
     templatePagamentoDownloads: ler('WHATSAPP_TEMPLATE_PAGAMENTO_DOWNLOADS') || 'confirmacao_pagamento_downloads',
     templatePagamentoV2: ler('WHATSAPP_TEMPLATE_PAGAMENTO_V2') || 'confirmacao_pagamento_v2',
@@ -179,13 +179,14 @@ export async function enviarMusicaProntaCloud(phone, { cliente, homenageado, lin
   if (videoUrl && resolvedOrderId) {
     const candidateTemplates = [
       config.templateMusicaProntaVideo,
-      'status_pedido_musica_video',
       'entrega_pedido_musica_video',
-      'atualizacao_pedido_musica',
       'notificacao_pedido_pronto',
+      'atualizacao_pedido_musica',
+      'status_pedido_musica_video',
     ].filter(Boolean);
 
-    for (const tName of candidateTemplates) {
+    const uniqueTemplates = [...new Set(candidateTemplates)];
+    for (const tName of uniqueTemplates) {
       const resVideo = await sendCloudApiTemplate(
         phone,
         tName,
@@ -198,7 +199,7 @@ export async function enviarMusicaProntaCloud(phone, { cliente, homenageado, lin
       );
       if (resVideo.success) return resVideo;
     }
-    console.warn('[CloudAPI] Templates de vídeo ainda não aprovados ou indisponíveis, usando fallback de texto...');
+    console.warn('[CloudAPI] Templates de vídeo falharam ou indisponíveis, usando fallback de texto...');
   }
 
   // 2. Fallback para o template padrão de texto aprovado

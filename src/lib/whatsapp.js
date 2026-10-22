@@ -400,7 +400,25 @@ export const sendMusicReadyTemplate = async (phone, { customerName, honoreeName,
       homenageado: honoree,
       link: url,
     };
-    if (videoUrl) payload.videoUrl = videoUrl;
+
+    let effectiveVideoUrl = videoUrl;
+    if (!effectiveVideoUrl && resolvedOrderId) {
+      try {
+        const { getOrderPreviewVideoUrl } = await import('./videoPreview.js');
+        effectiveVideoUrl = await getOrderPreviewVideoUrl(resolvedOrderId, orderData, env);
+      } catch (e) {
+        console.warn('[WhatsApp] Falha ao resolver URL de vídeo de prévia:', e?.message);
+      }
+    }
+
+    if (effectiveVideoUrl && resolvedOrderId) {
+      const { buildPublicPreviewVideoUrl } = await import('./videoPreview.js');
+      // Fornece a URL pública e canônica de streaming no próprio domínio
+      payload.videoUrl = buildPublicPreviewVideoUrl(resolvedOrderId);
+    } else if (effectiveVideoUrl) {
+      payload.videoUrl = effectiveVideoUrl;
+    }
+
     if (orderData?.id || orderData?.orderNumber) {
       payload.orderId = orderData.id || orderData.orderNumber;
     }
@@ -411,10 +429,11 @@ export const sendMusicReadyTemplate = async (phone, { customerName, honoreeName,
   }
 
   // 2. Contingência via Evolution API: Se tiver vídeo prévia, envia vídeo com legenda
-  if (videoUrl) {
+  const evoVideoUrl = videoUrl || (resolvedOrderId ? (await import('./videoPreview.js')).buildPublicPreviewVideoUrl(resolvedOrderId) : null);
+  if (evoVideoUrl) {
     const caption = await buildPreviewVideoCaption({ customerName: name, honoreeName: honoree, deliveryUrl: url }, env);
     const mediaRes = await sendEvolutionMediaMessage(phone, {
-      mediaUrl: videoUrl,
+      mediaUrl: evoVideoUrl,
       caption,
       fileName: 'previa_musica.mp4'
     }, env);

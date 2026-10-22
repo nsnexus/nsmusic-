@@ -5,6 +5,18 @@ import { getOrder, updateOrder } from '@/lib/supabaseDb';
 export const runtime = 'edge';
 
 /**
+ * GET para redirecionar ou servir diretamente a stream pública do vídeo prévia.
+ */
+export async function GET(req) {
+  const { searchParams } = new URL(req.url);
+  const orderId = searchParams.get('orderId');
+  if (!orderId) {
+    return NextResponse.json({ error: 'orderId obrigatório' }, { status: 400 });
+  }
+  return NextResponse.redirect(new URL(`/api/video/stream/preview_${orderId}.mp4`, req.url));
+}
+
+/**
  * Rota para acionamento da renderização de vídeo prévia (60s SD leve) na VPS.
  * Utilizado para envio de mensagens automáticas de prévia com vídeo pelo WhatsApp.
  */

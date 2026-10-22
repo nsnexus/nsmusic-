@@ -279,6 +279,14 @@ export const updateTaskResult = async (taskId, result, overrideOrderId = null, e
         await addGeneration();
       }
 
+      // Pré-renderiza a prévia de 60s na VPS para envio oficial no WhatsApp
+      try {
+        const { triggerPreviewVideoRender } = await import('./videoPreview.js');
+        await triggerPreviewVideoRender(orderId, { ...orderData, ...finalUpdates }, env);
+      } catch (prevErr) {
+        console.warn('[db] Falha ao renderizar prévia de vídeo:', prevErr?.message);
+      }
+
       await notifyMusicReady(orderId, null, orderId, {}, env);
     }
   } catch (err) {
@@ -300,9 +308,10 @@ export const notifyMusicReady = async (orderRefOrId, orderData, orderIdParam, op
   if (!force && !currentOrder.whatsappRequested && !currentOrder.customerPhone) return { sent: false, reason: 'not_requested' };
 
   let shouldSend = force;
+  let freshData = null;
   if (!force) {
     try {
-      const freshData = await getOrder(orderId, env);
+      freshData = await getOrder(orderId, env);
       if (freshData) {
         if (!freshData.whatsappSent && !freshData.readyTemplateSent && !freshData.whatsappSending && !freshData.readyTemplateSending) {
           await updateOrder(orderId, { whatsappSending: true, readyTemplateSending: true }, env);
@@ -316,13 +325,15 @@ export const notifyMusicReady = async (orderRefOrId, orderData, orderIdParam, op
 
   if (!shouldSend) return { sent: false, reason: 'already_sending' };
 
+  const finalOrder = freshData || currentOrder;
   const deliveryUrl = resolveDeliveryUrl(orderId);
-  const targetPhone = currentOrder.whatsappSenderPhone || currentOrder.customerPhone;
+  const targetPhone = finalOrder.whatsappSenderPhone || finalOrder.customerPhone;
   const sendResult = await sendMusicReadyTemplate(targetPhone, {
-    customerName: currentOrder.customerName,
-    honoreeName: currentOrder.honoreeName,
+    customerName: finalOrder.customerName,
+    honoreeName: finalOrder.honoreeName,
     deliveryUrl,
-    videoUrl: currentOrder.previewVideoUrl || currentOrder.preview_video_url || currentOrder.extras?.previewVideoUrl || null,
+    videoUrl: finalOrder.previewVideoUrl || finalOrder.preview_video_url || finalOrder.extras?.previewVideoUrl || null,
+    orderData: finalOrder,
   }, env);
 
   if (sendResult.ignored) {
