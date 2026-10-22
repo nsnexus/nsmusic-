@@ -279,15 +279,19 @@ export const updateTaskResult = async (taskId, result, overrideOrderId = null, e
         await addGeneration();
       }
 
-      // Pré-renderiza a prévia de 60s na VPS para envio oficial no WhatsApp
+      // Pré-renderiza a prévia de 60s na VPS para envio oficial com vídeo no WhatsApp
+      let previewVideoUrl = null;
       try {
         const { triggerPreviewVideoRender } = await import('./videoPreview.js');
-        await triggerPreviewVideoRender(orderId, { ...orderData, ...finalUpdates }, env);
+        const prevRes = await triggerPreviewVideoRender(orderId, { ...orderData, ...finalUpdates }, env, { sync: true });
+        if (prevRes?.previewUrl) {
+          previewVideoUrl = prevRes.previewUrl;
+        }
       } catch (prevErr) {
         console.warn('[db] Falha ao renderizar prévia de vídeo:', prevErr?.message);
       }
 
-      await notifyMusicReady(orderId, null, orderId, {}, env);
+      await notifyMusicReady(orderId, null, orderId, { previewVideoUrl }, env);
     }
   } catch (err) {
     console.error("Error updating task result:", err);
@@ -328,12 +332,18 @@ export const notifyMusicReady = async (orderRefOrId, orderData, orderIdParam, op
   const finalOrder = freshData || currentOrder;
   const deliveryUrl = resolveDeliveryUrl(orderId);
   const targetPhone = finalOrder.whatsappSenderPhone || finalOrder.customerPhone;
+  const targetVideoUrl = opts.previewVideoUrl
+    || finalOrder.previewVideoUrl
+    || finalOrder.preview_video_url
+    || finalOrder.extras?.previewVideoUrl
+    || null;
+
   const sendResult = await sendMusicReadyTemplate(targetPhone, {
     customerName: finalOrder.customerName,
     honoreeName: finalOrder.honoreeName,
     deliveryUrl,
-    videoUrl: finalOrder.previewVideoUrl || finalOrder.preview_video_url || finalOrder.extras?.previewVideoUrl || null,
-    orderData: finalOrder,
+    videoUrl: targetVideoUrl,
+    orderData: { ...finalOrder, ...(targetVideoUrl ? { previewVideoUrl: targetVideoUrl } : {}) },
   }, env);
 
   if (sendResult.ignored) {

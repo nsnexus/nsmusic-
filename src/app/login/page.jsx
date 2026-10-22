@@ -9,6 +9,7 @@ import {
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
   signInWithGoogle,
+  updatePassword,
   auth,
 } from '@/lib/authClient';
 import { getFriendlyAuthErrorMessage } from '@/lib/authErrors';
@@ -29,20 +30,28 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
+  const [isResetMode, setIsResetMode] = useState(false);
   const [error, setError] = useState('');
   const [resetSuccess, setResetSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [focusedField, setFocusedField] = useState(null);
 
-  // Permite abrir diretamente na aba de cadastro se passado na URL (?modo=cadastro ou ?signup=1)
+  // Permite abrir diretamente na aba de cadastro ou redefinição se passado na URL
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search);
     if (params.get('modo') === 'cadastro' || params.get('signup') === '1' || params.get('criar') === '1') {
       setIsSignUp(true);
+    }
+    if (params.get('modo') === 'redefinir' || params.get('modo') === 'reset' || sessionStorage.getItem('supabase_auth_recovery') === 'true') {
+      setIsResetMode(true);
     }
   }, []);
 
@@ -101,6 +110,37 @@ export default function LoginPage() {
     }
   };
 
+  const handleSetNewPassword = async (e) => {
+    e.preventDefault();
+    setError('');
+    setResetSuccess('');
+
+    if (newPassword.length < 6) {
+      setError('A nova senha deve conter pelo menos 6 caracteres.');
+      return;
+    }
+
+    if (newPassword !== confirmNewPassword) {
+      setError('As senhas não coincidem. Digite a mesma senha nos dois campos.');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await updatePassword(newPassword);
+      sessionStorage.removeItem('supabase_auth_recovery');
+      setResetSuccess('✅ Sua nova senha foi definida com sucesso! Entrando na sua conta...');
+      setTimeout(() => {
+        router.push(getTargetUrl());
+      }, 1200);
+    } catch (err) {
+      console.error(err);
+      setError(getFriendlyAuthErrorMessage(err));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleResetPassword = async () => {
     const trimmedEmail = email.trim();
     if (!trimmedEmail || !trimmedEmail.includes('@')) {
@@ -110,7 +150,8 @@ export default function LoginPage() {
     setError('');
     setResetSuccess('');
     try {
-      await sendPasswordResetEmail(auth, trimmedEmail);
+      const redirectUrl = `${window.location.origin}/login?modo=redefinir`;
+      await sendPasswordResetEmail(auth, trimmedEmail, redirectUrl);
       setResetSuccess(`✅ Enviamos um e-mail de redefinição para ${trimmedEmail}. Verifique sua caixa de entrada e de spam!`);
     } catch (err) {
       console.error(err);
@@ -144,168 +185,283 @@ export default function LoginPage() {
 
       <main style={styles.main}>
         <div style={styles.card}>
-          <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-            <span style={{ fontSize: '2.4rem', display: 'inline-block' }}>{isSignUp ? '✨' : '🔐'}</span>
-            <h1 style={{ fontSize: '1.65rem', fontWeight: '800', color: '#14132B', marginTop: '8px', letterSpacing: '-0.02em' }}>
-              {isSignUp ? 'Criar Conta no NSMusic' : 'Entrar no Seu Painel'}
-            </h1>
-            <p style={{ color: '#454467', fontSize: '0.92rem', marginTop: '6px', lineHeight: '1.45' }}>
-              {isSignUp 
-                ? 'Crie sua senha para salvar e ouvir todas as suas músicas personalizadas em qualquer aparelho.' 
-                : 'Acesse suas músicas gravadas, saldo de créditos e pedidos anteriores.'}
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleGoogleLogin}
-            style={styles.googleBtn}
-          >
-            <GoogleIcon />
-            <span>Continuar com o Google</span>
-          </button>
-
-          <div style={styles.dividerContainer}>
-            <div style={styles.dividerLine} />
-            <span>ou continue com e-mail</span>
-            <div style={styles.dividerLine} />
-          </div>
-
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div>
-              <label htmlFor="login-email" style={styles.label}>
-                {isSignUp ? 'Seu melhor e-mail:' : 'Seu e-mail:'}
-              </label>
-              <input 
-                id="login-email"
-                name="email"
-                type="email"
-                placeholder="exemplo@email.com"
-                required
-                autoComplete="email"
-                autoCapitalize="none"
-                spellCheck={false}
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                onFocus={() => setFocusedField('email')}
-                onBlur={() => setFocusedField(null)}
-                style={getInputStyle('email')}
-              />
-            </div>
-
-            <div>
-              <label htmlFor="login-password" style={styles.label}>
-                {isSignUp ? 'Crie uma senha de acesso:' : 'Sua senha:'}
-              </label>
-              <div style={{ position: 'relative', width: '100%' }}>
-                <input 
-                  id="login-password"
-                  name="password"
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder="Mínimo 6 caracteres"
-                  required
-                  minLength={6}
-                  autoComplete={isSignUp ? 'new-password' : 'current-password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  onFocus={() => setFocusedField('password')}
-                  onBlur={() => setFocusedField(null)}
-                  style={{ ...getInputStyle('password'), paddingRight: '48px' }}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  style={styles.eyeBtn}
-                  title={showPassword ? 'Ocultar senha' : 'Ver senha'}
-                  aria-label={showPassword ? 'Ocultar senha' : 'Ver senha'}
-                >
-                  {showPassword ? '🙈' : '👁️'}
-                </button>
+          {isResetMode ? (
+            <>
+              <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+                <span style={{ fontSize: '2.4rem', display: 'inline-block' }}>🔑</span>
+                <h1 style={{ fontSize: '1.65rem', fontWeight: '800', color: '#14132B', marginTop: '8px', letterSpacing: '-0.02em' }}>
+                  Criar Nova Senha
+                </h1>
+                <p style={{ color: '#454467', fontSize: '0.92rem', marginTop: '6px', lineHeight: '1.45' }}>
+                  Digite e confirme sua nova senha de acesso abaixo para recuperar sua conta.
+                </p>
               </div>
-            </div>
 
-            {isSignUp && (
-              <div>
-                <label htmlFor="login-confirm-password" style={styles.label}>
-                  Confirme sua senha:
-                </label>
-                <div style={{ position: 'relative', width: '100%' }}>
-                  <input 
-                    id="login-confirm-password"
-                    name="confirmPassword"
-                    type={showConfirmPassword ? 'text' : 'password'}
-                    placeholder="Repita a mesma senha"
-                    required
-                    minLength={6}
-                    autoComplete="new-password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    onFocus={() => setFocusedField('confirmPassword')}
-                    onBlur={() => setFocusedField(null)}
-                    style={{ ...getInputStyle('confirmPassword'), paddingRight: '48px' }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    style={styles.eyeBtn}
-                    title={showConfirmPassword ? 'Ocultar senha' : 'Ver senha'}
-                    aria-label={showConfirmPassword ? 'Ocultar senha' : 'Ver senha'}
-                  >
-                    {showConfirmPassword ? '🙈' : '👁️'}
-                  </button>
+              <form onSubmit={handleSetNewPassword} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div>
+                  <label htmlFor="login-new-password" style={styles.label}>
+                    Nova Senha:
+                  </label>
+                  <div style={{ position: 'relative', width: '100%' }}>
+                    <input 
+                      id="login-new-password"
+                      name="newPassword"
+                      type={showNewPassword ? 'text' : 'password'}
+                      placeholder="Mínimo 6 caracteres"
+                      required
+                      minLength={6}
+                      autoComplete="new-password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      onFocus={() => setFocusedField('newPassword')}
+                      onBlur={() => setFocusedField(null)}
+                      style={{ ...getInputStyle('newPassword'), paddingRight: '48px' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      style={styles.eyeBtn}
+                      title={showNewPassword ? 'Ocultar senha' : 'Ver senha'}
+                      aria-label={showNewPassword ? 'Ocultar senha' : 'Ver senha'}
+                    >
+                      {showNewPassword ? '🙈' : '👁️'}
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )}
 
-            {error && (
-              <div style={styles.errorAlert} role="alert">
-                ⚠️ {error}
-              </div>
-            )}
+                <div>
+                  <label htmlFor="login-confirm-new-password" style={styles.label}>
+                    Confirme a Nova Senha:
+                  </label>
+                  <div style={{ position: 'relative', width: '100%' }}>
+                    <input 
+                      id="login-confirm-new-password"
+                      name="confirmNewPassword"
+                      type={showConfirmNewPassword ? 'text' : 'password'}
+                      placeholder="Repita a mesma senha"
+                      required
+                      minLength={6}
+                      autoComplete="new-password"
+                      value={confirmNewPassword}
+                      onChange={(e) => setConfirmNewPassword(e.target.value)}
+                      onFocus={() => setFocusedField('confirmNewPassword')}
+                      onBlur={() => setFocusedField(null)}
+                      style={{ ...getInputStyle('confirmNewPassword'), paddingRight: '48px' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmNewPassword(!showConfirmNewPassword)}
+                      style={styles.eyeBtn}
+                      title={showConfirmNewPassword ? 'Ocultar senha' : 'Ver senha'}
+                      aria-label={showConfirmNewPassword ? 'Ocultar senha' : 'Ver senha'}
+                    >
+                      {showConfirmNewPassword ? '🙈' : '👁️'}
+                    </button>
+                  </div>
+                </div>
 
-            {resetSuccess && (
-              <div style={styles.successAlert} role="status">
-                {resetSuccess}
-              </div>
-            )}
+                {error && (
+                  <div style={styles.errorAlert} role="alert">
+                    ⚠️ {error}
+                  </div>
+                )}
 
-            {!isSignUp && (
-              <div style={{ textAlign: 'right', marginTop: '-4px' }}>
+                {resetSuccess && (
+                  <div style={styles.successAlert} role="status">
+                    {resetSuccess}
+                  </div>
+                )}
+
+                <button 
+                  type="submit" 
+                  disabled={submitting}
+                  className="btn btn-primary"
+                  style={styles.submitBtn}
+                >
+                  {submitting ? '⏳ Salvando nova senha...' : 'Salvar Nova Senha 🔒'}
+                </button>
+              </form>
+
+              <div style={styles.cardFooter}>
                 <button
                   type="button"
-                  onClick={handleResetPassword}
-                  style={styles.forgotBtn}
+                  onClick={() => {
+                    setIsResetMode(false);
+                    setError('');
+                    setResetSuccess('');
+                  }}
+                  style={styles.switchBtn}
                 >
-                  Esqueceu sua senha?
+                  ← Voltar para a tela de login
                 </button>
               </div>
-            )}
+            </>
+          ) : (
+            <>
+              <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+                <span style={{ fontSize: '2.4rem', display: 'inline-block' }}>{isSignUp ? '✨' : '🔐'}</span>
+                <h1 style={{ fontSize: '1.65rem', fontWeight: '800', color: '#14132B', marginTop: '8px', letterSpacing: '-0.02em' }}>
+                  {isSignUp ? 'Criar Conta no NSMusic' : 'Entrar no Seu Painel'}
+                </h1>
+                <p style={{ color: '#454467', fontSize: '0.92rem', marginTop: '6px', lineHeight: '1.45' }}>
+                  {isSignUp 
+                    ? 'Crie sua senha para salvar e ouvir todas as suas músicas personalizadas em qualquer aparelho.' 
+                    : 'Acesse suas músicas gravadas, saldo de créditos e pedidos anteriores.'}
+                </p>
+              </div>
 
-            <button 
-              type="submit"
-              disabled={submitting}
-              className="btn btn-primary"
-              style={styles.submitBtn}
-            >
-              {submitting ? '⏳ Processando...' : isSignUp ? 'Criar Minha Conta & Acessar' : 'Entrar no Meu Painel'}
-            </button>
-          </form>
+              <button
+                type="button"
+                onClick={handleGoogleLogin}
+                style={styles.googleBtn}
+              >
+                <GoogleIcon />
+                <span>Continuar com o Google</span>
+              </button>
 
-          <div style={styles.cardFooter}>
-            <button
-              type="button"
-              onClick={() => {
-                setIsSignUp(!isSignUp);
-                setError('');
-                setResetSuccess('');
-              }}
-              style={styles.switchBtn}
-            >
-              {isSignUp 
-                ? 'Já possui uma conta? Clique aqui para entrar' 
-                : 'Primeiro acesso? Clique aqui para criar sua conta'}
-            </button>
-          </div>
+              <div style={styles.dividerContainer}>
+                <div style={styles.dividerLine} />
+                <span>ou continue com e-mail</span>
+                <div style={styles.dividerLine} />
+              </div>
+
+              <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div>
+                  <label htmlFor="login-email" style={styles.label}>
+                    {isSignUp ? 'Seu melhor e-mail:' : 'Seu e-mail:'}
+                  </label>
+                  <input 
+                    id="login-email"
+                    name="email"
+                    type="email"
+                    placeholder="exemplo@email.com"
+                    required
+                    autoComplete="email"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    onFocus={() => setFocusedField('email')}
+                    onBlur={() => setFocusedField(null)}
+                    style={getInputStyle('email')}
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="login-password" style={styles.label}>
+                    {isSignUp ? 'Crie uma senha de acesso:' : 'Sua senha:'}
+                  </label>
+                  <div style={{ position: 'relative', width: '100%' }}>
+                    <input 
+                      id="login-password"
+                      name="password"
+                      type={showPassword ? 'text' : 'password'}
+                      placeholder="Mínimo 6 caracteres"
+                      required
+                      minLength={6}
+                      autoComplete={isSignUp ? 'new-password' : 'current-password'}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      onFocus={() => setFocusedField('password')}
+                      onBlur={() => setFocusedField(null)}
+                      style={{ ...getInputStyle('password'), paddingRight: '48px' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      style={styles.eyeBtn}
+                      title={showPassword ? 'Ocultar senha' : 'Ver senha'}
+                      aria-label={showPassword ? 'Ocultar senha' : 'Ver senha'}
+                    >
+                      {showPassword ? '🙈' : '👁️'}
+                    </button>
+                  </div>
+                </div>
+
+                {isSignUp && (
+                  <div>
+                    <label htmlFor="login-confirm-password" style={styles.label}>
+                      Confirme sua senha:
+                    </label>
+                    <div style={{ position: 'relative', width: '100%' }}>
+                      <input 
+                        id="login-confirm-password"
+                        name="confirmPassword"
+                        type={showConfirmPassword ? 'text' : 'password'}
+                        placeholder="Repita a mesma senha"
+                        required
+                        minLength={6}
+                        autoComplete="new-password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        onFocus={() => setFocusedField('confirmPassword')}
+                        onBlur={() => setFocusedField(null)}
+                        style={{ ...getInputStyle('confirmPassword'), paddingRight: '48px' }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        style={styles.eyeBtn}
+                        title={showConfirmPassword ? 'Ocultar senha' : 'Ver senha'}
+                        aria-label={showConfirmPassword ? 'Ocultar senha' : 'Ver senha'}
+                      >
+                        {showConfirmPassword ? '🙈' : '👁️'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {error && (
+                  <div style={styles.errorAlert} role="alert">
+                    ⚠️ {error}
+                  </div>
+                )}
+
+                {resetSuccess && (
+                  <div style={styles.successAlert} role="status">
+                    {resetSuccess}
+                  </div>
+                )}
+
+                {!isSignUp && (
+                  <div style={{ textAlign: 'right', marginTop: '-4px' }}>
+                    <button
+                      type="button"
+                      onClick={handleResetPassword}
+                      style={styles.forgotBtn}
+                    >
+                      Esqueceu sua senha?
+                    </button>
+                  </div>
+                )}
+
+                <button 
+                  type="submit" 
+                  disabled={submitting}
+                  className="btn btn-primary"
+                  style={styles.submitBtn}
+                >
+                  {submitting ? '⏳ Processando...' : isSignUp ? 'Criar Minha Conta & Acessar' : 'Entrar no Meu Painel'}
+                </button>
+              </form>
+
+              <div style={styles.cardFooter}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSignUp(!isSignUp);
+                    setError('');
+                    setResetSuccess('');
+                  }}
+                  style={styles.switchBtn}
+                >
+                  {isSignUp 
+                    ? 'Já possui uma conta? Clique aqui para entrar' 
+                    : 'Primeiro acesso? Clique aqui para criar sua conta'}
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </main>
     </div>

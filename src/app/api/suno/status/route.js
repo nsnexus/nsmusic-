@@ -219,7 +219,17 @@ export async function GET(req) {
       // Se temos áudios reais disponíveis e o status é de sucesso ou não está explicitamente pendente
       if ((isReady || hasRealAudio) && (!isPending || isReady)) {
         if (tracksArray.length > 0) {
-          await updateTaskResult(effectiveTaskId, kieData, orderId, env);
+          const updatePromise = updateTaskResult(effectiveTaskId, kieData, orderId, env);
+          let ctx = null;
+          try {
+            ctx = getRequestContext();
+          } catch (e) {}
+
+          if (ctx?.waitUntil) {
+            ctx.waitUntil(updatePromise.catch(e => console.warn('[api/suno/status] Erro background Kie:', e?.message)));
+          } else {
+            await updatePromise;
+          }
           return NextResponse.json({ status: "COMPLETED", tracks: tracksArray });
         }
       }
@@ -292,7 +302,17 @@ export async function GET(req) {
           : extractAudioTracks(taskData);
 
         if (tracksArray.length > 0) {
-          await updateTaskResult(effectiveTaskId, unifData, orderId, env);
+          const updatePromise = updateTaskResult(effectiveTaskId, unifData, orderId, env);
+          let ctx = null;
+          try {
+            ctx = getRequestContext();
+          } catch (e) {}
+
+          if (ctx?.waitUntil) {
+            ctx.waitUntil(updatePromise.catch(e => console.warn('[api/suno/status] Erro background Unif:', e?.message)));
+          } else {
+            await updatePromise;
+          }
           return NextResponse.json({ status: "COMPLETED", tracks: tracksArray });
         }
       }

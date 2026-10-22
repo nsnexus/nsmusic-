@@ -90,9 +90,8 @@ export default function ContaPage() {
     } catch (failure) { setError(failure.message); }
     finally { purchaseLock.current = false; setBuying(false); }
   };
-
   return <div className="nx-experience">
-    <header className="nx-header"><div className="nx-header-inner"><Link href="/" className="nx-brand"><Image src="/logo.png" alt="NS Music" width={44} height={44} priority /><span>Histórias que viram música.</span></Link>{user ? <button type="button" className="nx-text-button" onClick={() => signOut(auth)}>Sair da conta</button> : <Link href="/criar" className="nx-account-link">Criar música</Link>}</div></header>
+    <header className="nx-header"><div className="nx-header-inner"><Link href="/" className="nx-brand"><Image src="/logo.png" alt="NS Music" width={44} height={44} priority /><span>Histórias que viram música.</span></Link><div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}><Link href="/" className="nx-text-button" style={{ textDecoration: 'none' }}>← Início</Link>{user ? <button type="button" className="nx-text-button" onClick={() => signOut(auth)}>Sair da conta</button> : <Link href="/criar" className="nx-account-link">Criar música</Link>}</div></div></header>
     <main className="nx-delivery-main">
       {!authReady ? <p className="nx-message" role="status">Carregando sua conta…</p> : !user ? <section className="nx-card nx-login-card"><Image src="/experiencia/familia.webp" alt="" width={640} height={426} sizes="(max-width: 640px) 85vw, 420px" /><span className="nx-eyebrow">Seu lugar de guardar emoções</span><h1>Suas músicas.<br />Suas próximas histórias.</h1><p>Entre com Google ou e-mail para guardar músicas, usar créditos e acompanhar suas indicações.</p><Link className="nx-button nx-primary" href="/login?redirect=%2Fconta">Entrar ou criar minha conta</Link><p className="nx-helper">Você continua podendo criar, ouvir a prévia e pagar sem cadastro. Para guardar uma compra visitante, entre pela página do pedido no aparelho onde ele foi criado.</p></section> : <>
         <span className="nx-eyebrow">Minha conta</span><h1>Seu próximo presente<br />começa por aqui.</h1>

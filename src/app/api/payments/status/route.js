@@ -136,11 +136,34 @@ export async function GET(req) {
       (orderData?.orderNumber && charge.solicitacaoPagador.includes(String(orderData.orderNumber)))
     );
 
+    const cleanTxidUpper = String(txid || '').trim().toUpperCase();
+    const cleanCurrentIntentUpper = String(currentIntent || '').trim().toUpperCase();
+
+    // Também confere se existe registro formal na tabela order_payment_intents
+    let belongsViaIntentsTable = false;
+    try {
+      const { getSupabaseEdge } = await import('@/lib/supabase-edge');
+      const supabase = getSupabaseEdge(env);
+      if (supabase && orderData?.id) {
+        const { data: intentRow } = await supabase
+          .from('order_payment_intents')
+          .select('id')
+          .eq('order_id', orderData.id)
+          .ilike('txid', String(txid).trim())
+          .limit(1)
+          .maybeSingle();
+        if (intentRow?.id) {
+          belongsViaIntentsTable = true;
+        }
+      }
+    } catch (e) {}
+
     const txidBelongsToOrder = !!orderData && (
-      (currentIntent && String(txid) === String(currentIntent)) ||
-      previousTxids.some((id) => String(id) === String(txid)) ||
+      (cleanCurrentIntentUpper && cleanTxidUpper === cleanCurrentIntentUpper) ||
+      previousTxids.some((id) => String(id).trim().toUpperCase() === cleanTxidUpper) ||
       matchesPrefix ||
-      matchesSolicitacao
+      matchesSolicitacao ||
+      belongsViaIntentsTable
     );
 
     if (charge?.status === 'CONCLUIDA' && orderId && txidBelongsToOrder) {

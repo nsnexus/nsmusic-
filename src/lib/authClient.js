@@ -56,15 +56,27 @@ export async function createUserWithEmailAndPassword(_unusedAuth, email, passwor
   return data;
 }
 
-export async function sendPasswordResetEmail(_unusedAuth, email) {
+export async function sendPasswordResetEmail(_unusedAuth, email, redirectTo) {
   if (!supabase?.auth) throw new Error('Serviço de autenticação não configurado.');
-  const { error } = await supabase.auth.resetPasswordForEmail(email);
+  const target = redirectTo || (typeof window !== 'undefined' ? `${window.location.origin}/login?modo=redefinir` : 'https://nsmusic.ia.br/login?modo=redefinir');
+  const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: target });
   if (error) {
     const err = new Error(error.message);
     err.code = 'auth/user-not-found';
     throw err;
   }
   return true;
+}
+
+export async function updatePassword(newPassword) {
+  if (!supabase?.auth) throw new Error('Serviço de autenticação não configurado.');
+  const { data, error } = await supabase.auth.updateUser({ password: newPassword });
+  if (error) {
+    const err = new Error(error.message);
+    err.code = 'auth/update-failed';
+    throw err;
+  }
+  return data;
 }
 
 export function onAuthStateChanged(_unusedAuth, callback, errorCallback) {

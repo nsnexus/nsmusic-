@@ -167,7 +167,7 @@ export async function sendCloudApiTemplate(phone, templateName, variaveis = [], 
 /**
  * "Sua música ficou pronta" — com suporte a vídeo oficial no header e botão de liberar música.
  */
-export async function enviarMusicaProntaCloud(phone, { cliente, homenageado, link, videoUrl, orderId }, env = {}) {
+export async function enviarMusicaProntaCloud(phone, { cliente, homenageado, link, videoUrl, directVideoUrl, orderId }, env = {}) {
   const config = getCloudApiConfig(env);
   const cfgSite = await lerConfigSite(env);
   const numSuporte = normalizarNumeroWhatsapp(cfgSite?.whatsappSuporte) || WHATSAPP_SUPORTE_PADRAO;
@@ -175,8 +175,11 @@ export async function enviarMusicaProntaCloud(phone, { cliente, homenageado, lin
 
   const resolvedOrderId = orderId || (link ? link.match(/orderId=([^&]+)/)?.[1] : '') || '';
 
+  const videoUrlsToTry = [videoUrl, directVideoUrl].filter(Boolean);
+  const uniqueVideoUrls = [...new Set(videoUrlsToTry)];
+
   // 1. Se houver vídeo de prévia e orderId, tenta os templates oficiais com VÍDEO e BOTÃO (UTILITY)
-  if (videoUrl && resolvedOrderId) {
+  if (uniqueVideoUrls.length > 0 && resolvedOrderId) {
     const candidateTemplates = [
       config.templateMusicaProntaVideo,
       'entrega_pedido_musica_video',
@@ -186,18 +189,20 @@ export async function enviarMusicaProntaCloud(phone, { cliente, homenageado, lin
     ].filter(Boolean);
 
     const uniqueTemplates = [...new Set(candidateTemplates)];
-    for (const tName of uniqueTemplates) {
-      const resVideo = await sendCloudApiTemplate(
-        phone,
-        tName,
-        [cliente, homenageado, linkSuporte],
-        {
-          headerVideoUrl: videoUrl,
-          buttonParam: resolvedOrderId,
-        },
-        env
-      );
-      if (resVideo.success) return resVideo;
+    for (const vUrl of uniqueVideoUrls) {
+      for (const tName of uniqueTemplates) {
+        const resVideo = await sendCloudApiTemplate(
+          phone,
+          tName,
+          [cliente, homenageado, linkSuporte],
+          {
+            headerVideoUrl: vUrl,
+            buttonParam: resolvedOrderId,
+          },
+          env
+        );
+        if (resVideo.success) return resVideo;
+      }
     }
     console.warn('[CloudAPI] Templates de vídeo falharam ou indisponíveis, usando fallback de texto...');
   }

@@ -470,7 +470,9 @@ export class NativeSupabaseClient {
 
       resetPasswordForEmail: async (email, options = {}) => {
         try {
-          const res = await fetch(`${this.url.replace(/\/$/, '')}/auth/v1/recover`, {
+          const redirectTo = options.redirectTo || options.redirect_to || (typeof window !== 'undefined' ? `${window.location.origin}/login?modo=redefinir` : 'https://nsmusic.ia.br/login?modo=redefinir');
+          const query = redirectTo ? `?redirect_to=${encodeURIComponent(redirectTo)}` : '';
+          const res = await fetch(`${this.url.replace(/\/$/, '')}/auth/v1/recover${query}`, {
             method: 'POST',
             headers: {
               'apikey': this.apiKey,
@@ -485,6 +487,39 @@ export class NativeSupabaseClient {
           return { data: {}, error: null };
         } catch (e) {
           return { data: null, error: { message: e.message } };
+        }
+      },
+
+      updateUser: async (attributes = {}) => {
+        try {
+          let token = typeof localStorage !== 'undefined'
+            ? (localStorage.getItem('supabase_auth_token') || localStorage.getItem('supabase_admin_token'))
+            : null;
+          if (!token) {
+            return { data: { user: null }, error: { message: 'Nenhuma sessão ativa para atualizar a conta' } };
+          }
+          const res = await fetch(`${this.url.replace(/\/$/, '')}/auth/v1/user`, {
+            method: 'PUT',
+            headers: {
+              'apikey': this.apiKey,
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(attributes)
+          });
+          const json = await res.json().catch(() => null);
+          if (!res.ok) {
+            return { data: { user: null }, error: { message: json?.error_description || json?.msg || json?.message || 'Falha ao atualizar conta' } };
+          }
+          const user = normalizeUser(json, token);
+          if (typeof window !== 'undefined' && user) {
+            localStorage.setItem('supabase_auth_user', JSON.stringify(user));
+            localStorage.setItem('supabase_admin_user', JSON.stringify(user));
+          }
+          notifyAuthChange('USER_UPDATED', { access_token: token, user });
+          return { data: { user }, error: null };
+        } catch (e) {
+          return { data: { user: null }, error: { message: e.message } };
         }
       },
 
@@ -519,6 +554,7 @@ export class NativeSupabaseClient {
           localStorage.removeItem('supabase_admin_token');
           localStorage.removeItem('supabase_admin_user');
           localStorage.removeItem('supabase_admin_refresh_token');
+          sessionStorage.removeItem('supabase_auth_recovery');
         }
         notifyAuthChange('SIGNED_OUT', null);
         return { error: null };
@@ -526,10 +562,10 @@ export class NativeSupabaseClient {
 
       signInWithOAuth: async ({ provider, options = {} }) => {
         try {
-          const redirectTo = options.redirectTo || (typeof window !== 'undefined' ? window.location.href : '');
+          const redirectTo = options.redirectTo || (typeof window !== 'undefined' ? `${window.location.origin}/conta` : 'https://nsmusic.ia.br/conta');
           const authUrl = `${this.url.replace(/\/$/, '')}/auth/v1/authorize?provider=${encodeURIComponent(provider)}&redirect_to=${encodeURIComponent(redirectTo)}`;
           if (typeof window !== 'undefined') {
-            window.location.href = authUrl;
+            window.location.replace(authUrl);
           }
           return { data: { url: authUrl }, error: null };
         } catch (err) {
@@ -545,6 +581,7 @@ export class NativeSupabaseClient {
           const params = new URLSearchParams(hash);
           const accessToken = params.get('access_token');
           const refreshToken = params.get('refresh_token');
+          const type = params.get('type');
           if (!accessToken) return null;
 
           let userData = null;
@@ -573,11 +610,19 @@ export class NativeSupabaseClient {
             localStorage.setItem('supabase_admin_refresh_token', refreshToken);
           }
 
-          const cleanUrl = window.location.pathname + window.location.search;
+          if (type === 'recovery') {
+            sessionStorage.setItem('supabase_auth_recovery', 'true');
+            if (window.location.pathname !== '/login') {
+              window.location.replace('/login?modo=redefinir');
+              return null;
+            }
+          }
+
+          const cleanUrl = window.location.pathname + (type === 'recovery' && !window.location.search.includes('modo=redefinir') ? '?modo=redefinir' : window.location.search);
           window.history.replaceState(null, '', cleanUrl);
 
-          const session = { access_token: accessToken, refresh_token: refreshToken, user };
-          notifyAuthChange('SIGNED_IN', session);
+          const session = { access_token: accessToken, refresh_token: refreshToken, user, type };
+          notifyAuthChange(type === 'recovery' ? 'PASSWORD_RECOVERY' : 'SIGNED_IN', session);
           return session;
         } catch (e) {
           console.warn('[supabase-auth] Falha ao processar token do hash:', e.message);

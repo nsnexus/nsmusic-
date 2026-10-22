@@ -9,35 +9,55 @@ export const runtime = 'edge';
 
 function isValidSecret(req, env) {
   const expected = String(env?.EFI_WEBHOOK_SECRET || process.env.EFI_WEBHOOK_SECRET || '').trim();
-  if (!expected) return true;
   const { searchParams } = new URL(req.url);
-  return searchParams.get('secret') === expected;
+  const received = searchParams.get('secret');
+  if (!expected) return true;
+  // Aceita o secret das variáveis de ambiente e o secret permanente cadastrado na Efí
+  const validSecrets = [expected, 'b921ab7e69f76c320217395be846d34a97194cddc907687d'].filter(Boolean);
+  return validSecrets.includes(received);
 }
 
 async function findOrderIdByTxid(txid, env = {}) {
+  if (!txid) return null;
+  const cleanTxid = String(txid).trim();
   try {
     const { getSupabaseEdge } = await import('@/lib/supabase-edge');
     const supabase = getSupabaseEdge(env);
     if (supabase) {
+      // 1. Busca na tabela orders (extras->>paymentIntentId)
       const { data, error } = await supabase
         .from('orders')
         .select('id')
-        .eq('extras->>paymentIntentId', txid)
+        .eq('extras->>paymentIntentId', cleanTxid)
         .limit(1);
 
       if (!error && Array.isArray(data) && data.length > 0) {
         return data[0].id;
       }
 
+      // 2. Fallback para cobranças anteriores do mesmo pedido
       const { data: dataOld } = await supabase
         .from('orders')
         .select('id')
-        .contains('extras->previousPaymentIntentIds', JSON.stringify([txid]))
+        .contains('extras->previousPaymentIntentIds', JSON.stringify([cleanTxid]))
         .limit(1);
 
       if (dataOld && dataOld.length > 0) {
         return dataOld[0].id;
       }
+
+      // 3. Busca na tabela order_payment_intents (onde todo PIX criado é indexado)
+      try {
+        const { data: intentRows } = await supabase
+          .from('order_payment_intents')
+          .select('order_id')
+          .eq('txid', cleanTxid)
+          .limit(1);
+
+        if (Array.isArray(intentRows) && intentRows[0]?.order_id) {
+          return intentRows[0].order_id;
+        }
+      } catch (_) {}
     }
   } catch (sbErr) {
     console.warn('[Webhook Efí] Erro ao buscar pedido no Supabase por txid:', sbErr.message);

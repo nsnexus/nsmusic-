@@ -137,12 +137,13 @@ export async function getOrderPreviewVideoUrl(orderId, orderData = null, env = {
 
   const existingUrl = order.previewVideoUrl || order.preview_video_url || order.extras?.previewVideoUrl;
   if (existingUrl) {
-    return buildPublicPreviewVideoUrl(orderId);
+    return existingUrl;
   }
 
-  const renderResult = await triggerPreviewVideoRender(orderId, order, env);
+  // Se a prévia ainda não foi gerada, aguarda a VPS de vídeo renderizar de forma síncrona
+  const renderResult = await triggerPreviewVideoRender(orderId, order, env, { sync: true });
   if (renderResult.ok) {
-    return renderResult.publicStreamUrl || buildPublicPreviewVideoUrl(orderId);
+    return renderResult.previewUrl || renderResult.publicStreamUrl || buildPublicPreviewVideoUrl(orderId);
   }
 
   return null;

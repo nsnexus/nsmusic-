@@ -57,7 +57,7 @@ export async function GET(req, { params }) {
     if (!videoUrl) {
       try {
         const { triggerPreviewVideoRender } = await import('@/lib/videoPreview');
-        const resRender = await triggerPreviewVideoRender(orderId, order, env);
+        const resRender = await triggerPreviewVideoRender(orderId, order, env, { sync: true });
         if (resRender.ok && resRender.previewUrl) {
           videoUrl = resRender.previewUrl;
         }
@@ -98,7 +98,8 @@ export async function GET(req, { params }) {
             headers.set('Accept-Ranges', 'bytes');
             headers.set('Cache-Control', 'public, max-age=86400, must-revalidate');
 
-            if (obj.range) {
+            // Retorna 206 Partial Content estritamente quando o cabeçalho Range foi solicitado pelo cliente
+            if (rangeHeader && obj.range) {
               const start = obj.range.offset;
               const length = obj.range.length;
               const end = start + length - 1;

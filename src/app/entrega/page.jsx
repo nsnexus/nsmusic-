@@ -612,9 +612,10 @@ function EntregaContent() {
         if (!cancelled && data) {
           setOrder(data);
 
-          // Se o pedido ainda consta como pendente no Firebase, consulta imediatamente a Efí
+          // Se o pedido ainda consta como pendente no banco, consulta imediatamente a Efí
           if (data && data.paymentStatus !== 'PAGAMENTO_APROVADO' && data.paymentStatus !== 'PAGO') {
-            const paymentIdQuery = data.paymentId ? `&paymentId=${data.paymentId}` : '';
+            const txid = data.paymentIntentId || data.extras?.paymentIntentId || data.paymentId;
+            const paymentIdQuery = txid ? `&paymentId=${encodeURIComponent(txid)}` : '';
             fetch(`/api/payments/status?orderId=${orderId}${paymentIdQuery}`)
               .then(res => res.ok ? res.json() : null)
               .then(statusData => {
@@ -934,7 +935,8 @@ function EntregaContent() {
 
       // 1. Tenta via API backend (consulta a Efí)
       try {
-        const paymentIdQuery = pixInfo.paymentId ? `&paymentId=${pixInfo.paymentId}` : '';
+        const txid = pixInfo.paymentId || order?.paymentIntentId || order?.extras?.paymentIntentId;
+        const paymentIdQuery = txid ? `&paymentId=${encodeURIComponent(txid)}` : '';
         const res = await fetch(`/api/payments/status?orderId=${orderId}${paymentIdQuery}`);
         if (res.ok) {
           const data = await res.json();
@@ -955,7 +957,7 @@ function EntregaContent() {
     }, 4000);
 
     return () => clearInterval(interval);
-  }, [orderId, isPaid, pixInfo.paymentId]);
+  }, [orderId, isPaid, pixInfo.paymentId, order?.paymentIntentId]);
 
   // Polling em tempo real para confirmação de pagamento do VÍDEO ADDON (R$ 6,90)
   useEffect(() => {

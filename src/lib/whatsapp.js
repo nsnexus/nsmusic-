@@ -392,6 +392,16 @@ export const sendMusicReadyTemplate = async (phone, { customerName, honoreeName,
   const cloudConfig = getCloudApiConfig(env);
   const resolvedOrderId = orderData?.id || orderData?.orderNumber || (url.match(/orderId=([^&]+)/)?.[1]) || '';
 
+  let effectiveVideoUrl = videoUrl || orderData?.previewVideoUrl || orderData?.preview_video_url || orderData?.extras?.previewVideoUrl;
+  if (!effectiveVideoUrl && resolvedOrderId) {
+    try {
+      const { getOrderPreviewVideoUrl } = await import('./videoPreview.js');
+      effectiveVideoUrl = await getOrderPreviewVideoUrl(resolvedOrderId, orderData, env);
+    } catch (e) {
+      console.warn('[WhatsApp] Falha ao resolver URL de vídeo de prévia:', e?.message);
+    }
+  }
+
   // 1. Tenta envio oficial via Meta Cloud API Oficial (com vídeo ou texto)
   if (cloudConfig.enabled) {
     console.log(`[WhatsApp] Tentando template de música pronta via Meta Cloud API Oficial para ${phone}...`);
@@ -401,22 +411,14 @@ export const sendMusicReadyTemplate = async (phone, { customerName, honoreeName,
       link: url,
     };
 
-    let effectiveVideoUrl = videoUrl;
-    if (!effectiveVideoUrl && resolvedOrderId) {
-      try {
-        const { getOrderPreviewVideoUrl } = await import('./videoPreview.js');
-        effectiveVideoUrl = await getOrderPreviewVideoUrl(resolvedOrderId, orderData, env);
-      } catch (e) {
-        console.warn('[WhatsApp] Falha ao resolver URL de vídeo de prévia:', e?.message);
-      }
-    }
-
     if (effectiveVideoUrl && resolvedOrderId) {
       const { buildPublicPreviewVideoUrl } = await import('./videoPreview.js');
-      // Fornece a URL pública e canônica de streaming no próprio domínio
+      // Fornece a URL pública e canônica de streaming e a URL direta do R2 como contingência
       payload.videoUrl = buildPublicPreviewVideoUrl(resolvedOrderId);
+      payload.directVideoUrl = effectiveVideoUrl;
     } else if (effectiveVideoUrl) {
       payload.videoUrl = effectiveVideoUrl;
+      payload.directVideoUrl = effectiveVideoUrl;
     }
 
     if (orderData?.id || orderData?.orderNumber) {
@@ -429,7 +431,7 @@ export const sendMusicReadyTemplate = async (phone, { customerName, honoreeName,
   }
 
   // 2. Contingência via Evolution API: Se tiver vídeo prévia, envia vídeo com legenda
-  const evoVideoUrl = videoUrl || (resolvedOrderId ? (await import('./videoPreview.js')).buildPublicPreviewVideoUrl(resolvedOrderId) : null);
+  const evoVideoUrl = effectiveVideoUrl || videoUrl || (resolvedOrderId ? (await import('./videoPreview.js')).buildPublicPreviewVideoUrl(resolvedOrderId) : null);
   if (evoVideoUrl) {
     const caption = await buildPreviewVideoCaption({ customerName: name, honoreeName: honoree, deliveryUrl: url }, env);
     const mediaRes = await sendEvolutionMediaMessage(phone, {
