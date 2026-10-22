@@ -29,11 +29,11 @@ export function buildPublicPreviewVideoUrl(orderId) {
 }
 
 /**
- * Dispara ou aguarda a renderização da prévia de vídeo (60s SD leve) na VPS.
- * Se a VPS responder com sucesso, salva `previewVideoUrl` no pedido.
- * Se falhar ou expirar o tempo limite, retorna null sem interromper o fluxo do sistema.
+ * Dispara a renderização da prévia de vídeo (60s SD leve) na VPS.
+ * Por padrão roda assíncrono (sync: false) para responder em ~100ms e NUNCA atrasar
+ * a liberação da música na tela do cliente.
  */
-export async function triggerPreviewVideoRender(orderId, orderData = null, env = {}) {
+export async function triggerPreviewVideoRender(orderId, orderData = null, env = {}, { sync = false } = {}) {
   if (!orderId) return { ok: false, error: 'order_id_required' };
 
   try {
@@ -68,7 +68,7 @@ export async function triggerPreviewVideoRender(orderId, orderData = null, env =
       headers['Authorization'] = `Bearer ${vpsSecret}`;
     }
 
-    console.log(`[VideoPreview] Solicitando renderização da prévia para pedido ${orderId} na VPS...`);
+    console.log(`[VideoPreview] Solicitando renderização da prévia para pedido ${orderId} na VPS (sync=${Boolean(sync)})...`);
 
     const vpsRes = await fetch(targetEndpoint, {
       method: 'POST',
@@ -78,11 +78,10 @@ export async function triggerPreviewVideoRender(orderId, orderData = null, env =
         coverUrl,
         audioUrl,
         duration: 60,
-        sync: true,
+        sync: Boolean(sync),
         title,
       }),
-      // Limite de 18 segundos para manter dentro do ciclo de vida da Cloudflare Pages Edge
-      signal: AbortSignal.timeout(18000),
+      signal: AbortSignal.timeout(sync ? 18000 : 4000),
     });
 
     if (!vpsRes.ok) {
@@ -116,9 +115,14 @@ export async function triggerPreviewVideoRender(orderId, orderData = null, env =
       };
     }
 
-    return { ok: false, error: 'no_preview_url_returned' };
+    // Se enfileirou em modo assíncrono (HTTP 202)
+    return {
+      ok: true,
+      queued: true,
+      publicStreamUrl: buildPublicPreviewVideoUrl(orderId),
+    };
   } catch (err) {
-    console.warn(`[VideoPreview] Falha ao gerar vídeo de prévia para ${orderId}:`, err?.message);
+    console.warn(`[VideoPreview] Falha ao acionar vídeo de prévia para ${orderId}:`, err?.message);
     return { ok: false, error: err?.message };
   }
 }
