@@ -12,6 +12,8 @@ import {
   updatePassword,
   auth,
 } from '@/lib/authClient';
+import { supabase } from '@/lib/supabase';
+import { DOMINIO_CANONICO } from '@/lib/siteUrl';
 import { getFriendlyAuthErrorMessage } from '@/lib/authErrors';
 
 function GoogleIcon() {
@@ -43,9 +45,21 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
   const [focusedField, setFocusedField] = useState(null);
 
-  // Permite abrir diretamente na aba de cadastro ou redefinição se passado na URL
+  // Permite abrir diretamente na aba de cadastro ou redefinição se passado na URL ou hash
   useEffect(() => {
     if (typeof window === 'undefined') return;
+
+    if (window.location.hash && (window.location.hash.includes('access_token=') || window.location.hash.includes('type=recovery'))) {
+      try {
+        const session = supabase?.auth?.parseUrlHashSession?.();
+        if (session?.type === 'recovery' || sessionStorage.getItem('supabase_auth_recovery') === 'true') {
+          setIsResetMode(true);
+        }
+      } catch (e) {
+        console.warn('Erro ao processar hash de recuperação:', e);
+      }
+    }
+
     const params = new URLSearchParams(window.location.search);
     if (params.get('modo') === 'cadastro' || params.get('signup') === '1' || params.get('criar') === '1') {
       setIsSignUp(true);
@@ -150,7 +164,9 @@ export default function LoginPage() {
     setError('');
     setResetSuccess('');
     try {
-      const redirectUrl = `${window.location.origin}/login?modo=redefinir`;
+      const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+      const origin = isLocal ? DOMINIO_CANONICO : window.location.origin;
+      const redirectUrl = `${origin}/login?modo=redefinir`;
       await sendPasswordResetEmail(auth, trimmedEmail, redirectUrl);
       setResetSuccess(`✅ Enviamos um e-mail de redefinição para ${trimmedEmail}. Verifique sua caixa de entrada e de spam!`);
     } catch (err) {

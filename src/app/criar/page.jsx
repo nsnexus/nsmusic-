@@ -2964,8 +2964,9 @@ export default function CriarMusica() {
                             padding: '12px 28px',
                             fontSize: '0.95rem',
                             minHeight: '46px',
-                            background: (isNextDisabled() || isSubmitting) ? 'var(--bg-tertiary)' : 'var(--nx-purple, #67408b)',
-                            color: (isNextDisabled() || isSubmitting) ? 'var(--text-muted)' : '#FFFFFF'
+                            background: (isNextDisabled() || isSubmitting) ? 'var(--bg-tertiary)' : 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)',
+                            color: (isNextDisabled() || isSubmitting) ? 'var(--text-muted)' : '#FFFFFF',
+                            boxShadow: (isNextDisabled() || isSubmitting) ? 'none' : '0 6px 18px rgba(79, 70, 229, 0.35)'
                           }}
                         >
                           Criar Música →

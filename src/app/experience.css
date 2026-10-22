@@ -79,9 +79,8 @@
 .nx-studio-progress p { color: var(--nx-muted); font-size: .9rem; }
 .nx-progress-line { display: block; height: 3px; border-radius: 3px; background: linear-gradient(90deg,#e6ddea,var(--nx-purple),#e6ddea); background-size: 200% 100%; animation: nx-progress 2s linear infinite; }
 @keyframes nx-progress { to { background-position: 200% 0; } }
-.nx-creation .criar-navigation-dock { background: #ffffffed !important; border-top: 1px solid var(--nx-line); backdrop-filter: blur(12px); }
-.nx-creation .criar-nav-next:not(:disabled) { background: var(--nx-purple) !important; box-shadow: none !important; }
-.nx-creation .criar-nav-back { background: white !important; color: var(--nx-ink) !important; box-shadow: none; }
+.nx-creation .criar-nav-next:not(:disabled) { background: linear-gradient(135deg, var(--primary, #4F46E5) 0%, var(--secondary, #EC4899) 100%) !important; color: #FFFFFF !important; box-shadow: 0 6px 18px rgba(79, 70, 229, 0.35) !important; }
+.nx-creation .criar-nav-next:disabled { background: var(--bg-tertiary, #E2E5F5) !important; color: var(--text-muted, #78778E) !important; box-shadow: none !important; cursor: not-allowed !important; }
 .nx-center-head { max-width: 700px; margin: 4px auto 30px; text-align: center; }
 .nx-center-head p { color: var(--nx-muted); }
 .nx-delivery-main { max-width: 1160px; padding: 34px 24px 70px; margin: auto; }
