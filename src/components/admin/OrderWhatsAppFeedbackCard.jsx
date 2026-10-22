@@ -166,6 +166,7 @@ ${deliveryLink ? `(Caso queira ouvir novamente a prévia: ${deliveryLink})` : ''
 
   return (
     <div
+      className="admin-card-responsive"
       style={{
         backgroundColor: '#ffffff',
         border: '1px solid #e2e8f0',
@@ -173,6 +174,10 @@ ${deliveryLink ? `(Caso queira ouvir novamente a prévia: ${deliveryLink})` : ''
         padding: '24px',
         boxShadow: '0 4px 12px rgba(0, 0, 0, 0.03)',
         marginTop: '24px',
+        maxWidth: '100%',
+        minWidth: 0,
+        boxSizing: 'border-box',
+        overflow: 'hidden',
       }}
     >
       {/* Cabeçalho */}

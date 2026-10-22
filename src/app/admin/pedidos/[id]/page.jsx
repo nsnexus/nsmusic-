@@ -778,7 +778,7 @@ export default function OrderDetailsAdmin() {
   }
 
   return (
-    <div style={styles.wrapper}>
+    <div className="admin-order-page-wrapper" style={styles.wrapper}>
       {/* Header Tema Claro */}
       <header style={styles.header}>
         <div style={styles.headerContainer}>
@@ -792,8 +792,8 @@ export default function OrderDetailsAdmin() {
         </div>
       </header>
 
-      <main style={{ flex: 1, padding: '32px 0' }}>
-        <div className="container" style={{ maxWidth: '1280px', margin: '0 auto', padding: '0 20px' }}>
+      <main style={{ flex: 1, padding: '32px 0', width: '100%', maxWidth: '100vw', boxSizing: 'border-box' }}>
+        <div className="container" style={{ maxWidth: '1280px', margin: '0 auto', padding: '0 20px', width: '100%', boxSizing: 'border-box' }}>
           
           <div style={styles.titleRow}>
             <div>
@@ -911,15 +911,15 @@ export default function OrderDetailsAdmin() {
             </div>
           )}
 
-          <div style={{ display: 'flex', gap: '32px', flexWrap: 'wrap' }}>
+          <div className="admin-order-grid" style={{ display: 'flex', gap: '32px', flexWrap: 'wrap', width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
             
             {/* Form principal */}
-            <div style={styles.formSide}>
-              <form onSubmit={handleSaveOrder}>
-                <div style={styles.card}>
+            <div className="admin-order-form-side" style={styles.formSide}>
+              <form onSubmit={handleSaveOrder} style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
+                <div className="admin-card-responsive" style={styles.card}>
                   <h3 style={styles.cardTitle}>Gerenciamento de Produção</h3>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+                  <div className="admin-grid-2cols" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px', minWidth: 0, maxWidth: '100%' }}>
                     <div style={styles.formGroup}>
                       <label style={styles.label}>Nome do Cliente 👤</label>
                       <input
@@ -1183,16 +1183,16 @@ export default function OrderDetailsAdmin() {
 
                   <div style={styles.formGroup}>
                     <label style={styles.label}>Link do Áudio Principal (Versão 1 - MP3 HD)</label>
-                    <div style={{ display: 'flex', gap: '8px' }}>
+                    <div style={{ display: 'flex', gap: '8px', minWidth: 0, maxWidth: '100%' }}>
                       <input
                         type="url"
                         value={audioUrl}
                         onChange={(e) => setAudioUrl(e.target.value)}
                         placeholder="https://..."
-                        style={{ ...styles.input, flex: 1 }}
+                        style={{ ...styles.input, flex: 1, minWidth: 0 }}
                       />
                       {audioUrl && (
-                        <button type="button" onClick={() => handleDownload(audioUrl, `${order.orderNumber || orderId}-versao1.mp3`)} style={{ ...styles.quickActionBtn, background: '#2563eb', color: '#fff' }} title="Baixar MP3">
+                        <button type="button" onClick={() => handleDownload(audioUrl, `${order.orderNumber || orderId}-versao1.mp3`)} style={{ ...styles.quickActionBtn, background: '#2563eb', color: '#fff', flexShrink: 0 }} title="Baixar MP3">
                           ⬇️
                         </button>
                       )}
@@ -1201,16 +1201,16 @@ export default function OrderDetailsAdmin() {
 
                   <div style={styles.formGroup}>
                     <label style={styles.label}>Link do Áudio Secundário (Versão 2 Bônus - MP3 HD)</label>
-                    <div style={{ display: 'flex', gap: '8px' }}>
+                    <div style={{ display: 'flex', gap: '8px', minWidth: 0, maxWidth: '100%' }}>
                       <input
                         type="url"
                         value={audioUrl2}
                         onChange={(e) => setAudioUrl2(e.target.value)}
                         placeholder="https://..."
-                        style={{ ...styles.input, flex: 1 }}
+                        style={{ ...styles.input, flex: 1, minWidth: 0 }}
                       />
                       {audioUrl2 && (
-                        <button type="button" onClick={() => handleDownload(audioUrl2, `${order.orderNumber || orderId}-versao2.mp3`)} style={{ ...styles.quickActionBtn, background: '#2563eb', color: '#fff' }} title="Baixar MP3">
+                        <button type="button" onClick={() => handleDownload(audioUrl2, `${order.orderNumber || orderId}-versao2.mp3`)} style={{ ...styles.quickActionBtn, background: '#2563eb', color: '#fff', flexShrink: 0 }} title="Baixar MP3">
                           ⬇️
                         </button>
                       )}
@@ -1219,16 +1219,16 @@ export default function OrderDetailsAdmin() {
 
                   <div style={styles.formGroup}>
                     <label style={styles.label}>Link do Arquivo WAV (Alta Definição)</label>
-                    <div style={{ display: 'flex', gap: '8px' }}>
+                    <div style={{ display: 'flex', gap: '8px', minWidth: 0, maxWidth: '100%' }}>
                       <input
                         type="url"
                         value={wavUrl}
                         onChange={(e) => setWavUrl(e.target.value)}
                         placeholder="https://..."
-                        style={{ ...styles.input, flex: 1 }}
+                        style={{ ...styles.input, flex: 1, minWidth: 0 }}
                       />
                       {wavUrl && (
-                        <button type="button" onClick={() => handleDownload(wavUrl, `${order.orderNumber || orderId}.wav`)} style={{ ...styles.quickActionBtn, background: '#2563eb', color: '#fff' }} title="Baixar WAV">
+                        <button type="button" onClick={() => handleDownload(wavUrl, `${order.orderNumber || orderId}.wav`)} style={{ ...styles.quickActionBtn, background: '#2563eb', color: '#fff', flexShrink: 0 }} title="Baixar WAV">
                           ⬇️
                         </button>
                       )}
@@ -1298,23 +1298,23 @@ export default function OrderDetailsAdmin() {
             </div>
 
             {/* Side de prompts e detalhes do homenageado */}
-            <div style={styles.infoSide}>
+            <div className="admin-order-info-side" style={styles.infoSide}>
               
               {/* Suno AI card with auto generator */}
-              <div style={styles.card}>
+              <div className="admin-card-responsive" style={styles.card}>
                 <h3 style={styles.cardTitle}>Prompts & Geração Suno AI 🤖</h3>
                 
-                <div style={{ marginBottom: '16px' }}>
+                <div style={{ marginBottom: '16px', minWidth: 0, maxWidth: '100%' }}>
                   <label style={styles.label}>Prompt de Estilo (Tags)</label>
                   <input
                     type="text"
                     value={sunoPrompt}
                     onChange={(e) => setSunoPrompt(e.target.value)}
-                    style={styles.input}
+                    style={{ ...styles.input, maxWidth: '100%', boxSizing: 'border-box' }}
                   />
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', minWidth: 0, maxWidth: '100%' }}>
                   <button 
                     type="button"
                     onClick={handleGenerateSuno}
@@ -1334,18 +1334,18 @@ export default function OrderDetailsAdmin() {
                     {generatingSuno ? '⏳ Gerando Música...' : '🎵 Gerar Áudio no Suno AI (1 Click)'}
                   </button>
 
-                  <div style={{ display: 'flex', gap: '8px' }}>
+                  <div style={{ display: 'flex', gap: '8px', minWidth: 0, maxWidth: '100%', flexWrap: 'wrap' }}>
                     <button 
                       type="button"
                       onClick={() => copyToClipboard(sunoPrompt || getSunoStylePrompt(), 'Prompt de estilo copiado!')}
-                      style={{ fontSize: '0.8rem', padding: '8px 10px', flex: 1, backgroundColor: '#f1f5f9', border: '1px solid #cbd5e1', color: '#0f172a', borderRadius: '6px', fontWeight: '600', cursor: 'pointer' }}
+                      style={{ fontSize: '0.8rem', padding: '8px 10px', flex: 1, minWidth: '120px', backgroundColor: '#f1f5f9', border: '1px solid #cbd5e1', color: '#0f172a', borderRadius: '6px', fontWeight: '600', cursor: 'pointer' }}
                     >
                       📋 Copiar Tags
                     </button>
                     <button 
                       type="button"
                       onClick={() => copyToClipboard(lyrics, 'Letra da música copiada!')}
-                      style={{ fontSize: '0.8rem', padding: '8px 10px', flex: 1, backgroundColor: '#f1f5f9', border: '1px solid #cbd5e1', color: '#0f172a', borderRadius: '6px', fontWeight: '600', cursor: 'pointer' }}
+                      style={{ fontSize: '0.8rem', padding: '8px 10px', flex: 1, minWidth: '120px', backgroundColor: '#f1f5f9', border: '1px solid #cbd5e1', color: '#0f172a', borderRadius: '6px', fontWeight: '600', cursor: 'pointer' }}
                     >
                       📋 Copiar Letra
                     </button>
@@ -1353,34 +1353,34 @@ export default function OrderDetailsAdmin() {
                 </div>
 
                 {pollingStatus && (
-                  <div style={{ marginTop: '16px', fontSize: '0.85rem', color: '#7c3aed', backgroundColor: '#f5f3ff', padding: '10px', borderRadius: '6px', border: '1px solid #ddd6fe', textAlign: 'center', fontWeight: 'bold' }}>
+                  <div style={{ marginTop: '16px', fontSize: '0.85rem', color: '#7c3aed', backgroundColor: '#f5f3ff', padding: '10px', borderRadius: '6px', border: '1px solid #ddd6fe', textAlign: 'center', fontWeight: 'bold', wordBreak: 'break-word', minWidth: 0, maxWidth: '100%' }}>
                     {pollingStatus}
                   </div>
                 )}
 
                 {sunoError && (
-                  <div style={{ marginTop: '16px', fontSize: '0.85rem', color: '#dc2626', backgroundColor: '#fef2f2', padding: '10px', borderRadius: '6px', border: '1px solid #fca5a5', textAlign: 'center', fontWeight: 'bold' }}>
+                  <div style={{ marginTop: '16px', fontSize: '0.85rem', color: '#dc2626', backgroundColor: '#fef2f2', padding: '10px', borderRadius: '6px', border: '1px solid #fca5a5', textAlign: 'center', fontWeight: 'bold', wordBreak: 'break-word', minWidth: 0, maxWidth: '100%' }}>
                     ⚠️ {sunoError}
                   </div>
                 )}
 
                 {generatedTracks.length > 0 && (
-                  <div style={{ marginTop: '20px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
+                  <div style={{ marginTop: '20px', borderTop: '1px solid #e2e8f0', paddingTop: '16px', minWidth: 0, maxWidth: '100%', boxSizing: 'border-box' }}>
                     <h4 style={{ fontSize: '0.9rem', marginBottom: '10px', color: '#0f172a', fontWeight: 'bold' }}>Versões Geradas:</h4>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', minWidth: 0, maxWidth: '100%' }}>
                       {generatedTracks.map((track, idx) => (
-                        <div key={track.id || idx} style={{ padding: '12px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <div key={track.id || idx} style={{ padding: '12px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '8px', minWidth: 0, maxWidth: '100%', boxSizing: 'border-box' }}>
                           <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#0f172a' }}>Versão {idx + 1} ({track.status})</span>
                           {track.audio_url ? (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                              <audio src={buildAudioProxySrc(track.audio_url)} controls style={{ width: '100%', height: '36px' }} />
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: 0, maxWidth: '100%' }}>
+                              <audio src={buildAudioProxySrc(track.audio_url)} controls style={{ width: '100%', maxWidth: '100%', height: '36px', boxSizing: 'border-box' }} />
                               <button 
                                 type="button" 
                                 onClick={() => {
                                   setAudioUrl(track.audio_url);
                                   alert(`Link da Versão ${idx + 1} copiado para o campo de áudio principal! Não esqueça de Salvar.`);
                                 }}
-                                style={{ fontSize: '0.8rem', padding: '6px 10px', backgroundColor: '#e0e7ff', color: '#3730a3', border: '1px solid #c7d2fe', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}
+                                style={{ fontSize: '0.8rem', padding: '8px 10px', width: '100%', maxWidth: '100%', backgroundColor: '#e0e7ff', color: '#3730a3', border: '1px solid #c7d2fe', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}
                               >
                                 Usar como Áudio Principal 🎯
                               </button>
@@ -1395,9 +1395,9 @@ export default function OrderDetailsAdmin() {
                 )}
               </div>
 
-                            {/* Card de Histórico de Versões de Música */}
-              <div style={styles.card}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid #e2e8f0', paddingBottom: '10px' }}>
+              {/* Card de Histórico de Versões de Música */}
+              <div className="admin-card-responsive" style={styles.card}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid #e2e8f0', paddingBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <h3 style={{ fontSize: '1.15rem', fontWeight: '800', color: '#0f172a', margin: 0 }}>
                       Histórico de Versões 🎵
@@ -1423,7 +1423,7 @@ export default function OrderDetailsAdmin() {
                     </p>
                   </div>
                 ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', minWidth: 0, maxWidth: '100%' }}>
                     {audioHistory.map((ver, vIdx) => {
                       const isCurrentActive = ver.active || (
                         ver.audioUrl && (ver.audioUrl === audioUrl || (Array.isArray(ver.audioFiles) && ver.audioFiles.includes(audioUrl)))
@@ -1440,13 +1440,18 @@ export default function OrderDetailsAdmin() {
                       return (
                         <div
                           key={ver.id || `ver-${vIdx}`}
+                          className="admin-card-responsive"
                           style={{
                             padding: '16px',
                             backgroundColor: isCurrentActive ? '#f0fdf4' : '#ffffff',
                             borderRadius: '12px',
                             border: isCurrentActive ? '2px solid #86efac' : '1px solid #e2e8f0',
                             boxShadow: isCurrentActive ? '0 2px 8px rgba(34, 197, 94, 0.12)' : '0 1px 3px rgba(0,0,0,0.04)',
-                            transition: 'all 0.2s ease'
+                            transition: 'all 0.2s ease',
+                            minWidth: 0,
+                            maxWidth: '100%',
+                            boxSizing: 'border-box',
+                            overflow: 'hidden'
                           }}
                         >
                           {/* Cabeçalho da versão */}
@@ -1505,8 +1510,8 @@ export default function OrderDetailsAdmin() {
 
                           {/* Prompt de Estilo / Tags da versão */}
                           {(ver.tags || ver.sunoPrompt) && (
-                            <div style={{ marginBottom: '10px', fontSize: '0.75rem', background: isCurrentActive ? '#ffffff' : '#f8fafc', padding: '6px 10px', borderRadius: '6px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                              <span style={{ color: '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            <div style={{ marginBottom: '10px', fontSize: '0.75rem', background: isCurrentActive ? '#ffffff' : '#f8fafc', padding: '6px 10px', borderRadius: '6px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', minWidth: 0, maxWidth: '100%', boxSizing: 'border-box' }}>
+                              <span style={{ color: '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, flex: 1 }}>
                                 🏷️ <strong>Tags:</strong> {ver.tags || ver.sunoPrompt}
                               </span>
                               <button
@@ -1552,7 +1557,7 @@ export default function OrderDetailsAdmin() {
                           )}
 
                           {/* Faixas de Áudio desta versão */}
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: 0, maxWidth: '100%' }}>
                             {tracksList.map((trackUrl, tIdx) => {
                               const isThisPrimary = trackUrl === audioUrl;
                               const isThisSecondary = trackUrl === audioUrl2;
@@ -1568,7 +1573,10 @@ export default function OrderDetailsAdmin() {
                                     border: isThisPrimary ? '1px solid #a7f3d0' : isThisSecondary ? '1px solid #bfdbfe' : '1px solid #e2e8f0',
                                     display: 'flex',
                                     flexDirection: 'column',
-                                    gap: '8px'
+                                    gap: '8px',
+                                    minWidth: 0,
+                                    maxWidth: '100%',
+                                    boxSizing: 'border-box'
                                   }}
                                 >
                                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1592,7 +1600,7 @@ export default function OrderDetailsAdmin() {
                                     src={buildAudioProxySrc(trackUrl)}
                                     controls
                                     preload="none"
-                                    style={{ width: '100%', height: '36px' }}
+                                    style={{ width: '100%', maxWidth: '100%', height: '36px', boxSizing: 'border-box' }}
                                   />
 
                                   {/* Botões rápidos de controle da faixa */}
@@ -1664,7 +1672,7 @@ export default function OrderDetailsAdmin() {
                 )}
               </div>
 
-              <div style={styles.card}>
+              <div className="admin-card-responsive" style={styles.card}>
                 <h3 style={styles.cardTitle}>Dados do Homenageado</h3>
                 <div style={styles.infoBlock}>
                   <span style={styles.infoLabel}>Nome da Pessoa Homenageada</span>
@@ -1697,7 +1705,7 @@ export default function OrderDetailsAdmin() {
               {/* Mensagem de Feedback e Ajuste para WhatsApp */}
               <OrderWhatsAppFeedbackCard order={order} />
 
-              <div style={styles.card}>
+              <div className="admin-card-responsive" style={styles.card}>
                 <h3 style={styles.cardTitle}>História Fornecida</h3>
                 <p style={{ fontSize: '0.9rem', color: '#334155', lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>
                   {order.story || 'Nenhuma história digitada.'}
@@ -1727,6 +1735,9 @@ const styles = {
     backgroundColor: '#f8fafc',
     color: '#0f172a',
     fontFamily: 'system-ui, -apple-system, sans-serif',
+    maxWidth: '100vw',
+    overflowX: 'hidden',
+    boxSizing: 'border-box',
   },
   loadingWrapper: {
     minHeight: '100vh',
@@ -1803,12 +1814,18 @@ const styles = {
   },
   formSide: {
     flex: 1.3,
+    minWidth: 0,
+    maxWidth: '100%',
+    boxSizing: 'border-box',
   },
   infoSide: {
     flex: 1,
     display: 'flex',
     flexDirection: 'column',
     gap: '24px',
+    minWidth: 0,
+    maxWidth: '100%',
+    boxSizing: 'border-box',
   },
   card: {
     padding: '28px',
@@ -1817,6 +1834,10 @@ const styles = {
     border: '1px solid #e2e8f0',
     boxShadow: '0 2px 10px rgba(0,0,0,0.03)',
     marginBottom: '24px',
+    minWidth: 0,
+    maxWidth: '100%',
+    boxSizing: 'border-box',
+    overflow: 'hidden',
   },
   cardTitle: {
     fontSize: '1.15rem',
@@ -1838,6 +1859,8 @@ const styles = {
   },
   input: {
     width: '100%',
+    maxWidth: '100%',
+    boxSizing: 'border-box',
     padding: '10px 14px',
     backgroundColor: '#ffffff',
     border: '1px solid #cbd5e1',
@@ -1848,6 +1871,8 @@ const styles = {
   },
   select: {
     width: '100%',
+    maxWidth: '100%',
+    boxSizing: 'border-box',
     padding: '10px 14px',
     backgroundColor: '#ffffff',
     border: '1px solid #cbd5e1',
@@ -1859,6 +1884,8 @@ const styles = {
   },
   textarea: {
     width: '100%',
+    maxWidth: '100%',
+    boxSizing: 'border-box',
     padding: '12px 14px',
     backgroundColor: '#ffffff',
     border: '1px solid #cbd5e1',
