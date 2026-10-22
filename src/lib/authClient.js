@@ -39,7 +39,18 @@ export async function createUserWithEmailAndPassword(_unusedAuth, email, passwor
   const { data, error } = await supabase.auth.signUp({ email, password });
   if (error) {
     const err = new Error(error.message);
-    err.code = 'auth/email-already-in-use';
+    const msg = (error.message || '').toLowerCase();
+    if (msg.includes('already registered') || msg.includes('already in use') || msg.includes('user already exists')) {
+      err.code = 'auth/email-already-in-use';
+    } else if (msg.includes('weak') || msg.includes('least 6') || msg.includes('password')) {
+      err.code = 'auth/weak-password';
+    } else if (msg.includes('rate limit') || msg.includes('too many')) {
+      err.code = 'auth/too-many-requests';
+    } else if (msg.includes('invalid') && msg.includes('email')) {
+      err.code = 'auth/invalid-email';
+    } else {
+      err.code = error.code || 'auth/signup-failed';
+    }
     throw err;
   }
   return data;
