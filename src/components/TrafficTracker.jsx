@@ -29,6 +29,13 @@ function getOrCreateSessionId() {
 export default function TrafficTracker() {
   useEffect(() => {
     try {
+      // Se o usuário caiu em qualquer página com token de recuperação de senha (#access_token=...&type=recovery),
+      // redireciona imediatamente para a tela de redefinição de senha mantendo os tokens intactos.
+      if (typeof window !== 'undefined' && window.location.hash && window.location.hash.includes('type=recovery') && !window.location.pathname.startsWith('/login')) {
+        window.location.replace('/login?modo=redefinir' + window.location.hash);
+        return;
+      }
+
       const traffic = identifyTrafficSource();
 
       // Envia registro ao backend apenas na PRIMEIRA visualização desta sessão

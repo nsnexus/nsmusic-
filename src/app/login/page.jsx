@@ -52,11 +52,14 @@ export default function LoginPage() {
     if (window.location.hash && (window.location.hash.includes('access_token=') || window.location.hash.includes('type=recovery'))) {
       try {
         const session = supabase?.auth?.parseUrlHashSession?.();
-        if (session?.type === 'recovery' || sessionStorage.getItem('supabase_auth_recovery') === 'true') {
+        if (session?.type === 'recovery' || sessionStorage.getItem('supabase_auth_recovery') === 'true' || window.location.hash.includes('type=recovery')) {
           setIsResetMode(true);
         }
       } catch (e) {
         console.warn('Erro ao processar hash de recuperação:', e);
+        if (window.location.hash.includes('type=recovery')) {
+          setIsResetMode(true);
+        }
       }
     }
 
