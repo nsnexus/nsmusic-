@@ -34,7 +34,58 @@ export default function VozClienteAddonCard({ orderId, order }) {
   const [verificacaoBlob, setVerificacaoBlob] = useState(null);
   const [processandoVoz, setProcessandoVoz] = useState(false);
   const [statusMsg, setStatusMsg] = useState('');
-  const [musicaGeradaUrl, setMusicaGeradaUrl] = useState(order?.customVoiceAudioUrl || order?.extras?.customVoiceAudioUrl || '');
+  const [musicaGeradaUrl, setMusicaGeradaUrl] = useState(
+    order?.customVoiceAudioUrl ||
+    order?.extras?.customVoiceAudioUrl ||
+    ((order?.isCustomVoice || order?.voiceType === 'minha_voz' || order?.extras?.isCustomVoice) ? order?.audioUrl : '') ||
+    ''
+  );
+  const [baixandoMp3, setBaixandoMp3] = useState(false);
+
+  const baixarMusicaVoz = async (url) => {
+    if (!url || baixandoMp3) return;
+    setBaixandoMp3(true);
+    const nomeHonoree = (order?.honoreeName || 'Homenagem').replace(/[^\w.\- ]/g, '_');
+    const nomeArquivo = `Musica_Com_Minha_Voz_${nomeHonoree}.mp3`;
+
+    // Usa o proxy oficial com parâmetro download para forçar Content-Disposition attachment
+    const proxiedUrl = url.startsWith('/api/') || url.startsWith('blob:')
+      ? url
+      : `/api/audio/proxy?url=${encodeURIComponent(url)}&download=${encodeURIComponent(nomeArquivo)}`;
+
+    try {
+      // 1. Tenta baixar via fetch + Blob: força o navegador a salvar diretamente em disco sem abrir player
+      const res = await fetch(proxiedUrl);
+      if (res.ok) {
+        const blob = await res.blob();
+        const blobUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.setAttribute('download', nomeArquivo);
+        document.body.appendChild(link);
+        link.click();
+        link.parentNode.removeChild(link);
+        setTimeout(() => window.URL.revokeObjectURL(blobUrl), 15000);
+        return;
+      }
+    } catch (e) {
+      console.warn('[VozClienteAddonCard] Fallback de download direto:', e);
+    } finally {
+      setBaixandoMp3(false);
+    }
+
+    // 2. Fallback direto disparando o link do proxy com download
+    try {
+      const link = document.createElement('a');
+      link.href = proxiedUrl;
+      link.setAttribute('download', nomeArquivo);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+    } catch (err) {
+      window.location.href = proxiedUrl;
+    }
+  };
 
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
@@ -449,28 +500,32 @@ export default function VozClienteAddonCard({ orderId, order }) {
 
           {musicaGeradaUrl ? (
             <div style={{ marginTop: '16px' }}>
-              <p style={{ fontSize: '0.9rem', color: '#e4e4e7', marginBottom: '12px' }}>
+              <p style={{ fontSize: '0.9rem', color: '#92400e', marginBottom: '12px', fontWeight: '700' }}>
                 🎉 Sua versão exclusiva cantada por você está pronta!
               </p>
               <audio controls src={musicaGeradaUrl} style={{ width: '100%', marginBottom: '14px' }} />
-              <a
-                href={musicaGeradaUrl}
-                download
-                target="_blank"
-                rel="noreferrer"
+              <button
+                type="button"
+                onClick={() => baixarMusicaVoz(musicaGeradaUrl)}
+                disabled={baixandoMp3}
                 style={{
-                  display: 'inline-block',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
                   background: 'linear-gradient(135deg, #10b981, #059669)',
                   color: '#fff',
-                  padding: '10px 20px',
+                  border: 'none',
+                  padding: '12px 24px',
                   borderRadius: '12px',
-                  fontWeight: '700',
-                  textDecoration: 'none',
-                  fontSize: '0.9rem'
+                  fontWeight: '800',
+                  fontSize: '0.92rem',
+                  cursor: baixandoMp3 ? 'wait' : 'pointer',
+                  boxShadow: '0 4px 15px rgba(16, 185, 129, 0.4)'
                 }}
               >
-                ⬇️ Baixar MP3 Cantado por Mim
-              </a>
+                {baixandoMp3 ? '⏳ Baixando MP3...' : '⬇️ Baixar MP3 Cantado por Mim'}
+              </button>
             </div>
           ) : (
             <div>
