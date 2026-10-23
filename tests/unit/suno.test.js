@@ -189,6 +189,32 @@ describe('requestSunoGeneration', () => {
     expect(global.fetch.mock.calls[0][0]).toBe('https://api.kie.ai/api/v1/generate');
   });
 
+  it('desvia obrigatoriamente para Kie.ai quando pedido tem voz personalizada do cliente e envia account_id e voice_record', async () => {
+    global.fetch.mockResolvedValueOnce(kieOkResponse('task-kie-voice'));
+    store['order-voice'] = {
+      isCustomVoice: true,
+      customVoiceId: 'persona-123',
+      customVoiceRecordId: 'rec-456',
+      customVoiceAccountId: 'acc-789'
+    };
+
+    const result = await requestSunoGeneration(
+      { orderId: 'order-voice', prompt: 'letra voz', tags: 'pop' },
+      { UNIFICALLY_API_KEY: 'unif-key', KIE_API_KEY: 'kie-key' }
+    );
+
+    expect(result).toEqual({ ok: true, taskId: 'task-kie-voice', provider: 'kie' });
+    expect(store['order-voice'].sunoProvider).toBe('kie');
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(global.fetch.mock.calls[0][0]).toBe('https://api.kie.ai/api/v1/generate');
+
+    const sentBody = JSON.parse(global.fetch.mock.calls[0][1].body);
+    expect(sentBody.persona_id).toBe('persona-123');
+    expect(sentBody.persona_model).toBe('voice_persona');
+    expect(sentBody.account_id).toBe('acc-789');
+    expect(sentBody.voice_record).toBe('rec-456');
+  });
+
   it('quando SUNO_PRIMARY_PROVIDER é kie, tenta Kie primeiro e faz fallback para Unifically se Kie falhar', async () => {
     // Kie tenta 2 vezes para erro transitório 500 (MAX_KIE_ATTEMPTS = 2):
     global.fetch.mockResolvedValueOnce(kieErrorResponse(500, 500));

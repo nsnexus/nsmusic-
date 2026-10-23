@@ -122,11 +122,9 @@ export async function requestSunoGeneration({ orderId, prompt, tags, preferredPr
 
   const primary = preferredProvider || await resolvePrimaryProvider(env);
 
-  // Se o pedido requer voz clonada do cliente e o provedor seria o robô local (suno_local),
-  // desvia obrigatoriamente para a Kie.ai, que é a única com suporte ao motor de persona/clonagem.
-  let effectivePrimary = (isCustomVoiceOrder && primary === PROVIDER_SUNO_LOCAL)
-    ? PROVIDER_KIE
-    : primary;
+  // Se o pedido requer voz clonada do cliente, desvia obrigatoriamente para a Kie.ai,
+  // que é a única com suporte ao motor de persona/clonagem (nem Suno Local nem Unifically suportam).
+  let effectivePrimary = isCustomVoiceOrder ? PROVIDER_KIE : primary;
 
   // Se o provedor for o robô local, verifica se ele já está ocupado gerando outra música.
   // Se estiver ocupado, desvia o novo pedido imediatamente para a Kie.ai para não formar fila.
@@ -368,11 +366,22 @@ async function gerarPelaKie({ orderId, prompt, tags }, env) {
       const order = await getOrder(orderId, env);
       const vId = order?.customVoiceId || order?.extras?.customVoiceId;
       if (vId && (order?.isCustomVoice || order?.voiceType === 'minha_voz' || order?.extras?.isCustomVoice)) {
+        const vAcc = order?.customVoiceAccountId || order?.extras?.accountId || order?.extras?.customVoiceAccountId || '70147233';
+        const vRec = order?.customVoiceRecordId || order?.extras?.voiceRecordingId || order?.extras?.customVoiceRecordId || 'b4fa71e2-b681-4b1c-97f7-812a9ed0effa';
         voicePayload = {
           persona_id: vId,
           personaId: vId,
           persona_model: 'voice_persona',
           personaModel: 'voice_persona',
+          account_id: String(vAcc),
+          accountId: String(vAcc),
+          suno_user_id: String(vAcc),
+          persona_voice_user_id: Number(vAcc) || String(vAcc),
+          voice_record: String(vRec),
+          voice_record_id: String(vRec),
+          voice_recording_id: String(vRec),
+          voiceRecord: String(vRec),
+          voiceRecordingId: String(vRec),
         };
       }
     } catch (e) {

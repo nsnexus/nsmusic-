@@ -99,9 +99,16 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Áudio excede o tamanho máximo permitido de 30 MB.' }, { status: 413 });
     }
 
+    // Identifica se os bytes correspondem a um cabeçalho RIFF WAV real (0x52, 0x49, 0x46, 0x46)
+    const uint8Header = new Uint8Array(buffer, 0, Math.min(buffer.byteLength, 12));
+    const isRiffWav = uint8Header.length >= 4 &&
+      uint8Header[0] === 0x52 && uint8Header[1] === 0x49 && uint8Header[2] === 0x46 && uint8Header[3] === 0x46;
+
     // Identifica extensão segura
     let ext = 'webm';
-    if (isExtAllowed) {
+    if (isRiffWav || rawType.includes('wav')) {
+      ext = 'wav';
+    } else if (isExtAllowed) {
       ext = nameExt;
     } else if (rawType.includes('opus')) {
       ext = 'opus';
@@ -111,13 +118,11 @@ export async function POST(req) {
       ext = 'm4a';
     } else if (rawType.includes('mpeg') || rawType.includes('mp3')) {
       ext = 'mp3';
-    } else if (rawType.includes('wav')) {
-      ext = 'wav';
     } else if (rawType.includes('flac')) {
       ext = 'flac';
     }
 
-    const contentType = EXT_TO_MIME[ext] || rawType || 'audio/webm';
+    const contentType = isRiffWav ? 'audio/wav' : (EXT_TO_MIME[ext] || rawType || 'audio/webm');
 
     const timestamp = Date.now();
     const randomHex = Math.random().toString(36).substring(2, 8);

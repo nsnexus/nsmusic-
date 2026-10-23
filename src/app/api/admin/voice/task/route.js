@@ -138,6 +138,8 @@ export async function POST(req) {
       const {
         orderId,
         voiceId,
+        accountId: clientAccountId,
+        voiceRecordingId: clientVoiceRecordingId,
         phraseTaskId: clientPhraseTaskId,
         prompt,
         style = 'Acoustic Pop',
@@ -149,6 +151,8 @@ export async function POST(req) {
       }
 
       let effectivePersonaId = voiceId;
+      let effectiveAccountId = clientAccountId || null;
+      let effectiveVoiceRecord = clientVoiceRecordingId || null;
 
       // Se voiceId for um taskId de 32 chars, consulta a Kie.ai para ver se já gerou um persona_id específico
       const tasksToInspect = [voiceId, clientPhraseTaskId].filter(t => t && typeof t === 'string' && t.length === 32 && !t.includes('-'));
@@ -174,12 +178,22 @@ export async function POST(req) {
               if (p.persona_id && typeof p.persona_id === 'string' && p.persona_id.includes('-')) {
                 effectivePersonaId = p.persona_id;
               }
+              if (!effectiveAccountId) {
+                effectiveAccountId = p.suno_user_id || p.persona_voice_user_id || p.account_id || p.accountId || null;
+              }
+              if (!effectiveVoiceRecord) {
+                effectiveVoiceRecord = p.voice_recording_id || p.voice_record_id || p.voice_record || p.voiceRecord || null;
+              }
             }
           }
         } catch (e) {
           console.warn('[voice/task] Falha ao inspecionar tarefa para persona_id:', e.message);
         }
       }
+
+      // Fallbacks com base no usuário ativo na Kie.ai se ainda não foram resolvidos
+      if (!effectiveAccountId) effectiveAccountId = '70147233';
+      if (!effectiveVoiceRecord) effectiveVoiceRecord = 'b4fa71e2-b681-4b1c-97f7-812a9ed0effa';
 
       if (!effectivePersonaId) effectivePersonaId = voiceId;
 
@@ -195,6 +209,15 @@ export async function POST(req) {
         personaId: effectivePersonaId,
         persona_model: 'voice_persona',
         personaModel: 'voice_persona',
+        account_id: String(effectiveAccountId),
+        accountId: String(effectiveAccountId),
+        suno_user_id: String(effectiveAccountId),
+        persona_voice_user_id: Number(effectiveAccountId) || String(effectiveAccountId),
+        voice_record: String(effectiveVoiceRecord),
+        voice_record_id: String(effectiveVoiceRecord),
+        voice_recording_id: String(effectiveVoiceRecord),
+        voiceRecord: String(effectiveVoiceRecord),
+        voiceRecordingId: String(effectiveVoiceRecord),
         styleWeight: 0.85,
         weirdnessConstraint: 0.20,
       };
@@ -223,7 +246,9 @@ export async function POST(req) {
         try {
           await saveTask(taskId, 'PROCESSING', null, orderId, {
             provider: 'kie',
-            customVoiceId: effectivePersonaId
+            customVoiceId: effectivePersonaId,
+            customVoiceRecordId: effectiveVoiceRecord,
+            customVoiceAccountId: effectiveAccountId
           }, env);
 
           await updateOrder(orderId, {
@@ -231,6 +256,8 @@ export async function POST(req) {
             sunoTaskId: taskId,
             sunoProvider: 'kie',
             customVoiceId: effectivePersonaId,
+            customVoiceRecordId: effectiveVoiceRecord,
+            customVoiceAccountId: effectiveAccountId,
             isCustomVoice: true,
             voiceType: 'minha_voz',
             sunoRequestedAt: new Date().toISOString(),

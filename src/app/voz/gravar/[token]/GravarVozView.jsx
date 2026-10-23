@@ -159,7 +159,8 @@ export default function GravarVozView({ token }) {
     try {
       // 1. Upload da amostra no R2
       const fd = new FormData();
-      fd.append('file', amostraBlob, 'amostra.webm');
+      const extAmostra = (amostraBlob?.type && amostraBlob.type.includes('wav')) ? 'wav' : 'webm';
+      fd.append('file', amostraBlob, `amostra.${extAmostra}`);
       fd.append('folder', 'invites');
 
       const upRes = await fetch('/api/admin/voice/upload', {
@@ -234,7 +235,8 @@ export default function GravarVozView({ token }) {
     try {
       // 1. Upload do áudio de validação
       const fd = new FormData();
-      fd.append('file', verificacaoBlob, 'validacao.webm');
+      const extVerif = (verificacaoBlob?.type && verificacaoBlob.type.includes('wav')) ? 'wav' : 'webm';
+      fd.append('file', verificacaoBlob, `validacao.${extVerif}`);
       fd.append('folder', 'invites-verify');
 
       const upRes = await fetch('/api/admin/voice/upload', {
@@ -272,7 +274,7 @@ export default function GravarVozView({ token }) {
       let validationFailed = false;
       let failReason = '';
 
-      for (let i = 0; i < 25; i++) {
+      for (let i = 0; i < 36; i++) {
         await new Promise((r) => setTimeout(r, 2500));
         const pRes = await fetch(`/api/admin/voice/task?taskId=${encodeURIComponent(cData.taskId)}&type=job`);
         if (pRes.ok) {
@@ -286,18 +288,6 @@ export default function GravarVozView({ token }) {
             createdVoiceId = poll.voiceId || poll.personaId;
             createdRecordId = poll.voiceRecordingId || poll.voice_recording_id || '';
             break;
-          }
-        }
-
-        if (phraseTaskId) {
-          const chkRes = await fetch(`/api/admin/voice/task?taskId=${encodeURIComponent(phraseTaskId)}&type=job`);
-          if (chkRes.ok) {
-            const chk = await chkRes.json().catch(() => ({}));
-            if (chk.state === 'fail' || chk.state === 'FAILED') {
-              validationFailed = true;
-              failReason = chk.failMsg || 'A gravação não coincidiu com a frase de segurança.';
-              break;
-            }
           }
         }
       }

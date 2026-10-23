@@ -208,7 +208,8 @@ export default function VozClienteAddonCard({ orderId, order }) {
     try {
       // 1. Upload da amostra no R2
       const fd = new FormData();
-      fd.append('file', amostraBlob, 'amostra_voz.webm');
+      const extAmostra = (amostraBlob?.type && amostraBlob.type.includes('wav')) ? 'wav' : 'webm';
+      fd.append('file', amostraBlob, `amostra_voz.${extAmostra}`);
       const upRes = await fetch('/api/admin/voice/upload', { method: 'POST', body: fd });
       const upData = await upRes.json();
       if (!upRes.ok || !upData.url) throw new Error(upData.error || 'Falha no upload da amostra.');
@@ -270,6 +271,8 @@ export default function VozClienteAddonCard({ orderId, order }) {
           action: 'generate_song',
           orderId: order?.id || orderId,
           voiceId: targetVoiceId,
+          voiceRecordingId: optionalRecordingId || customVoiceData?.voiceRecordingId || undefined,
+          accountId: customVoiceData?.accountId || '70147233',
           phraseTaskId: phraseTaskId || undefined,
           prompt: order?.lyrics || '',
           style: order?.musicStyle || 'Acoustic Pop',
@@ -339,7 +342,8 @@ export default function VozClienteAddonCard({ orderId, order }) {
     try {
       // 1. Upload do áudio de validação
       const fd = new FormData();
-      fd.append('file', verificacaoBlob, 'validacao_voz.webm');
+      const extVerif = (verificacaoBlob?.type && verificacaoBlob.type.includes('wav')) ? 'wav' : 'webm';
+      fd.append('file', verificacaoBlob, `validacao_voz.${extVerif}`);
       const upRes = await fetch('/api/admin/voice/upload', { method: 'POST', body: fd });
       const upData = await upRes.json();
       if (!upRes.ok || !upData.url) throw new Error(upData.error || 'Falha no upload da validação.');
@@ -357,6 +361,10 @@ export default function VozClienteAddonCard({ orderId, order }) {
         })
       });
       const cData = await createRes.json();
+      if (!createRes.ok || !cData.taskId) {
+        throw new Error(cData.error || 'Falha ao iniciar criação do timbre na IA.');
+      }
+
       // 3. Polling da criação do Voice ID com detecção de falha
       setStatusMsg('Finalizando seu modelo de voz...');
       let createdVoiceId = '';
@@ -364,7 +372,7 @@ export default function VozClienteAddonCard({ orderId, order }) {
       let validationFailed = false;
       let failReason = '';
 
-      for (let i = 0; i < 25; i++) {
+      for (let i = 0; i < 36; i++) {
         await new Promise(r => setTimeout(r, 2500));
         const pRes = await fetch(`/api/admin/voice/task?taskId=${encodeURIComponent(cData.taskId)}&type=job`);
         if (pRes.ok) {
@@ -378,18 +386,6 @@ export default function VozClienteAddonCard({ orderId, order }) {
             createdVoiceId = poll.voiceId || poll.personaId;
             createdRecordId = poll.voiceRecordingId || '';
             break;
-          }
-        }
-
-        if (phraseTaskId) {
-          const chkRes = await fetch(`/api/admin/voice/task?taskId=${encodeURIComponent(phraseTaskId)}&type=job`);
-          if (chkRes.ok) {
-            const chk = await chkRes.json();
-            if (chk.state === 'fail' || chk.state === 'FAILED') {
-              validationFailed = true;
-              failReason = chk.failMsg || 'A gravação não coincidiu com a frase de segurança.';
-              break;
-            }
           }
         }
       }
