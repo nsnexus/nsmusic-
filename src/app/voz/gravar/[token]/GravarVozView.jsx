@@ -265,24 +265,52 @@ export default function GravarVozView({ token }) {
         throw new Error(cData.error || 'Falha ao iniciar síntese vocal.');
       }
 
-      // 3. Polling da criação do Voice ID
+      // 3. Polling da criação do Voice ID com detecção de falha
       setStatusMsg('Finalizando seu modelo de voz com a Inteligência Artificial...');
       let createdVoiceId = '';
       let createdRecordId = '';
+      let validationFailed = false;
+      let failReason = '';
+
       for (let i = 0; i < 25; i++) {
         await new Promise((r) => setTimeout(r, 2500));
         const pRes = await fetch(`/api/admin/voice/task?taskId=${encodeURIComponent(cData.taskId)}&type=job`);
         if (pRes.ok) {
           const poll = await pRes.json().catch(() => ({}));
+          if (poll.state === 'fail' || poll.state === 'FAILED') {
+            validationFailed = true;
+            failReason = poll.failMsg || 'A gravação não coincidiu com a frase solicitada.';
+            break;
+          }
           if (poll.voiceId || poll.personaId) {
             createdVoiceId = poll.voiceId || poll.personaId;
             createdRecordId = poll.voiceRecordingId || poll.voice_recording_id || '';
             break;
           }
         }
+
+        if (phraseTaskId) {
+          const chkRes = await fetch(`/api/admin/voice/task?taskId=${encodeURIComponent(phraseTaskId)}&type=job`);
+          if (chkRes.ok) {
+            const chk = await chkRes.json().catch(() => ({}));
+            if (chk.state === 'fail' || chk.state === 'FAILED') {
+              validationFailed = true;
+              failReason = chk.failMsg || 'A gravação não coincidiu com a frase de segurança.';
+              break;
+            }
+          }
+        }
       }
 
-      const finalVoiceId = createdVoiceId || cData.taskId;
+      if (validationFailed || !createdVoiceId) {
+        throw new Error(
+          failReason
+            ? `Validação de voz recusada pela IA: ${failReason}. Certifique-se de ler a frase exata da tela em voz alta, sem cantar outra música.`
+            : 'A IA não conseguiu concluir a validação no tempo limite. Por favor, leia a frase da tela e tente novamente.'
+        );
+      }
+
+      const finalVoiceId = createdVoiceId;
 
       // 4. Salva a conclusão no convite e vincula ao contato
       setStatusMsg('Vinculando seu timbre ao seu cadastro...');

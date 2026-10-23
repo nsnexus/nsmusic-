@@ -227,7 +227,11 @@ export default function VozClienteAddonCard({ orderId, order }) {
       });
       const gData = await genRes.json();
       if (!genRes.ok || !gData.taskId) {
-        throw new Error(gData.error || 'Falha ao iniciar composição na IA.');
+        const errorMsg = gData.error || '';
+        if (errorMsg.toLowerCase().includes('voice persona') || errorMsg.toLowerCase().includes('regenerate voice')) {
+          throw new Error('A Inteligência Artificial precisa que você regrave a sua amostra para ativar o timbre. Clique em "🔄 Gravar Novamente" e leia a frase indicada na tela.');
+        }
+        throw new Error(errorMsg || 'Falha ao iniciar composição na IA.');
       }
 
       const songTaskId = gData.taskId;
@@ -302,26 +306,52 @@ export default function VozClienteAddonCard({ orderId, order }) {
         })
       });
       const cData = await createRes.json();
-      if (!createRes.ok || !cData.taskId) throw new Error(cData.error || 'Falha ao criar voz.');
-
-      // 3. Polling da criação do Voice ID
+      // 3. Polling da criação do Voice ID com detecção de falha
       setStatusMsg('Finalizando seu modelo de voz...');
       let createdVoiceId = '';
       let createdRecordId = '';
+      let validationFailed = false;
+      let failReason = '';
+
       for (let i = 0; i < 25; i++) {
         await new Promise(r => setTimeout(r, 2500));
         const pRes = await fetch(`/api/admin/voice/task?taskId=${encodeURIComponent(cData.taskId)}&type=job`);
         if (pRes.ok) {
           const poll = await pRes.json();
+          if (poll.state === 'fail' || poll.state === 'FAILED') {
+            validationFailed = true;
+            failReason = poll.failMsg || 'A gravação não coincidiu com a frase solicitada.';
+            break;
+          }
           if (poll.voiceId || poll.personaId) {
             createdVoiceId = poll.voiceId || poll.personaId;
             createdRecordId = poll.voiceRecordingId || '';
             break;
           }
         }
+
+        if (phraseTaskId) {
+          const chkRes = await fetch(`/api/admin/voice/task?taskId=${encodeURIComponent(phraseTaskId)}&type=job`);
+          if (chkRes.ok) {
+            const chk = await chkRes.json();
+            if (chk.state === 'fail' || chk.state === 'FAILED') {
+              validationFailed = true;
+              failReason = chk.failMsg || 'A gravação não coincidiu com a frase de segurança.';
+              break;
+            }
+          }
+        }
       }
 
-      const finalVoiceId = createdVoiceId || phraseTaskId || cData.taskId;
+      if (validationFailed || !createdVoiceId) {
+        throw new Error(
+          failReason
+            ? `Validação de voz recusada pela IA: ${failReason}. Certifique-se de ler a frase exata da tela em voz alta, sem cantar outra música.`
+            : 'A IA não conseguiu concluir a validação no tempo limite. Por favor, leia a frase da tela e tente novamente.'
+        );
+      }
+
+      const finalVoiceId = createdVoiceId;
 
       // 4. Salva a voz no Supabase associando ao telefone do cliente
       await fetch('/api/admin/voice/customers', {
@@ -687,8 +717,8 @@ export default function VozClienteAddonCard({ orderId, order }) {
 
             {etapaGravacao === 2 && (
               <div>
-                <p style={{ fontSize: '0.85rem', color: '#a1a1aa', marginBottom: '14px' }}>
-                  Por segurança e validação do modelo de IA, leia a frase abaixo em voz alta:
+                <p style={{ fontSize: '0.88rem', color: '#fef08a', marginBottom: '14px', lineHeight: 1.5, background: 'rgba(234, 179, 8, 0.1)', padding: '10px 14px', borderRadius: '10px', border: '1px solid rgba(234, 179, 8, 0.3)' }}>
+                  ⚠️ <strong>Passo Obrigatório de Validação:</strong> Para a IA ativar o seu modelo vocal, leia <u>exatamente a frase abaixo em voz alta</u> com a sua voz natural (não cante outra música aqui):
                 </p>
 
                 <div style={{
