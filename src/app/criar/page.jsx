@@ -337,7 +337,10 @@ export default function CriarMusica() {
   // vezes) não expõe esse tipo de consulta. Só confere DDD + quantidade de dígitos.
   useEffect(() => {
     const phone = formData.customerPhone || '';
-    const clean = phone.replace(/\D/g, '');
+    let clean = phone.replace(/\D/g, '');
+    if (clean.startsWith('55') && clean.length >= 12) {
+      clean = clean.slice(2);
+    }
 
     if (clean.length === 0) {
       setPhoneVerifyStatus('idle');
@@ -374,6 +377,11 @@ export default function CriarMusica() {
         if (!cancel) {
           if (data && data.found && data.voice) {
             setRecognizedVoice(data.voice);
+            setFormData((prev) => ({
+              ...prev,
+              voiceType: 'minha_voz',
+              customVoiceId: data.voice.voiceId,
+            }));
           } else {
             setRecognizedVoice(null);
           }
@@ -798,7 +806,11 @@ export default function CriarMusica() {
 
   const handlePhoneChange = (input) => {
     const raw = typeof input === 'string' ? input : (input?.target?.value ?? '');
-    const clean = String(raw).replace(/\D/g, '').slice(0, 11);
+    let digits = String(raw).replace(/\D/g, '');
+    if (digits.startsWith('55') && digits.length >= 12) {
+      digits = digits.slice(2);
+    }
+    const clean = digits.slice(0, 11);
     let formatted = clean;
     if (clean.length > 0) {
       formatted = `(${clean.slice(0, 2)}`;
@@ -831,7 +843,10 @@ export default function CriarMusica() {
   };
 
   const isPhoneValid = (phone) => {
-    const clean = (phone || '').replace(/\D/g, '');
+    let clean = (phone || '').replace(/\D/g, '');
+    if (clean.startsWith('55') && clean.length >= 12) {
+      clean = clean.slice(2);
+    }
     // DDD + 8 dígitos (sem o 9, esquecimento comum) ou 9 dígitos (padrão atual) e DDD real —
     // ver VALID_BRAZIL_DDDS.
     if (clean.length !== 10 && clean.length !== 11) return false;

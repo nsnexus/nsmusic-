@@ -272,14 +272,22 @@ export default function CreationSteps({ step, formData: data, updateField, isLis
           >
             <select
               value={data.voiceType || ''}
-              onChange={e => updateField('voiceType', e.target.value)}
+              onChange={e => {
+                const val = e.target.value;
+                updateField('voiceType', val);
+                if (val === 'minha_voz' && recognizedVoice?.voiceId) {
+                  updateField('customVoiceId', recognizedVoice.voiceId);
+                } else if (val !== 'minha_voz') {
+                  updateField('customVoiceId', null);
+                }
+              }}
               style={!data.voiceType ? { borderColor: '#f59e0b', backgroundColor: '#fffdf5' } : {}}
             >
               <option value="">Escolha a voz</option>
               <option value="masculina">Masculina</option>
               <option value="feminina">Feminina</option>
               <option value="dueto">Dueto</option>
-              {recognizedVoice && <option value="minha_voz">Minha voz cadastrada</option>}
+              {recognizedVoice && <option value="minha_voz">🎙️ Minha própria voz ({recognizedVoice.customerName || 'Cliente'})</option>}
             </select>
           </Field>
         </div>
@@ -292,7 +300,15 @@ export default function CreationSteps({ step, formData: data, updateField, isLis
     <section className="nx-form-column">
       <h1>Seu presente<br />começa assim.</h1><p className="nx-subtitle">Confira os detalhes antes de criar a letra.</p>
       <article className="nx-card nx-review">
-        <span className="nx-eyebrow">{data.occasion}</span><h2>Para {data.honoreeName}</h2><p>De {data.customerName} · {data.musicStyle} · {data.musicMood}</p><p className="nx-story-review">{data.story}</p>
+        <span className="nx-eyebrow">{data.occasion}</span>
+        <h2>Para {data.honoreeName}</h2>
+        <p>
+          De {data.customerName} · {data.musicStyle} · {data.musicMood}
+          {data.voiceType && (
+            <span> · Voz: {data.voiceType === 'minha_voz' ? '🎙️ Minha Própria Voz' : data.voiceType === 'feminina' ? 'Feminina' : data.voiceType === 'dueto' ? 'Dueto' : 'Masculina'}</span>
+          )}
+        </p>
+        <p className="nx-story-review">{data.story}</p>
       </article>
       <Field label="Foto de capa (opcional)" help="Você também pode adicionar ou trocar a foto depois."><input type="file" accept="image/*" disabled={isUploadingCover} onChange={handleImageUpload} /></Field>
       {isUploadingCover && <p className="nx-helper" role="status">Enviando sua foto…</p>}
@@ -315,6 +331,98 @@ export default function CreationSteps({ step, formData: data, updateField, isLis
         />
       </Field>
       {phoneVerifyMessage && <p className="nx-helper" role="status" style={{ color: phoneVerifyStatus === 'valid' ? '#16a34a' : phoneVerifyStatus === 'invalid' ? '#dc2626' : undefined, fontWeight: phoneVerifyStatus === 'valid' || phoneVerifyStatus === 'invalid' ? 600 : undefined }}>{phoneVerifyMessage.replace('❌ ', '')}</p>}
+
+      {/* Verificando se o WhatsApp informado possui voz cadastrada */}
+      {checkingVoice && (
+        <div style={{
+          marginTop: '10px',
+          padding: '8px 12px',
+          borderRadius: '10px',
+          backgroundColor: '#fffbeb',
+          border: '1px solid #fde68a',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          fontSize: '0.84rem',
+          color: '#b45309'
+        }}>
+          <span>⏳</span>
+          <span>Verificando se este WhatsApp tem voz clonada cadastrada...</span>
+        </div>
+      )}
+
+      {/* Card Dourado de Timbre Reconhecido */}
+      {recognizedVoice && (
+        <div
+          style={{
+            marginTop: '14px',
+            marginBottom: '10px',
+            padding: '16px',
+            borderRadius: '16px',
+            backgroundColor: '#fffbeb',
+            border: '1.5px solid #f59e0b',
+            boxShadow: '0 4px 18px rgba(245, 158, 11, 0.12)'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+            <div style={{ flex: '1 1 200px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '800', color: '#92400e', fontSize: '0.96rem' }}>
+                <span>✨</span>
+                <span>Timbre de Voz Reconhecido!</span>
+              </div>
+              <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: '#78350f', lineHeight: 1.45 }}>
+                Olá, <strong>{recognizedVoice.customerName || 'Cliente'}</strong>! Identificamos o seu timbre de voz clonado ativo no estúdio. Deseja que esta nova música seja cantada com a <strong>sua própria voz</strong>?
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (data.voiceType === 'minha_voz') {
+                  updateField('voiceType', 'masculina');
+                  updateField('customVoiceId', null);
+                } else {
+                  updateField('voiceType', 'minha_voz');
+                  updateField('customVoiceId', recognizedVoice.voiceId);
+                }
+              }}
+              style={{
+                padding: '10px 18px',
+                borderRadius: '12px',
+                border: 'none',
+                fontWeight: '800',
+                fontSize: '0.86rem',
+                cursor: 'pointer',
+                background: data.voiceType === 'minha_voz'
+                  ? 'linear-gradient(135deg, #10b981, #059669)'
+                  : 'linear-gradient(135deg, #f59e0b, #d97706)',
+                color: '#ffffff',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                transition: 'all 0.2s ease',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              {data.voiceType === 'minha_voz' ? '✓ Cantando com Minha Voz' : '🎙️ Ativar Minha Voz'}
+            </button>
+          </div>
+
+          <div style={{
+            marginTop: '10px',
+            fontSize: '0.80rem',
+            padding: '6px 10px',
+            borderRadius: '8px',
+            backgroundColor: data.voiceType === 'minha_voz' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.1)',
+            color: data.voiceType === 'minha_voz' ? '#065f46' : '#92400e',
+            fontWeight: '600'
+          }}>
+            {data.voiceType === 'minha_voz'
+              ? '🎤 Esta música será gravada e cantada exclusivamente com a sua voz!'
+              : 'ℹ️ Voz padrão do estúdio selecionada. Clique no botão acima para cantar com a sua voz.'}
+          </div>
+        </div>
+      )}
+
       <p className="nx-helper" style={{ fontSize: '0.82rem', color: '#534b57', margin: '10px 0 4px 0' }}>
         Ao prosseguir, você concorda com nossos <Link href="/termos-de-uso" target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'underline' }}>Termos de Uso</Link> e <Link href="/politica-de-privacidade" target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'underline' }}>Política de Privacidade</Link>.
       </p>

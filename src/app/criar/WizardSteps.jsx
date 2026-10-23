@@ -1074,23 +1074,53 @@ export default function WizardSteps({
 
                 {/* Reconhecimento de Voz */}
                 {checkingVoice && (
-                  <span style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'block', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '0.78rem', color: '#b45309', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px', background: 'rgba(245, 158, 11, 0.1)', padding: '6px 10px', borderRadius: '8px' }}>
                     ⏳ Verificando se este WhatsApp tem voz clonada cadastrada...
                   </span>
                 )}
                 {recognizedVoice && (
                   <div
                     style={{
-                      padding: '12px 14px',
-                      borderRadius: '12px',
-                      backgroundColor: 'rgba(245, 158, 11, 0.1)',
-                      border: '1px solid rgba(245, 158, 11, 0.35)',
-                      marginBottom: '16px',
-                      fontSize: '0.82rem',
-                      color: '#b45309',
+                      padding: '16px',
+                      borderRadius: '16px',
+                      backgroundColor: '#fffbeb',
+                      border: '1.5px solid #f59e0b',
+                      marginBottom: '18px',
+                      boxShadow: '0 4px 15px rgba(245, 158, 11, 0.12)'
                     }}
                   >
-                    🎤 <strong>Timbre Cadastrado:</strong> Olá, {recognizedVoice.customerName || 'Cliente'}! Identificamos o seu timbre de voz.
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+                      <div style={{ flex: '1 1 200px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '800', color: '#92400e', fontSize: '0.95rem' }}>
+                          ✨ <span>Timbre de Voz Reconhecido!</span>
+                        </div>
+                        <p style={{ margin: '4px 0 0', fontSize: '0.84rem', color: '#78350f', lineHeight: 1.4 }}>
+                          Olá, <strong>{recognizedVoice.customerName || 'Cliente'}</strong>! Identificamos que você tem o seu timbre de voz clonado ativo. Deseja que esta nova música seja cantada com a <strong>sua própria voz</strong>?
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const novoTipo = formData.voiceType === 'minha_voz' ? 'masculina' : 'minha_voz';
+                          updateField('voiceType', novoTipo);
+                        }}
+                        style={{
+                          padding: '10px 18px',
+                          borderRadius: '12px',
+                          border: 'none',
+                          fontWeight: '800',
+                          fontSize: '0.88rem',
+                          cursor: 'pointer',
+                          background: formData.voiceType === 'minha_voz'
+                            ? 'linear-gradient(135deg, #10b981, #059669)'
+                            : 'linear-gradient(135deg, #f59e0b, #d97706)',
+                          color: '#ffffff',
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                        }}
+                      >
+                        {formData.voiceType === 'minha_voz' ? '✓ Cantando com Minha Voz' : '🎙️ Ativar Minha Voz'}
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
