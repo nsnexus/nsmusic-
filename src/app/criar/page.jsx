@@ -42,6 +42,21 @@ const VALID_BRAZIL_DDDS = new Set([
   '91', '92', '93', '94', '95', '96', '97', '98', '99',
 ]);
 
+// Normaliza dígitos de telefone brasileiro removendo pontuação e DDI 55 quando presente.
+// No Brasil, todo celular começa com '9' após o DDD. Se o usuário digita 55 seguido de 1..8
+// (ex: 55219..., 55119..., 55519...), o '55' inicial é indubitavelmente o DDI do país e não o DDD 55 (Santa Maria/RS).
+export function normalizeBrazilPhoneDigits(raw) {
+  let digits = String(raw || '').replace(/\D/g, '');
+  if (digits.startsWith('55')) {
+    if (digits.length >= 12) {
+      digits = digits.slice(2);
+    } else if (digits.length >= 3 && digits[2] !== '9') {
+      digits = digits.slice(2);
+    }
+  }
+  return digits;
+}
+
 
 
 export default function CriarMusica() {
@@ -337,10 +352,7 @@ export default function CriarMusica() {
   // vezes) não expõe esse tipo de consulta. Só confere DDD + quantidade de dígitos.
   useEffect(() => {
     const phone = formData.customerPhone || '';
-    let clean = phone.replace(/\D/g, '');
-    if (clean.startsWith('55') && clean.length >= 12) {
-      clean = clean.slice(2);
-    }
+    const clean = normalizeBrazilPhoneDigits(phone);
 
     if (clean.length === 0) {
       setPhoneVerifyStatus('idle');
@@ -806,11 +818,7 @@ export default function CriarMusica() {
 
   const handlePhoneChange = (input) => {
     const raw = typeof input === 'string' ? input : (input?.target?.value ?? '');
-    let digits = String(raw).replace(/\D/g, '');
-    if (digits.startsWith('55') && digits.length >= 12) {
-      digits = digits.slice(2);
-    }
-    const clean = digits.slice(0, 11);
+    const clean = normalizeBrazilPhoneDigits(raw).slice(0, 11);
     let formatted = clean;
     if (clean.length > 0) {
       formatted = `(${clean.slice(0, 2)}`;
@@ -843,14 +851,13 @@ export default function CriarMusica() {
   };
 
   const isPhoneValid = (phone) => {
-    let clean = (phone || '').replace(/\D/g, '');
-    if (clean.startsWith('55') && clean.length >= 12) {
-      clean = clean.slice(2);
-    }
+    const clean = normalizeBrazilPhoneDigits(phone);
     // DDD + 8 dígitos (sem o 9, esquecimento comum) ou 9 dígitos (padrão atual) e DDD real —
     // ver VALID_BRAZIL_DDDS.
     if (clean.length !== 10 && clean.length !== 11) return false;
-    return phoneVerifyStatus === 'valid';
+    const ddd = clean.slice(0, 2);
+    if (!VALID_BRAZIL_DDDS.has(ddd)) return false;
+    return true;
   };
 
   const updateAddon = (id, value) => {
@@ -1071,6 +1078,11 @@ export default function CriarMusica() {
       setStep(3);
       return;
     }
+    if (!formData.customerPhone || !isPhoneValid(formData.customerPhone)) {
+      setCreationError('Por favor, informe um WhatsApp válido com DDD na Etapa 4 para receber o link da sua música.');
+      setStep(4);
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -1151,7 +1163,7 @@ export default function CriarMusica() {
       }
 
       if (currentOrderId) {
-        fetch('/api/orders/client-update', {
+        await fetch('/api/orders/client-update', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -2544,6 +2556,11 @@ export default function CriarMusica() {
                           onClick={async () => {
                           setIsGeneratingPix(true);
                           setPaymentErrorMessage('');
+                          if (!formData.customerPhone || !isPhoneValid(formData.customerPhone)) {
+                            setPaymentErrorMessage('Por favor, informe um WhatsApp válido com DDD antes de gerar o PIX.');
+                            setIsGeneratingPix(false);
+                            return;
+                          }
                           try {
                             if (orderId) {
                               // hasVideoAccess NUNCA é definido aqui: é um flag de acesso a produto pago

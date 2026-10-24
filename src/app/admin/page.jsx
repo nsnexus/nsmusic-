@@ -417,12 +417,24 @@ export default function AdminDashboard() {
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase();
       const qDigits = q.replace(/\D/g, '');
+      const qDigitsNo55 = qDigits.startsWith('55') && qDigits.length >= 12
+        ? qDigits.substring(2)
+        : (qDigits.startsWith('55') && qDigits.length >= 3 && qDigits[2] !== '9' ? qDigits.substring(2) : qDigits);
+
       result = result.filter(o => {
         const nameMatch = (o.customerName || '').toLowerCase().includes(q);
         const honoreeMatch = (o.honoreeName || '').toLowerCase().includes(q);
         const codeMatch = (o.orderNumber || o.id || '').toLowerCase().includes(q);
-        const rawPhone = String(o.customerPhone || '').replace(/\D/g, '');
-        const phoneMatch = qDigits.length >= 3 && rawPhone.includes(qDigits);
+        const rawPhone = String(o.customerPhone || o.customer_phone_digits || '').replace(/\D/g, '');
+        const rawPhoneNo55 = rawPhone.startsWith('55') && rawPhone.length >= 12
+          ? rawPhone.substring(2)
+          : (rawPhone.startsWith('55') && rawPhone.length >= 3 && rawPhone[2] !== '9' ? rawPhone.substring(2) : rawPhone);
+        const phoneMatch = qDigits.length >= 3 && (
+          rawPhone.includes(qDigits) ||
+          (qDigitsNo55.length >= 3 && rawPhoneNo55.includes(qDigitsNo55)) ||
+          (qDigitsNo55.length >= 3 && rawPhone.includes(qDigitsNo55)) ||
+          (qDigits.length >= 3 && rawPhoneNo55.includes(qDigits))
+        );
         return nameMatch || honoreeMatch || codeMatch || phoneMatch;
       });
     }
@@ -437,8 +449,10 @@ export default function AdminDashboard() {
     }
 
     if (productionStatusFilter === 'ALL') {
-      // Regra solicitada: não exibir pedidos das etapas preliminares (antes de gerar letra) na tabela principal
-      result = result.filter(o => !isOrderPreLyrics(o));
+      // Regra solicitada: não exibir pedidos das etapas preliminares (antes de gerar letra) na tabela principal, exceto se houver busca ativa por texto
+      if (!searchQuery.trim()) {
+        result = result.filter(o => !isOrderPreLyrics(o));
+      }
     } else if (productionStatusFilter !== 'TODOS_INCLUINDO_RASCUNHOS') {
       result = result.filter(o => o.productionStatus === productionStatusFilter);
     }

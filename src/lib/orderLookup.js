@@ -24,12 +24,30 @@ export function generatePhoneVariants(phone) {
 
   // Identifica DDD e número local (sem DDI 55)
   let localDigits = digits;
-  if (digits.startsWith('55') && digits.length >= 12) {
-    localDigits = digits.substring(2);
-    variants.add(localDigits);
-    variants.add(`55${localDigits}`);
+  if (digits.startsWith('55')) {
+    if (digits.length >= 12) {
+      localDigits = digits.substring(2);
+      variants.add(localDigits);
+      variants.add(`55${localDigits}`);
+    } else if (digits.length >= 3 && digits[2] !== '9') {
+      // Começa com 55 e o 3º dígito não é 9 (ex: 5521..., 5551..., 5511...) -> o 55 é DDI do Brasil!
+      localDigits = digits.substring(2);
+      variants.add(localDigits);
+      variants.add(`55${localDigits}`);
+    } else if (digits.length >= 10 && digits.length <= 11) {
+      variants.add(`55${digits}`);
+    }
   } else if (digits.length >= 10 && digits.length <= 11) {
     variants.add(`55${digits}`);
+  }
+
+  // Formata variações quando o número local possui 9 dígitos (ex: DDD + 7 dígitos truncados por digitação de 55)
+  if (localDigits.length === 9) {
+    const ddd = localDigits.substring(0, 2);
+    const rest = localDigits.substring(2);
+    variants.add(`(${ddd}) ${rest}`);
+    variants.add(`${ddd} ${rest}`);
+    variants.add(`${ddd}${rest}`);
   }
 
   // Formata variações de 10 e 11 dígitos (DDD + 8 ou 9 dígitos)

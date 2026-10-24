@@ -54,11 +54,23 @@ export async function GET(req) {
 
     if (search) {
       const safeSearch = search.replace(/[,()]/g, '');
+      const searchDigits = search.replace(/\D/g, '');
+      let orClause = `customer_name.ilike.%${safeSearch}%,honoree_name.ilike.%${safeSearch}%,order_number.ilike.%${safeSearch}%,customer_phone.ilike.%${safeSearch}%`;
+      if (searchDigits.length >= 4) {
+        orClause += `,customer_phone_digits.ilike.%${searchDigits}%`;
+        const digitsNo55 = searchDigits.startsWith('55') && searchDigits.length >= 12
+          ? searchDigits.substring(2)
+          : (searchDigits.startsWith('55') && searchDigits.length >= 3 && searchDigits[2] !== '9' ? searchDigits.substring(2) : '');
+        if (digitsNo55.length >= 4) {
+          orClause += `,customer_phone_digits.ilike.%${digitsNo55}%,customer_phone.ilike.%${digitsNo55}%`;
+        }
+      }
+
       const { data: orders, error: oErr } = await supabase
         .from('orders')
         .select('*')
         .is('deleted_at', null)
-        .or(`customer_name.ilike.%${safeSearch}%,honoree_name.ilike.%${safeSearch}%,order_number.ilike.%${safeSearch}%,customer_phone.ilike.%${safeSearch}%`)
+        .or(orClause)
         .order('created_at', { ascending: false })
         .limit(100);
 
