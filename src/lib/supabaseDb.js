@@ -57,7 +57,8 @@ export async function createOrder(orderData = {}, env = {}) {
       const mapped = mapFirestoreOrderToSupabase(orderId, fullOrder);
       const { error } = await supabase.from('orders').upsert(mapped, { onConflict: 'id' });
       if (error) {
-        console.warn(`[supabaseDb] Erro ao gravar pedido ${orderId} no Supabase:`, error.message);
+        console.error(`[supabaseDb] Erro ao gravar pedido ${orderId} no Supabase:`, error.message);
+        throw new Error(`Falha ao gravar pedido: ${error.message}`);
       }
     }
   } catch (sbErr) {

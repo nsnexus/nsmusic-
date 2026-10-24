@@ -51,7 +51,6 @@ export function mapFirestoreOrderToSupabase(id, data = {}) {
     order_number: data.orderNumber || `NS-${id.slice(0, 8)}`,
     customer_name: data.customerName || null,
     customer_phone: data.customerPhone || null,
-    customer_phone_digits: data.customerPhone ? String(data.customerPhone).replace(/\D/g, '') : null,
     customer_email: data.customerEmail || null,
     user_id: data.userId || null,
     honoree_name: data.honoreeName || null,
@@ -427,9 +426,6 @@ export function mapOrderUpdatesToSupabase(updates = {}) {
         result[col] = Number(val) || 0;
       } else {
         result[col] = val;
-        if (col === 'customer_phone') {
-          result.customer_phone_digits = val ? String(val).replace(/\D/g, '') : null;
-        }
       }
     } else {
       extraFields[key] = (val instanceof Date) ? val.toISOString() : val;
