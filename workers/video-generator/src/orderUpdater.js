@@ -89,10 +89,11 @@ export async function updateOrderStatus(orderId, params, config = process.env) {
       };
     }
 
-    const { data, error } = await supabase
-      .from('orders')
-      .update(updates)
-      .eq('id', orderId);
+    const isOrderNumber = typeof orderId === 'string' && orderId.startsWith('NS-');
+    const query = isOrderNumber
+      ? supabase.from('orders').update(updates).eq('order_number', orderId)
+      : supabase.from('orders').update(updates).eq('id', orderId);
+    const { data, error } = await query;
 
     if (error) {
       console.error(`[OrderUpdater] Erro ao atualizar pedido ${orderId} no Supabase:`, error);

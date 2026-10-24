@@ -87,10 +87,10 @@ export async function POST(req) {
         'Authorization': `Bearer ${vpsSecret}`,
       },
       body: JSON.stringify({
-        orderId,
+        orderId: order.id || orderId,
         imageUrls: cleanUrls,
         audioUrl,
-        title: `Homenagem - ${order.customerName || order.recipientName || orderId}`,
+        title: `Homenagem - ${order.customerName || order.recipientName || order.id || orderId}`,
       }),
       signal: AbortSignal.timeout(15000),
     });

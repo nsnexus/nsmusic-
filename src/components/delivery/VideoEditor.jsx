@@ -10,7 +10,7 @@ function LocalPhoto({ file, index, onRemove }) {
   return <div className="nx-photo-tile">{url && <Image src={url} alt={`Nova foto ${index + 1}`} width={160} height={160} unoptimized />}<button type="button" className="nx-photo-remove" aria-label={`Remover nova foto ${index + 1}`} onClick={onRemove}>×</button></div>;
 }
 
-export default function VideoEditor({ order, orderId, access, existingPhotos, files, busy, progress, error, onAddPhotos, onRemovePhoto, onRemoveFile, tracks, selectedTrack, onTrack, onGenerate, onDownload, pix, pendingPix, pixError, timedOut, onBuy }) {
+export default function VideoEditor({ order, orderId, access, existingPhotos, files, busy, progress, error, onAddPhotos, onRemovePhoto, onRemoveFile, tracks, selectedTrack, onTrack, onGenerate, onDownload, pix, pendingPix, pixError, timedOut, onBuy, onResetVideo }) {
   const total = existingPhotos.length + files.length;
   const ready = total >= 10 && total <= 20 && Boolean(tracks[0]);
   const url = typeof window !== 'undefined' ? `${window.location.origin}/h/${orderId}` : '';
@@ -163,6 +163,26 @@ export default function VideoEditor({ order, orderId, access, existingPhotos, fi
               <span className="nx-progress-line" />
               <h3>{progress || 'Preparando o seu vídeo…'}</h3>
               <p>Mantenha esta página aberta. Se o processamento acontecer no aparelho, trocar de aba pode interromper a geração.</p>
+              {onResetVideo && (
+                <div style={{ marginTop: '14px' }}>
+                  <button
+                    type="button"
+                    onClick={onResetVideo}
+                    style={{
+                      background: 'rgba(239, 68, 68, 0.1)',
+                      border: '1px solid rgba(239, 68, 68, 0.3)',
+                      color: '#ef4444',
+                      padding: '8px 16px',
+                      borderRadius: '8px',
+                      fontSize: '0.84rem',
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Demorando muito? Cancelar e tentar novamente
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             <>

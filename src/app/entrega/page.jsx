@@ -30,6 +30,7 @@ import { trackGooglePurchase } from '@/lib/googleAds';
 import { trackFbPurchase } from '@/lib/metaPixel';
 import { isOrderFromMeta, isOrderFromTikTok } from '@/lib/trafficSource';
 import DeliveryExperience from '@/components/delivery/DeliveryExperience';
+import InAppBrowserBanner from '@/components/delivery/InAppBrowserBanner';
 
 function refreshDelivery() { window.location.reload(); }
 
@@ -656,8 +657,13 @@ function EntregaContent() {
     let attempts = 0;
     const interval = setInterval(async () => {
       attempts += 1;
-      if (attempts >= 60 || cancelled) {
+      if (cancelled) {
         clearInterval(interval);
+        return;
+      }
+      if (attempts >= 60) {
+        clearInterval(interval);
+        console.warn('[entrega] Polling de vídeo atingiu limite de 3 minutos.');
         return;
       }
 
@@ -666,7 +672,7 @@ function EntregaContent() {
         if (res.ok) {
           const json = await res.json().catch(() => ({}));
           const fresh = json?.order;
-          if (fresh?.videoStatus === 'CONCLUIDO' && fresh?.videoUrl) {
+          if (fresh?.videoUrl) {
             setOrder(prev => prev ? { ...prev, videoUrl: fresh.videoUrl, videoStatus: 'CONCLUIDO', slideshowImages: [] } : fresh);
             setExistingPhotos([]);
             clearInterval(interval);
@@ -706,9 +712,20 @@ function EntregaContent() {
     if (!downloadUrl) return;
 
     setDownloadingSlot(slot);
+
+    // Se estiver em navegador embutido de app (WhatsApp / Instagram / etc.):
+    // No WebView do WhatsApp, URLs blob: são bloqueadas silenciosamente pelo aplicativo.
+    // A navegação direta com o cabeçalho Content-Disposition aciona o download nativo do celular
+    // (no Android salva direto na pasta Downloads; no iOS abre o menu de salvar).
+    if (isInAppBrowser()) {
+      window.location.href = downloadUrl;
+      setTimeout(() => setDownloadingSlot(null), 2500);
+      return;
+    }
+
     try {
-      // 1. Tenta baixar via fetch + Blob: cria URL local blob: que o navegador obrigatoriamente
-      // salva como arquivo para download no disco, sem jamais abrir o tocador de áudio
+      // 1. Tenta baixar via fetch + Blob em navegadores normais: cria URL local blob:
+      // que o navegador salva diretamente como arquivo para download
       const res = await fetch(downloadUrl);
       if (res.ok) {
         const blob = await res.blob();
@@ -1480,10 +1497,34 @@ function EntregaContent() {
       } catch (err) {
         console.error("Erro no envio/geração do vídeo:", err);
         setPhotoError(err.message || "Erro ao gerar vídeo. Tente novamente.");
+        setOrder(prev => prev ? { ...prev, videoStatus: null } : prev);
+        fetch('/api/orders/client-update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderId, videoStatus: null })
+        }).catch(() => {});
       } finally {
         setIsUploadingPhotos(false);
       }
   };
+
+  const handleResetVideoStatus = async () => {
+    if (!orderId) return;
+    try {
+      setIsUploadingPhotos(false);
+      setUploadProgressMsg('');
+      setPhotoError('');
+      setOrder(prev => prev ? { ...prev, videoStatus: null } : prev);
+      await fetch('/api/orders/client-update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId, videoStatus: null })
+      });
+    } catch (e) {
+      console.warn('Erro ao resetar status do vídeo:', e);
+    }
+  };
+
   const handleDownloadVideo = () => {
       // A extensão precisa bater com o container real do arquivo (mp4 ou
       // webm, conforme o que o navegador conseguiu gravar — ver
@@ -1520,15 +1561,34 @@ function EntregaContent() {
         }
       })();
   };
+
   const handleAddVideoPhotos = event => {
     const incoming = Array.from(event.target.files || []);
     event.target.value = '';
-    if (isUploadingPhotos) return;
-    if (existingPhotos.length + newPhotoFiles.length + incoming.length > 20) {
-      setPhotoError('Escolha até 20 fotos no total.'); return;
+    if (isUploadingPhotos || !incoming.length) return;
+
+    const maxPhotos = 20;
+    const currentCount = existingPhotos.length + newPhotoFiles.length;
+    const availableSlots = Math.max(0, maxPhotos - currentCount);
+
+    if (availableSlots <= 0) {
+      setPhotoError('Você já atingiu o limite máximo de 20 fotos.');
+      return;
     }
-    setPhotoError(''); setNewPhotoFiles(previous => [...previous, ...incoming]);
+
+    let toAdd = incoming;
+    if (incoming.length > availableSlots) {
+      toAdd = incoming.slice(0, availableSlots);
+      setPhotoError(`Limite máximo é de 20 fotos. Selecionamos as primeiras ${toAdd.length} fotos escolhidas.`);
+    } else {
+      setPhotoError('');
+    }
+
+    if (toAdd.length > 0) {
+      setNewPhotoFiles(previous => [...previous, ...toAdd]);
+    }
   };
+
   const handleRemoveVideoPhoto = async index => {
     if (isUploadingPhotos) return;
     const previous = existingPhotos;
@@ -1541,26 +1601,38 @@ function EntregaContent() {
   };
 
   if (isPaid && ['video', 'carta', 'retrospectiva', 'playback', 'karaoke', 'voz'].includes(abaProduto)) {
-    return <ProductWorkspace product={abaProduto} honoree={order?.honoreeName} onProduct={setAbaProduto}>
-      {abaProduto === 'video' && <VideoEditor order={order} orderId={orderId} access={hasVideoAccess}
-        existingPhotos={existingPhotos} files={newPhotoFiles} busy={isUploadingPhotos} progress={uploadProgressMsg} error={photoError}
-        onAddPhotos={handleAddVideoPhotos} onRemovePhoto={handleRemoveVideoPhoto} onRemoveFile={index => setNewPhotoFiles(items => items.filter((_, i) => i !== index))}
-        tracks={[primaryAudioUrl, secondAudioUrl].filter(Boolean)} selectedTrack={selectedVideoTrack} onTrack={setSelectedVideoTrack}
-        onGenerate={handleCreateVideo} onDownload={handleDownloadVideo} pix={videoPixInfo} pendingPix={pendingVideoPix}
-        pixError={pixError} timedOut={videoPixPollingTimedOut} onBuy={() => { setSelectedPackage('video_addon'); handleGeneratePix('video_addon', true); }} />}
-      {abaProduto === 'carta' && <CartaAddonCard orderId={orderId} order={order} onUnlocked={() => setCartaLiberadaLocal(true)} onCartaCriada={texto => setOrder(previous => previous ? { ...previous, cartaTexto: texto, cartaStatus: 'READY' } : previous)} />}
-      {abaProduto === 'retrospectiva' && <RetrospectivaAddonCard orderId={orderId} order={order} onUnlocked={() => setRetrospectivaLiberadaLocal(true)} />}
-      {abaProduto === 'playback' && <div id="card-playback"><PlaybackAddonCard orderId={orderId} order={order} /></div>}
-      {abaProduto === 'karaoke' && <KaraokeAddonCard orderId={orderId} order={order} />}
-      {abaProduto === 'voz' && <VozClienteAddonCard orderId={orderId} order={order} />}
-    </ProductWorkspace>;
+    return (
+      <>
+        <InAppBrowserBanner />
+        <ProductWorkspace product={abaProduto} honoree={order?.honoreeName} onProduct={setAbaProduto}>
+          {abaProduto === 'video' && <VideoEditor order={order} orderId={orderId} access={hasVideoAccess}
+            existingPhotos={existingPhotos} files={newPhotoFiles} busy={isUploadingPhotos} progress={uploadProgressMsg} error={photoError}
+            onAddPhotos={handleAddVideoPhotos} onRemovePhoto={handleRemoveVideoPhoto} onRemoveFile={index => setNewPhotoFiles(items => items.filter((_, i) => i !== index))}
+            tracks={[primaryAudioUrl, secondAudioUrl].filter(Boolean)} selectedTrack={selectedVideoTrack} onTrack={setSelectedVideoTrack}
+            onGenerate={handleCreateVideo} onDownload={handleDownloadVideo} pix={videoPixInfo} pendingPix={pendingVideoPix}
+            pixError={pixError} timedOut={videoPixPollingTimedOut} onBuy={() => { setSelectedPackage('video_addon'); handleGeneratePix('video_addon', true); }}
+            onResetVideo={handleResetVideoStatus} />}
+          {abaProduto === 'carta' && <CartaAddonCard orderId={orderId} order={order} onUnlocked={() => setCartaLiberadaLocal(true)} onCartaCriada={texto => setOrder(previous => previous ? { ...previous, cartaTexto: texto, cartaStatus: 'READY' } : previous)} />}
+          {abaProduto === 'retrospectiva' && <RetrospectivaAddonCard orderId={orderId} order={order} onUnlocked={() => setRetrospectivaLiberadaLocal(true)} />}
+          {abaProduto === 'playback' && <div id="card-playback"><PlaybackAddonCard orderId={orderId} order={order} /></div>}
+          {abaProduto === 'karaoke' && <KaraokeAddonCard orderId={orderId} order={order} />}
+          {abaProduto === 'voz' && <VozClienteAddonCard orderId={orderId} order={order} />}
+        </ProductWorkspace>
+      </>
+    );
   }
+
   if (!isPaid || abaProduto === 'musica') {
-    return <DeliveryExperience order={order} orderId={orderId} paid={isPaid} tracks={[primaryAudioUrl, secondAudioUrl]}
-      promo={promo} onDownload={handleDownload} downloadingSlot={downloadingSlot} onCoverChange={handleCoverChange}
-      uploadingCover={isUploadingCover} coverError={coverUploadError} onChooseGiftTrack={escolherMusicaHomenagem}
-      onProduct={setAbaProduto} onCharge={setPixInfo} receiptStatus={receiptStatus} onReceipt={handleReceiptUpload}
-      onApproved={refreshDelivery} supportUrl={linkWhatsapp(whatsappSuporte, `Olá! Preciso de ajuda com o pedido ${order?.orderNumber || orderId}.`)} />;
+    return (
+      <>
+        <InAppBrowserBanner />
+        <DeliveryExperience order={order} orderId={orderId} paid={isPaid} tracks={[primaryAudioUrl, secondAudioUrl]}
+          promo={promo} onDownload={handleDownload} downloadingSlot={downloadingSlot} onCoverChange={handleCoverChange}
+          uploadingCover={isUploadingCover} coverError={coverUploadError} onChooseGiftTrack={escolherMusicaHomenagem}
+          onProduct={setAbaProduto} onCharge={setPixInfo} receiptStatus={receiptStatus} onReceipt={handleReceiptUpload}
+          onApproved={refreshDelivery} supportUrl={linkWhatsapp(whatsappSuporte, `Olá! Preciso de ajuda com o pedido ${order?.orderNumber || orderId}.`)} />
+      </>
+    );
   }
 
   return (
