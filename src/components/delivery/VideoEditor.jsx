@@ -11,15 +11,16 @@ function LocalPhoto({ file, index, onRemove }) {
 }
 
 export default function VideoEditor({ order, orderId, access, existingPhotos, files, busy, progress, error, onAddPhotos, onRemovePhoto, onRemoveFile, tracks, selectedTrack, onTrack, onGenerate, onDownload, pix, pendingPix, pixError, timedOut, onBuy, onResetVideo }) {
-  const total = existingPhotos.length + files.length;
-  const ready = total >= 10 && total <= 20 && Boolean(tracks[0]);
+  const minPhotos = 3;
+  const total = (existingPhotos?.length || 0) + (files?.length || 0);
+  const ready = total >= minPhotos && total <= 20 && Boolean(tracks[0]);
   const url = typeof window !== 'undefined' ? `${window.location.origin}/h/${orderId}` : '';
   const [isGenerateVisible, setIsGenerateVisible] = useState(false);
-  const prevFilesLength = useRef(files.length);
+  const prevFilesLength = useRef(total);
 
   // Auto-scroll suave após selecionar novas fotos para orientar o cliente
   useEffect(() => {
-    if (files.length > prevFilesLength.current) {
+    if (total > prevFilesLength.current) {
       const timer = setTimeout(() => {
         const target = document.getElementById('video-prompt-rolar') || document.getElementById('video-secao-trilha') || document.getElementById('video-secao-gerar');
         if (target) {
@@ -28,8 +29,8 @@ export default function VideoEditor({ order, orderId, access, existingPhotos, fi
       }, 350);
       return () => clearTimeout(timer);
     }
-    prevFilesLength.current = files.length;
-  }, [files.length]);
+    prevFilesLength.current = total;
+  }, [total]);
 
   // Monitora se o botão final de gerar o vídeo está visível na tela
   useEffect(() => {
@@ -48,7 +49,7 @@ export default function VideoEditor({ order, orderId, access, existingPhotos, fi
   return (
     <div className="nx-editor-columns">
       <div className="nx-editor-stack">
-        <EditorSection id="video-secao-fotos" number="01" title="Escolha as suas melhores memórias" description="Separe de 10 a 20 fotos. Elas aparecem no vídeo na ordem mostrada abaixo.">
+        <EditorSection id="video-secao-fotos" number="01" title="Escolha as suas melhores memórias" description="Separe de 10 a 20 fotos (mínimo de 3). Elas aparecem no vídeo na ordem mostrada abaixo.">
           <div className="nx-editor-count">
             <strong>{total} de 20 fotos</strong>
             <span>{total < 10 ? `Faltam ${10 - total} para começar` : 'Quantidade ideal para criar'}</span>
@@ -70,17 +71,17 @@ export default function VideoEditor({ order, orderId, access, existingPhotos, fi
           )}
 
           {total < 20 && (
-            <label className="nx-upload-zone">
-              <strong>{total ? 'Adicionar mais fotos' : 'Escolher fotos da galeria'}</strong>
-              <span>Prefira fotos nítidas, com as pessoas bem enquadradas.</span>
-              <input type="file" aria-label="Adicionar fotos ao vídeo" accept="image/png,image/jpeg,image/webp" multiple onChange={onAddPhotos} disabled={busy} />
+            <label className="nx-upload-zone" style={busy ? { opacity: 0.7, pointerEvents: 'none' } : {}}>
+              <strong>{busy ? (progress || 'Enviando fotos selecionadas…') : (total ? 'Adicionar mais fotos' : 'Escolher fotos da galeria')}</strong>
+              <span>{busy ? 'Aguarde o envio para o servidor...' : 'Fotos nítidas em qualquer formato (JPG, PNG, HEIC, etc.)'}</span>
+              <input type="file" aria-label="Adicionar fotos ao vídeo" accept="image/*" multiple onChange={onAddPhotos} disabled={busy} />
             </label>
           )}
 
           {error && <p role="alert" className="nx-message nx-error">{error}</p>}
 
           {/* Destaque / Instrução após adicionar fotos */}
-          {total >= 10 && (
+          {total >= minPhotos && (
             <div
               id="video-prompt-rolar"
               style={{
@@ -99,7 +100,7 @@ export default function VideoEditor({ order, orderId, access, existingPhotos, fi
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#581c87', fontWeight: 700, fontSize: '1rem' }}>
                 <span style={{ fontSize: '1.2rem' }}>✨</span>
-                <span>Fotos adicionadas com sucesso ({total} fotos)!</span>
+                <span>Fotos prontas ({total} foto{total > 1 ? 's' : ''})!</span>
               </div>
               <p style={{ margin: 0, fontSize: '0.9rem', color: '#4b5563', lineHeight: 1.45, maxWidth: '440px' }}>
                 Tudo pronto nesta etapa! Agora <strong>role para baixo</strong> para conferir a trilha sonora e clicar em <strong>&quot;Criar meu vídeo&quot;</strong>.
@@ -132,18 +133,22 @@ export default function VideoEditor({ order, orderId, access, existingPhotos, fi
                 marginTop: '14px',
                 padding: '12px 16px',
                 borderRadius: '12px',
-                background: '#fffbeb',
-                border: '1.5px solid #fde68a',
+                background: total >= minPhotos ? '#eff6ff' : '#fffbeb',
+                border: total >= minPhotos ? '1.5px solid #bfdbfe' : '1.5px solid #fde68a',
                 fontSize: '0.88rem',
-                color: '#92400e',
+                color: total >= minPhotos ? '#1e40af' : '#92400e',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '10px'
               }}
             >
-              <span style={{ fontSize: '1.2rem' }}>📸</span>
+              <span style={{ fontSize: '1.2rem' }}>{total >= minPhotos ? '✨' : '📸'}</span>
               <span>
-                Você escolheu <strong>{total} fotos</strong>. Adicione mais <strong>{10 - total}</strong> para atingir o mínimo de 10 e poder gerar o vídeo.
+                {total < minPhotos ? (
+                  <>Você escolheu <strong>{total} foto(s)</strong>. Adicione mais <strong>{minPhotos - total}</strong> para atingir o mínimo de 3 e poder gerar o vídeo.</>
+                ) : (
+                  <>Você já tem <strong>{total} fotos</strong> (mínimo atingido!). Se quiser pode adicionar mais fotos (o ideal são 10 a 20) ou já pode <strong>criar o vídeo abaixo</strong>.</>
+                )}
               </span>
             </div>
           )}

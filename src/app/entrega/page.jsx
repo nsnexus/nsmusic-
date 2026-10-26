@@ -1351,7 +1351,7 @@ function EntregaContent() {
 
   const handleCreateVideo = async () => {
       const totalCount = existingPhotos.length + newPhotoFiles.length;
-      if (!orderId || totalCount < 10 || totalCount > 20 || isUploadingPhotos || !hasVideoAccess) return;
+      if (!orderId || totalCount < 3 || totalCount > 20 || isUploadingPhotos || !hasVideoAccess) return;
 
       // Destrava o áudio AQUI, síncrono e antes de qualquer await: o
       // upload das fotos leva minutos e, quando a renderização enfim
@@ -1562,13 +1562,14 @@ function EntregaContent() {
       })();
   };
 
-  const handleAddVideoPhotos = event => {
+  const handleAddVideoPhotos = async event => {
     const incoming = Array.from(event.target.files || []);
     event.target.value = '';
-    if (isUploadingPhotos || !incoming.length) return;
+    const targetOrderId = order?.id || orderId;
+    if (isUploadingPhotos || !incoming.length || !targetOrderId) return;
 
     const maxPhotos = 20;
-    const currentCount = existingPhotos.length + newPhotoFiles.length;
+    const currentCount = existingPhotos.length;
     const availableSlots = Math.max(0, maxPhotos - currentCount);
 
     if (availableSlots <= 0) {
@@ -1584,8 +1585,56 @@ function EntregaContent() {
       setPhotoError('');
     }
 
-    if (toAdd.length > 0) {
-      setNewPhotoFiles(previous => [...previous, ...toAdd]);
+    if (toAdd.length === 0) return;
+
+    setIsUploadingPhotos(true);
+    setUploadProgressMsg(`Preparando ${toAdd.length} foto(s)...`);
+
+    try {
+      const uploadedUrls = [];
+      for (let i = 0; i < toAdd.length; i++) {
+        const file = toAdd[i];
+        setUploadProgressMsg(`Enviando foto ${i + 1} de ${toAdd.length}...`);
+        const arquivo = await compressImage(file);
+        const uploadData = new FormData();
+        const safeExt = file.name?.match(/\.(png|webp|gif|heic|heif)$/i) ? file.name.split('.').pop().toLowerCase() : 'jpg';
+        uploadData.append('file', arquivo, `photo_${Date.now()}_${i}.${safeExt}`);
+
+        const uploadRes = await fetch(`/api/media/upload?folder=slideshow&orderId=${encodeURIComponent(targetOrderId)}`, {
+          method: 'POST',
+          body: uploadData
+        });
+
+        if (!uploadRes.ok) {
+          const errData = await uploadRes.json().catch(() => ({}));
+          throw new Error(errData.error || `Falha no upload da foto ${i + 1}`);
+        }
+
+        const resJson = await uploadRes.json();
+        if (!resJson?.url) {
+          throw new Error(`URL da foto ${i + 1} não retornada`);
+        }
+        uploadedUrls.push(resJson.url);
+      }
+
+      const updatedPhotos = [...existingPhotos, ...uploadedUrls];
+      setExistingPhotos(updatedPhotos);
+      setNewPhotoFiles([]);
+
+      // Salva imediatamente no banco para persistir
+      await fetch('/api/orders/client-update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: targetOrderId, slideshowImages: updatedPhotos })
+      }).catch(e => console.warn('[Video] Falha ao sincronizar fotos no banco:', e));
+
+      setUploadProgressMsg('');
+    } catch (err) {
+      console.error('[Video] Erro no envio de fotos:', err);
+      setPhotoError(err.message || 'Erro ao enviar fotos. Tente novamente.');
+    } finally {
+      setIsUploadingPhotos(false);
+      setUploadProgressMsg('');
     }
   };
 

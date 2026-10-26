@@ -26,7 +26,10 @@ const SKIP_BELOW_BYTES = 300 * 1024; // abaixo disso comprimir não compensa o c
  */
 export async function compressImage(file) {
   try {
-    if (!file || !file.type?.startsWith('image/')) return file;
+    if (!file) return file;
+    const isImage = (file.type && file.type.startsWith('image/')) ||
+      /\.(jpe?g|png|webp|heic|heif|gif)$/i.test(file.name || '');
+    if (!isImage) return file;
     if (file.size <= SKIP_BELOW_BYTES) return file;
     if (typeof document === 'undefined' || typeof createImageBitmap !== 'function') return file;
 
@@ -55,8 +58,15 @@ export async function compressImage(file) {
     // Se a "compressão" engordou o arquivo (acontece com PNG de pouca cor, por exemplo), fica o original.
     if (blob.size >= file.size) return file;
 
-    const novoNome = file.name.replace(/\.[^.]+$/, '') + '.jpg';
-    return new File([blob], novoNome, { type: 'image/jpeg', lastModified: Date.now() });
+    const novoNome = (file.name || 'foto').replace(/\.[^.]+$/, '') + '.jpg';
+    try {
+      return new File([blob], novoNome, { type: 'image/jpeg', lastModified: Date.now() });
+    } catch (fileErr) {
+      // Fallback para WebViews e navegadores que não suportam 'new File([blob])'
+      blob.name = novoNome;
+      blob.lastModified = Date.now();
+      return blob;
+    }
   } catch (e) {
     console.warn('[imageCompress] Falha ao comprimir, usando o arquivo original:', e?.message);
     return file;

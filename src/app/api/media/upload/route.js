@@ -13,7 +13,7 @@ const ALLOWED_MIME_TYPES = new Set([
   'image/heif'
 ]);
 
-const MAX_IMAGE_BYTES = 15 * 1024 * 1024; // 15 MB
+const MAX_IMAGE_BYTES = 25 * 1024 * 1024; // 25 MB (suporta fotos de alta resolução de celulares modernos)
 
 export async function POST(req) {
   let env = {};
@@ -41,7 +41,23 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Nenhum arquivo enviado.' }, { status: 400 });
     }
 
-    const type = file.type || 'image/jpeg';
+    let type = String(file.type || '').toLowerCase().split(';')[0].trim();
+    const originalFilename = String(file.name || '').toLowerCase();
+
+    // Normaliza tipos e fallbacks para dispositivos móveis
+    if (type === 'image/pjpeg' || type === 'image/jpg') type = 'image/jpeg';
+    if (type === 'image/x-png') type = 'image/png';
+
+    // Se o MIME vier vazio ou genérico (típico de upload via Android / WhatsApp / Safari), detecta pela extensão
+    if (!type || type === 'application/octet-stream' || type === 'binary/octet-stream') {
+      if (originalFilename.endsWith('.png')) type = 'image/png';
+      else if (originalFilename.endsWith('.webp')) type = 'image/webp';
+      else if (originalFilename.endsWith('.gif')) type = 'image/gif';
+      else if (originalFilename.endsWith('.heic')) type = 'image/heic';
+      else if (originalFilename.endsWith('.heif')) type = 'image/heif';
+      else type = 'image/jpeg';
+    }
+
     if (!ALLOWED_MIME_TYPES.has(type)) {
       return NextResponse.json({ error: 'Formato de imagem não suportado. Use JPG, PNG ou WEBP.' }, { status: 400 });
     }
@@ -52,14 +68,16 @@ export async function POST(req) {
     }
 
     if (buffer.byteLength > MAX_IMAGE_BYTES) {
-      return NextResponse.json({ error: 'Imagem excede o tamanho máximo permitido de 15 MB.' }, { status: 413 });
+      return NextResponse.json({ error: 'Imagem excede o tamanho máximo permitido de 25 MB.' }, { status: 413 });
     }
 
-    // Gera extensão a partir do tipo MIME
+    // Gera extensão a partir do tipo MIME ou extensão original
     let ext = 'jpg';
-    if (type.includes('png')) ext = 'png';
-    else if (type.includes('webp')) ext = 'webp';
-    else if (type.includes('gif')) ext = 'gif';
+    if (type.includes('png') || originalFilename.endsWith('.png')) ext = 'png';
+    else if (type.includes('webp') || originalFilename.endsWith('.webp')) ext = 'webp';
+    else if (type.includes('gif') || originalFilename.endsWith('.gif')) ext = 'gif';
+    else if (type.includes('heic') || originalFilename.endsWith('.heic')) ext = 'heic';
+    else if (type.includes('heif') || originalFilename.endsWith('.heif')) ext = 'heif';
 
     const timestamp = Date.now();
     const randomHex = Math.random().toString(36).substring(2, 8);

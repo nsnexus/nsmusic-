@@ -53,6 +53,37 @@ describe('POST /api/media/upload', () => {
     expect(json.url).toMatch(/^https:\/\/media\.nsnexus\.com\.br\/slideshow\/order-123\/\d+_[a-z0-9]+\.jpg$/);
     expect(Object.keys(mockR2Storage).length).toBe(1);
   });
+
+  it('aceita arquivos de celulares com MIME application/octet-stream ou pjpeg detectando extensão', async () => {
+    const blob = new Blob(['fake image content'], { type: 'application/octet-stream' });
+    const formData = new FormData();
+    formData.append('file', blob, 'FOTO_CAMERA.JPG');
+
+    const req = new Request('http://localhost/api/media/upload?folder=slideshow&orderId=order-456', {
+      method: 'POST',
+      body: formData
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.ok).toBe(true);
+    expect(json.url).toMatch(/^https:\/\/media\.nsnexus\.com\.br\/slideshow\/order-456\/\d+_[a-z0-9]+\.jpg$/);
+  });
+
+  it('rejeita tipos inválidos não suportados como PDF ou texto', async () => {
+    const blob = new Blob(['not an image'], { type: 'application/pdf' });
+    const formData = new FormData();
+    formData.append('file', blob, 'documento.pdf');
+
+    const req = new Request('http://localhost/api/media/upload?folder=slideshow&orderId=order-789', {
+      method: 'POST',
+      body: formData
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(400);
+  });
 });
 
 describe('DELETE /api/media/upload (S06)', () => {

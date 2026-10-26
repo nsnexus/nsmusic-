@@ -58,8 +58,8 @@ async function fetchAudioBytes(audioUrl) {
  * @param {Object} orderData - Dados do pedido (nome do homenageado, cliente, etc.)
  */
 export async function createSlideshowVideo(orderId, imageUrls, audioUrl, orderData = {}, onProgress = null) {
-  if (!orderId || !imageUrls || imageUrls.length < 10) {
-    throw new Error('Mínimo de 10 fotos necessárias para gerar o vídeo.');
+  if (!orderId || !imageUrls || imageUrls.length < 3) {
+    throw new Error('Mínimo de 3 fotos necessárias para gerar o vídeo.');
   }
 
   // Atualiza status para GERANDO
