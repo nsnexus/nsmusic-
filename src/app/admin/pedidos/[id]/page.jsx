@@ -177,7 +177,9 @@ export default function OrderDetailsAdmin() {
   }, [user, orderId]);
 
   const handleSaveOrder = async (e) => {
-    e.preventDefault();
+    if (e && typeof e.preventDefault === 'function') {
+      e.preventDefault();
+    }
     setUpdating(true);
     setSuccessMsg('');
 
@@ -423,6 +425,8 @@ export default function OrderDetailsAdmin() {
         const link = document.createElement('a');
         link.href = blobUrl;
         link.setAttribute('download', filename);
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
         document.body.appendChild(link);
         link.click();
         link.parentNode.removeChild(link);
@@ -437,13 +441,15 @@ export default function OrderDetailsAdmin() {
       const link = document.createElement('a');
       link.href = downloadUrl;
       link.setAttribute('download', filename);
-      link.rel = 'noopener';
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
       document.body.appendChild(link);
       link.click();
       link.parentNode.removeChild(link);
     } catch (err) {
       console.warn('Erro ao iniciar o download:', err);
-      window.location.href = downloadUrl;
+      // Abre em nova aba para nunca navegar para fora da página do painel admin
+      window.open(downloadUrl, '_blank');
     }
   };
 
@@ -1014,7 +1020,30 @@ export default function OrderDetailsAdmin() {
             <div className="admin-order-form-side" style={styles.formSide}>
               <form onSubmit={handleSaveOrder} style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
                 <div className="admin-card-responsive" style={styles.card}>
-                  <h3 style={styles.cardTitle}>Gerenciamento de Produção</h3>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+                    <h3 style={{ ...styles.cardTitle, margin: 0 }}>Gerenciamento de Produção</h3>
+                    <button
+                      type="submit"
+                      disabled={updating}
+                      style={{
+                        padding: '10px 18px',
+                        backgroundColor: '#7c3aed',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: '8px',
+                        fontWeight: 'bold',
+                        fontSize: '0.9rem',
+                        cursor: updating ? 'not-allowed' : 'pointer',
+                        opacity: updating ? 0.7 : 1,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        boxShadow: '0 2px 4px rgba(124, 58, 237, 0.25)'
+                      }}
+                    >
+                      {updating ? 'Salvando...' : '💾 Salvar Alterações'}
+                    </button>
+                  </div>
 
                   <div className="admin-grid-2cols" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px', minWidth: 0, maxWidth: '100%' }}>
                     <div style={styles.formGroup}>
@@ -1282,15 +1311,31 @@ export default function OrderDetailsAdmin() {
                     <label style={styles.label}>Link do Áudio Principal (Versão 1 - MP3 HD)</label>
                     <div style={{ display: 'flex', gap: '8px', minWidth: 0, maxWidth: '100%' }}>
                       <input
-                        type="url"
+                        type="text"
                         value={audioUrl}
                         onChange={(e) => setAudioUrl(e.target.value)}
                         placeholder="https://..."
                         style={{ ...styles.input, flex: 1, minWidth: 0 }}
                       />
                       {audioUrl && (
-                        <button type="button" onClick={() => handleDownload(audioUrl, `${order.orderNumber || orderId}-versao1.mp3`)} style={{ ...styles.quickActionBtn, background: '#2563eb', color: '#fff', flexShrink: 0 }} title="Baixar MP3">
-                          ⬇️
+                        <button
+                          type="button"
+                          onClick={() => handleDownload(audioUrl, `${order.orderNumber || orderId}-versao1.mp3`)}
+                          style={{
+                            ...styles.quickActionBtn,
+                            background: '#2563eb',
+                            color: '#fff',
+                            flexShrink: 0,
+                            padding: '8px 12px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            fontSize: '0.8rem',
+                            fontWeight: '600'
+                          }}
+                          title="Baixar MP3 da Versão 1 para o computador"
+                        >
+                          ⬇️ Baixar MP3
                         </button>
                       )}
                     </div>
@@ -1300,15 +1345,31 @@ export default function OrderDetailsAdmin() {
                     <label style={styles.label}>Link do Áudio Secundário (Versão 2 Bônus - MP3 HD)</label>
                     <div style={{ display: 'flex', gap: '8px', minWidth: 0, maxWidth: '100%' }}>
                       <input
-                        type="url"
+                        type="text"
                         value={audioUrl2}
                         onChange={(e) => setAudioUrl2(e.target.value)}
                         placeholder="https://..."
                         style={{ ...styles.input, flex: 1, minWidth: 0 }}
                       />
                       {audioUrl2 && (
-                        <button type="button" onClick={() => handleDownload(audioUrl2, `${order.orderNumber || orderId}-versao2.mp3`)} style={{ ...styles.quickActionBtn, background: '#2563eb', color: '#fff', flexShrink: 0 }} title="Baixar MP3">
-                          ⬇️
+                        <button
+                          type="button"
+                          onClick={() => handleDownload(audioUrl2, `${order.orderNumber || orderId}-versao2.mp3`)}
+                          style={{
+                            ...styles.quickActionBtn,
+                            background: '#2563eb',
+                            color: '#fff',
+                            flexShrink: 0,
+                            padding: '8px 12px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            fontSize: '0.8rem',
+                            fontWeight: '600'
+                          }}
+                          title="Baixar MP3 da Versão 2 para o computador"
+                        >
+                          ⬇️ Baixar MP3
                         </button>
                       )}
                     </div>
@@ -1318,15 +1379,31 @@ export default function OrderDetailsAdmin() {
                     <label style={styles.label}>Link do Arquivo WAV (Alta Definição)</label>
                     <div style={{ display: 'flex', gap: '8px', minWidth: 0, maxWidth: '100%' }}>
                       <input
-                        type="url"
+                        type="text"
                         value={wavUrl}
                         onChange={(e) => setWavUrl(e.target.value)}
                         placeholder="https://..."
                         style={{ ...styles.input, flex: 1, minWidth: 0 }}
                       />
                       {wavUrl && (
-                        <button type="button" onClick={() => handleDownload(wavUrl, `${order.orderNumber || orderId}.wav`)} style={{ ...styles.quickActionBtn, background: '#2563eb', color: '#fff', flexShrink: 0 }} title="Baixar WAV">
-                          ⬇️
+                        <button
+                          type="button"
+                          onClick={() => handleDownload(wavUrl, `${order.orderNumber || orderId}.wav`)}
+                          style={{
+                            ...styles.quickActionBtn,
+                            background: '#2563eb',
+                            color: '#fff',
+                            flexShrink: 0,
+                            padding: '8px 12px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            fontSize: '0.8rem',
+                            fontWeight: '600'
+                          }}
+                          title="Baixar arquivo WAV para o computador"
+                        >
+                          ⬇️ Baixar WAV
                         </button>
                       )}
                     </div>
@@ -1335,7 +1412,7 @@ export default function OrderDetailsAdmin() {
                   <div style={styles.formGroup}>
                     <label style={styles.label}>Link do Vídeo Homenagem (MP4)</label>
                     <input 
-                      type="url" 
+                      type="text" 
                       value={videoUrl}
                       onChange={(e) => setVideoUrl(e.target.value)}
                       placeholder="https://..." 
@@ -1364,7 +1441,7 @@ export default function OrderDetailsAdmin() {
                   <div style={styles.formGroup}>
                     <label style={styles.label}>Link do QR Code Personalizado</label>
                     <input 
-                      type="url" 
+                      type="text" 
                       value={qrCodeUrl}
                       onChange={(e) => setQrCodeUrl(e.target.value)}
                       placeholder="https://..." 
@@ -1584,10 +1661,7 @@ export default function OrderDetailsAdmin() {
                               <audio src={buildAudioProxySrc(track.audio_url)} controls style={{ width: '100%', maxWidth: '100%', height: '36px', boxSizing: 'border-box' }} />
                               <button 
                                 type="button" 
-                                onClick={() => {
-                                  setAudioUrl(track.audio_url);
-                                  alert(`Link da Versão ${idx + 1} copiado para o campo de áudio principal! Não esqueça de Salvar.`);
-                                }}
+                                onClick={() => handleSetTrackAsPrimary(track.audio_url, `Versão Gerada ${idx + 1}`)}
                                 style={{ fontSize: '0.8rem', padding: '8px 10px', width: '100%', maxWidth: '100%', backgroundColor: '#e0e7ff', color: '#3730a3', border: '1px solid #c7d2fe', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}
                               >
                                 Usar como Áudio Principal 🎯
