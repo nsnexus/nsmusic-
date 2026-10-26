@@ -24,6 +24,7 @@ import AbaContas from '@/components/admin/AbaContas';
 import FunilStatusCards from '@/components/admin/FunilStatusCards';
 import { hasOrderGeneratedPix } from '@/lib/pixCheckout';
 import { isStripePayment, calculateStripeFee, calculateStripeNet, getPayoutStatus } from '@/lib/paymentFees';
+import { isUSOrder } from '@/lib/country';
 
 const getSavedAdminFilter = (key, fallback) => {
   if (typeof window === 'undefined') return fallback;
@@ -47,6 +48,7 @@ export default function AdminDashboard() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   };
 
+  const [countryFilter, setCountryFilter] = useState(() => getSavedAdminFilter('countryFilter', 'ALL')); // 'ALL', 'BR', 'US'
   const [filter, setFilter] = useState(() => getSavedAdminFilter('filter', 'ALL')); // 'ALL', 'NEW', 'PRODUCTION', 'FINISHED'
   const [purchaseTypeTab, setPurchaseTypeTab] = useState(() => getSavedAdminFilter('purchaseTypeTab', 'ALL')); // 'ALL', 'MUSIC', 'VIDEO'
   const [dateFrom, setDateFrom] = useState(() => getSavedAdminFilter('dateFrom', todayLocalStr()));
@@ -100,6 +102,7 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
+      sessionStorage.setItem('ns_admin_countryFilter', JSON.stringify(countryFilter));
       sessionStorage.setItem('ns_admin_filter', JSON.stringify(filter));
       sessionStorage.setItem('ns_admin_purchaseTypeTab', JSON.stringify(purchaseTypeTab));
       sessionStorage.setItem('ns_admin_dateFrom', JSON.stringify(dateFrom));
@@ -111,7 +114,7 @@ export default function AdminDashboard() {
       sessionStorage.setItem('ns_admin_sortBy', JSON.stringify(sortBy));
       sessionStorage.setItem('ns_admin_activeTab', JSON.stringify(activeTab));
     } catch (e) {}
-  }, [filter, purchaseTypeTab, dateFrom, dateTo, searchQuery, paymentStatusFilter, productionStatusFilter, providerFilter, sortBy, activeTab]);
+  }, [countryFilter, filter, purchaseTypeTab, dateFrom, dateTo, searchQuery, paymentStatusFilter, productionStatusFilter, providerFilter, sortBy, activeTab]);
 
   // Número de WhatsApp do suporte, editável aqui em vez de hardcoded no código (pedido 21/09/2026:
   // o número principal foi suspenso e o dono vai alternar de volta em dois dias — trocar isso não
@@ -374,6 +377,13 @@ export default function AdminDashboard() {
   const getFilteredOrders = () => {
     let result = orders;
 
+    // Filtro por mercado / país (Brasil vs Estados Unidos)
+    if (countryFilter === 'BR') {
+      result = result.filter(o => !isUSOrder(o));
+    } else if (countryFilter === 'US') {
+      result = result.filter(o => isUSOrder(o));
+    }
+
     switch (filter) {
       case 'NEW':
         result = result.filter(o => o.paymentStatus === 'PAGAMENTO_APROVADO' && o.productionStatus === 'LETRA_APROVADA');
@@ -497,10 +507,17 @@ export default function AdminDashboard() {
     return counts;
   }, [orders]);
 
+  // Pedidos filtrados pelo país/mercado para abas e contadores de status
+  const countryFilteredOrders = useMemo(() => {
+    if (countryFilter === 'BR') return orders.filter(o => !isUSOrder(o));
+    if (countryFilter === 'US') return orders.filter(o => isUSOrder(o));
+    return orders;
+  }, [orders, countryFilter]);
+
   // Contagem de pedidos reais a partir da etapa de Letra Gerada (excluindo etapas preliminares 1 a 4)
   const activeOrdersCount = useMemo(() => {
-    return orders.filter(o => !isOrderPreLyrics(o)).length;
-  }, [orders]);
+    return countryFilteredOrders.filter(o => !isOrderPreLyrics(o)).length;
+  }, [countryFilteredOrders]);
 
   // Os cards de faturamento/vendas/pedidos do topo viraram um componente próprio (pedido 12/09/2026:
   // "os valores não estão batendo" com a tabela Vendas por dia) — ver src/components/FaturamentoCards.jsx
@@ -533,6 +550,26 @@ export default function AdminDashboard() {
   // tabela "regredia" pro preço do add-on assim que o cliente comprava vídeo/playback depois da
   // música, escondendo o que já tinha sido pago (achado do admin, 31/08/2026).
   const getOrderProductBreakdown = (o) => {
+    if (isUSOrder(o)) {
+      const isPaid = o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'PAGO' || Boolean(o.paidAt);
+      if (!isPaid) return { items: [], total: 0, isUS: true };
+
+      const totalCents = o.extras?.usPaidCents || (o.extras?.total ? Math.round(o.extras.total * 100) : null) || (o.expectedAmount ? Math.round(o.expectedAmount * 100) : 499);
+      const total = totalCents / 100;
+      const sku = o.usPackageSku || o.extras?.usPackageSku || o.extras?.us?.sku || 'audio_only';
+      const names = {
+        audio_only: 'The Song (Música)',
+        combo_carta: 'The Letter (+ Carta)',
+        combo: 'The Film (+ Vídeo)',
+        combo_retrospectiva: 'The Keepsake (+ Retrospectiva)'
+      };
+      return {
+        items: [{ label: `🇺🇸 ${names[sku] || 'The Song (EUA)'}`, amount: total }],
+        total,
+        isUS: true
+      };
+    }
+
     const amountByTxid = o.paymentIntentAmountByTxid || {};
     const items = [];
     const isPaidMusic = o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'PAGO';
@@ -1582,8 +1619,122 @@ export default function AdminDashboard() {
                   análise (esta página é pra navegar PEDIDOS, não pra ser o painel de métricas). */}
 
               {/* Filtros e Barra de Ações em Massa */}
-              {/* Filtros e Barra de Ações em Massa */}
               <div style={{ marginTop: '24px' }}>
+                {/* Filtro de Mercado / País (Brasil vs Estados Unidos) */}
+                <div style={{
+                  marginBottom: '16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  flexWrap: 'wrap'
+                }}>
+                  <div style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    backgroundColor: '#ffffff',
+                    padding: '4px 6px',
+                    borderRadius: '10px',
+                    border: '1.5px solid #cbd5e1',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                    flexWrap: 'wrap'
+                  }}>
+                    <span style={{ fontSize: '0.8rem', fontWeight: '700', color: '#475569', padding: '0 8px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                      🌍 Mercado:
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setCountryFilter('ALL')}
+                      style={{
+                        padding: '6px 14px',
+                        borderRadius: '8px',
+                        border: '1px solid ' + (countryFilter === 'ALL' ? '#7c3aed' : 'transparent'),
+                        background: countryFilter === 'ALL' ? '#7c3aed' : '#f8fafc',
+                        color: countryFilter === 'ALL' ? '#ffffff' : '#334155',
+                        fontWeight: '700',
+                        fontSize: '0.83rem',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px'
+                      }}
+                    >
+                      <span>🌐</span>
+                      <span>Todos</span>
+                      <span style={{
+                        fontSize: '0.72rem',
+                        padding: '1px 6px',
+                        borderRadius: '999px',
+                        background: countryFilter === 'ALL' ? 'rgba(255,255,255,0.25)' : '#e2e8f0',
+                        color: countryFilter === 'ALL' ? '#ffffff' : '#475569'
+                      }}>
+                        {orders.length}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCountryFilter('BR')}
+                      style={{
+                        padding: '6px 14px',
+                        borderRadius: '8px',
+                        border: '1px solid ' + (countryFilter === 'BR' ? '#16a34a' : 'transparent'),
+                        background: countryFilter === 'BR' ? '#16a34a' : '#f8fafc',
+                        color: countryFilter === 'BR' ? '#ffffff' : '#334155',
+                        fontWeight: '700',
+                        fontSize: '0.83rem',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px'
+                      }}
+                    >
+                      <span>🇧🇷</span>
+                      <span>Brasil</span>
+                      <span style={{
+                        fontSize: '0.72rem',
+                        padding: '1px 6px',
+                        borderRadius: '999px',
+                        background: countryFilter === 'BR' ? 'rgba(255,255,255,0.25)' : '#e2e8f0',
+                        color: countryFilter === 'BR' ? '#ffffff' : '#475569'
+                      }}>
+                        {orders.filter(o => !isUSOrder(o)).length}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCountryFilter('US')}
+                      style={{
+                        padding: '6px 14px',
+                        borderRadius: '8px',
+                        border: '1px solid ' + (countryFilter === 'US' ? '#2563eb' : 'transparent'),
+                        background: countryFilter === 'US' ? '#2563eb' : '#f8fafc',
+                        color: countryFilter === 'US' ? '#ffffff' : '#334155',
+                        fontWeight: '700',
+                        fontSize: '0.83rem',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px'
+                      }}
+                    >
+                      <span>🇺🇸</span>
+                      <span>Estados Unidos</span>
+                      <span style={{
+                        fontSize: '0.72rem',
+                        padding: '1px 6px',
+                        borderRadius: '999px',
+                        background: countryFilter === 'US' ? 'rgba(255,255,255,0.25)' : '#dbeafe',
+                        color: countryFilter === 'US' ? '#ffffff' : '#1e40af'
+                      }}>
+                        {orders.filter(o => isUSOrder(o)).length}
+                      </span>
+                    </button>
+                  </div>
+                </div>
+
                 {/* Busca por texto em DESTAQUE (com foco em telefone) */}
                 <div style={{ marginBottom: '16px' }}>
                   <div style={{ position: 'relative', width: '100%', maxWidth: '520px' }}>
@@ -1831,9 +1982,9 @@ export default function AdminDashboard() {
                       }}
                     >
                       <option value="ALL">Todos os pedidos ({activeOrdersCount})</option>
-                      <option value="NEW">Novos ({orders.filter(o => o.paymentStatus === 'PAGAMENTO_APROVADO' && o.productionStatus === 'LETRA_APROVADA').length})</option>
-                      <option value="PRODUCTION">Em Produção ({orders.filter(o => o.productionStatus === 'EM_PRODUCAO' || o.productionStatus === 'VERSOES_EM_PRODUCAO').length})</option>
-                      <option value="FINISHED">Finalizados ({orders.filter(o => o.productionStatus === 'FINALIZADO' || o.productionStatus === 'ENTREGUE').length})</option>
+                      <option value="NEW">Novos ({countryFilteredOrders.filter(o => o.paymentStatus === 'PAGAMENTO_APROVADO' && o.productionStatus === 'LETRA_APROVADA').length})</option>
+                      <option value="PRODUCTION">Em Produção ({countryFilteredOrders.filter(o => o.productionStatus === 'EM_PRODUCAO' || o.productionStatus === 'VERSOES_EM_PRODUCAO').length})</option>
+                      <option value="FINISHED">Finalizados ({countryFilteredOrders.filter(o => o.productionStatus === 'FINALIZADO' || o.productionStatus === 'ENTREGUE').length})</option>
                     </select>
                   </div>
 
@@ -1848,19 +1999,19 @@ export default function AdminDashboard() {
                       onClick={() => setFilter('NEW')} 
                       style={{ ...styles.filterBtn, borderBottom: filter === 'NEW' ? '3px solid #7c3aed' : 'none', color: filter === 'NEW' ? '#7c3aed' : '#64748b', fontWeight: filter === 'NEW' ? 'bold' : '600' }}
                     >
-                      Novos ({orders.filter(o => o.paymentStatus === 'PAGAMENTO_APROVADO' && o.productionStatus === 'LETRA_APROVADA').length})
+                      Novos ({countryFilteredOrders.filter(o => o.paymentStatus === 'PAGAMENTO_APROVADO' && o.productionStatus === 'LETRA_APROVADA').length})
                     </button>
                     <button 
                       onClick={() => setFilter('PRODUCTION')} 
                       style={{ ...styles.filterBtn, borderBottom: filter === 'PRODUCTION' ? '3px solid #7c3aed' : 'none', color: filter === 'PRODUCTION' ? '#7c3aed' : '#64748b', fontWeight: filter === 'PRODUCTION' ? 'bold' : '600' }}
                     >
-                      Em Produção ({orders.filter(o => o.productionStatus === 'EM_PRODUCAO' || o.productionStatus === 'VERSOES_EM_PRODUCAO').length})
+                      Em Produção ({countryFilteredOrders.filter(o => o.productionStatus === 'EM_PRODUCAO' || o.productionStatus === 'VERSOES_EM_PRODUCAO').length})
                     </button>
                     <button 
                       onClick={() => setFilter('FINISHED')} 
                       style={{ ...styles.filterBtn, borderBottom: filter === 'FINISHED' ? '3px solid #7c3aed' : 'none', color: filter === 'FINISHED' ? '#7c3aed' : '#64748b', fontWeight: filter === 'FINISHED' ? 'bold' : '600' }}
                     >
-                      Finalizados ({orders.filter(o => o.productionStatus === 'FINALIZADO' || o.productionStatus === 'ENTREGUE').length})
+                      Finalizados ({countryFilteredOrders.filter(o => o.productionStatus === 'FINALIZADO' || o.productionStatus === 'ENTREGUE').length})
                     </button>
                   </div>
                 </div>
@@ -2065,19 +2216,62 @@ export default function AdminDashboard() {
                                 </div>
                               </td>
                               <td style={{ ...styles.td, fontWeight: '700', color: '#0f172a' }}>
-                                <span style={{ whiteSpace: 'nowrap' }}>
-                                  {o.orderNumber || o.id.substring(0, 8)}
-                                </span>
+                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}>
+                                  {isUSOrder(o) ? (
+                                    <span
+                                      title="Pedido dos Estados Unidos (us.nsmusic.ia.br)"
+                                      style={{
+                                        fontSize: '0.68rem',
+                                        fontWeight: '800',
+                                        backgroundColor: '#eff6ff',
+                                        color: '#1d4ed8',
+                                        border: '1px solid #bfdbfe',
+                                        padding: '1px 5px',
+                                        borderRadius: '4px',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '2px',
+                                        lineHeight: 1.2
+                                      }}
+                                    >
+                                      🇺🇸 EUA
+                                    </span>
+                                  ) : (
+                                    <span
+                                      title="Pedido do Brasil (nsmusic.ia.br)"
+                                      style={{
+                                        fontSize: '0.68rem',
+                                        fontWeight: '800',
+                                        backgroundColor: '#f0fdf4',
+                                        color: '#166534',
+                                        border: '1px solid #bbf7d0',
+                                        padding: '1px 5px',
+                                        borderRadius: '4px',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '2px',
+                                        lineHeight: 1.2
+                                      }}
+                                    >
+                                      🇧🇷 BR
+                                    </span>
+                                  )}
+                                  <span>{o.orderNumber || o.id.substring(0, 8)}</span>
+                                </div>
                               </td>
                               <td style={{ ...styles.td, fontWeight: '700' }}>
                                 {(() => {
-                                  const { items, total } = getOrderProductBreakdown(o);
+                                  const { items, total, isUS } = getOrderProductBreakdown(o);
                                   if (items.length === 0) return <span style={{ color: '#94a3b8', fontWeight: '500' }}>Não pago</span>;
                                   const isExpanded = expandedValueRows.has(o.id);
-                                  const isCard = isStripePayment(o);
-                                  const fee = isCard ? calculateStripeFee(total) : 0;
-                                  const net = isCard ? calculateStripeNet(total) : total;
+                                  const isCard = isStripePayment(o) || isUS;
+                                  const isUs = Boolean(isUS || isUSOrder(o));
+                                  const fee = isUs ? (total * 0.029 + 0.30) : (isCard ? calculateStripeFee(total) : 0);
+                                  const net = isUs ? Math.max(0, total - fee) : (isCard ? calculateStripeNet(total) : total);
                                   const payout = isCard ? getPayoutStatus(o.paidAt || o.videoPaidAt || o.createdAt) : null;
+                                  const formattedValue = isUs ? `$ ${total.toFixed(2)} USD` : `R$ ${total.toFixed(2).replace('.', ',')}`;
+                                  const formattedNet = isUs ? `$ ${net.toFixed(2)} USD` : `R$ ${net.toFixed(2).replace('.', ',')}`;
+                                  const formattedFee = isUs ? `$ ${fee.toFixed(2)}` : `R$ ${fee.toFixed(2).replace('.', ',')}`;
                                   return (
                                     <div>
                                       <button
@@ -2089,10 +2283,10 @@ export default function AdminDashboard() {
                                         title={isExpanded ? 'Ocultar produtos confirmados' : 'Ver produtos confirmados'}
                                         style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: '#059669', fontWeight: '700', fontSize: 'inherit', fontFamily: 'inherit' }}
                                       >
-                                        R$ {total.toFixed(2).replace('.', ',')}
+                                        {formattedValue}
                                         {isCard && (
                                           <span style={{ fontSize: '0.68rem', color: '#7c3aed', backgroundColor: '#f3e8ff', padding: '1px 5px', borderRadius: '4px', border: '1px solid #d8b4fe', marginLeft: '4px', whiteSpace: 'nowrap' }}>
-                                            Líq: R$ {net.toFixed(2).replace('.', ',')}
+                                            Líq: {formattedNet}
                                           </span>
                                         )}
                                         {items.length > 1 && (
@@ -2101,9 +2295,9 @@ export default function AdminDashboard() {
                                       </button>
                                       {isCard && (
                                         <div style={{ fontSize: '0.67rem', color: '#64748b', fontWeight: '500', marginTop: '2px', lineHeight: 1.2 }}>
-                                          <span>Taxa: -R$ {fee.toFixed(2).replace('.', ',')}</span>
-                                          <span style={{ marginLeft: '4px', color: payout.isReleased ? '#059669' : '#d97706', fontWeight: '600' }}>
-                                            {payout.isReleased ? '• ✅ Liberado' : `• ⏳ Bloq. (~${payout.daysRemaining}d)`}
+                                          <span>Taxa: -{formattedFee}</span>
+                                          <span style={{ marginLeft: '4px', color: payout?.isReleased ? '#059669' : '#d97706', fontWeight: '600' }}>
+                                            {payout?.isReleased ? '• ✅ Liberado' : `• ⏳ Bloq. (~${payout?.daysRemaining || 30}d)`}
                                           </span>
                                         </div>
                                       )}
@@ -2111,7 +2305,7 @@ export default function AdminDashboard() {
                                         <div style={{ marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
                                           {items.map((item) => (
                                             <span key={item.label} style={{ fontSize: '0.7rem', fontWeight: '600', color: '#334155', whiteSpace: 'nowrap' }}>
-                                              {item.label}: R$ {item.amount.toFixed(2).replace('.', ',')}
+                                              {item.label}: {isUs ? `$ ${item.amount.toFixed(2)}` : `R$ ${item.amount.toFixed(2).replace('.', ',')}`}
                                             </span>
                                           ))}
                                         </div>

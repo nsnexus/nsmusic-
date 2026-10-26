@@ -14,6 +14,7 @@ import PlatformIcon from '@/components/admin/PlatformIcon';
 import OrderWhatsAppFeedbackCard from '@/components/admin/OrderWhatsAppFeedbackCard';
 import { getOrderPlatform, PLATFORMS } from '@/lib/trafficSource';
 import { isStripePayment, calculateStripeFee, calculateStripeNet, getPayoutStatus } from '@/lib/paymentFees';
+import { isUSOrder } from '@/lib/country';
 import Link from 'next/link';
 import Image from 'next/image';
 
@@ -797,8 +798,39 @@ export default function OrderDetailsAdmin() {
           
           <div style={styles.titleRow}>
             <div>
-              <h1 style={{ fontSize: '1.8rem', fontWeight: '800', color: '#0f172a' }}>
-                Pedido {order.orderNumber || orderId}
+              <h1 style={{ fontSize: '1.8rem', fontWeight: '800', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                <span>Pedido {order.orderNumber || orderId}</span>
+                {isUSOrder(order) ? (
+                  <span style={{
+                    fontSize: '0.85rem',
+                    fontWeight: '800',
+                    backgroundColor: '#eff6ff',
+                    color: '#1d4ed8',
+                    border: '1px solid #bfdbfe',
+                    padding: '3px 8px',
+                    borderRadius: '6px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}>
+                    🇺🇸 Estados Unidos (Dólar USD)
+                  </span>
+                ) : (
+                  <span style={{
+                    fontSize: '0.85rem',
+                    fontWeight: '800',
+                    backgroundColor: '#f0fdf4',
+                    color: '#166534',
+                    border: '1px solid #bbf7d0',
+                    padding: '3px 8px',
+                    borderRadius: '6px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}>
+                    🇧🇷 Brasil (Real BRL)
+                  </span>
+                )}
               </h1>
               <p style={{ color: '#475569', fontSize: '0.95rem', marginTop: '4px', fontWeight: '500' }}>
                 Cliente: <strong style={{ color: '#0f172a' }}>{order.customerName}</strong> ({order.customerEmail || 'Sem e-mail'}) • <strong style={{ color: '#2563eb' }}>{order.customerPhone || 'Sem telefone'}</strong>
