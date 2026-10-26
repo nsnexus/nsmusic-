@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getTask, updateTaskResult, extractAudioTracks } from '@/lib/db';
 import { getRequestContext } from '@cloudflare/next-on-pages';
+import { readKieJob, readKieSongTracks } from '@/lib/kieVoice';
 import {
   resolveLatestTaskId,
   maybeAutoRetrySunoFailure,
@@ -56,11 +57,52 @@ export async function GET(req) {
       if (task && task.status === 'COMPLETED') {
         const tracks = extractAudioTracks(task.result);
         if (tracks.length > 0) {
+          const queryOrderId = searchParams.get('orderId');
+          const targetOrderId = queryOrderId || task.orderId;
+          if (targetOrderId) {
+            try {
+              const { getOrder } = await import('@/lib/supabaseDb');
+              const orderData = await getOrder(targetOrderId, env);
+              if (orderData && (!orderData.audioUrl || !orderData.whatsappSent)) {
+                const updatePromise = updateTaskResult(effectiveTaskId, task.result, targetOrderId, env);
+                let ctx = null;
+                try {
+                  ctx = getRequestContext();
+                } catch (e) {}
+                if (ctx?.waitUntil) {
+                  ctx.waitUntil(updatePromise.catch(e => console.warn('[api/suno/status] Erro background:', e?.message)));
+                } else {
+                  await updatePromise;
+                }
+              }
+            } catch (syncErr) {
+              console.warn('[api/suno/status] Erro ao sincronizar pedido concluído:', syncErr?.message);
+            }
+          }
           return NextResponse.json({ status: "COMPLETED", tracks });
         }
       }
     } catch (dbErr) {
       console.warn('[api/suno/status] Aviso na busca inicial da tarefa:', dbErr?.message);
+    }
+
+    // Voice songs use the current jobs API. Never send these through legacy
+    // polling/failover, which cannot find them and could start a duplicate song.
+    if (task?.result?.kieTaskApi === 'jobs') {
+      if (!kieApiKey) return NextResponse.json({ error: 'Serviço de voz indisponível.' }, { status: 503 });
+      const response = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${encodeURIComponent(effectiveTaskId)}`, {
+        headers: { Authorization: `Bearer ${kieApiKey}` }, signal: AbortSignal.timeout(10000),
+      });
+      const data = await response.json();
+      if (!response.ok || Number(data.code) !== 200) return NextResponse.json({ error: 'Não foi possível consultar a música com sua voz.' }, { status: 502 });
+      const job = readKieJob(data);
+      if (job.state === 'fail') return NextResponse.json({ status: 'ERROR', error: job.failMsg || 'A geração com sua voz não foi concluída.' });
+      const tracks = extractAudioTracks({ data: readKieSongTracks(job) });
+      if (job.state === 'success' && tracks.length) {
+        await updateTaskResult(effectiveTaskId, { data: tracks }, task.orderId, env);
+        return NextResponse.json({ status: 'COMPLETED', tracks });
+      }
+      return NextResponse.json({ status: 'PROCESSING' });
     }
 
     let orderId = task?.orderId || null;

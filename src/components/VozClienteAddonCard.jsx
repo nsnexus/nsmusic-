@@ -252,8 +252,10 @@ export default function VozClienteAddonCard({ orderId, order }) {
       for (let i = 0; i < 15; i++) {
         await new Promise(r => setTimeout(r, 2000));
         const checkRes = await fetch(`/api/admin/voice/task?taskId=${encodeURIComponent(pData.taskId)}&type=phrase`);
+        if (!checkRes.ok) throw new Error((await checkRes.json()).error || 'Não foi possível consultar a frase de validação.');
         if (checkRes.ok) {
           const cData = await checkRes.json();
+          if (cData.state === 'fail') throw new Error(cData.failMsg || 'A IA não conseguiu analisar a amostra de voz.');
           if (cData.phrase) {
             fraseObtida = cData.phrase;
             break;
@@ -261,8 +263,8 @@ export default function VozClienteAddonCard({ orderId, order }) {
         }
       }
 
-      const nomeCliente = order?.customerName || 'eu';
-      setFraseValidacao(fraseObtida || `Eu, ${nomeCliente}, autorizo o uso do meu timbre de voz para a criação de músicas personalizadas.`);
+      if (!fraseObtida) throw new Error('A frase de validação ainda não ficou pronta. Tente novamente em instantes.');
+      setFraseValidacao(fraseObtida);
       setEtapaGravacao(2);
     } catch (err) {
       alert(`Erro: ${err.message}`);
@@ -290,7 +292,6 @@ export default function VozClienteAddonCard({ orderId, order }) {
           orderId: order?.id || orderId,
           voiceId: targetVoiceId,
           voiceRecordingId: optionalRecordingId || customVoiceData?.voiceRecordingId || undefined,
-          accountId: customVoiceData?.accountId || '70147233',
           phraseTaskId: phraseTaskId || undefined,
           prompt: order?.lyrics || '',
           style: order?.musicStyle || 'Acoustic Pop',
@@ -313,6 +314,7 @@ export default function VozClienteAddonCard({ orderId, order }) {
       for (let i = 0; i < 40; i++) {
         await new Promise(r => setTimeout(r, 4500));
         const pRes = await fetch(`/api/admin/voice/task?taskId=${encodeURIComponent(songTaskId)}&type=generate`);
+        if (!pRes.ok) throw new Error((await pRes.json()).error || 'Não foi possível consultar a música com sua voz.');
         if (pRes.ok) {
           const poll = await pRes.json();
           if (poll.status === 'COMPLETED' && poll.tracks && poll.tracks.length > 0) {
@@ -327,7 +329,7 @@ export default function VozClienteAddonCard({ orderId, order }) {
         // Também confere se a order foi atualizada pelo webhook
         if (i % 3 === 0 && (orderId || order?.id)) {
           try {
-            const ordRes = await fetch(`/api/orders/lookup?id=${encodeURIComponent(order?.id || orderId)}`);
+            const ordRes = await fetch(`/api/orders/${encodeURIComponent(order?.id || orderId)}`);
             if (ordRes.ok) {
               const ordData = await ordRes.json();
               if (ordData.order?.audioUrl && ordData.order.sunoTaskId === songTaskId) {
@@ -339,9 +341,8 @@ export default function VozClienteAddonCard({ orderId, order }) {
         }
       }
 
-      if (musicaUrl) {
-        setMusicaGeradaUrl(musicaUrl);
-      }
+      if (!musicaUrl) throw new Error('A música ainda está em processamento. Aguarde e consulte novamente; ela ainda não foi concluída.');
+      setMusicaGeradaUrl(musicaUrl);
       setEtapaGravacao(3);
     } catch (err) {
       alert(`Erro ao gerar música com voz: ${err.message}`);
@@ -393,6 +394,7 @@ export default function VozClienteAddonCard({ orderId, order }) {
       for (let i = 0; i < 36; i++) {
         await new Promise(r => setTimeout(r, 2500));
         const pRes = await fetch(`/api/admin/voice/task?taskId=${encodeURIComponent(cData.taskId)}&type=job`);
+        if (!pRes.ok) throw new Error((await pRes.json()).error || 'Não foi possível consultar a validação da voz.');
         if (pRes.ok) {
           const poll = await pRes.json();
           if (poll.state === 'fail' || poll.state === 'FAILED') {
@@ -400,7 +402,7 @@ export default function VozClienteAddonCard({ orderId, order }) {
             failReason = poll.failMsg || 'A gravação não coincidiu com a frase solicitada.';
             break;
           }
-          if (poll.voiceId || poll.personaId) {
+          if (poll.state === 'success' && (poll.voiceId || poll.personaId)) {
             createdVoiceId = poll.voiceId || poll.personaId;
             createdRecordId = poll.voiceRecordingId || '';
             break;

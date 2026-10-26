@@ -32,8 +32,8 @@ export default function AdminVozLab() {
   const [fraseValidacao, setFraseValidacao] = useState('');
   const [phraseTaskId, setPhraseTaskId] = useState('');
   const [verifyPhraseId, setVerifyPhraseId] = useState('');
-  const [voiceRecordingId, setVoiceRecordingId] = useState('b4fa71e2-b681-4b1c-97f7-812a9ed0effa');
-  const [accountId, setAccountId] = useState('70147233');
+  const [voiceRecordingId, setVoiceRecordingId] = useState('');
+  const [accountId, setAccountId] = useState('');
   const [verificacaoBlob, setVerificacaoBlob] = useState(null);
   const [verificacaoPreviewUrl, setVerificacaoPreviewUrl] = useState('');
   const [verificacaoPublicUrl, setVerificacaoPublicUrl] = useState('');
@@ -340,6 +340,13 @@ Com você ao meu lado eu sei onde quero estar`
           const pollRes = await fetch(`/api/admin/voice/task?taskId=${encodeURIComponent(currentTaskId)}&type=job`);
           const pollData = await pollRes.json();
 
+          if (!pollRes.ok || !pollData.ok) {
+            clearInterval(pollInterval);
+            setEnviandoAmostra(false);
+            setMsgErro(pollData.error || 'Não foi possível consultar a frase de validação.');
+            return;
+          }
+
           if (pollData.ok) {
             const fraseDetectada = pollData.phrase
               || pollData.parsedResult?.verify_phrase_text
@@ -453,18 +460,23 @@ Com você ao meu lado eu sei onde quero estar`
           const pollRes = await fetch(`/api/admin/voice/task?taskId=${encodeURIComponent(createTaskId)}&type=job`);
           const pollData = await pollRes.json();
 
+          if (!pollRes.ok || !pollData.ok) {
+            clearInterval(pollInterval);
+            setEnviandoVerificacao(false);
+            setMsgErro(pollData.error || 'Não foi possível consultar a validação da voz.');
+            return;
+          }
+
           if (pollData.ok) {
             const detectedVoice = pollData.voiceId
               || pollData.personaId
               || pollData.parsedResult?.persona_id
-              || (Array.isArray(pollData.parsedResult?.resultUrls) && pollData.parsedResult.resultUrls[0])
-              || voiceId
               || null;
 
-            // Se a Kie.ai concluiu com sucesso OU já temos o ID da voz
-            if (pollData.state === 'success' || detectedVoice) {
+            // O aceite de create-voice não significa que a gravação foi validada.
+            if (pollData.state === 'success' && detectedVoice) {
               clearInterval(pollInterval);
-              const idFinal = detectedVoice || '706e6d15-3830-47dd-8cdf-f7635defb8d6';
+              const idFinal = detectedVoice;
               setVoiceId(idFinal);
               if (pollData.accountId) setAccountId(pollData.accountId);
               if (pollData.voiceRecordingId) setVoiceRecordingId(pollData.voiceRecordingId);
@@ -532,7 +544,6 @@ Com você ao meu lado eu sei onde quero estar`
         body: JSON.stringify({
           action: 'generate_song',
           voiceId: voiceId,
-          accountId: accountId || '70147233',
           voiceRecordingId: voiceRecordingId || undefined,
           phraseTaskId: phraseTaskId,
           prompt: letraMusica,
@@ -557,6 +568,14 @@ Com você ao meu lado eu sei onde quero estar`
         try {
           const pollRes = await fetch(`/api/admin/voice/task?taskId=${encodeURIComponent(musicTaskId)}&type=generate`);
           const pollData = await pollRes.json();
+
+          if (!pollRes.ok || !pollData.ok) {
+            clearInterval(pollInterval);
+            setGerandoMusica(false);
+            setProgressoMusica('');
+            setMsgErro(pollData.error || 'Não foi possível consultar a música com sua voz.');
+            return;
+          }
 
           if (pollData.ok) {
             if (pollData.status === 'COMPLETED' && pollData.tracks && pollData.tracks.length > 0) {

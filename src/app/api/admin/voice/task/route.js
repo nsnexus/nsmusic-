@@ -1,518 +1,130 @@
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
 import { readEnvValue } from '@/lib/envValue';
-import { extractAudioTracks, saveTask } from '@/lib/db';
+import { extractAudioTracks, saveTask, getTask, updateTaskResult } from '@/lib/db';
 import { resolverSiteUrl } from '@/lib/siteUrl';
 import { updateOrder } from '@/lib/supabaseDb';
+import { readKieJob, readKieSongTracks, buildVoiceSongPayload } from '@/lib/kieVoice';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
-export async function POST(req) {
-  let env = {};
-  try {
-    const ctx = getRequestContext();
-    if (ctx?.env) env = ctx.env;
-  } catch (e) {}
+function getEnv() {
+  try { return getRequestContext()?.env || {}; } catch { return {}; }
+}
 
-  const kieApiKey = readEnvValue(env, 'KIE_API_KEY');
-  if (!kieApiKey) {
-    return NextResponse.json({ error: 'Configuração ausente: KIE_API_KEY não definida no servidor.' }, { status: 500 });
+async function kieRequest(path, apiKey, body) {
+  const response = await fetch(`https://api.kie.ai/api/v1/${path}`, {
+    method: body ? 'POST' : 'GET',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+    signal: AbortSignal.timeout(15000),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || (data.code !== undefined && Number(data.code) !== 200)) {
+    const error = new Error(data.msg || data.message || 'Não foi possível consultar a IA de voz.');
+    error.status = response.status === 429 ? 429 : 502;
+    error.providerCode = Number(data.code || response.status);
+    throw error;
   }
+  return data;
+}
 
-  const siteUrl = resolverSiteUrl(readEnvValue(env, 'NEXT_PUBLIC_SITE_URL'));
-  const webhookSecret = readEnvValue(env, 'KIE_WEBHOOK_SECRET');
-  const callBackUrl = webhookSecret
-    ? `${siteUrl}/api/suno/webhook?secret=${encodeURIComponent(webhookSecret)}`
-    : `${siteUrl}/api/suno/webhook`;
+const getJob = (taskId, key) => kieRequest(`jobs/recordInfo?taskId=${encodeURIComponent(taskId)}`, key);
 
+export async function POST(req) {
+  const env = getEnv();
+  const key = readEnvValue(env, 'KIE_API_KEY');
+  if (!key) return NextResponse.json({ error: 'Configuração de voz indisponível no servidor.' }, { status: 503 });
   try {
     const body = await req.json();
-    const { action } = body;
-
-    // 1. Solicitar Frase de Validação
-    if (action === 'request_phrase') {
-      const { voiceUrl, vocalStart = 0, vocalEnd = 20, language = 'pt' } = body;
-      if (!voiceUrl) {
-        return NextResponse.json({ error: 'voiceUrl é obrigatório para solicitar a frase.' }, { status: 400 });
-      }
-
-      const requestPayload = {
+    let payload;
+    if (body.action === 'request_phrase') {
+      if (!body.voiceUrl) return NextResponse.json({ error: 'Envie a amostra de voz.' }, { status: 400 });
+      payload = {
         model: 'ai-music-api/validation-phrase',
-        input: {
-          voice_url: voiceUrl,
-          vocal_start_s: Number(vocalStart) || 0,
-          vocal_end_s: Number(vocalEnd) || 20,
-          language: String(language || 'pt')
-        }
+        input: { voice_url: body.voiceUrl, vocal_start_s: Number(body.vocalStart) || 0, vocal_end_s: Number(body.vocalEnd) || 20, language: body.language || 'pt' },
       };
-      if (body.callBackUrl) {
-        requestPayload.callBackUrl = body.callBackUrl;
-      }
-
-      const res = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${kieApiKey}`
-        },
-        body: JSON.stringify(requestPayload),
-        signal: AbortSignal.timeout(15000)
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || (data.code && data.code !== 200)) {
-        console.error('[voice/task] Erro ao criar tarefa de validação na Kie.ai:', res.status, data);
-        return NextResponse.json({
-          error: data?.msg || data?.message || `Erro da Kie.ai (HTTP ${res.status})`
-        }, { status: res.status || 502 });
-      }
-
-      const taskId = data?.data?.taskId || data?.data?.task_id || data?.taskId;
-      return NextResponse.json({ ok: true, taskId, raw: data });
-    }
-
-    // 2. Criar Perfil de Voz com a gravação da validação
-    if (action === 'create_voice') {
-      const {
-        phraseTaskId,
-        voiceUrl,
-        verifyUrl,
-        voiceName = 'Voz do Cliente',
-        description = 'Voz personalizada',
-        style = 'acoustic',
-        verifyPhraseId,
-        voiceRecordingId
-      } = body;
-
-      if (!phraseTaskId && !verifyPhraseId) {
-        return NextResponse.json({ error: 'phraseTaskId ou verifyPhraseId é obrigatório.' }, { status: 400 });
-      }
-      if (!verifyUrl) {
-        return NextResponse.json({ error: 'verifyUrl é obrigatório.' }, { status: 400 });
-      }
-
-      const inputPayload = {
-        task_id: phraseTaskId || verifyPhraseId,
-        verify_url: verifyUrl,
-        voice_url: voiceUrl || verifyUrl,
-        voice_name: voiceName,
-        description: description,
-        style: style
-      };
-      if (verifyPhraseId) inputPayload.verify_phrase_id = verifyPhraseId;
-      if (voiceRecordingId) inputPayload.voice_recording_id = voiceRecordingId;
-
-      const createPayload = {
+    } else if (body.action === 'create_voice') {
+      if (!body.phraseTaskId || !body.verifyUrl) return NextResponse.json({ error: 'A frase de validação e sua gravação são obrigatórias.' }, { status: 400 });
+      payload = {
         model: 'ai-music-api/create-voice',
-        input: inputPayload
+        input: { task_id: body.phraseTaskId, verify_url: body.verifyUrl, voice_name: body.voiceName || 'Voz do Cliente', description: body.description || 'Voz personalizada', style: body.style || 'acoustic' },
       };
-      if (body.callBackUrl) {
-        createPayload.callBackUrl = body.callBackUrl;
+    } else if (body.action === 'generate_song') {
+      if (!body.voiceId || !body.prompt) return NextResponse.json({ error: 'Voz validada e letra são obrigatórias.' }, { status: 400 });
+      // Current Voice IDs refer to the validation task, never its internal persona UUID.
+      if (/^[a-f0-9]{32}$/i.test(body.voiceId)) {
+        const voice = readKieJob(await getJob(body.voiceId, key));
+        if (voice.state !== 'success') return NextResponse.json({ error: voice.failMsg || 'Sua voz ainda não concluiu a validação. Aguarde ou grave novamente.' }, { status: 409 });
       }
-
-      const res = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${kieApiKey}`
-        },
-        body: JSON.stringify(createPayload),
-        signal: AbortSignal.timeout(15000)
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || (data.code && data.code !== 200)) {
-        console.error('[voice/task] Erro ao criar voz na Kie.ai:', res.status, data);
-        return NextResponse.json({
-          error: data?.msg || data?.message || `Erro da Kie.ai (HTTP ${res.status})`
-        }, { status: res.status || 502 });
-      }
-
-      const taskId = data?.data?.taskId || data?.data?.task_id || data?.taskId;
-      return NextResponse.json({ ok: true, taskId, raw: data });
+      const secret = readEnvValue(env, 'KIE_WEBHOOK_SECRET');
+      const callback = `${resolverSiteUrl(readEnvValue(env, 'NEXT_PUBLIC_SITE_URL'))}/api/suno/webhook${secret ? `?secret=${encodeURIComponent(secret)}` : ''}`;
+      payload = buildVoiceSongPayload(body, callback);
+    } else {
+      return NextResponse.json({ error: 'Ação não reconhecida.' }, { status: 400 });
     }
 
-    // 3. Gerar Canção com a Voz Criada (voiceId / personaId)
-    if (action === 'generate_song') {
-      const {
-        orderId,
-        voiceId,
-        accountId: clientAccountId,
-        voiceRecordingId: clientVoiceRecordingId,
-        phraseTaskId: clientPhraseTaskId,
-        prompt,
-        style = 'Acoustic Pop',
-        title = 'Música Teste com Voz'
-      } = body;
-
-      if (!voiceId || !prompt) {
-        return NextResponse.json({ error: 'voiceId e prompt (letra) são obrigatórios.' }, { status: 400 });
-      }
-
-      let effectivePersonaId = voiceId;
-      let effectiveAccountId = clientAccountId || null;
-      let effectiveVoiceRecord = clientVoiceRecordingId || null;
-
-      // Se voiceId for um taskId de 32 chars, consulta a Kie.ai para ver se já gerou um persona_id específico
-      const tasksToInspect = [voiceId, clientPhraseTaskId].filter(t => t && typeof t === 'string' && t.length === 32 && !t.includes('-'));
-      for (const tId of tasksToInspect) {
-        try {
-          const subRes = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${encodeURIComponent(tId)}`, {
-            headers: {
-              'Authorization': `Bearer ${kieApiKey}`,
-              'Content-Type': 'application/json',
-              'Accept': 'application/json'
-            },
-            signal: AbortSignal.timeout(6000)
-          });
-          if (subRes.ok) {
-            const subData = await subRes.json();
-            const subRaw = subData?.data?.resultJson || subData?.resultJson;
-            let subParsed = null;
-            if (subRaw) {
-              try { subParsed = typeof subRaw === 'string' ? JSON.parse(subRaw) : subRaw; } catch (e) {}
-            }
-            const pools = [subParsed?.data, subParsed, subData?.data, subData].filter(Boolean);
-            for (const p of pools) {
-              if (p.persona_id && typeof p.persona_id === 'string' && p.persona_id.includes('-')) {
-                effectivePersonaId = p.persona_id;
-              }
-              if (!effectiveAccountId) {
-                effectiveAccountId = p.suno_user_id || p.persona_voice_user_id || p.account_id || p.accountId || null;
-              }
-              if (!effectiveVoiceRecord) {
-                effectiveVoiceRecord = p.voice_recording_id || p.voice_record_id || p.voice_record || p.voiceRecord || null;
-              }
-            }
-          }
-        } catch (e) {
-          console.warn('[voice/task] Falha ao inspecionar tarefa para persona_id:', e.message);
-        }
-      }
-
-      // Fallbacks com base no usuário ativo na Kie.ai se ainda não foram resolvidos
-      if (!effectiveAccountId) effectiveAccountId = '70147233';
-      if (!effectiveVoiceRecord) effectiveVoiceRecord = 'b4fa71e2-b681-4b1c-97f7-812a9ed0effa';
-
-      if (!effectivePersonaId) effectivePersonaId = voiceId;
-
-      const generatePayload = {
-        prompt: prompt,
-        customMode: true,
-        instrumental: false,
-        model: 'V6',
-        style: style,
-        title: title.substring(0, 80),
-        callBackUrl: callBackUrl,
-        persona_id: effectivePersonaId,
-        personaId: effectivePersonaId,
-        persona_model: 'voice_persona',
-        personaModel: 'voice_persona',
-        account_id: String(effectiveAccountId),
-        accountId: String(effectiveAccountId),
-        suno_user_id: String(effectiveAccountId),
-        persona_voice_user_id: Number(effectiveAccountId) || String(effectiveAccountId),
-        voice_record: String(effectiveVoiceRecord),
-        voice_record_id: String(effectiveVoiceRecord),
-        voice_recording_id: String(effectiveVoiceRecord),
-        voiceRecord: String(effectiveVoiceRecord),
-        voiceRecordingId: String(effectiveVoiceRecord),
-        styleWeight: 0.85,
-        weirdnessConstraint: 0.20,
-      };
-
-      const res = await fetch('https://api.kie.ai/api/v1/generate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${kieApiKey}`
-        },
-        body: JSON.stringify(generatePayload),
-        signal: AbortSignal.timeout(15000)
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || (data.code && data.code !== 200)) {
-        console.error('[voice/task] Erro ao gerar música com voz na Kie.ai:', res.status, data);
-        return NextResponse.json({
-          error: data?.msg || data?.message || `Erro da Kie.ai (HTTP ${res.status})`
-        }, { status: res.status || 502 });
-      }
-
-      const taskId = data?.data?.taskId || data?.data?.task_id || data?.taskId;
-
-      if (orderId && taskId) {
-        try {
-          await saveTask(taskId, 'PROCESSING', null, orderId, {
-            provider: 'kie',
-            customVoiceId: effectivePersonaId,
-            customVoiceRecordId: effectiveVoiceRecord,
-            customVoiceAccountId: effectiveAccountId
-          }, env);
-
-          await updateOrder(orderId, {
-            productionStatus: 'GERANDO_AUDIO',
-            sunoTaskId: taskId,
-            sunoProvider: 'kie',
-            customVoiceId: effectivePersonaId,
-            customVoiceRecordId: effectiveVoiceRecord,
-            customVoiceAccountId: effectiveAccountId,
-            isCustomVoice: true,
-            voiceType: 'minha_voz',
-            sunoRequestedAt: new Date().toISOString(),
-            sunoError: null
-          }, env);
-        } catch (dbErr) {
-          console.error('[voice/task] Erro ao registrar tarefa/pedido no banco:', dbErr.message);
-        }
-      }
-
-      return NextResponse.json({ ok: true, taskId, raw: data });
+    const data = await kieRequest('jobs/createTask', key, payload);
+    const createdTaskId = data.data?.taskId || data.data?.task_id || data.taskId;
+    if (!createdTaskId) throw new Error('A IA não retornou o identificador da tarefa. Tente novamente.');
+    if (body.action === 'generate_song' && body.orderId) {
+      await saveTask(createdTaskId, 'PROCESSING', { kieTaskApi: 'jobs' }, body.orderId, { provider: 'kie', customVoiceId: body.voiceId }, env);
+      await updateOrder(body.orderId, {
+        productionStatus: 'GERANDO_AUDIO', sunoTaskId: createdTaskId, sunoProvider: 'kie',
+        customVoiceId: body.voiceId, isCustomVoice: true, voiceType: 'minha_voz',
+        sunoRequestedAt: new Date().toISOString(), sunoError: null,
+      }, env);
     }
-
-    return NextResponse.json({ error: 'Ação não reconhecida.' }, { status: 400 });
-  } catch (err) {
-    console.error('[voice/task] Exceção na requisição:', err.message);
-    return NextResponse.json({ error: err.message || 'Erro interno ao processar tarefa.' }, { status: 500 });
+    // Poll the ORIGINAL validation task, not the create-voice acknowledgement.
+    return NextResponse.json({ ok: true, taskId: body.action === 'create_voice' ? body.phraseTaskId : createdTaskId, submissionTaskId: createdTaskId });
+  } catch (error) {
+    return NextResponse.json({ error: error.message || 'Erro ao processar voz.' }, { status: error.status || 502 });
   }
 }
 
 export async function GET(req) {
-  let env = {};
-  try {
-    const ctx = getRequestContext();
-    if (ctx?.env) env = ctx.env;
-  } catch (e) {}
-
-  const kieApiKey = readEnvValue(env, 'KIE_API_KEY');
-  if (!kieApiKey) {
-    return NextResponse.json({ error: 'Configuração ausente: KIE_API_KEY não definida.' }, { status: 500 });
-  }
-
+  const env = getEnv();
+  const key = readEnvValue(env, 'KIE_API_KEY');
+  if (!key) return NextResponse.json({ error: 'Configuração de voz indisponível no servidor.' }, { status: 503 });
   const { searchParams } = new URL(req.url);
   const taskId = searchParams.get('taskId');
-  const type = searchParams.get('type') || 'job'; // 'job' (createTask) ou 'generate' (música)
-
-  if (!taskId) {
-    return NextResponse.json({ error: 'taskId é obrigatório.' }, { status: 400 });
-  }
-
+  const type = searchParams.get('type') || 'job';
+  if (!taskId) return NextResponse.json({ error: 'taskId é obrigatório.' }, { status: 400 });
   try {
-    // Consulta status de geração de música
+    let data;
+    try { data = await getJob(taskId, key); }
+    catch (error) {
+      // Preserve polling for songs submitted before the jobs API migration.
+      if (type !== 'generate' || ![404, 422].includes(error.providerCode)) throw error;
+      data = await kieRequest(`generate/record-info?taskId=${encodeURIComponent(taskId)}`, key);
+    }
+    let job = readKieJob(data);
     if (type === 'generate') {
-      const res = await fetch(`https://api.kie.ai/api/v1/generate/record-info?taskId=${encodeURIComponent(taskId)}`, {
-        headers: {
-          'Authorization': `Bearer ${kieApiKey}`,
-          'Accept': 'application/json'
-        },
-        signal: AbortSignal.timeout(10000)
-      });
-
-      if (!res.ok) {
-        return NextResponse.json({ error: `Kie.ai HTTP ${res.status}` }, { status: res.status });
+      const tracks = extractAudioTracks({ data: readKieSongTracks(job) });
+      const legacyTracks = tracks.length ? tracks : extractAudioTracks(data);
+      const completed = ['success', 'completed', 'complete'].includes(job.state);
+      const failed = /fail|error/.test(job.state);
+      if (completed && legacyTracks.length) {
+        const task = await getTask(taskId, env);
+        if (task?.orderId) await updateTaskResult(taskId, { data: legacyTracks }, task.orderId, env);
       }
-
-      const data = await res.json();
-      const tracks = extractAudioTracks(data);
-
-      const rawStatus = String(
-        (Array.isArray(data?.data) ? data.data[0]?.status : (data?.data?.status || data?.data?.state))
-        || data?.status
-        || data?.state
-        || ''
-      ).toUpperCase();
-
-      const isCompleted = rawStatus.includes('SUCCESS') || rawStatus.includes('COMPLETE') || tracks.length > 0;
-      const isFailed = rawStatus.includes('FAIL') || rawStatus.includes('ERROR');
-
-      return NextResponse.json({
-        ok: true,
-        status: isCompleted ? 'COMPLETED' : (isFailed ? 'FAILED' : 'PROCESSING'),
-        rawStatus,
-        tracks,
-        raw: data
-      });
+      return NextResponse.json({ ok: true, status: failed ? 'FAILED' : completed && legacyTracks.length ? 'COMPLETED' : 'PROCESSING', tracks: completed ? legacyTracks : [], failMsg: job.failMsg });
     }
-
-    // Consulta status de job genérico (validation-phrase ou create-voice)
-    const res = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${encodeURIComponent(taskId)}`, {
-      headers: {
-        'Authorization': `Bearer ${kieApiKey}`,
-        'Accept': 'application/json'
-      },
-      signal: AbortSignal.timeout(10000)
-    });
-
-    if (!res.ok) {
-      return NextResponse.json({ error: `Kie.ai HTTP ${res.status}` }, { status: res.status });
+    let voiceTaskId = taskId;
+    // Old clients may still poll the acknowledgement: follow its validation task.
+    if (job.model === 'ai-music-api/create-voice' && typeof job.linkedVoiceId === 'string') {
+      voiceTaskId = job.linkedVoiceId;
+      job = readKieJob(await getJob(voiceTaskId, key));
     }
-
-    const data = await res.json();
-    const jobState = String(data?.data?.state || data?.state || '').toLowerCase();
-
-    let parsedResult = null;
-    const rawResultJson = data?.data?.resultJson || data?.resultJson;
-    if (rawResultJson) {
-      try {
-        parsedResult = typeof rawResultJson === 'string' ? JSON.parse(rawResultJson) : rawResultJson;
-      } catch (e) {
-        parsedResult = { raw: rawResultJson };
-      }
-    }
-
-    // Extrai dados das diferentes camadas retornadas pela Kie.ai
-    const searchTargets = [
-      parsedResult?.data,
-      parsedResult,
-      data?.data?.response?.data,
-      data?.data?.response,
-      data?.data
-    ].filter((t) => t && typeof t === 'object');
-
-    let phrase = null;
-    let verifyPhraseId = null;
-    let voiceRecordingId = null;
-    let voiceId = null;
-
-    let personaId = null;
-
-    for (const target of searchTargets) {
-      if (!phrase) {
-        phrase = target.verify_phrase_text
-          || target.phrase
-          || target.validation_phrase
-          || target.validationPhrase
-          || target.text
-          || target.phrase_text
-          || null;
-      }
-      if (!verifyPhraseId) {
-        verifyPhraseId = target.verify_phrase_id
-          || target.verifyPhraseId
-          || null;
-      }
-      if (!voiceRecordingId) {
-        voiceRecordingId = target.voice_recording_id
-          || target.voiceRecordingId
-          || null;
-      }
-      if (!personaId) {
-        personaId = target.persona_id
-          || target.personaId
-          || null;
-      }
-      if (!voiceId) {
-        voiceId = target.persona_id
-          || target.personaId
-          || target.voiceId
-          || target.voice_id
-          || (Array.isArray(target.resultUrls) && target.resultUrls[0] ? target.resultUrls[0] : null)
-          || (typeof target.resultUrls === 'string' ? target.resultUrls : null)
-          || target.resultUrl
-          || (target.id && !target.task_id ? target.id : null)
-          || null;
-      }
-    }
-
-    if (!phrase) {
-      for (const target of searchTargets) {
-        for (const [k, v] of Object.entries(target)) {
-          if ((k.toLowerCase().includes('phrase') || k.toLowerCase().includes('text')) && typeof v === 'string') {
-            phrase = v;
-            break;
-          }
-        }
-        if (phrase) break;
-      }
-    }
-
-    if (!voiceId) {
-      for (const target of searchTargets) {
-        for (const [k, v] of Object.entries(target)) {
-          if ((k.toLowerCase().includes('voice') || k.toLowerCase().includes('persona')) && typeof v === 'string' && !v.startsWith('http') && v.length < 100) {
-            voiceId = v;
-            break;
-          }
-        }
-        if (voiceId) break;
-      }
-    }
-
-    if (!voiceId && jobState === 'success') {
-      const urls = data?.data?.response?.resultUrls || parsedResult?.resultUrls || (Array.isArray(data?.data?.resultUrls) ? data.data.resultUrls : null);
-      if (Array.isArray(urls) && urls[0]) {
-        voiceId = urls[0];
-      }
-    }
-
-    let accountId = null;
-    for (const target of searchTargets) {
-      if (!accountId) {
-        accountId = target.suno_user_id
-          || target.persona_voice_user_id
-          || target.account_id
-          || target.accountId
-          || null;
-      }
-    }
-
-    // Se voiceId for um taskId de 32 hexadecimais (ex: retornado por create-voice apontando para validation-phrase), busca o persona_id real
-    if (voiceId && !voiceId.includes('-') && voiceId.length === 32 && kieApiKey) {
-      try {
-        const subRes = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${encodeURIComponent(voiceId)}`, {
-          headers: {
-            'Authorization': `Bearer ${kieApiKey}`,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-          signal: AbortSignal.timeout(6000)
-        });
-        if (subRes.ok) {
-          const subData = await subRes.json();
-          const subRaw = subData?.data?.resultJson || subData?.resultJson;
-          let subParsed = null;
-          if (subRaw) {
-            try { subParsed = typeof subRaw === 'string' ? JSON.parse(subRaw) : subRaw; } catch (e) {}
-          }
-          const foundPersona = subParsed?.persona_id
-            || subParsed?.data?.persona_id
-            || subData?.data?.persona_id;
-          if (foundPersona) {
-            personaId = foundPersona;
-            voiceId = foundPersona;
-          }
-          if (!accountId) {
-            accountId = subParsed?.suno_user_id
-              || subParsed?.persona_voice_user_id
-              || subParsed?.account_id
-              || subData?.data?.suno_user_id
-              || null;
-          }
-        }
-      } catch (subErr) {
-        console.warn('[voice/task] Não foi possível inspecionar sub-tarefa:', subErr.message);
-      }
-    }
-
-    const finalVoiceId = personaId || voiceId || null;
-
+    const ready = job.state === 'success';
     return NextResponse.json({
-      ok: true,
-      state: jobState,
-      progress: data?.data?.progress || data?.progress || 0,
-      failMsg: data?.data?.failMsg || data?.failMsg || null,
-      parsedResult,
-      phrase,
-      verifyPhraseId,
-      voiceRecordingId,
-      accountId: accountId || '70147233',
-      personaId: personaId || finalVoiceId,
-      voiceId: finalVoiceId,
-      raw: data
-    });
-  } catch (err) {
-    console.error('[voice/task] Erro ao consultar status:', err.message);
-    return NextResponse.json({ error: err.message || 'Erro ao consultar status.' }, { status: 500 });
+      ok: true, state: job.state, progress: job.progress, failMsg: job.failMsg,
+      phrase: job.phrase, verifyPhraseId: job.verifyPhraseId,
+      voiceRecordingId: job.voiceRecordingId, accountId: job.accountId,
+      voiceId: ready ? voiceTaskId : null, personaId: ready ? voiceTaskId : null,
+    }, { headers: { 'Cache-Control': 'no-store' } });
+  } catch (error) {
+    return NextResponse.json({ error: error.message || 'Erro ao consultar voz.' }, { status: error.status || 502 });
   }
 }

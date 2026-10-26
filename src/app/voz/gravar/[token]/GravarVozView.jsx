@@ -199,8 +199,10 @@ export default function GravarVozView({ token }) {
       for (let i = 0; i < 20; i++) {
         await new Promise((r) => setTimeout(r, 2000));
         const checkRes = await fetch(`/api/admin/voice/task?taskId=${encodeURIComponent(pData.taskId)}&type=phrase`);
+        if (!checkRes.ok) throw new Error((await checkRes.json()).error || 'Não foi possível consultar a frase de validação.');
         if (checkRes.ok) {
           const cData = await checkRes.json().catch(() => ({}));
+          if (cData.state === 'fail') throw new Error(cData.failMsg || 'A IA não conseguiu analisar a amostra de voz.');
           if (cData.phrase) {
             fraseObtida = cData.phrase;
             break;
@@ -208,9 +210,8 @@ export default function GravarVozView({ token }) {
         }
       }
 
-      const nomeCliente = invite?.customerName || 'eu';
-      const fraseFinal = fraseObtida || `Eu, ${nomeCliente}, autorizo o uso do meu timbre de voz para a criação de músicas personalizadas.`;
-      setFraseValidacao(fraseFinal);
+      if (!fraseObtida) throw new Error('A frase de validação ainda não ficou pronta. Tente novamente em instantes.');
+      setFraseValidacao(fraseObtida);
       setEtapa(2);
     } catch (err) {
       console.error('Erro no Passo 1:', err);
@@ -277,6 +278,7 @@ export default function GravarVozView({ token }) {
       for (let i = 0; i < 36; i++) {
         await new Promise((r) => setTimeout(r, 2500));
         const pRes = await fetch(`/api/admin/voice/task?taskId=${encodeURIComponent(cData.taskId)}&type=job`);
+        if (!pRes.ok) throw new Error((await pRes.json()).error || 'Não foi possível consultar a validação da voz.');
         if (pRes.ok) {
           const poll = await pRes.json().catch(() => ({}));
           if (poll.state === 'fail' || poll.state === 'FAILED') {
@@ -284,7 +286,7 @@ export default function GravarVozView({ token }) {
             failReason = poll.failMsg || 'A gravação não coincidiu com a frase solicitada.';
             break;
           }
-          if (poll.voiceId || poll.personaId) {
+          if (poll.state === 'success' && (poll.voiceId || poll.personaId)) {
             createdVoiceId = poll.voiceId || poll.personaId;
             createdRecordId = poll.voiceRecordingId || poll.voice_recording_id || '';
             break;

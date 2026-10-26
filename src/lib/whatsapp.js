@@ -59,8 +59,6 @@ export async function shouldBlockWhatsAppMessage(phone, message, env = {}) {
       console.warn(`[WhatsApp Anti-Spam] Mensagem de ${lockType} para ${cleanPhone} descartada (cooldown de 15min ativo, enviado há ${Math.round((now - lastSent) / 1000)}s).`);
       return { block: true, reason: `${lockType}_cooldown` };
     }
-    // Trava imediatamente na memória de forma síncrona
-    memoryMap.set(cleanPhone, now);
 
     // Trava distribuída na tabela config do Supabase (para proteger entre múltiplos workers da Cloudflare e requisições simultâneas)
     try {
@@ -76,11 +74,6 @@ export async function shouldBlockWhatsAppMessage(phone, message, env = {}) {
             return { block: true, reason: `${lockType}_distributed_lock` };
           }
         }
-        await supabase.from('config').upsert({
-          chave: lockKey,
-          valor: { at: new Date().toISOString() },
-          updated_at: new Date().toISOString()
-        });
       }
     } catch (e) {
       console.warn('[WhatsApp Anti-Spam] Erro ao verificar trava distribuída em config:', e.message);
@@ -97,6 +90,30 @@ export async function shouldBlockWhatsAppMessage(phone, message, env = {}) {
   }
 
   return { block: false };
+}
+
+/**
+ * Consolida a trava de envio com sucesso após confirmação do provedor (Cloud API ou Evolution).
+ */
+export async function recordWhatsAppSentSuccess(phone, type = 'music_ready', env = {}) {
+  const cleanPhone = String(phone || '').replace(/\D/g, '');
+  if (!cleanPhone) return;
+  const memoryMap = type === 'payment' ? inMemoryPaymentConfirmedLocks : inMemoryMusicReadyLocks;
+  memoryMap.set(cleanPhone, Date.now());
+
+  try {
+    const { getSupabaseEdge } = await import('./supabase-edge.js');
+    const supabase = getSupabaseEdge(env);
+    if (supabase) {
+      await supabase.from('config').upsert({
+        chave: `lock_${type}_sent_${cleanPhone}`,
+        valor: { at: new Date().toISOString() },
+        updated_at: new Date().toISOString()
+      });
+    }
+  } catch (e) {
+    console.warn(`[WhatsApp Anti-Spam] Erro ao registrar trava de sucesso para ${cleanPhone}:`, e.message);
+  }
 }
 
 let cachedEvoConfig = null;
@@ -400,7 +417,10 @@ export const sendMusicReadyTemplate = async (phone, { customerName, honoreeName,
       link: url,
     };
     const res = await enviarMusicaProntaCloud(phone, payload, env);
-    if (res.success) return res;
+    if (res.success) {
+      await recordWhatsAppSentSuccess(phone, 'music_ready', env);
+      return res;
+    }
     cloudError = res.error || 'falha';
     console.warn(`[WhatsApp] Meta Cloud API não conseguiu enviar música pronta (${cloudError}). Tentando contingência via Evolution API...`);
   }
@@ -417,7 +437,10 @@ ${url}
 
 ⚠️ *Esta é uma mensagem automática.* Caso precise de suporte ou queira falar conosco, chame o administrador no WhatsApp: https://wa.me/${cleanSupport}`;
     const evoRes = await sendEvolutionTextMessage(phone, message, env);
-    if (evoRes.success) return evoRes;
+    if (evoRes.success) {
+      await recordWhatsAppSentSuccess(phone, 'music_ready', env);
+      return evoRes;
+    }
     return { success: false, error: `${cloudError ? `cloud_api: ${cloudError} | ` : ''}evolution: ${evoRes.error}` };
   }
 
@@ -472,7 +495,10 @@ export const sendPaymentApprovedTemplate = async (phone, { customerName, honoree
       audio1: v1,
       audio2: v2,
     }, env);
-    if (res.success) return res;
+    if (res.success) {
+      await recordWhatsAppSentSuccess(phone, 'payment', env);
+      return res;
+    }
     cloudError = res.error || 'falha';
     console.warn(`[WhatsApp] Meta Cloud API não conseguiu enviar pagamento aprovado (${cloudError}). Tentando contingência via Evolution API...`);
   }
@@ -497,7 +523,10 @@ ${url}${videoBlock}
 Qualquer dúvida ou se precisar de alguma coisa, é só me chamar por aqui! Muito obrigado pela confiança! 💜`;
 
     const evoRes = await sendEvolutionTextMessage(phone, message, env);
-    if (evoRes.success) return evoRes;
+    if (evoRes.success) {
+      await recordWhatsAppSentSuccess(phone, 'payment', env);
+      return evoRes;
+    }
     return { success: false, error: `${cloudError ? `cloud_api: ${cloudError} | ` : ''}evolution: ${evoRes.error}` };
   }
 

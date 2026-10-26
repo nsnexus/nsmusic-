@@ -67,6 +67,26 @@ beforeEach(() => {
 });
 
 describe('GET /api/suno/status — Timeout de 3 minutos e Failover para Kie.ai', () => {
+  it('consulta música de voz na API jobs sem disparar failover de geração', async () => {
+    process.env.KIE_API_KEY = 'kie-test';
+    store.tasks['voice-song'] = { orderId: 'test-order', provider: 'kie', result: { kieTaskApi: 'jobs' } };
+    global.fetch.mockResolvedValueOnce({ ok: true, json: async () => ({ code: 200, data: { state: 'success', resultJson: JSON.stringify({ data: [{ audioUrl: 'https://cdn1.suno.ai/voice.mp3' }] }) } }) });
+    const res = await GET(new Request('http://localhost/api/suno/status?taskId=voice-song'));
+    expect((await res.json()).status).toBe('COMPLETED');
+    expect(global.fetch.mock.calls[0][0]).toContain('/jobs/recordInfo');
+    expect(autoRetryCalls).toEqual([]);
+    expect(updateTaskResultCalls[0][2]).toBe('test-order');
+  });
+
+  it('mantém voz pendente na API jobs sem gerar outra música', async () => {
+    process.env.KIE_API_KEY = 'kie-test';
+    store.tasks['voice-song'] = { orderId: 'test-order', provider: 'kie', result: { kieTaskApi: 'jobs' } };
+    global.fetch.mockResolvedValueOnce({ ok: true, json: async () => ({ code: 200, data: { state: 'generating' } }) });
+    const res = await GET(new Request('http://localhost/api/suno/status?taskId=voice-song'));
+    expect((await res.json()).status).toBe('PROCESSING');
+    expect(autoRetryCalls).toEqual([]);
+    expect(updateTaskResultCalls).toEqual([]);
+  });
   it('quando tarefa Unifically tem menos de 3 minutos e está processando, mantém PROCESSING', async () => {
     process.env.UNIFICALLY_API_KEY = 'unif-secret';
     process.env.KIE_API_KEY = 'kie-secret';

@@ -6,6 +6,13 @@
 
 ## Visão geral
 
+### Clonagem de voz — correção de protocolo em 26/10/2026
+
+- `src/lib/kieVoice.js:readKieJob`, `buildVoiceSongPayload`, `readKieSongTracks`: normalização do contrato atual da Kie.ai, sem substituir o Voice ID por persona interna ou IDs fixos de outra gravação.
+- `src/app/api/admin/voice/task/route.js:POST/GET`: a criação envia `create-voice`, mas acompanha a tarefa original `validation-phrase` até `success`; somente esse ID validado é usado para gerar música em `jobs/createTask`. Consultas de músicas antigas preservam fallback ao endpoint legado.
+- `src/app/api/suno/status/route.js:GET` reconhece `result.kieTaskApi=jobs` nas novas tarefas de voz; `src/lib/db.js:extractAudioTracks` também lê `resultJson` nos callbacks. Telas de convite, entrega e laboratório aguardam a confirmação real e não inventam frase de validação.
+- Validação local com respostas simuladas em `tests/unit/voice-task-route.test.js`, `suno-status-route.test.js` e `extractAudioTracks.test.js`. Sem publicação ou teste com gravação real confirmado nesta alteração.
+
 ### Experiência do cliente — 19/10/2026 (implementação local)
 
 - `src/components/creation/CreationSteps.jsx`: quatro etapas do formulário; `StudioProgress.jsx`: espera da geração.

@@ -6,6 +6,11 @@ import { extractAudioTracks } from '@/lib/db';
 // Ver docs/audit/FIX_PLAN.md, Lote 0.
 
 describe('extractAudioTracks', () => {
+  it('extrai faixas do resultJson de callbacks da API jobs usada na voz clonada', () => {
+    const tracks = extractAudioTracks({ data: { resultJson: JSON.stringify({ data: [{ id: 'voice-track', audio_url: 'https://cdn1.suno.ai/voice.mp3' }] }) } });
+    expect(tracks).toHaveLength(1);
+    expect(tracks[0].audioUrl).toBe('https://cdn1.suno.ai/voice.mp3');
+  });
   it('retorna [] para entrada vazia/nula', () => {
     expect(extractAudioTracks(null)).toEqual([]);
     expect(extractAudioTracks(undefined)).toEqual([]);

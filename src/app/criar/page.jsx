@@ -72,6 +72,9 @@ export default function CriarMusica() {
   const [isSelfTribute, setIsSelfTribute] = useState(false);
   const [customLyricsMode, setCustomLyricsMode] = useState(false);
   const [pastedLyricsText, setPastedLyricsText] = useState('');
+  const [isEditingLyricsDirectly, setIsEditingLyricsDirectly] = useState(false);
+  const [editingLyricsText, setEditingLyricsText] = useState('');
+  const [lyricsSaveSuccess, setLyricsSaveSuccess] = useState(false);
   const [creationError, setCreationError] = useState('');
 
   useEffect(() => { readReferralCode(); }, []);
@@ -1288,6 +1291,29 @@ export default function CriarMusica() {
     }
   };
 
+  const handleSaveDirectLyrics = async () => {
+    const trimmed = (editingLyricsText || '').trim();
+    if (trimmed.length < 15) {
+      alert('A letra precisa ter pelo menos 15 caracteres.');
+      return;
+    }
+    updateField('lyrics', trimmed);
+    setIsEditingLyricsDirectly(false);
+    setLyricsSaveSuccess(true);
+    setTimeout(() => setLyricsSaveSuccess(false), 4000);
+    if (orderId) {
+      try {
+        await fetch('/api/orders/client-update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderId, lyrics: trimmed }),
+        });
+      } catch (e) {
+        console.warn('Erro ao sincronizar letra editada:', e);
+      }
+    }
+  };
+
   // Step 9 Approval -> Move to Audio Generation preview screen (Step 10) or WhatsApp (Contingency)
   const handleApproveLyrics = async () => {
     if (isSubmitting) return;
@@ -1448,6 +1474,13 @@ export default function CriarMusica() {
                   productionStatus: 'AUDIO_GERADO'
                 })
               }).catch(e => console.warn("Aviso ao atualizar ordem:", e));
+
+              // Dispara garantia da notificação de música pronta no WhatsApp
+              fetch('/api/whatsapp/notify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ orderId: targetOrder })
+              }).catch(e => console.warn("[criar] Aviso ao disparar notificação:", e));
 
               // sunoStatus fica em 'generating' (tela de loading, com o CTA de WhatsApp já visível)
               // até aqui de propósito — só vira 'generated' (tela de prévia com os players, mais
@@ -1965,11 +1998,142 @@ export default function CriarMusica() {
                 
                 <div className="responsive-grid-split">
                   <div style={styles.lyricsBox}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                      <span style={{ fontSize: '0.82rem', fontWeight: '800', letterSpacing: '0.04em', color: '#64748b', textTransform: 'uppercase' }}>LETRA DA MÚSICA</span>
-                      <span style={styles.stepIndicator}>Versão {formData.lyricsVersion}</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <span style={{ fontSize: '0.82rem', fontWeight: '800', letterSpacing: '0.04em', color: '#64748b', textTransform: 'uppercase' }}>LETRA DA MÚSICA</span>
+                        <span style={styles.stepIndicator}>Versão {formData.lyricsVersion}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (isEditingLyricsDirectly) {
+                            setIsEditingLyricsDirectly(false);
+                          } else {
+                            setEditingLyricsText(formData.lyrics || '');
+                            setIsEditingLyricsDirectly(true);
+                            setLyricsSaveSuccess(false);
+                          }
+                        }}
+                        style={{
+                          background: isEditingLyricsDirectly ? '#f1f5f9' : '#f5f3ff',
+                          border: `1px solid ${isEditingLyricsDirectly ? '#cbd5e1' : '#ddd6fe'}`,
+                          color: isEditingLyricsDirectly ? '#475569' : 'var(--primary)',
+                          padding: '6px 14px',
+                          borderRadius: '10px',
+                          fontSize: '0.82rem',
+                          fontWeight: '700',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          transition: 'all 0.2s ease',
+                        }}
+                      >
+                        <span>{isEditingLyricsDirectly ? '✕ Cancelar Edição' : '✏️ Editar Letra'}</span>
+                      </button>
                     </div>
-                    <pre style={{ ...styles.lyricsText, color: '#0f172a', lineHeight: 1.75 }}>{formData.lyrics}</pre>
+
+                    {lyricsSaveSuccess && (
+                      <div style={{ padding: '10px 14px', borderRadius: '10px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', color: '#166534', fontSize: '0.85rem', fontWeight: '700', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span>✅</span>
+                        <span>Letra atualizada com sucesso! Esta versão será utilizada na gravação da sua música.</span>
+                      </div>
+                    )}
+
+                    {isEditingLyricsDirectly ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        <p style={{ fontSize: '0.85rem', color: '#64748b', margin: 0 }}>
+                          Você pode alterar qualquer palavra, estrofe ou refrão livremente abaixo:
+                        </p>
+                        <textarea
+                          value={editingLyricsText}
+                          onChange={(e) => setEditingLyricsText(e.target.value)}
+                          placeholder="Escreva ou altere a letra da sua música aqui..."
+                          style={{
+                            width: '100%',
+                            minHeight: '380px',
+                            padding: '16px',
+                            borderRadius: '14px',
+                            border: '2px solid var(--primary)',
+                            fontSize: '0.98rem',
+                            lineHeight: '1.7',
+                            fontFamily: 'inherit',
+                            color: '#0f172a',
+                            backgroundColor: '#ffffff',
+                            outline: 'none',
+                            boxSizing: 'border-box',
+                            resize: 'vertical',
+                            boxShadow: '0 0 0 4px rgba(124, 58, 237, 0.08)',
+                          }}
+                        />
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', color: '#64748b' }}>
+                          <span>Dica: Mantenha as indicações como [Verso] e [Refrão] para guiar o arranjo vocal.</span>
+                          <span>{(editingLyricsText || '').length} caracteres</span>
+                        </div>
+                        <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
+                          <button
+                            type="button"
+                            onClick={handleSaveDirectLyrics}
+                            className="btn btn-primary"
+                            style={{
+                              flex: 1,
+                              padding: '12px',
+                              fontSize: '0.92rem',
+                              fontWeight: '800',
+                              borderRadius: '10px',
+                              cursor: 'pointer',
+                              background: 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)',
+                              color: '#ffffff',
+                              border: 'none',
+                            }}
+                          >
+                            💾 Salvar Alterações na Letra
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setIsEditingLyricsDirectly(false)}
+                            className="btn btn-secondary"
+                            style={{
+                              padding: '12px 18px',
+                              fontSize: '0.88rem',
+                              borderRadius: '10px',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <pre style={{ ...styles.lyricsText, color: '#0f172a', lineHeight: 1.75 }}>{formData.lyrics}</pre>
+                        <div style={{ marginTop: '16px', paddingTop: '14px', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'flex-end' }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingLyricsText(formData.lyrics || '');
+                              setIsEditingLyricsDirectly(true);
+                              setLyricsSaveSuccess(false);
+                            }}
+                            style={{
+                              background: '#f8fafc',
+                              border: '1px solid #cbd5e1',
+                              color: '#334155',
+                              padding: '8px 14px',
+                              borderRadius: '8px',
+                              fontSize: '0.82rem',
+                              fontWeight: '700',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                            }}
+                          >
+                            <span>✏️ Editar esta letra você mesmo</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                   
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', backgroundColor: '#ffffff', borderRadius: '24px', border: '1px solid #eef2f6', padding: '24px 22px', boxShadow: '0 10px 40px rgba(0,0,0,0.04)' }}>

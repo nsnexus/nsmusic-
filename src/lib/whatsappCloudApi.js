@@ -37,8 +37,14 @@ export function getCloudApiConfig(env = {}) {
     token,
     phoneNumberId,
     // Nomes dos templates aprovados, configuráveis por variável para não exigir deploy quando um
-    // template for recriado com outro nome (acontece: reprovação da Meta obriga a refazer).
-    templateMusicaPronta: ler('WHATSAPP_TEMPLATE_MUSICA') || 'aviso_musica_pronta',
+    // template for recriado com outro nome.
+    // Se a env apontar para um template legado que exige vídeo no header (ex: entrega_pedido_musica_video),
+    // utiliza o modelo oficial de texto 'aviso_musica_pronta' aprovado na Meta.
+    templateMusicaPronta: (() => {
+      const t = ler('WHATSAPP_TEMPLATE_MUSICA');
+      const isVideoTpl = ['entrega_pedido_musica_video', 'notificacao_pedido_pronto', 'atualizacao_pedido_musica', 'status_pedido_musica_video'].includes(t);
+      return (!t || isVideoTpl) ? 'aviso_musica_pronta' : t;
+    })(),
     templateMusicaProntaVideo: ler('WHATSAPP_TEMPLATE_MUSICA_VIDEO') || 'entrega_pedido_musica_video',
     templatePagamento: ler('WHATSAPP_TEMPLATE_PAGAMENTO') || 'confirmacao_pagamento_v2',
     templatePagamentoDownloads: ler('WHATSAPP_TEMPLATE_PAGAMENTO_DOWNLOADS') || 'confirmacao_pagamento_downloads',
@@ -173,13 +179,20 @@ export async function enviarMusicaProntaCloud(phone, { cliente, homenageado, lin
   const numSuporte = normalizarNumeroWhatsapp(cfgSite?.whatsappSuporte) || WHATSAPP_SUPORTE_PADRAO;
   const linkSuporte = `https://wa.me/${numSuporte}`;
 
-  return sendCloudApiTemplate(
-    phone,
-    config.templateMusicaPronta,
-    [cliente, homenageado, link, linkSuporte],
-    {},
-    env
-  );
+  const templateToUse = config.templateMusicaPronta || 'aviso_musica_pronta';
+  const variaveis = [cliente, homenageado, link, linkSuporte];
+
+  const res = await sendCloudApiTemplate(phone, templateToUse, variaveis, {}, env);
+  if (res.success) return res;
+
+  // Se falhou e o template usado não foi o modelo oficial sem vídeo 'aviso_musica_pronta', tenta ele agora
+  if (templateToUse !== 'aviso_musica_pronta') {
+    console.warn(`[CloudAPI] Template ${templateToUse} falhou, tentando fallback para o modelo oficial 'aviso_musica_pronta'...`);
+    const fallbackRes = await sendCloudApiTemplate(phone, 'aviso_musica_pronta', variaveis, {}, env);
+    if (fallbackRes.success) return fallbackRes;
+  }
+
+  return res;
 }
 
 /**

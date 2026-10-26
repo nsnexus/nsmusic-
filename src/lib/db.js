@@ -1,6 +1,7 @@
 import { getOrder, updateOrder, getSunoTask, saveSunoTask } from './supabaseDb.js';
 import { sendMusicReadyTemplate } from './whatsapp.js';
 import { resolveDeliveryUrl } from './whatsappTemplates.js';
+import { readKieJob, readKieSongTracks } from './kieVoice.js';
 
 export const getTask = async (taskId, env = {}) => {
   if (!taskId) return null;
@@ -43,6 +44,10 @@ function extractNumberedAudioTracks(obj) {
 
 export const extractAudioTracks = (result) => {
   if (!result) return [];
+  if (result?.data?.resultJson || result?.resultJson) {
+    const jobTracks = readKieSongTracks(readKieJob(result));
+    if (jobTracks.length) return extractAudioTracks({ data: jobTracks });
+  }
   
   let rawTracks = [];
   if (Array.isArray(result)) {
@@ -190,9 +195,12 @@ export const updateTaskResult = async (taskId, result, overrideOrderId = null, e
       const historyHasTask = Array.isArray(orderData.audioHistory) &&
         orderData.audioHistory.some(h => h.taskId === taskId && !h.active);
 
-      if (historyHasTask) {
+      // Só pode ser considerada tarefa defasada se o pedido JÁ POSSUI áudio ativo gravado
+      const jaTemAudioAtivo = Boolean(orderData.audioUrl || (Array.isArray(orderData.audioFiles) && orderData.audioFiles.length > 0));
+
+      if (historyHasTask && jaTemAudioAtivo) {
         isOlderTask = true;
-      } else if (orderData.sunoTaskId && orderData.sunoTaskId !== taskId) {
+      } else if (orderData.sunoTaskId && orderData.sunoTaskId !== taskId && jaTemAudioAtivo) {
         if (orderData.productionStatus === 'GERANDO_AUDIO') {
           // O pedido está gerando ativamente orderData.sunoTaskId; este callback de outro taskId é defasado
           isOlderTask = true;
@@ -343,8 +351,19 @@ export const notifyMusicReady = async (orderRefOrId, orderData, orderIdParam, op
     try {
       freshData = await getOrder(orderId, env);
       if (freshData) {
-        if (!freshData.whatsappSent && !freshData.readyTemplateSent && !freshData.whatsappSending && !freshData.readyTemplateSending) {
-          await updateOrder(orderId, { whatsappSending: true, readyTemplateSending: true }, env);
+        const isSendingStale = (freshData.whatsappSending || freshData.readyTemplateSending) &&
+          freshData.whatsappSendingAt &&
+          (Date.now() - new Date(freshData.whatsappSendingAt).getTime() > 120000);
+
+        const isNotSent = !freshData.whatsappSent && !freshData.readyTemplateSent;
+        const isNotSendingOrStale = (!freshData.whatsappSending && !freshData.readyTemplateSending) || isSendingStale;
+
+        if (isNotSent && isNotSendingOrStale) {
+          await updateOrder(orderId, {
+            whatsappSending: true,
+            readyTemplateSending: true,
+            whatsappSendingAt: new Date().toISOString()
+          }, env);
           shouldSend = true;
         }
       }
