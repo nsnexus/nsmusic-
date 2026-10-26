@@ -6,7 +6,7 @@ export const runtime = 'edge';
 
 export async function POST(req) {
   try {
-    const { prompt, tags, orderId } = await req.json();
+    const { prompt, tags, orderId, useCustomVoice } = await req.json();
 
     if (!prompt?.trim() || !tags?.trim()) {
       return NextResponse.json({ error: 'Estilo musical e detalhes do homenageado são obrigatórios.' }, { status: 400 });
@@ -37,7 +37,7 @@ export async function POST(req) {
     // A chamada de fato à Kie.ai e a persistência do vínculo taskId->orderId vivem em
     // src/lib/suno.js — compartilhado com a retentativa automática (polling em tempo real e
     // reconciliação por cron), para as três nunca divergirem no que significa "gerar uma música".
-    const persistPromise = requestSunoGeneration({ orderId, prompt, tags }, env);
+    const persistPromise = requestSunoGeneration({ orderId, prompt, tags, useCustomVoice }, env);
 
     // Envolvido em waitUntil: se o cliente fechar a aba/desconectar bem aqui, o Cloudflare pode
     // cancelar o resto da execução do Worker antes desse await terminar — a Kie.ai já recebeu e vai

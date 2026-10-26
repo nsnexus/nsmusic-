@@ -55,6 +55,7 @@ export default function OrderDetailsAdmin() {
   const [copiedTags, setCopiedTags] = useState(false);
 
   const [sunoPrompt, setSunoPrompt] = useState('');
+  const [useCustomVoice, setUseCustomVoice] = useState(false);
 
   // Suno AI direct generation states
   const [generatingSuno, setGeneratingSuno] = useState(false);
@@ -147,6 +148,8 @@ export default function OrderDetailsAdmin() {
           // com a MESMA função usada na geração normal do cliente, pra nunca divergir (ver topo de
           // src/lib/sunoPayload.js).
           setSunoPrompt(data.sunoPrompt || buildSunoPayload(data).tags);
+          const hasClonedVoice = Boolean(data.isCustomVoice || data.customVoiceId || data.extras?.isCustomVoice || data.extras?.customVoiceId);
+          setUseCustomVoice(hasClonedVoice);
           if (Array.isArray(data.audioHistory)) {
             setAudioHistory(data.audioHistory);
           }
@@ -612,6 +615,67 @@ export default function OrderDetailsAdmin() {
 
   const getSunoStylePrompt = () => buildSunoPayload(order || {}).tags;
 
+  const setVoiceTag = (type) => {
+    let current = sunoPrompt || getSunoStylePrompt();
+    current = current
+      .replace(/duet male and female vocalists, alternating verses, harmonized chorus/gi, '')
+      .replace(/duet male and female vocalists/gi, '')
+      .replace(/male lead vocal/gi, '')
+      .replace(/female lead vocal/gi, '')
+      .trim();
+
+    let tagToAdd = '';
+    if (type === 'masculina') tagToAdd = 'male lead vocal';
+    else if (type === 'feminina') tagToAdd = 'female lead vocal';
+    else if (type === 'dueto') tagToAdd = 'duet male and female vocalists';
+
+    if (tagToAdd) {
+      if (current.includes('brazilian portuguese lyrics')) {
+        current = current.replace(/,?\s*brazilian portuguese lyrics/i, `, ${tagToAdd}, brazilian portuguese lyrics`);
+      } else {
+        current = `${current}, ${tagToAdd}`;
+      }
+    }
+    current = current.replace(/,\s*,/g, ',').replace(/^\s*,\s*/, '').replace(/,\s*$/, '').trim();
+    setSunoPrompt(current);
+  };
+
+  const handleDetachCustomVoice = async () => {
+    if (!confirm('Deseja desvincular a voz clonada deste pedido? As próximas gerações usarão as vozes normais de estúdio do Suno.')) return;
+    try {
+      const token = await getAdminAuthToken();
+      await fetch('/api/orders/update', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({
+          orderId,
+          isCustomVoice: false,
+          customVoiceId: null,
+          voiceType: 'solo',
+          extras: {
+            ...(order?.extras || {}),
+            isCustomVoice: false,
+            customVoiceId: null,
+          }
+        })
+      });
+      setUseCustomVoice(false);
+      setOrder(prev => ({
+        ...prev,
+        isCustomVoice: false,
+        customVoiceId: null,
+        voiceType: 'solo',
+        extras: { ...(prev?.extras || {}), isCustomVoice: false, customVoiceId: null }
+      }));
+      alert('Voz clonada desvinculada com sucesso!');
+    } catch (e) {
+      alert('Erro ao desvincular voz: ' + e.message);
+    }
+  };
+
   const handleGenerateSuno = async () => {
     if (!lyrics.trim()) {
       alert('Por favor, informe a letra da música antes de gerar no Suno AI.');
@@ -649,7 +713,8 @@ export default function OrderDetailsAdmin() {
         body: JSON.stringify({
           prompt: lyrics,
           tags: tagsFinal,
-          orderId
+          orderId,
+          useCustomVoice
         })
       });
 
@@ -1345,6 +1410,117 @@ export default function OrderDetailsAdmin() {
                     style={{ ...styles.input, maxWidth: '100%', boxSizing: 'border-box' }}
                   />
                 </div>
+
+                {/* Seletores rápidos de tipo de voz para o prompt */}
+                <div style={{ marginBottom: '16px' }}>
+                  <span style={{ fontSize: '0.78rem', fontWeight: '700', color: '#475569', display: 'block', marginBottom: '6px' }}>
+                    🎤 Tipo de Voz no Prompt (Tags):
+                  </span>
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      onClick={() => setVoiceTag('masculina')}
+                      style={{
+                        fontSize: '0.75rem',
+                        padding: '5px 10px',
+                        borderRadius: '6px',
+                        border: sunoPrompt.includes('male lead vocal') && !sunoPrompt.includes('female') ? '1.5px solid #2563eb' : '1px solid #cbd5e1',
+                        background: sunoPrompt.includes('male lead vocal') && !sunoPrompt.includes('female') ? '#eff6ff' : '#ffffff',
+                        color: sunoPrompt.includes('male lead vocal') && !sunoPrompt.includes('female') ? '#1d4ed8' : '#334155',
+                        fontWeight: '700',
+                        cursor: 'pointer'
+                      }}
+                      title="Força voz masculina no Suno (male lead vocal)"
+                    >
+                      👨 Masculina
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setVoiceTag('feminina')}
+                      style={{
+                        fontSize: '0.75rem',
+                        padding: '5px 10px',
+                        borderRadius: '6px',
+                        border: sunoPrompt.includes('female lead vocal') ? '1.5px solid #db2777' : '1px solid #cbd5e1',
+                        background: sunoPrompt.includes('female lead vocal') ? '#fdf2f8' : '#ffffff',
+                        color: sunoPrompt.includes('female lead vocal') ? '#be185d' : '#334155',
+                        fontWeight: '700',
+                        cursor: 'pointer'
+                      }}
+                      title="Força voz feminina no Suno (female lead vocal)"
+                    >
+                      👩 Feminina
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setVoiceTag('dueto')}
+                      style={{
+                        fontSize: '0.75rem',
+                        padding: '5px 10px',
+                        borderRadius: '6px',
+                        border: sunoPrompt.includes('duet') ? '1.5px solid #7c3aed' : '1px solid #cbd5e1',
+                        background: sunoPrompt.includes('duet') ? '#f5f3ff' : '#ffffff',
+                        color: sunoPrompt.includes('duet') ? '#6d28d9' : '#334155',
+                        fontWeight: '700',
+                        cursor: 'pointer'
+                      }}
+                      title="Força dueto masculino e feminino no Suno"
+                    >
+                      👫 Dueto
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setVoiceTag('nenhuma')}
+                      style={{
+                        fontSize: '0.75rem',
+                        padding: '5px 10px',
+                        borderRadius: '6px',
+                        border: '1px solid #cbd5e1',
+                        background: '#f8fafc',
+                        color: '#64748b',
+                        fontWeight: '600',
+                        cursor: 'pointer'
+                      }}
+                      title="Remove a especificação de gênero da voz e deixa a IA decidir"
+                    >
+                      🚫 Sem preferência
+                    </button>
+                  </div>
+                </div>
+
+                {/* Se o pedido possui Voz Clonada (Minha Voz) */}
+                {Boolean(order?.customVoiceId || order?.isCustomVoice || order?.extras?.customVoiceId || order?.extras?.isCustomVoice) && (
+                  <div style={{ marginBottom: '16px', padding: '12px 14px', borderRadius: '10px', background: useCustomVoice ? '#f5f3ff' : '#f8fafc', border: `1.5px solid ${useCustomVoice ? '#c4b5fd' : '#cbd5e1'}` }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.84rem', fontWeight: '700', color: useCustomVoice ? '#6d28d9' : '#475569', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={useCustomVoice}
+                          onChange={(e) => setUseCustomVoice(e.target.checked)}
+                          style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                        />
+                        🎙️ Usar Voz Clonada da Cliente nesta geração
+                      </label>
+                      <span style={{ fontSize: '0.72rem', padding: '2px 8px', borderRadius: '4px', background: useCustomVoice ? '#ede9fe' : '#e2e8f0', color: useCustomVoice ? '#5b21b6' : '#64748b', fontWeight: '700' }}>
+                        {useCustomVoice ? 'Clonagem Ativa' : 'Voz Padrão Ativa'}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px', gap: '8px', flexWrap: 'wrap' }}>
+                      <p style={{ margin: 0, fontSize: '0.76rem', color: useCustomVoice ? '#7c3aed' : '#059669', fontWeight: '600' }}>
+                        {useCustomVoice
+                          ? `Usando timbre clonado (Persona ID: ${order?.customVoiceId || order?.extras?.customVoiceId || 'Vinculada'}). Desmarque para gerar com voz padrão.`
+                          : '✓ A próxima geração usará vozes normais do Suno (sem o timbre da cliente).'}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleDetachCustomVoice}
+                        style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '0.74rem', fontWeight: '700', textDecoration: 'underline', cursor: 'pointer', padding: 0 }}
+                      >
+                        Desvincular voz permanentemente
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', minWidth: 0, maxWidth: '100%' }}>
                   <button 

@@ -99,13 +99,13 @@ export async function resolvePrimaryProvider(env = {}) {
  * @param {object} env
  * @returns {Promise<{ok: true, taskId: string, provider: string} | {ok: false, error: string, status: number}>}
  */
-export async function requestSunoGeneration({ orderId, prompt, tags, preferredProvider = null }, env = {}) {
+export async function requestSunoGeneration({ orderId, prompt, tags, preferredProvider = null, useCustomVoice = true }, env = {}) {
   const unificallyKey = readEnvValue(env, 'UNIFICALLY_API_KEY');
   const kieKey = readEnvValue(env, 'KIE_API_KEY');
 
   // Verifica se o pedido utiliza voz personalizada do cliente (clonagem de timbre)
   let isCustomVoiceOrder = false;
-  if (orderId) {
+  if (orderId && useCustomVoice !== false) {
     try {
       const order = await getOrder(orderId, env);
       if (
@@ -192,7 +192,7 @@ export async function requestSunoGeneration({ orderId, prompt, tags, preferredPr
       if (!kieKey) {
         return { ok: false, error: 'Configuração ausente: KIE_API_KEY não definida no servidor.', status: 500 };
       }
-      return gerarPelaKie({ orderId, prompt, tags }, env);
+      return gerarPelaKie({ orderId, prompt, tags, useCustomVoice }, env);
     }
     return { ok: false, error: `Provedor desconhecido: ${prov}`, status: 400 };
   };
@@ -342,7 +342,7 @@ async function gerarPelaUnifically({ orderId, prompt, tags }, env) {
   return { ok: true, taskId, provider: PROVIDER_UNIFICALLY };
 }
 
-async function gerarPelaKie({ orderId, prompt, tags }, env) {
+async function gerarPelaKie({ orderId, prompt, tags, useCustomVoice = true }, env) {
   const apiKey = readEnvValue(env, 'KIE_API_KEY');
   if (!apiKey) {
     console.error('[suno] Variável de ambiente KIE_API_KEY não configurada.');
@@ -361,7 +361,7 @@ async function gerarPelaKie({ orderId, prompt, tags }, env) {
 
   // Suporte a voz personalizada do cliente (timbre clonado)
   let voicePayload = {};
-  if (orderId) {
+  if (orderId && useCustomVoice !== false) {
     try {
       const order = await getOrder(orderId, env);
       const vId = order?.customVoiceId || order?.extras?.customVoiceId;
