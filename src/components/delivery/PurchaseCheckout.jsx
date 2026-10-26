@@ -58,6 +58,7 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [pixCopied, setPixCopied] = useState(false);
   const [checking, setChecking] = useState(false);
   const [balance, setBalance] = useState(null);
   const [needsClaim, setNeedsClaim] = useState(false);
@@ -101,7 +102,7 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
         if (!stopped && response.ok && data.status === 'approved') { onApproved(); return; }
       } catch {}
       if (!stopped && ++attempts.current < 150) timer = setTimeout(poll, 4000);
-      else if (!stopped) setMessage('A confirmação ainda não chegou. Se você já pagou, use “Já paguei” para consultar novamente.');
+      else if (!stopped) setMessage('A confirmação do PIX ainda não chegou. O sistema identifica o pagamento automaticamente assim que o banco processar.');
     };
     timer = setTimeout(poll, 4000);
     return () => { stopped = true; clearTimeout(timer); };
@@ -512,8 +513,8 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
             disabled={busy || payingCard}
             onClick={generate}
             style={{
-              padding: '14px 22px',
-              fontSize: '0.98rem',
+              padding: '14px 26px',
+              fontSize: '1rem',
               fontWeight: '700',
               borderRadius: '12px',
               background: 'var(--nx-purple, #67408b)',
@@ -522,30 +523,12 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
               cursor: (busy || payingCard) ? 'default' : 'pointer',
               boxShadow: '0 4px 14px rgba(103, 64, 139, 0.25)',
               whiteSpace: 'nowrap',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
             }}
           >
-            {busy ? 'Preparando seu PIX…' : (<><span style={{ marginRight: '6px' }}>Adquirir meu presente (PIX)</span><ArrowRight size={18} aria-hidden="true" /></>)}
-          </button>
-
-          <button
-            type="button"
-            className="nx-button"
-            disabled={busy || payingCard}
-            onClick={payWithCard}
-            style={{
-              padding: '14px 20px',
-              fontSize: '0.98rem',
-              fontWeight: '700',
-              borderRadius: '12px',
-              background: '#ffffff',
-              color: '#29232d',
-              border: '1.5px solid #cbd5e1',
-              cursor: (busy || payingCard) ? 'default' : 'pointer',
-              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {payingCard ? 'Abrindo Cartão…' : '💳 Pagar no Cartão'}
+            {busy ? 'Preparando seu PIX…' : (<><span style={{ marginRight: '6px' }}>Pagar Agora</span><ArrowRight size={18} aria-hidden="true" /></>)}
           </button>
         </div>
       </div>
@@ -658,30 +641,45 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
                 Copie o código abaixo, abra o aplicativo do seu banco e escolha <strong>PIX Copia e Cola</strong>. A aprovação é imediata:
               </p>
 
-              <div className="nx-checkout-actions" style={{ display: 'flex', gap: '10px', marginBottom: '14px', flexWrap: 'wrap' }}>
+              <div className="nx-checkout-actions" style={{ marginBottom: '14px' }}>
                 <button
                   type="button"
                   className="nx-button nx-primary"
                   onClick={async () => {
                     try {
                       await navigator.clipboard.writeText(pix.qrCode);
-                      setMessage('Código PIX copiado. Cole no aplicativo do seu banco.');
+                      setPixCopied(true);
+                      setMessage('Código PIX copiado com sucesso! Abra o app do seu banco e escolha PIX Copia e Cola.');
+                      setTimeout(() => setPixCopied(false), 4000);
                     } catch {
-                      setError('Não foi possível copiar. Selecione o código abaixo para copiar manualmente.');
+                      setError('Não foi possível copiar automaticamente. Selecione o código abaixo para copiar manualmente.');
                     }
                   }}
-                  style={{ padding: '12px 22px', fontSize: '0.92rem', fontWeight: 'bold', borderRadius: '10px', background: 'var(--nx-purple, #67408b)', color: '#ffffff', border: 'none', cursor: 'pointer' }}
+                  style={{
+                    width: '100%',
+                    padding: '16px 20px',
+                    fontSize: '1.05rem',
+                    fontWeight: '800',
+                    borderRadius: '12px',
+                    background: pixCopied
+                      ? 'linear-gradient(135deg, #059669 0%, #047857 100%)'
+                      : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                    color: '#ffffff',
+                    border: 'none',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    boxShadow: pixCopied
+                      ? '0 4px 16px rgba(5, 150, 105, 0.4)'
+                      : '0 4px 18px rgba(16, 185, 129, 0.45)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.02em',
+                    transition: 'all 0.2s ease',
+                  }}
                 >
-                  Copiar código PIX
-                </button>
-                <button
-                  type="button"
-                  className="nx-button"
-                  onClick={check}
-                  disabled={checking}
-                  style={{ padding: '12px 18px', fontSize: '0.92rem', borderRadius: '10px', background: '#ffffff', border: '1px solid #cbd5e1', color: '#29232d', cursor: checking ? 'default' : 'pointer' }}
-                >
-                  {checking ? 'Consultando…' : 'Já paguei'}
+                  {pixCopied ? '✅ Código PIX copiado!' : '📋 Copiar código PIX'}
                 </button>
               </div>
 
@@ -712,26 +710,7 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
                 </div>
               </details>
 
-              <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px solid #e7d5df', textAlign: 'center' }}>
-                <span style={{ fontSize: '0.84rem', color: '#6c636f' }}>Prefere pagar com Cartão de Crédito? </span>
-                <button
-                  type="button"
-                  onClick={payWithCard}
-                  disabled={payingCard || busy}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: '#67408b',
-                    fontWeight: '700',
-                    fontSize: '0.85rem',
-                    textDecoration: 'underline',
-                    cursor: (payingCard || busy) ? 'default' : 'pointer',
-                    padding: '2px 4px',
-                  }}
-                >
-                  {payingCard ? 'Abrindo Cartão…' : 'Clique aqui para pagar no Cartão 💳'}
-                </button>
-              </div>
+
 
               {pix.provider === 'static' && (
                 <div style={{ marginTop: '16px' }}>

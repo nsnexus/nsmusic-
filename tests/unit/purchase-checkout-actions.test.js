@@ -50,7 +50,7 @@ describe('checkout em um clique após escolher pacote', () => {
   it('gera o PIX do pacote selecionado ao adquirir e já exibe o código', async () => {
     button(render(), 'Suas memórias').props.onClick();
     expect(state.request).not.toHaveBeenCalled();
-    await button(render(), 'Adquirir meu presente').props.onClick();
+    await button(render(), 'Pagar Agora').props.onClick();
     expect(state.request).toHaveBeenCalledExactlyOnceWith({ orderId: 'test-order', sku: 'combo' });
     const tree = render();
     expect(nodes(tree).some(node => node.type === 'textarea' && node.props.value === 'pix-test-code')).toBe(true);
@@ -61,28 +61,28 @@ describe('checkout em um clique após escolher pacote', () => {
   it('impede duas cobranças com clique duplo', async () => {
     let resolve;
     state.request.mockImplementation(() => new Promise(done => { resolve = done; }));
-    const action = button(render(), 'Adquirir meu presente').props.onClick;
+    const action = button(render(), 'Pagar Agora').props.onClick;
     const first = action();
     await action();
     expect(state.request).toHaveBeenCalledTimes(1);
     resolve({ ok: true, data: { paymentId: 'test', qrCode: 'pix' } }); await first;
   });
   it('reutiliza o PIX válido quando o botão é pressionado novamente', async () => {
-    await button(render(), 'Adquirir meu presente').props.onClick();
-    await button(render(), 'Adquirir meu presente').props.onClick();
+    await button(render(), 'Pagar Agora').props.onClick();
+    await button(render(), 'Pagar Agora').props.onClick();
     expect(state.request).toHaveBeenCalledTimes(1);
   });
   it('trocar pacote limpa o código anterior e aguarda nova confirmação', async () => {
-    await button(render(), 'Adquirir meu presente').props.onClick();
+    await button(render(), 'Pagar Agora').props.onClick();
     button(render(), 'Suas palavras').props.onClick();
     expect(state.request).toHaveBeenCalledTimes(1);
     expect(nodes(render()).some(node => node.type === 'textarea')).toBe(false);
-    await button(render(), 'Adquirir meu presente').props.onClick();
+    await button(render(), 'Pagar Agora').props.onClick();
     expect(state.request.mock.calls[1][0].sku).toBe('combo_carta');
   });
   it('mostra erro e permite repetir sem um passo extra de revisão', async () => {
     state.request.mockResolvedValueOnce({ ok: false, error: 'Serviço indisponível.' });
-    await button(render(), 'Adquirir meu presente').props.onClick();
+    await button(render(), 'Pagar Agora').props.onClick();
     expect(text(render())).toContain('Serviço indisponível.');
     await button(render(), 'Tentar PIX novamente').props.onClick();
     expect(text(render())).toContain('Copiar código PIX');
@@ -93,7 +93,7 @@ describe('checkout em um clique após escolher pacote', () => {
     expect(state.request).not.toHaveBeenCalled();
   });
   it('mantém SKU específico da oferta de recuperação', async () => {
-    await button(render({ promo: '48h' }), 'Adquirir meu presente').props.onClick();
+    await button(render({ promo: '48h' }), 'Pagar Agora').props.onClick();
     expect(state.request).toHaveBeenCalledWith({ orderId: 'test-order', sku: 'recovery_combo_48h' });
   });
 });
