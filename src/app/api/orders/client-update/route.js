@@ -59,12 +59,19 @@ export async function POST(req) {
     }
 
     // Proteção contra apropriação indevida via claim-code:
-    // Se o pedido já tiver um telefone registrado, requisições de client-update não podem alterá-lo.
+    // Se o pedido já tiver um telefone registrado, requisições de client-update não podem alterá-lo,
+    // exceto se o telefone gravado anteriormente estava incompleto (< 11 dígitos) e o novo o completa.
     if (fields.customerPhone && existing.customerPhone) {
       const cleanExisting = String(existing.customerPhone).replace(/\D/g, '');
       const cleanIncoming = String(fields.customerPhone).replace(/\D/g, '');
       if (cleanExisting && cleanIncoming && cleanExisting !== cleanIncoming) {
-        return NextResponse.json({ error: 'telefone_imutavel' }, { status: 403 });
+        const isCompletingDigits = cleanExisting.length < 11 && cleanIncoming.length === 11 && (
+          cleanIncoming.startsWith(cleanExisting) ||
+          (cleanIncoming.slice(0, 2) === cleanExisting.slice(0, 2) && cleanIncoming.slice(3) === cleanExisting.slice(2))
+        );
+        if (!isCompletingDigits) {
+          return NextResponse.json({ error: 'telefone_imutavel' }, { status: 403 });
+        }
       }
     }
 

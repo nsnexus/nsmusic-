@@ -844,8 +844,8 @@ export default function CriarMusica() {
     }
     updateField('customerPhone', formatted);
 
-    // Salva o telefone no pedido assim que atingir formato completo (10 ou 11 digitos)
-    if (clean.length >= 10 && orderId) {
+    // Salva o telefone no pedido assim que atingir formato completo (11 dígitos para celular com WhatsApp)
+    if (clean.length === 11 && orderId) {
       fetch('/api/orders/client-update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

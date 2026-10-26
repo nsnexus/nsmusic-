@@ -85,4 +85,19 @@ describe('POST /api/orders/client-update', () => {
       customerPhone: '11988887777',
     }, expect.any(Object));
   });
+
+  it('permite completar customerPhone quando o telefone anterior estava incompleto (< 11 dígitos)', async () => {
+    getOrder.mockResolvedValue({ id: 'ord-1', customerPhone: '(11) 9888-8777' }); // 10 dígitos gravados durante a digitação
+    updateOrder.mockResolvedValue({ success: true });
+
+    const res = await POST(createRequest({
+      orderId: 'ord-1',
+      customerPhone: '(11) 98888-7777', // 11 dígitos completados
+    }));
+
+    expect(res.status).toBe(200);
+    expect(updateOrder).toHaveBeenCalledWith('ord-1', {
+      customerPhone: '(11) 98888-7777',
+    }, expect.any(Object));
+  });
 });
