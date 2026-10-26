@@ -167,47 +167,12 @@ export async function sendCloudApiTemplate(phone, templateName, variaveis = [], 
 /**
  * "Sua música ficou pronta" — com suporte a vídeo oficial no header e botão de liberar música.
  */
-export async function enviarMusicaProntaCloud(phone, { cliente, homenageado, link, videoUrl, directVideoUrl, orderId }, env = {}) {
+export async function enviarMusicaProntaCloud(phone, { cliente, homenageado, link }, env = {}) {
   const config = getCloudApiConfig(env);
   const cfgSite = await lerConfigSite(env);
   const numSuporte = normalizarNumeroWhatsapp(cfgSite?.whatsappSuporte) || WHATSAPP_SUPORTE_PADRAO;
   const linkSuporte = `https://wa.me/${numSuporte}`;
 
-  const resolvedOrderId = orderId || (link ? link.match(/orderId=([^&]+)/)?.[1] : '') || '';
-
-  const videoUrlsToTry = [videoUrl, directVideoUrl].filter(Boolean);
-  const uniqueVideoUrls = [...new Set(videoUrlsToTry)];
-
-  // 1. Se houver vídeo de prévia e orderId, tenta os templates oficiais com VÍDEO e BOTÃO (UTILITY)
-  if (uniqueVideoUrls.length > 0 && resolvedOrderId) {
-    const candidateTemplates = [
-      config.templateMusicaProntaVideo,
-      'entrega_pedido_musica_video',
-      'notificacao_pedido_pronto',
-      'atualizacao_pedido_musica',
-      'status_pedido_musica_video',
-    ].filter(Boolean);
-
-    const uniqueTemplates = [...new Set(candidateTemplates)];
-    for (const vUrl of uniqueVideoUrls) {
-      for (const tName of uniqueTemplates) {
-        const resVideo = await sendCloudApiTemplate(
-          phone,
-          tName,
-          [cliente, homenageado, linkSuporte],
-          {
-            headerVideoUrl: vUrl,
-            buttonParam: resolvedOrderId,
-          },
-          env
-        );
-        if (resVideo.success) return resVideo;
-      }
-    }
-    console.warn('[CloudAPI] Templates de vídeo falharam ou indisponíveis, usando fallback de texto...');
-  }
-
-  // 2. Fallback para o template padrão de texto aprovado
   return sendCloudApiTemplate(
     phone,
     config.templateMusicaPronta,

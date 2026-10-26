@@ -186,4 +186,31 @@ describe('updateTaskResult — regeração e substituição de áudio', () => {
     expect(store['order_unif'].audioFiles[0]).toBe('https://files.unifically.com/audio/tf-wlAYfTcDIELE-803a43e8-312b-48ff-9a89-a884f7a81f0c.mp3');
     expect(store['order_unif'].audioFiles[1]).toBe('https://files.unifically.com/audio/tf-wqAzffcVIxVq-757f3834-c4b6-4d23-9789-3d281d7ae92e.mp3');
   });
+
+  it('D04: não sobrescreve áudio nem sunoTaskId se chegar callback de tarefa antiga enquanto nova está gerando', async () => {
+    store['task_antiga_atrasada'] = { orderId: 'order_corrida' };
+    store['task_nova_em_curso'] = { orderId: 'order_corrida' };
+    store['order_corrida'] = {
+      customerPhone: '5511999999999',
+      productionStatus: 'GERANDO_AUDIO',
+      sunoTaskId: 'task_nova_em_curso',
+      audioUrl: 'https://cdn.example.com/audio-original.mp3',
+      audioFiles: ['https://cdn.example.com/audio-original.mp3'],
+      audioHistory: []
+    };
+
+    const payloadAntigo = {
+      data: [{ id: 'track_velho', audio_url: 'https://tempfile.aiquickdraw.com/r/track_velho.mp3' }]
+    };
+
+    await updateTaskResult('task_antiga_atrasada', payloadAntigo);
+
+    // Deve continuar em GERANDO_AUDIO com sunoTaskId apontando para task_nova_em_curso
+    expect(store['order_corrida'].productionStatus).toBe('GERANDO_AUDIO');
+    expect(store['order_corrida'].sunoTaskId).toBe('task_nova_em_curso');
+    expect(store['order_corrida'].audioUrl).toBe('https://cdn.example.com/audio-original.mp3');
+
+    // E o histórico deve conter a versão antiga com active: false
+    expect(store['order_corrida'].audioHistory.some(h => h.taskId === 'task_antiga_atrasada' && !h.active)).toBe(true);
+  });
 });

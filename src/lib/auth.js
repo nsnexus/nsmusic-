@@ -30,7 +30,7 @@ export async function verifySupabaseToken(token, env = {}) {
       uid: user.id,
       email: user.email || null,
       emailVerified: Boolean(user.email_confirmed_at),
-      isAdminClaim: user.app_metadata?.role === 'admin' || user.user_metadata?.role === 'admin',
+      isAdminClaim: user.app_metadata?.role === 'admin',
     };
   } catch (err) {
     console.warn('[auth] Falha ao verificar token Supabase:', err.message);
@@ -93,7 +93,7 @@ export async function requireAdmin(req, env = {}) {
     console.warn('[auth] ADMIN_EMAILS não configurado e nenhum custom claim — nenhuma conta pode ser autorizada.');
   }
 
-  if (!account.email || !adminEmails.includes(account.email.toLowerCase())) {
+  if (!account.email || !account.emailVerified || !adminEmails.includes(account.email.toLowerCase())) {
     return { ok: false, status: 403, error: 'Conta autenticada não tem permissão de administrador.' };
   }
 

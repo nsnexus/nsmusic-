@@ -114,27 +114,32 @@ export default function CriarMusica() {
 
   const handlePaymentApproved = (targetOrderId) => {
     const idToUse = targetOrderId || orderId;
-    const currentTraffic = getStoredTrafficSource();
-    if (isOrderFromTikTok(currentTraffic)) {
-      const purchaseKey = `tt_purchase_${idToUse}`;
-      if (typeof window !== 'undefined' && !localStorage.getItem(purchaseKey)) {
-        localStorage.setItem(purchaseKey, '1');
-        identifyTikTok(formData.customerPhone, formData.customerEmail, idToUse);
-        const eventId = `purchase_${idToUse}_musica`;
-        trackTikTok('CompletePayment', {
-          contents: [
-            {
-              content_id: sku || 'audio_only',
-              content_type: 'product',
-              content_name: 'Música Personalizada com IA',
-            },
-          ],
-          value: getTotalPrice(),
-          currency: 'BRL',
-        }, { event_id: eventId });
+    try {
+      const currentTraffic = getStoredTrafficSource();
+      if (isOrderFromTikTok(currentTraffic)) {
+        const purchaseKey = `tt_purchase_${idToUse}`;
+        if (typeof window !== 'undefined' && !localStorage.getItem(purchaseKey)) {
+          localStorage.setItem(purchaseKey, '1');
+          identifyTikTok(formData.customerPhone, formData.customerEmail, idToUse);
+          const eventId = `purchase_${idToUse}_musica`;
+          const sku = 'audio_only';
+          trackTikTok('CompletePayment', {
+            contents: [
+              {
+                content_id: sku,
+                content_type: 'product',
+                content_name: 'Música Personalizada com IA',
+              },
+            ],
+            value: getTotalPrice(),
+            currency: 'BRL',
+          }, { event_id: eventId });
+        }
       }
+      trackGooglePurchase({ orderId: idToUse, value: getTotalPrice() });
+    } catch (trackErr) {
+      console.warn('[criar] Falha não impeditiva no tracking de pagamento:', trackErr?.message);
     }
-    trackGooglePurchase({ orderId: idToUse, value: getTotalPrice() });
     setPixInfo(prev => ({ ...prev, status: 'approved' }));
     setTimeout(() => {
       window.location.href = `/entrega?orderId=${idToUse}&justPaid=1`;
@@ -416,7 +421,7 @@ export default function CriarMusica() {
     if (typeof window !== 'undefined') {
       try {
         const urlParams = new URLSearchParams(window.location.search);
-        const resetParam = urlParams.get('reset') || urlParams.get('new');
+        const resetParam = urlParams.get('reset') || urlParams.get('new') || urlParams.get('novo');
 
         // ?ocasiao= vem das páginas de ocasião (/musica-de-aniversario e irmãs, ver
         // src/lib/ocasioes.js): quem chegou por "música de aniversário" não deveria ter que

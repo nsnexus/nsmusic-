@@ -62,7 +62,8 @@ export async function createOrder(orderData = {}, env = {}) {
       }
     }
   } catch (sbErr) {
-    console.warn(`[supabaseDb] Exceção ao gravar no Supabase para pedido ${orderId}:`, sbErr.message);
+    console.error(`[supabaseDb] Exceção ao gravar no Supabase para pedido ${orderId}:`, sbErr.message);
+    throw sbErr;
   }
 
   return fullOrder;
@@ -114,11 +115,13 @@ export async function updateOrder(orderId, updates = {}, env = {}) {
         : supabase.from('orders').eq('id', orderId);
       const { error } = await query.update(sbUpdates);
       if (error) {
-        console.warn(`[supabaseDb] Erro ao atualizar pedido ${orderId} no Supabase:`, error.message);
+        console.error(`[supabaseDb] Erro ao atualizar pedido ${orderId} no Supabase:`, error.message);
+        throw new Error(`Falha ao atualizar pedido: ${error.message}`);
       }
     }
   } catch (sbErr) {
-    console.warn(`[supabaseDb] Exceção ao atualizar Supabase para pedido ${orderId}:`, sbErr.message);
+    console.error(`[supabaseDb] Exceção ao atualizar Supabase para pedido ${orderId}:`, sbErr.message);
+    throw sbErr;
   }
 
   return { success: true, orderId, updated: normalizedUpdates };
@@ -188,13 +191,18 @@ export async function saveSunoTask(taskId, status, result = null, orderId = null
     if (supabase) {
       const payload = {
         id: taskId,
-        order_id: orderId || null,
         status: status || 'PENDING',
-        provider: extra.provider || null,
         result: (result && typeof result === 'object') ? result : null,
         updated_at: nowIso
       };
-      await supabase.from('suno_tasks').upsert(payload, { onConflict: 'id' });
+      if (orderId) payload.order_id = orderId;
+      if (extra && extra.provider) payload.provider = extra.provider;
+
+      const { error } = await supabase.from('suno_tasks').upsert(payload, { onConflict: 'id' });
+      if (error) {
+        console.error(`[supabaseDb] Erro ao salvar task ${taskId} no Supabase:`, error.message);
+        return false;
+      }
       return true;
     }
   } catch (sbErr) {

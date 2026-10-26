@@ -27,8 +27,21 @@ export default function ContaPage() {
   const requestKey = useRef(null);
   const purchaseLock = useRef(false);
 
+  const userRef = useRef(null);
+
   useEffect(() => {
-    return onAuthStateChanged(auth, current => { setUser(current); setAuthReady(true); setAccount(null); setOrders([]); setPix(null); });
+    return onAuthStateChanged(auth, current => {
+      const prevUid = userRef.current?.uid;
+      const nextUid = current?.uid;
+      userRef.current = current;
+      setUser(current);
+      setAuthReady(true);
+      if (prevUid !== nextUid) {
+        setAccount(null);
+        setOrders([]);
+        setPix(null);
+      }
+    });
   }, []);
 
   const load = useCallback(async (activeTab, page = 0) => {

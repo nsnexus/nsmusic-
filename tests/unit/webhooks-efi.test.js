@@ -78,14 +78,25 @@ describe('POST /api/webhooks/efi', () => {
     expect(applyPaymentApprovalMock).not.toHaveBeenCalled();
   });
 
-  it('processa normalmente quando EFI_WEBHOOK_SECRET não está configurado (ainda em setup)', async () => {
+  it('rejeita silenciosamente (200) sem processar quando EFI_WEBHOOK_SECRET não está configurado (fail-closed)', async () => {
     getChargeStatusMock.mockResolvedValue({ status: 'CONCLUIDA', valor: { original: '9.99' } });
 
     const req = makeReq('https://x/api/webhooks/efi', { pix: [{ txid: 'TXID1' }] });
     const res = await POST(req);
 
     expect(res.status).toBe(200);
-    expect(applyPaymentApprovalMock).toHaveBeenCalledTimes(1);
+    expect(applyPaymentApprovalMock).not.toHaveBeenCalled();
+  });
+
+  it('rejeita o segredo hardcoded antigo quando não corresponde a EFI_WEBHOOK_SECRET', async () => {
+    process.env.EFI_WEBHOOK_SECRET = 'novo-segredo-rotacionado';
+    getChargeStatusMock.mockResolvedValue({ status: 'CONCLUIDA', valor: { original: '9.99' } });
+
+    const req = makeReq('https://x/api/webhooks/efi?secret=b921ab7e69f76c320217395be846d34a97194cddc907687d', { pix: [{ txid: 'TXID1' }] });
+    const res = await POST(req);
+
+    expect(res.status).toBe(200);
+    expect(applyPaymentApprovalMock).not.toHaveBeenCalled();
   });
 
   it('aprova o pedido quando a cobrança confirmada na Efí está CONCLUIDA e o pedido é encontrado', async () => {

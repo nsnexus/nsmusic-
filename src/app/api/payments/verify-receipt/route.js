@@ -95,20 +95,49 @@ export async function POST(req) {
       return NextResponse.json({ approved: false, reason: 'duplicate_receipt' });
     }
 
-    const result = await applyPaymentApproval(orderId, extracted.e2eId, {
-      status: 'approved',
-      transaction_amount: extracted.valor,
+    // Conferência de segurança com a API da Efí:
+    // NUNCA liberar produto pago com base apenas na leitura OCR de imagem.
+    const txid = order.paymentIntentId || order.paymentId || order.extras?.paymentIntentId;
+    let isBankConfirmed = false;
+
+    if (txid) {
+      try {
+        const { getChargeStatus } = await import('@/lib/efi');
+        const charge = await getChargeStatus(txid, env);
+        if (charge && charge.status === 'CONCLUIDA') {
+          isBankConfirmed = true;
+        }
+      } catch (efiErr) {
+        console.warn('[verify-receipt] Consulta à Efí durante validação do comprovante falhou:', efiErr?.message);
+      }
+    }
+
+    if (isBankConfirmed) {
+      const result = await applyPaymentApproval(orderId, extracted.e2eId, {
+        status: 'approved',
+        transaction_amount: extracted.valor,
+      }, env);
+
+      if (result.applied || result.reason === 'already_processed') {
+        return NextResponse.json({ approved: true });
+      }
+    }
+
+    // Se a compensação bancária ainda não consta na Efí, salva os dados para conferência manual da equipe
+    const { updateOrder } = await import('@/lib/supabaseDb');
+    await updateOrder(orderId, {
+      receiptStatus: 'AGUARDANDO_CONFERENCIA',
+      receiptE2eId: extracted.e2eId,
+      receiptValor: extracted.valor,
+      receiptUploadedAt: new Date().toISOString(),
     }, env);
 
-    if (result.applied) {
-      return NextResponse.json({ approved: true });
-    }
-    if (result.reason === 'already_processed') {
-      return NextResponse.json({ approved: true, reason: 'already_processed' });
-    }
-
-    console.warn('[verify-receipt] applyPaymentApproval não aplicou:', result.reason);
-    return NextResponse.json({ approved: false, reason: 'approval_failed' });
+    return NextResponse.json({
+      approved: false,
+      status: 'manual_review',
+      reason: 'aguardando_compensacao_bancaria',
+      message: 'Comprovante recebido. Aguardando compensação pelo banco ou conferência da equipe.',
+    });
   } catch (error) {
     console.error('[verify-receipt] Erro inesperado:', error.message);
     return NextResponse.json({ approved: false, reason: 'internal_error' }, { status: 500 });

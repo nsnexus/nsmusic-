@@ -5,7 +5,7 @@ import { updateOrder, getOrder } from '@/lib/supabaseDb';
 export const runtime = 'edge';
 
 // Campos que o cliente pode atualizar a partir do navegador no fluxo de entrega/criação.
-// Campos sensíveis (paymentStatus, hasVideoAccess, hasCartaAccess, etc.) NUNCA são permitidos aqui.
+// Campos sensíveis (paymentStatus, hasVideoAccess, audioUrl, audioFiles, total, package, etc.) NUNCA são permitidos aqui.
 const ALLOWED_CLIENT_FIELDS = new Set([
   'coverUrl',
   'slideshowImages',
@@ -21,10 +21,6 @@ const ALLOWED_CLIENT_FIELDS = new Set([
   'lyricsVersion',
   'lyricsStatus',
   'productionStatus',
-  'audioUrl',
-  'audioFiles',
-  'package',
-  'total',
   'customerName',
   'customerPhone',
   'customerEmail',
@@ -62,11 +58,26 @@ export async function POST(req) {
       return NextResponse.json({ error: 'pedido_nao_encontrado' }, { status: 404 });
     }
 
+    // Proteção contra apropriação indevida via claim-code:
+    // Se o pedido já tiver um telefone registrado, requisições de client-update não podem alterá-lo.
+    if (fields.customerPhone && existing.customerPhone) {
+      const cleanExisting = String(existing.customerPhone).replace(/\D/g, '');
+      const cleanIncoming = String(fields.customerPhone).replace(/\D/g, '');
+      if (cleanExisting && cleanIncoming && cleanExisting !== cleanIncoming) {
+        return NextResponse.json({ error: 'telefone_imutavel' }, { status: 403 });
+      }
+    }
+
     const safeUpdates = {};
     for (const [key, val] of Object.entries(fields)) {
       if (ALLOWED_CLIENT_FIELDS.has(key) && val !== undefined) {
         safeUpdates[key] = val;
       }
+    }
+
+    // Cliente só pode avançar o status para LETRA_GERADA, nunca finalizar áudio ou entrega
+    if (safeUpdates.productionStatus && safeUpdates.productionStatus !== 'LETRA_GERADA') {
+      delete safeUpdates.productionStatus;
     }
 
     if (Object.keys(safeUpdates).length === 0) {

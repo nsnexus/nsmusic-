@@ -185,6 +185,43 @@ export const updateTaskResult = async (taskId, result, overrideOrderId = null, e
 
       const orderData = (await getOrder(orderId, env)) || {};
 
+      // D04: Proteção contra corridas de tarefas antigas sobrepostas
+      let isOlderTask = false;
+      const historyHasTask = Array.isArray(orderData.audioHistory) &&
+        orderData.audioHistory.some(h => h.taskId === taskId && !h.active);
+
+      if (historyHasTask) {
+        isOlderTask = true;
+      } else if (orderData.sunoTaskId && orderData.sunoTaskId !== taskId) {
+        if (orderData.productionStatus === 'GERANDO_AUDIO') {
+          // O pedido está gerando ativamente orderData.sunoTaskId; este callback de outro taskId é defasado
+          isOlderTask = true;
+        } else {
+          // Checar se taskId foi criado antes da tarefa atual
+          try {
+            const incomingTask = await getTask(taskId, env);
+            const currentTask = await getTask(orderData.sunoTaskId, env);
+            const incomingTime = incomingTask?.createdAt || incomingTask?.updatedAt;
+            const currentTime = currentTask?.createdAt || currentTask?.updatedAt || orderData.sunoRequestedAt;
+            if (incomingTime && currentTime && new Date(incomingTime) < new Date(currentTime)) {
+              isOlderTask = true;
+            }
+          } catch (e) {}
+        }
+      }
+
+      if (isOlderTask) {
+        console.log(`[db] Callback da tarefa defasada ${taskId} recebido para pedido ${orderId}. Gravando apenas no histórico sem alterar áudio ativo.`);
+        const { appendAudioHistory } = await import('./audioHistory.js');
+        const updatedHistory = appendAudioHistory(orderData, tracks, taskId, 'suno');
+        const nonActiveHistory = (updatedHistory || []).map(h => (h.taskId === taskId ? { ...h, active: false } : h));
+        await updateOrder(orderId, {
+          audioHistory: nonActiveHistory,
+          updatedAt: new Date().toISOString()
+        }, env);
+        return;
+      }
+
       const { isOurStorage } = await import('./audioArchive.js');
       const orderTemAudioNosso = isOurStorage(orderData.audioUrl)
         || (Array.isArray(orderData.audioFiles) && orderData.audioFiles.length > 0 && isOurStorage(orderData.audioFiles[0]));
@@ -279,19 +316,8 @@ export const updateTaskResult = async (taskId, result, overrideOrderId = null, e
         await addGeneration();
       }
 
-      // Pré-renderiza a prévia de 60s na VPS para envio oficial com vídeo no WhatsApp
-      let previewVideoUrl = null;
-      try {
-        const { triggerPreviewVideoRender } = await import('./videoPreview.js');
-        const prevRes = await triggerPreviewVideoRender(orderId, { ...orderData, ...finalUpdates }, env, { sync: true });
-        if (prevRes?.previewUrl) {
-          previewVideoUrl = prevRes.previewUrl;
-        }
-      } catch (prevErr) {
-        console.warn('[db] Falha ao renderizar prévia de vídeo:', prevErr?.message);
-      }
-
-      await notifyMusicReady(orderId, null, orderId, { previewVideoUrl }, env);
+      // Envia notificação oficial avisando que a música ficou pronta com o link do pedido
+      await notifyMusicReady(orderId, null, orderId, {}, env);
     }
   } catch (err) {
     console.error("Error updating task result:", err);
@@ -332,18 +358,12 @@ export const notifyMusicReady = async (orderRefOrId, orderData, orderIdParam, op
   const finalOrder = freshData || currentOrder;
   const deliveryUrl = resolveDeliveryUrl(orderId);
   const targetPhone = finalOrder.whatsappSenderPhone || finalOrder.customerPhone;
-  const targetVideoUrl = opts.previewVideoUrl
-    || finalOrder.previewVideoUrl
-    || finalOrder.preview_video_url
-    || finalOrder.extras?.previewVideoUrl
-    || null;
 
   const sendResult = await sendMusicReadyTemplate(targetPhone, {
     customerName: finalOrder.customerName,
     honoreeName: finalOrder.honoreeName,
     deliveryUrl,
-    videoUrl: targetVideoUrl,
-    orderData: { ...finalOrder, ...(targetVideoUrl ? { previewVideoUrl: targetVideoUrl } : {}) },
+    orderData: finalOrder,
   }, env);
 
   if (sendResult.ignored) {

@@ -36,6 +36,27 @@ export async function POST(req) {
     return NextResponse.json({ error: 'Extensão de vídeo inválida.' }, { status: 400 });
   }
 
+  // Validação de autorização e posse (S08):
+  // Impede upload anônimo de vídeo sobrescrevendo pedidos alheios sem pagamento.
+  const { getOrder, updateOrder } = await import('@/lib/supabaseDb');
+  const order = await getOrder(orderId, env);
+  if (!order) {
+    return NextResponse.json({ error: 'Pedido não encontrado.' }, { status: 404 });
+  }
+
+  const hasVideoAccess = Boolean(
+    order.hasVideoAccess ||
+    order.videoAddonPaid ||
+    order.package === 'combo' ||
+    order.package === 'combo_especial' ||
+    order.extras?.hasVideoAccess ||
+    order.extras?.videoAddonPaid
+  );
+
+  if (!hasVideoAccess) {
+    return NextResponse.json({ error: 'Acesso a vídeo não contratado para este pedido.' }, { status: 403 });
+  }
+
   const contentType = req.headers.get('content-type') || '';
   if (!MIME_ALLOWLIST.includes(contentType)) {
     return NextResponse.json({ error: 'Tipo de arquivo não permitido.' }, { status: 400 });
@@ -61,7 +82,9 @@ export async function POST(req) {
     return NextResponse.json({ error: 'Vídeo excede o tamanho máximo permitido.' }, { status: 413 });
   }
 
-  const destPath = `videos/${orderId}/video_homenagem.${ext}`;
+  // Nome versionado único para evitar sobrescrita destrutiva (S08)
+  const timestamp = Date.now();
+  const destPath = `videos/${orderId}/video_${timestamp}.${ext}`;
   try {
     await r2Bucket.put(destPath, buffer, { httpMetadata: { contentType } });
   } catch (err) {
@@ -70,5 +93,16 @@ export async function POST(req) {
   }
 
   const url = `${r2PublicUrl.replace(/\/$/, '')}/${destPath}`;
+
+  // Atualiza a URL do vídeo no banco com segurança
+  await updateOrder(orderId, {
+    videoUrl: url,
+    videoStatus: 'CONCLUIDO',
+    videoError: null,
+    videoCreatedAt: new Date().toISOString()
+  }, env).catch(err => {
+    console.warn('[video/upload] Falha ao atualizar pedido com nova URL:', err?.message);
+  });
+
   return NextResponse.json({ url, bytes: buffer.byteLength });
 }

@@ -90,6 +90,19 @@ export default function VozClienteAddonCard({ orderId, order }) {
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const timerRef = useRef(null);
+  const streamRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        try { mediaRecorderRef.current.stop(); } catch (e) {}
+      }
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(t => t.stop());
+      }
+    };
+  }, []);
 
   const hasAccess = unlocked || order?.hasCustomVoiceAccess || order?.customVoiceAddonPaid || order?.extras?.customVoiceAddonPaid || order?.extras?.hasCustomVoiceAccess;
   const customerPhone = order?.customerPhone || order?.customer_phone || '';
@@ -159,6 +172,7 @@ export default function VozClienteAddonCard({ orderId, order }) {
   const iniciarGravacao = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
       audioChunksRef.current = [];
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
@@ -168,16 +182,20 @@ export default function VozClienteAddonCard({ orderId, order }) {
       };
 
       mediaRecorder.onstop = async () => {
-        const rawBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        const blob = await converterParaWavBlob(rawBlob);
-        const url = URL.createObjectURL(blob);
-        if (etapaGravacao === 1) {
-          setAmostraBlob(blob);
-          setAmostraUrl(url);
-        } else if (etapaGravacao === 2) {
-          setVerificacaoBlob(blob);
+        try {
+          const rawBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+          const blob = await converterParaWavBlob(rawBlob);
+          const url = URL.createObjectURL(blob);
+          if (etapaGravacao === 1) {
+            setAmostraBlob(blob);
+            setAmostraUrl(url);
+          } else if (etapaGravacao === 2) {
+            setVerificacaoBlob(blob);
+          }
+        } finally {
+          stream.getTracks().forEach(t => t.stop());
+          streamRef.current = null;
         }
-        stream.getTracks().forEach(t => t.stop());
       };
 
       mediaRecorder.start(200);

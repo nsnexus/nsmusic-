@@ -86,6 +86,11 @@ export async function GET(req) {
         const { retrieveStripeCheckoutSession } = await import('@/lib/stripe');
         const session = await retrieveStripeCheckoutSession(txid, env);
         if (session && session.payment_status === 'paid' && orderId) {
+          const sessionOrderId = session.client_reference_id || session.metadata?.orderId;
+          if (!sessionOrderId || (sessionOrderId !== orderId && sessionOrderId !== orderData?.id && sessionOrderId !== orderData?.orderNumber)) {
+            console.warn(`[PaymentStatus] Sessão Stripe ${session.id} pertence a '${sessionOrderId}', rejeitada para pedido '${orderId}'.`);
+            return jsonNoCache({ status: "pending", error: "session_mismatch" });
+          }
           const transactionAmount = (session.amount_total || 0) / 100;
           await applyPaymentApproval(orderId, session.id, {
             status: 'approved',

@@ -170,7 +170,12 @@ export async function archiveAudioFiles(orderId, files, opts = {}) {
       continue;
     }
 
-    const destPath = `audios/${orderId}/versao-${i + 1}.mp3`;
+    const uuid36 = (source.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i) || [])[1];
+    const hex32 = (source.match(/\/([a-f0-9]{32})(?:\.mp3|\?|$)/i) || [])[1];
+    const sourceId = uuid36 || hex32;
+    const versionSegment = opts.taskId || opts.versionTag || sourceId || 'v1';
+    const safeSegment = String(versionSegment).replace(/[^a-zA-Z0-9_-]/g, '_');
+    const destPath = `audios/${orderId}/${safeSegment}-v${i + 1}.mp3`;
     const copy = usaR2
       ? await copyAudioToR2(source, destPath, r2Bucket, r2PublicUrl)
       : { ok: false, reason: 'r2_nao_configurado' };
@@ -244,7 +249,11 @@ export async function arquivarAudioDoPedido({ orderRef, orderId: explicitOrderId
       return { arquivou: false, motivo: 'sem_destino' };
     }
 
-    const { files: archived, anyFailure } = await archiveAudioFiles(orderId, filesParaArquivar, { r2Bucket, r2PublicUrl });
+    const { files: archived, anyFailure } = await archiveAudioFiles(orderId, filesParaArquivar, {
+      r2Bucket,
+      r2PublicUrl,
+      taskId: freshData.sunoTaskId
+    });
 
     // Nunca gravar menos faixas do que o pedido já tinha: a Suno entrega duas versões e o cliente
     // pagou pelas duas (mesma trava de api/orders/refresh-audio, 25/09/2026).

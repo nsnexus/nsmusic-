@@ -21,10 +21,11 @@ export async function POST(req) {
       voiceType,
     } = body;
 
-    const keysString = process.env.GEMINI_API_KEYS || process.env.GEMINI_API_KEY || '';
-    if (!keysString) {
+    const geminiKeys = process.env.GEMINI_API_KEYS || process.env.GEMINI_API_KEY || '';
+    const openAiKey = process.env.OPENAI_API_KEY || '';
+    if (!geminiKeys && !openAiKey) {
       return NextResponse.json({
-        error: "Nenhuma chave GEMINI_API_KEYS está configurada no servidor."
+        error: "Nenhuma chave de IA (GEMINI_API_KEYS ou OPENAI_API_KEY) está configurada no servidor."
       }, { status: 500 });
     }
 

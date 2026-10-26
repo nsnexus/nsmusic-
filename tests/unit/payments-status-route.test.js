@@ -17,6 +17,11 @@ vi.mock('@/lib/efi', () => ({
   getChargeStatus: (...args) => getChargeStatusMock(...args),
 }));
 
+const retrieveStripeCheckoutSessionMock = vi.fn();
+vi.mock('@/lib/stripe', () => ({
+  retrieveStripeCheckoutSession: (...args) => retrieveStripeCheckoutSessionMock(...args),
+}));
+
 const applyPaymentApprovalMock = vi.fn().mockResolvedValue({ applied: true });
 vi.mock('@/lib/payments', () => ({
   applyPaymentApproval: (...args) => applyPaymentApprovalMock(...args),
@@ -27,6 +32,7 @@ const { GET } = await import('@/app/api/payments/status/route');
 beforeEach(() => {
   store = {};
   getChargeStatusMock.mockReset();
+  retrieveStripeCheckoutSessionMock.mockReset();
   applyPaymentApprovalMock.mockClear();
 });
 
@@ -139,5 +145,51 @@ describe('GET /api/payments/status — atalho de verificação rápida', () => {
       expect.anything()
     );
     expect(data.status).toBe('approved');
+  });
+
+  it('NÃO aprova sessão Stripe paga cujo client_reference_id ou metadata não bate com o orderId consultado', async () => {
+    store['orderAlheio'] = {
+      id: 'orderAlheio',
+      paymentStatus: 'AGUARDANDO_PAGAMENTO',
+    };
+    retrieveStripeCheckoutSessionMock.mockResolvedValue({
+      id: 'cs_test_123',
+      payment_status: 'paid',
+      amount_total: 999,
+      client_reference_id: 'orderLegitimo',
+      metadata: { orderId: 'orderLegitimo' },
+    });
+
+    const res = await GET(makeRequest('orderAlheio', 'cs_test_123'));
+    const data = await res.json();
+
+    expect(data.status).toBe('pending');
+    expect(data.error).toBe('session_mismatch');
+    expect(applyPaymentApprovalMock).not.toHaveBeenCalled();
+  });
+
+  it('aprova sessão Stripe quando o client_reference_id corresponde exatamente ao pedido', async () => {
+    store['orderLegitimo'] = {
+      id: 'orderLegitimo',
+      paymentStatus: 'AGUARDANDO_PAGAMENTO',
+    };
+    retrieveStripeCheckoutSessionMock.mockResolvedValue({
+      id: 'cs_test_456',
+      payment_status: 'paid',
+      amount_total: 999,
+      client_reference_id: 'orderLegitimo',
+      metadata: { orderId: 'orderLegitimo' },
+    });
+
+    const res = await GET(makeRequest('orderLegitimo', 'cs_test_456'));
+    const data = await res.json();
+
+    expect(data.status).toBe('approved');
+    expect(applyPaymentApprovalMock).toHaveBeenCalledWith(
+      'orderLegitimo',
+      'cs_test_456',
+      expect.objectContaining({ status: 'approved', method: 'stripe' }),
+      expect.anything()
+    );
   });
 });

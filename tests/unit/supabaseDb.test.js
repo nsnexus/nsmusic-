@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { generateOrderId, createOrder, updateOrder, softDeleteOrder, getSunoTask, saveSunoTask } from '../../src/lib/supabaseDb.js';
 
 let mockSupabaseRows;
+let mockUpsertError = null;
+let mockUpdateError = null;
 
 vi.mock('@/lib/supabase-edge', () => ({
   getSupabaseEdge: vi.fn(() => ({
@@ -10,6 +12,9 @@ vi.mock('@/lib/supabase-edge', () => ({
       let filterVal = null;
       return {
         upsert: async (payload) => {
+          if (mockUpsertError) {
+            return { data: null, error: mockUpsertError };
+          }
           const item = Array.isArray(payload) ? payload[0] : payload;
           mockSupabaseRows[table] = mockSupabaseRows[table] || {};
           mockSupabaseRows[table][item.id] = { ...(mockSupabaseRows[table][item.id] || {}), ...item };
@@ -21,6 +26,9 @@ vi.mock('@/lib/supabase-edge', () => ({
           return this;
         },
         update: async (updates) => {
+          if (mockUpdateError) {
+            return { data: null, error: mockUpdateError };
+          }
           mockSupabaseRows[table] = mockSupabaseRows[table] || {};
           if (filterCol && filterVal) {
             mockSupabaseRows[table][filterVal] = {
@@ -45,6 +53,8 @@ vi.mock('@/lib/supabase-edge', () => ({
 
 beforeEach(() => {
   mockSupabaseRows = { orders: {}, suno_tasks: {} };
+  mockUpsertError = null;
+  mockUpdateError = null;
 });
 
 describe('supabaseDb', () => {
@@ -74,6 +84,12 @@ describe('supabaseDb', () => {
     expect(mockSupabaseRows.orders[created.id].music_style).toBe('Sertanejo');
   });
 
+  it('createOrder lanca erro se Supabase falhar', async () => {
+    mockUpsertError = { message: 'Database down' };
+    const orderData = { customerName: 'Falha' };
+    await expect(createOrder(orderData)).rejects.toThrow('Falha ao gravar pedido: Database down');
+  });
+
   it('updateOrder atualiza no Supabase', async () => {
     const orderId = 'test-order-123';
     mockSupabaseRows.orders[orderId] = { id: orderId, customer_name: 'Ana' };
@@ -94,13 +110,23 @@ describe('supabaseDb', () => {
     expect(mockSupabaseRows.orders[orderId].updated_at).toBeDefined();
   });
 
-  it('saveSunoTask persiste tarefa no Supabase', async () => {
+  it('updateOrder lanca erro se Supabase falhar', async () => {
+    mockUpdateError = { message: 'Lock timeout' };
+    await expect(updateOrder('order-123', { paymentStatus: 'PAGO' })).rejects.toThrow('Falha ao atualizar pedido: Lock timeout');
+  });
+
+  it('saveSunoTask persiste tarefa no Supabase e preserva provider se omitido', async () => {
     const taskId = 'task-xyz-999';
     const res = await saveSunoTask(taskId, 'COMPLETED', { audio: 'track.mp3' }, 'order-123', { provider: 'kie' });
 
     expect(res).toBe(true);
     expect(mockSupabaseRows.suno_tasks[taskId]).toBeDefined();
     expect(mockSupabaseRows.suno_tasks[taskId].status).toBe('COMPLETED');
+    expect(mockSupabaseRows.suno_tasks[taskId].provider).toBe('kie');
+
+    // Salvar update subsequente sem provider não deve apagar o provider
+    const res2 = await saveSunoTask(taskId, 'DONE', { audio: 'track2.mp3' }, 'order-123');
+    expect(res2).toBe(true);
     expect(mockSupabaseRows.suno_tasks[taskId].provider).toBe('kie');
   });
 

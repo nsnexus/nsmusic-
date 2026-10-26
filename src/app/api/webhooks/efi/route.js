@@ -9,12 +9,13 @@ export const runtime = 'edge';
 
 function isValidSecret(req, env) {
   const expected = String(env?.EFI_WEBHOOK_SECRET || process.env.EFI_WEBHOOK_SECRET || '').trim();
+  if (!expected) {
+    console.error('[webhooks/efi] EFI_WEBHOOK_SECRET não configurado — rejeitando requisição (fail-closed).');
+    return false;
+  }
   const { searchParams } = new URL(req.url);
   const received = searchParams.get('secret');
-  if (!expected) return true;
-  // Aceita o secret das variáveis de ambiente e o secret permanente cadastrado na Efí
-  const validSecrets = [expected, 'b921ab7e69f76c320217395be846d34a97194cddc907687d'].filter(Boolean);
-  return validSecrets.includes(received);
+  return Boolean(received && received === expected);
 }
 
 async function findOrderIdByTxid(txid, env = {}) {

@@ -90,6 +90,8 @@ export async function POST(req) {
   }
 }
 
+const ALLOWED_DELETE_PREFIXES = ['photos/', 'slideshow/', 'uploads/'];
+
 export async function DELETE(req) {
   let env = {};
   try {
@@ -98,6 +100,7 @@ export async function DELETE(req) {
   } catch (e) {}
 
   const r2Bucket = env?.nsmusic_media;
+  const r2PublicUrl = String(env?.R2_PUBLIC_URL || process.env.R2_PUBLIC_URL || '').trim();
   if (!r2Bucket) {
     return NextResponse.json({ ok: false, error: 'R2 não disponível' }, { status: 503 });
   }
@@ -105,15 +108,34 @@ export async function DELETE(req) {
   try {
     const body = await req.json().catch(() => ({}));
     const targetUrl = body?.url;
-    if (targetUrl) {
-      try {
-        const parsed = new URL(targetUrl);
-        const key = parsed.pathname.replace(/^\/+/, '');
-        await r2Bucket.delete(key);
-      } catch (parseErr) {
-        await r2Bucket.delete(String(targetUrl));
-      }
+    if (!targetUrl || typeof targetUrl !== 'string') {
+      return NextResponse.json({ ok: false, error: 'URL inválida' }, { status: 400 });
     }
+
+    let key = '';
+    try {
+      const parsed = new URL(targetUrl);
+      if (r2PublicUrl) {
+        const expectedHost = new URL(r2PublicUrl).host;
+        if (parsed.host !== expectedHost) {
+          return NextResponse.json({ ok: false, error: 'Host não autorizado' }, { status: 403 });
+        }
+      }
+      key = parsed.pathname.replace(/^\/+/, '');
+    } catch (parseErr) {
+      key = String(targetUrl).replace(/^\/+/, '');
+    }
+
+    // Regra de contenção de segurança (S06):
+    // Nunca permitir deletar áudios, vídeos ou qualquer chave fora das pastas de upload de fotos de clientes.
+    const isAllowedPrefix = ALLOWED_DELETE_PREFIXES.some(prefix => key.startsWith(prefix));
+    const isAllowedExtension = /\.(jpe?g|png|webp|gif)$/i.test(key);
+
+    if (!isAllowedPrefix || !isAllowedExtension || key.includes('..') || key.startsWith('audios/') || key.startsWith('videos/')) {
+      return NextResponse.json({ ok: false, error: 'Exclusão não permitida para este recurso' }, { status: 403 });
+    }
+
+    await r2Bucket.delete(key);
     return NextResponse.json({ ok: true }, { status: 200 });
   } catch (err) {
     return NextResponse.json({ ok: false, error: err.message }, { status: 500 });

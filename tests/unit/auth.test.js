@@ -88,7 +88,7 @@ describe('requireAdmin', () => {
     expect(result.uid).toBe('uid-claim');
   });
 
-  it('aceita via role admin no user_metadata mesmo com e-mail fora da allowlist', async () => {
+  it('rejeita via role admin no user_metadata (metadado manipulável pelo usuário)', async () => {
     global.fetch.mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -99,8 +99,22 @@ describe('requireAdmin', () => {
       }),
     });
     const result = await requireAdmin(makeRequest('token-valido'), ENV);
-    expect(result.ok).toBe(true);
-    expect(result.uid).toBe('uid-claim-user');
+    expect(result.ok).toBe(false);
+    expect(result.status).toBe(403);
+  });
+
+  it('rejeita e-mail da allowlist que ainda não foi confirmado', async () => {
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        id: 'uid-unverified',
+        email: 'admin@example.com',
+        email_confirmed_at: null,
+      }),
+    });
+    const result = await requireAdmin(makeRequest('token-valido'), ENV);
+    expect(result.ok).toBe(false);
+    expect(result.status).toBe(403);
   });
 
   it('role diferente de admin não concede acesso sem allowlist', async () => {
