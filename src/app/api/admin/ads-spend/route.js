@@ -7,18 +7,20 @@ import { getSupabaseEdge } from '@/lib/supabase-edge';
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
-function getLocalDateStr(d) {
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+function getLocalDateStr(d = new Date()) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(d);
 }
 
 export async function GET(req) {
   let env = {};
   try {
     const ctx = getRequestContext();
-    if (ctx?.env) env = ctx.env;
+    if (ctx?.env) env = { ...ctx.env };
   } catch (e) {}
 
   const auth = await requireAdmin(req, env);
@@ -152,7 +154,7 @@ export async function POST(req) {
   let env = {};
   try {
     const ctx = getRequestContext();
-    if (ctx?.env) env = ctx.env;
+    if (ctx?.env) env = { ...ctx.env };
   } catch (e) {}
 
   const url = new URL(req.url);

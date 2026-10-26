@@ -27,7 +27,7 @@ export async function GET(req) {
   let env = {};
   try {
     const ctx = getRequestContext();
-    if (ctx?.env) env = ctx.env;
+    if (ctx?.env) env = { ...ctx.env };
   } catch (e) {}
 
   const auth = await requireAdmin(req, env);
@@ -36,8 +36,12 @@ export async function GET(req) {
   }
 
   const { searchParams } = new URL(req.url);
-  const now = new Date();
-  const hojeStr = new Date(now.getTime() - 3 * 3600 * 1000).toISOString().slice(0, 10);
+  const hojeStr = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
 
   let since = searchParams.get('since') || hojeStr;
   let until = searchParams.get('until') || hojeStr;
@@ -293,7 +297,7 @@ export async function POST(req) {
   let env = {};
   try {
     const ctx = getRequestContext();
-    if (ctx?.env) env = ctx.env;
+    if (ctx?.env) env = { ...ctx.env };
   } catch (e) {}
 
   const auth = await requireAdmin(req, env);

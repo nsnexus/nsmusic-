@@ -110,17 +110,25 @@ export async function fetchMetaDailySpend({ since, until }, env = {}) {
       actIds.map(async (actId) => {
         for (const token of tokens) {
           try {
-            const url = `https://graph.facebook.com/v20.0/${encodeURIComponent(actId)}/insights?time_range=${encodeURIComponent(timeRange)}&time_increment=1&fields=spend,account_currency&access_token=${encodeURIComponent(token)}`;
-            const res = await fetch(url);
-            if (!res.ok) {
-              const errText = await res.text().catch(() => '');
-              console.warn(`[adsSpend] Tentativa com token para ${actId} falhou (HTTP ${res.status}):`, errText.slice(0, 200));
-              continue;
-            }
+            let nextUrl = `https://graph.facebook.com/v20.0/${encodeURIComponent(actId)}/insights?time_range=${encodeURIComponent(timeRange)}&time_increment=1&fields=spend,account_currency&limit=100&access_token=${encodeURIComponent(token)}`;
+            let tokenWorked = false;
+            let pageCount = 0;
 
-            const json = await res.json().catch(() => null);
-            if (Array.isArray(json?.data)) {
+            while (nextUrl && pageCount < 10) {
+              pageCount++;
+              const res = await fetch(nextUrl);
+              if (!res.ok) {
+                const errText = await res.text().catch(() => '');
+                console.warn(`[adsSpend] Tentativa com token para ${actId} falhou (HTTP ${res.status}):`, errText.slice(0, 200));
+                break;
+              }
+
+              const json = await res.json().catch(() => null);
+              if (!Array.isArray(json?.data)) break;
+
+              tokenWorked = true;
               anyOk = true;
+
               for (const row of json.data) {
                 const dateKey = row.date_start; // YYYY-MM-DD
                 const currency = String(row.account_currency || 'BRL').toUpperCase();
@@ -140,6 +148,11 @@ export async function fetchMetaDailySpend({ since, until }, env = {}) {
                   }
                 }
               }
+
+              nextUrl = json?.paging?.next || null;
+            }
+
+            if (tokenWorked) {
               break; // Token funcionou para esta conta
             }
           } catch (e) {
@@ -286,17 +299,25 @@ export async function fetchMetaAdLevelInsights({ since, until }, env = {}) {
       actIds.map(async (actId) => {
         for (const token of tokens) {
           try {
-            const url = `https://graph.facebook.com/v20.0/${encodeURIComponent(actId)}/insights?level=ad&fields=ad_id,ad_name,campaign_id,campaign_name,adset_id,adset_name,spend,impressions,clicks,cpc,ctr,account_currency&time_range=${encodeURIComponent(timeRange)}&limit=500&access_token=${encodeURIComponent(token)}`;
-            const res = await fetch(url);
-            if (!res.ok) {
-              const errText = await res.text().catch(() => '');
-              console.warn(`[adsSpend] Tentativa de ad insights com token para ${actId} falhou (HTTP ${res.status}):`, errText.slice(0, 200));
-              continue;
-            }
+            let nextUrl = `https://graph.facebook.com/v20.0/${encodeURIComponent(actId)}/insights?level=ad&fields=ad_id,ad_name,campaign_id,campaign_name,adset_id,adset_name,spend,impressions,clicks,cpc,ctr,account_currency&time_range=${encodeURIComponent(timeRange)}&limit=500&access_token=${encodeURIComponent(token)}`;
+            let tokenWorked = false;
+            let pageCount = 0;
 
-            const json = await res.json().catch(() => null);
-            if (Array.isArray(json?.data)) {
+            while (nextUrl && pageCount < 10) {
+              pageCount++;
+              const res = await fetch(nextUrl);
+              if (!res.ok) {
+                const errText = await res.text().catch(() => '');
+                console.warn(`[adsSpend] Tentativa de ad insights com token para ${actId} falhou (HTTP ${res.status}):`, errText.slice(0, 200));
+                break;
+              }
+
+              const json = await res.json().catch(() => null);
+              if (!Array.isArray(json?.data)) break;
+
+              tokenWorked = true;
               anyOk = true;
+
               for (const row of json.data) {
                 const currency = String(row.account_currency || 'BRL').toUpperCase();
                 let spend = Number(row.spend) || 0;
@@ -323,6 +344,11 @@ export async function fetchMetaAdLevelInsights({ since, until }, env = {}) {
                   originalSpend: Number(row.spend) || 0,
                 });
               }
+
+              nextUrl = json?.paging?.next || null;
+            }
+
+            if (tokenWorked) {
               break; // Token funcionou para esta conta
             }
           } catch (e) {
