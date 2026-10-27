@@ -62,7 +62,7 @@ export function getCloudApiConfig(env = {}) {
  * @param {{ buttonParam?: string }} opcoes opções extras como parâmetro de botão dinâmico
  * @returns {Promise<{success: boolean, provider?: string, error?: string}>}
  */
-export async function sendCloudApiTemplate(phone, templateName, variaveis = [], { buttonParam, buttonParams, headerVideoUrl, headerImageUrl } = {}, env = {}) {
+export async function sendCloudApiTemplate(phone, templateName, variaveis = [], { buttonParam, buttonParams, headerVideoUrl, headerImageUrl, languageCode = 'pt_BR' } = {}, env = {}) {
   const config = getCloudApiConfig(env);
   if (!config.enabled) {
     return { success: false, error: 'Cloud API não configurada (WHATSAPP_ACCESS_TOKEN/WHATSAPP_PHONE_NUMBER_ID).' };
@@ -116,7 +116,7 @@ export async function sendCloudApiTemplate(phone, templateName, variaveis = [], 
     type: 'template',
     template: {
       name: templateName,
-      language: { code: 'pt_BR' },
+      language: { code: languageCode || 'pt_BR' },
       ...(components.length > 0 ? { components } : {}),
     },
   };
@@ -193,6 +193,20 @@ export async function enviarMusicaProntaCloud(phone, { cliente, homenageado, lin
   }
 
   return res;
+}
+
+/**
+ * Envia notificação em inglês para clientes dos EUA via Meta Cloud API oficial.
+ */
+export async function enviarMusicaProntaUsCloud(phone, { cliente, homenageado, link }, env = {}) {
+  const cfgSite = await lerConfigSite(env).catch(() => ({}));
+  const numSuporte = normalizarNumeroWhatsapp(cfgSite?.whatsappSuporte) || WHATSAPP_SUPORTE_PADRAO;
+  const linkSuporte = `https://wa.me/${numSuporte}`;
+
+  const templateToUse = env.WHATSAPP_TEMPLATE_US_PREVIEW || 'song_preview_ready';
+  const variaveis = [cliente || 'there', homenageado || 'someone special', link, linkSuporte];
+
+  return sendCloudApiTemplate(phone, templateToUse, variaveis, { languageCode: 'en_US' }, env);
 }
 
 /**

@@ -38,6 +38,11 @@ describe('formatToWhatsAppNumber', () => {
   it('comprimento muito longo (14 dígitos): devolve só os dígitos limpos, sem prefixo', () => {
     expect(formatToWhatsAppNumber('12345678901234')).toBe('12345678901234');
   });
+
+  it('preserva número internacional fornecido com prefixo + (ex: EUA +1)', () => {
+    expect(formatToWhatsAppNumber('+1 (212) 555-0199')).toBe('12125550199');
+    expect(formatToWhatsAppNumber('+12125550199')).toBe('12125550199');
+  });
 });
 
 // Achado 28/08/2026: LID (identificador de privacidade do WhatsApp) precisa manter o sufixo "@lid"

@@ -69,8 +69,15 @@ export const formatToWhatsAppNumber = (phone) => {
     return digits ? `${digits}@lid` : '';
   }
 
-  let clean = phone.replace(/\D/g, '');
+  const raw = String(phone).trim();
+  const hasPlus = raw.startsWith('+');
+  let clean = raw.replace(/\D/g, '');
   if (!clean) return '';
+
+  // Se foi fornecido com prefixo internacional '+' (ex: +1 212 555 0199)
+  if (hasPlus) {
+    return clean;
+  }
 
   // Se já começar com 55 e tiver 12 ou 13 dígitos
   if (clean.startsWith('55') && (clean.length === 12 || clean.length === 13)) {
