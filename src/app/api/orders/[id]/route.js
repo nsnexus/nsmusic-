@@ -3,6 +3,7 @@ import { getRequestContext } from '@cloudflare/next-on-pages';
 import { findOrderByIdOrNumber } from '@/lib/orderLookup';
 import { getSupabaseEdge } from '@/lib/supabase-edge';
 import { buildOrderAudioHistory } from '@/lib/audioHistory';
+import { requireAdmin } from '@/lib/auth';
 
 export const runtime = 'edge';
 
@@ -45,7 +46,13 @@ export async function GET(req, { params }) {
       order.audioHistory = buildOrderAudioHistory(order, []);
     }
 
-    const safeOrder = sanitizeOrderForResponse(order);
+    let isAdmin = false;
+    try {
+      const auth = await requireAdmin(req, env);
+      if (auth?.ok) isAdmin = true;
+    } catch (e) {}
+
+    const safeOrder = isAdmin ? order : sanitizeOrderForResponse(order);
 
     return NextResponse.json(
       { order: safeOrder },

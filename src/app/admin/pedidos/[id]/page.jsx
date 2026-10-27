@@ -122,7 +122,13 @@ export default function OrderDetailsAdmin() {
     const fetchOrder = async () => {
       try {
         let data = null;
-        const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}`);
+        let token = null;
+        try {
+          token = await getAdminAuthToken();
+        } catch (e) {}
+        const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
         if (res.ok) {
           const json = await res.json();
           if (json?.order) data = json.order;
@@ -141,8 +147,23 @@ export default function OrderDetailsAdmin() {
           setHasRetrospectivaAccess(Boolean(data.hasRetrospectivaAccess || data.retrospectivaAddonPaid));
           setHasKaraokeAccess(Boolean(data.hasKaraokeAccess || data.karaokeAddonPaid));
           setHasCustomVoiceAccess(Boolean(data.hasCustomVoiceAccess || data.customVoiceAddonPaid || data.extras?.hasCustomVoiceAccess || data.extras?.customVoiceAddonPaid));
-          setAudioUrl(data.audioFiles?.[0] || data.audioUrl || '');
-          setAudioUrl2(data.audioFiles?.[1] || '');
+          
+          const isProxy = (u) => typeof u === 'string' && u.includes('/api/audio/proxy');
+          let initialAudio1 = data.audioFiles?.[0] || data.audioUrl || '';
+          let initialAudio2 = data.audioFiles?.[1] || '';
+          if (isProxy(initialAudio1) || isProxy(initialAudio2)) {
+            const hist = data.audioHistory || data.extras?.audioHistory || [];
+            for (let i = hist.length - 1; i >= 0; i--) {
+              const hFiles = hist[i]?.audioFiles;
+              if (Array.isArray(hFiles)) {
+                if (isProxy(initialAudio1) && hFiles[0] && !isProxy(hFiles[0])) initialAudio1 = hFiles[0];
+                if (isProxy(initialAudio2) && hFiles[1] && !isProxy(hFiles[1])) initialAudio2 = hFiles[1];
+                break;
+              }
+            }
+          }
+          setAudioUrl(initialAudio1);
+          setAudioUrl2(initialAudio2);
           setWavUrl(data.wavFiles?.[0] || data.wavUrl || '');
           setVideoUrl(data.videoFile || data.videoUrl || '');
           setQrCodeUrl(data.qrCodeFile || data.qrCodeUrl || '');
@@ -278,6 +299,11 @@ export default function OrderDetailsAdmin() {
     setUpdating(true);
     setSuccessMsg('');
 
+    const isProxyUrl = (u) => typeof u === 'string' && u.includes('/api/audio/proxy');
+    const safeAudioUrl = isProxyUrl(audioUrl) ? (order?.audioUrl && !isProxyUrl(order.audioUrl) ? order.audioUrl : '') : audioUrl;
+    const safeAudioUrl2 = isProxyUrl(audioUrl2) ? (order?.audioFiles?.[1] && !isProxyUrl(order.audioFiles[1]) ? order.audioFiles[1] : '') : audioUrl2;
+    const safeAudioFiles = [safeAudioUrl, safeAudioUrl2].filter(Boolean);
+
     const updatePayload = {
       orderId,
       customerName,
@@ -297,8 +323,8 @@ export default function OrderDetailsAdmin() {
       hasCustomVoiceAccess,
       customVoiceAddonPaid: hasCustomVoiceAccess,
       lyrics,
-      audioUrl,
-      audioFiles: [audioUrl, audioUrl2].filter(Boolean),
+      audioUrl: safeAudioUrl,
+      audioFiles: safeAudioFiles,
       audioHistory: audioHistory || [],
       wavUrl,
       wavFiles: wavUrl ? [wavUrl] : [],

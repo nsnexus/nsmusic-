@@ -28,6 +28,16 @@ export async function POST(req) {
     const updateData = { updatedAt: new Date().toISOString() };
     for (const [key, val] of Object.entries(fields)) {
       if (val !== undefined) {
+        // Proteção contra corrupção: nunca permitir gravar URL de proxy interno no banco
+        if (key === 'audioUrl' && typeof val === 'string' && val.includes('/api/audio/proxy')) {
+          continue;
+        }
+        if (key === 'audioFiles' && Array.isArray(val)) {
+          const cleanFiles = val.filter(f => typeof f === 'string' && !f.includes('/api/audio/proxy'));
+          if (cleanFiles.length === 0) continue;
+          updateData[key] = cleanFiles;
+          continue;
+        }
         updateData[key] = val;
       }
     }

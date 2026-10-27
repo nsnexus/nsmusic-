@@ -13,8 +13,31 @@ async function resolveAudioUrlDoPedido(orderId, faixaRaw, env = {}) {
     if (!data) return '';
     const arquivos = Array.isArray(data.audioFiles) ? data.audioFiles.filter(Boolean) : [];
     const indice = Number.parseInt(faixaRaw, 10);
-    if (Number.isFinite(indice) && indice >= 0 && arquivos[indice]) return arquivos[indice];
-    return arquivos[0] || data.audioUrl || '';
+    let resolved = '';
+    if (Number.isFinite(indice) && indice >= 0 && arquivos[indice]) resolved = arquivos[indice];
+    else resolved = arquivos[0] || data.audioUrl || '';
+
+    // DEFENSIVE RECOVERY: se o banco tiver sido corrompido com a URL do proxy interno (/api/audio/proxy...),
+    // recupera o arquivo autêntico do histórico (Cloudflare R2) ou reconstrói via Suno/Kie audioIds.
+    if (resolved && (resolved.startsWith('/api/audio/proxy') || resolved.includes('/api/audio/proxy'))) {
+      const history = data.audioHistory || data.extras?.audioHistory || [];
+      for (let i = history.length - 1; i >= 0; i--) {
+        const hFiles = history[i]?.audioFiles;
+        if (Array.isArray(hFiles)) {
+          const targetFaixa = (Number.isFinite(indice) && indice >= 0 && hFiles[indice]) ? hFiles[indice] : hFiles[0];
+          if (targetFaixa && !targetFaixa.includes('/api/audio/proxy') && targetFaixa.startsWith('http')) {
+            resolved = targetFaixa;
+            break;
+          }
+        }
+      }
+      if ((!resolved || resolved.includes('/api/audio/proxy')) && Array.isArray(data.audioIds) && data.audioIds.length > 0) {
+        const audioId = (Number.isFinite(indice) && indice >= 0 && data.audioIds[indice]) ? data.audioIds[indice] : data.audioIds[0];
+        if (audioId) resolved = `https://audiostream.kie.ai/stream/${audioId}.mp3`;
+      }
+    }
+
+    return resolved;
   } catch (err) {
     console.warn('[Audio Proxy] Falha ao resolver áudio do pedido:', err?.message);
     return '';
@@ -144,12 +167,14 @@ export async function GET(req) {
       // ".mp3" grudado ainda funciona: stripKieMp3Suffix tenta a versão sem sufixo primeiro.
       const stripKieMp3Suffix = (u) => (u.includes('musicfile.kie.ai') && u.endsWith('.mp3')) ? u.slice(0, -4) : u;
 
-      // Se a URL não for um link HTTP absoluto, adiciona os domínios da Kie.ai e Suno
+      // Se a URL não for um link HTTP absoluto, adiciona os domínios da Kie.ai e Suno (desde que não seja rota interna da API)
       if (!formattedRaw.startsWith('http://') && !formattedRaw.startsWith('https://')) {
-        const cleanPath = formattedRaw.replace(/^\/+/, '').replace(/\.mp3$/, '');
-        candidates.push(`https://musicfile.kie.ai/${cleanPath}`);
-        candidates.push(`https://cdn1.suno.ai/${cleanPath}`);
-        candidates.push(`https://cdn2.suno.ai/${cleanPath}`);
+        if (!formattedRaw.startsWith('/api/') && !formattedRaw.startsWith('api/')) {
+          const cleanPath = formattedRaw.replace(/^\/+/, '').replace(/\.mp3$/, '');
+          candidates.push(`https://musicfile.kie.ai/${cleanPath}`);
+          candidates.push(`https://cdn1.suno.ai/${cleanPath}`);
+          candidates.push(`https://cdn2.suno.ai/${cleanPath}`);
+        }
       } else if (isAllowedMediaUrl(formattedRaw)) {
         // SSRF: só repassamos a URL absoluta ao fetch se o domínio estiver na allowlist
         // (ver A-06 no AUDIT_REPORT.md) — caso contrário, ignoramos e seguimos só com os
