@@ -554,9 +554,9 @@ export default function AdminDashboard() {
       const isPaid = o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'PAGO' || Boolean(o.paidAt);
       if (!isPaid) return { items: [], total: 0, isUS: true };
 
-      const totalCents = o.extras?.usPaidCents || (o.extras?.total ? Math.round(o.extras.total * 100) : null) || (o.expectedAmount ? Math.round(o.expectedAmount * 100) : 499);
+      const totalCents = o.extras?.usPaidCents || (o.extras?.total ? Math.round(o.extras.total * 100) : null) || (o.total ? Math.round(o.total * 100) : null) || (o.expectedAmount ? Math.round(o.expectedAmount * 100) : 499);
       const total = totalCents / 100;
-      const sku = o.usPackageSku || o.extras?.usPackageSku || o.extras?.us?.sku || 'audio_only';
+      const sku = o.usPackageSku || o.extras?.usPackageSku || o.extras?.us?.sku || o.us?.sku || 'audio_only';
       const names = {
         audio_only: 'The Song (Música)',
         combo_carta: 'The Letter (+ Carta)',

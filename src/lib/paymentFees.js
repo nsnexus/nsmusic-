@@ -8,6 +8,8 @@
  *   - Prazo de repasse padrão: 30 dias (D+30).
  */
 
+import { isUSOrder } from './country.js';
+
 export const STRIPE_CARD_FEE_PERCENT = 0.0399; // 3.99%
 export const STRIPE_CARD_FEE_FIXED = 0.39;    // R$ 0,39
 export const STRIPE_PAYOUT_DAYS = 30;         // 30 dias corridos
@@ -47,6 +49,7 @@ export function isStripePayment(idOrOrder) {
   }
 
   const o = idOrOrder;
+  if (isUSOrder(o)) return true;
   if (o.paymentMethod === 'credit_card' || o.paymentMethod === 'stripe') return true;
   if (o.paymentGateway === 'stripe') return true;
   if (o.stripeSessionId) return true;
