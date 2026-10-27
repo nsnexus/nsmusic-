@@ -22,6 +22,13 @@ export default function AbaContas({ authUser }) {
   // Músicas expandidas por conta
   const [expandedOrders, setExpandedOrders] = useState(() => new Set());
 
+  // Estado para vinculação de pedidos a contas
+  const [selectedUserForLink, setSelectedUserForLink] = useState(null);
+  const [orderIdentifierInput, setOrderIdentifierInput] = useState('');
+  const [linkingOrder, setLinkingOrder] = useState(false);
+  const [linkMsg, setLinkMsg] = useState('');
+  const [unlinkingOrderId, setUnlinkingOrderId] = useState(null);
+
   const fetchUsers = async () => {
     setLoading(true);
     setError('');
@@ -134,6 +141,75 @@ export default function AbaContas({ authUser }) {
       else next.add(userId);
       return next;
     });
+  };
+
+  const handleLinkOrder = async (e, directOrderId = null, targetUserId = null) => {
+    if (e?.preventDefault) e.preventDefault();
+    const uId = targetUserId || selectedUserForLink?.id;
+    const ordId = directOrderId || orderIdentifierInput.trim();
+    if (!uId || !ordId) return;
+
+    setLinkingOrder(true);
+    setLinkMsg('');
+    try {
+      const idToken = await authUser?.getIdToken();
+      const res = await fetch('/api/admin/accounts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(idToken ? { Authorization: `Bearer ${idToken}` } : {})
+        },
+        body: JSON.stringify({
+          action: 'link_order',
+          userId: uId,
+          orderIdentifier: ordId
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || 'Erro ao vincular pedido');
+      }
+      setLinkMsg(`✅ ${data.message || 'Pedido vinculado com sucesso!'}`);
+      await fetchUsers();
+      setTimeout(() => {
+        setSelectedUserForLink(null);
+        setOrderIdentifierInput('');
+        setLinkMsg('');
+      }, 1500);
+    } catch (err) {
+      setLinkMsg(`❌ ${err.message}`);
+    } finally {
+      setLinkingOrder(false);
+    }
+  };
+
+  const handleUnlinkOrder = async (orderId) => {
+    if (!orderId) return;
+    if (!window.confirm('Deseja realmente desvincular este pedido desta conta?')) return;
+    setUnlinkingOrderId(orderId);
+    try {
+      const idToken = await authUser?.getIdToken();
+      const res = await fetch('/api/admin/accounts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(idToken ? { Authorization: `Bearer ${idToken}` } : {})
+        },
+        body: JSON.stringify({
+          action: 'unlink_order',
+          orderIdentifier: orderId
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || 'Erro ao desvincular pedido');
+      }
+      await fetchUsers();
+    } catch (err) {
+      alert(`Erro ao desvincular pedido: ${err.message}`);
+    } finally {
+      setUnlinkingOrderId(null);
+    }
   };
 
   const filteredUsers = useMemo(() => {
@@ -424,6 +500,120 @@ export default function AbaContas({ authUser }) {
         </div>
       )}
 
+      {/* Modal / Dialog de vincular pedido */}
+      {selectedUserForLink && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '16px'
+          }}
+        >
+          <div
+            style={{
+              background: '#ffffff',
+              borderRadius: '16px',
+              maxWidth: '460px',
+              width: '100%',
+              padding: '24px',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+              border: '1px solid #e2e8f0'
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: '800', color: '#0f172a' }}>
+                🔗 Vincular Pedido a esta Conta
+              </h3>
+              <button
+                type="button"
+                onClick={() => setSelectedUserForLink(null)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem', color: '#94a3b8' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <p style={{ margin: '0 0 16px 0', fontSize: '0.86rem', color: '#475569' }}>
+              Conta de destino: <strong style={{ color: '#0f172a' }}>{selectedUserForLink.email}</strong>
+              {selectedUserForLink.name && ` (${selectedUserForLink.name})`}
+            </p>
+
+            <form onSubmit={handleLinkOrder}>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>
+                  Número ou ID do Pedido:
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ex: NS-A1B2C3D4 ou ID do pedido"
+                  value={orderIdentifierInput}
+                  onChange={(e) => setOrderIdentifierInput(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    borderRadius: '8px',
+                    border: '1.5px solid #cbd5e1',
+                    fontSize: '0.92rem',
+                    fontWeight: '600',
+                    boxSizing: 'border-box'
+                  }}
+                  autoFocus
+                />
+                <span style={{ display: 'block', fontSize: '0.76rem', color: '#64748b', marginTop: '4px' }}>
+                  Você pode colar o número do pedido (ex: NS-...) ou o ID do banco.
+                </span>
+              </div>
+
+              {linkMsg && (
+                <div style={{ marginBottom: '12px', fontSize: '0.84rem', fontWeight: '600', color: linkMsg.startsWith('✅') ? '#059669' : '#dc2626' }}>
+                  {linkMsg}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  onClick={() => setSelectedUserForLink(null)}
+                  disabled={linkingOrder}
+                  style={{
+                    padding: '10px 16px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    background: '#ffffff',
+                    color: '#475569',
+                    fontWeight: '600',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={linkingOrder || !orderIdentifierInput.trim()}
+                  style={{
+                    padding: '10px 20px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                    color: '#ffffff',
+                    fontWeight: '700',
+                    cursor: linkingOrder || !orderIdentifierInput.trim() ? 'default' : 'pointer',
+                    opacity: !orderIdentifierInput.trim() ? 0.6 : 1
+                  }}
+                >
+                  {linkingOrder ? 'Vinculando...' : 'Confirmar Vínculo'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Lista de contas */}
       {loading ? (
         <div style={{ padding: '40px', textAlign: 'center', color: '#64748b', fontSize: '0.95rem' }}>
@@ -541,6 +731,27 @@ export default function AbaContas({ authUser }) {
                             </button>
                             <button
                               type="button"
+                              onClick={() => {
+                                setSelectedUserForLink(u);
+                                setOrderIdentifierInput('');
+                                setLinkMsg('');
+                              }}
+                              style={{
+                                padding: '6px 12px',
+                                borderRadius: '6px',
+                                border: '1px solid #c7d2fe',
+                                background: '#eef2ff',
+                                color: '#4338ca',
+                                fontSize: '0.78rem',
+                                fontWeight: '700',
+                                cursor: 'pointer'
+                              }}
+                              title="Vincular um pedido (por número ou ID) a esta conta"
+                            >
+                              🔗 Vincular Pedido
+                            </button>
+                            <button
+                              type="button"
                               onClick={() => handleGenerateRecoveryLink(u)}
                               disabled={generatingLink === u.id}
                               style={{
@@ -565,10 +776,32 @@ export default function AbaContas({ authUser }) {
                       {isExpanded && (
                         <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
                           <td colSpan={5} style={{ padding: '12px 24px' }}>
-                            <div style={{ fontSize: '0.82rem', fontWeight: '700', color: '#475569', marginBottom: '8px' }}>
-                              Músicas associadas a esta conta ({u.email}):
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                              <span style={{ fontSize: '0.82rem', fontWeight: '700', color: '#475569' }}>
+                                Músicas associadas a esta conta ({u.email}):
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedUserForLink(u);
+                                  setOrderIdentifierInput('');
+                                  setLinkMsg('');
+                                }}
+                                style={{
+                                  padding: '4px 10px',
+                                  borderRadius: '6px',
+                                  background: '#eef2ff',
+                                  border: '1px solid #c7d2fe',
+                                  color: '#4338ca',
+                                  fontSize: '0.75rem',
+                                  fontWeight: '700',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                + Vincular Novo Pedido
+                              </button>
                             </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '10px' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '10px' }}>
                               {u.orders.map((ord) => (
                                 <div
                                   key={ord.id}
@@ -579,11 +812,12 @@ export default function AbaContas({ authUser }) {
                                     padding: '10px 12px',
                                     display: 'flex',
                                     justifyContent: 'space-between',
-                                    alignItems: 'center'
+                                    alignItems: 'center',
+                                    gap: '8px'
                                   }}
                                 >
-                                  <div>
-                                    <div style={{ fontWeight: '700', color: '#0f172a', fontSize: '0.84rem' }}>
+                                  <div style={{ minWidth: 0, flex: 1 }}>
+                                    <div style={{ fontWeight: '700', color: '#0f172a', fontSize: '0.84rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                       Para: {ord.honoreeName || 'Homenageado'}
                                     </div>
                                     <div style={{ fontSize: '0.74rem', color: '#64748b' }}>
@@ -592,21 +826,75 @@ export default function AbaContas({ authUser }) {
                                     <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: '2px' }}>
                                       Pedido {ord.orderNumber || ord.id}
                                     </div>
+                                    <div style={{ marginTop: '4px' }}>
+                                      {ord.isExplicitlyLinked ? (
+                                        <span style={{ fontSize: '0.7rem', color: '#16a34a', fontWeight: '700' }}>
+                                          ✓ Vinculado no banco
+                                        </span>
+                                      ) : (
+                                        <span style={{ fontSize: '0.7rem', color: '#d97706', fontWeight: '600' }} title="Encontrado pelo mesmo e-mail do cliente, mas não possui o user_id gravado formalmente">
+                                          ⚠️ Match por e-mail
+                                        </span>
+                                      )}
+                                    </div>
                                   </div>
-                                  <Link
-                                    href={`/admin/pedidos/${ord.id}`}
-                                    style={{
-                                      padding: '4px 8px',
-                                      borderRadius: '4px',
-                                      background: '#f1f5f9',
-                                      color: '#2563eb',
-                                      fontSize: '0.75rem',
-                                      fontWeight: '700',
-                                      textDecoration: 'none'
-                                    }}
-                                  >
-                                    Ver Pedido ➔
-                                  </Link>
+
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-end' }}>
+                                    <Link
+                                      href={`/admin/pedidos/${ord.id}`}
+                                      style={{
+                                        padding: '4px 8px',
+                                        borderRadius: '4px',
+                                        background: '#f1f5f9',
+                                        color: '#2563eb',
+                                        fontSize: '0.75rem',
+                                        fontWeight: '700',
+                                        textDecoration: 'none',
+                                        whiteSpace: 'nowrap'
+                                      }}
+                                    >
+                                      Ver Pedido ➔
+                                    </Link>
+                                    {ord.isExplicitlyLinked ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleUnlinkOrder(ord.id)}
+                                        disabled={unlinkingOrderId === ord.id}
+                                        style={{
+                                          padding: '3px 8px',
+                                          borderRadius: '4px',
+                                          background: '#fff1f2',
+                                          border: '1px solid #fecdd3',
+                                          color: '#e11d48',
+                                          fontSize: '0.7rem',
+                                          fontWeight: '600',
+                                          cursor: unlinkingOrderId === ord.id ? 'default' : 'pointer'
+                                        }}
+                                        title="Desvincular este pedido desta conta"
+                                      >
+                                        {unlinkingOrderId === ord.id ? '...' : 'Desvincular'}
+                                      </button>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleLinkOrder(null, ord.id, u.id)}
+                                        disabled={linkingOrder}
+                                        style={{
+                                          padding: '3px 8px',
+                                          borderRadius: '4px',
+                                          background: '#ecfdf5',
+                                          border: '1px solid #a7f3d0',
+                                          color: '#059669',
+                                          fontSize: '0.7rem',
+                                          fontWeight: '700',
+                                          cursor: linkingOrder ? 'default' : 'pointer'
+                                        }}
+                                        title="Gravar vínculo formal deste pedido nesta conta"
+                                      >
+                                        Vincular
+                                      </button>
+                                    )}
+                                  </div>
                                 </div>
                               ))}
                             </div>

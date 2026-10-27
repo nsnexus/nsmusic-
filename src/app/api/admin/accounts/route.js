@@ -89,6 +89,8 @@ export async function GET(req) {
         orders: userOrders.map((o) => ({
           id: o.id,
           orderNumber: o.order_number,
+          userId: o.user_id,
+          isExplicitlyLinked: Boolean(o.user_id && o.user_id === u.id),
           honoreeName: o.honoree_name,
           customerName: o.customer_name,
           musicStyle: o.music_style,
@@ -201,6 +203,97 @@ export async function POST(req) {
       return NextResponse.json({
         ok: true,
         actionLink: linkData.action_link || linkData.properties?.action_link || ''
+      });
+    }
+
+    // Ação 3: Vincular pedido a uma conta de usuário
+    if (action === 'link_order') {
+      const { userId } = body;
+      const orderIdentifier = String(body.orderId || body.orderNumber || body.orderIdentifier || '').trim();
+
+      if (!userId) {
+        return NextResponse.json({ error: 'Informe a conta de usuário (userId).' }, { status: 400 });
+      }
+      if (!orderIdentifier) {
+        return NextResponse.json({ error: 'Informe o ID ou número do pedido (NS-...).' }, { status: 400 });
+      }
+
+      const resOrder = await fetch(
+        `${url}/rest/v1/orders?or=(id.eq.${encodeURIComponent(orderIdentifier)},order_number.eq.${encodeURIComponent(orderIdentifier)})&select=id,order_number,user_id,customer_name,customer_email,honoree_name`,
+        { headers, signal: AbortSignal.timeout(10000) }
+      );
+      const ordersFound = resOrder.ok ? await resOrder.json().catch(() => []) : [];
+      if (!Array.isArray(ordersFound) || ordersFound.length === 0) {
+        return NextResponse.json({ error: `Pedido "${orderIdentifier}" não foi encontrado.` }, { status: 404 });
+      }
+      const targetOrder = ordersFound[0];
+
+      const nowIso = new Date().toISOString();
+      const resUpdate = await fetch(`${url}/rest/v1/orders?id=eq.${encodeURIComponent(targetOrder.id)}`, {
+        method: 'PATCH',
+        headers: { ...headers, Prefer: 'return=representation' },
+        body: JSON.stringify({
+          user_id: userId,
+          updated_at: nowIso
+        })
+      });
+
+      if (!resUpdate.ok) {
+        const errTxt = await resUpdate.text().catch(() => '');
+        return NextResponse.json({ error: `Falha ao vincular pedido: ${errTxt}` }, { status: 500 });
+      }
+
+      const updatedRows = await resUpdate.json().catch(() => []);
+      const updatedOrder = updatedRows[0] || { ...targetOrder, user_id: userId };
+
+      return NextResponse.json({
+        ok: true,
+        message: `Pedido ${targetOrder.order_number || targetOrder.id} vinculado com sucesso!`,
+        order: {
+          id: updatedOrder.id,
+          orderNumber: updatedOrder.order_number,
+          userId: updatedOrder.user_id,
+          customerName: updatedOrder.customer_name,
+          honoreeName: updatedOrder.honoree_name
+        }
+      });
+    }
+
+    // Ação 4: Desvincular pedido de uma conta de usuário
+    if (action === 'unlink_order') {
+      const orderIdentifier = String(body.orderId || body.orderNumber || body.orderIdentifier || '').trim();
+      if (!orderIdentifier) {
+        return NextResponse.json({ error: 'Informe o ID ou número do pedido para desvincular.' }, { status: 400 });
+      }
+
+      const resOrder = await fetch(
+        `${url}/rest/v1/orders?or=(id.eq.${encodeURIComponent(orderIdentifier)},order_number.eq.${encodeURIComponent(orderIdentifier)})&select=id,order_number,user_id`,
+        { headers, signal: AbortSignal.timeout(10000) }
+      );
+      const ordersFound = resOrder.ok ? await resOrder.json().catch(() => []) : [];
+      if (!Array.isArray(ordersFound) || ordersFound.length === 0) {
+        return NextResponse.json({ error: `Pedido "${orderIdentifier}" não foi encontrado.` }, { status: 404 });
+      }
+      const targetOrder = ordersFound[0];
+
+      const nowIso = new Date().toISOString();
+      const resUpdate = await fetch(`${url}/rest/v1/orders?id=eq.${encodeURIComponent(targetOrder.id)}`, {
+        method: 'PATCH',
+        headers: { ...headers, Prefer: 'return=representation' },
+        body: JSON.stringify({
+          user_id: null,
+          updated_at: nowIso
+        })
+      });
+
+      if (!resUpdate.ok) {
+        const errTxt = await resUpdate.text().catch(() => '');
+        return NextResponse.json({ error: `Falha ao desvincular pedido: ${errTxt}` }, { status: 500 });
+      }
+
+      return NextResponse.json({
+        ok: true,
+        message: `Pedido ${targetOrder.order_number || targetOrder.id} desvinculado com sucesso!`
       });
     }
 

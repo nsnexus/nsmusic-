@@ -63,6 +63,16 @@ export default function OrderDetailsAdmin() {
   const [generatedTracks, setGeneratedTracks] = useState([]);
   const [sunoError, setSunoError] = useState('');
 
+  // Estado para vinculação a conta de usuário
+  const [orderUserId, setOrderUserId] = useState(null);
+  const [accounts, setAccounts] = useState([]);
+  const [loadingAccounts, setLoadingAccounts] = useState(false);
+  const [selectedAccountUserId, setSelectedAccountUserId] = useState('');
+  const [linkingAccountBusy, setLinkingAccountBusy] = useState(false);
+  const [accountLinkingMsg, setAccountLinkingMsg] = useState('');
+  const [showAccountSelector, setShowAccountSelector] = useState(false);
+  const [accountSearchQuery, setAccountSearchQuery] = useState('');
+
   // Histórico de versões de áudio geradas
   const [audioHistory, setAudioHistory] = useState([]);
   const [restoringVersionId, setRestoringVersionId] = useState(null);
@@ -120,6 +130,7 @@ export default function OrderDetailsAdmin() {
 
         if (data) {
           setOrder(data);
+          setOrderUserId(data.userId || data.user_id || null);
           setCustomerName(data.customerName || data.customer_name || '');
           setHonoreeName(data.honoreeName || data.honoree_name || '');
           setProductionStatus(data.productionStatus || 'LETRA_APROVADA');
@@ -174,7 +185,91 @@ export default function OrderDetailsAdmin() {
     };
 
     fetchOrder();
+    fetchAccounts();
   }, [user, orderId]);
+
+  const fetchAccounts = async () => {
+    try {
+      setLoadingAccounts(true);
+      const idToken = await getAdminAuthToken();
+      const res = await fetch('/api/admin/accounts', {
+        headers: { ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}) }
+      });
+      if (res.ok) {
+        const json = await res.json().catch(() => ({}));
+        setAccounts(json.users || []);
+      }
+    } catch (err) {
+      console.warn('Falha ao buscar contas no admin:', err);
+    } finally {
+      setLoadingAccounts(false);
+    }
+  };
+
+  const handleLinkOrderToUser = async (targetUserId) => {
+    const finalUserId = targetUserId || selectedAccountUserId;
+    if (!finalUserId || !orderId) return;
+    setLinkingAccountBusy(true);
+    setAccountLinkingMsg('');
+    try {
+      const idToken = await getAdminAuthToken();
+      const res = await fetch('/api/admin/accounts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(idToken ? { Authorization: `Bearer ${idToken}` } : {})
+        },
+        body: JSON.stringify({
+          action: 'link_order',
+          userId: finalUserId,
+          orderId: order?.id || orderId
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Erro ao vincular pedido à conta');
+      setOrderUserId(finalUserId);
+      setOrder(prev => ({ ...prev, userId: finalUserId }));
+      setAccountLinkingMsg(`✅ ${data.message || 'Pedido vinculado com sucesso!'}`);
+      setShowAccountSelector(false);
+      setSelectedAccountUserId('');
+      fetchAccounts();
+    } catch (err) {
+      setAccountLinkingMsg(`❌ ${err.message}`);
+    } finally {
+      setLinkingAccountBusy(false);
+    }
+  };
+
+  const handleUnlinkOrderFromUser = async () => {
+    if (!orderId) return;
+    if (!window.confirm('Deseja realmente desvincular este pedido da conta de usuário?')) return;
+    setLinkingAccountBusy(true);
+    setAccountLinkingMsg('');
+    try {
+      const idToken = await getAdminAuthToken();
+      const res = await fetch('/api/admin/accounts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(idToken ? { Authorization: `Bearer ${idToken}` } : {})
+        },
+        body: JSON.stringify({
+          action: 'unlink_order',
+          orderId: order?.id || orderId
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Erro ao desvincular pedido');
+      setOrderUserId(null);
+      setOrder(prev => ({ ...prev, userId: null }));
+      setAccountLinkingMsg(`✅ ${data.message || 'Pedido desvinculado com sucesso!'}`);
+      fetchAccounts();
+    } catch (err) {
+      setAccountLinkingMsg(`❌ ${err.message}`);
+    } finally {
+      setLinkingAccountBusy(false);
+    }
+  };
 
   const handleSaveOrder = async (e) => {
     if (e && typeof e.preventDefault === 'function') {
@@ -906,6 +1001,214 @@ export default function OrderDetailsAdmin() {
               <p style={{ color: '#475569', fontSize: '0.95rem', marginTop: '4px', fontWeight: '500' }}>
                 Cliente: <strong style={{ color: '#0f172a' }}>{order.customerName}</strong> ({order.customerEmail || 'Sem e-mail'}) • <strong style={{ color: '#2563eb' }}>{order.customerPhone || 'Sem telefone'}</strong>
               </p>
+
+              {/* Card de Vínculo de Conta de Usuário */}
+              {(() => {
+                const linkedUser = accounts.find(u => u.id === orderUserId);
+                const orderEmail = (order.customerEmail || '').toLowerCase().trim();
+                const orderPhoneDigits = (order.customerPhone || '').replace(/\D/g, '');
+                const suggestedUser = !orderUserId && accounts.find(u => {
+                  const uEmail = (u.email || '').toLowerCase().trim();
+                  const uPhoneDigits = (u.phone || '').replace(/\D/g, '');
+                  if (orderEmail && uEmail === orderEmail) return true;
+                  if (orderPhoneDigits && uPhoneDigits && (uPhoneDigits.endsWith(orderPhoneDigits) || orderPhoneDigits.endsWith(uPhoneDigits))) return true;
+                  return false;
+                });
+
+                const filteredAccountsForSearch = accounts.filter(u => {
+                  if (!accountSearchQuery) return true;
+                  const q = accountSearchQuery.toLowerCase();
+                  return (u.email || '').toLowerCase().includes(q) || (u.name || '').toLowerCase().includes(q) || (u.phone || '').includes(q);
+                });
+
+                return (
+                  <div style={{
+                    marginTop: '10px',
+                    marginBottom: '12px',
+                    padding: '12px 16px',
+                    borderRadius: '10px',
+                    background: orderUserId ? '#f0fdf4' : '#fffbeb',
+                    border: orderUserId ? '1.5px solid #86efac' : '1.5px solid #fde68a'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: '1.1rem' }}>
+                          {orderUserId ? '👤' : '⚠️'}
+                        </span>
+                        <div>
+                          <div style={{ fontSize: '0.86rem', fontWeight: '800', color: orderUserId ? '#166534' : '#92400e' }}>
+                            {orderUserId
+                              ? `Conta Vinculada: ${linkedUser ? `${linkedUser.email} ${linkedUser.name ? `(${linkedUser.name})` : ''}` : `ID: ${orderUserId}`}`
+                              : 'Pedido Avulso (Não vinculado a nenhuma conta de usuário)'}
+                          </div>
+                          {orderUserId && linkedUser && (
+                            <div style={{ fontSize: '0.74rem', color: '#15803d' }}>
+                              Saldo da conta: <strong>{linkedUser.balance} créditos</strong> • {linkedUser.orders?.length || 0} música(s) na conta
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        {orderUserId ? (
+                          <button
+                            type="button"
+                            onClick={handleUnlinkOrderFromUser}
+                            disabled={linkingAccountBusy}
+                            style={{
+                              padding: '5px 12px',
+                              borderRadius: '6px',
+                              border: '1px solid #fca5a5',
+                              background: '#fef2f2',
+                              color: '#dc2626',
+                              fontSize: '0.78rem',
+                              fontWeight: '700',
+                              cursor: linkingAccountBusy ? 'default' : 'pointer'
+                            }}
+                            title="Remover vínculo deste pedido com a conta"
+                          >
+                            {linkingAccountBusy ? 'Aguarde...' : 'Desvincular Conta'}
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setShowAccountSelector(prev => !prev)}
+                            style={{
+                              padding: '6px 14px',
+                              borderRadius: '6px',
+                              border: '1px solid #cbd5e1',
+                              background: '#ffffff',
+                              color: '#334155',
+                              fontSize: '0.78rem',
+                              fontWeight: '700',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {showAccountSelector ? '✕ Fechar Seleção' : '🔗 Vincular a uma Conta'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Sugestão Rápida se encontrar conta pelo e-mail ou telefone do pedido */}
+                    {suggestedUser && !orderUserId && (
+                      <div style={{
+                        marginTop: '10px',
+                        padding: '8px 12px',
+                        borderRadius: '6px',
+                        background: '#eff6ff',
+                        border: '1px solid #bfdbfe',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        flexWrap: 'wrap',
+                        gap: '6px'
+                      }}>
+                        <span style={{ fontSize: '0.8rem', color: '#1e40af' }}>
+                          💡 <strong>Conta sugerida encontrada:</strong> {suggestedUser.email} {suggestedUser.name ? `(${suggestedUser.name})` : ''}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleLinkOrderToUser(suggestedUser.id)}
+                          disabled={linkingAccountBusy}
+                          style={{
+                            padding: '5px 12px',
+                            borderRadius: '4px',
+                            border: 'none',
+                            background: '#2563eb',
+                            color: '#ffffff',
+                            fontSize: '0.76rem',
+                            fontWeight: '700',
+                            cursor: linkingAccountBusy ? 'default' : 'pointer'
+                          }}
+                        >
+                          {linkingAccountBusy ? 'Vinculando...' : '⚡ Vincular a esta conta agora'}
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Caixa de seleção/busca manual de conta */}
+                    {showAccountSelector && !orderUserId && (
+                      <div style={{
+                        marginTop: '12px',
+                        padding: '12px',
+                        background: '#ffffff',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '8px'
+                      }}>
+                        <div style={{ fontSize: '0.82rem', fontWeight: '700', color: '#0f172a', marginBottom: '8px' }}>
+                          Selecione a conta cadastrada para vincular este pedido:
+                        </div>
+                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                          <input
+                            type="text"
+                            placeholder="Buscar conta por e-mail, nome..."
+                            value={accountSearchQuery}
+                            onChange={(e) => setAccountSearchQuery(e.target.value)}
+                            style={{
+                              flex: 1,
+                              minWidth: '200px',
+                              padding: '8px 10px',
+                              borderRadius: '6px',
+                              border: '1px solid #cbd5e1',
+                              fontSize: '0.82rem'
+                            }}
+                          />
+                          <select
+                            value={selectedAccountUserId}
+                            onChange={(e) => setSelectedAccountUserId(e.target.value)}
+                            style={{
+                              flex: 2,
+                              minWidth: '220px',
+                              padding: '8px 10px',
+                              borderRadius: '6px',
+                              border: '1px solid #cbd5e1',
+                              fontSize: '0.82rem',
+                              fontWeight: '600'
+                            }}
+                          >
+                            <option value="">Selecione uma conta ({filteredAccountsForSearch.length} disponíveis)...</option>
+                            {filteredAccountsForSearch.map(acc => (
+                              <option key={acc.id} value={acc.id}>
+                                {acc.email} {acc.name ? `(${acc.name})` : ''} - {acc.balance} crédito(s)
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => handleLinkOrderToUser(selectedAccountUserId)}
+                            disabled={linkingAccountBusy || !selectedAccountUserId}
+                            style={{
+                              padding: '8px 16px',
+                              borderRadius: '6px',
+                              border: 'none',
+                              background: '#2563eb',
+                              color: '#ffffff',
+                              fontSize: '0.82rem',
+                              fontWeight: '700',
+                              cursor: linkingAccountBusy || !selectedAccountUserId ? 'default' : 'pointer',
+                              opacity: !selectedAccountUserId ? 0.6 : 1
+                            }}
+                          >
+                            {linkingAccountBusy ? 'Vinculando...' : 'Confirmar Vínculo'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {accountLinkingMsg && (
+                      <div style={{
+                        marginTop: '8px',
+                        fontSize: '0.82rem',
+                        fontWeight: '600',
+                        color: accountLinkingMsg.startsWith('✅') ? '#16a34a' : '#dc2626'
+                      }}>
+                        {accountLinkingMsg}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
               {(() => {
                 const platKey = getOrderPlatform(order);
                 const pInfo = PLATFORMS[platKey] || PLATFORMS.facebook_ads;
