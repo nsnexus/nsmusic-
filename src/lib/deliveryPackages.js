@@ -1,4 +1,4 @@
-import { getPriceForSku, getCreditCostForSku } from './pricing.js';
+import { getPriceForSku } from './pricing.js';
 
 export function deliveryPackages() {
   return [
@@ -7,7 +7,7 @@ export function deliveryPackages() {
     { sku: 'combo', label: 'Música + vídeo', eyebrow: 'Suas memórias', includes: ['Música + carta virtual', 'Vídeo com suas fotos'] },
     { sku: 'combo_retrospectiva', label: 'Presente completo', eyebrow: 'Cada detalhe', includes: ['Música + carta + vídeo', 'Retrospectiva'] },
     { sku: 'combo_voz', label: 'Música + minha voz', eyebrow: 'Do seu jeito', includes: ['2 versões completas', 'Produto de voz personalizada'] },
-  ].map(pack => ({ ...pack, price: getPriceForSku(pack.sku), credits: getCreditCostForSku(pack.sku) }));
+  ].map(pack => ({ ...pack, price: getPriceForSku(pack.sku) }));
 }
 
 export const formatBrl = value => Number(value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });

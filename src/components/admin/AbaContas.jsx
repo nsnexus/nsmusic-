@@ -9,12 +9,6 @@ export default function AbaContas({ authUser }) {
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
 
-  // Estado para concessão de créditos
-  const [selectedUserForCredit, setSelectedUserForCredit] = useState(null);
-  const [creditAmount, setCreditAmount] = useState(1);
-  const [granting, setGranting] = useState(false);
-  const [grantMsg, setGrantMsg] = useState('');
-
   // Estado para link de redefinição de senha
   const [generatingLink, setGeneratingLink] = useState('');
   const [recoveryLinkData, setRecoveryLinkData] = useState(null);
@@ -57,45 +51,6 @@ export default function AbaContas({ authUser }) {
       fetchUsers();
     }
   }, [authUser]);
-
-  const handleGrantCredits = async (e) => {
-    e.preventDefault();
-    if (!selectedUserForCredit || creditAmount <= 0) return;
-    setGranting(true);
-    setGrantMsg('');
-    try {
-      const idToken = await authUser?.getIdToken();
-      const res = await fetch('/api/admin/accounts', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(idToken ? { Authorization: `Bearer ${idToken}` } : {})
-        },
-        body: JSON.stringify({
-          action: 'grant_credits',
-          userId: selectedUserForCredit.id,
-          amount: creditAmount
-        })
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data.error || 'Erro ao conceder créditos');
-      }
-      // Atualiza o saldo localmente
-      setUsers((prev) =>
-        prev.map((u) => (u.id === selectedUserForCredit.id ? { ...u, balance: data.balance } : u))
-      );
-      setGrantMsg(`✅ ${data.message || 'Créditos concedidos com sucesso!'}`);
-      setTimeout(() => {
-        setSelectedUserForCredit(null);
-        setGrantMsg('');
-      }, 2000);
-    } catch (err) {
-      setGrantMsg(`❌ ${err.message}`);
-    } finally {
-      setGranting(false);
-    }
-  };
 
   const handleGenerateRecoveryLink = async (user) => {
     if (!user?.email) return;
@@ -367,139 +322,6 @@ export default function AbaContas({ authUser }) {
         </div>
       )}
 
-      {/* Modal / Dialog de concessão de créditos */}
-      {selectedUserForCredit && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(15, 23, 42, 0.6)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 9999,
-            padding: '16px'
-          }}
-        >
-          <div
-            style={{
-              background: '#ffffff',
-              borderRadius: '16px',
-              maxWidth: '440px',
-              width: '100%',
-              padding: '24px',
-              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
-              border: '1px solid #e2e8f0'
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: '800', color: '#0f172a' }}>
-                🪙 Conceder Créditos
-              </h3>
-              <button
-                type="button"
-                onClick={() => setSelectedUserForCredit(null)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem', color: '#94a3b8' }}
-              >
-                ✕
-              </button>
-            </div>
-
-            <p style={{ margin: '0 0 16px 0', fontSize: '0.86rem', color: '#475569' }}>
-              Conta: <strong style={{ color: '#0f172a' }}>{selectedUserForCredit.email}</strong>
-              <br />
-              Saldo atual: <strong>{selectedUserForCredit.balance} créditos</strong>
-            </p>
-
-            <form onSubmit={handleGrantCredits}>
-              <div style={{ marginBottom: '16px' }}>
-                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>
-                  Quantidade de créditos a adicionar:
-                </label>
-                <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
-                  {[1, 2, 5, 10].map((amt) => (
-                    <button
-                      key={amt}
-                      type="button"
-                      onClick={() => setCreditAmount(amt)}
-                      style={{
-                        flex: 1,
-                        padding: '8px',
-                        borderRadius: '6px',
-                        border: creditAmount === amt ? '2px solid #7c3aed' : '1px solid #cbd5e1',
-                        background: creditAmount === amt ? '#f5f3ff' : '#ffffff',
-                        color: creditAmount === amt ? '#7c3aed' : '#334155',
-                        fontWeight: '700',
-                        fontSize: '0.85rem',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      +{amt}
-                    </button>
-                  ))}
-                </div>
-                <input
-                  type="number"
-                  min="0.5"
-                  step="0.5"
-                  value={creditAmount}
-                  onChange={(e) => setCreditAmount(Number(e.target.value))}
-                  style={{
-                    width: '100%',
-                    padding: '10px',
-                    borderRadius: '8px',
-                    border: '1.5px solid #cbd5e1',
-                    fontSize: '0.95rem',
-                    fontWeight: '700',
-                    boxSizing: 'border-box'
-                  }}
-                />
-              </div>
-
-              {grantMsg && (
-                <div style={{ marginBottom: '12px', fontSize: '0.84rem', fontWeight: '600', color: grantMsg.startsWith('✅') ? '#059669' : '#dc2626' }}>
-                  {grantMsg}
-                </div>
-              )}
-
-              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                <button
-                  type="button"
-                  onClick={() => setSelectedUserForCredit(null)}
-                  disabled={granting}
-                  style={{
-                    padding: '10px 16px',
-                    borderRadius: '8px',
-                    border: '1px solid #cbd5e1',
-                    background: '#ffffff',
-                    color: '#475569',
-                    fontWeight: '600',
-                    cursor: 'pointer'
-                  }}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={granting}
-                  style={{
-                    padding: '10px 20px',
-                    borderRadius: '8px',
-                    border: 'none',
-                    background: 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)',
-                    color: '#ffffff',
-                    fontWeight: '700',
-                    cursor: granting ? 'default' : 'pointer'
-                  }}
-                >
-                  {granting ? 'Adicionando...' : 'Confirmar Adição'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
       {/* Modal / Dialog de vincular pedido */}
       {selectedUserForLink && (
         <div
@@ -635,7 +457,6 @@ export default function AbaContas({ authUser }) {
                 <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#475569' }}>
                   <th style={{ padding: '12px 16px', fontWeight: '700' }}>Cliente / Conta</th>
                   <th style={{ padding: '12px 16px', fontWeight: '700' }}>Criado em</th>
-                  <th style={{ padding: '12px 16px', fontWeight: '700' }}>Saldo de Créditos</th>
                   <th style={{ padding: '12px 16px', fontWeight: '700' }}>Músicas Criadas</th>
                   <th style={{ padding: '12px 16px', fontWeight: '700', textAlign: 'right' }}>Ações</th>
                 </tr>
@@ -664,24 +485,6 @@ export default function AbaContas({ authUser }) {
                           </div>
                         </td>
                         <td style={{ padding: '14px 16px', verticalAlign: 'top' }}>
-                          <span
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                              padding: '4px 10px',
-                              borderRadius: '999px',
-                              fontSize: '0.82rem',
-                              fontWeight: '700',
-                              background: u.balance > 0 ? '#fef3c7' : '#f1f5f9',
-                              color: u.balance > 0 ? '#b45309' : '#64748b',
-                              border: u.balance > 0 ? '1px solid #fde68a' : '1px solid #e2e8f0'
-                            }}
-                          >
-                            🪙 {u.balance} {u.balance === 1 ? 'crédito' : 'créditos'}
-                          </span>
-                        </td>
-                        <td style={{ padding: '14px 16px', verticalAlign: 'top' }}>
                           {orderCount > 0 ? (
                             <button
                               type="button"
@@ -708,27 +511,6 @@ export default function AbaContas({ authUser }) {
                         </td>
                         <td style={{ padding: '14px 16px', verticalAlign: 'top', textAlign: 'right' }}>
                           <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSelectedUserForCredit(u);
-                                setCreditAmount(1);
-                                setGrantMsg('');
-                              }}
-                              style={{
-                                padding: '6px 12px',
-                                borderRadius: '6px',
-                                border: 'none',
-                                background: 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)',
-                                color: '#ffffff',
-                                fontSize: '0.78rem',
-                                fontWeight: '700',
-                                cursor: 'pointer'
-                              }}
-                              title="Adicionar créditos na carteira deste cliente"
-                            >
-                              🪙 + Créditos
-                            </button>
                             <button
                               type="button"
                               onClick={() => {
@@ -775,7 +557,7 @@ export default function AbaContas({ authUser }) {
                       {/* Dropdown de músicas associadas à conta */}
                       {isExpanded && (
                         <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-                          <td colSpan={5} style={{ padding: '12px 24px' }}>
+                          <td colSpan={4} style={{ padding: '12px 24px' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                               <span style={{ fontSize: '0.82rem', fontWeight: '700', color: '#475569' }}>
                                 Músicas associadas a esta conta ({u.email}):

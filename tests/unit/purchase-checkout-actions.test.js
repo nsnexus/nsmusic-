@@ -87,10 +87,9 @@ describe('checkout em um clique após escolher pacote', () => {
     await button(render(), 'Tentar PIX novamente').props.onClick();
     expect(text(render())).toContain('Copiar código PIX');
   });
-  it('preserva opção de usar créditos sem criar PIX nem resgatar automaticamente', () => {
-    button(render(), 'Prefiro usar meus créditos').props.onClick();
-    expect(text(render())).toContain('Confirmar uso de 2.5 crédito(s)');
-    expect(state.request).not.toHaveBeenCalled();
+  it('não exibe mais opção de créditos no checkout', () => {
+    expect(text(render())).not.toContain('Prefiro usar meus créditos');
+    expect(text(render())).not.toContain('Confirmar uso de');
   });
   it('mantém SKU específico da oferta de recuperação', async () => {
     await button(render({ promo: '48h' }), 'Pagar Agora').props.onClick();

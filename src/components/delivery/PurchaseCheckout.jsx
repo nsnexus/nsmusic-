@@ -60,8 +60,6 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
   const [message, setMessage] = useState('');
   const [pixCopied, setPixCopied] = useState(false);
   const [checking, setChecking] = useState(false);
-  const [balance, setBalance] = useState(null);
-  const [needsClaim, setNeedsClaim] = useState(false);
   const [payingCard, setPayingCard] = useState(false);
   const busyRef = useRef(false);
   const panel = useRef(null);
@@ -177,45 +175,6 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
     }
   };
 
-  const useCredits = async () => {
-    if (busyRef.current) return;
-    busyRef.current = true;
-    setBusy(true);
-    setError('');
-    try {
-      const token = await auth.currentUser?.getIdToken();
-      if (!token) {
-        window.location.href = `/login?redirect=${encodeURIComponent(`/entrega?orderId=${orderId}`)}`;
-        return;
-      }
-      const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
-      const claim = await fetch('/api/orders/claim', { method: 'POST', headers, body: JSON.stringify({ orderId }) });
-      const claimed = await claim.json().catch(() => ({}));
-      if (!claim.ok) {
-        if (claim.status === 403) setNeedsClaim(true);
-        throw new Error(claimed.error || 'Não foi possível verificar seu pedido.');
-      }
-      const account = await fetch('/api/credits/account', { headers, cache: 'no-store' });
-      const summary = await account.json().catch(() => ({}));
-      if (!account.ok) throw new Error(summary.error || 'Não foi possível consultar o saldo.');
-      setBalance(summary.balance);
-      if (Number(summary.balance) < pack.credits) {
-        throw new Error(`Você tem ${summary.balance} crédito(s). Este pacote precisa de ${pack.credits}. Você também pode pagar com PIX.`);
-      }
-      const response = await fetch('/api/credits/redeem', { method: 'POST', headers, body: JSON.stringify({ orderId, sku: pack.sku }) });
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(result.error === 'saldo_insuficiente' ? 'Seu saldo mudou. Consulte sua conta e tente novamente.' : result.error || 'Não foi possível usar seus créditos.');
-      }
-      onApproved();
-    } catch (failure) {
-      setError(failure.message);
-    } finally {
-      busyRef.current = false;
-      setBusy(false);
-    }
-  };
-
   const choose = sku => {
     if (busy) return;
     setSelected(sku);
@@ -223,7 +182,6 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
     setPix(null);
     setError('');
     setMessage('');
-    setBalance(null);
   };
 
   return (
@@ -533,21 +491,6 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
         </div>
       </div>
 
-      {!recovery && !pix && (
-        <button
-          type="button"
-          className="nx-text-button nx-credit-alternative"
-          disabled={busy}
-          onClick={() => {
-            setReview(true);
-            panel.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          }}
-          style={{ fontSize: '0.86rem', color: '#67408b', cursor: 'pointer', textDecoration: 'underline' }}
-        >
-          Prefiro usar meus créditos
-        </button>
-      )}
-
       {/* Painel de Checkout / PIX */}
       {review && (
         <div
@@ -605,34 +548,6 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
             >
               Tentar PIX novamente
             </button>
-          )}
-
-          {!pix && !recovery && (
-            <div className="nx-checkout-actions" style={{ margin: '14px 0' }}>
-              <button
-                type="button"
-                className="nx-button"
-                disabled={busy}
-                onClick={useCredits}
-                style={{ padding: '12px 20px', borderRadius: '10px', background: '#ffffff', border: '1px solid #cbd5e1', color: '#29232d', fontSize: '0.9rem', cursor: busy ? 'default' : 'pointer' }}
-              >
-                Confirmar uso de {pack.credits} crédito(s)
-              </button>
-            </div>
-          )}
-
-          {balance !== null && (
-            <p className="nx-helper" style={{ fontSize: '0.82rem', color: '#6c636f' }}>
-              Saldo consultado: {balance} crédito(s). Créditos não vencem. <Link href="/conta" style={{ color: '#67408b', fontWeight: '600' }}>Minha conta</Link>
-            </p>
-          )}
-
-          {needsClaim && (
-            <div style={{ margin: '14px 0' }}>
-              <p className="nx-message" style={{ background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', padding: '10px 14px', borderRadius: '10px', fontSize: '0.88rem' }}>
-                Conecte-se para vincular seu pedido à sua conta e usar seus créditos.
-              </p>
-            </div>
           )}
 
           {pix?.qrCode && (

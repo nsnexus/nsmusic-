@@ -50,26 +50,14 @@ export async function GET(req) {
     const usersData = await resUsers.json();
     const rawUsers = usersData?.users || [];
 
-    // 2. Busca histórico do livro-razão de créditos para calcular saldos
-    const resLedger = await fetch(`${url}/rest/v1/credit_ledger?select=user_id,amount,reason,created_at`, {
-      headers,
-      signal: AbortSignal.timeout(10000)
-    });
-    const ledgerEntries = resLedger.ok ? await resLedger.json().catch(() => []) : [];
-    const balances = {};
-    for (const entry of ledgerEntries) {
-      if (!entry.user_id) continue;
-      balances[entry.user_id] = (balances[entry.user_id] || 0) + Number(entry.amount || 0);
-    }
-
-    // 3. Busca pedidos para associar às contas
+    // 2. Busca pedidos para associar às contas
     const resOrders = await fetch(
       `${url}/rest/v1/orders?select=id,order_number,user_id,customer_name,customer_email,customer_phone,honoree_name,music_style,payment_status,production_status,audio_files,created_at&order=created_at.desc&limit=500`,
       { headers, signal: AbortSignal.timeout(10000) }
     );
     const ordersList = resOrders.ok ? await resOrders.json().catch(() => []) : [];
 
-    // 4. Mapeia dados finais
+    // 3. Mapeia dados finais
     const users = rawUsers.map((u) => {
       const uEmail = (u.email || '').toLowerCase().trim();
       const userOrders = ordersList.filter((ord) => {
@@ -85,7 +73,6 @@ export async function GET(req) {
         name: u.user_metadata?.name || u.user_metadata?.full_name || '',
         createdAt: u.created_at,
         lastSignInAt: u.last_sign_in_at,
-        balance: Math.round((balances[u.id] || 0) * 10) / 10,
         orders: userOrders.map((o) => ({
           id: o.id,
           orderNumber: o.order_number,
@@ -130,53 +117,6 @@ export async function POST(req) {
     const { url, headers } = conf;
     const body = await req.json().catch(() => ({}));
     const { action } = body;
-
-    // Ação 1: Conceder créditos
-    if (action === 'grant_credits') {
-      const { userId, amount, note } = body;
-      const numAmount = Number(amount);
-      if (!userId || !numAmount || numAmount <= 0) {
-        return NextResponse.json({ error: 'Informe um usuário e uma quantidade válida de créditos (> 0).' }, { status: 400 });
-      }
-
-      // Garante conta em credit_accounts
-      await fetch(`${url}/rest/v1/credit_accounts`, {
-        method: 'POST',
-        headers: { ...headers, Prefer: 'resolution=ignore-duplicates' },
-        body: JSON.stringify({
-          user_id: userId,
-          referral_code: Math.random().toString(36).substring(2, 12)
-        })
-      });
-
-      // Lança crédito no livro-razão
-      const resLedger = await fetch(`${url}/rest/v1/credit_ledger`, {
-        method: 'POST',
-        headers: { ...headers, Prefer: 'return=representation' },
-        body: JSON.stringify({
-          user_id: userId,
-          amount: numAmount,
-          reason: 'bonus_indicacoes',
-          sku: `bonus_admin_${Date.now()}`
-        })
-      });
-
-      if (!resLedger.ok) {
-        const errTxt = await resLedger.text().catch(() => '');
-        return NextResponse.json({ error: `Falha ao lançar créditos: ${errTxt}` }, { status: 500 });
-      }
-
-      // Calcula novo saldo
-      const resSum = await fetch(`${url}/rest/v1/credit_ledger?user_id=eq.${userId}&select=amount`, { headers });
-      const sumData = await resSum.json().catch(() => []);
-      const newBalance = (sumData || []).reduce((acc, r) => acc + Number(r.amount || 0), 0);
-
-      return NextResponse.json({
-        ok: true,
-        balance: Math.round(newBalance * 10) / 10,
-        message: `${numAmount} crédito(s) concedido(s) com sucesso!`
-      });
-    }
 
     // Ação 2: Gerar link de redefinição de senha
     if (action === 'recovery_link') {

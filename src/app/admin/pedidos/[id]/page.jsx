@@ -1043,7 +1043,7 @@ export default function OrderDetailsAdmin() {
                           </div>
                           {orderUserId && linkedUser && (
                             <div style={{ fontSize: '0.74rem', color: '#15803d' }}>
-                              Saldo da conta: <strong>{linkedUser.balance} créditos</strong> • {linkedUser.orders?.length || 0} música(s) na conta
+                              {linkedUser.orders?.length || 0} música(s) associada(s) à conta
                             </div>
                           )}
                         </div>
@@ -1170,7 +1170,7 @@ export default function OrderDetailsAdmin() {
                             <option value="">Selecione uma conta ({filteredAccountsForSearch.length} disponíveis)...</option>
                             {filteredAccountsForSearch.map(acc => (
                               <option key={acc.id} value={acc.id}>
-                                {acc.email} {acc.name ? `(${acc.name})` : ''} - {acc.balance} crédito(s)
+                                {acc.email} {acc.name ? `(${acc.name})` : ''} ({acc.orders?.length || 0} música(s))
                               </option>
                             ))}
                           </select>

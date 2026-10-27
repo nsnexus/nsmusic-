@@ -46,16 +46,6 @@ beforeEach(() => {
       };
     }
 
-    // Credit ledger
-    if (urlStr.includes('/rest/v1/credit_ledger')) {
-      return {
-        ok: true,
-        json: async () => [
-          { user_id: 'user-123', amount: 5, reason: 'compra', created_at: '2026-09-01T00:00:00.000Z' }
-        ]
-      };
-    }
-
     // Orders query
     if (urlStr.includes('/rest/v1/orders')) {
       if (method === 'PATCH') {
