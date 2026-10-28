@@ -161,6 +161,8 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
         body: JSON.stringify({
           orderId,
           sku: pack.sku,
+          successUrl: typeof window !== 'undefined' ? window.location.origin + '/entrega?orderId=' + encodeURIComponent(orderId) + '&session_id={CHECKOUT_SESSION_ID}&paid=stripe' : undefined,
+          cancelUrl: typeof window !== 'undefined' ? window.location.origin + '/entrega?orderId=' + encodeURIComponent(orderId) + '&cancel=stripe' : undefined,
         }),
       });
       const data = await res.json().catch(() => ({}));

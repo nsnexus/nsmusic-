@@ -64,7 +64,7 @@ export async function createStripeCheckoutSession(params, env = {}) {
 
   const siteUrl = env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_SITE_URL || 'https://nsmusic.nsnexus.com.br';
   const defaultSuccessUrl = `${siteUrl}/entrega?orderId=${encodeURIComponent(orderId)}&session_id={CHECKOUT_SESSION_ID}&paid=stripe`;
-  const defaultCancelUrl = `${siteUrl}/criar?orderId=${encodeURIComponent(orderId)}&cancel=stripe`;
+  const defaultCancelUrl = `${siteUrl}/entrega?orderId=${encodeURIComponent(orderId)}&cancel=stripe`;
 
   const successUrl = customSuccessUrl || defaultSuccessUrl;
   const cancelUrl = customCancelUrl || defaultCancelUrl;
