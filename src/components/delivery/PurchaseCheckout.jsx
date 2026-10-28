@@ -486,7 +486,28 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
               justifyContent: 'center',
             }}
           >
-            {busy ? 'Preparando seu PIX…' : (<><span style={{ marginRight: '6px' }}>Pagar Agora</span><ArrowRight size={18} aria-hidden="true" /></>)}
+            {busy ? 'Preparando seu PIX…' : (<><span style={{ marginRight: '6px' }}>Pagar Agora (PIX)</span><ArrowRight size={18} aria-hidden="true" /></>)}
+          </button>
+
+          <button
+            type="button"
+            className="nx-button"
+            disabled={busy || payingCard}
+            onClick={payWithCard}
+            style={{
+              padding: '14px 20px',
+              fontSize: '0.98rem',
+              fontWeight: '700',
+              borderRadius: '12px',
+              background: '#ffffff',
+              color: '#29232d',
+              border: '1.5px solid #cbd5e1',
+              cursor: (busy || payingCard) ? 'default' : 'pointer',
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {payingCard ? 'Abrindo Cartão…' : '💳 Pagar no Cartão'}
           </button>
         </div>
       </div>
@@ -625,7 +646,26 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
                 </div>
               </details>
 
-
+              <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px solid #e7d5df', textAlign: 'center' }}>
+                <span style={{ fontSize: '0.84rem', color: '#6c636f' }}>Prefere pagar com Cartão de Crédito? </span>
+                <button
+                  type="button"
+                  onClick={payWithCard}
+                  disabled={payingCard || busy}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#67408b',
+                    fontWeight: '700',
+                    fontSize: '0.85rem',
+                    textDecoration: 'underline',
+                    cursor: (payingCard || busy) ? 'default' : 'pointer',
+                    padding: '2px 4px',
+                  }}
+                >
+                  {payingCard ? 'Abrindo Cartão…' : 'Clique aqui para pagar no Cartão 💳'}
+                </button>
+              </div>
 
               {pix.provider === 'static' && (
                 <div style={{ marginTop: '16px' }}>
