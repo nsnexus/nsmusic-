@@ -2146,6 +2146,25 @@ export default function CriarMusica() {
                     Solicitar Ajuste Gratuito à IA
                   </button>
                 </div>
+
+                <div style={{ marginTop: '14px', textAlign: 'center' }}>
+                  <button
+                    type="button"
+                    onClick={handleCreateNewSongFromScratch}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#857D80',
+                      fontSize: '0.82rem',
+                      fontWeight: '600',
+                      textDecoration: 'underline',
+                      cursor: 'pointer',
+                      padding: '6px 10px'
+                    }}
+                  >
+                    🔄 Deseja recomeçar e fazer uma música do zero?
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -2252,23 +2271,24 @@ export default function CriarMusica() {
                   )}
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    setStep(7);
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                  className="btn-wz-primary"
-                  style={{
-                    width: '100%',
-                    padding: '0.85rem 1.1rem',
-                    fontSize: 'clamp(0.88rem, 3.8vw, 0.98rem)',
-                    whiteSpace: 'nowrap',
-                    marginTop: '12px'
-                  }}
-                >
-                  Escolher Meu Presente →
-                </button>
+                <div style={{ marginTop: '14px', textAlign: 'center' }}>
+                  <button
+                    type="button"
+                    onClick={handleCreateNewSongFromScratch}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#857D80',
+                      fontSize: '0.84rem',
+                      fontWeight: '600',
+                      textDecoration: 'underline',
+                      cursor: 'pointer',
+                      padding: '8px 12px'
+                    }}
+                  >
+                    🔄 Não gostou da prévia? Fazer outra música do zero
+                  </button>
+                </div>
               </div>
             )}
           </div>

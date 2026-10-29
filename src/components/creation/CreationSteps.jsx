@@ -402,16 +402,9 @@ export default function CreationSteps({
 
     return (
       <section className="nx-form-column" style={{ width: '100%', maxWidth: '34rem', margin: '0 auto' }}>
-        <div className="wz-guide">
-          <div className="wz-guide-icon">🎵</div>
-          <div className="wz-guide-bubble">
-            Conte a história de vocês... O que torna {data.honoreeName || 'essa pessoa'} especial? Não precisa rimar nem escrever bonito, conte do seu jeito sincero!
-          </div>
-        </div>
-
-        <div className="wz-t">Conte a história de vocês</div>
-        <div className="wz-s">
-          Conte momentos marcantes, apelidos carinhosos, onde se conheceram ou o que mais admira. A IA transformará isso em versos emocionantes.
+        <h1 className="wz-t" style={{ marginTop: '0.5rem', marginBottom: '4px' }}>A história de vocês</h1>
+        <div className="wz-s" style={{ marginBottom: '16px' }}>
+          Conte momentos marcantes, apelidos carinhosos ou o que torna {data.honoreeName || 'essa pessoa'} tão especial. Não precisa rimar, conte do seu jeito sincero!
         </div>
 
         <div data-missing={isStoryMissing ? "true" : undefined}>

@@ -1,21 +1,69 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
+import { auth } from '@/lib/authClient';
 
 const ESTILOS_SUGERIDOS = [
+  { label: '🤠 Sertanejo Universitário', value: 'Sertanejo universitário moderno, violões de aço e guitarras elétricas, bateria pop contemporânea, produção polida de rádio, voz marcante e emotiva' },
+  { label: '🪕 Sertanejo Raiz (Modão)', value: 'Sertanejo raiz tradicional, viola caipira e violão de nylon, sanfona acústica marcante, harmonia de dueto caipira, arranjo nostálgico e emocionante' },
   { label: '🎸 Sertanejo Acústico', value: 'Sertanejo acústico com violão de aço marcante, voz aveludada e arranjo limpo de estúdio' },
   { label: '🎹 Pop Balada Emocionante', value: 'Emotional acoustic pop piano ballad, cinematic warm vocals, touching melody' },
-  { label: '☕ MPB & Violão de Nylon', value: 'MPB acústico intimista, violão de nylon com arranjo elegante e voz suave' },
-  { label: '🥁 Pagode Moderno', value: 'Pagode romântico acústico com cavaquinho, percussão suave e voz marcante' },
+  { label: '🥁 Pagode & Samba', value: 'Pagode romântico acústico com cavaquinho, percussão suave, pandeiro e voz marcante' },
+  { label: '☕ MPB & Bossa Acústica', value: 'MPB acústico intimista, violão de nylon com arranjo elegante e voz suave' },
   { label: '⚡ Rock Alternativo', value: 'Alternative rock ballad, dynamic drums, driving guitars and passionate vocals' },
-  { label: '🎧 Lo-Fi Chill', value: 'Lo-Fi chillhop acoustic remix, warm vinyl beats, mellow soothing vocals' },
-  { label: '🎷 Gospel / Worship', value: 'Contemporary worship acoustic, emotional ambient piano, deep heartfelt vocal' },
   { label: '💃 Forró & Piseiro', value: 'Piseiro e forró acústico moderno, sanfona marcante e ritmo envolvente' },
+  { label: '🎷 Gospel / Worship', value: 'Contemporary worship acoustic, emotional ambient piano, deep heartfelt vocal' },
+  { label: '🎧 Lo-Fi Chill', value: 'Lo-Fi chillhop acoustic remix, warm vinyl beats, mellow soothing vocals' },
   { label: '🎻 Orquestral Cinematográfico', value: 'Cinematic orchestral soundtrack, lush strings and powerful emotional vocal' },
   { label: '🌴 Reggae Suave', value: 'Smooth acoustic roots reggae, gentle guitar skanks and sunny warm vocals' }
 ];
 
-export default function AbaRemixCover() {
+// Extrai todas as faixas e versões de áudio de um pedido existente
+function getOrderAudioTracks(order) {
+  if (!order) return [];
+  const tracks = [];
+  const seen = new Set();
+
+  const add = (url, label) => {
+    if (!url || typeof url !== 'string') return;
+    const clean = url.trim();
+    if (!clean || seen.has(clean) || clean.includes('/api/audio/proxy')) return;
+    seen.add(clean);
+    tracks.push({ url: clean, label });
+  };
+
+  if (Array.isArray(order.audioFiles)) {
+    order.audioFiles.forEach((u, i) => add(u, `Faixa ${i + 1}`));
+  }
+  if (order.audioUrl) {
+    add(order.audioUrl, 'Áudio Principal');
+  }
+  if (order.homenagemMusicaUrl) add(order.homenagemMusicaUrl, 'Áudio da Homenagem');
+  if (order.cartaMusicaUrl) add(order.cartaMusicaUrl, 'Áudio da Carta');
+
+  if (Array.isArray(order.audioHistory)) {
+    order.audioHistory.forEach((batch, bIdx) => {
+      if (Array.isArray(batch.audioFiles)) {
+        batch.audioFiles.forEach((u, i) => add(u, `Lote ${bIdx + 1} - Faixa ${i + 1}`));
+      } else if (batch.audioUrl) {
+        add(batch.audioUrl, `Lote ${bIdx + 1}`);
+      }
+    });
+  }
+
+  return tracks;
+}
+
+export default function AbaRemixCover({ orders = [], initialOrderId = '' }) {
+  // Integração com Pedidos Existentes (Reutilizar Pedido)
+  const [pedidoSelecionado, setPedidoSelecionado] = useState(null);
+  const [termoBuscaPedido, setTermoBuscaPedido] = useState('');
+  const [pedidosSugeridos, setPedidosSugeridos] = useState([]);
+  const [buscandoPedidos, setBuscandoPedidos] = useState(false);
+  const [dropdownAberto, setDropdownAberto] = useState(false);
+  const [vinculandoId, setVinculandoId] = useState('');
+
   // Configurações do Remix
   const [audioFile, setAudioFile] = useState(null);
   const [audioUrl, setAudioUrl] = useState('');
@@ -57,6 +105,170 @@ export default function AbaRemixCover() {
   const pollingRef = useRef(null);
 
   // Alterna exibição da letra no card
+  // Seleciona um pedido e preenche os campos automaticamente
+  const handleSelecionarPedido = (order, audioUrlCustom = '') => {
+    if (!order) return;
+    setPedidoSelecionado(order);
+    setDropdownAberto(false);
+    setTermoBuscaPedido('');
+
+    const tracks = getOrderAudioTracks(order);
+    const chosenAudio = audioUrlCustom || tracks[0]?.url || order.audioUrl || (Array.isArray(order.audioFiles) ? order.audioFiles[0] : '') || '';
+
+    if (chosenAudio) {
+      setAudioUrl(chosenAudio);
+    }
+
+    const nomeBase = (order.honoreeName || order.customerName || 'Música').trim();
+    setTitulo(`${nomeBase} (Remix ${order.musicStyle ? `ex-${order.musicStyle}` : ''})`.trim());
+
+    if (order.lyrics && order.lyrics.trim()) {
+      setPrompt(order.lyrics.trim());
+    }
+
+    const vt = (order.voiceType || '').toLowerCase();
+    if (vt.includes('fem') || vt.includes('mulher')) {
+      setVocalGender('f');
+    } else if (vt.includes('masc') || vt.includes('homem')) {
+      setVocalGender('m');
+    } else {
+      setVocalGender('');
+    }
+
+    setInstrumental(false);
+    setMsgSucesso(`✨ Pedido #${order.orderNumber || order.id?.slice(0, 8)} (${order.customerName}) carregado! Áudio base e letra preenchidos. Escolha o novo estilo desejado abaixo.`);
+  };
+
+  const handleDesvincularPedido = () => {
+    setPedidoSelecionado(null);
+    setMsgSucesso('Pedido desvinculado.');
+  };
+
+  // Salva a faixa do remix direto no pedido original
+  const handleVincularAoPedido = async (orderId, trackUrl, asPrimary = false) => {
+    if (!orderId || !trackUrl) return;
+    setVinculandoId(trackUrl);
+    setMsgErro('');
+    setMsgSucesso('');
+
+    try {
+      const res = await fetch('/api/admin/remix', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'attach_to_order',
+          orderId,
+          trackUrl,
+          asPrimary
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) throw new Error(data.error || 'Falha ao vincular áudio ao pedido.');
+      setMsgSucesso(`🎉 ${data.message || 'Áudio vinculado ao pedido com sucesso!'}`);
+    } catch (e) {
+      setMsgErro(e.message || 'Erro ao vincular ao pedido.');
+    } finally {
+      setVinculandoId('');
+    }
+  };
+
+  // Enviar mensagem direta para o WhatsApp do cliente
+  const handleEnviarWhatsAppCliente = (item, trackUrl, versaoNum) => {
+    const link = resolvePlayableAudioUrl(trackUrl);
+    const nome = item.customerName || 'Cliente';
+    const phone = (item.customerPhone || '').replace(/\D/g, '');
+    const estiloTexto = item.style ? `no estilo ${item.style.split(',')[0]}` : '';
+    const msg = `Olá ${nome}! 🎶 Criamos a sua música ${estiloTexto} como você pediu!\n\nVocê pode ouvir a nova versão no link abaixo:\n${link}\n\nEspero que goste do resultado! 🎧✨`;
+    if (phone) {
+      window.open(`https://wa.me/${phone.startsWith('55') ? phone : `55${phone}`}?text=${encodeURIComponent(msg)}`, '_blank');
+    } else {
+      handleCopiar(msg, `wpp_${item.taskId}_${versaoNum}`);
+    }
+  };
+
+  // Busca pedidos com debounce ao digitar
+  useEffect(() => {
+    if (!termoBuscaPedido || termoBuscaPedido.trim().length < 2) {
+      setPedidosSugeridos([]);
+      return;
+    }
+
+    const t = setTimeout(async () => {
+      setBuscandoPedidos(true);
+      const termo = termoBuscaPedido.toLowerCase().trim();
+
+      let matches = [];
+      if (Array.isArray(orders) && orders.length > 0) {
+        matches = orders.filter((o) => {
+          const num = String(o.orderNumber || '').toLowerCase();
+          const cust = String(o.customerName || '').toLowerCase();
+          const hon = String(o.honoreeName || '').toLowerCase();
+          const phone = String(o.customerPhone || '').toLowerCase();
+          const style = String(o.musicStyle || '').toLowerCase();
+          return num.includes(termo) || cust.includes(termo) || hon.includes(termo) || phone.includes(termo) || style.includes(termo);
+        });
+      }
+
+      if (matches.length < 5) {
+        try {
+          const token = await auth.currentUser?.getIdToken();
+          const res = await fetch(`/api/admin/orders?search=${encodeURIComponent(termo)}&limit=10`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {}
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data?.ok && Array.isArray(data.orders)) {
+              const seenIds = new Set(matches.map((m) => m.id));
+              for (const o of data.orders) {
+                if (!seenIds.has(o.id)) {
+                  matches.push(o);
+                  seenIds.add(o.id);
+                }
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('[remix] Erro ao buscar pedidos na API:', e);
+        }
+      }
+
+      setPedidosSugeridos(matches.slice(0, 10));
+      setBuscandoPedidos(false);
+      setDropdownAberto(true);
+    }, 280);
+
+    return () => clearTimeout(t);
+  }, [termoBuscaPedido, orders]);
+
+  // Carrega pedido inicial se initialOrderId foi passado pela URL ou props
+  useEffect(() => {
+    if (!initialOrderId) return;
+    const carregarInicial = async () => {
+      if (Array.isArray(orders) && orders.length > 0) {
+        const found = orders.find((o) => o.id === initialOrderId || o.orderNumber === initialOrderId);
+        if (found) {
+          handleSelecionarPedido(found);
+          return;
+        }
+      }
+      try {
+        const token = await auth.currentUser?.getIdToken();
+        const res = await fetch(`/api/admin/orders?search=${encodeURIComponent(initialOrderId)}&limit=1`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.ok && Array.isArray(data.orders) && data.orders[0]) {
+            handleSelecionarPedido(data.orders[0]);
+          }
+        }
+      } catch (e) {
+        console.warn('[remix] Erro ao carregar initialOrderId:', e);
+      }
+    };
+    carregarInicial();
+  }, [initialOrderId, orders]);
+
   const toggleLetra = (id) => {
     setLetrasAbertas((prev) => {
       const next = new Set(prev);
@@ -344,7 +556,12 @@ export default function AbaRemixCover() {
           model,
           instrumental,
           vocalGender: instrumental ? '' : vocalGender,
-          prompt: instrumental ? '' : prompt.trim()
+          prompt: instrumental ? '' : prompt.trim(),
+          orderId: pedidoSelecionado?.id || null,
+          orderNumber: pedidoSelecionado?.orderNumber || null,
+          customerName: pedidoSelecionado?.customerName || null,
+          customerPhone: pedidoSelecionado?.customerPhone || null,
+          originalStyle: pedidoSelecionado?.musicStyle || null
         })
       });
 
@@ -493,6 +710,385 @@ export default function AbaRemixCover() {
         marginBottom: '28px'
       }}>
         <form onSubmit={handleCriarRemix}>
+          {/* SEÇÃO: REUTILIZAR PEDIDO EXISTENTE */}
+          <div style={{
+            background: pedidoSelecionado ? '#f5f3ff' : '#f8fafc',
+            border: pedidoSelecionado ? '1.5px solid #8b5cf6' : '1.5px dashed #cbd5e1',
+            borderRadius: '14px',
+            padding: '18px 20px',
+            marginBottom: '24px',
+            position: 'relative'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '1.3rem' }}>🔁</span>
+                <h3 style={{ fontSize: '0.98rem', fontWeight: '800', color: pedidoSelecionado ? '#5b21b6' : '#1e293b', margin: 0 }}>
+                  Reutilizar Pedido Já Feito (Trocar Ritmo do Cliente)
+                </h3>
+                <span style={{
+                  background: pedidoSelecionado ? '#ddd6fe' : '#e0e7ff',
+                  color: pedidoSelecionado ? '#5b21b6' : '#3730a3',
+                  fontSize: '0.72rem',
+                  fontWeight: '800',
+                  padding: '2px 8px',
+                  borderRadius: '999px'
+                }}>
+                  {pedidoSelecionado ? 'Pedido Ativo' : 'Economize Tempo'}
+                </span>
+              </div>
+
+              {pedidoSelecionado && (
+                <button
+                  type="button"
+                  onClick={handleDesvincularPedido}
+                  style={{
+                    background: '#ffffff',
+                    border: '1px solid #c4b5fd',
+                    color: '#6d28d9',
+                    padding: '4px 10px',
+                    borderRadius: '6px',
+                    fontSize: '0.76rem',
+                    fontWeight: '700',
+                    cursor: 'pointer'
+                  }}
+                >
+                  ✕ Trocar / Desvincular Pedido
+                </button>
+              )}
+            </div>
+
+            <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '0 0 12px 0' }}>
+              Quando o cliente pede um ritmo diferente para a música dele, busque o pedido aqui. A letra aprovada e o áudio anterior serão importados automaticamente, sem precisar refazer nada do zero.
+            </p>
+
+            {/* Busca de Pedidos */}
+            {!pedidoSelecionado && (
+              <div style={{ position: 'relative' }}>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input
+                    type="text"
+                    value={termoBuscaPedido}
+                    onChange={(e) => {
+                      setTermoBuscaPedido(e.target.value);
+                      setDropdownAberto(true);
+                    }}
+                    onFocus={() => {
+                      if (pedidosSugeridos.length > 0 || (Array.isArray(orders) && orders.length > 0)) {
+                        setDropdownAberto(true);
+                      }
+                    }}
+                    placeholder="🔍 Buscar pedido por nome do cliente, homenageado, telefone ou #NS-..."
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px',
+                      borderRadius: '8px',
+                      border: '1.5px solid #cbd5e1',
+                      fontSize: '0.86rem',
+                      outline: 'none',
+                      boxSizing: 'border-box',
+                      background: '#ffffff'
+                    }}
+                  />
+                  {termoBuscaPedido && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTermoBuscaPedido('');
+                        setDropdownAberto(false);
+                      }}
+                      style={{
+                        padding: '0 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #cbd5e1',
+                        background: '#f1f5f9',
+                        color: '#475569',
+                        fontSize: '0.8rem',
+                        fontWeight: '700',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Limpar
+                    </button>
+                  )}
+                </div>
+
+                {/* Dropdown de Resultados */}
+                {dropdownAberto && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    marginTop: '6px',
+                    background: '#ffffff',
+                    borderRadius: '10px',
+                    border: '1.5px solid #cbd5e1',
+                    boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)',
+                    zIndex: 40,
+                    maxHeight: '320px',
+                    overflowY: 'auto'
+                  }}>
+                    {buscandoPedidos ? (
+                      <div style={{ padding: '12px 16px', fontSize: '0.82rem', color: '#64748b' }}>
+                        ⏳ Buscando pedidos correspondentes...
+                      </div>
+                    ) : pedidosSugeridos.length > 0 ? (
+                      pedidosSugeridos.map((ped) => {
+                        const tracks = getOrderAudioTracks(ped);
+                        const isPago = ped.paymentStatus === 'PAGO' || ped.paymentStatus === 'PAGAMENTO_APROVADO';
+                        return (
+                          <div
+                            key={ped.id}
+                            onClick={() => handleSelecionarPedido(ped)}
+                            style={{
+                              padding: '10px 14px',
+                              borderBottom: '1px solid #f1f5f9',
+                              cursor: 'pointer',
+                              transition: 'background 0.12s',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              gap: '12px'
+                            }}
+                            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f5f3ff')}
+                            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#ffffff')}
+                          >
+                            <div style={{ minWidth: 0, flex: 1 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                <strong style={{ fontSize: '0.86rem', color: '#0f172a' }}>
+                                  #{ped.orderNumber || ped.id.slice(0, 8)}
+                                </strong>
+                                <span style={{ fontSize: '0.82rem', color: '#334155', fontWeight: '600' }}>
+                                  {ped.customerName}
+                                </span>
+                                {ped.honoreeName && (
+                                  <span style={{ fontSize: '0.78rem', color: '#7c3aed', background: '#ede9fe', padding: '1px 6px', borderRadius: '4px' }}>
+                                    Para: {ped.honoreeName}
+                                  </span>
+                                )}
+                              </div>
+                              <div style={{ fontSize: '0.76rem', color: '#64748b', marginTop: '3px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                                {ped.musicStyle && <span>Ritmo: <strong>{ped.musicStyle}</strong></span>}
+                                {ped.customerPhone && <span>Tel: {ped.customerPhone}</span>}
+                                <span>{tracks.length} áudio(s)</span>
+                              </div>
+                            </div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{
+                                fontSize: '0.7rem',
+                                fontWeight: '800',
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                background: isPago ? '#dcfce7' : '#fef3c7',
+                                color: isPago ? '#166534' : '#92400e'
+                              }}>
+                                {isPago ? 'PAGO' : 'AGUARDANDO'}
+                              </span>
+                              <span style={{ fontSize: '0.76rem', color: '#7c3aed', fontWeight: '700' }}>
+                                Usar →
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : termoBuscaPedido.trim().length >= 2 ? (
+                      <div style={{ padding: '12px 16px', fontSize: '0.82rem', color: '#94a3b8' }}>
+                        Nenhum pedido encontrado para &quot;{termoBuscaPedido}&quot;.
+                      </div>
+                    ) : null}
+                  </div>
+                )}
+
+                {/* Chips Rápidos de Pedidos Recentes */}
+                {Array.isArray(orders) && orders.length > 0 && !termoBuscaPedido && (
+                  <div style={{ marginTop: '10px' }}>
+                    <span style={{ fontSize: '0.74rem', fontWeight: '700', color: '#64748b', display: 'block', marginBottom: '6px' }}>
+                      Ou selecione direto dos pedidos recentes:
+                    </span>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                      {orders.slice(0, 5).map((o) => (
+                        <button
+                          key={o.id}
+                          type="button"
+                          onClick={() => handleSelecionarPedido(o)}
+                          style={{
+                            background: '#ffffff',
+                            border: '1px solid #cbd5e1',
+                            color: '#334155',
+                            padding: '4px 10px',
+                            borderRadius: '999px',
+                            fontSize: '0.76rem',
+                            fontWeight: '600',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}
+                        >
+                          <span>👤 {o.customerName || 'Cliente'}</span>
+                          <span style={{ color: '#7c3aed', fontWeight: '700' }}>({o.musicStyle || 'Música'})</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Card do Pedido Selecionado */}
+            {pedidoSelecionado && (() => {
+              const tracks = getOrderAudioTracks(pedidoSelecionado);
+              const isPago = pedidoSelecionado.paymentStatus === 'PAGO' || pedidoSelecionado.paymentStatus === 'PAGAMENTO_APROVADO';
+
+              return (
+                <div style={{
+                  background: '#ffffff',
+                  border: '1px solid #ddd6fe',
+                  borderRadius: '10px',
+                  padding: '14px 16px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: '1rem', fontWeight: '800', color: '#5b21b6' }}>
+                        #{pedidoSelecionado.orderNumber || pedidoSelecionado.id?.slice(0, 8)}
+                      </span>
+                      <span style={{
+                        fontSize: '0.72rem',
+                        fontWeight: '800',
+                        padding: '2px 8px',
+                        borderRadius: '6px',
+                        background: isPago ? '#dcfce7' : '#fef3c7',
+                        color: isPago ? '#166534' : '#92400e'
+                      }}>
+                        {isPago ? '✓ PAGO' : 'PENDENTE'}
+                      </span>
+                      <span style={{ fontSize: '0.84rem', color: '#334155', fontWeight: '700' }}>
+                        👤 {pedidoSelecionado.customerName}
+                      </span>
+                      {pedidoSelecionado.customerPhone && (
+                        <span style={{ fontSize: '0.78rem', color: '#64748b' }}>
+                          ({pedidoSelecionado.customerPhone})
+                        </span>
+                      )}
+                    </div>
+
+                    <Link
+                      href={`/admin/pedidos/${pedidoSelecionado.id}`}
+                      target="_blank"
+                      style={{ fontSize: '0.76rem', color: '#7c3aed', fontWeight: '700', textDecoration: 'underline' }}
+                    >
+                      Abrir Pedido Completo ↗
+                    </Link>
+                  </div>
+
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                    gap: '10px',
+                    background: '#f8fafc',
+                    padding: '10px 12px',
+                    borderRadius: '8px',
+                    marginBottom: '14px',
+                    fontSize: '0.78rem'
+                  }}>
+                    <div>
+                      <span style={{ color: '#64748b', display: 'block' }}>Homenageado / Ocasião:</span>
+                      <strong style={{ color: '#0f172a' }}>
+                        {pedidoSelecionado.honoreeName || 'N/A'} {pedidoSelecionado.relationship ? `(${pedidoSelecionado.relationship})` : ''}
+                      </strong>
+                    </div>
+                    <div>
+                      <span style={{ color: '#64748b', display: 'block' }}>Estilo Original:</span>
+                      <strong style={{ color: '#7c3aed' }}>
+                        🎵 {pedidoSelecionado.musicStyle || 'Não especificado'} {pedidoSelecionado.musicMood ? `(${pedidoSelecionado.musicMood})` : ''}
+                      </strong>
+                    </div>
+                    <div>
+                      <span style={{ color: '#64748b', display: 'block' }}>Letra Aprovada:</span>
+                      <strong style={{ color: '#0f172a' }}>
+                        {pedidoSelecionado.lyrics ? `✓ ${pedidoSelecionado.lyrics.split('\n').filter(Boolean).length} versos carregados` : 'Sem letra'}
+                      </strong>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>
+                      🎧 Áudios Disponíveis no Pedido (Escolha qual versão usar como base do Remix):
+                    </label>
+
+                    {tracks.length > 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {tracks.map((tr, trIdx) => {
+                          const isSelected = audioUrl === tr.url;
+                          return (
+                            <div
+                              key={trIdx}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                gap: '12px',
+                                padding: '8px 12px',
+                                borderRadius: '8px',
+                                background: isSelected ? '#ede9fe' : '#ffffff',
+                                border: isSelected ? '1.5px solid #8b5cf6' : '1px solid #e2e8f0',
+                                flexWrap: 'wrap'
+                              }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: '1 1 180px' }}>
+                                <input
+                                  type="radio"
+                                  name="faixa-remix"
+                                  checked={isSelected}
+                                  onChange={() => setAudioUrl(tr.url)}
+                                  id={`tr-${trIdx}`}
+                                  style={{ cursor: 'pointer' }}
+                                />
+                                <label htmlFor={`tr-${trIdx}`} style={{ fontSize: '0.82rem', fontWeight: '700', color: isSelected ? '#5b21b6' : '#334155', cursor: 'pointer' }}>
+                                  {tr.label}
+                                </label>
+                              </div>
+
+                              <div style={{ flex: '1 1 240px' }}>
+                                <audio
+                                  src={resolvePlayableAudioUrl(tr.url)}
+                                  controls
+                                  style={{ width: '100%', height: '30px', outline: 'none' }}
+                                />
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => setAudioUrl(tr.url)}
+                                style={{
+                                  padding: '4px 10px',
+                                  borderRadius: '6px',
+                                  background: isSelected ? '#7c3aed' : '#f1f5f9',
+                                  color: isSelected ? '#ffffff' : '#475569',
+                                  border: 'none',
+                                  fontSize: '0.74rem',
+                                  fontWeight: '700',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                {isSelected ? '✓ Selecionado' : 'Usar esta versão'}
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: '0.78rem', color: '#b45309', background: '#fffbeb', padding: '8px 12px', borderRadius: '6px', border: '1px solid #fde68a' }}>
+                        ⚠️ Este pedido ainda não possui arquivos de áudio registrados. Você pode colar a URL manualmente ou enviar o arquivo abaixo.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+
           {/* Seção 1: Áudio Original */}
           <div style={{ marginBottom: '22px' }}>
             <label style={{ display: 'block', fontSize: '0.9rem', fontWeight: '800', color: '#1e293b', marginBottom: '6px' }}>
@@ -597,6 +1193,26 @@ export default function AbaRemixCover() {
                 resize: 'vertical'
               }}
             />
+
+            {pedidoSelecionado && (
+              <div style={{
+                background: '#fef3c7',
+                border: '1px solid #fde68a',
+                borderRadius: '8px',
+                padding: '8px 12px',
+                marginTop: '10px',
+                fontSize: '0.82rem',
+                color: '#92400e',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                <span>ℹ️</span>
+                <span>
+                  <strong>Estilo original do pedido:</strong> {pedidoSelecionado.musicStyle || 'Não especificado'}{pedidoSelecionado.musicMood ? ` (${pedidoSelecionado.musicMood})` : ''}. Escolha abaixo o novo estilo que o cliente pediu:
+                </span>
+              </div>
+            )}
 
             {/* Chips Rápidos de Estilos */}
             <div style={{ marginTop: '10px' }}>
@@ -1434,7 +2050,7 @@ export default function AbaRemixCover() {
 
                                   <button
                                     type="button"
-                                    onClick={() => handleCopiarMensagemWhatsApp(item, rawTrackUrl, tIdx + 1)}
+                                    onClick={() => item.customerPhone ? handleEnviarWhatsAppCliente(item, rawTrackUrl, tIdx + 1) : handleCopiarMensagemWhatsApp(item, rawTrackUrl, tIdx + 1)}
                                     style={{
                                       background: copiadoId === `wpp_${item.taskId}_${tIdx + 1}` ? '#10b981' : '#25d366',
                                       color: '#ffffff',
@@ -1448,9 +2064,34 @@ export default function AbaRemixCover() {
                                       alignItems: 'center',
                                       gap: '4px'
                                     }}
+                                    title={item.customerPhone ? 'Abrir conversa do WhatsApp com mensagem pronta' : 'Copiar texto para WhatsApp'}
                                   >
                                     {copiadoId === `wpp_${item.taskId}_${tIdx + 1}` ? '✓ Copiado p/ Zap' : '💬 WhatsApp'}
                                   </button>
+
+                                  {item.orderId && (
+                                    <button
+                                      type="button"
+                                      disabled={vinculandoId === rawTrackUrl}
+                                      onClick={() => handleVincularAoPedido(item.orderId, rawTrackUrl, tIdx === 0)}
+                                      style={{
+                                        background: vinculandoId === rawTrackUrl ? '#ede9fe' : '#f5f3ff',
+                                        color: '#6d28d9',
+                                        border: '1px solid #c4b5fd',
+                                        padding: '5px 10px',
+                                        borderRadius: '6px',
+                                        fontSize: '0.74rem',
+                                        fontWeight: '800',
+                                        cursor: vinculandoId === rawTrackUrl ? 'wait' : 'pointer',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '4px'
+                                      }}
+                                      title={tIdx === 0 ? 'Definir esta faixa como o Áudio Principal do pedido' : 'Adicionar esta faixa às versões do pedido'}
+                                    >
+                                      {vinculandoId === rawTrackUrl ? 'Salvando...' : tIdx === 0 ? '⭐ Áudio Principal' : '➕ Salvar no Pedido'}
+                                    </button>
+                                  )}
                                 </div>
                               </div>
                             );

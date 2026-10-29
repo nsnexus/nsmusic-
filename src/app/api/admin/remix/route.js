@@ -119,7 +119,12 @@ export async function POST(req) {
         model = 'V5_5',
         prompt = '',
         instrumental = false,
-        vocalGender = ''
+        vocalGender = '',
+        orderId = null,
+        orderNumber = null,
+        customerName = null,
+        customerPhone = null,
+        originalStyle = null
       } = body;
 
       if (!uploadUrl || typeof uploadUrl !== 'string') {
@@ -194,6 +199,11 @@ export async function POST(req) {
             model: inputPayload.model,
             vocalGender: vocalGender || 'auto',
             lyrics: inputPayload.lyrics || inputPayload.prompt || '',
+            orderId: orderId || null,
+            orderNumber: orderNumber || null,
+            customerName: customerName || null,
+            customerPhone: customerPhone || null,
+            originalStyle: originalStyle || null,
             status: 'PROCESSING',
             tracks: [],
             createdAt: new Date().toISOString()
@@ -220,6 +230,11 @@ export async function POST(req) {
           uploadUrl,
           model: inputPayload.model,
           lyrics: inputPayload.lyrics || inputPayload.prompt || '',
+          orderId: orderId || null,
+          orderNumber: orderNumber || null,
+          customerName: customerName || null,
+          customerPhone: customerPhone || null,
+          originalStyle: originalStyle || null,
           status: 'PROCESSING'
         }
       });
@@ -418,6 +433,63 @@ export async function POST(req) {
       });
 
       return NextResponse.json({ ok: true, history: filtered });
+    }
+
+    // 6. Vincular faixa do Remix ao Pedido original
+    if (action === 'attach_to_order') {
+      const { orderId, trackUrl, asPrimary = false } = body;
+      if (!orderId || !trackUrl) {
+        return NextResponse.json({ error: 'orderId e trackUrl são obrigatórios.' }, { status: 400 });
+      }
+
+      const supabase = getSupabaseEdge(env);
+      if (!supabase) return NextResponse.json({ error: 'Banco de dados indisponível' }, { status: 503 });
+
+      const { data: order, error: fetchErr } = await supabase
+        .from('orders')
+        .select('id, audio_url, audio_files, audio_history')
+        .eq('id', orderId)
+        .maybeSingle();
+
+      if (fetchErr || !order) {
+        return NextResponse.json({ error: 'Pedido não encontrado.' }, { status: 404 });
+      }
+
+      let currentFiles = Array.isArray(order.audio_files) ? [...order.audio_files] : [];
+      if (currentFiles.length === 0 && order.audio_url) {
+        currentFiles.push(order.audio_url);
+      }
+
+      let newAudioUrl = order.audio_url;
+      if (asPrimary) {
+        newAudioUrl = trackUrl;
+        currentFiles = [trackUrl, ...currentFiles.filter(u => u !== trackUrl)];
+      } else {
+        if (!currentFiles.includes(trackUrl)) {
+          currentFiles.push(trackUrl);
+        }
+        if (!newAudioUrl) newAudioUrl = trackUrl;
+      }
+
+      const { error: updateErr } = await supabase
+        .from('orders')
+        .eq('id', orderId)
+        .update({
+          audio_url: newAudioUrl,
+          audio_files: currentFiles,
+          updated_at: new Date().toISOString()
+        });
+
+      if (updateErr) {
+        return NextResponse.json({ error: updateErr.message || 'Erro ao vincular áudio ao pedido.' }, { status: 500 });
+      }
+
+      return NextResponse.json({
+        ok: true,
+        message: asPrimary ? 'Faixa definida como Áudio Principal do pedido com sucesso!' : 'Faixa adicionada às versões do pedido com sucesso!',
+        audioUrl: newAudioUrl,
+        audioFiles: currentFiles
+      });
     }
 
     return NextResponse.json({ error: 'Ação não reconhecida.' }, { status: 400 });

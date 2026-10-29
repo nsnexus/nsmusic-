@@ -97,6 +97,23 @@ export default function AdminDashboard() {
 
   // 'ORDERS' | 'CONTAS' | 'STUCK' | 'LIMITES' | 'AJUSTES' | 'FINANCEIRO' | 'TIMBRES' | 'REMIX'
   const [activeTab, setActiveTab] = useState(() => getSavedAdminFilter('activeTab', 'ORDERS'));
+  const [remixOrderId, setRemixOrderId] = useState('');
+
+  // Lê tab e orderId da URL caso venha de um link direto (ex: /admin?tab=REMIX&orderId=xyz)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      const tabParam = sp.get('tab');
+      const orderIdParam = sp.get('orderId');
+      if (tabParam && tabParam.toUpperCase() === 'REMIX') {
+        setActiveTab('REMIX');
+      }
+      if (orderIdParam) {
+        setRemixOrderId(orderIdParam);
+      }
+    } catch (e) {}
+  }, []);
 
   // Salva os filtros no sessionStorage para preservá-los ao navegar para um pedido e voltar
   useEffect(() => {
@@ -1152,7 +1169,7 @@ export default function AdminDashboard() {
           ) : activeTab === 'FINANCEIRO' ? (
             <AbaFinanceiro />
           ) : activeTab === 'REMIX' ? (
-            <AbaRemixCover />
+            <AbaRemixCover orders={orders} initialOrderId={remixOrderId} />
           ) : activeTab === 'TIMBRES' ? (
             <TabelaTimbresClientes />
           ) : activeTab === 'LIMITES' ? (
@@ -2319,6 +2336,15 @@ export default function AdminDashboard() {
                                   <span style={{ ...styles.statusBadge, border: `1px solid ${getStatusBadgeColor(o.productionStatus)}44`, color: getStatusBadgeColor(o.productionStatus), backgroundColor: `${getStatusBadgeColor(o.productionStatus)}10` }}>
                                     {o.productionStatus || 'PENDENTE'}
                                   </span>
+                                  {o.secondGeneration || o.secondOrderCreated ? (
+                                    <span title="Cliente gerou a 2ª música (4 faixas disponíveis no pedido)" style={{ fontSize: '0.7rem', fontWeight: '800', color: '#15803d', backgroundColor: '#dcfce7', padding: '1px 6px', borderRadius: '6px', border: '1px solid #bbf7d0', display: 'inline-flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap' }}>
+                                      🎵 2ª Música: Gerada
+                                    </span>
+                                  ) : (o.paymentStatus === 'PAGO' || o.paymentStatus === 'PAGAMENTO_APROVADO') ? (
+                                    <span title="Cliente tem direito à 2ª geração grátis, mas ainda não gerou" style={{ fontSize: '0.7rem', fontWeight: '700', color: '#92400e', backgroundColor: '#fef3c7', padding: '1px 6px', borderRadius: '6px', border: '1px solid #fde68a', display: 'inline-flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap' }}>
+                                      ⏳ 2ª Música: Pendente
+                                    </span>
+                                  ) : null}
                                   {o.sunoProvider === 'suno_local' && (
                                     <span title="Música gerada pelo seu Robô Local (Suno PC) - Custo R$ 0,00" style={{ fontSize: '0.7rem', fontWeight: '700', color: '#0369a1', backgroundColor: '#e0f2fe', padding: '1px 6px', borderRadius: '6px', border: '1px solid #bae6fd', display: 'inline-flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap' }}>
                                       🖥️ Robô PC

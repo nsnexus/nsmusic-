@@ -1314,6 +1314,22 @@ export default function OrderDetailsAdmin() {
                 <button type="button" onClick={handleCopyClientLink} style={{ ...styles.quickActionBtn, background: '#e2e8f0', color: '#0f172a' }}>
                   {copiedClientLink ? '✅ Link copiado!' : '🔗 Copiar página do cliente'}
                 </button>
+                <Link
+                  href={`/admin?tab=REMIX&orderId=${orderId}`}
+                  style={{
+                    ...styles.quickActionBtn,
+                    background: 'linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)',
+                    color: '#ffffff',
+                    textDecoration: 'none',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: '0 2px 6px rgba(124, 58, 237, 0.25)'
+                  }}
+                  title="Abrir no Estúdio de Remix para gerar outro ritmo a partir deste pedido"
+                >
+                  🎛️ Remixar / Mudar Ritmo
+                </Link>
                 <button
                   type="button"
                   onClick={handleCopyImpactLink}
@@ -2002,6 +2018,168 @@ export default function OrderDetailsAdmin() {
                         </div>
                       ))}
                     </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Card de 2ª Geração / Músicas Bônus do Pacote */}
+              <div className="admin-card-responsive" style={styles.card}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid #e2e8f0', paddingBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <h3 style={{ fontSize: '1.15rem', fontWeight: '800', color: '#0f172a', margin: 0 }}>
+                      🎵 2ª Geração de Músicas (4 Músicas do Pacote)
+                    </h3>
+                    <span style={{
+                      fontSize: '0.74rem',
+                      fontWeight: '800',
+                      padding: '2px 8px',
+                      borderRadius: '12px',
+                      background: (order?.secondGeneration?.audioFiles?.length || order?.secondGeneration?.audioUrl) ? '#dcfce7' : '#fef3c7',
+                      color: (order?.secondGeneration?.audioFiles?.length || order?.secondGeneration?.audioUrl) ? '#166534' : '#92400e'
+                    }}>
+                      {(order?.secondGeneration?.audioFiles?.length || order?.secondGeneration?.audioUrl) ? '✓ 2ª Geração Concluída' : '⏳ 2ª Geração Pendente'}
+                    </span>
+                  </div>
+                </div>
+
+                <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '16px', lineHeight: '1.4' }}>
+                  O pacote inclui 4 músicas (2 gerações completas de 2 faixas cada). Quando o cliente decide refazer do zero ou criar uma nova versão, as faixas adicionais aparecem aqui para conferência e download.
+                </p>
+
+                {order?.secondGeneration ? (() => {
+                  const sg = order.secondGeneration;
+                  const sgTracks = Array.isArray(sg.audioFiles) && sg.audioFiles.length > 0
+                    ? sg.audioFiles
+                    : (sg.audioUrl ? [sg.audioUrl] : []);
+
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                        gap: '10px',
+                        background: '#f8fafc',
+                        padding: '12px 14px',
+                        borderRadius: '10px',
+                        fontSize: '0.8rem',
+                        border: '1px solid #e2e8f0'
+                      }}>
+                        <div>
+                          <span style={{ color: '#64748b', display: 'block' }}>ID do Pedido Bônus:</span>
+                          <strong style={{ color: '#0f172a' }}>#{sg.orderNumber || sg.id?.slice(0, 8)}</strong>
+                        </div>
+                        <div>
+                          <span style={{ color: '#64748b', display: 'block' }}>Ritmo Escolhido:</span>
+                          <strong style={{ color: '#7c3aed' }}>🎵 {sg.musicStyle || 'Não informado'} {sg.musicMood ? `(${sg.musicMood})` : ''}</strong>
+                        </div>
+                        <div>
+                          <span style={{ color: '#64748b', display: 'block' }}>Status da Produção:</span>
+                          <strong style={{ color: sg.productionStatus === 'FINALIZADO' ? '#16a34a' : '#0284c7' }}>
+                            {sg.productionStatus || 'EM_PRODUCAO'}
+                          </strong>
+                        </div>
+                        <div>
+                          <span style={{ color: '#64748b', display: 'block' }}>Gerado em:</span>
+                          <strong style={{ color: '#0f172a' }}>{sg.createdAt ? new Date(sg.createdAt).toLocaleString('pt-BR') : 'Data n/d'}</strong>
+                        </div>
+                      </div>
+
+                      {sgTracks.length > 0 ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                          {sgTracks.map((trkUrl, sIdx) => {
+                            const trackNum = sIdx + 3;
+                            return (
+                              <div
+                                key={sIdx}
+                                style={{
+                                  background: '#ffffff',
+                                  border: '1.5px solid #cbd5e1',
+                                  borderRadius: '10px',
+                                  padding: '12px 14px'
+                                }}
+                              >
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
+                                  <span style={{ fontSize: '0.86rem', fontWeight: '800', color: '#1e293b' }}>
+                                    🎵 Faixa {trackNum} do Pacote (2ª Geração · Arranjo {sIdx + 1})
+                                  </span>
+                                  <div style={{ display: 'flex', gap: '6px' }}>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDownload(trkUrl, `${order.orderNumber || orderId}-segunda-geracao-faixa${sIdx + 1}.mp3`)}
+                                      style={{
+                                        background: '#166534',
+                                        color: '#ffffff',
+                                        border: 'none',
+                                        padding: '5px 12px',
+                                        borderRadius: '6px',
+                                        fontSize: '0.74rem',
+                                        fontWeight: '700',
+                                        cursor: 'pointer',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '4px'
+                                      }}
+                                    >
+                                      ⬇️ Baixar MP3
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        navigator.clipboard.writeText(trkUrl);
+                                        alert('Link da faixa copiado!');
+                                      }}
+                                      style={{
+                                        background: '#f1f5f9',
+                                        color: '#334155',
+                                        border: '1px solid #cbd5e1',
+                                        padding: '5px 10px',
+                                        borderRadius: '6px',
+                                        fontSize: '0.74rem',
+                                        fontWeight: '700',
+                                        cursor: 'pointer'
+                                      }}
+                                    >
+                                      📋 Copiar Link
+                                    </button>
+                                  </div>
+                                </div>
+
+                                <audio
+                                  src={trkUrl}
+                                  controls
+                                  style={{ width: '100%', height: '34px', outline: 'none' }}
+                                />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div style={{ padding: '16px', background: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1', textAlign: 'center', fontSize: '0.82rem', color: '#64748b' }}>
+                          ⏳ A 2ª geração foi iniciada pelo cliente, mas os áudios ainda estão sendo processados pela Suno.
+                        </div>
+                      )}
+
+                      {sg.lyrics && (
+                        <details style={{ background: '#f8fafc', borderRadius: '8px', padding: '10px 12px', border: '1px solid #e2e8f0', fontSize: '0.78rem' }}>
+                          <summary style={{ fontWeight: '700', color: '#475569', cursor: 'pointer' }}>
+                            📜 Ver Letra da 2ª Geração
+                          </summary>
+                          <div style={{ marginTop: '8px', whiteSpace: 'pre-line', color: '#1e293b', maxHeight: '180px', overflowY: 'auto' }}>
+                            {sg.lyrics}
+                          </div>
+                        </details>
+                      )}
+                    </div>
+                  );
+                })() : (
+                  <div style={{ textAlign: 'center', padding: '24px 16px', background: '#f8fafc', borderRadius: '10px', border: '1px dashed #cbd5e1' }}>
+                    <span style={{ fontSize: '1.8rem', display: 'block', marginBottom: '6px' }}>⏳</span>
+                    <p style={{ fontSize: '0.86rem', fontWeight: '700', color: '#475569', margin: '0 0 4px' }}>
+                      O cliente ainda não utilizou a 2ª geração gratuita.
+                    </p>
+                    <p style={{ fontSize: '0.78rem', color: '#94a3b8', margin: 0 }}>
+                      Assim que o cliente clicar em &quot;Refazer do Zero&quot; ou gerar a segunda música no painel de entrega (/entrega), as faixas adicionais aparecerão aqui automaticamente para você ouvir e baixar.
+                    </p>
                   </div>
                 )}
               </div>

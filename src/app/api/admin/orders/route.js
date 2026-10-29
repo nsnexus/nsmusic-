@@ -71,10 +71,47 @@ export async function GET(req) {
       throw error;
     }
 
-    const orders = (Array.isArray(data) ? data : [])
+    const allMapped = (Array.isArray(data) ? data : [])
       .filter(row => row && !row.id.startsWith('session_') && !row.id.startsWith('config_'))
       .map(mapSupabaseOrderToFirestore)
       .filter(Boolean);
+
+    // Mapeia e oculta pedidos de 2ª geração para não poluir a listagem principal do admin
+    const isChildOrder = (o) => {
+      if (!o) return false;
+      if (o.parentOrderId) return true;
+      if (o.isSecondGeneration && o.paidSku === 'segunda_geracao_bonus') return true;
+      if (o.origem === 'segunda_geracao' || o.origem === 'segunda_musica') return true;
+      return false;
+    };
+
+    const childOrdersMap = new Map();
+    for (const o of allMapped) {
+      if (isChildOrder(o) && o.parentOrderId) {
+        childOrdersMap.set(o.parentOrderId, o);
+      }
+    }
+
+    const orders = allMapped
+      .filter(o => !isChildOrder(o))
+      .map(parent => {
+        const child = childOrdersMap.get(parent.id) || childOrdersMap.get(parent.orderNumber);
+        if (child) {
+          parent.secondGeneration = {
+            id: child.id,
+            orderNumber: child.orderNumber,
+            productionStatus: child.productionStatus,
+            audioUrl: child.audioUrl,
+            audioFiles: Array.isArray(child.audioFiles) && child.audioFiles.length > 0 ? child.audioFiles : (child.audioUrl ? [child.audioUrl] : []),
+            lyrics: child.lyrics,
+            musicStyle: child.musicStyle,
+            musicMood: child.musicMood,
+            createdAt: child.createdAt
+          };
+          parent.secondOrderCreated = true;
+        }
+        return parent;
+      });
     return NextResponse.json({
       ok: true,
       orders,

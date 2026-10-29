@@ -99,6 +99,20 @@ export async function GET(req, { params }) {
             }
           }
           order.relatedOrder = sanitizeOrderForResponse(related);
+          if (related.parentOrderId === order.id || related.parentOrderId === order.orderNumber || (!parentId && !order.isSecondGeneration)) {
+            order.secondGeneration = {
+              id: related.id,
+              orderNumber: related.orderNumber,
+              productionStatus: related.productionStatus,
+              audioUrl: related.audioUrl,
+              audioFiles: Array.isArray(related.audioFiles) && related.audioFiles.length > 0 ? related.audioFiles : (related.audioUrl ? [related.audioUrl] : []),
+              lyrics: related.lyrics,
+              musicStyle: related.musicStyle,
+              musicMood: related.musicMood,
+              createdAt: related.createdAt
+            };
+            order.secondOrderCreated = true;
+          }
         }
       }
     } catch (relErr) {

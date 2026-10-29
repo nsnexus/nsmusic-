@@ -1,23 +1,49 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const configStore = new Map();
+const ordersStore = new Map();
 
 vi.mock('@/lib/supabase-edge', () => ({
   getSupabaseEdge: vi.fn(() => ({
-    from: vi.fn(() => ({
-      select: vi.fn(() => ({
-        eq: vi.fn((col, val) => ({
-          limit: vi.fn(async () => {
-            const v = configStore.get(val);
-            return { data: v ? [{ chave: val, valor: v }] : [], error: null };
-          })
-        }))
-      })),
-      upsert: vi.fn(async ({ chave, valor }) => {
-        configStore.set(chave, valor);
-        return { error: null };
-      })
-    }))
+    from: vi.fn((table) => {
+      if (table === 'orders') {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn((col, val) => ({
+              maybeSingle: vi.fn(async () => {
+                const order = ordersStore.get(val);
+                return { data: order || null, error: null };
+              }),
+              single: vi.fn(async () => {
+                const order = ordersStore.get(val);
+                return { data: order || null, error: order ? null : new Error('not found') };
+              })
+            }))
+          })),
+          eq: vi.fn((col, val) => ({
+            update: vi.fn(async (fields) => {
+              const existing = ordersStore.get(val) || {};
+              ordersStore.set(val, { ...existing, ...fields });
+              return { error: null };
+            })
+          }))
+        };
+      }
+      return {
+        select: vi.fn(() => ({
+          eq: vi.fn((col, val) => ({
+            limit: vi.fn(async () => {
+              const v = configStore.get(val);
+              return { data: v ? [{ chave: val, valor: v }] : [], error: null };
+            })
+          }))
+        })),
+        upsert: vi.fn(async ({ chave, valor }) => {
+          configStore.set(chave, valor);
+          return { error: null };
+        })
+      };
+    })
   }))
 }));
 
@@ -34,6 +60,7 @@ const { POST } = await import('@/app/api/admin/remix/route');
 describe('/api/admin/remix route', () => {
   beforeEach(() => {
     configStore.clear();
+    ordersStore.clear();
     process.env.KIE_API_KEY = 'test-kie-key';
     vi.restoreAllMocks();
   });
@@ -49,7 +76,7 @@ describe('/api/admin/remix route', () => {
     expect(data.error).toContain('uploadUrl');
   });
 
-  it('cria tarefa de upload-and-cover na Kie.ai com sucesso', async () => {
+  it('cria tarefa de upload-and-cover na Kie.ai com sucesso e vincula dados do pedido', async () => {
     vi.stubGlobal('fetch', vi.fn(async (url) => {
       if (url.includes('createTask')) {
         return {
@@ -70,10 +97,15 @@ describe('/api/admin/remix route', () => {
       json: async () => ({
         action: 'create',
         uploadUrl: 'https://r2.dev/original.mp3',
-        style: 'Sertanejo acústico',
+        style: 'Sertanejo Universitário moderno',
         title: 'Música do Cliente (Remix)',
         model: 'V5_5',
-        instrumental: false
+        instrumental: false,
+        orderId: 'order-abc-123',
+        orderNumber: 'NS-8899',
+        customerName: 'Narciso',
+        customerPhone: '5511999998888',
+        originalStyle: 'Pop'
       })
     };
 
@@ -82,6 +114,9 @@ describe('/api/admin/remix route', () => {
     const data = await res.json();
     expect(data.ok).toBe(true);
     expect(data.taskId).toBe('remix-task-12345');
+    expect(data.item.orderId).toBe('order-abc-123');
+    expect(data.item.orderNumber).toBe('NS-8899');
+    expect(data.item.customerName).toBe('Narciso');
   });
 
   it('retorna 400 se taskId não for fornecido no status', async () => {
@@ -130,6 +165,34 @@ describe('/api/admin/remix route', () => {
     expect(data.ok).toBe(true);
     expect(data.status).toBe('SUCCESS');
     expect(data.tracks.length).toBe(2);
+  });
+
+  it('vincula faixa do remix ao pedido existente (attach_to_order)', async () => {
+    ordersStore.set('order-123', {
+      id: 'order-123',
+      audio_url: 'https://r2.dev/antiga-faixa1.mp3',
+      audio_files: ['https://r2.dev/antiga-faixa1.mp3']
+    });
+
+    const req = {
+      json: async () => ({
+        action: 'attach_to_order',
+        orderId: 'order-123',
+        trackUrl: 'https://r2.dev/nova-faixa-remix.mp3',
+        asPrimary: true
+      })
+    };
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.ok).toBe(true);
+    expect(data.audioUrl).toBe('https://r2.dev/nova-faixa-remix.mp3');
+    expect(data.audioFiles).toContain('https://r2.dev/nova-faixa-remix.mp3');
+
+    const updated = ordersStore.get('order-123');
+    expect(updated.audio_url).toBe('https://r2.dev/nova-faixa-remix.mp3');
+    expect(updated.audio_files[0]).toBe('https://r2.dev/nova-faixa-remix.mp3');
   });
 
   it('retorna 400 se audioUrl não for fornecida na ação transcribe', async () => {
