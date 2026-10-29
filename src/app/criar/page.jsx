@@ -64,6 +64,7 @@ export default function CriarMusica() {
   const whatsappSuporte = useWhatsappSuporte();
   const [contingencyMode, setContingencyMode] = useState(false);
   const [step, setStep] = useState(1);
+  const [showValidation, setShowValidation] = useState(false);
   const [orderId, setOrderId] = useState('');
   const [taskId, setTaskId] = useState('');
   const [isRestored, setIsRestored] = useState(false);
@@ -1633,6 +1634,7 @@ export default function CriarMusica() {
 
   const nextStep = () => {
     setCreationError('');
+    setShowValidation(false);
     const target = step + 1;
     setStep(target);
     syncOrderProgress(target);
@@ -1641,6 +1643,7 @@ export default function CriarMusica() {
 
   const prevStep = () => {
     setCreationError('');
+    setShowValidation(false);
     const target = Math.max(step - 1, 1);
     setStep(target);
     syncOrderProgress(target);
@@ -1729,6 +1732,7 @@ export default function CriarMusica() {
       formData={formData}
       updateField={updateField}
       selectFieldAndAdvance={selectFieldAndAdvance}
+      showValidation={showValidation}
       isListening={isListening}
       toggleVoiceDictation={toggleVoiceDictation}
       appendStoryPrompt={appendStoryPrompt}
@@ -3052,91 +3056,113 @@ export default function CriarMusica() {
       <main className="criar-main" style={{ flex: 1, padding: '32px 0 100px 0', position: 'relative', zIndex: 1 }}>
         <div className="container criar-container" style={{ maxWidth: '1120px' }}>
           
-          {/* Wizard step indicators */}
+          {/* Wizard step indicators (Estilo Capivarinha Love) */}
           {step <= totalWizardSteps && (
-            <div className="nx-creation-progress" aria-label={`Etapa ${step} de ${totalWizardSteps}`}>
-              <span className="nx-eyebrow">{step} de 4 · {['A pessoa', 'A história', 'O som', 'Revisar'][step - 1]}</span>
-              <div className="nx-progress-segments" aria-hidden="true">{[1, 2, 3, 4].map(n => <i key={n} className={n <= step ? 'is-complete' : ''} />)}</div>
+            <div className="wz-top" style={{ maxWidth: '34rem', margin: '0 auto 1.25rem', padding: '0 4px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+              {step > 1 ? (
+                <button
+                  type="button"
+                  onClick={prevStep}
+                  className="wz-back"
+                  aria-label="Voltar"
+                  style={{
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '50%',
+                    border: '1px solid #F1E4E8',
+                    background: '#fff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    fontSize: '1.1rem',
+                    color: '#1E1418'
+                  }}
+                >
+                  ←
+                </button>
+              ) : (
+                <div style={{ width: '36px' }} />
+              )}
+              <div className="wz-track" style={{ flex: 1, height: '6px', background: '#F1E4E8', borderRadius: '6px', overflow: 'hidden' }}>
+                <div className="wz-fill" style={{ width: `${(step / totalWizardSteps) * 100}%`, height: '100%', background: 'linear-gradient(90deg, #F0417E, #D01A5C)', borderRadius: '6px', transition: 'width 0.35s ease' }} />
+              </div>
+              <span className="wz-count" style={{ fontSize: '0.8rem', fontWeight: 800, color: '#857D80', whiteSpace: 'nowrap' }}>
+                {step}/{totalWizardSteps}
+              </span>
             </div>
           )}
 
           {/* Form step renderers */}
           {creationError && <div className="nx-message nx-error" role="alert">{creationError}<br /><button type="button" className="nx-text-button" onClick={() => setCreationError('')}>Entendi</button></div>}
-          <div style={{ marginTop: '32px' }} className="criar-step-content">
+          <div style={{ marginTop: '16px' }} className="criar-step-content">
             {step <= totalWizardSteps ? renderWizardStep() : renderWorkflowStep()}
           </div>
 
-          {/* Fixed Bottom Navigation Dock */}
+          {/* Fixed Bottom Navigation Dock (Estilo Capivarinha Love) */}
           {formData.lyricsStatus !== 'generating' && formData.sunoStatus !== 'generating' && (step <= totalWizardSteps || step === 5) && (
-            <div style={styles.navigationControls} className="criar-navigation-dock">
-              <div className="container criar-navigation-inner" style={{ width: '100%', maxWidth: '900px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
-                {step > 1 ? (
+            <div
+              className="criar-navigation-dock"
+              style={{
+                position: 'fixed',
+                bottom: 0,
+                left: 0,
+                right: 0,
+                zIndex: 200,
+                backgroundColor: 'rgba(255, 255, 255, 0.97)',
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
+                borderTop: '1.5px solid #F1E4E8',
+                boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.06)',
+                padding: '10px 16px calc(10px + env(safe-area-inset-bottom, 0px)) 16px'
+              }}
+            >
+              <div style={{ width: '100%', maxWidth: '34rem', margin: '0 auto', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                {step > 1 && (
                   <button 
                     onClick={prevStep} 
-                    className="btn btn-secondary criar-nav-back"
-                    style={{ padding: '12px 20px', fontSize: '0.95rem', minHeight: '46px' }}
+                    type="button"
+                    className="btn-wz-back"
                   >
                     ← Voltar
                   </button>
-                ) : (
-                  <div />
                 )}
-                
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
-                  {step <= totalWizardSteps && isNextDisabled() && !isUploadingCover && (
-                    <div
-                      onClick={() => {
-                        const el = document.querySelector('[data-missing="true"]');
-                        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                      }}
-                      style={{
-                        fontSize: '0.78rem',
-                        color: '#92400e',
-                        backgroundColor: '#fffbeb',
-                        border: '1px solid #fde68a',
-                        padding: '4px 10px',
-                        borderRadius: '8px',
-                        fontWeight: 600,
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        cursor: 'pointer',
-                        boxShadow: '0 2px 6px rgba(245, 158, 11, 0.1)'
-                      }}
-                      title="Clique para ir até o item pendente"
-                    >
-                      <span>⚠️</span>
-                      <span>{getMissingSummary(step, formData, isSelfTribute)}</span>
-                    </div>
-                  )}
 
-                  <div
-                    onClick={() => {
-                      if (step <= totalWizardSteps && isNextDisabled() && !isUploadingCover) {
-                        const el = document.querySelector('[data-missing="true"]');
-                        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                      }
-                    }}
-                  >
-                    {step <= totalWizardSteps ? (
-                      <button 
-                        onClick={step === totalWizardSteps ? handleSaveAndGenerateLyrics : nextStep}
-                        disabled={isNextDisabled() || (step === totalWizardSteps && isSubmitting)}
-                        className="btn btn-primary criar-nav-next"
-                        style={{
-                          padding: '12px 28px',
-                          fontSize: '0.95rem',
-                          minHeight: '46px',
-                          background: (isNextDisabled() || (step === totalWizardSteps && isSubmitting)) ? 'var(--bg-tertiary)' : 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)',
-                          color: (isNextDisabled() || (step === totalWizardSteps && isSubmitting)) ? 'var(--text-muted)' : '#FFFFFF'
-                        }}
-                      >
-                        {/* Botão desabilitado sem explicação lê como travamento. Diz o motivo. */}
-                        {isUploadingCover
-                          ? 'Enviando foto…'
+                <div style={{ flex: 1, display: 'flex' }}>
+                  {step <= totalWizardSteps ? (
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        if (isUploadingCover) return;
+                        if (isNextDisabled()) {
+                          setShowValidation(true);
+                          setTimeout(() => {
+                            const el = document.querySelector('[data-missing="true"]');
+                            if (el) {
+                              el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                              const input = el.querySelector('input, select, textarea');
+                              if (input) input.focus();
+                            }
+                          }, 50);
+                          return;
+                        }
+                        setShowValidation(false);
+                        if (step === totalWizardSteps) {
+                          handleSaveAndGenerateLyrics();
+                        } else {
+                          nextStep();
+                        }
+                      }}
+                      disabled={isUploadingCover || (step === totalWizardSteps && isSubmitting)}
+                      className="btn-wz-primary"
+                    >
+                      {isUploadingCover
+                        ? 'Enviando foto…'
+                        : (step === totalWizardSteps && isSubmitting)
+                          ? 'Criando sua letra...'
                           : ['Continuar para a história →', 'Escolher o som →', 'Revisar meu presente →', 'Criar minha letra →'][step - 1]}
-                      </button>
-                    ) : (
+                    </button>
+                  ) : (
                     step === 5 && (
                       contingencyMode ? (
                         <button
@@ -3175,7 +3201,6 @@ export default function CriarMusica() {
                       )
                     )
                   )}
-                  </div>
                 </div>
               </div>
             </div>

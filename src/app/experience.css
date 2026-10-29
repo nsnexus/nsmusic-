@@ -272,3 +272,181 @@
   .nx-memory-card { padding: 14px; }.nx-editor-section .nx-field-row { grid-template-columns: 1fr; gap: 0; }.nx-product-footer { flex-wrap: wrap; }.nx-product-footer .nx-text-button { margin-left: 0; }
   .nx-editor-section .nx-checkout-actions { flex-direction: column; }.nx-editor-section .nx-button, .nx-video-ready > .nx-button { width: 100%; }
 }
+
+/* ========================================================
+   ESTILO CAPIVARINHA LOVE — WIZARD DE CRIAÇÃO
+   ======================================================== */
+.wz-guide {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  margin-bottom: 1.25rem;
+  background: #FFF7F9;
+  border: 1px solid #FCE4ED;
+  border-radius: 16px;
+  padding: 0.85rem 1rem;
+}
+.wz-guide-icon {
+  font-size: 1.5rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.wz-guide-bubble {
+  font-size: 0.88rem;
+  color: #1E1418;
+  line-height: 1.45;
+  font-weight: 500;
+}
+.wz-t {
+  font-size: 1.45rem;
+  font-weight: 700;
+  color: #161113;
+  margin-bottom: 0.35rem;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+.wz-s {
+  font-size: 0.88rem;
+  color: #857D80;
+  margin-bottom: 1.15rem;
+  line-height: 1.45;
+}
+.cards2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.65rem;
+  margin-bottom: 1rem;
+}
+.card2 {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 0.2rem;
+  background: #ffffff;
+  border: 1.5px solid #F1E4E8;
+  border-radius: 16px;
+  padding: 0.95rem 0.5rem;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  min-height: 5.5rem;
+  position: relative;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  width: 100%;
+  box-sizing: border-box;
+}
+.card2:hover {
+  border-color: #E32B6D;
+  background: #FFF7F9;
+}
+.card2:active {
+  transform: scale(0.97);
+}
+.card2.on {
+  background: linear-gradient(135deg, #F0417E, #D01A5C) !important;
+  border-color: #D01A5C !important;
+  box-shadow: 0 6px 18px rgba(227, 43, 109, 0.28) !important;
+}
+.card2.on .c2-lb,
+.card2.on .c2-sub {
+  color: #ffffff !important;
+}
+.card2.on .c2-sub {
+  opacity: 0.9;
+}
+.c2-ic {
+  font-size: 1.65rem;
+  line-height: 1;
+  margin-bottom: 0.2rem;
+}
+.c2-lb {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #1E1418;
+  line-height: 1.25;
+}
+.c2-sub {
+  font-size: 0.7rem;
+  color: #857D80;
+  line-height: 1.2;
+}
+.c2-selo {
+  position: absolute;
+  top: -0.55rem;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: #7A4A00;
+  background: #FFD27A;
+  padding: 0.15rem 0.55rem;
+  border-radius: 100px;
+}
+.wz-inp {
+  width: 100%;
+  border: 1.5px solid #F1E4E8;
+  border-radius: 12px;
+  padding: 0.85rem 1rem;
+  font-size: 1rem;
+  background: #ffffff;
+  color: #1E1418;
+  outline: none;
+  transition: all 0.18s ease;
+  box-sizing: border-box;
+}
+.wz-inp:focus {
+  border-color: #E32B6D;
+  box-shadow: 0 0 0 3.5px #FCE4ED;
+}
+.wz-inp.erro {
+  border-color: #ef4444 !important;
+  background: #fff5f5;
+}
+.btn-wz-primary {
+  background: linear-gradient(135deg, #F0417E, #D01A5C);
+  color: #fff;
+  box-shadow: 0 10px 26px rgba(227, 43, 109, 0.32);
+  border-radius: 100px;
+  padding: 0.95rem 1.6rem;
+  font-weight: 700;
+  font-size: 0.98rem;
+  border: none;
+  cursor: pointer;
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: all 0.18s ease;
+  text-decoration: none;
+}
+.btn-wz-primary:hover {
+  box-shadow: 0 14px 34px rgba(227, 43, 109, 0.42);
+  transform: translateY(-1px);
+}
+.btn-wz-primary:active {
+  transform: scale(0.98);
+}
+.btn-wz-back {
+  background: #fff;
+  color: #B5124E;
+  border: 1.5px solid #FCE4ED;
+  box-shadow: 0 2px 10px rgba(22, 17, 19, 0.05);
+  border-radius: 100px;
+  padding: 0.95rem 1.4rem;
+  font-weight: 700;
+  font-size: 0.92rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  transition: all 0.18s ease;
+}
+.btn-wz-back:hover {
+  border-color: #E32B6D;
+}
+
