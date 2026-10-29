@@ -275,7 +275,7 @@ export default function CriarMusica() {
 
   const TOTAL_JOURNEY_STEPS = 7; // Jornada total de 7 etapas no padrão Capivarinha Love
   const TOTAL_FORM_STEPS = 4; // Etapas do formulário Wizard (1: Pessoa, 2: História, 3: Estilo, 4: Contato)
-  const [selectedPackageSku, setSelectedPackageSku] = useState('audio_only');
+  const [selectedPackageSku, setSelectedPackageSku] = useState('combo');
   const [sunoProgressPercent, setSunoProgressPercent] = useState(8);
 
   // Efeito assintótico de porcentagem para retenção na tela de estúdio (0% a 98%)
@@ -347,7 +347,7 @@ export default function CriarMusica() {
         }
       }
 
-      const sku = selectedPackageSku || 'audio_only';
+      const sku = selectedPackageSku || 'combo';
       const cancelUrl = typeof window !== 'undefined'
         ? `${window.location.origin}/criar?orderId=${encodeURIComponent(orderId)}&step=7`
         : undefined;
@@ -716,7 +716,7 @@ export default function CriarMusica() {
 
 
   // Valor promocional dinâmico de acordo com o pacote escolhido
-  const getTotalPrice = () => getPriceForSku(selectedPackageSku) || 9.99;
+  const getTotalPrice = () => getPriceForSku(selectedPackageSku) || 16.90;
 
 
 
@@ -2228,11 +2228,20 @@ export default function CriarMusica() {
 
                 <button
                   type="button"
-                  onClick={() => setStep(7)}
+                  onClick={() => {
+                    setStep(7);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
                   className="btn-wz-primary"
-                  style={{ width: '100%', padding: '1rem', fontSize: '1.05rem', marginTop: '8px' }}
+                  style={{
+                    width: '100%',
+                    padding: '0.85rem 1.1rem',
+                    fontSize: 'clamp(0.88rem, 3.8vw, 0.98rem)',
+                    whiteSpace: 'nowrap',
+                    marginTop: '12px'
+                  }}
                 >
-                  Continuar para Escolher Presente →
+                  Escolher Meu Presente →
                 </button>
               </div>
             )}
@@ -2446,7 +2455,7 @@ export default function CriarMusica() {
                               }
                             }
 
-                            const sku = selectedPackageSku || 'audio_only';
+                            const sku = selectedPackageSku || 'combo';
                             // Retentativa compartilhada com o checkout de /entrega (ver
                             // src/lib/pixCheckout.js): a chamada à Efí falha de forma intermitente e
                             // insistir resolve, em vez de devolver um erro para o cliente que estava
@@ -2800,18 +2809,24 @@ export default function CriarMusica() {
                 padding: '10px 16px calc(10px + env(safe-area-inset-bottom, 0px)) 16px'
               }}
             >
-              <div style={{ width: '100%', maxWidth: '34rem', margin: '0 auto', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ width: '100%', maxWidth: '34rem', margin: '0 auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 {step > 1 && (
                   <button 
                     onClick={prevStep} 
                     type="button"
                     className="btn-wz-back"
+                    style={{
+                      padding: '0.75rem 0.95rem',
+                      fontSize: '0.86rem',
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0
+                    }}
                   >
                     ← Voltar
                   </button>
                 )}
 
-                <div style={{ flex: 1, display: 'flex' }}>
+                <div style={{ flex: 1, display: 'flex', minWidth: 0 }}>
                   {step <= TOTAL_FORM_STEPS ? (
                     <button 
                       type="button"
@@ -2838,6 +2853,11 @@ export default function CriarMusica() {
                       }}
                       disabled={isUploadingCover || (step === TOTAL_FORM_STEPS && isSubmitting)}
                       className="btn-wz-primary"
+                      style={{
+                        padding: '0.78rem 1rem',
+                        fontSize: 'clamp(0.84rem, 3.8vw, 0.96rem)',
+                        whiteSpace: 'nowrap'
+                      }}
                     >
                       {isUploadingCover
                         ? 'Enviando foto…'
@@ -2851,6 +2871,12 @@ export default function CriarMusica() {
                       onClick={handleApproveLyrics}
                       disabled={isNextDisabled() || isSubmitting}
                       className="btn-wz-primary"
+                      style={{
+                        padding: '0.78rem 0.85rem',
+                        fontSize: 'clamp(0.8rem, 3.4vw, 0.94rem)',
+                        letterSpacing: '-0.02em',
+                        whiteSpace: 'nowrap'
+                      }}
                     >
                       {isSubmitting ? 'Iniciando gravação...' : 'Aprovar Letra e Criar Música →'}
                     </button>
@@ -2862,6 +2888,11 @@ export default function CriarMusica() {
                         window.scrollTo({ top: 0, behavior: 'smooth' });
                       }}
                       className="btn-wz-primary"
+                      style={{
+                        padding: '0.78rem 1rem',
+                        fontSize: 'clamp(0.84rem, 3.8vw, 0.96rem)',
+                        whiteSpace: 'nowrap'
+                      }}
                     >
                       Escolher Meu Presente →
                     </button>
