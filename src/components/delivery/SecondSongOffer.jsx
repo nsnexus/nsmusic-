@@ -140,9 +140,18 @@ export default function SecondSongOffer({ orderId, order }) {
     }
   };
 
+  const isSecondGenOrder = Boolean(order?.parentOrderId || order?.origem === 'segunda_geracao' || order?.isSecondGeneration);
+  if (isSecondGenOrder) {
+    return null;
+  }
+
   // Estratégia de 4 Músicas: se o pedido pagou o pacote de 4 músicas e tem a 2ª geração livre
-  const hasFreeSecondGen = Boolean(order?.segundaGeracaoDisponivel && !order?.segundaGeracaoUsada);
-  const secondGenUsed = Boolean(order?.segundaGeracaoDisponivel && order?.segundaGeracaoUsada);
+  const hasFreeSecondGen = Boolean(
+    (order?.segundaGeracaoDisponivel || order?.hasSecondSongAccess || (order?.paymentStatus === 'PAGO' || order?.paymentStatus === 'PAGAMENTO_APROVADO')) &&
+    !order?.segundaGeracaoUsada &&
+    !order?.relatedOrder
+  );
+  const secondGenUsed = Boolean(order?.segundaGeracaoUsada || order?.relatedOrder);
 
   if (hasFreeSecondGen) {
     return (

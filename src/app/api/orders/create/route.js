@@ -81,7 +81,8 @@ export async function POST(req) {
         const { getOrder, updateOrder } = await import('@/lib/supabaseDb');
         const parentOrder = await getOrder(parentOrderId, env);
         if (parentOrder && (parentOrder.paymentStatus === 'PAGO' || parentOrder.paymentStatus === 'PAGAMENTO_APROVADO')) {
-          if (parentOrder.segundaGeracaoDisponivel && !parentOrder.segundaGeracaoUsada) {
+          const isEligible = (parentOrder.segundaGeracaoDisponivel || parentOrder.hasSecondSongAccess || Number(parentOrder.paidAmount) >= 9) && !parentOrder.segundaGeracaoUsada;
+          if (isEligible) {
             isSecondGenApproved = true;
             inheritedAddons = {
               hasVideoAccess: Boolean(parentOrder.hasVideoAccess || parentOrder.videoAddonPaid),
@@ -149,6 +150,18 @@ export async function POST(req) {
     };
 
     const created = await createOrder(orderPayload, env);
+
+    if (parentOrderId && isSecondGenApproved) {
+      try {
+        const { updateOrder } = await import('@/lib/supabaseDb');
+        await updateOrder(parentOrderId, {
+          secondGenerationOrderId: created.id,
+          segundaGeracaoOrderId: created.id,
+        }, env);
+      } catch (linkErr) {
+        console.warn('[orders/create] Falha ao vincular secondGenerationOrderId no pedido pai:', linkErr?.message);
+      }
+    }
 
     // A indicação é opcional, mas só pode ser registrada para uma conta autenticada.
     // O crédito em si continua bloqueado até o pagamento confirmado no servidor.

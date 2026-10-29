@@ -372,7 +372,11 @@ function EntregaContent() {
   // Controle de acesso dinâmico. NUNCA derivar de searchParams — isso permitia liberar o produto só
   // com a URL /entrega?orderId=X&status=success, sem pagar (ver C-01 no AUDIT_REPORT.md). O parâmetro
   // de URL só pode, no máximo, disparar uma reconsulta ao servidor (ver useEffect de fetchOrder acima).
-  const isPaid = isPaidState || order?.paymentStatus === 'PAGAMENTO_APROVADO' || order?.paymentStatus === 'PAGO';
+  const isPaid = isPaidState ||
+    order?.paymentStatus === 'PAGAMENTO_APROVADO' ||
+    order?.paymentStatus === 'PAGO' ||
+    order?.relatedOrder?.paymentStatus === 'PAGAMENTO_APROVADO' ||
+    order?.relatedOrder?.paymentStatus === 'PAGO';
 
   // Preço e texto do bloco de pagamento, derivados do pacote escolhido. Aqui é só EXIBIÇÃO — quem
   // cobra é o servidor, a partir do sku (C-05 no AUDIT_REPORT.md). Mas exibir um valor diferente do
@@ -616,6 +620,30 @@ function EntregaContent() {
         }
 
         if (!cancelled && data) {
+          if (data.parentOrderId && !data.relatedOrder) {
+            try {
+              const pRes = await fetch(`/api/orders/${encodeURIComponent(data.parentOrderId)}?t=${Date.now()}`, { cache: 'no-store' });
+              if (pRes.ok) {
+                const pJson = await pRes.json();
+                if (pJson?.order) data.relatedOrder = pJson.order;
+              }
+            } catch (pErr) {
+              console.warn('[entrega] Fallback busca pedido pai:', pErr?.message);
+            }
+          }
+          const childRef = data.secondGenerationOrderId || data.segundaGeracaoOrderId;
+          if (childRef && !data.relatedOrder) {
+            try {
+              const cRes = await fetch(`/api/orders/${encodeURIComponent(childRef)}?t=${Date.now()}`, { cache: 'no-store' });
+              if (cRes.ok) {
+                const cJson = await cRes.json();
+                if (cJson?.order) data.relatedOrder = cJson.order;
+              }
+            } catch (cErr) {
+              console.warn('[entrega] Fallback busca pedido filho:', cErr?.message);
+            }
+          }
+
           setOrder(data);
 
           // Se o pedido ainda consta como pendente no banco, consulta imediatamente a Efí
@@ -1181,6 +1209,21 @@ function EntregaContent() {
   const primaryAudioUrl = formatAudioUrl(order?.audioUrl || (order?.audioFiles && order.audioFiles[0]) || '', primaryTrackId);
   const secondAudioUrl = formatAudioUrl(order?.audioFiles && order.audioFiles[1] ? order.audioFiles[1] : '', secondTrackId);
 
+  // Mapeamento e separação para pacote de 4 músicas (1ª geração e 2ª geração)
+  const isSecondGen = Boolean(order?.parentOrderId || order?.origem === 'segunda_geracao' || order?.isSecondGeneration);
+  const firstGenOrder = isSecondGen ? (order?.relatedOrder || null) : order;
+  const secondGenOrder = isSecondGen ? order : (order?.relatedOrder || null);
+
+  const firstGenTracks = firstGenOrder ? [
+    formatAudioUrl(firstGenOrder?.audioUrl || (firstGenOrder?.audioFiles && firstGenOrder.audioFiles[0]) || '', firstGenOrder?.sunoTracks?.[0]?.trackId || ''),
+    formatAudioUrl(firstGenOrder?.audioFiles && firstGenOrder.audioFiles[1] ? firstGenOrder.audioFiles[1] : '', firstGenOrder?.sunoTracks?.[1]?.trackId || ''),
+  ].filter(Boolean) : [];
+
+  const secondGenTracks = secondGenOrder ? [
+    formatAudioUrl(secondGenOrder?.audioUrl || (secondGenOrder?.audioFiles && secondGenOrder.audioFiles[0]) || '', secondGenOrder?.sunoTracks?.[0]?.trackId || ''),
+    formatAudioUrl(secondGenOrder?.audioFiles && secondGenOrder.audioFiles[1] ? secondGenOrder.audioFiles[1] : '', secondGenOrder?.sunoTracks?.[1]?.trackId || ''),
+  ].filter(Boolean) : [];
+
   // Faixas do pedido em URL crua (sem o envelope do proxy) — é essa forma que /api/homenagem/choose-music
   // valida contra o documento, então o seletor da página de presente precisa mandar exatamente ela.
   const faixasDoPedido = [...new Set(
@@ -1707,11 +1750,29 @@ function EntregaContent() {
     return (
       <>
         <InAppBrowserBanner />
-        <DeliveryExperience order={order} orderId={orderId} paid={isPaid} tracks={[primaryAudioUrl, secondAudioUrl]}
-          promo={promo} onDownload={handleDownload} downloadingSlot={downloadingSlot} onCoverChange={handleCoverChange}
-          uploadingCover={isUploadingCover} coverError={coverUploadError} onChooseGiftTrack={escolherMusicaHomenagem}
-          onProduct={setAbaProduto} onCharge={setPixInfo} receiptStatus={receiptStatus} onReceipt={handleReceiptUpload}
-          onApproved={refreshDelivery} supportUrl={linkWhatsapp(whatsappSuporte, `Olá! Preciso de ajuda com o pedido ${order?.orderNumber || orderId}.`)} />
+        <DeliveryExperience
+          order={order}
+          orderId={orderId}
+          paid={isPaid}
+          tracks={[primaryAudioUrl, secondAudioUrl]}
+          firstGenOrder={firstGenOrder}
+          firstGenTracks={firstGenTracks}
+          secondGenOrder={secondGenOrder}
+          secondGenTracks={secondGenTracks}
+          promo={promo}
+          onDownload={handleDownload}
+          downloadingSlot={downloadingSlot}
+          onCoverChange={handleCoverChange}
+          uploadingCover={isUploadingCover}
+          coverError={coverUploadError}
+          onChooseGiftTrack={escolherMusicaHomenagem}
+          onProduct={setAbaProduto}
+          onCharge={setPixInfo}
+          receiptStatus={receiptStatus}
+          onReceipt={handleReceiptUpload}
+          onApproved={refreshDelivery}
+          supportUrl={linkWhatsapp(whatsappSuporte, `Olá! Preciso de ajuda com o pedido ${order?.orderNumber || orderId}.`)}
+        />
       </>
     );
   }

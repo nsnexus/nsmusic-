@@ -46,6 +46,43 @@ export async function GET(req, { params }) {
       order.audioHistory = buildOrderAudioHistory(order, []);
     }
 
+    try {
+      const parentId = order.parentOrderId;
+      const childId = order.secondGenerationOrderId || order.segundaGeracaoOrderId;
+      let relatedId = parentId || childId;
+
+      if (!relatedId) {
+        const supabase = getSupabaseEdge(env);
+        if (supabase) {
+          if (order.id) {
+            const { data: rows1 } = await supabase
+              .from('orders')
+              .select('id, extras')
+              .filter('extras->>parentOrderId', 'eq', order.id)
+              .limit(1);
+            if (rows1 && rows1[0]?.id) relatedId = rows1[0].id;
+          }
+          if (!relatedId && order.orderNumber) {
+            const { data: rows2 } = await supabase
+              .from('orders')
+              .select('id, extras')
+              .filter('extras->>parentOrderId', 'eq', order.orderNumber)
+              .limit(1);
+            if (rows2 && rows2[0]?.id) relatedId = rows2[0].id;
+          }
+        }
+      }
+
+      if (relatedId) {
+        const related = await findOrderByIdOrNumber(relatedId, env);
+        if (related) {
+          order.relatedOrder = sanitizeOrderForResponse(related);
+        }
+      }
+    } catch (relErr) {
+      console.warn('[api/orders/[id]] Falha ao buscar pedido vinculado:', relErr?.message);
+    }
+
     let isAdmin = false;
     try {
       const auth = await requireAdmin(req, env);

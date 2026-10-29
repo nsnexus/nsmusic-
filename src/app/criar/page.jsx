@@ -273,7 +273,6 @@ export default function CriarMusica() {
   const TOTAL_JOURNEY_STEPS = 7; // Jornada total de 7 etapas no padrão Capivarinha Love
   const TOTAL_FORM_STEPS = 4; // Etapas do formulário Wizard (1: Pessoa, 2: História, 3: Estilo, 4: Contato)
   const [selectedPackageSku, setSelectedPackageSku] = useState('audio_only');
-  const [modalExemplo, setModalExemplo] = useState(null);
   const [sunoProgressPercent, setSunoProgressPercent] = useState(8);
 
   // Efeito assintótico de porcentagem para retenção na tela de estúdio (0% a 98%)
@@ -2331,16 +2330,6 @@ export default function CriarMusica() {
                   <p className="presente-desc">
                     Suas 4 músicas + uma carta com envelope, foto colada e sua assinatura.
                   </p>
-                  <button
-                    type="button"
-                    className="btn-ver-exemplo"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setModalExemplo('carta');
-                    }}
-                  >
-                    ▶ Ver exemplo
-                  </button>
                 </div>
               </div>
 
@@ -2361,16 +2350,6 @@ export default function CriarMusica() {
                   <p className="presente-desc">
                     Suas 4 músicas + um lindo vídeo slideshow sincronizado com suas fotos para emocionar.
                   </p>
-                  <button
-                    type="button"
-                    className="btn-ver-exemplo"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setModalExemplo('video');
-                    }}
-                  >
-                    ▶ Ver exemplo
-                  </button>
                 </div>
               </div>
 
@@ -2391,16 +2370,6 @@ export default function CriarMusica() {
                   <p className="presente-desc">
                     Suas 4 músicas tocando numa página só de vocês: fotos, linha do tempo, contador dos dias, jogos e carta.
                   </p>
-                  <button
-                    type="button"
-                    className="btn-ver-exemplo"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setModalExemplo('retrospectiva');
-                    }}
-                  >
-                    ▶ Ver exemplo
-                  </button>
                 </div>
               </div>
 
@@ -2421,16 +2390,6 @@ export default function CriarMusica() {
                   <p className="presente-desc">
                     Suas 4 músicas cantadas no timbre da sua própria voz através de clonagem vocal por IA.
                   </p>
-                  <button
-                    type="button"
-                    className="btn-ver-exemplo"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setModalExemplo('voz');
-                    }}
-                  >
-                    ▶ Ver exemplo
-                  </button>
                 </div>
               </div>
             </div>
@@ -2932,210 +2891,7 @@ export default function CriarMusica() {
 
       {showLimitModal && <section className="nx-card nx-form-column" role="status" style={{ marginBottom: 100 }}><h2>Vamos continuar por uma das suas músicas?</h2><p>Você pode acessar seus pedidos ou falar com a equipe sobre novas criações.</p><div className="nx-checkout-actions"><Link href="/conta" className="nx-button nx-primary">Ver minhas músicas</Link><a href={linkWhatsapp(whatsappSuporte, 'Olá! Preciso de ajuda para continuar minha criação.')} className="nx-button" target="_blank" rel="noopener noreferrer">Falar com a equipe</a><button className="nx-text-button" type="button" onClick={() => setShowLimitModal(false)}>Fechar aviso</button></div></section>}
 
-      {/* Modal de Exemplo (Carta Virtual ou Retrospectiva) */}
-      {modalExemplo && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.65)',
-            backdropFilter: 'blur(4px)',
-            WebkitBackdropFilter: 'blur(4px)',
-            zIndex: 9999,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '16px'
-          }}
-          onClick={() => setModalExemplo(null)}
-        >
-          <div
-            style={{
-              backgroundColor: '#fff',
-              borderRadius: '24px',
-              maxWidth: '440px',
-              width: '100%',
-              padding: '24px',
-              position: 'relative',
-              boxShadow: '0 20px 50px rgba(0,0,0,0.2)',
-              maxHeight: '90vh',
-              overflowY: 'auto'
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              type="button"
-              onClick={() => setModalExemplo(null)}
-              style={{
-                position: 'absolute',
-                top: '16px',
-                right: '16px',
-                width: '32px',
-                height: '32px',
-                borderRadius: '50%',
-                border: 'none',
-                backgroundColor: '#f1f5f9',
-                color: '#64748b',
-                fontSize: '1.1rem',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontWeight: 'bold'
-              }}
-            >
-              ✕
-            </button>
 
-            {modalExemplo === 'carta' ? (
-              <div>
-                <span style={{ fontSize: '2.4rem', display: 'block', marginBottom: '8px' }}>💌</span>
-                <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1E1418', margin: '0 0 8px' }}>
-                  Como funciona a Carta Virtual?
-                </h3>
-                <p style={{ fontSize: '0.9rem', color: '#665E62', lineHeight: 1.5, margin: '0 0 16px' }}>
-                  Uma página emocionante e interativa que você envia pelo WhatsApp para quem você ama.
-                </p>
-
-                <div style={{ background: '#FAF6F0', borderRadius: '16px', padding: '16px', border: '1.5px solid #EBDCCB', marginBottom: '18px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-                    <span style={{ fontSize: '1.2rem' }}>📜</span>
-                    <span style={{ fontWeight: 800, color: '#7D4F27', fontSize: '0.88rem' }}>Envelope com Lacre de Cera</span>
-                  </div>
-                  <p style={{ fontSize: '0.84rem', color: '#5C381E', margin: '0 0 10px', lineHeight: 1.45 }}>
-                    A pessoa toca no envelope para abrir o lacre e a carta se desdobra suavemente na tela, com a sua música tocando ao fundo!
-                  </p>
-                  <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.82rem', color: '#5C381E', lineHeight: 1.55 }}>
-                    <li>Foto de vocês dois colada com estilo Polaroid</li>
-                    <li>Texto emocionante escrito por você ou pela IA</li>
-                    <li>Sua assinatura personalizada no final</li>
-                    <li>Música tocando automaticamente</li>
-                  </ul>
-                </div>
-
-                <button
-                  type="button"
-                  className="btn-wz-primary"
-                  onClick={() => {
-                    handleSelectPackage('combo_carta');
-                    setModalExemplo(null);
-                  }}
-                  style={{ width: '100%', padding: '14px', fontSize: '0.95rem' }}
-                >
-                  Quero com Carta Virtual (R$ 13,90) ✨
-                </button>
-              </div>
-            ) : modalExemplo === 'video' ? (
-              <div>
-                <span style={{ fontSize: '2.4rem', display: 'block', marginBottom: '8px' }}>🎬</span>
-                <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1E1418', margin: '0 0 8px' }}>
-                  Como funciona o Vídeo Homenagem?
-                </h3>
-                <p style={{ fontSize: '0.9rem', color: '#665E62', lineHeight: 1.5, margin: '0 0 16px' }}>
-                  Um clipe audiovisual cinematográfico pronto para emocionar e compartilhar com todo mundo.
-                </p>
-
-                <div style={{ background: '#F0FDF4', borderRadius: '16px', padding: '16px', border: '1.5px solid #BBF7D0', marginBottom: '18px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-                    <span style={{ fontSize: '1.2rem' }}>📽️</span>
-                    <span style={{ fontWeight: 800, color: '#166534', fontSize: '0.88rem' }}>Vídeo Slideshow Profissional</span>
-                  </div>
-                  <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.84rem', color: '#14532d', lineHeight: 1.55 }}>
-                    <li>Suas fotos sincronizadas com as batidas da música</li>
-                    <li>Transições suaves, iluminação cinematográfica e efeitos visuais</li>
-                    <li>Formato perfeito para WhatsApp, Instagram Reels e TikTok</li>
-                    <li>Arquivo em vídeo MP4 Full HD liberado para download</li>
-                  </ul>
-                </div>
-
-                <button
-                  type="button"
-                  className="btn-wz-primary"
-                  onClick={() => {
-                    handleSelectPackage('combo');
-                    setModalExemplo(null);
-                  }}
-                  style={{ width: '100%', padding: '14px', fontSize: '0.95rem', background: 'linear-gradient(135deg, #059669 0%, #047857 100%)' }}
-                >
-                  Quero com Vídeo Homenagem (R$ 16,90) 🎬
-                </button>
-              </div>
-            ) : modalExemplo === 'voz' ? (
-              <div>
-                <span style={{ fontSize: '2.4rem', display: 'block', marginBottom: '8px' }}>🎙️</span>
-                <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1E1418', margin: '0 0 8px' }}>
-                  Como funciona Minha Voz na Música?
-                </h3>
-                <p style={{ fontSize: '0.9rem', color: '#665E62', lineHeight: 1.5, margin: '0 0 16px' }}>
-                  A tecnologia mais emocionante: a canção cantada exatamente com o timbre e entonação da sua própria voz!
-                </p>
-
-                <div style={{ background: '#EEF2FF', borderRadius: '16px', padding: '16px', border: '1.5px solid #C7D2FE', marginBottom: '18px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-                    <span style={{ fontSize: '1.2rem' }}>✨</span>
-                    <span style={{ fontWeight: 800, color: '#3730A3', fontSize: '0.88rem' }}>Clonagem Vocal Exclusiva</span>
-                  </div>
-                  <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.84rem', color: '#312E81', lineHeight: 1.55 }}>
-                    <li>Você grava apenas 30 segundos falando pelo próprio celular</li>
-                    <li>Nossa rede neural de estúdio treina o seu modelo vocal exclusivo</li>
-                    <li>A música é gerada com você cantando com afinação perfeita</li>
-                    <li>O presente mais impactante e surpreendente possível</li>
-                  </ul>
-                </div>
-
-                <button
-                  type="button"
-                  className="btn-wz-primary"
-                  onClick={() => {
-                    handleSelectPackage('combo_voz');
-                    setModalExemplo(null);
-                  }}
-                  style={{ width: '100%', padding: '14px', fontSize: '0.95rem', background: 'linear-gradient(135deg, #4f46e5 0%, #4338ca 100%)' }}
-                >
-                  Quero Minha Voz na Música (R$ 24,90) 🎙️
-                </button>
-              </div>
-            ) : (
-              <div>
-                <span style={{ fontSize: '2.4rem', display: 'block', marginBottom: '8px' }}>💝</span>
-                <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1E1418', margin: '0 0 8px' }}>
-                  Como funciona a Retrospectiva?
-                </h3>
-                <p style={{ fontSize: '0.9rem', color: '#665E62', lineHeight: 1.5, margin: '0 0 16px' }}>
-                  O presente mais completo: um site exclusivo e personalizado só para a história de vocês dois.
-                </p>
-
-                <div style={{ background: '#FFF1F5', borderRadius: '16px', padding: '16px', border: '1.5px solid #FBCFE8', marginBottom: '18px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-                    <span style={{ fontSize: '1.2rem' }}>✨</span>
-                    <span style={{ fontWeight: 800, color: '#9D174D', fontSize: '0.88rem' }}>Tudo o que está incluso:</span>
-                  </div>
-                  <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.84rem', color: '#831843', lineHeight: 1.55 }}>
-                    <li><strong>Suas 4 músicas</strong> tocando enquanto navega</li>
-                    <li><strong>Galeria Polaroid</strong> com fotos dos melhores momentos</li>
-                    <li><strong>Contador de Amor</strong> mostrando dias, horas e minutos juntos</li>
-                    <li><strong>Linha do Tempo</strong> interativa com os marcos da relação</li>
-                    <li><strong>Jogos e quiz interativo</strong> do casal</li>
-                    <li><strong>Carta com envelope</strong> inclusa no final</li>
-                  </ul>
-                </div>
-
-                <button
-                  type="button"
-                  className="btn-wz-primary"
-                  onClick={() => {
-                    handleSelectPackage('combo_retrospectiva');
-                    setModalExemplo(null);
-                  }}
-                  style={{ width: '100%', padding: '14px', fontSize: '0.95rem' }}
-                >
-                  Quero Retrospectiva Completa (R$ 19,90) 👑
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
     </div>
   );
