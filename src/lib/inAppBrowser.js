@@ -30,3 +30,8 @@ export function isIOS(userAgent) {
   const ua = userAgent || (typeof navigator !== 'undefined' ? navigator.userAgent : '');
   return /iPad|iPhone|iPod/.test(ua);
 }
+
+export function isAndroid(userAgent) {
+  const ua = userAgent || (typeof navigator !== 'undefined' ? navigator.userAgent : '');
+  return /Android/i.test(ua);
+}

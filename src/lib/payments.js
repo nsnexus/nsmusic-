@@ -16,6 +16,7 @@ import { sendMetaPurchaseEvent } from './metaCapi.js';
 import { sendTikTokPurchaseEvent } from './tiktokCapi.js';
 import { isOrderFromMeta, isOrderFromTikTok } from './trafficSource.js';
 import { isStripePayment, calculateStripeFee, calculateStripeNet, getPayoutStatus } from './paymentFees.js';
+import { DOMINIO_CANONICO } from './siteUrl.js';
 
 const REVOKING_STATUSES = new Set(['cancelled', 'refunded', 'charged_back']);
 
@@ -562,8 +563,8 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
         const telCliente = orderInfo.customerPhone || 'Sem telefone';
         const homenageado = orderInfo.honoreeName || 'Homenageado';
         const estilo = orderInfo.musicStyle || 'Estilo não informado';
-        const linkAdmin = `https://nsmusic.com.br/admin/pedidos/${orderId}`;
-        const linkEntrega = `https://nsmusic.com.br/entrega?orderId=${orderId}`;
+        const linkAdmin = `${DOMINIO_CANONICO}/admin/pedidos/${orderId}`;
+        const linkEntrega = `${DOMINIO_CANONICO}/entrega?orderId=${orderId}`;
 
         const msgKaraoke = `🎤 *NOVO VÍDEO KARAOKÊ CONTRATADO!*\n\n`
           + `O cliente acabou de pagar pelo Karaokê e aguarda a sua produção manual.\n\n`

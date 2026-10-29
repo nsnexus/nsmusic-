@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isInAppBrowser, isIOS } from '@/lib/inAppBrowser';
+import { isInAppBrowser, isIOS, isAndroid } from '@/lib/inAppBrowser';
 
 // Achado 20/09/2026: cliente reclamando que "não consegue baixar as músicas". O servidor estava
 // certo (Content-Disposition: attachment verificado em produção) — quem bloqueia é o navegador
@@ -25,5 +25,13 @@ describe('isIOS', () => {
   it('distingue iOS de Android', () => {
     expect(isIOS('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0)')).toBe(true);
     expect(isIOS('Mozilla/5.0 (Linux; Android 13)')).toBe(false);
+  });
+});
+
+describe('isAndroid', () => {
+  it('distingue Android de iOS', () => {
+    expect(isAndroid('Mozilla/5.0 (Linux; Android 13; Pixel 7)')).toBe(true);
+    expect(isAndroid('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0)')).toBe(false);
+    expect(isAndroid('')).toBe(false);
   });
 });

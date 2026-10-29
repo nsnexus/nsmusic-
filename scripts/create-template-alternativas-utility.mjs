@@ -105,8 +105,8 @@ async function main() {
             {
               type: 'URL',
               text: 'Consultar Pedido',
-              url: 'https://nsmusic.nsnexus.com.br/entrega?orderId={{1}}',
-              example: ['https://nsmusic.nsnexus.com.br/entrega?orderId=NS-exemplo-123'],
+              url: 'https://nsmusic.ia.br/entrega?orderId={{1}}',
+              example: ['https://nsmusic.ia.br/entrega?orderId=NS-exemplo-123'],
             },
           ],
         },
@@ -143,8 +143,8 @@ async function main() {
             {
               type: 'URL',
               text: 'Acessar Pedido',
-              url: 'https://nsmusic.nsnexus.com.br/entrega?orderId={{1}}',
-              example: ['https://nsmusic.nsnexus.com.br/entrega?orderId=NS-exemplo-123'],
+              url: 'https://nsmusic.ia.br/entrega?orderId={{1}}',
+              example: ['https://nsmusic.ia.br/entrega?orderId=NS-exemplo-123'],
             },
           ],
         },

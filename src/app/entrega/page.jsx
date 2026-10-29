@@ -19,7 +19,8 @@ import { requestPixCharge } from '@/lib/pixCheckout';
 import { compressImage } from '@/lib/imageCompress';
 import { getPriceForSku, faixasDeImpacto } from '@/lib/pricing';
 import { markPreviewListened } from '@/lib/previewTracking';
-import { isInAppBrowser } from '@/lib/inAppBrowser';
+import { isInAppBrowser, isIOS, isAndroid } from '@/lib/inAppBrowser';
+import { DOMINIO_CANONICO } from '@/lib/siteUrl';
 import { IconeMusica, IconeCarta, IconeVideo, IconeRetrospectiva, IconeWhatsApp, NotasDecorativas } from '@/components/AppIcons';
 import { Lock, Check, Copy, Share2, Eye, Download, RefreshCw, Sparkles, ExternalLink, Camera, Music, Headphones, Volume2, FileText, CheckCircle2, MessageCircle } from 'lucide-react';
 import { styles } from './entregaStyles';
@@ -109,6 +110,10 @@ function EntregaContent() {
   const [linkPaginaCopiado, setLinkPaginaCopiado] = useState(false);
 
   useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.hostname.includes('nsnexus.com.br')) {
+      window.location.replace(`${DOMINIO_CANONICO}${window.location.pathname}${window.location.search}${window.location.hash}`);
+      return;
+    }
     setNavegadorInApp(isInAppBrowser());
   }, []);
   // Verificação automática de comprovante por IA (provisória — ver src/lib/receiptVerification.js).
@@ -714,11 +719,38 @@ function EntregaContent() {
     setDownloadingSlot(slot);
 
     // Se estiver em navegador embutido de app (WhatsApp / Instagram / etc.):
-    // No WebView do WhatsApp, URLs blob: são bloqueadas silenciosamente pelo aplicativo.
-    // A navegação direta com o cabeçalho Content-Disposition aciona o download nativo do celular
-    // (no Android salva direto na pasta Downloads; no iOS abre o menu de salvar).
+    // No iOS (WKWebView), requisições diretas a anexos binários causam falha com "Site indisponível".
+    // No Android, o intent do Chrome permite disparar o download nativo no Google Chrome.
     if (isInAppBrowser()) {
-      window.location.href = downloadUrl;
+      if (isIOS()) {
+        alert("O WhatsApp não permite baixar arquivos diretamente no iPhone.\n\nPara salvar sua música:\n1. Toque nos três pontinhos (...) no canto da tela\n2. Escolha 'Abrir no Safari/Navegador'\n\n(O link desta página foi copiado automaticamente!)");
+        try {
+          navigator.clipboard.writeText(window.location.href);
+          setLinkPaginaCopiado(true);
+        } catch (e) {}
+        setDownloadingSlot(null);
+        return;
+      }
+
+      if (isAndroid()) {
+        try {
+          const canonicalBase = DOMINIO_CANONICO || 'https://nsmusic.ia.br';
+          const fullDownloadUrl = downloadUrl.startsWith('http')
+            ? downloadUrl
+            : `${canonicalBase}${downloadUrl.startsWith('/') ? '' : '/'}${downloadUrl}`;
+          const urlNoProto = fullDownloadUrl.replace(/^https?:\/\//, '');
+          window.location.href = `intent://${urlNoProto}#Intent;scheme=https;package=com.android.chrome;end;`;
+          setTimeout(() => setDownloadingSlot(null), 3000);
+          return;
+        } catch (e) {
+          console.warn('[entrega] Fallback intent android:', e);
+        }
+      }
+
+      const canonicalUrl = downloadUrl.startsWith('http')
+        ? downloadUrl
+        : `${DOMINIO_CANONICO}${downloadUrl.startsWith('/') ? '' : '/'}${downloadUrl}`;
+      window.location.href = canonicalUrl;
       setTimeout(() => setDownloadingSlot(null), 2500);
       return;
     }

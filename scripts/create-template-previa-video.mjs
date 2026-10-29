@@ -112,8 +112,8 @@ async function main() {
           {
             type: 'URL',
             text: 'Liberar Música Completa',
-            url: 'https://nsmusic.nsnexus.com.br/entrega?orderId={{1}}',
-            example: ['https://nsmusic.nsnexus.com.br/entrega?orderId=NS-exemplo-123'],
+            url: 'https://nsmusic.ia.br/entrega?orderId={{1}}',
+            example: ['https://nsmusic.ia.br/entrega?orderId=NS-exemplo-123'],
           },
         ],
       },

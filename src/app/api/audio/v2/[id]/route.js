@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { DOMINIO_CANONICO } from '@/lib/siteUrl';
 
 export const runtime = 'edge';
 
@@ -8,8 +9,7 @@ export async function GET(req, { params }) {
     return NextResponse.json({ error: 'ID do pedido não informado' }, { status: 400 });
   }
 
-  const url = new URL(req.url);
-  const downloadUrl = `${url.origin}/api/audio/proxy?orderId=${encodeURIComponent(id)}&faixa=1&download=NS-Music-Versao-2.mp3`;
+  const downloadUrl = `${DOMINIO_CANONICO}/api/audio/proxy?orderId=${encodeURIComponent(id)}&faixa=1&download=NS-Music-Versao-2.mp3`;
 
   return NextResponse.redirect(downloadUrl, 302);
 }

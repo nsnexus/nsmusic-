@@ -5,6 +5,7 @@ import { getSupabaseEdge } from '@/lib/supabase-edge';
 import { extractAudioTracks } from '@/lib/db';
 import { transcribeAudioWithFailover } from '@/lib/transcribeAudio';
 import { copyAudioToR2, isOurStorage } from '@/lib/audioArchive';
+import { DOMINIO_CANONICO } from '@/lib/siteUrl';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
@@ -154,7 +155,7 @@ export async function POST(req) {
         },
         body: JSON.stringify({
           model: 'ai-music-api/upload-and-cover-audio',
-          callBackUrl: 'https://nsmusic.nsnexus.com.br/api/suno/webhook',
+          callBackUrl: `${DOMINIO_CANONICO}/api/suno/webhook`,
           input: inputPayload
         }),
         signal: AbortSignal.timeout(15000)

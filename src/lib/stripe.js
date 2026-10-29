@@ -5,6 +5,7 @@
  */
 
 import { getPriceForSku } from './pricing.js';
+import { DOMINIO_CANONICO } from './siteUrl.js';
 
 export function getStripeConfig(env = {}) {
   const secretKey = env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET_KEY || '';
@@ -62,7 +63,7 @@ export async function createStripeCheckoutSession(params, env = {}) {
   // Centavos para o Stripe (ex: R$ 9,99 = 999 centavos)
   const unitAmountInCents = Math.round(amount * 100);
 
-  const siteUrl = env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_SITE_URL || 'https://nsmusic.nsnexus.com.br';
+  const siteUrl = env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_SITE_URL || DOMINIO_CANONICO;
   const defaultSuccessUrl = `${siteUrl}/entrega?orderId=${encodeURIComponent(orderId)}&session_id={CHECKOUT_SESSION_ID}&paid=stripe`;
   const defaultCancelUrl = `${siteUrl}/entrega?orderId=${encodeURIComponent(orderId)}&cancel=stripe`;
 

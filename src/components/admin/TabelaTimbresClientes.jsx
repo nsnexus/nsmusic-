@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { DOMINIO_CANONICO } from '@/lib/siteUrl';
 
 export default function TabelaTimbresClientes() {
   // Aba ativa: 'TIMBRES' (clientes já gravados) ou 'LINKS' (links gerados para envio)
@@ -259,7 +260,7 @@ export default function TabelaTimbresClientes() {
     if (typeof window !== 'undefined') {
       return `${window.location.origin}/voz/gravar/${token}`;
     }
-    return `https://nsmusic.nsnexus.com.br/voz/gravar/${token}`;
+    return `${DOMINIO_CANONICO}/voz/gravar/${token}`;
   };
 
   const getTextoWhatsapp = (invite) => {

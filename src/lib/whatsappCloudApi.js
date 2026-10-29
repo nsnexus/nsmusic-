@@ -1,6 +1,7 @@
 import { getRequestContext } from '@cloudflare/next-on-pages';
 import { formatToWhatsAppNumber } from './whatsappTemplates.js';
 import { lerConfigSite, normalizarNumeroWhatsapp, WHATSAPP_SUPORTE_PADRAO } from './configSite.js';
+import { resolverSiteUrl } from './siteUrl.js';
 
 // WhatsApp Cloud API (API oficial da Meta) — usada só como RESERVA de envio.
 //
@@ -218,14 +219,15 @@ export async function enviarPagamentoConfirmadoCloud(phone, { cliente, homenagea
   const numSuporte = normalizarNumeroWhatsapp(cfgSite?.whatsappSuporte) || WHATSAPP_SUPORTE_PADRAO;
   const linkSuporte = `https://wa.me/${numSuporte}`;
 
+  const baseUrl = resolverSiteUrl(env?.NEXT_PUBLIC_SITE_URL);
   const resolvedOrderId = orderId || (link ? link.match(/orderId=([^&]+)/)?.[1] : '') || '';
   const nomeCliente = cliente || 'Cliente';
   const nomeHomenageado = homenageado || 'alguém especial';
-  const resolvedLink = link || (resolvedOrderId ? `https://nsmusic.nsnexus.com.br/entrega?orderId=${resolvedOrderId}` : 'https://nsmusic.nsnexus.com.br');
+  const resolvedLink = link || (resolvedOrderId ? `${baseUrl}/entrega?orderId=${resolvedOrderId}` : baseUrl);
 
   // 1. Modelo oficial confirmacao_pagamento_v2 (Banner oficial no header + botões de download direto)
   if (resolvedOrderId) {
-    const bannerUrl = 'https://nsmusic.nsnexus.com.br/banner-whatsapp.jpg';
+    const bannerUrl = `${baseUrl}/banner-whatsapp.jpg`;
     const resV2 = await sendCloudApiTemplate(
       phone,
       config.templatePagamentoV2,

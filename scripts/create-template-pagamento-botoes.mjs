@@ -103,7 +103,7 @@ async function main() {
             [
               'Narciso',
               'Maria',
-              'https://nsmusic.nsnexus.com.br/entrega?orderId=NS-exemplo-123',
+              'https://nsmusic.ia.br/entrega?orderId=NS-exemplo-123',
             ],
           ],
         },
@@ -118,14 +118,14 @@ async function main() {
           {
             type: 'URL',
             text: 'Baixar Versão 1',
-            url: 'https://nsmusic.nsnexus.com.br/api/audio/v1/{{1}}',
-            example: ['https://nsmusic.nsnexus.com.br/api/audio/v1/NS-exemplo-123'],
+            url: 'https://nsmusic.ia.br/api/audio/v1/{{1}}',
+            example: ['https://nsmusic.ia.br/api/audio/v1/NS-exemplo-123'],
           },
           {
             type: 'URL',
             text: 'Baixar Versão 2',
-            url: 'https://nsmusic.nsnexus.com.br/api/audio/v2/{{1}}',
-            example: ['https://nsmusic.nsnexus.com.br/api/audio/v2/NS-exemplo-123'],
+            url: 'https://nsmusic.ia.br/api/audio/v2/{{1}}',
+            example: ['https://nsmusic.ia.br/api/audio/v2/NS-exemplo-123'],
           },
           {
             type: 'QUICK_REPLY',
@@ -170,14 +170,14 @@ async function main() {
         {
           type: 'URL',
           text: 'Baixar Versão 1',
-          url: 'https://nsmusic.nsnexus.com.br/api/audio/v1/{{1}}',
-          example: ['https://nsmusic.nsnexus.com.br/api/audio/v1/NS-exemplo-123'],
+          url: 'https://nsmusic.ia.br/api/audio/v1/{{1}}',
+          example: ['https://nsmusic.ia.br/api/audio/v1/NS-exemplo-123'],
         },
         {
           type: 'URL',
           text: 'Baixar Versão 2',
-          url: 'https://nsmusic.nsnexus.com.br/api/audio/v2/{{1}}',
-          example: ['https://nsmusic.nsnexus.com.br/api/audio/v2/NS-exemplo-123'],
+          url: 'https://nsmusic.ia.br/api/audio/v2/{{1}}',
+          example: ['https://nsmusic.ia.br/api/audio/v2/NS-exemplo-123'],
         },
       ];
       
