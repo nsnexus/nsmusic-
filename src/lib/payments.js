@@ -204,6 +204,11 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
           updates.paidAmount = valorPago;
           updates.paidSku = sku || null;
 
+          // Estratégia de 4 Músicas: 1ª geração paga + 2ª geração de bônus liberada
+          updates.segundaGeracaoDisponivel = true;
+          updates.segundaGeracaoUsada = false;
+          updates.hasSecondSongAccess = true;
+
           if (isStripe) {
             updates.stripeFee = stripeFee;
             updates.netAmount = netAmount;

@@ -140,6 +140,78 @@ export default function SecondSongOffer({ orderId, order }) {
     }
   };
 
+  // Estratégia de 4 Músicas: se o pedido pagou o pacote de 4 músicas e tem a 2ª geração livre
+  const hasFreeSecondGen = Boolean(order?.segundaGeracaoDisponivel && !order?.segundaGeracaoUsada);
+  const secondGenUsed = Boolean(order?.segundaGeracaoDisponivel && order?.segundaGeracaoUsada);
+
+  if (hasFreeSecondGen) {
+    return (
+      <section
+        className="nx-card"
+        style={{
+          margin: '32px 0',
+          border: '1.5px solid #86efac',
+          borderRadius: '21px',
+          background: 'linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%)',
+          padding: '32px 24px',
+          textAlign: 'center',
+          boxShadow: '0 4px 20px rgba(16, 185, 129, 0.08)',
+        }}
+      >
+        <div style={{ fontSize: '2.5rem', marginBottom: '8px' }}>🎁</div>
+        <span
+          style={{
+            display: 'inline-block',
+            fontSize: '0.72rem',
+            fontWeight: '800',
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            color: '#15803d',
+            background: '#dcfce7',
+            padding: '4px 12px',
+            borderRadius: '999px',
+            marginBottom: '10px',
+          }}
+        >
+          Pacote 4 Músicas · 2ª Geração Liberada
+        </span>
+        <h3 style={{ font: '1.8rem/1.25 Georgia, serif', color: '#14532d', margin: '0 0 10px' }}>
+          Você tem mais 2 músicas para liberar! 🎉
+        </h3>
+        <p style={{ color: '#166534', fontSize: '0.95rem', maxWidth: '540px', margin: '0 auto 22px', lineHeight: 1.6 }}>
+          Seu pedido inclui <strong>4 músicas personalizadas</strong> (2 gerações completas). Suas primeiras 2 versões já estão prontas acima. Agora você pode criar <strong>mais 2 músicas do zero</strong> com outra letra, história ou estilo sem pagar nada!
+        </p>
+        <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
+          <Link
+            className="nx-button nx-primary"
+            href={`/criar?novo=1&origem=segunda_geracao&orderRef=${encodeURIComponent(orderId)}`}
+            style={{
+              padding: '14px 28px',
+              fontSize: '1rem',
+              fontWeight: 'bold',
+              background: '#059669',
+              borderColor: '#059669',
+              color: '#ffffff',
+              borderRadius: '12px',
+              textDecoration: 'none',
+              boxShadow: '0 4px 14px rgba(5, 150, 105, 0.3)',
+            }}
+          >
+            ✨ Criar Minhas +2 Músicas Grátis
+          </Link>
+        </div>
+      </section>
+    );
+  }
+
+  if (secondGenUsed) {
+    return (
+      <div style={{ margin: '24px 0', padding: '16px 20px', background: '#f8fafc', borderRadius: '16px', border: '1px solid #e2e8f0', textAlign: 'center', color: '#475569', fontSize: '0.9rem' }}>
+        ✅ <strong>Pacote de 4 Músicas completo:</strong> você já utilizou a sua 2ª geração bônus!
+      </div>
+    );
+  }
+
   if (hidden || (order && !isEligibleOrder)) {
     return null;
   }

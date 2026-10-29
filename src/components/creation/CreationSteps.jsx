@@ -46,10 +46,16 @@ const GENERO_CARDS = [
 ];
 
 const CLIMA_CARDS = [
-  { id: 'Emocionante', label: 'Emocionante', icon: '🥹', sub: 'Letra profunda e marcante' },
-  { id: 'Alegre', label: 'Alegre / Feliz', icon: '😄', sub: 'Vibe positiva e animada' },
-  { id: 'Romântica', label: 'Romântico', icon: '💖', sub: 'Puro sentimento e paixão' },
-  { id: 'Aconchegante', label: 'Aconchegante', icon: '🕊️', sub: 'Suave, carinhoso e calmo' },
+  { id: 'Emocionante', label: 'Emocionante', icon: '🥹', sub: 'Tocar o coração e emocionar' },
+  { id: 'Alegre', label: 'Alegre / Feliz', icon: '😄', sub: 'Vibe positiva e alto astral' },
+  { id: 'Romântica', label: 'Romântica', icon: '💖', sub: 'Declaração amorosa e carinho' },
+  { id: 'Calma', label: 'Calma / Aconchegante', icon: '🍃', sub: 'Suave, relaxante e intimista' },
+  { id: 'Nostálgica', label: 'Nostálgica', icon: '🍂', sub: 'Recordações e boas saudades' },
+  { id: 'Energética', label: 'Energética', icon: '🔥', sub: 'Vibe vibrante e ritmo forte' },
+  { id: 'Festiva', label: 'Festiva', icon: '🎉', sub: 'Clima de celebração e festa' },
+  { id: 'Inspiradora', label: 'Inspiradora', icon: '✨', sub: 'Superação, força e fé' },
+  { id: 'Divertida', label: 'Divertida', icon: '☀️', sub: 'Bem-humorada, leve e alegre' },
+  { id: 'Melancólica', label: 'Melancólica', icon: '🕊️', sub: 'Saudade e homenagem querida' },
 ];
 
 export function CreationEditorial() {

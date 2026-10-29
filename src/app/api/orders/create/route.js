@@ -72,6 +72,34 @@ export async function POST(req) {
       } catch (e) {}
     }
 
+    // Suporte ao bônus da 2ª geração de músicas (4 músicas = 2 gerações pagas)
+    let isSecondGenApproved = false;
+    const parentOrderId = formData.orderRef || formData.parentOrderId || null;
+    let inheritedAddons = {};
+    if (parentOrderId && (formData.origem === 'segunda_geracao' || formData.origem === 'segunda_musica' || formData.isSecondGeneration)) {
+      try {
+        const { getOrder, updateOrder } = await import('@/lib/supabaseDb');
+        const parentOrder = await getOrder(parentOrderId, env);
+        if (parentOrder && (parentOrder.paymentStatus === 'PAGO' || parentOrder.paymentStatus === 'PAGAMENTO_APROVADO')) {
+          if (parentOrder.segundaGeracaoDisponivel && !parentOrder.segundaGeracaoUsada) {
+            isSecondGenApproved = true;
+            inheritedAddons = {
+              hasVideoAccess: Boolean(parentOrder.hasVideoAccess || parentOrder.videoAddonPaid),
+              hasCartaAccess: Boolean(parentOrder.hasCartaAccess || parentOrder.cartaAddonPaid),
+              hasRetrospectivaAccess: Boolean(parentOrder.hasRetrospectivaAccess || parentOrder.retrospectivaAddonPaid),
+            };
+            // Consome a geração bônus no pedido pai
+            await updateOrder(parentOrderId, {
+              segundaGeracaoUsada: true,
+              segundaGeracaoUsadaAt: createdAtIso,
+            }, env);
+          }
+        }
+      } catch (err) {
+        console.warn('[orders/create] Falha ao verificar bônus de 2ª geração:', err?.message);
+      }
+    }
+
     const orderPayload = {
       orderNumber,
       // Nunca vincule o pedido a um userId fornecido pelo navegador. Se houver
@@ -98,7 +126,12 @@ export async function POST(req) {
       termsAccepted: true,
       termsAcceptedAt: createdAtIso,
       whatsappRequested: Boolean(formData.customerPhone),
-      paymentStatus: 'AGUARDANDO_PAGAMENTO',
+      paymentStatus: isSecondGenApproved ? 'PAGAMENTO_APROVADO' : 'AGUARDANDO_PAGAMENTO',
+      paidAmount: isSecondGenApproved ? 0 : 0,
+      paidSku: isSecondGenApproved ? 'segunda_geracao_bonus' : null,
+      parentOrderId: parentOrderId || null,
+      isSecondGeneration: isSecondGenApproved,
+      ...inheritedAddons,
       productionStatus: formData.productionStatus || (formData.lyrics ? 'LETRA_CRIADA' : 'EM_PRODUCAO'),
       createdAt: createdAtIso,
       updatedAt: createdAtIso,

@@ -15,8 +15,8 @@ describe('escada de brindes por valor pago (SKU impacto)', () => {
   });
 
   it('cada faixa acumula a anterior', () => {
-    expect(brindesPorValorPago(CARTA)).toEqual({ carta: true, video: false, retrospectiva: false });
-    expect(brindesPorValorPago(VIDEO)).toEqual({ carta: true, video: true, retrospectiva: false });
+    expect(brindesPorValorPago(VIDEO)).toEqual({ carta: false, video: true, retrospectiva: false });
+    expect(brindesPorValorPago(CARTA)).toEqual({ carta: true, video: true, retrospectiva: false });
     expect(brindesPorValorPago(RETRO)).toEqual({ carta: true, video: true, retrospectiva: true });
   });
 
@@ -46,7 +46,7 @@ describe('escada de brindes por valor pago (SKU impacto)', () => {
 
   it('as faixas da tela usam os mesmos valores do catálogo, em ordem crescente', () => {
     const faixas = faixasDeImpacto();
-    expect(faixas.map((f) => f.valor)).toEqual([MUSICA, CARTA, VIDEO, RETRO]);
+    expect(faixas.map((f) => f.valor)).toEqual([MUSICA, VIDEO, CARTA, RETRO]);
     for (let i = 1; i < faixas.length; i += 1) {
       expect(faixas[i].valor).toBeGreaterThan(faixas[i - 1].valor);
     }

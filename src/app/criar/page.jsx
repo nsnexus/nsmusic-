@@ -23,6 +23,7 @@ import { lerConfigSite } from '@/lib/configSite';
 import { StudioLyricsAnimation, StudioAudioAnimation } from '@/components/creation/StudioProgress';
 import { IconeCelularWhatsApp } from '@/components/AppIcons';
 import { readReferralCode } from '@/lib/referralTracking';
+import { getPriceForSku } from '@/lib/pricing';
 
 // Tempo na tela de produção depois do qual o cliente sempre ganha uma saída (conferir de novo,
 // recomeçar ou chamar no WhatsApp). Maior que o corte de 6 min do polling de propósito: só entra
@@ -269,13 +270,42 @@ export default function CriarMusica() {
     }
   });
 
-  const totalWizardSteps = 4; // Fluxo otimizado em 4 etapas (Etapa 1: Ocasião + Nomes; Etapa 2: História; Etapa 3: Ritmo/Clima/Voz; Etapa 4: Resumo + Capa + WhatsApp)
-  // One preview/checkout destination for a fresh creation and a WhatsApp return visit.
+  const TOTAL_JOURNEY_STEPS = 7; // Jornada total de 7 etapas no padrão Capivarinha Love
+  const TOTAL_FORM_STEPS = 4; // Etapas do formulário Wizard (1: Pessoa, 2: História, 3: Estilo, 4: Contato)
+  const [selectedPackageSku, setSelectedPackageSku] = useState('audio_only');
+  const [modalExemplo, setModalExemplo] = useState(null);
+  const [sunoProgressPercent, setSunoProgressPercent] = useState(8);
+
+  // Efeito assintótico de porcentagem para retenção na tela de estúdio (0% a 98%)
   useEffect(() => {
-    if (orderId && (step >= 7 || (step === 6 && formData.sunoStatus === 'generated'))) {
-      window.location.replace(`/entrega?orderId=${encodeURIComponent(orderId)}`);
+    if (formData.sunoStatus !== 'generating') {
+      if (formData.sunoStatus === 'generated') {
+        setSunoProgressPercent(100);
+      }
+      return;
     }
-  }, [step, orderId, formData.sunoStatus]);
+
+    setSunoProgressPercent(8);
+    const start = Date.now();
+    const interval = setInterval(() => {
+      const elapsedSec = (Date.now() - start) / 1000;
+      let p;
+      if (elapsedSec < 6) {
+        p = 8 + elapsedSec * 3;
+      } else if (elapsedSec < 18) {
+        p = 26 + (elapsedSec - 6) * 2.5;
+      } else if (elapsedSec < 35) {
+        p = 56 + (elapsedSec - 18) * 1.5;
+      } else if (elapsedSec < 55) {
+        p = 81.5 + (elapsedSec - 35) * 0.65;
+      } else {
+        p = Math.min(97, 94.5 + (elapsedSec - 55) * 0.1);
+      }
+      setSunoProgressPercent(Math.round(p));
+    }, 400);
+
+    return () => clearInterval(interval);
+  }, [formData.sunoStatus]);
   const audio1Ref = useRef(null);
   const audio2Ref = useRef(null);
   const recognitionRef = useRef(null);
@@ -315,11 +345,14 @@ export default function CriarMusica() {
         }
       }
 
-      const sku = formData.addons?.wantsVideo ? 'combo' : 'audio_only';
+      const sku = selectedPackageSku || 'audio_only';
+      const cancelUrl = typeof window !== 'undefined'
+        ? `${window.location.origin}/criar?orderId=${encodeURIComponent(orderId)}&step=7`
+        : undefined;
       const res = await fetch('/api/payments/stripe/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId, sku }),
+        body: JSON.stringify({ orderId, sku, cancelUrl }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.checkoutUrl) {
@@ -433,11 +466,22 @@ export default function CriarMusica() {
         // query string é entrada do usuário, não configuração.
         const ocasiaoParam = urlParams.get('ocasiao');
         const ocasiaoValida = occasions.some((o) => o.id === ocasiaoParam) ? ocasiaoParam : '';
+        const origemParam = urlParams.get('origem');
+        const orderRefParam = urlParams.get('orderRef');
 
-        if (resetParam === 'true' || resetParam === '1') {
+        if (resetParam === 'true' || resetParam === '1' || origemParam === 'segunda_geracao') {
           localStorage.removeItem('nsmusic_order_draft');
           window.history.replaceState({}, document.title, window.location.pathname);
-          if (ocasiaoValida) setFormData((prev) => ({ ...prev, occasion: ocasiaoValida }));
+          const initialUpdates = {};
+          if (ocasiaoValida) initialUpdates.occasion = ocasiaoValida;
+          if (orderRefParam && (origemParam === 'segunda_geracao' || origemParam === 'segunda_musica')) {
+            initialUpdates.origem = origemParam;
+            initialUpdates.orderRef = orderRefParam;
+            initialUpdates.isSecondGeneration = true;
+          }
+          if (Object.keys(initialUpdates).length > 0) {
+            setFormData((prev) => ({ ...prev, ...initialUpdates }));
+          }
           setIsRestored(true);
           return;
         }
@@ -688,11 +732,8 @@ export default function CriarMusica() {
 
 
 
-  // Valor promocional dinâmico: R$ 9,99 (só música) ou R$ 16,89 (música + vídeo)
-  const getSelectedPackagePrice = () => 9.99;
-  const getVideoAddonPrice = () => formData.addons?.wantsVideo ? 6.90 : 0;
-  const getAddonsPrice = () => getVideoAddonPrice();
-  const getTotalPrice = () => 9.99 + getVideoAddonPrice();
+  // Valor promocional dinâmico de acordo com o pacote escolhido
+  const getTotalPrice = () => getPriceForSku(selectedPackageSku) || 9.99;
 
 
 
@@ -1320,9 +1361,10 @@ export default function CriarMusica() {
     if (isSubmitting) return;
     setIsSubmitting(true);
     try {
-      // Se as músicas já foram geradas com sucesso anteriormente, apenas navega sem regenerar
+      // Se as músicas já foram geradas com sucesso anteriormente, apenas navega para a etapa de áudio
       if (formData.sunoStatus === 'generated' && formData.sunoTracks && formData.sunoTracks.length > 0) {
-        if (orderId) window.location.href = `/entrega?orderId=${orderId}`;
+        setStep(6);
+        setIsSubmitting(false);
         return;
       }
 
@@ -1495,16 +1537,12 @@ export default function CriarMusica() {
               // verdade; sem confirmação, fica na tela in-page (mesmo fallback já usado quando não
               // há orderId, com os players tocando pelo proxy e o card de WhatsApp logo abaixo).
               updateField('sunoProgress', 'Finalizando e conferindo o áudio...');
-              const audioConfirmado = await waitForAudioReady(primaryAudio);
-              if (audioConfirmado) {
-                window.location.href = `/entrega?orderId=${targetOrder}`;
-              } else {
-                updateField('sunoStatus', 'generated');
-              }
-            } else {
-              // Sem orderId não tem pra onde redirecionar — cai na tela de prévia in-page como
-              // fallback, senão o cliente fica travado numa tela de loading que nunca sai do lugar.
+              await waitForAudioReady(primaryAudio);
               updateField('sunoStatus', 'generated');
+              setStep(6);
+            } else {
+              updateField('sunoStatus', 'generated');
+              setStep(6);
             }
           } else if (statusData.status === 'ERROR') {
             // Falha definitiva da IA, já com a retentativa automática e failover do servidor esgotados
@@ -1748,79 +1786,100 @@ export default function CriarMusica() {
     />
   );
 
+  const getSunoPhaseText = (percent) => {
+    if (percent < 18) return 'Harmonizando a melodia e definindo o tom da voz...';
+    if (percent < 38) return 'Gravando instrumentos, violões, piano e ritmo no estúdio...';
+    if (percent < 65) return 'Ajustando a interpretação vocal com a emoção perfeita...';
+    if (percent < 85) return 'Masterizando a faixa e aplicando efeitos de estúdio...';
+    if (percent < 98) return 'Finalizando suas 2 versões exclusivas completas...';
+    return 'Músicas prontas! Carregando suas prévias exclusivas...';
+  };
+
+  const copyPixAction = (targetEl) => {
+    if (!pixInfo?.qrCode) return;
+    try {
+      if (targetEl && typeof targetEl.select === 'function') {
+        targetEl.select();
+      }
+    } catch (_) {}
+
+    let copiedOk = false;
+    try {
+      if (navigator?.clipboard?.writeText) {
+        navigator.clipboard.writeText(pixInfo.qrCode);
+        copiedOk = true;
+      }
+    } catch (_) {}
+
+    if (!copiedOk) {
+      try {
+        const tempArea = document.createElement('textarea');
+        tempArea.value = pixInfo.qrCode;
+        tempArea.setAttribute('readonly', '');
+        tempArea.style.position = 'absolute';
+        tempArea.style.left = '-9999px';
+        document.body.appendChild(tempArea);
+        tempArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(tempArea);
+        copiedOk = true;
+      } catch (_) {}
+    }
+
+    if (copiedOk) {
+      setPixCopied(true);
+      setTimeout(() => setPixCopied(false), 3000);
+    }
+  };
+
+  const handleSelectPackage = (sku) => {
+    setSelectedPackageSku(sku);
+    setPixInfo(null);
+    setPaymentErrorMessage('');
+  };
+
   const renderWorkflowStep = () => {
     switch (step) {
-      case 5: // Etapa 5: Geração de Letra & Edição / Opção "Já tenho minha letra"
+      case 5: // Etapa 5: Geração de Letra & Edição / Opção "Já tenho minha letra" (Padrão Capivarinha Love)
         return (
-          <div>
+          <div style={{ maxWidth: '34rem', margin: '0 auto' }}>
             {customLyricsMode ? (
-              <div style={{ maxWidth: '680px', margin: '0 auto', backgroundColor: '#ffffff', borderRadius: '24px', padding: '32px 28px', border: '1px solid #eef2f6', boxShadow: '0 10px 40px rgba(0,0,0,0.04)' }}>
-                <div style={{ display: 'flex', gap: '14px', alignItems: 'flex-start', marginBottom: '20px' }}>
-                  <div
-                    style={{
-                      width: '42px',
-                      height: '42px',
-                      borderRadius: '12px',
-                      backgroundColor: '#f5f3ff',
-                      border: '1px solid #ddd6fe',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '1.25rem',
-                      flexShrink: 0,
-                      marginTop: '2px',
-                    }}
-                  >
-                    ✍️
+              <div style={{ backgroundColor: '#ffffff', borderRadius: '20px', padding: '24px 20px', border: '1.5px solid #F1E4E8', boxShadow: '0 4px 18px rgba(0,0,0,0.03)' }}>
+                <span className="wz-guide">5 DE 7 · A LETRA</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px', marginBottom: '14px' }}>
+                  <div>
+                    <h2 className="wz-t" style={{ fontSize: '1.35rem', margin: 0 }}>Colar Minha Própria Letra ✍️</h2>
+                    <p className="wz-s" style={{ margin: '4px 0 0', fontSize: '0.86rem' }}>
+                      Cole ou digite a composição preparada para {formData.honoreeName || 'alguém especial'}.
+                    </p>
                   </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
-                      <div>
-                        <h2 style={{ fontSize: '1.25rem', fontWeight: '800', color: '#0f172a', margin: 0 }}>
-                          Colar Minha Própria Letra
-                        </h2>
-                        <p style={{ fontSize: '0.88rem', color: '#64748b', margin: '4px 0 0 0', lineHeight: '1.45' }}>
-                          Cole ou digite aqui a composição que você preparou para {formData.honoreeName || 'sua homenagem'}.
-                        </p>
-                      </div>
-                      {formData.lyrics && (
-                        <button
-                          type="button"
-                          onClick={() => setCustomLyricsMode(false)}
-                          style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '700', padding: '4px 8px' }}
-                        >
-                          ✕ Cancelar
-                        </button>
-                      )}
-                    </div>
-                  </div>
+                  {formData.lyrics && (
+                    <button
+                      type="button"
+                      onClick={() => setCustomLyricsMode(false)}
+                      style={{ background: 'none', border: 'none', color: '#857D80', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '700', padding: '4px 6px' }}
+                    >
+                      ✕ Cancelar
+                    </button>
+                  )}
                 </div>
 
-                <div style={{ marginBottom: '16px' }}>
-                  <textarea
-                    value={pastedLyricsText}
-                    onChange={(e) => setPastedLyricsText(e.target.value)}
-                    placeholder={"Cole aqui a sua letra completa...\n\nExemplo:\n[Verso 1]\nLembro do dia em que nos conhecemos,\num sorriso que mudou o meu viver...\n\n[Refrão]\nVocê é minha vida, minha inspiração,\nessa canção é do meu coração..."}
-                    style={{
-                      width: '100%',
-                      minHeight: '260px',
-                      padding: '16px',
-                      borderRadius: '14px',
-                      border: '1.5px solid #cbd5e1',
-                      fontSize: '0.95rem',
-                      lineHeight: '1.6',
-                      fontFamily: 'inherit',
-                      color: '#0f172a',
-                      backgroundColor: '#ffffff',
-                      outline: 'none',
-                      boxSizing: 'border-box',
-                      resize: 'vertical',
-                    }}
-                  />
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px', fontSize: '0.78rem', color: '#64748b' }}>
-                    <span>Dica: organize as partes com [Verso] e [Refrão] para o melhor arranjo vocal.</span>
-                    <span>{(pastedLyricsText || '').length} caracteres</span>
-                  </div>
+                <textarea
+                  value={pastedLyricsText}
+                  onChange={(e) => setPastedLyricsText(e.target.value)}
+                  placeholder={"Cole aqui a sua letra completa...\n\nExemplo:\n[Verso 1]\nLembro do dia em que nos conhecemos,\num sorriso que mudou o meu viver...\n\n[Refrão]\nVocê é minha vida, minha inspiração,\nessa canção é do meu coração..."}
+                  className="wz-inp"
+                  style={{
+                    minHeight: '260px',
+                    lineHeight: '1.6',
+                    fontFamily: 'inherit',
+                    marginBottom: '8px',
+                    resize: 'vertical'
+                  }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', fontSize: '0.78rem', color: '#857D80' }}>
+                  <span>Dica: organize com [Verso] e [Refrão] para guiar a voz.</span>
+                  <span>{(pastedLyricsText || '').length} caracteres</span>
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -1848,19 +1907,8 @@ export default function CriarMusica() {
                         }
                       }
                     }}
-                    className="btn btn-primary"
-                    style={{
-                      width: '100%',
-                      padding: '15px',
-                      fontSize: '1rem',
-                      fontWeight: '800',
-                      borderRadius: '12px',
-                      cursor: 'pointer',
-                      background: 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)',
-                      color: '#ffffff',
-                      border: 'none',
-                      boxShadow: '0 4px 14px rgba(79, 70, 229, 0.25)'
-                    }}
+                    className="btn-wz-primary"
+                    style={{ width: '100%' }}
                   >
                     Salvar e Usar Esta Letra
                   </button>
@@ -1869,8 +1917,8 @@ export default function CriarMusica() {
                     <button
                       type="button"
                       onClick={() => setCustomLyricsMode(false)}
-                      className="btn btn-secondary"
-                      style={{ width: '100%', padding: '12px', fontSize: '0.9rem', borderRadius: '12px', cursor: 'pointer' }}
+                      className="btn-wz-back"
+                      style={{ width: '100%', justifyContent: 'center' }}
                     >
                       Voltar para Letra Gerada por IA
                     </button>
@@ -1878,20 +1926,20 @@ export default function CriarMusica() {
                 </div>
               </div>
             ) : formData.lyricsStatus === 'generating' ? (
-              <div style={{ padding: '40px 28px', textAlign: 'center', maxWidth: '600px', margin: '0 auto', backgroundColor: '#ffffff', borderRadius: '24px', border: '1px solid #eef2f6', boxShadow: '0 10px 40px rgba(0,0,0,0.04)' }}>
+              <div style={{ padding: '36px 20px', textAlign: 'center', backgroundColor: '#ffffff', borderRadius: '20px', border: '1.5px solid #F1E4E8', boxShadow: '0 4px 18px rgba(0,0,0,0.03)' }}>
+                <span className="wz-guide">5 DE 7 · COMPOSIÇÃO POÉTICA</span>
                 <StudioLyricsAnimation />
-                <h3 style={{ fontFamily: 'var(--font-family-title)', fontSize: '1.5rem', fontWeight: '800', color: '#0f172a', marginTop: '16px' }}>
-                  Estúdio de Composição Ativo
-                </h3>
-                <p style={{ color: 'var(--primary)', fontSize: '1rem', fontWeight: '700', marginTop: '10px', minHeight: '32px' }}>
+                <h2 className="wz-t" style={{ fontSize: '1.35rem', marginTop: '16px' }}>
+                  Escrevendo a sua letra... ✨
+                </h2>
+                <p style={{ color: '#E32B6D', fontSize: '0.94rem', fontWeight: '700', marginTop: '8px', minHeight: '30px' }}>
                   {studioLyricsPhrases[lyricsStepIdx]}
                 </p>
-                <p style={{ color: '#64748b', fontSize: '0.88rem', marginTop: '10px' }}>
-                  Nossa Inteligência de Composição Poética está transformando seus momentos em versos exclusivos.
+                <p className="wz-s" style={{ margin: '8px auto 0', maxWidth: '420px' }}>
+                  Nossa Inteligência Poética está rimando momentos e memórias para emocionar {formData.honoreeName || 'quem você ama'}.
                 </p>
 
-                {/* Opção "Já tenho minha letra" durante o carregamento */}
-                <div style={{ marginTop: '28px', borderTop: '1px solid #f1f5f9', paddingTop: '20px' }}>
+                <div style={{ marginTop: '24px', borderTop: '1px solid #F1E4E8', paddingTop: '16px' }}>
                   <button
                     type="button"
                     onClick={() => {
@@ -1903,14 +1951,13 @@ export default function CriarMusica() {
                       alignItems: 'center',
                       gap: '8px',
                       padding: '10px 18px',
-                      borderRadius: '12px',
-                      border: '1.5px dashed var(--primary)',
-                      backgroundColor: 'var(--primary-light)',
-                      color: 'var(--primary)',
-                      fontSize: '0.88rem',
+                      borderRadius: '100px',
+                      border: '1.5px dashed #E32B6D',
+                      backgroundColor: '#FFF7F9',
+                      color: '#B5124E',
+                      fontSize: '0.86rem',
                       fontWeight: '700',
                       cursor: 'pointer',
-                      transition: 'all 0.2s ease',
                     }}
                   >
                     <span>✍️</span>
@@ -1919,18 +1966,21 @@ export default function CriarMusica() {
                 </div>
               </div>
             ) : formData.lyricsStatus === 'error' ? (
-              <div style={{ ...styles.generatingState, backgroundColor: '#ffffff', borderRadius: '24px', border: '1px solid #fecdd3', padding: '40px 28px', maxWidth: '600px', margin: '0 auto', boxShadow: '0 10px 40px rgba(0,0,0,0.04)' }}>
-                <h3 style={{ marginTop: '12px', fontFamily: 'var(--font-family-title)', fontSize: '1.5rem', fontWeight: '800', color: '#dc2626' }}>Erro ao comunicar com a Inteligência de Composição</h3>
-                <p style={{ color: '#64748b', fontSize: '0.95rem', marginTop: '8px', maxWidth: '500px' }}>
-                  {formData.lyricsError || 'Não foi possível conectar ao servidor para gerar sua letra. Tente novamente.'}
+              <div style={{ backgroundColor: '#ffffff', borderRadius: '20px', border: '1.5px solid #fecdd3', padding: '32px 20px', textAlign: 'center', boxShadow: '0 4px 18px rgba(0,0,0,0.03)' }}>
+                <span className="wz-guide">5 DE 7 · COMPOSIÇÃO</span>
+                <h3 style={{ fontSize: '1.3rem', fontWeight: '800', color: '#dc2626', margin: '8px 0' }}>
+                  Não foi possível compor a letra agora
+                </h3>
+                <p style={{ color: '#64748b', fontSize: '0.9rem', margin: '0 auto 16px', maxWidth: '420px' }}>
+                  {formData.lyricsError || 'Ocorreu uma oscilação na conexão com o estúdio de composição. Tente novamente.'}
                 </p>
-                <div style={{ marginTop: '20px', display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
                   <button 
                     onClick={handleSaveAndGenerateLyrics}
-                    className="btn btn-primary"
-                    style={{ padding: '12px 28px' }}
+                    className="btn-wz-primary"
+                    style={{ flex: 'none', padding: '12px 24px' }}
                   >
-                    Tentar Gerar Novamente
+                    Tentar Novamente
                   </button>
                   <button
                     type="button"
@@ -1938,8 +1988,8 @@ export default function CriarMusica() {
                       setPastedLyricsText(formData.lyrics || '');
                       setCustomLyricsMode(true);
                     }}
-                    className="btn btn-secondary"
-                    style={{ padding: '12px 20px', fontWeight: '700' }}
+                    className="btn-wz-back"
+                    style={{ flex: 'none' }}
                   >
                     Colar Minha Própria Letra
                   </button>
@@ -1947,15 +1997,15 @@ export default function CriarMusica() {
               </div>
             ) : (
               <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '20px' }}>
+                <span className="wz-guide">5 DE 7 · A LETRA</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px', marginBottom: '14px' }}>
                   <div>
-                    <h1 style={{ ...styles.stepTitle, textAlign: 'left', margin: 0 }}>Sua Letra Exclusiva ✨</h1>
-                    <p style={{ ...styles.stepSubtitle, textAlign: 'left', margin: '4px 0 0 0' }}>
-                      Revisada e gerada especialmente para você. Se gostar, aprove para produzir o áudio!
+                    <h1 className="wz-t" style={{ margin: 0 }}>Sua Letra Exclusiva ✨</h1>
+                    <p className="wz-s" style={{ margin: '4px 0 0' }}>
+                      Composta com amor para {formData.honoreeName || 'alguém especial'}. Se gostar, aprove para gravar!
                     </p>
                   </div>
 
-                  {/* Botão para colar letra mesmo após ter gerado com IA */}
                   <button
                     type="button"
                     onClick={() => {
@@ -1966,487 +2016,212 @@ export default function CriarMusica() {
                       display: 'inline-flex',
                       alignItems: 'center',
                       gap: '6px',
-                      padding: '9px 16px',
-                      borderRadius: '12px',
-                      border: '1.5px solid #cbd5e1',
+                      padding: '7px 14px',
+                      borderRadius: '100px',
+                      border: '1.5px solid #F1E4E8',
                       backgroundColor: '#ffffff',
-                      color: '#0f172a',
-                      fontSize: '0.85rem',
+                      color: '#1E1418',
+                      fontSize: '0.8rem',
                       fontWeight: '700',
                       cursor: 'pointer',
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
                     }}
                   >
                     <span>✍️</span>
-                    <span>Já tenho minha letra (Colar Letra)</span>
+                    <span>Colar outra letra</span>
                   </button>
                 </div>
-                
+
                 {contingencyMode && (
-                  <div style={{
-                    padding: '14px 18px',
-                    borderRadius: '14px',
-                    background: '#f0fdf4',
-                    border: '1.5px solid #bbf7d0',
-                    marginBottom: '20px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '12px'
-                  }}>
-                    <span style={{ fontSize: '1.4rem' }}>📲</span>
-                    <div style={{ fontSize: '0.9rem', color: '#166534', fontWeight: '600' }}>
-                      <strong>Produção Direta via WhatsApp:</strong> Ao aprovar sua letra, você será direcionado ao nosso WhatsApp com a composição pronta para nossa equipe gerar sua música imediatamente!
+                  <div style={{ padding: '14px 16px', borderRadius: '16px', background: '#f0fdf4', border: '1.5px solid #bbf7d0', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span style={{ fontSize: '1.3rem' }}>📲</span>
+                    <div style={{ fontSize: '0.86rem', color: '#166534', fontWeight: '600' }}>
+                      <strong>Produção via WhatsApp:</strong> Ao aprovar sua letra, nossa equipe gera a música no WhatsApp imediatamente!
                     </div>
                   </div>
                 )}
-                
-                <div className="responsive-grid-split">
-                  <div style={styles.lyricsBox}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <span style={{ fontSize: '0.82rem', fontWeight: '800', letterSpacing: '0.04em', color: '#64748b', textTransform: 'uppercase' }}>LETRA DA MÚSICA</span>
-                        <span style={styles.stepIndicator}>Versão {formData.lyricsVersion}</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (isEditingLyricsDirectly) {
-                            setIsEditingLyricsDirectly(false);
-                          } else {
-                            setEditingLyricsText(formData.lyrics || '');
-                            setIsEditingLyricsDirectly(true);
-                            setLyricsSaveSuccess(false);
-                          }
-                        }}
-                        style={{
-                          background: isEditingLyricsDirectly ? '#f1f5f9' : '#f5f3ff',
-                          border: `1px solid ${isEditingLyricsDirectly ? '#cbd5e1' : '#ddd6fe'}`,
-                          color: isEditingLyricsDirectly ? '#475569' : 'var(--primary)',
-                          padding: '6px 14px',
-                          borderRadius: '10px',
-                          fontSize: '0.82rem',
-                          fontWeight: '700',
-                          cursor: 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          transition: 'all 0.2s ease',
-                        }}
-                      >
-                        <span>{isEditingLyricsDirectly ? '✕ Cancelar Edição' : '✏️ Editar Letra'}</span>
-                      </button>
-                    </div>
 
-                    {lyricsSaveSuccess && (
-                      <div style={{ padding: '10px 14px', borderRadius: '10px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', color: '#166534', fontSize: '0.85rem', fontWeight: '700', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span>✅</span>
-                        <span>Letra atualizada com sucesso! Esta versão será utilizada na gravação da sua música.</span>
-                      </div>
-                    )}
-
-                    {isEditingLyricsDirectly ? (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                        <p style={{ fontSize: '0.85rem', color: '#64748b', margin: 0 }}>
-                          Você pode alterar qualquer palavra, estrofe ou refrão livremente abaixo:
-                        </p>
-                        <textarea
-                          value={editingLyricsText}
-                          onChange={(e) => setEditingLyricsText(e.target.value)}
-                          placeholder="Escreva ou altere a letra da sua música aqui..."
-                          style={{
-                            width: '100%',
-                            minHeight: '380px',
-                            padding: '16px',
-                            borderRadius: '14px',
-                            border: '2px solid var(--primary)',
-                            fontSize: '0.98rem',
-                            lineHeight: '1.7',
-                            fontFamily: 'inherit',
-                            color: '#0f172a',
-                            backgroundColor: '#ffffff',
-                            outline: 'none',
-                            boxSizing: 'border-box',
-                            resize: 'vertical',
-                            boxShadow: '0 0 0 4px rgba(124, 58, 237, 0.08)',
-                          }}
-                        />
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', color: '#64748b' }}>
-                          <span>Dica: Mantenha as indicações como [Verso] e [Refrão] para guiar o arranjo vocal.</span>
-                          <span>{(editingLyricsText || '').length} caracteres</span>
-                        </div>
-                        <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
-                          <button
-                            type="button"
-                            onClick={handleSaveDirectLyrics}
-                            className="btn btn-primary"
-                            style={{
-                              flex: 1,
-                              padding: '12px',
-                              fontSize: '0.92rem',
-                              fontWeight: '800',
-                              borderRadius: '10px',
-                              cursor: 'pointer',
-                              background: 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)',
-                              color: '#ffffff',
-                              border: 'none',
-                            }}
-                          >
-                            💾 Salvar Alterações na Letra
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setIsEditingLyricsDirectly(false)}
-                            className="btn btn-secondary"
-                            style={{
-                              padding: '12px 18px',
-                              fontSize: '0.88rem',
-                              borderRadius: '10px',
-                              cursor: 'pointer',
-                            }}
-                          >
-                            Cancelar
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div>
-                        <pre style={{ ...styles.lyricsText, color: '#0f172a', lineHeight: 1.75 }}>{formData.lyrics}</pre>
-                        <div style={{ marginTop: '16px', paddingTop: '14px', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'flex-end' }}>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingLyricsText(formData.lyrics || '');
-                              setIsEditingLyricsDirectly(true);
-                              setLyricsSaveSuccess(false);
-                            }}
-                            style={{
-                              background: '#f8fafc',
-                              border: '1px solid #cbd5e1',
-                              color: '#334155',
-                              padding: '8px 14px',
-                              borderRadius: '8px',
-                              fontSize: '0.82rem',
-                              fontWeight: '700',
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '6px',
-                            }}
-                          >
-                            <span>✏️ Editar esta letra você mesmo</span>
-                          </button>
-                        </div>
-                      </div>
-                    )}
+                {/* Card da Letra */}
+                <div style={{ backgroundColor: '#ffffff', borderRadius: '20px', border: '1.5px solid #F1E4E8', padding: '20px', boxShadow: '0 4px 18px rgba(0,0,0,0.03)', marginBottom: '14px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#B5124E', letterSpacing: '0.05em' }}>
+                      LETRA DA MÚSICA · VERSÃO {formData.lyricsVersion || 1}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (isEditingLyricsDirectly) {
+                          setIsEditingLyricsDirectly(false);
+                        } else {
+                          setEditingLyricsText(formData.lyrics || '');
+                          setIsEditingLyricsDirectly(true);
+                          setLyricsSaveSuccess(false);
+                        }
+                      }}
+                      style={{
+                        background: isEditingLyricsDirectly ? '#F1E4E8' : '#FFF7F9',
+                        border: '1px solid #FCE4ED',
+                        color: '#B5124E',
+                        padding: '5px 12px',
+                        borderRadius: '100px',
+                        fontSize: '0.78rem',
+                        fontWeight: '700',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {isEditingLyricsDirectly ? '✕ Cancelar' : '✏️ Editar Letra'}
+                    </button>
                   </div>
-                  
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', backgroundColor: '#ffffff', borderRadius: '24px', border: '1px solid #eef2f6', padding: '24px 22px', boxShadow: '0 10px 40px rgba(0,0,0,0.04)' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontSize: '1.1rem' }}>✏️</span>
-                        <label style={{ fontSize: '0.94rem', fontWeight: '700', color: '#0f172a', margin: 0 }}>
-                          Gostaria de mudar algo na composição?
-                        </label>
-                      </div>
-                      <textarea 
-                        value={formData.lyricsComment}
-                        onChange={(e) => updateField('lyricsComment', e.target.value)}
-                        placeholder="Ex: mude o segundo verso para falar da nossa viagem a Gramado..."
-                        style={{
-                          width: '100%',
-                          height: '100px',
-                          padding: '14px',
-                          borderRadius: '12px',
-                          border: '1.5px solid #cbd5e1',
-                          backgroundColor: '#ffffff',
-                          color: '#0f172a',
-                          fontSize: '0.95rem',
-                          outline: 'none',
-                          boxSizing: 'border-box',
-                          resize: 'vertical',
-                        }}
+
+                  {lyricsSaveSuccess && (
+                    <div style={{ padding: '10px 14px', borderRadius: '12px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', color: '#166534', fontSize: '0.84rem', fontWeight: '700', marginBottom: '12px' }}>
+                      ✅ Letra atualizada! Essa versão será usada na gravação.
+                    </div>
+                  )}
+
+                  {isEditingLyricsDirectly ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      <textarea
+                        value={editingLyricsText}
+                        onChange={(e) => setEditingLyricsText(e.target.value)}
+                        className="wz-inp"
+                        style={{ minHeight: '320px', lineHeight: '1.7', resize: 'vertical' }}
                       />
-                      <button 
-                        onClick={requestLyricsAdjustment}
-                        disabled={!formData.lyricsComment.trim()}
-                        className="btn btn-secondary"
-                        style={{ width: '100%', padding: '12px', fontSize: '0.92rem', borderRadius: '10px' }}
-                      >
-                        Solicitar Ajuste Gratuito
-                      </button>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button
+                          type="button"
+                          onClick={handleSaveDirectLyrics}
+                          className="btn-wz-primary"
+                          style={{ padding: '10px' }}
+                        >
+                          💾 Salvar Letra
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setIsEditingLyricsDirectly(false)}
+                          className="btn-wz-back"
+                          style={{ padding: '10px 16px' }}
+                        >
+                          Cancelar
+                        </button>
+                      </div>
                     </div>
+                  ) : (
+                    <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.75, color: '#1E1418', fontSize: '0.94rem', fontFamily: 'inherit' }}>
+                      {formData.lyrics}
+                    </div>
+                  )}
+                </div>
 
-                    <div style={{ padding: '14px 18px', borderRadius: '14px', backgroundColor: '#fffbeb', border: '1px solid #fef3c7', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <span style={{ fontSize: '1.2rem', flexShrink: 0 }}>💡</span>
-                      <p style={{ fontSize: '0.84rem', lineHeight: '1.45', color: '#92400e', margin: 0 }}>
-                        Você tem direito a ajustes ilimitados na composição para que ela fique do jeitinho que sonhou.
-                      </p>
-                    </div>
-
-                    <div style={{ padding: '16px 18px', borderRadius: '16px', background: '#f0fdf4', border: '1px solid #bbf7d0', textAlign: 'center' }}>
-                      <p style={{ fontSize: '0.86rem', color: '#166534', margin: '0 0 10px 0', lineHeight: '1.4' }}>
-                        💬 <strong>Não gostou do resultado da letra?</strong> Nos chame no WhatsApp que fazemos do seu jeito!
-                      </p>
-                      <a
-                        href={`${linkWhatsapp(whatsappSuporte, `Olá! Gostaria de ajuda para ajustar a letra da minha música para ${formData.honoreeName || 'alguém especial'}.`)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '8px',
-                          padding: '10px 18px',
-                          fontSize: '0.9rem',
-                          fontWeight: '700',
-                          borderRadius: '10px',
-                          background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)',
-                          color: '#ffffff',
-                          textDecoration: 'none',
-                          boxShadow: '0 3px 12px rgba(37, 211, 102, 0.25)',
-                          width: '100%',
-                        }}
-                      >
-                        <span>Falar no WhatsApp</span>
-                      </a>
-                    </div>
+                {/* Box de Ajustes com IA ou WhatsApp */}
+                <div style={{ backgroundColor: '#ffffff', borderRadius: '20px', border: '1.5px solid #F1E4E8', padding: '18px 20px', boxShadow: '0 4px 18px rgba(0,0,0,0.03)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                    <span style={{ fontSize: '1rem' }}>✏️</span>
+                    <label style={{ fontSize: '0.9rem', fontWeight: '700', color: '#1E1418', margin: 0 }}>
+                      Gostaria de mudar algo na composição?
+                    </label>
                   </div>
+                  <textarea
+                    value={formData.lyricsComment}
+                    onChange={(e) => updateField('lyricsComment', e.target.value)}
+                    placeholder="Ex: mencione a nossa viagem para a praia no segundo verso..."
+                    className="wz-inp"
+                    style={{ minHeight: '80px', marginBottom: '10px', fontSize: '0.9rem' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={requestLyricsAdjustment}
+                    disabled={!formData.lyricsComment.trim()}
+                    className="btn-wz-back"
+                    style={{ width: '100%', justifyContent: 'center' }}
+                  >
+                    Solicitar Ajuste Gratuito à IA
+                  </button>
                 </div>
               </div>
             )}
           </div>
         );
-      case 6: // Etapa 6: Geração de Áudio Suno & Prévia de 60s
+      case 6: // Etapa 6: Produção Musical Suno & Prévia com Barra de Porcentagem
         return (
-          <div>
+          <div style={{ maxWidth: '34rem', margin: '0 auto' }}>
             {formData.sunoStatus !== 'generated' ? (
-              <div style={{ padding: '36px 20px', textAlign: 'center', maxWidth: '580px', margin: '0 auto', background: '#ffffff', borderRadius: '22px', boxShadow: '0 20px 40px -10px rgba(0,0,0,0.07)', border: '1px solid #f1f5f9' }}>
+              <div className="suno-retention-box">
+                <span className="wz-guide">6 DE 7 · ESTÚDIO MUSICAL</span>
                 <StudioAudioAnimation />
-                <h3 style={{ fontFamily: 'var(--font-family-title, sans-serif)', fontSize: '1.45rem', fontWeight: '800', color: '#1e293b', margin: '14px 0 10px', lineHeight: 1.3 }}>
-                  Produzindo seus 2 Arranjos Musicais
-                </h3>
+                <h2 className="wz-t" style={{ fontSize: '1.4rem', marginTop: '12px' }}>
+                  Gravando suas 2 versões... 🎙️
+                </h2>
 
-                {/* Pill com a frase da etapa do áudio */}
-                <div
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    background: 'rgba(139, 92, 246, 0.08)',
-                    border: '1px solid rgba(139, 92, 246, 0.2)',
-                    color: '#7c3aed',
-                    padding: '6px 16px',
-                    borderRadius: '999px',
-                    fontSize: '0.84rem',
-                    fontWeight: '600',
-                    margin: '4px auto 16px',
-                    maxWidth: '92%',
-                  }}
-                >
-                  <span>🎤</span>
-                  <span>{studioAudioPhrases[audioStepIdx] || 'Gravando vocais e ajustando afinação e interpretações...'}</span>
+                <div className="suno-percent-badge">
+                  {sunoProgressPercent}%
                 </div>
 
-                <p className="nx-helper" role="status">A produção está em andamento. O tempo pode variar; você recebe o link quando as versões estiverem prontas.</p>
+                <div className="suno-progress-track">
+                  <div className="suno-progress-fill" style={{ width: `${sunoProgressPercent}%` }} />
+                </div>
 
-                {/* Card verde de notificação WhatsApp (Imagem 2) */}
-                <div
-                  style={{
-                    marginTop: '22px',
-                    padding: '18px 16px 16px',
-                    backgroundColor: '#f0fdf4',
-                    border: '1.5px solid #bbf7d0',
-                    borderRadius: '18px',
-                    maxWidth: '460px',
-                    margin: '22px auto 0',
-                    textAlign: 'center',
-                    boxShadow: '0 4px 14px rgba(34, 197, 94, 0.08)',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', textAlign: 'left' }}>
-                    <div
-                      style={{
-                        width: '52px',
-                        height: '52px',
-                        borderRadius: '50%',
-                        backgroundColor: '#dcfce7',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0,
-                        boxShadow: '0 2px 8px rgba(34, 197, 94, 0.15)',
-                      }}
-                    >
-                      <IconeCelularWhatsApp size={34} />
-                    </div>
-                    <div>
-                      <p style={{ margin: '0 0 4px 0', fontSize: '0.94rem', fontWeight: '700', color: '#166534' }}>
-                        Você receberá o link no seu WhatsApp!
-                      </p>
-                      <p style={{ margin: 0, fontSize: '0.82rem', color: '#334155', lineHeight: '1.45' }}>
-                        Assim que seus 2 arranjos ficarem prontos, enviaremos automaticamente uma mensagem no WhatsApp {formData.customerPhone ? (
-                          <strong style={{ backgroundColor: '#dcfce7', color: '#15803d', padding: '1px 7px', borderRadius: '6px', border: '1px solid #86efac', display: 'inline-block' }}>
-                            {formData.customerPhone}
-                          </strong>
-                        ) : 'cadastrado'} com o link exclusivo da prévia.
-                      </p>
-                    </div>
-                  </div>
+                <p className="suno-phase-text">
+                  {getSunoPhaseText(sunoProgressPercent)}
+                </p>
 
-                  <div style={{ marginTop: '12px', paddingTop: '10px', borderTop: '1px solid #dcfce7', display: 'flex', alignItems: 'flex-start', gap: '8px', textAlign: 'left' }}>
-                    <span style={{ fontSize: '1rem', flexShrink: 0, lineHeight: 1.3 }}>💡</span>
-                    <div>
-                      <p style={{ fontSize: '0.86rem', color: '#15803d', margin: '0 0 2px', fontWeight: '800', lineHeight: '1.4' }}>
-                        Não precisa ficar esperando nesta tela!
-                      </p>
-                      <p style={{ fontSize: '0.82rem', color: '#64748b', margin: 0, fontWeight: '500', lineHeight: '1.45' }}>
-                        Assim que a música ficar pronta, a notificação chega sozinha no seu WhatsApp.
-                      </p>
-                    </div>
+                <div className="suno-retention-tip">
+                  <span style={{ fontSize: '1.5rem', flexShrink: 0 }}>⏳</span>
+                  <div>
+                    <strong style={{ color: '#B5124E', display: 'block', marginBottom: '3px' }}>
+                      Fique nesta tela para ouvir em primeira mão!
+                    </strong>
+                    <span>
+                      Tempo estimado: ~45 a 60 segundos. Seus 2 arranjos também serão enviados para o seu WhatsApp {formData.customerPhone}.
+                    </span>
                   </div>
                 </div>
-                {/* Passou de AUDIO_WATCHDOG_MS e a música não chegou. Não é o painel de erro: aqui
-                    ninguém reportou falha, a tela só ficou parada. A primeira ação é reconsultar o
-                    pedido, porque o caso mais comum é o áudio JÁ existir no banco (o webhook
-                    gravou) e só este navegador não ter ficado sabendo. */}
+
                 {audioDemorouDemais && formData.sunoStatus !== 'error' && (
-                  <div style={{ marginTop: '20px', background: 'rgba(245, 158, 11, 0.1)', padding: '18px', borderRadius: '12px', border: '1px solid rgba(245, 158, 11, 0.35)', textAlign: 'left' }}>
-                    <p style={{ fontWeight: '700', fontSize: '0.98rem', color: 'var(--text-primary)' }}>
-                      Está demorando mais que o normal ⏳
+                  <div style={{ marginTop: '16px', background: '#fffbeb', border: '1px solid #fde68a', padding: '14px', borderRadius: '14px', textAlign: 'left' }}>
+                    <p style={{ fontWeight: '700', fontSize: '0.9rem', color: '#92400e', margin: '0 0 6px' }}>
+                      Está demorando um pouco mais que o normal ⏳
                     </p>
-                    <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', marginTop: '6px', lineHeight: '1.55' }}>
-                      Na maioria das vezes a música já ficou pronta e só esta tela não atualizou.
-                      Clique em conferir antes de recomeçar, assim você não perde o que já foi feito.
+                    <p style={{ fontSize: '0.82rem', color: '#78350f', margin: '0 0 10px', lineHeight: 1.4 }}>
+                      Na maioria das vezes a música já ficou pronta no estúdio. Clique abaixo para conferir:
                     </p>
-
-                    <div style={{ display: 'flex', gap: '10px', marginTop: '14px', flexWrap: 'wrap' }}>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setAudioDemorouDemais(false);
-                          if (orderId) {
-                            checkOrderStatusInFirestore(orderId, taskId);
-                          } else {
-                            setFormData((prev) => ({
-                              ...prev,
-                              sunoStatus: 'error',
-                              sunoProgress: 'Não foi possível localizar o seu pedido neste navegador.',
-                            }));
-                          }
-                        }}
-                        style={{ padding: '10px 18px', background: 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.9rem' }}
-                      >
-                        🔍 Conferir se já ficou pronta
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={handleResetForm}
-                        style={{ padding: '10px 18px', background: 'rgba(255,255,255,0.1)', color: 'var(--text-primary)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.9rem' }}
-                      >
-                        ✨ Começar de novo
-                      </button>
-
-                      <a
-                        href={`${linkWhatsapp(whatsappSuporte, `Olá! Minha música para ${formData.honoreeName || 'alguém especial'}${orderId ? ` (pedido ${orderId})` : ''} travou na tela de produção.`)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{ padding: '10px 18px', background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)', color: '#fff', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.9rem', textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}
-                      >
-                        Falar no WhatsApp 📲
-                      </a>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAudioDemorouDemais(false);
+                        if (orderId) checkOrderStatusInFirestore(orderId, taskId);
+                      }}
+                      className="btn-wz-primary"
+                      style={{ padding: '8px 16px', fontSize: '0.85rem' }}
+                    >
+                      🔍 Conferir se já ficou pronta
+                    </button>
                   </div>
                 )}
-                {formData.sunoStatus === 'error' && (
-                  <div style={{ color: 'var(--danger)', marginTop: '16px', background: 'rgba(239, 68, 68, 0.1)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
-                    <p style={{ fontWeight: 'bold', fontSize: '1rem' }}>Ocorreu um imprevisto na renderização automática.</p>
-                    <p style={{ fontSize: '0.85rem', marginTop: '6px' }}>Motivo: {formData.sunoProgress}</p>
-                    
-                    <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', marginTop: '16px', flexWrap: 'wrap' }}>
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          setFormData(prev => ({ ...prev, sunoStatus: 'generating', sunoProgress: 'Iniciando nova geração...' }));
-                          try {
-                            const res = await fetch('/api/suno/generate', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({
-                                ...buildSunoPayload(formData),
-                                orderId: orderId
-                              })
-                            });
-                            if (res.ok) {
-                              const data = await res.json();
-                              if (data.taskId) {
-                                setTaskId(data.taskId);
-                                pollSunoStatus(data.taskId, orderId);
-                              } else {
-                                setFormData(prev => ({ ...prev, sunoStatus: 'error', sunoProgress: 'Falha ao obter ID da tarefa.' }));
-                              }
-                            } else {
-                              const errData = await res.json().catch(() => ({}));
-                              setFormData(prev => ({ ...prev, sunoStatus: 'error', sunoProgress: errData.error || 'Erro no servidor' }));
-                            }
-                          } catch (err) {
-                            setFormData(prev => ({ ...prev, sunoStatus: 'error', sunoProgress: err.message || 'Falha de conexão' }));
-                          }
-                        }}
-                        style={{ padding: '10px 18px', background: 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.9rem' }}
-                      >
-                        🔄 Tentar Novamente
-                      </button>
 
-                      <button
-                        type="button"
-                        onClick={handleResetForm}
-                        style={{ padding: '10px 18px', background: 'rgba(255,255,255,0.1)', color: 'var(--text-primary)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.9rem' }}
-                      >
-                        ✨ Criar Nova Música (Limpar Rascunho)
-                      </button>
-                    </div>
+                {formData.sunoStatus === 'error' && (
+                  <div style={{ marginTop: '16px', background: '#fef2f2', border: '1px solid #fecaca', padding: '14px', borderRadius: '14px', color: '#b91c1c' }}>
+                    <p style={{ fontWeight: '700', fontSize: '0.9rem', margin: '0 0 6px' }}>Imprevisto no estúdio automático</p>
+                    <p style={{ fontSize: '0.82rem', margin: '0 0 10px' }}>{formData.sunoProgress}</p>
+                    <button
+                      type="button"
+                      onClick={handleApproveLyrics}
+                      className="btn-wz-primary"
+                      style={{ padding: '8px 16px', fontSize: '0.85rem' }}
+                    >
+                      🔄 Tentar Novamente
+                    </button>
                   </div>
                 )}
               </div>
             ) : (
               <div>
-                <h1 style={styles.stepTitle}>Sua Música Está Pronta! 🎧</h1>
-                <p style={styles.stepSubtitle}>Ouça as prévias de 60 segundos geradas em estúdio. As 2 versões estão inclusas pelo valor promocional!</p>
+                <span className="wz-guide">6 DE 7 · SUAS MÚSICAS ESTÃO PRONTAS</span>
+                <h1 className="wz-t">Ouça suas prévias! 🎧</h1>
+                <p className="wz-s">
+                  Criamos 2 arranjos diferentes para {formData.honoreeName || 'alguém especial'}. Ambas completas estão inclusas no seu pacote!
+                </p>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '680px', margin: '24px auto 0' }}>
-                  
-                  {/* Banner Oferta Promocional R$ 9,99 */}
-                  <div
-                    style={{
-                      backgroundColor: '#ffffff',
-                      borderRadius: '24px',
-                      border: '2px solid #e0e7ff',
-                      boxShadow: '0 10px 40px rgba(79, 70, 229, 0.08)',
-                      padding: '24px 26px',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      flexWrap: 'wrap',
-                      gap: '14px',
-                    }}
-                  >
-                    <div>
-                      <span style={{ fontSize: '0.78rem', color: '#b45309', backgroundColor: '#fffbeb', border: '1px solid #fde68a', padding: '3px 10px', borderRadius: '8px', fontWeight: '800', letterSpacing: '0.5px' }}>
-                        ⚡ OFERTA PROMOCIONAL ESPECIAL
-                      </span>
-                      <h4 style={{ fontSize: '1.25rem', fontWeight: '800', color: '#0f172a', margin: '6px 0 0 0' }}>
-                        Você ganhou 2 Músicas Completas!
-                      </h4>
-                      <p style={{ fontSize: '0.9rem', color: '#64748b', margin: '4px 0 0 0' }}>
-                        De <s style={{ opacity: 0.65 }}>R$ 69,90</s> por apenas <strong style={{ color: '#059669', fontSize: '1.15rem' }}>R$ 9,99</strong>
-                      </p>
-                    </div>
-                    <span style={{ background: 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)', color: '#fff', padding: '10px 20px', borderRadius: '999px', fontWeight: '800', fontSize: '0.92rem', boxShadow: '0 4px 15px rgba(124, 58, 237, 0.25)' }}>
-                      2 Músicas por R$ 9,99
-                    </span>
-                  </div>
-
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '16px' }}>
                   {/* Versão 1 Preview Card */}
                   <CustomAudioPreview
                     src={getAudioUrl(formData.sunoTracks[0])}
@@ -2466,237 +2241,147 @@ export default function CriarMusica() {
                       orderId={orderId}
                     />
                   )}
-
-                  {/* Card: Não gostou do resultado? Chame no WhatsApp */}
-                  <div style={{ padding: '18px 22px', borderRadius: '24px', border: '1.5px solid #bbf7d0', background: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', boxShadow: '0 6px 20px rgba(34, 197, 94, 0.05)' }}>
-                    <div style={{ flex: 1, minWidth: '220px' }}>
-                      <h5 style={{ fontSize: '0.96rem', fontWeight: '800', color: '#15803d', margin: '0 0 4px 0' }}>
-                        🤔 Não gostou do resultado da música?
-                      </h5>
-                      <p style={{ fontSize: '0.84rem', color: '#475569', margin: 0, lineHeight: '1.4' }}>
-                        Nos chame no WhatsApp que fazemos do seu jeito com nossos produtores!
-                      </p>
-                    </div>
-                    <a
-                      href={`${linkWhatsapp(whatsappSuporte, `Olá! Ouvi as prévias da música para ${formData.honoreeName || 'alguém especial'}${orderId ? ` (pedido #${orderId})` : ''} e gostaria de ajuda para fazer do meu jeito.`)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        padding: '10px 18px',
-                        fontSize: '0.88rem',
-                        fontWeight: '700',
-                        borderRadius: '10px',
-                        background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)',
-                        color: '#ffffff',
-                        textDecoration: 'none',
-                        boxShadow: '0 3px 12px rgba(37, 211, 102, 0.25)',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      <span>Falar no WhatsApp 📲</span>
-                    </a>
-                  </div>
-
-                  {/* Card de Oferta do Vídeo Homenagem */}
-                  <div
-                    style={{
-                      backgroundColor: '#ffffff',
-                      borderRadius: '24px',
-                      padding: '24px 26px',
-                      border: formData.addons?.wantsVideo ? '2px solid #8b5cf6' : '1px solid #eef2f6',
-                      boxShadow: '0 10px 40px rgba(0,0,0,0.04)',
-                      transition: 'all 0.25s ease',
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', flexWrap: 'wrap' }}>
-                      <div style={{ display: 'flex', gap: '14px', alignItems: 'flex-start', flex: 1, minWidth: '220px' }}>
-                        <div
-                          style={{
-                            width: '42px',
-                            height: '42px',
-                            borderRadius: '12px',
-                            backgroundColor: '#f5f3ff',
-                            border: '1px solid #ddd6fe',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontSize: '1.25rem',
-                            flexShrink: 0,
-                            marginTop: '2px',
-                          }}
-                        >
-                          🎬
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <h4 style={{ fontSize: '1.1rem', fontWeight: '800', color: '#0f172a', margin: '0 0 6px 0' }}>
-                            Vídeo Homenagem com Fotos
-                          </h4>
-                          <p style={{ fontSize: '0.86rem', color: '#64748b', lineHeight: '1.5', margin: '0 0 10px 0' }}>
-                            Crie um vídeo emocionante com <strong>10 a 20 fotos</strong> da pessoa homenageada, com sua música de fundo. 
-                            Perfeito para compartilhar no WhatsApp, Instagram ou em festas!
-                          </p>
-                          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', fontSize: '0.78rem' }}>
-                            <span style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', color: '#7c3aed', padding: '3px 10px', borderRadius: '20px', fontWeight: '700' }}>📸 10-20 fotos</span>
-                            <span style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', color: '#7c3aed', padding: '3px 10px', borderRadius: '20px', fontWeight: '700' }}>🎵 Sua música de fundo</span>
-                            <span style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', color: '#7c3aed', padding: '3px 10px', borderRadius: '20px', fontWeight: '700' }}>📲 Link exclusivo</span>
-                          </div>
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', minWidth: '120px' }}>
-                        <span style={{ fontSize: '1.35rem', fontWeight: '800', color: '#059669' }}>+ R$ 6,90</span>
-                        <button
-                          type="button"
-                          onClick={() => setFormData(prev => ({ ...prev, addons: { ...prev.addons, wantsVideo: !prev.addons?.wantsVideo } }))}
-                          style={{
-                            padding: '10px 20px',
-                            borderRadius: '999px',
-                            border: 'none',
-                            fontWeight: '800',
-                            fontSize: '0.88rem',
-                            cursor: 'pointer',
-                            transition: 'all 0.25s ease',
-                            background: formData.addons?.wantsVideo ? 'linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)' : '#f1f5f9',
-                            color: formData.addons?.wantsVideo ? '#fff' : '#475569',
-                            boxShadow: formData.addons?.wantsVideo ? '0 4px 15px rgba(139, 92, 246, 0.35)' : 'none',
-                          }}
-                        >
-                          {formData.addons?.wantsVideo ? '✓ Adicionado' : '+ Adicionar'}
-                        </button>
-                      </div>
-                    </div>
-                    {formData.addons?.wantsVideo && (
-                      <div style={{ marginTop: '14px', padding: '10px 14px', background: '#ecfdf5', borderRadius: '12px', border: '1px solid #a7f3d0', fontSize: '0.82rem', color: '#059669', fontWeight: '700' }}>
-                        ✅ Após o pagamento, você poderá enviar as fotos para montagem do vídeo.
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Botões de Ação */}
-                  <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    <button
-                      type="button"
-                      onClick={() => setStep(7)}
-                      className="btn btn-primary"
-                      style={{ width: '100%', padding: '16px', fontSize: '1.08rem', fontWeight: '800', background: 'linear-gradient(135deg, #059669 0%, #047857 100%)', boxShadow: '0 6px 20px rgba(5, 150, 105, 0.3)', border: 'none', color: '#fff', cursor: 'pointer', borderRadius: '14px' }}
-                    >
-                      💳 {formData.addons?.wantsVideo ? `Liberar Música + Vídeo (R$ ${getTotalPrice().toFixed(2).replace('.', ',')})` : 'Liberar Músicas Completas (R$ 9,99)'}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={handleCreateNewSongFromScratch}
-                      className="btn btn-secondary"
-                      style={{ width: '100%', padding: '14px', fontSize: '0.95rem', cursor: 'pointer', borderRadius: '14px' }}
-                    >
-                      🔄 Criar Outra Música do Zero
-                    </button>
-                  </div>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() => setStep(7)}
+                  className="btn-wz-primary"
+                  style={{ width: '100%', padding: '1rem', fontSize: '1.05rem', marginTop: '8px' }}
+                >
+                  Continuar para Escolher Presente →
+                </button>
               </div>
             )}
           </div>
         );
-      case 7: // Etapa 7: Checkout Transparente Pix (Efí) embutido no site
+      case 7: // Etapa 7: Escolha do Presente & Pagamento (Padrão Capivarinha Love)
+        if (formData.isSecondGeneration || formData.origem === 'segunda_geracao') {
+          return (
+            <div style={{ maxWidth: '34rem', margin: '0 auto', textAlign: 'center', backgroundColor: '#ffffff', borderRadius: '20px', border: '1.5px solid #86efac', padding: '32px 20px', boxShadow: '0 4px 18px rgba(16, 185, 129, 0.08)' }}>
+              <span style={{ fontSize: '3rem', display: 'block', marginBottom: '8px' }}>🎉</span>
+              <span className="wz-guide" style={{ color: '#059669' }}>2ª GERAÇÃO LIBERADA</span>
+              <h2 className="wz-t" style={{ fontSize: '1.4rem', color: '#14532d', margin: '8px 0 10px' }}>
+                Suas +2 Músicas Bônus Estão Prontas!
+              </h2>
+              <p className="wz-s" style={{ color: '#166534', margin: '0 auto 20px', maxWidth: '420px', lineHeight: 1.6 }}>
+                Você concluiu suas 4 músicas completas inclusas no seu pacote. Você pode baixar todos os áudios e conferir seus presentes agora mesmo!
+              </p>
+              <Link
+                href={`/entrega?orderId=${encodeURIComponent(orderId)}`}
+                className="btn-wz-primary"
+                style={{ display: 'inline-block', width: '100%', padding: '15px', textDecoration: 'none', background: 'linear-gradient(135deg, #059669 0%, #047857 100%)', boxShadow: '0 4px 14px rgba(5, 150, 105, 0.3)' }}
+              >
+                Ver e Baixar Minhas Músicas no Painel →
+              </Link>
+            </div>
+          );
+        }
+
         return (
-          <div>
-            <h1 style={styles.stepTitle}>Finalizar Pedido 💳</h1>
-            <p style={styles.stepSubtitle}>Pagamento seguro embutido no próprio site com liberação instantânea</p>
+          <div style={{ maxWidth: '34rem', margin: '0 auto' }}>
+            <span className="wz-guide">7 DE 7 · ESCOLHA SEU PRESENTE</span>
+            <h1 className="wz-t" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span>🎁</span> Escolha o seu presente
+            </h1>
+            <p className="wz-s">
+              Ao escolher qualquer opção, você libera o download imediato das suas músicas completas sem corte!
+            </p>
 
             {paymentErrorMessage && (
-              <div style={{ padding: '16px 20px', background: '#fef2f2', border: '1.5px solid #fecaca', borderRadius: '16px', marginBottom: '24px', color: '#dc2626', fontWeight: 'bold', fontSize: '0.95rem', textAlign: 'center', boxShadow: '0 4px 14px rgba(220, 38, 38, 0.08)' }}>
+              <div style={{ padding: '12px 16px', background: '#fef2f2', border: '1.5px solid #fecaca', borderRadius: '14px', marginBottom: '16px', color: '#dc2626', fontWeight: 'bold', fontSize: '0.88rem', textAlign: 'center' }}>
                 {paymentErrorMessage}
               </div>
             )}
 
-            <div className="responsive-grid-2" style={{ maxWidth: '100%', overflowX: 'hidden' }}>
-              {/* Resumo do Pedido */}
-              <div style={styles.checkoutSummary}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
-                  <div
-                    style={{
-                      width: '38px',
-                      height: '38px',
-                      borderRadius: '10px',
-                      backgroundColor: '#f5f3ff',
-                      border: '1px solid #ddd6fe',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '1.15rem',
-                      flexShrink: 0,
-                    }}
-                  >
-                    📋
+            {/* Os 3 Cards do Presente Idênticos à Imagem do Usuário */}
+            <div className="presente-list">
+              {/* Card 1: 4 Músicas Personalizadas (R$ 9,99) */}
+              <div
+                className={`presente-card ${selectedPackageSku === 'audio_only' ? 'on' : ''}`}
+                onClick={() => handleSelectPackage('audio_only')}
+              >
+                <div className="presente-radio">
+                  {selectedPackageSku === 'audio_only' && <div className="presente-radio-dot" />}
+                </div>
+                <div className="presente-content">
+                  <div className="presente-header">
+                    <h3 className="presente-title">🎵 4 Músicas Personalizadas</h3>
+                    <span className="presente-price">R$ 9,99</span>
                   </div>
-                  <h3 style={{ fontSize: '1.2rem', fontWeight: '800', color: '#0f172a', margin: 0 }}>
-                    Resumo do Pedido
-                  </h3>
+                  <p className="presente-desc">
+                    Estas 2 completas, sem corte + mais 2 liberadas depois do pagamento, com outra letra e outro estilo.
+                  </p>
                 </div>
-                
-                <div style={{ ...styles.summaryItem, flexWrap: 'wrap', gap: '8px' }}>
-                  <span style={{ color: '#475569', fontWeight: '600' }}>Pacote Promocional (2 Músicas Completas)</span>
-                  <span style={{ fontWeight: '800', color: '#059669' }}>R$ 9,99</span>
-                </div>
-
-                {formData.addons?.wantsVideo && (
-                  <div style={{ ...styles.summaryItem, flexWrap: 'wrap', gap: '8px', marginTop: '4px' }}>
-                    <span style={{ color: '#475569', fontWeight: '600' }}>🎬 Vídeo Homenagem com Fotos</span>
-                    <span style={{ fontWeight: '800', color: '#059669' }}>R$ 6,90</span>
-                  </div>
-                )}
-
-                <div style={{ ...styles.summaryItem, flexWrap: 'wrap', gap: '8px', fontSize: '0.85rem', color: '#64748b', marginTop: '4px' }}>
-                  <span>Desconto Aplicado ({formData.addons?.wantsVideo ? '68' : '71'}% OFF)</span>
-                  <span style={{ color: '#d97706', fontWeight: '700' }}>- R$ {formData.addons?.wantsVideo ? '50,00' : '50,00'}</span>
-                </div>
-
-                <hr style={{ border: 'none', borderTop: '1px solid #f1f5f9', margin: '14px 0' }} />
-                
-                <div style={{ ...styles.summaryItem, flexWrap: 'wrap', gap: '8px', fontSize: '1.3rem', fontWeight: '800' }}>
-                  <span style={{ color: '#0f172a' }}>Total Geral:</span>
-                  <span className="gradient-text">R$ {getTotalPrice().toFixed(2).replace('.', ',')}</span>
-                </div>
-
-                <div style={{ marginTop: '16px', padding: '14px 16px', backgroundColor: '#f8fafc', borderRadius: '14px', border: '1px solid #e2e8f0', fontSize: '0.88rem', color: '#475569', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <p style={{ margin: 0 }}>👤 <strong style={{ color: '#0f172a' }}>Cliente:</strong> {formData.customerName}</p>
-                  <p style={{ margin: 0 }}>📱 <strong style={{ color: '#0f172a' }}>WhatsApp:</strong> {formData.customerPhone}</p>
-                  <p style={{ margin: 0 }}>🎧 <strong style={{ color: '#0f172a' }}>Conteúdo:</strong> 2 Músicas MP3 HD + Capa Exclusiva{formData.addons?.wantsVideo ? ' + Vídeo Homenagem' : ''}</p>
-                </div>
-
-                <hr style={{ border: 'none', borderTop: '1px solid #f1f5f9', margin: '14px 0' }} />
-
-                <button
-                  type="button"
-                  onClick={handleCreateNewSongFromScratch}
-                  className="btn btn-secondary"
-                  style={{ width: '100%', padding: '12px 16px', fontSize: '0.9rem', cursor: 'pointer', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-                >
-                  🔄 Criar Outra Música do Zero
-                </button>
               </div>
 
-              {/* Opções de Pagamento Embutidas no Site */}
+              {/* Card 2: 4 Músicas + Carta Virtual (R$ 17,98) */}
               <div
-                style={{
-                  backgroundColor: '#ffffff',
-                  borderRadius: '24px',
-                  border: '1px solid #eef2f6',
-                  boxShadow: '0 10px 40px rgba(0,0,0,0.04)',
-                  padding: '28px 24px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '16px',
-                  maxWidth: '100%',
-                }}
+                className={`presente-card ${selectedPackageSku === 'combo_carta' ? 'on' : ''}`}
+                onClick={() => handleSelectPackage('combo_carta')}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <div
-                    style={{
-                      width: '38px',
-                      height: '38px',
+                <div className="presente-radio">
+                  {selectedPackageSku === 'combo_carta' && <div className="presente-radio-dot" />}
+                </div>
+                <div className="presente-content">
+                  <div className="presente-header">
+                    <h3 className="presente-title">💌 4 Músicas + Carta Virtual</h3>
+                    <span className="presente-price">R$ 17,98</span>
+                  </div>
+                  <p className="presente-desc">
+                    Suas 4 músicas + uma carta com envelope, foto colada e sua assinatura.
+                  </p>
+                  <button
+                    type="button"
+                    className="btn-ver-exemplo"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setModalExemplo('carta');
+                    }}
+                  >
+                    ▶ Ver exemplo
+                  </button>
+                </div>
+              </div>
+
+              {/* Card 3: 4 Músicas + Retrospectiva (R$ 34,98) [MAIS COMPLETO] */}
+              <div
+                className={`presente-card ${selectedPackageSku === 'combo_retrospectiva' ? 'on' : ''}`}
+                onClick={() => handleSelectPackage('combo_retrospectiva')}
+              >
+                <span className="badge-mais-completo">MAIS COMPLETO</span>
+                <div className="presente-radio">
+                  {selectedPackageSku === 'combo_retrospectiva' && <div className="presente-radio-dot" />}
+                </div>
+                <div className="presente-content">
+                  <div className="presente-header">
+                    <h3 className="presente-title">💝 4 Músicas + Retrospectiva</h3>
+                    <span className="presente-price">R$ 34,98</span>
+                  </div>
+                  <p className="presente-desc">
+                    Suas 4 músicas tocando numa página só de vocês: fotos, linha do tempo, contador dos dias, jogos e carta.
+                  </p>
+                  <button
+                    type="button"
+                    className="btn-ver-exemplo"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setModalExemplo('retrospectiva');
+                    }}
+                  >
+                    ▶ Ver exemplo
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Box de Pagamento PIX e Cartão */}
+            <div style={{ backgroundColor: '#ffffff', borderRadius: '20px', border: '1.5px solid #F1E4E8', padding: '22px 20px', boxShadow: '0 4px 18px rgba(0,0,0,0.03)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+                <div
+                  style={{
+                    width: '38px',
+                    height: '38px',
                       borderRadius: '10px',
                       backgroundColor: '#ecfdf5',
                       border: '1px solid #a7f3d0',
@@ -2758,7 +2443,7 @@ export default function CriarMusica() {
                               }
                             }
 
-                            const sku = formData.addons?.wantsVideo ? 'combo' : 'audio_only';
+                            const sku = selectedPackageSku || 'audio_only';
                             // Retentativa compartilhada com o checkout de /entrega (ver
                             // src/lib/pixCheckout.js): a chamada à Efí falha de forma intermitente e
                             // insistir resolve, em vez de devolver um erro para o cliente que estava
@@ -3034,16 +2719,11 @@ export default function CriarMusica() {
                   </div>
               </div>
             </div>
-          </div>
         );
       default:
         return null;
     }
   };
-
-  if (orderId && (step >= 7 || (step === 6 && formData.sunoStatus === 'generated'))) {
-    return <main className="nx-experience nx-delivery-main"><p className="nx-message" role="status">Sua música está pronta. Abrindo sua prévia…</p><Link className="nx-button nx-primary" href={`/entrega?orderId=${encodeURIComponent(orderId)}`}>Ouvir minha música</Link></main>;
-  }
 
   return (
     <div className="nx-experience nx-creation" style={{ ...styles.wrapper, backgroundColor: '#faf8f5' }}>
@@ -3057,9 +2737,9 @@ export default function CriarMusica() {
         <div className="container criar-container" style={{ maxWidth: '1120px' }}>
           
           {/* Wizard step indicators (Estilo Capivarinha Love) */}
-          {step <= totalWizardSteps && (
+          {step <= TOTAL_JOURNEY_STEPS && (
             <div className="wz-top" style={{ maxWidth: '34rem', margin: '0 auto 1.25rem', padding: '0 4px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-              {step > 1 ? (
+              {step > 1 && !(step === 6 && formData.sunoStatus === 'generating') ? (
                 <button
                   type="button"
                   onClick={prevStep}
@@ -3085,10 +2765,10 @@ export default function CriarMusica() {
                 <div style={{ width: '36px' }} />
               )}
               <div className="wz-track" style={{ flex: 1, height: '6px', background: '#F1E4E8', borderRadius: '6px', overflow: 'hidden' }}>
-                <div className="wz-fill" style={{ width: `${(step / totalWizardSteps) * 100}%`, height: '100%', background: 'linear-gradient(90deg, #F0417E, #D01A5C)', borderRadius: '6px', transition: 'width 0.35s ease' }} />
+                <div className="wz-fill" style={{ width: `${(step / TOTAL_JOURNEY_STEPS) * 100}%`, height: '100%', background: 'linear-gradient(90deg, #F0417E, #D01A5C)', borderRadius: '6px', transition: 'width 0.35s ease' }} />
               </div>
               <span className="wz-count" style={{ fontSize: '0.8rem', fontWeight: 800, color: '#857D80', whiteSpace: 'nowrap' }}>
-                {step}/{totalWizardSteps}
+                {step}/{TOTAL_JOURNEY_STEPS}
               </span>
             </div>
           )}
@@ -3096,11 +2776,11 @@ export default function CriarMusica() {
           {/* Form step renderers */}
           {creationError && <div className="nx-message nx-error" role="alert">{creationError}<br /><button type="button" className="nx-text-button" onClick={() => setCreationError('')}>Entendi</button></div>}
           <div style={{ marginTop: '16px' }} className="criar-step-content">
-            {step <= totalWizardSteps ? renderWizardStep() : renderWorkflowStep()}
+            {step <= TOTAL_FORM_STEPS ? renderWizardStep() : renderWorkflowStep()}
           </div>
 
           {/* Fixed Bottom Navigation Dock (Estilo Capivarinha Love) */}
-          {formData.lyricsStatus !== 'generating' && formData.sunoStatus !== 'generating' && (step <= totalWizardSteps || step === 5) && (
+          {formData.lyricsStatus !== 'generating' && formData.sunoStatus !== 'generating' && step < 7 && (
             <div
               className="criar-navigation-dock"
               style={{
@@ -3129,7 +2809,7 @@ export default function CriarMusica() {
                 )}
 
                 <div style={{ flex: 1, display: 'flex' }}>
-                  {step <= totalWizardSteps ? (
+                  {step <= TOTAL_FORM_STEPS ? (
                     <button 
                       type="button"
                       onClick={() => {
@@ -3147,60 +2827,42 @@ export default function CriarMusica() {
                           return;
                         }
                         setShowValidation(false);
-                        if (step === totalWizardSteps) {
+                        if (step === TOTAL_FORM_STEPS) {
                           handleSaveAndGenerateLyrics();
                         } else {
                           nextStep();
                         }
                       }}
-                      disabled={isUploadingCover || (step === totalWizardSteps && isSubmitting)}
+                      disabled={isUploadingCover || (step === TOTAL_FORM_STEPS && isSubmitting)}
                       className="btn-wz-primary"
                     >
                       {isUploadingCover
                         ? 'Enviando foto…'
-                        : (step === totalWizardSteps && isSubmitting)
+                        : (step === TOTAL_FORM_STEPS && isSubmitting)
                           ? 'Criando sua letra...'
                           : ['Continuar para a história →', 'Escolher o som →', 'Revisar meu presente →', 'Criar minha letra →'][step - 1]}
                     </button>
-                  ) : (
-                    step === 5 && (
-                      contingencyMode ? (
-                        <button
-                          onClick={handleApproveLyrics}
-                          disabled={isNextDisabled() || isSubmitting}
-                          className="btn btn-primary criar-nav-next"
-                          style={{
-                            padding: '12px 28px',
-                            fontSize: '0.95rem',
-                            minHeight: '46px',
-                            background: (isNextDisabled() || isSubmitting) ? 'var(--bg-tertiary)' : 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)',
-                            color: (isNextDisabled() || isSubmitting) ? 'var(--text-muted)' : '#FFFFFF',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '8px'
-                          }}
-                        >
-                          <IconeCelularWhatsApp size={18} /> {isSubmitting ? 'Encaminhando...' : 'Aprovar e Gerar no WhatsApp →'}
-                        </button>
-                      ) : (
-                        <button
-                          onClick={handleApproveLyrics}
-                          disabled={isNextDisabled() || isSubmitting}
-                          className="btn btn-primary criar-nav-next"
-                          style={{
-                            padding: '12px 28px',
-                            fontSize: '0.95rem',
-                            minHeight: '46px',
-                            background: (isNextDisabled() || isSubmitting) ? 'var(--bg-tertiary)' : 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)',
-                            color: (isNextDisabled() || isSubmitting) ? 'var(--text-muted)' : '#FFFFFF',
-                            boxShadow: (isNextDisabled() || isSubmitting) ? 'none' : '0 6px 18px rgba(79, 70, 229, 0.35)'
-                          }}
-                        >
-                          Criar Música →
-                        </button>
-                      )
-                    )
-                  )}
+                  ) : step === 5 ? (
+                    <button
+                      type="button"
+                      onClick={handleApproveLyrics}
+                      disabled={isNextDisabled() || isSubmitting}
+                      className="btn-wz-primary"
+                    >
+                      {isSubmitting ? 'Iniciando gravação...' : 'Aprovar Letra e Criar Música →'}
+                    </button>
+                  ) : step === 6 ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setStep(7);
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      className="btn-wz-primary"
+                    >
+                      Escolher Meu Presente →
+                    </button>
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -3209,6 +2871,141 @@ export default function CriarMusica() {
       </main>
 
       {showLimitModal && <section className="nx-card nx-form-column" role="status" style={{ marginBottom: 100 }}><h2>Vamos continuar por uma das suas músicas?</h2><p>Você pode acessar seus pedidos ou falar com a equipe sobre novas criações.</p><div className="nx-checkout-actions"><Link href="/conta" className="nx-button nx-primary">Ver minhas músicas</Link><a href={linkWhatsapp(whatsappSuporte, 'Olá! Preciso de ajuda para continuar minha criação.')} className="nx-button" target="_blank" rel="noopener noreferrer">Falar com a equipe</a><button className="nx-text-button" type="button" onClick={() => setShowLimitModal(false)}>Fechar aviso</button></div></section>}
+
+      {/* Modal de Exemplo (Carta Virtual ou Retrospectiva) */}
+      {modalExemplo && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.65)',
+            backdropFilter: 'blur(4px)',
+            WebkitBackdropFilter: 'blur(4px)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px'
+          }}
+          onClick={() => setModalExemplo(null)}
+        >
+          <div
+            style={{
+              backgroundColor: '#fff',
+              borderRadius: '24px',
+              maxWidth: '440px',
+              width: '100%',
+              padding: '24px',
+              position: 'relative',
+              boxShadow: '0 20px 50px rgba(0,0,0,0.2)',
+              maxHeight: '90vh',
+              overflowY: 'auto'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setModalExemplo(null)}
+              style={{
+                position: 'absolute',
+                top: '16px',
+                right: '16px',
+                width: '32px',
+                height: '32px',
+                borderRadius: '50%',
+                border: 'none',
+                backgroundColor: '#f1f5f9',
+                color: '#64748b',
+                fontSize: '1.1rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: 'bold'
+              }}
+            >
+              ✕
+            </button>
+
+            {modalExemplo === 'carta' ? (
+              <div>
+                <span style={{ fontSize: '2.4rem', display: 'block', marginBottom: '8px' }}>💌</span>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1E1418', margin: '0 0 8px' }}>
+                  Como funciona a Carta Virtual?
+                </h3>
+                <p style={{ fontSize: '0.9rem', color: '#665E62', lineHeight: 1.5, margin: '0 0 16px' }}>
+                  Uma página emocionante e interativa que você envia pelo WhatsApp para quem você ama.
+                </p>
+
+                <div style={{ background: '#FAF6F0', borderRadius: '16px', padding: '16px', border: '1.5px solid #EBDCCB', marginBottom: '18px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                    <span style={{ fontSize: '1.2rem' }}>📜</span>
+                    <span style={{ fontWeight: 800, color: '#7D4F27', fontSize: '0.88rem' }}>Envelope com Lacre de Cera</span>
+                  </div>
+                  <p style={{ fontSize: '0.84rem', color: '#5C381E', margin: '0 0 10px', lineHeight: 1.45 }}>
+                    A pessoa toca no envelope para abrir o lacre e a carta se desdobra suavemente na tela, com a sua música tocando ao fundo!
+                  </p>
+                  <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.82rem', color: '#5C381E', lineHeight: 1.55 }}>
+                    <li>Foto de vocês dois colada com estilo Polaroid</li>
+                    <li>Texto emocionante escrito por você ou pela IA</li>
+                    <li>Sua assinatura personalizada no final</li>
+                    <li>Música tocando automaticamente</li>
+                  </ul>
+                </div>
+
+                <button
+                  type="button"
+                  className="btn-wz-primary"
+                  onClick={() => {
+                    handleSelectPackage('combo_carta');
+                    setModalExemplo(null);
+                  }}
+                  style={{ width: '100%', padding: '14px', fontSize: '0.95rem' }}
+                >
+                  Quero com Carta Virtual (R$ 17,98) ✨
+                </button>
+              </div>
+            ) : (
+              <div>
+                <span style={{ fontSize: '2.4rem', display: 'block', marginBottom: '8px' }}>💝</span>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1E1418', margin: '0 0 8px' }}>
+                  Como funciona a Retrospectiva?
+                </h3>
+                <p style={{ fontSize: '0.9rem', color: '#665E62', lineHeight: 1.5, margin: '0 0 16px' }}>
+                  O presente mais completo: um site exclusivo e personalizado só para a história de vocês dois.
+                </p>
+
+                <div style={{ background: '#FFF1F5', borderRadius: '16px', padding: '16px', border: '1.5px solid #FBCFE8', marginBottom: '18px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                    <span style={{ fontSize: '1.2rem' }}>✨</span>
+                    <span style={{ fontWeight: 800, color: '#9D174D', fontSize: '0.88rem' }}>Tudo o que está incluso:</span>
+                  </div>
+                  <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.84rem', color: '#831843', lineHeight: 1.55 }}>
+                    <li><strong>Suas 4 músicas</strong> tocando enquanto navega</li>
+                    <li><strong>Galeria Polaroid</strong> com fotos dos melhores momentos</li>
+                    <li><strong>Contador de Amor</strong> mostrando dias, horas e minutos juntos</li>
+                    <li><strong>Linha do Tempo</strong> interativa com os marcos da relação</li>
+                    <li><strong>Jogos e quiz interativo</strong> do casal</li>
+                    <li><strong>Carta com envelope</strong> inclusa no final</li>
+                  </ul>
+                </div>
+
+                <button
+                  type="button"
+                  className="btn-wz-primary"
+                  onClick={() => {
+                    handleSelectPackage('combo_retrospectiva');
+                    setModalExemplo(null);
+                  }}
+                  style={{ width: '100%', padding: '14px', fontSize: '0.95rem' }}
+                >
+                  Quero Retrospectiva Completa (R$ 34,98) 👑
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
     </div>
   );
