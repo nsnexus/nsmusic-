@@ -119,6 +119,9 @@ export default function CriarMusica() {
 
   const handlePaymentApproved = (targetOrderId) => {
     const idToUse = targetOrderId || orderId;
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('nsmusic_order_draft');
+    }
     try {
       const currentTraffic = getStoredTrafficSource();
       if (isOrderFromTikTok(currentTraffic)) {
@@ -458,19 +461,19 @@ export default function CriarMusica() {
       try {
         const urlParams = new URLSearchParams(window.location.search);
         const resetParam = urlParams.get('reset') || urlParams.get('new') || urlParams.get('novo');
-
-        // ?ocasiao= vem das páginas de ocasião (/musica-de-aniversario e irmãs, ver
-        // src/lib/ocasioes.js): quem chegou por "música de aniversário" não deveria ter que
-        // responder de novo qual é a ocasião. Só aceita valor que existe no catálogo do wizard —
-        // query string é entrada do usuário, não configuração.
         const ocasiaoParam = urlParams.get('ocasiao');
         const ocasiaoValida = occasions.some((o) => o.id === ocasiaoParam) ? ocasiaoParam : '';
         const origemParam = urlParams.get('origem');
         const orderRefParam = urlParams.get('orderRef');
 
-        if (resetParam === 'true' || resetParam === '1' || origemParam === 'segunda_geracao') {
+        // Flag de sessão para que F5 / pull-to-refresh NÃO apague o rascunho em andamento
+        const resetKey = `nsmusic_reset_done_${origemParam || ''}_${orderRefParam || ''}_${resetParam || ''}`;
+        const alreadyHandledReset = sessionStorage.getItem(resetKey) === '1';
+
+        // Apenas limpa o rascunho se o usuário clicou explicitamente em novo=1 e ainda não tratou nesta aba
+        if ((resetParam === 'true' || resetParam === '1') && !alreadyHandledReset) {
+          sessionStorage.setItem(resetKey, '1');
           localStorage.removeItem('nsmusic_order_draft');
-          window.history.replaceState({}, document.title, window.location.pathname);
           const initialUpdates = {};
           if (ocasiaoValida) initialUpdates.occasion = ocasiaoValida;
           if (orderRefParam && (origemParam === 'segunda_geracao' || origemParam === 'segunda_musica')) {
@@ -489,56 +492,43 @@ export default function CriarMusica() {
         if (saved) {
           const parsed = JSON.parse(saved);
 
-          // Rascunho de pedido JÁ CONCLUÍDO não se restaura — começa do zero.
-          //
-          // BUG relatado em 21/09/2026 ("o cliente nunca consegue criar uma nova música"): quem
-          // terminava uma música e clicava em "Nova Música" caía de volta na etapa 10
-          // ("Produzindo seus 2 Arranjos Musicais"), porque o rascunho salvo era restaurado tal e
-          // qual; em seguida o polling encontrava a música pronta no pedido antigo e devolvia o
-          // cliente para a entrega. Loop fechado, sem caminho para um pedido novo.
-          //
-          // Restaurar só faz sentido para pedido INTERROMPIDO (aba fechada no meio da geração).
-          // Concluído é lixo: apaga e segue com o formulário limpo.
-          const rascunhoConcluido = parsed.formData?.sunoStatus === 'generated'
-            || Boolean(parsed.formData?.sunoTracks?.length)
-            || Number(parsed.step || 0) >= 7
-            || Number(parsed.step || 0) >= 11;
-          if (rascunhoConcluido) {
+          // Rascunho só é descartado automaticamente se o pedido já tiver sido PAGO
+          const rascunhoPago = parsed.formData?.paymentStatus === 'PAGO'
+            || parsed.formData?.paymentStatus === 'PAGAMENTO_APROVADO';
+          if (rascunhoPago && parsed.orderId) {
             localStorage.removeItem('nsmusic_order_draft');
-            if (ocasiaoValida) setFormData((prev) => ({ ...prev, occasion: ocasiaoValida }));
+            window.location.href = `/entrega?orderId=${encodeURIComponent(parsed.orderId)}`;
             setIsRestored(true);
             return;
           }
 
-          // Rascunho existente manda: quem já escolheu a ocasião não tem a escolha trocada por um
-          // link. O parâmetro só preenche o que ainda está vazio.
           if (parsed.formData) {
-            setFormData(
-              ocasiaoValida && !parsed.formData.occasion
-                ? { ...parsed.formData, occasion: ocasiaoValida }
-                : parsed.formData,
-            );
+            setFormData((prev) => ({
+              ...prev,
+              ...parsed.formData,
+              ...(ocasiaoValida && !parsed.formData.occasion ? { occasion: ocasiaoValida } : {}),
+              ...(orderRefParam && !parsed.formData.orderRef ? { orderRef: orderRefParam, origem: origemParam, isSecondGeneration: true } : {}),
+            }));
             if (parsed.formData.relationship === 'Eu mesmo' || parsed.formData.recipientType === 'Eu mesmo') {
               setIsSelfTribute(true);
             }
           } else if (ocasiaoValida) {
             setFormData((prev) => ({ ...prev, occasion: ocasiaoValida }));
           }
+
           if (parsed.orderId) setOrderId(parsed.orderId);
           if (parsed.taskId) setTaskId(parsed.taskId);
+          if (parsed.selectedPackageSku) setSelectedPackageSku(parsed.selectedPackageSku);
+          if (parsed.pixInfo) setPixInfo(parsed.pixInfo);
+
           if (parsed.step) {
             const rawStep = Number(parsed.step);
-            let mappedStep = rawStep;
-            if (rawStep >= 11) mappedStep = 7;
-            else if (rawStep === 10) mappedStep = 6;
-            else if (rawStep === 9) mappedStep = 5;
-            else if (rawStep >= 4) {
-              const temHistoria = (parsed.formData?.story || '').trim().length >= 50;
-              const temEstilo = Boolean(parsed.formData?.musicStyle);
-              if (!temHistoria) mappedStep = 2;
-              else if (!temEstilo) mappedStep = 3;
-              else mappedStep = 4;
-            }
+            let mappedStep = 1;
+            if (rawStep >= 11 || rawStep === 7) mappedStep = 7;
+            else if (rawStep === 10 || rawStep === 6) mappedStep = 6;
+            else if (rawStep === 9 || rawStep === 5) mappedStep = 5;
+            else if (rawStep >= 1 && rawStep <= 4) mappedStep = rawStep;
+            else mappedStep = 1;
             setStep(mappedStep);
           }
 
@@ -548,7 +538,7 @@ export default function CriarMusica() {
           // Se estava aguardando áudio ou tem um taskId pendente
           if (savedTaskId && parsed.formData?.sunoStatus !== 'generated') {
             pollSunoStatus(savedTaskId, currentOrderId);
-          } else if (currentOrderId && parsed.formData?.sunoStatus !== 'generated' && (parsed.step >= 5 || parsed.step >= 9)) {
+          } else if (currentOrderId && parsed.formData?.sunoStatus !== 'generated' && parsed.step >= 5) {
             checkOrderStatusInFirestore(currentOrderId, savedTaskId);
           }
         } else if (ocasiaoValida) {
@@ -566,13 +556,13 @@ export default function CriarMusica() {
   useEffect(() => {
     if (typeof window !== 'undefined' && isRestored) {
       try {
-        const draft = { step, orderId, taskId, formData };
+        const draft = { step, orderId, taskId, selectedPackageSku, pixInfo, formData };
         localStorage.setItem('nsmusic_order_draft', JSON.stringify(draft));
       } catch (e) {
         console.warn("Erro ao salvar rascunho:", e);
       }
     }
-  }, [step, orderId, taskId, formData, isRestored]);
+  }, [step, orderId, taskId, selectedPackageSku, pixInfo, formData, isRestored]);
 
   const checkOrderStatusInFirestore = async (targetOrderId, activeTaskId) => {
     try {
@@ -580,6 +570,13 @@ export default function CriarMusica() {
       if (res.ok) {
         const json = await res.json();
         const data = json?.order;
+        if (data?.paymentStatus === 'PAGO' || data?.paymentStatus === 'PAGAMENTO_APROVADO') {
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('nsmusic_order_draft');
+          }
+          window.location.href = `/entrega?orderId=${encodeURIComponent(targetOrderId)}`;
+          return;
+        }
         if (data?.audioFiles && data.audioFiles.length > 0) {
           const tracks = data.audioFiles.map(url => ({ audio_url: url }));
           setFormData(prev => ({
@@ -597,19 +594,6 @@ export default function CriarMusica() {
       pollSunoStatus(activeTaskId, targetOrderId);
       return;
     }
-
-    // Sem taskId e sem áudio no pedido: não há o que consultar. Antes isso saía da função em
-    // silêncio e a tela ficava em "Produzindo seus 2 Arranjos Musicais" a 0% para SEMPRE — sem
-    // polling, sem erro, sem cronômetro (relatado pelo dono do estúdio em 20/09/2026, com print).
-    // O corte de 6 minutos do polling nunca chegava aqui, porque polling nenhum tinha começado.
-    // Cair no estado de erro faz aparecer o painel que já existe, com "Tentar Novamente" e
-    // "Criar Nova Música".
-    setFormData((prev) => ({
-      ...prev,
-      sunoStatus: 'error',
-      sunoProgress: 'A geração não foi encontrada. Isso costuma acontecer quando a página é '
-        + 'recarregada antes de a música começar a ser produzida.',
-    }));
   };
 
   const handleResetForm = () => {
