@@ -35,7 +35,8 @@ const OCASIAO_CARDS = [
 ];
 
 const GENERO_CARDS = [
-  { id: 'Sertanejo', label: 'Sertanejo', icon: '🤠', sub: 'Romântico ou modão', destaque: true },
+  { id: 'Sertanejo Universitário', label: 'Sertanejo Universitário', icon: '🤠', sub: 'Moderno e romântico', destaque: true },
+  { id: 'Sertanejo Raiz', label: 'Sertanejo Raiz', icon: '🪕', sub: 'Modão e viola caipira', destaque: true },
   { id: 'Romântica', label: 'Romântica / Pop', icon: '💖', sub: 'Suave e envolvente' },
   { id: 'Samba / Pagode', label: 'Pagode / Samba', icon: '🥁', sub: 'Alegre e descontraído' },
   { id: 'Gospel / Adoração', label: 'Gospel / Louvor', icon: '⛪', sub: 'Fé e inspiração' },

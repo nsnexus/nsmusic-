@@ -15,6 +15,8 @@
 
 const STYLE_TAGS = {
   'Romântica': 'romantic ballad, soft piano and strings, intimate vocals, slow tempo',
+  'Sertanejo Universitário': 'sertanejo universitário, modern brazilian country, acoustic guitar and electric guitar, modern drums, polished radio production, catchy, emotional',
+  'Sertanejo Raiz': 'sertanejo raiz, modão caipira, viola caipira and acoustic guitar, traditional accordion, acoustic duet harmony, nostalgic, emotional',
   'Sertanejo': 'sertanejo, brazilian country, acoustic guitar and viola caipira, accordion, heartfelt',
   'Pop': 'brazilian pop, catchy chorus, modern production, polished vocals, upbeat',
   'Rock': 'brazilian rock, electric guitars, driving drums, anthemic chorus',

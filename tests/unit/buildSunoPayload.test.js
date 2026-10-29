@@ -31,6 +31,17 @@ describe('buildSunoPayload', () => {
     expect(payload.tags).not.toContain('Sertanejo');
   });
 
+  it('traduz Sertanejo Universitário e Sertanejo Raiz com instrumentações específicas', () => {
+    const payloadUni = buildSunoPayload({ lyrics: 'x', musicStyle: 'Sertanejo Universitário', musicMood: 'Alegre' });
+    expect(payloadUni.tags).toContain('sertanejo universitário');
+    expect(payloadUni.tags).toContain('modern brazilian country');
+
+    const payloadRaiz = buildSunoPayload({ lyrics: 'x', musicStyle: 'Sertanejo Raiz', musicMood: 'Emocionante' });
+    expect(payloadRaiz.tags).toContain('sertanejo raiz');
+    expect(payloadRaiz.tags).toContain('modão caipira');
+    expect(payloadRaiz.tags).toContain('viola caipira');
+  });
+
   it('descreve dueto com vozes alternadas para voiceType dueto', () => {
     const payload = buildSunoPayload({
       lyrics: 'x',
@@ -60,6 +71,7 @@ describe('buildSunoPayload', () => {
       'Samba / Pagode', 'Folk Acústico', 'Forró / Baião', 'Trap / Rap', 'Reggae', 'Lo-Fi Chill',
       'Funk', 'Eletrônica', 'Piseiro', 'Axé', 'Jazz / Blues', 'Infantil',
     ];
+    estilos.push('Sertanejo Universitário', 'Sertanejo Raiz');
     for (const estilo of estilos) {
       const tags = buildSunoPayload({ lyrics: 'x', musicStyle: estilo }).tags.toLowerCase();
       for (const termo of bloqueados) {

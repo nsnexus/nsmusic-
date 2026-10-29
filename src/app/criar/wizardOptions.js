@@ -43,7 +43,8 @@ export const occasions = [
 
 export const stylesList = [
   { id: 'Romântica', label: 'Romântica', icon: '💖', desc: 'Ritmo amoroso e cativante' },
-  { id: 'Sertanejo', label: 'Sertanejo', icon: '🤠', desc: 'Estilo romântico ou universitário' },
+  { id: 'Sertanejo Universitário', label: 'Sertanejo Universitário', icon: '🤠', desc: 'Moderno, jovem e acústico' },
+  { id: 'Sertanejo Raiz', label: 'Sertanejo Raiz', icon: '🪕', desc: 'Modão tradicional com viola caipira' },
   { id: 'Pop', label: 'Pop', icon: '⚡', desc: 'Moderno, jovem e dançante' },
   { id: 'Rock', label: 'Rock', icon: '🎸', desc: 'Atitude com guitarras marcantes' },
   { id: 'MPB / Bossa Nova', label: 'MPB / Bossa Nova', icon: '☕', desc: 'Estilo clássico e intimista' },
