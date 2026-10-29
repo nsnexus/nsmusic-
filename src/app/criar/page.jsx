@@ -492,9 +492,9 @@ export default function CriarMusica() {
         if (saved) {
           const parsed = JSON.parse(saved);
 
-          // Rascunho só é descartado automaticamente se o pedido já tiver sido PAGO
-          const rascunhoPago = parsed.formData?.paymentStatus === 'PAGO'
-            || parsed.formData?.paymentStatus === 'PAGAMENTO_APROVADO';
+          // Rascunho só é descartado automaticamente se o pedido já tiver sido PAGO e com áudio gerado
+          const rascunhoPago = (parsed.formData?.paymentStatus === 'PAGO'
+            || parsed.formData?.paymentStatus === 'PAGAMENTO_APROVADO') && (parsed.formData?.sunoStatus === 'generated' || parsed.step >= 6);
           if (rascunhoPago && parsed.orderId) {
             localStorage.removeItem('nsmusic_order_draft');
             window.location.href = `/entrega?orderId=${encodeURIComponent(parsed.orderId)}`;
@@ -507,7 +507,7 @@ export default function CriarMusica() {
               ...prev,
               ...parsed.formData,
               ...(ocasiaoValida && !parsed.formData.occasion ? { occasion: ocasiaoValida } : {}),
-              ...(orderRefParam && !parsed.formData.orderRef ? { orderRef: orderRefParam, origem: origemParam, isSecondGeneration: true } : {}),
+              ...(orderRefParam ? { orderRef: orderRefParam, origem: origemParam || parsed.formData.origem || 'segunda_geracao', isSecondGeneration: true } : {}),
             }));
             if (parsed.formData.relationship === 'Eu mesmo' || parsed.formData.recipientType === 'Eu mesmo') {
               setIsSelfTribute(true);
@@ -570,7 +570,7 @@ export default function CriarMusica() {
       if (res.ok) {
         const json = await res.json();
         const data = json?.order;
-        if (data?.paymentStatus === 'PAGO' || data?.paymentStatus === 'PAGAMENTO_APROVADO') {
+        if ((data?.paymentStatus === 'PAGO' || data?.paymentStatus === 'PAGAMENTO_APROVADO') && ((data?.audioFiles && data.audioFiles.length > 0) || data?.audioUrl || data?.productionStatus === 'AUDIO_GERADO')) {
           if (typeof window !== 'undefined') {
             localStorage.removeItem('nsmusic_order_draft');
           }
@@ -1154,11 +1154,20 @@ export default function CriarMusica() {
           const traffic = getStoredTrafficSource();
           const authToken = await auth.currentUser?.getIdToken?.();
           const referralCode = readReferralCode();
+          const refParam = typeof window !== 'undefined' ? (new URLSearchParams(window.location.search).get('orderRef') || '') : '';
+          const oriParam = typeof window !== 'undefined' ? (new URLSearchParams(window.location.search).get('origem') || '') : '';
+          const effectiveOrderRef = formData.orderRef || refParam || null;
+          const effectiveOrigem = formData.origem || oriParam || (refParam ? 'segunda_geracao' : null);
+          const effectiveIsSecondGen = Boolean(formData.isSecondGeneration || (effectiveOrderRef && (effectiveOrigem === 'segunda_geracao' || effectiveOrigem === 'segunda_musica')));
+
           const orderRes = await fetch('/api/orders/create', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}) },
             body: JSON.stringify({
               ...formData,
+              orderRef: effectiveOrderRef,
+              origem: effectiveOrigem,
+              isSecondGeneration: effectiveIsSecondGen,
               relationship: effectiveRelationship,
               recipientType: effectiveRelationship,
               customVoiceId: recognizedVoice?.voiceId || null,
@@ -1361,11 +1370,20 @@ export default function CriarMusica() {
           const traffic = getStoredTrafficSource();
           const authToken = await auth.currentUser?.getIdToken?.();
           const referralCode = readReferralCode();
+          const refParam = typeof window !== 'undefined' ? (new URLSearchParams(window.location.search).get('orderRef') || '') : '';
+          const oriParam = typeof window !== 'undefined' ? (new URLSearchParams(window.location.search).get('origem') || '') : '';
+          const effectiveOrderRef = formData.orderRef || refParam || null;
+          const effectiveOrigem = formData.origem || oriParam || (refParam ? 'segunda_geracao' : null);
+          const effectiveIsSecondGen = Boolean(formData.isSecondGeneration || (effectiveOrderRef && (effectiveOrigem === 'segunda_geracao' || effectiveOrigem === 'segunda_musica')));
+
           const createRes = await fetch('/api/orders/create', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}) },
             body: JSON.stringify({
               ...formData,
+              orderRef: effectiveOrderRef,
+              origem: effectiveOrigem,
+              isSecondGeneration: effectiveIsSecondGen,
               relationship: effectiveRelationship,
               recipientType: effectiveRelationship,
               customVoiceId: recognizedVoice?.voiceId || null,
@@ -1593,12 +1611,20 @@ export default function CriarMusica() {
         const traffic = getStoredTrafficSource();
         const authToken = await auth.currentUser?.getIdToken?.().catch(() => null);
         const referralCode = readReferralCode();
+        const refParam = typeof window !== 'undefined' ? (new URLSearchParams(window.location.search).get('orderRef') || '') : '';
+        const oriParam = typeof window !== 'undefined' ? (new URLSearchParams(window.location.search).get('origem') || '') : '';
+        const effectiveOrderRef = currentFormData.orderRef || refParam || null;
+        const effectiveOrigem = currentFormData.origem || oriParam || (refParam ? 'segunda_geracao' : null);
+        const effectiveIsSecondGen = Boolean(currentFormData.isSecondGeneration || (effectiveOrderRef && (effectiveOrigem === 'segunda_geracao' || effectiveOrigem === 'segunda_musica')));
 
         const orderRes = await fetch('/api/orders/create', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}) },
           body: JSON.stringify({
             ...currentFormData,
+            orderRef: effectiveOrderRef,
+            origem: effectiveOrigem,
+            isSecondGeneration: effectiveIsSecondGen,
             relationship: effectiveRelationship,
             recipientType: effectiveRelationship,
             productionStatus: statusToSet,

@@ -82,4 +82,42 @@ describe('GET /api/orders/[id] - Sanitização de Pedido Não Pago', () => {
     expect(order.audioUrl).toBe('https://r2.nsmusic.com.br/audios/ord-123/v1.mp3');
     expect(order.audioFiles[0]).toBe('https://r2.nsmusic.com.br/audios/ord-123/v1.mp3');
   });
+
+  it('para pedido de 2ª geração com pedido pai PAGO, herda aprovação e mantém URLs originais', async () => {
+    findOrderByIdOrNumber.mockImplementation(async (id) => {
+      if (id === 'ord-child') {
+        return {
+          id: 'ord-child',
+          orderNumber: 'NS-CHILD',
+          parentOrderId: 'ord-parent',
+          paymentStatus: 'AGUARDANDO_PAGAMENTO',
+          isSecondGeneration: true,
+          audioUrl: 'https://r2.nsmusic.com.br/audios/ord-child/v1.mp3',
+          audioFiles: [
+            'https://r2.nsmusic.com.br/audios/ord-child/v1.mp3',
+            'https://r2.nsmusic.com.br/audios/ord-child/v2.mp3',
+          ],
+        };
+      }
+      if (id === 'ord-parent') {
+        return {
+          id: 'ord-parent',
+          orderNumber: 'NS-PARENT',
+          paymentStatus: 'PAGAMENTO_APROVADO',
+          audioUrl: 'https://r2.nsmusic.com.br/audios/ord-parent/v1.mp3',
+          audioFiles: ['https://r2.nsmusic.com.br/audios/ord-parent/v1.mp3'],
+        };
+      }
+      return null;
+    });
+
+    const res = await GET(new Request('https://nsmusic.com.br/api/orders/ord-child'), { params: { id: 'ord-child' } });
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    const order = data.order;
+
+    expect(order.paymentStatus).toBe('PAGAMENTO_APROVADO');
+    expect(order.audioUrl).toBe('https://r2.nsmusic.com.br/audios/ord-child/v1.mp3');
+    expect(order.audioFiles[1]).toBe('https://r2.nsmusic.com.br/audios/ord-child/v2.mp3');
+  });
 });

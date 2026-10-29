@@ -81,20 +81,17 @@ export async function POST(req) {
         const { getOrder, updateOrder } = await import('@/lib/supabaseDb');
         const parentOrder = await getOrder(parentOrderId, env);
         if (parentOrder && (parentOrder.paymentStatus === 'PAGO' || parentOrder.paymentStatus === 'PAGAMENTO_APROVADO')) {
-          const isEligible = (parentOrder.segundaGeracaoDisponivel || parentOrder.hasSecondSongAccess || Number(parentOrder.paidAmount) >= 9) && !parentOrder.segundaGeracaoUsada;
-          if (isEligible) {
-            isSecondGenApproved = true;
-            inheritedAddons = {
-              hasVideoAccess: Boolean(parentOrder.hasVideoAccess || parentOrder.videoAddonPaid),
-              hasCartaAccess: Boolean(parentOrder.hasCartaAccess || parentOrder.cartaAddonPaid),
-              hasRetrospectivaAccess: Boolean(parentOrder.hasRetrospectivaAccess || parentOrder.retrospectivaAddonPaid),
-            };
-            // Consome a geração bônus no pedido pai
-            await updateOrder(parentOrderId, {
-              segundaGeracaoUsada: true,
-              segundaGeracaoUsadaAt: createdAtIso,
-            }, env);
-          }
+          isSecondGenApproved = true;
+          inheritedAddons = {
+            hasVideoAccess: Boolean(parentOrder.hasVideoAccess || parentOrder.videoAddonPaid),
+            hasCartaAccess: Boolean(parentOrder.hasCartaAccess || parentOrder.cartaAddonPaid),
+            hasRetrospectivaAccess: Boolean(parentOrder.hasRetrospectivaAccess || parentOrder.retrospectivaAddonPaid),
+          };
+          // Registra o consumo da 2ª geração no pedido pai
+          await updateOrder(parentOrderId, {
+            segundaGeracaoUsada: true,
+            segundaGeracaoUsadaAt: parentOrder.segundaGeracaoUsadaAt || createdAtIso,
+          }, env);
         }
       } catch (err) {
         console.warn('[orders/create] Falha ao verificar bônus de 2ª geração:', err?.message);

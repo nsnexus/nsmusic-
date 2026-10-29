@@ -28,13 +28,31 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Pedido não encontrado' }, { status: 404 });
     }
 
-    const pago = order.paymentStatus === 'PAGAMENTO_APROVADO' || order.paymentStatus === 'PAGO';
+    let pago = order.paymentStatus === 'PAGAMENTO_APROVADO' ||
+      order.paymentStatus === 'PAGO' ||
+      Boolean(order.isSecondGeneration) ||
+      order.paidSku === 'segunda_geracao_bonus';
+
+    if (!pago && order.parentOrderId) {
+      try {
+        const parent = await getOrder(order.parentOrderId, env);
+        if (parent && (parent.paymentStatus === 'PAGAMENTO_APROVADO' || parent.paymentStatus === 'PAGO')) {
+          pago = true;
+        }
+      } catch (e) {}
+    }
+
     if (!pago) {
       return NextResponse.json({ error: 'Este pedido ainda não está pago' }, { status: 403 });
     }
 
     const faixasValidas = [
-      ...new Set([order.audioUrl, ...(Array.isArray(order.audioFiles) ? order.audioFiles : [])].filter(Boolean))
+      ...new Set([
+        order.audioUrl,
+        ...(Array.isArray(order.audioFiles) ? order.audioFiles : []),
+        order.relatedOrder?.audioUrl,
+        ...(Array.isArray(order.relatedOrder?.audioFiles) ? order.relatedOrder.audioFiles : [])
+      ].filter(Boolean))
     ];
 
     let urlFinal = '';

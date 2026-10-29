@@ -76,6 +76,28 @@ export async function GET(req, { params }) {
       if (relatedId) {
         const related = await findOrderByIdOrNumber(relatedId, env);
         if (related) {
+          const parentIsPaid = related.paymentStatus === 'PAGO' || related.paymentStatus === 'PAGAMENTO_APROVADO';
+          // Auto-reconciliação da 2ª geração: se este pedido for a 2ª geração de um pedido já pago, ele herda a aprovação
+          if ((parentId || order.isSecondGeneration || order.origem === 'segunda_geracao' || order.paidSku === 'segunda_geracao_bonus') && parentIsPaid) {
+            order.isSecondGeneration = true;
+            if (order.paymentStatus !== 'PAGO' && order.paymentStatus !== 'PAGAMENTO_APROVADO') {
+              order.paymentStatus = 'PAGAMENTO_APROVADO';
+              order.paidSku = order.paidSku || 'segunda_geracao_bonus';
+              try {
+                const { updateOrder } = await import('@/lib/supabaseDb');
+                await updateOrder(order.id, {
+                  paymentStatus: 'PAGAMENTO_APROVADO',
+                  paidSku: 'segunda_geracao_bonus',
+                  isSecondGeneration: true,
+                  hasVideoAccess: Boolean(order.hasVideoAccess || related.hasVideoAccess || related.videoAddonPaid),
+                  hasCartaAccess: Boolean(order.hasCartaAccess || related.hasCartaAccess || related.cartaAddonPaid),
+                  hasRetrospectivaAccess: Boolean(order.hasRetrospectivaAccess || related.hasRetrospectivaAccess || related.retrospectivaAddonPaid),
+                }, env);
+              } catch (autoApproveErr) {
+                console.warn('[api/orders/[id]] Falha ao sincronizar aprovação herdada no banco:', autoApproveErr?.message);
+              }
+            }
+          }
           order.relatedOrder = sanitizeOrderForResponse(related);
         }
       }
@@ -112,7 +134,12 @@ export async function GET(req, { params }) {
 export function sanitizeOrderForResponse(order) {
   if (!order || typeof order !== 'object') return order;
 
-  const isPaid = order.paymentStatus === 'PAGO' || order.paymentStatus === 'PAGAMENTO_APROVADO';
+  const isPaid = order.paymentStatus === 'PAGO' ||
+    order.paymentStatus === 'PAGAMENTO_APROVADO' ||
+    Boolean(order.isSecondGeneration) ||
+    order.paidSku === 'segunda_geracao_bonus' ||
+    order.relatedOrder?.paymentStatus === 'PAGO' ||
+    order.relatedOrder?.paymentStatus === 'PAGAMENTO_APROVADO';
   if (isPaid) return order;
 
   const sanitized = { ...order };

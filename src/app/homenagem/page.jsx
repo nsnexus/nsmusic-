@@ -76,8 +76,13 @@ export function HomenagemView({ orderId: propOrderId }) {
   const songStyle = order.style || order.genre || 'Personalizada';
   const lyrics = order.lyrics || order.generatedLyrics || '';
 
-  const isPaid = order.paymentStatus === 'PAGAMENTO_APROVADO' || order.paymentStatus === 'PAGO';
-  const hasVideo = isPaid && Boolean(order.videoUrl);
+  const isPaid = order.paymentStatus === 'PAGAMENTO_APROVADO' ||
+    order.paymentStatus === 'PAGO' ||
+    Boolean(order.isSecondGeneration) ||
+    order.paidSku === 'segunda_geracao_bonus' ||
+    order.relatedOrder?.paymentStatus === 'PAGAMENTO_APROVADO' ||
+    order.relatedOrder?.paymentStatus === 'PAGO';
+  const hasVideo = isPaid && Boolean(order.videoUrl || order.relatedOrder?.videoUrl);
 
   const todasAsFaixas = isPaid
     ? (order.audioFiles && order.audioFiles.length > 0 ? order.audioFiles : (order.audioUrl ? [order.audioUrl] : []))
@@ -88,9 +93,9 @@ export function HomenagemView({ orderId: propOrderId }) {
     : null;
   const audioList = faixaCorrespondente
     ? [faixaCorrespondente]
-    : (todasAsFaixas.length > 0 ? [todasAsFaixas[0]] : []);
+    : todasAsFaixas;
 
-  const videoUrl = hasVideo ? order.videoUrl : null;
+  const videoUrl = hasVideo ? (order.videoUrl || order.relatedOrder?.videoUrl) : null;
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#08060f', color: '#ffffff', position: 'relative', overflowX: 'hidden', fontFamily: 'var(--font-family-body, -apple-system, sans-serif)', paddingBottom: '70px' }}>
