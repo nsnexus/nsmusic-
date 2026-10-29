@@ -6,16 +6,16 @@ import { getPriceForSku, skuGrantsVideoAccess, skuGrantsCartaAccess, skuGrantsRe
 describe('getPriceForSku', () => {
   it('retorna o preço de catálogo para cada SKU conhecido', () => {
     expect(getPriceForSku('audio_only')).toBe(9.99);
-    expect(getPriceForSku('combo')).toBe(16.89);
+    expect(getPriceForSku('combo')).toBe(16.90);
     expect(getPriceForSku('video_addon')).toBe(6.90);
     expect(getPriceForSku('playback_addon')).toBe(4.99);
     expect(getPriceForSku('karaoke_addon')).toBe(9.90);
     expect(getPriceForSku('carta_addon')).toBe(3.99);
     expect(getPriceForSku('retrospectiva_addon')).toBe(9.99);
-    expect(getPriceForSku('combo_carta')).toBe(17.98);
-    expect(getPriceForSku('combo_retrospectiva')).toBe(34.98);
+    expect(getPriceForSku('combo_carta')).toBe(13.90);
+    expect(getPriceForSku('combo_retrospectiva')).toBe(19.90);
     expect(getPriceForSku('custom_voice_addon')).toBe(14.90);
-    expect(getPriceForSku('combo_voz')).toBe(24.89);
+    expect(getPriceForSku('combo_voz')).toBe(24.90);
   });
 
   it('retorna null para SKU desconhecido (nunca inventa um preço)', () => {

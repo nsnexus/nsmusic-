@@ -2315,7 +2315,7 @@ export default function CriarMusica() {
                 </div>
               </div>
 
-              {/* Card 2: 4 Músicas + Carta Virtual (R$ 17,98) */}
+              {/* Card 2: 4 Músicas + Carta Virtual (R$ 13,90) */}
               <div
                 className={`presente-card ${selectedPackageSku === 'combo_carta' ? 'on' : ''}`}
                 onClick={() => handleSelectPackage('combo_carta')}
@@ -2326,7 +2326,7 @@ export default function CriarMusica() {
                 <div className="presente-content">
                   <div className="presente-header">
                     <h3 className="presente-title">💌 4 Músicas + Carta Virtual</h3>
-                    <span className="presente-price">R$ 17,98</span>
+                    <span className="presente-price">R$ 13,90</span>
                   </div>
                   <p className="presente-desc">
                     Suas 4 músicas + uma carta com envelope, foto colada e sua assinatura.
@@ -2344,7 +2344,37 @@ export default function CriarMusica() {
                 </div>
               </div>
 
-              {/* Card 3: 4 Músicas + Retrospectiva (R$ 34,98) [MAIS COMPLETO] */}
+              {/* Card 3: 4 Músicas + Vídeo Homenagem (R$ 16,90) [MAIS ESCOLHIDO] */}
+              <div
+                className={`presente-card ${selectedPackageSku === 'combo' ? 'on' : ''}`}
+                onClick={() => handleSelectPackage('combo')}
+              >
+                <span className="badge-mais-escolhido">MAIS ESCOLHIDO</span>
+                <div className="presente-radio">
+                  {selectedPackageSku === 'combo' && <div className="presente-radio-dot" />}
+                </div>
+                <div className="presente-content">
+                  <div className="presente-header">
+                    <h3 className="presente-title">🎬 4 Músicas + Vídeo Homenagem</h3>
+                    <span className="presente-price">R$ 16,90</span>
+                  </div>
+                  <p className="presente-desc">
+                    Suas 4 músicas + um lindo vídeo slideshow sincronizado com suas fotos para emocionar.
+                  </p>
+                  <button
+                    type="button"
+                    className="btn-ver-exemplo"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setModalExemplo('video');
+                    }}
+                  >
+                    ▶ Ver exemplo
+                  </button>
+                </div>
+              </div>
+
+              {/* Card 4: 4 Músicas + Retrospectiva (R$ 19,90) [MAIS COMPLETO] */}
               <div
                 className={`presente-card ${selectedPackageSku === 'combo_retrospectiva' ? 'on' : ''}`}
                 onClick={() => handleSelectPackage('combo_retrospectiva')}
@@ -2356,7 +2386,7 @@ export default function CriarMusica() {
                 <div className="presente-content">
                   <div className="presente-header">
                     <h3 className="presente-title">💝 4 Músicas + Retrospectiva</h3>
-                    <span className="presente-price">R$ 34,98</span>
+                    <span className="presente-price">R$ 19,90</span>
                   </div>
                   <p className="presente-desc">
                     Suas 4 músicas tocando numa página só de vocês: fotos, linha do tempo, contador dos dias, jogos e carta.
@@ -2367,6 +2397,36 @@ export default function CriarMusica() {
                     onClick={(e) => {
                       e.stopPropagation();
                       setModalExemplo('retrospectiva');
+                    }}
+                  >
+                    ▶ Ver exemplo
+                  </button>
+                </div>
+              </div>
+
+              {/* Card 5: 4 Músicas + Minha Voz (R$ 24,90) [EXCLUSIVO IA] */}
+              <div
+                className={`presente-card ${selectedPackageSku === 'combo_voz' ? 'on' : ''}`}
+                onClick={() => handleSelectPackage('combo_voz')}
+              >
+                <span className="badge-exclusivo">EXCLUSIVO IA</span>
+                <div className="presente-radio">
+                  {selectedPackageSku === 'combo_voz' && <div className="presente-radio-dot" />}
+                </div>
+                <div className="presente-content">
+                  <div className="presente-header">
+                    <h3 className="presente-title">🎙️ 4 Músicas + Minha Voz</h3>
+                    <span className="presente-price">R$ 24,90</span>
+                  </div>
+                  <p className="presente-desc">
+                    Suas 4 músicas cantadas no timbre da sua própria voz através de clonagem vocal por IA.
+                  </p>
+                  <button
+                    type="button"
+                    className="btn-ver-exemplo"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setModalExemplo('voz');
                     }}
                   >
                     ▶ Ver exemplo
@@ -2962,7 +3022,77 @@ export default function CriarMusica() {
                   }}
                   style={{ width: '100%', padding: '14px', fontSize: '0.95rem' }}
                 >
-                  Quero com Carta Virtual (R$ 17,98) ✨
+                  Quero com Carta Virtual (R$ 13,90) ✨
+                </button>
+              </div>
+            ) : modalExemplo === 'video' ? (
+              <div>
+                <span style={{ fontSize: '2.4rem', display: 'block', marginBottom: '8px' }}>🎬</span>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1E1418', margin: '0 0 8px' }}>
+                  Como funciona o Vídeo Homenagem?
+                </h3>
+                <p style={{ fontSize: '0.9rem', color: '#665E62', lineHeight: 1.5, margin: '0 0 16px' }}>
+                  Um clipe audiovisual cinematográfico pronto para emocionar e compartilhar com todo mundo.
+                </p>
+
+                <div style={{ background: '#F0FDF4', borderRadius: '16px', padding: '16px', border: '1.5px solid #BBF7D0', marginBottom: '18px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                    <span style={{ fontSize: '1.2rem' }}>📽️</span>
+                    <span style={{ fontWeight: 800, color: '#166534', fontSize: '0.88rem' }}>Vídeo Slideshow Profissional</span>
+                  </div>
+                  <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.84rem', color: '#14532d', lineHeight: 1.55 }}>
+                    <li>Suas fotos sincronizadas com as batidas da música</li>
+                    <li>Transições suaves, iluminação cinematográfica e efeitos visuais</li>
+                    <li>Formato perfeito para WhatsApp, Instagram Reels e TikTok</li>
+                    <li>Arquivo em vídeo MP4 Full HD liberado para download</li>
+                  </ul>
+                </div>
+
+                <button
+                  type="button"
+                  className="btn-wz-primary"
+                  onClick={() => {
+                    handleSelectPackage('combo');
+                    setModalExemplo(null);
+                  }}
+                  style={{ width: '100%', padding: '14px', fontSize: '0.95rem', background: 'linear-gradient(135deg, #059669 0%, #047857 100%)' }}
+                >
+                  Quero com Vídeo Homenagem (R$ 16,90) 🎬
+                </button>
+              </div>
+            ) : modalExemplo === 'voz' ? (
+              <div>
+                <span style={{ fontSize: '2.4rem', display: 'block', marginBottom: '8px' }}>🎙️</span>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1E1418', margin: '0 0 8px' }}>
+                  Como funciona Minha Voz na Música?
+                </h3>
+                <p style={{ fontSize: '0.9rem', color: '#665E62', lineHeight: 1.5, margin: '0 0 16px' }}>
+                  A tecnologia mais emocionante: a canção cantada exatamente com o timbre e entonação da sua própria voz!
+                </p>
+
+                <div style={{ background: '#EEF2FF', borderRadius: '16px', padding: '16px', border: '1.5px solid #C7D2FE', marginBottom: '18px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                    <span style={{ fontSize: '1.2rem' }}>✨</span>
+                    <span style={{ fontWeight: 800, color: '#3730A3', fontSize: '0.88rem' }}>Clonagem Vocal Exclusiva</span>
+                  </div>
+                  <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.84rem', color: '#312E81', lineHeight: 1.55 }}>
+                    <li>Você grava apenas 30 segundos falando pelo próprio celular</li>
+                    <li>Nossa rede neural de estúdio treina o seu modelo vocal exclusivo</li>
+                    <li>A música é gerada com você cantando com afinação perfeita</li>
+                    <li>O presente mais impactante e surpreendente possível</li>
+                  </ul>
+                </div>
+
+                <button
+                  type="button"
+                  className="btn-wz-primary"
+                  onClick={() => {
+                    handleSelectPackage('combo_voz');
+                    setModalExemplo(null);
+                  }}
+                  style={{ width: '100%', padding: '14px', fontSize: '0.95rem', background: 'linear-gradient(135deg, #4f46e5 0%, #4338ca 100%)' }}
+                >
+                  Quero Minha Voz na Música (R$ 24,90) 🎙️
                 </button>
               </div>
             ) : (
@@ -2999,7 +3129,7 @@ export default function CriarMusica() {
                   }}
                   style={{ width: '100%', padding: '14px', fontSize: '0.95rem' }}
                 >
-                  Quero Retrospectiva Completa (R$ 34,98) 👑
+                  Quero Retrospectiva Completa (R$ 19,90) 👑
                 </button>
               </div>
             )}

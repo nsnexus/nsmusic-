@@ -13,7 +13,7 @@
 // sairia outro.
 export const SKU_PRICES = {
   audio_only: 9.99,
-  combo: 16.89,
+  combo: 16.90,
   video_addon: 6.90,
   playback_addon: 4.99,
   karaoke_addon: 9.90,
@@ -21,10 +21,10 @@ export const SKU_PRICES = {
   retrospectiva_addon: 9.99,
   // Combos música+carta e música+retrospectiva (pop-up de extras dinâmico, pedido 04/09/2026) —
   // mesma regra do `combo` (música+vídeo): soma simples dos dois preços, sem desconto.
-  combo_carta: 17.98,
-  combo_retrospectiva: 34.98,
+  combo_carta: 13.90,
+  combo_retrospectiva: 19.90,
   custom_voice_addon: 14.90,
-  combo_voz: 24.89,
+  combo_voz: 24.90,
   recovery_combo_24h: 9.99,
   recovery_combo_48h: 6.99,
   segunda_musica: 4.99,
@@ -114,7 +114,7 @@ export function brindesPorValorPago(valorPago) {
 
   const retrospectiva = alcanca('combo_retrospectiva');
   const video = retrospectiva || alcanca('combo');
-  const carta = retrospectiva || alcanca('combo_carta');
+  const carta = video || alcanca('combo_carta');
 
   return { carta, video, retrospectiva };
 }
@@ -127,8 +127,8 @@ export function brindesPorValorPago(valorPago) {
 export function faixasDeImpacto() {
   return [
     { sku: 'audio_only', valor: getPriceForSku('audio_only'), ganha: [] },
-    { sku: 'combo', valor: getPriceForSku('combo'), ganha: ['Vídeo Homenagem'], destaque: 'MAIS ESCOLHIDO' },
-    { sku: 'combo_carta', valor: getPriceForSku('combo_carta'), ganha: ['Vídeo Homenagem', 'Carta Virtual'] },
+    { sku: 'combo_carta', valor: getPriceForSku('combo_carta'), ganha: ['Carta Virtual'] },
+    { sku: 'combo', valor: getPriceForSku('combo'), ganha: ['Vídeo Homenagem', 'Carta Virtual'], destaque: 'MAIS ESCOLHIDO' },
     { sku: 'combo_retrospectiva', valor: getPriceForSku('combo_retrospectiva'), ganha: ['Retrospectiva', 'Vídeo Homenagem', 'Carta Virtual'] },
   ].filter((f) => f.valor !== null);
 }

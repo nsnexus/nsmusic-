@@ -44,7 +44,7 @@ describe('PIX com reserva persistida',()=>{
     const prior=(await a.json()).paymentId;
     await POST(request({orderId:'order1',sku:'combo'}));
     expect(state.orders.order1.previousPaymentIntentIds).toContain(prior);
-    expect(state.records.at(-1)).toMatchObject({p_sku:'combo',p_amount:16.89});
+    expect(state.records.at(-1)).toMatchObject({p_sku:'combo',p_amount:16.90});
   });
   it('não chama o provedor quando não consegue reservar no banco',async()=>{
     state.reserveError=true;

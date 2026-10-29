@@ -21,6 +21,16 @@ export function deliveryPackages() {
       includes: ['Tudo de 4 Músicas Personalizadas', 'Carta com envelope interativo e foto', 'Selo e sua assinatura especial']
     },
     {
+      sku: 'combo',
+      label: '4 Músicas + Vídeo Homenagem',
+      icon: '🎬',
+      eyebrow: 'Suas memórias',
+      desc: 'Suas 4 músicas + um lindo vídeo slideshow sincronizado com suas fotos para emocionar.',
+      hasPreview: true,
+      previewType: 'video',
+      includes: ['4 músicas em MP3 HD', 'Vídeo emocionante com fotos', 'Edição profissional sincronizada']
+    },
+    {
       sku: 'combo_retrospectiva',
       label: '4 Músicas + Retrospectiva',
       icon: '💝',
@@ -33,19 +43,13 @@ export function deliveryPackages() {
       includes: ['Tudo de 4 Músicas + Carta Virtual', 'Página exclusiva de casal/família', 'Linha do tempo interativa com fotos', 'Contador de dias e momentos marcantes']
     },
     {
-      sku: 'combo',
-      label: '4 Músicas + Vídeo Homenagem',
-      icon: '🎬',
-      eyebrow: 'Suas memórias',
-      desc: 'Suas 4 músicas + vídeo slideshow emocionante com suas fotos.',
-      includes: ['4 músicas em MP3 HD', 'Vídeo emocionante com 10-20 fotos', 'Edição profissional sincronizada']
-    },
-    {
       sku: 'combo_voz',
       label: '4 Músicas + Minha Voz',
       icon: '🎙️',
       eyebrow: 'Do seu jeito',
-      desc: 'Músicas cantadas no timbre da sua própria voz.',
+      desc: 'Suas 4 músicas cantadas no timbre da sua própria voz através de IA.',
+      hasPreview: true,
+      previewType: 'voz',
       includes: ['2 versões com sua voz clonada por IA', 'Treinamento vocal exclusivo']
     },
   ].map(pack => ({ ...pack, price: getPriceForSku(pack.sku) }));
