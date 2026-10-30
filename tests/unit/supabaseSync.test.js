@@ -32,6 +32,19 @@ describe('supabaseSync', () => {
     expect(mapped.hasVideoAccess).toBe(true);
     expect(mapped.campoLegado).toBe('abc');
   });
+
+  it('corrige automaticamente productionStatus para AUDIO_GERADO se o pedido tem áudio e estava como LETRA_GERADA', () => {
+    const row = {
+      id: 'doc-id-789',
+      order_number: 'NS-7777-2026',
+      production_status: 'LETRA_GERADA',
+      audio_url: 'https://r2.dev/audio.mp3',
+      audio_files: ['https://r2.dev/audio.mp3']
+    };
+
+    const mapped = mapSupabaseOrderToFirestore(row);
+    expect(mapped.productionStatus).toBe('AUDIO_GERADO');
+  });
   it('converte corretamente campos de camelCase para snake_case e preserva id', () => {
     const firestoreData = {
       orderNumber: 'NS-12345-2026',

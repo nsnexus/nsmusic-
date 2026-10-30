@@ -82,9 +82,33 @@ export async function POST(req) {
       }
     }
 
-    // Cliente só pode avançar o status para LETRA_GERADA, nunca finalizar áudio ou entrega
-    if (safeUpdates.productionStatus && safeUpdates.productionStatus !== 'LETRA_GERADA') {
-      delete safeUpdates.productionStatus;
+    // Proteção de transição de status de produção via client-update:
+    // 1. Cliente NUNCA pode marcar pedidos como FINALIZADO, ENTREGUE ou outros estados internos sensíveis.
+    // 2. Se o pedido já possui áudio gerado, ou já está em AUDIO_GERADO/GERANDO_AUDIO, o cliente NUNCA
+    //    pode regredir o status de volta para LETRA_GERADA, LETRA_CRIADA ou ETAPA_*.
+    // 3. Cliente pode avançar para AUDIO_GERADO quando o áudio já estiver gerado ou sendo processado pelo Suno.
+    if (safeUpdates.productionStatus) {
+      const incomingStatus = safeUpdates.productionStatus;
+      const orderTemAudio = Boolean(
+        existing.audioUrl ||
+        (Array.isArray(existing.audioFiles) && existing.audioFiles.length > 0) ||
+        existing.productionStatus === 'AUDIO_GERADO' ||
+        existing.productionStatus === 'FINALIZADO' ||
+        existing.productionStatus === 'ENTREGUE'
+      );
+
+      if (incomingStatus === 'LETRA_GERADA') {
+        if (orderTemAudio || existing.productionStatus === 'GERANDO_AUDIO') {
+          delete safeUpdates.productionStatus;
+        }
+      } else if (incomingStatus === 'AUDIO_GERADO') {
+        const canSetAudioGerado = orderTemAudio || Boolean(existing.sunoTaskId) || existing.productionStatus === 'GERANDO_AUDIO';
+        if (!canSetAudioGerado) {
+          delete safeUpdates.productionStatus;
+        }
+      } else {
+        delete safeUpdates.productionStatus;
+      }
     }
 
     if (Object.keys(safeUpdates).length === 0) {

@@ -124,6 +124,20 @@ export function mapFirestoreOrderToSupabase(id, data = {}) {
 export function mapSupabaseOrderToFirestore(row) {
   if (!row || typeof row !== 'object') return null;
 
+  let productionStatus = row.production_status || 'RASCUNHO';
+  const hasAudio = Boolean(row.audio_url || (Array.isArray(row.audio_files) && row.audio_files.length > 0));
+  if (hasAudio && (
+    productionStatus === 'LETRA_GERADA' ||
+    productionStatus === 'LETRA_CRIADA' ||
+    productionStatus === 'LETRA_APROVADA' ||
+    productionStatus === 'EM_PRODUCAO' ||
+    productionStatus === 'GERANDO_AUDIO' ||
+    productionStatus === 'RASCUNHO' ||
+    productionStatus.startsWith('ETAPA_')
+  )) {
+    productionStatus = 'AUDIO_GERADO';
+  }
+
   return {
     ...(row.extras && typeof row.extras === 'object' ? row.extras : {}),
     id: row.id,
@@ -143,7 +157,7 @@ export function mapSupabaseOrderToFirestore(row) {
     voiceType: row.voice_type || '',
     lyrics: row.lyrics || '',
     sunoPrompt: row.suno_prompt || '',
-    productionStatus: row.production_status || 'RASCUNHO',
+    productionStatus,
     sunoTaskId: row.suno_task_id || null,
     sunoProvider: row.suno_provider || null,
     sunoGenerationCount: Number(row.suno_generation_count) || 0,

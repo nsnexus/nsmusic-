@@ -100,4 +100,61 @@ describe('POST /api/orders/client-update', () => {
       customerPhone: '(11) 98888-7777',
     }, expect.any(Object));
   });
+
+  it('NÃO regride productionStatus para LETRA_GERADA quando o pedido já tem áudio gerado', async () => {
+    getOrder.mockResolvedValue({
+      id: 'ord-1',
+      productionStatus: 'AUDIO_GERADO',
+      audioUrl: 'https://r2.nsmusic.com/audio.mp3',
+      audioFiles: ['https://r2.nsmusic.com/audio.mp3']
+    });
+    updateOrder.mockResolvedValue({ success: true });
+
+    const res = await POST(createRequest({
+      orderId: 'ord-1',
+      productionStatus: 'LETRA_GERADA',
+      lyrics: 'Letra modificada'
+    }));
+
+    expect(res.status).toBe(200);
+    expect(updateOrder).toHaveBeenCalledWith('ord-1', {
+      lyrics: 'Letra modificada'
+    }, expect.any(Object));
+  });
+
+  it('permite avançar productionStatus para AUDIO_GERADO se o pedido tem sunoTaskId', async () => {
+    getOrder.mockResolvedValue({
+      id: 'ord-1',
+      productionStatus: 'GERANDO_AUDIO',
+      sunoTaskId: 'task-123'
+    });
+    updateOrder.mockResolvedValue({ success: true });
+
+    const res = await POST(createRequest({
+      orderId: 'ord-1',
+      productionStatus: 'AUDIO_GERADO'
+    }));
+
+    expect(res.status).toBe(200);
+    expect(updateOrder).toHaveBeenCalledWith('ord-1', {
+      productionStatus: 'AUDIO_GERADO'
+    }, expect.any(Object));
+  });
+
+  it('ignora tentativas de definir status de entrega como FINALIZADO ou ENTREGUE via client-update', async () => {
+    getOrder.mockResolvedValue({
+      id: 'ord-1',
+      productionStatus: 'AUDIO_GERADO'
+    });
+
+    const res = await POST(createRequest({
+      orderId: 'ord-1',
+      productionStatus: 'FINALIZADO'
+    }));
+
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.updated).toBe(false);
+    expect(updateOrder).not.toHaveBeenCalled();
+  });
 });

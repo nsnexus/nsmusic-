@@ -1638,9 +1638,17 @@ export default function CriarMusica() {
         2: 'ETAPA_2',
         3: 'ETAPA_3',
         4: 'ETAPA_4',
-        5: 'LETRA_GERADA'
+        5: 'LETRA_GERADA',
+        6: 'AUDIO_GERADO',
+        7: 'AUDIO_GERADO'
       };
-      const statusToSet = stepStatusMap[targetStep] || `ETAPA_${targetStep}`;
+      const hasAudioInForm = Boolean(
+        currentFormData.audioUrl ||
+        (Array.isArray(currentFormData.sunoTracks) && currentFormData.sunoTracks.length > 0) ||
+        currentFormData.sunoStatus === 'generated' ||
+        targetStep >= 6
+      );
+      const statusToSet = hasAudioInForm ? 'AUDIO_GERADO' : (stepStatusMap[targetStep] || `ETAPA_${targetStep}`);
       const effectiveRelationship = (currentFormData.relationship === 'Outro' && currentFormData.customRelationship?.trim())
         ? currentFormData.customRelationship.trim()
         : (currentFormData.relationship || (isSelfTribute ? 'Eu mesmo' : ''));
