@@ -12,7 +12,7 @@ const products = {
   voz: { title: 'A sua voz, na sua música.', description: 'Grave uma amostra rápida da sua voz e gere a música personalizada com o seu próprio timbre e emoção.' },
 };
 
-export default function ProductWorkspace({ product, honoree, onProduct, children }) {
+export default function ProductWorkspace({ product, honoree, onProduct, children, honoreeSelector }) {
   const current = products[product] || products.video;
   return (
     <div className="nx-experience nx-product-workspace">
@@ -53,6 +53,7 @@ export default function ProductWorkspace({ product, honoree, onProduct, children
           <h1>{current.title}</h1>
           <p>{current.description}</p>
         </div>
+        {honoreeSelector}
         {children}
         <footer className="nx-product-footer">
           <Image src="/logo.png" alt="NS Music" width={28} height={28} />

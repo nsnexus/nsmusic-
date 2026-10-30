@@ -200,7 +200,7 @@ function EntregaContent() {
   const handleCoverChange = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = ''; // permite escolher o MESMO arquivo de novo depois (ex: tentar de novo após erro)
-    const targetOrderId = order?.id || orderId;
+    const targetOrderId = activeOrder?.id || activeOrderId || order?.id || orderId;
     if (!file || !targetOrderId) return;
 
     if (!file.type?.startsWith('image/') && !file.name?.match(/\.(jpe?g|png|webp|heic|heif|gif)$/i)) {
@@ -239,7 +239,16 @@ function EntregaContent() {
       if (!updateRes.ok) {
         throw new Error('Falha ao salvar a nova foto de capa no pedido');
       }
-      setOrder(prev => prev ? { ...prev, coverUrl: url } : prev);
+      setOrder(prev => {
+        if (!prev) return prev;
+        if (activeGenTab === 'second' && !isSecondGen) {
+          return {
+            ...prev,
+            relatedOrder: prev.relatedOrder ? { ...prev.relatedOrder, coverUrl: url } : prev.relatedOrder
+          };
+        }
+        return { ...prev, coverUrl: url };
+      });
     } catch (err) {
       console.error('[entrega] Falha ao trocar a foto de capa:', err?.message);
       setCoverUploadError('Não foi possível trocar a foto agora. Tente novamente.');
@@ -248,16 +257,30 @@ function EntregaContent() {
     }
   };
 
-  // Sincroniza fotos salvas do pedido no Firestore quando carregado
+  // Sincroniza fotos salvas do pedido no Firestore quando carregado ou ao alternar abas
   useEffect(() => {
-    if (order?.slideshowImages && Array.isArray(order.slideshowImages)) {
-      setExistingPhotos(order.slideshowImages);
+    const targetPhotos = activeOrder?.slideshowImages || order?.slideshowImages;
+    if (targetPhotos && Array.isArray(targetPhotos)) {
+      setExistingPhotos(targetPhotos);
+    } else {
+      setExistingPhotos([]);
     }
-  }, [order?.slideshowImages]);
+  }, [activeGenTab, activeOrder?.id, activeOrder?.slideshowImages, order?.slideshowImages]);
 
   // Abas dos produtos depois de pago (pedido 04/09/2026) — antes tudo ficava empilhado numa rolagem
   // só; 'musica' cobre também o Playback (instrumental), por ser derivado da mesma faixa.
   const [abaProduto, setAbaProduto] = useState('musica');
+  const [selectedGenTab, setSelectedGenTab] = useState(null); // 'first' | 'second'
+
+  // Mapeamento e separação de 1ª e 2ª geração para abas e extras independentes
+  const isSecondGen = Boolean(order?.parentOrderId || order?.origem === 'segunda_geracao' || order?.isSecondGeneration);
+  const firstGenOrder = isSecondGen ? (order?.relatedOrder || null) : order;
+  const secondGenOrder = isSecondGen ? order : (order?.relatedOrder || null);
+  const hasSecondGen = Boolean(secondGenOrder);
+
+  const activeGenTab = selectedGenTab !== null ? selectedGenTab : (isSecondGen ? 'second' : 'first');
+  const activeOrder = (activeGenTab === 'second' && secondGenOrder) ? secondGenOrder : (firstGenOrder || order);
+  const activeOrderId = activeOrder?.id || activeOrder?.orderNumber || orderId;
   const [selectedPackage, setSelectedPackage] = useState('combo'); // 'combo' (16.89 pré-selecionado por padrão)
   const [hasVideoAccessState, setHasVideoAccessState] = useState(false);
 
@@ -970,8 +993,12 @@ function EntregaContent() {
     // A retentativa vive em src/lib/pixCheckout.js, compartilhada com o checkout de /criar.
     // `amount` só é lido pelo servidor quando o sku é 'impacto', e mesmo assim validado lá contra
     // o piso e o teto (api/payments/create). Nenhum outro sku aceita valor vindo do cliente.
+    const targetOrderId = (isSecondary && activeGenTab === 'second' && secondGenOrder)
+      ? (secondGenOrder.id || secondGenOrder.orderNumber || orderId)
+      : orderId;
+
     const resultado = await requestPixCharge(
-      { orderId, sku, isSecondaryPayment: isSecondary, amount: valorImpacto ?? undefined },
+      { orderId: targetOrderId, sku, isSecondaryPayment: isSecondary, amount: valorImpacto ?? undefined },
       { attempts: MAX_PIX_ATTEMPTS }
     );
 
@@ -1227,10 +1254,7 @@ function EntregaContent() {
   const primaryAudioUrl = formatAudioUrl(order?.audioUrl || (order?.audioFiles && order.audioFiles[0]) || '', primaryTrackId);
   const secondAudioUrl = formatAudioUrl(order?.audioFiles && order.audioFiles[1] ? order.audioFiles[1] : '', secondTrackId);
 
-  // Mapeamento e separação para pacote de 4 músicas (1ª geração e 2ª geração)
-  const isSecondGen = Boolean(order?.parentOrderId || order?.origem === 'segunda_geracao' || order?.isSecondGeneration);
-  const firstGenOrder = isSecondGen ? (order?.relatedOrder || null) : order;
-  const secondGenOrder = isSecondGen ? order : (order?.relatedOrder || null);
+  // Mapeamento e separação de faixas para 1ª e 2ª geração
 
   const firstGenTracks = firstGenOrder ? [
     formatAudioUrl(firstGenOrder?.audioUrl || (firstGenOrder?.audioFiles && firstGenOrder.audioFiles[0]) || '', firstGenOrder?.sunoTracks?.[0]?.trackId || ''),
@@ -1241,6 +1265,10 @@ function EntregaContent() {
     formatAudioUrl(secondGenOrder?.audioUrl || (secondGenOrder?.audioFiles && secondGenOrder.audioFiles[0]) || '', secondGenOrder?.sunoTracks?.[0]?.trackId || ''),
     formatAudioUrl(secondGenOrder?.audioFiles && secondGenOrder.audioFiles[1] ? secondGenOrder.audioFiles[1] : '', secondGenOrder?.sunoTracks?.[1]?.trackId || ''),
   ].filter(Boolean) : [];
+
+  const activeTracks = (activeGenTab === 'second' && secondGenTracks?.length)
+    ? secondGenTracks
+    : (firstGenTracks?.length ? firstGenTracks : [primaryAudioUrl, secondAudioUrl].filter(Boolean));
 
   // Faixas do pedido em URL crua (sem o envelope do proxy) — é essa forma que /api/homenagem/choose-music
   // valida contra o documento, então o seletor da página de presente precisa mandar exatamente ela.
@@ -1443,8 +1471,15 @@ function EntregaContent() {
   const coverUrl = order?.coverUrl || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=600&auto=format&fit=crop';
 
   const handleCreateVideo = async () => {
+      const targetOrderId = activeOrder?.id || activeOrderId || orderId;
+      const targetHasVideoAccess = Boolean(
+        activeOrder?.hasVideoAccess ||
+        activeOrder?.videoAddonPaid ||
+        activeOrder?.videoUrl ||
+        (activeGenTab === 'first' && hasVideoAccess)
+      );
       const totalCount = existingPhotos.length + newPhotoFiles.length;
-      if (!orderId || totalCount < 3 || totalCount > 20 || isUploadingPhotos || !hasVideoAccess) return;
+      if (!targetOrderId || totalCount < 3 || totalCount > 20 || isUploadingPhotos || !targetHasVideoAccess) return;
 
       // Destrava o áudio AQUI, síncrono e antes de qualquer await: o
       // upload das fotos leva minutos e, quando a renderização enfim
@@ -1619,6 +1654,8 @@ function EntregaContent() {
   };
 
   const handleDownloadVideo = () => {
+      const currentVideoUrl = activeOrder?.videoUrl || order?.videoUrl;
+      if (!currentVideoUrl) return;
       // A extensão precisa bater com o container real do arquivo (mp4 ou
       // webm, conforme o que o navegador conseguiu gravar — ver
       // src/lib/videoGenerator.js) para o WhatsApp reconhecer o arquivo
@@ -1626,10 +1663,10 @@ function EntregaContent() {
       // buscar a URL do Firebase Storage direto costuma esbarrar em CORS,
       // o que fazia handleDownload cair no fallback de abrir em nova aba
       // em vez de baixar.
-      const videoExt = order.videoUrl.split('?')[0].split('.').pop().toLowerCase();
+      const videoExt = currentVideoUrl.split('?')[0].split('.').pop().toLowerCase();
       const ext = videoExt === 'webm' ? 'webm' : 'mp4';
-      const nomeArquivo = `Homenagem_${order?.honoreeName || 'Video'}.${ext}`;
-      const proxiedUrl = `/api/image-proxy?url=${encodeURIComponent(order.videoUrl)}`;
+      const nomeArquivo = `Homenagem_${(activeOrder?.honoreeName || order?.honoreeName || 'Video').replace(/[^\w]/g, '_')}.${ext}`;
+      const proxiedUrl = `/api/image-proxy?url=${encodeURIComponent(currentVideoUrl)}`;
 
       // O proxy roda no Edge e não aguenta arquivo muito grande (achado
       // 03/09/2026: um vídeo de 136 MB estourava o limite de memória do
@@ -1650,7 +1687,7 @@ function EntregaContent() {
           handleDownload(proxiedUrl, nomeArquivo);
         } else {
           console.warn('[entrega] Proxy não conseguiu servir o vídeo; abrindo o arquivo direto.');
-          window.open(order.videoUrl, '_blank', 'noopener');
+          window.open(currentVideoUrl, '_blank', 'noopener');
         }
       })();
   };
@@ -1658,7 +1695,7 @@ function EntregaContent() {
   const handleAddVideoPhotos = async event => {
     const incoming = Array.from(event.target.files || []);
     event.target.value = '';
-    const targetOrderId = order?.id || orderId;
+    const targetOrderId = activeOrder?.id || activeOrderId || order?.id || orderId;
     if (isUploadingPhotos || !incoming.length || !targetOrderId) return;
 
     const maxPhotos = 20;
@@ -1737,7 +1774,8 @@ function EntregaContent() {
     const updated = previous.filter((_, i) => i !== index);
     setExistingPhotos(updated); setPhotoError('');
     try {
-      const response = await fetch('/api/orders/client-update', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orderId, slideshowImages: updated }) });
+      const targetOrderId = activeOrder?.id || activeOrderId || order?.id || orderId;
+      const response = await fetch('/api/orders/client-update', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orderId: targetOrderId, slideshowImages: updated }) });
       if (!response.ok) throw new Error('Não foi possível salvar a remoção. Tente novamente.');
     } catch (error) { setExistingPhotos(previous); setPhotoError(error.message || 'Não foi possível remover a foto.'); }
   };
@@ -1746,19 +1784,111 @@ function EntregaContent() {
     return (
       <>
         <InAppBrowserBanner />
-        <ProductWorkspace product={abaProduto} honoree={order?.honoreeName} onProduct={setAbaProduto}>
-          {abaProduto === 'video' && <VideoEditor order={order} orderId={orderId} access={hasVideoAccess}
-            existingPhotos={existingPhotos} files={newPhotoFiles} busy={isUploadingPhotos} progress={uploadProgressMsg} error={photoError}
-            onAddPhotos={handleAddVideoPhotos} onRemovePhoto={handleRemoveVideoPhoto} onRemoveFile={index => setNewPhotoFiles(items => items.filter((_, i) => i !== index))}
-            tracks={[primaryAudioUrl, secondAudioUrl].filter(Boolean)} selectedTrack={selectedVideoTrack} onTrack={setSelectedVideoTrack}
-            onGenerate={handleCreateVideo} onDownload={handleDownloadVideo} pix={videoPixInfo} pendingPix={pendingVideoPix}
-            pixError={pixError} timedOut={videoPixPollingTimedOut} onBuy={() => { setSelectedPackage('video_addon'); handleGeneratePix('video_addon', true); }}
-            onResetVideo={handleResetVideoStatus} />}
-          {abaProduto === 'carta' && <CartaAddonCard orderId={orderId} order={order} onUnlocked={() => setCartaLiberadaLocal(true)} onCartaCriada={texto => setOrder(previous => previous ? { ...previous, cartaTexto: texto, cartaStatus: 'READY' } : previous)} />}
-          {abaProduto === 'retrospectiva' && <RetrospectivaAddonCard orderId={orderId} order={order} onUnlocked={() => setRetrospectivaLiberadaLocal(true)} />}
-          {abaProduto === 'playback' && <div id="card-playback"><PlaybackAddonCard orderId={orderId} order={order} /></div>}
-          {abaProduto === 'karaoke' && <KaraokeAddonCard orderId={orderId} order={order} />}
-          {abaProduto === 'voz' && <VozClienteAddonCard orderId={orderId} order={order} />}
+        <ProductWorkspace
+          product={abaProduto}
+          honoree={activeOrder?.honoreeName}
+          onProduct={setAbaProduto}
+          honoreeSelector={hasSecondGen ? (
+            <div
+              style={{
+                display: 'flex',
+                gap: '8px',
+                justifyContent: 'center',
+                alignItems: 'center',
+                padding: '4px',
+                background: '#f1f5f9',
+                borderRadius: '999px',
+                width: 'fit-content',
+                margin: '0 auto 20px',
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setSelectedGenTab('first')}
+                style={{
+                  padding: '6px 16px',
+                  borderRadius: '999px',
+                  fontSize: '0.82rem',
+                  fontWeight: 700,
+                  border: 'none',
+                  background: activeGenTab !== 'second' ? '#ffffff' : 'transparent',
+                  color: activeGenTab !== 'second' ? '#047857' : '#64748b',
+                  boxShadow: activeGenTab !== 'second' ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                🎵 Para {firstGenOrder?.honoreeName || '1ª Canção'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedGenTab('second')}
+                style={{
+                  padding: '6px 16px',
+                  borderRadius: '999px',
+                  fontSize: '0.82rem',
+                  fontWeight: 700,
+                  border: 'none',
+                  background: activeGenTab === 'second' ? '#ffffff' : 'transparent',
+                  color: activeGenTab === 'second' ? '#6d28d9' : '#64748b',
+                  boxShadow: activeGenTab === 'second' ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                ✨ Para {secondGenOrder?.honoreeName || '2ª Canção'}
+              </button>
+            </div>
+          ) : null}
+        >
+          {abaProduto === 'video' && <VideoEditor
+            order={activeOrder}
+            orderId={activeOrderId}
+            access={Boolean(
+              activeOrder?.hasVideoAccess ||
+              activeOrder?.videoAddonPaid ||
+              activeOrder?.videoUrl ||
+              (activeGenTab === 'first' && hasVideoAccess)
+            )}
+            existingPhotos={existingPhotos}
+            files={newPhotoFiles}
+            busy={isUploadingPhotos}
+            progress={uploadProgressMsg}
+            error={photoError}
+            onAddPhotos={handleAddVideoPhotos}
+            onRemovePhoto={handleRemoveVideoPhoto}
+            onRemoveFile={index => setNewPhotoFiles(items => items.filter((_, i) => i !== index))}
+            tracks={activeTracks}
+            selectedTrack={selectedVideoTrack}
+            onTrack={setSelectedVideoTrack}
+            onGenerate={handleCreateVideo}
+            onDownload={handleDownloadVideo}
+            pix={videoPixInfo}
+            pendingPix={pendingVideoPix}
+            pixError={pixError}
+            timedOut={videoPixPollingTimedOut}
+            onBuy={() => { setSelectedPackage('video_addon'); handleGeneratePix('video_addon', true); }}
+            onResetVideo={handleResetVideoStatus}
+          />}
+          {abaProduto === 'carta' && <CartaAddonCard
+            orderId={activeOrderId}
+            order={activeOrder}
+            onUnlocked={() => setCartaLiberadaLocal(true)}
+            onCartaCriada={texto => setOrder(previous => {
+              if (!previous) return previous;
+              if (activeGenTab === 'second' && !isSecondGen) {
+                return {
+                  ...previous,
+                  relatedOrder: previous.relatedOrder ? { ...previous.relatedOrder, cartaTexto: texto, cartaStatus: 'READY' } : previous.relatedOrder
+                };
+              }
+              return { ...previous, cartaTexto: texto, cartaStatus: 'READY' };
+            })}
+          />}
+          {abaProduto === 'retrospectiva' && <RetrospectivaAddonCard orderId={activeOrderId} order={activeOrder} onUnlocked={() => setRetrospectivaLiberadaLocal(true)} />}
+          {abaProduto === 'playback' && <div id="card-playback"><PlaybackAddonCard orderId={activeOrderId} order={activeOrder} /></div>}
+          {abaProduto === 'karaoke' && <KaraokeAddonCard orderId={activeOrderId} order={activeOrder} />}
+          {abaProduto === 'voz' && <VozClienteAddonCard orderId={activeOrderId} order={activeOrder} />}
         </ProductWorkspace>
       </>
     );
@@ -1777,6 +1907,8 @@ function EntregaContent() {
           firstGenTracks={firstGenTracks}
           secondGenOrder={secondGenOrder}
           secondGenTracks={secondGenTracks}
+          activeGenTab={activeGenTab}
+          onSelectGenTab={setSelectedGenTab}
           promo={promo}
           onDownload={handleDownload}
           downloadingSlot={downloadingSlot}
@@ -1789,7 +1921,7 @@ function EntregaContent() {
           receiptStatus={receiptStatus}
           onReceipt={handleReceiptUpload}
           onApproved={refreshDelivery}
-          supportUrl={linkWhatsapp(whatsappSuporte, `Olá! Preciso de ajuda com o pedido ${order?.orderNumber || orderId}.`)}
+          supportUrl={linkWhatsapp(whatsappSuporte, `Olá! Preciso de ajuda com o pedido ${activeOrder?.orderNumber || activeOrderId || orderId}.`)}
         />
       </>
     );
