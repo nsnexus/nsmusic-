@@ -273,6 +273,16 @@ export default function CriarMusica() {
     }
   });
 
+  const isSecondGenOrder = Boolean(
+    formData.isSecondGeneration ||
+    formData.origem === 'segunda_geracao' ||
+    formData.origem === 'segunda_musica' ||
+    formData.paidSku === 'segunda_geracao_bonus' ||
+    formData.paymentStatus === 'PAGO' ||
+    formData.paymentStatus === 'PAGAMENTO_APROVADO' ||
+    (formData.orderRef && (formData.origem === 'segunda_geracao' || formData.origem === 'segunda_musica'))
+  );
+
   const TOTAL_JOURNEY_STEPS = 7; // Jornada total de 7 etapas no padrão Capivarinha Love
   const TOTAL_FORM_STEPS = 4; // Etapas do formulário Wizard (1: Pessoa, 2: História, 3: Estilo, 4: Contato)
   const [selectedPackageSku, setSelectedPackageSku] = useState('combo');
@@ -476,8 +486,8 @@ export default function CriarMusica() {
           localStorage.removeItem('nsmusic_order_draft');
           const initialUpdates = {};
           if (ocasiaoValida) initialUpdates.occasion = ocasiaoValida;
-          if (orderRefParam && (origemParam === 'segunda_geracao' || origemParam === 'segunda_musica')) {
-            initialUpdates.origem = origemParam;
+          if (orderRefParam) {
+            initialUpdates.origem = origemParam || 'segunda_geracao';
             initialUpdates.orderRef = orderRefParam;
             initialUpdates.isSecondGeneration = true;
           }
@@ -570,6 +580,16 @@ export default function CriarMusica() {
       if (res.ok) {
         const json = await res.json();
         const data = json?.order;
+        if (data?.isSecondGeneration || data?.origem === 'segunda_geracao' || data?.paidSku === 'segunda_geracao_bonus' || data?.parentOrderId) {
+          setFormData(prev => ({
+            ...prev,
+            isSecondGeneration: true,
+            origem: 'segunda_geracao',
+            paymentStatus: 'PAGAMENTO_APROVADO',
+            paidSku: 'segunda_geracao_bonus',
+            orderRef: data?.parentOrderId || prev.orderRef
+          }));
+        }
         if ((data?.paymentStatus === 'PAGO' || data?.paymentStatus === 'PAGAMENTO_APROVADO') && ((data?.audioFiles && data.audioFiles.length > 0) || data?.audioUrl || data?.productionStatus === 'AUDIO_GERADO')) {
           if (typeof window !== 'undefined') {
             localStorage.removeItem('nsmusic_order_draft');
@@ -1181,6 +1201,16 @@ export default function CriarMusica() {
             if (orderData.orderId) {
               currentOrderId = orderData.orderId;
               setOrderId(orderData.orderId);
+              if (orderData.isSecondGeneration) {
+                setFormData(prev => ({
+                  ...prev,
+                  isSecondGeneration: true,
+                  origem: 'segunda_geracao',
+                  paymentStatus: 'PAGAMENTO_APROVADO',
+                  paidSku: 'segunda_geracao_bonus',
+                  orderRef: orderData.parentOrderId || effectiveOrderRef || prev.orderRef
+                }));
+              }
               if (typeof window !== 'undefined') {
                 try {
                   const saved = localStorage.getItem('nsmusic_generated_orders');
@@ -1398,6 +1428,16 @@ export default function CriarMusica() {
             if (createData.orderId) {
               activeOrderId = createData.orderId;
               setOrderId(createData.orderId);
+              if (createData.isSecondGeneration) {
+                setFormData(prev => ({
+                  ...prev,
+                  isSecondGeneration: true,
+                  origem: 'segunda_geracao',
+                  paymentStatus: 'PAGAMENTO_APROVADO',
+                  paidSku: 'segunda_geracao_bonus',
+                  orderRef: createData.parentOrderId || effectiveOrderRef || prev.orderRef
+                }));
+              }
             }
           } else if (createRes.status === 403) {
             const errData = await createRes.json().catch(() => ({}));
@@ -1640,6 +1680,16 @@ export default function CriarMusica() {
           if (orderData.orderId) {
             setOrderId(orderData.orderId);
             currentOrderId = orderData.orderId;
+            if (orderData.isSecondGeneration) {
+              setFormData(prev => ({
+                ...prev,
+                isSecondGeneration: true,
+                origem: 'segunda_geracao',
+                paymentStatus: 'PAGAMENTO_APROVADO',
+                paidSku: 'segunda_geracao_bonus',
+                orderRef: effectiveOrderRef || prev.orderRef
+              }));
+            }
             if (typeof window !== 'undefined') {
               try {
                 const saved = localStorage.getItem('nsmusic_generated_orders');
@@ -2243,10 +2293,10 @@ export default function CriarMusica() {
               </div>
             ) : (
               <div>
-                <span className="wz-guide">6 DE 7 · SUAS MÚSICAS ESTÃO PRONTAS</span>
-                <h1 className="wz-t">Ouça suas prévias! 🎧</h1>
+                <span className="wz-guide">{isSecondGenOrder ? '6 DE 6 · SUAS +2 MÚSICAS ESTÃO PRONTAS' : '6 DE 7 · SUAS MÚSICAS ESTÃO PRONTAS'}</span>
+                <h1 className="wz-t">{isSecondGenOrder ? 'Suas Músicas Bônus Ficaram Prontas! 🎉' : 'Ouça suas prévias! 🎧'}</h1>
                 <p className="wz-s">
-                  Criamos 2 arranjos diferentes para {formData.honoreeName || 'alguém especial'}. Ambas completas estão inclusas no seu pacote!
+                  {isSecondGenOrder ? 'Criamos 2 arranjos adicionais para ' + (formData.honoreeName || 'alguém especial') + '. Ambas completas estão inclusas no seu pacote de 4 músicas e sem cortes!' : 'Criamos 2 arranjos diferentes para ' + (formData.honoreeName || 'alguém especial') + '. Ambas completas estão inclusas no seu pacote!'}
                 </p>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '16px' }}>
@@ -2257,6 +2307,8 @@ export default function CriarMusica() {
                     badge={`VERSÃO 1 - ESTILO ${formData.musicStyle?.toUpperCase() || 'PRINCIPAL'}`}
                     isBonus={false}
                     orderId={orderId}
+                    isSecondGen={isSecondGenOrder}
+                    isPaid={isSecondGenOrder}
                   />
 
                   {/* Versão 2 Preview Card */}
@@ -2267,6 +2319,8 @@ export default function CriarMusica() {
                       badge="VERSÃO 2 - ARRANJO ALTERNATIVO BÔNUS"
                       isBonus={true}
                       orderId={orderId}
+                      isSecondGen={isSecondGenOrder}
+                      isPaid={isSecondGenOrder}
                     />
                   )}
                 </div>
@@ -2294,7 +2348,7 @@ export default function CriarMusica() {
           </div>
         );
       case 7: // Etapa 7: Escolha do Presente & Pagamento (Padrão Capivarinha Love)
-        if (formData.isSecondGeneration || formData.origem === 'segunda_geracao') {
+        if (isSecondGenOrder || formData.paymentStatus === 'PAGO' || formData.paymentStatus === 'PAGAMENTO_APROVADO') {
           return (
             <div style={{ maxWidth: '34rem', margin: '0 auto', textAlign: 'center', backgroundColor: '#ffffff', borderRadius: '20px', border: '1.5px solid #86efac', padding: '32px 20px', boxShadow: '0 4px 18px rgba(16, 185, 129, 0.08)' }}>
               <span style={{ fontSize: '3rem', display: 'block', marginBottom: '8px' }}>🎉</span>
@@ -2930,17 +2984,27 @@ export default function CriarMusica() {
                     <button
                       type="button"
                       onClick={() => {
-                        setStep(7);
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                        if (isSecondGenOrder) {
+                          const target = orderId || formData.orderRef;
+                          if (typeof window !== 'undefined') {
+                            localStorage.removeItem('nsmusic_order_draft');
+                          }
+                          window.location.href = `/entrega?orderId=${encodeURIComponent(target)}`;
+                        } else {
+                          setStep(7);
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }
                       }}
                       className="btn-wz-primary"
                       style={{
                         padding: '0.78rem 1rem',
                         fontSize: 'clamp(0.84rem, 3.8vw, 0.96rem)',
-                        whiteSpace: 'nowrap'
+                        whiteSpace: 'nowrap',
+                        background: isSecondGenOrder ? 'linear-gradient(135deg, #059669 0%, #047857 100%)' : undefined,
+                        boxShadow: isSecondGenOrder ? '0 4px 14px rgba(5, 150, 105, 0.3)' : undefined
                       }}
                     >
-                      Escolher Meu Presente →
+                      {isSecondGenOrder ? '🎉 Concluir e Acessar Todas as Músicas →' : 'Escolher Meu Presente →'}
                     </button>
                   ) : null}
                 </div>

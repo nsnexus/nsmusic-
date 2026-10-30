@@ -5,7 +5,8 @@ import { markPreviewListened } from '@/lib/previewTracking';
 
 // Player de prévia de 60s usado na tela de geração de áudio — extraído de page.jsx (M-20 no
 // AUDIT_REPORT.md). Componente autocontido: só depende das props recebidas.
-export default function CustomAudioPreview({ src, label, badge, isBonus, orderId, onPreviaEncerrada }) {
+export default function CustomAudioPreview({ src, label, badge, isBonus, orderId, onPreviaEncerrada, isSecondGen = false, isPaid = false }) {
+  const isFullAudioUnlocked = Boolean(isSecondGen || isPaid);
   const audioRef = useRef(null);
   const retryTimerRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -33,9 +34,14 @@ export default function CustomAudioPreview({ src, label, badge, isBonus, orderId
 
   // Prévia de 60 segundos. Liberamos a música inteira e revertemos:
   // a conversão caiu porque gravavam pelo celular a música toda.
+  // Prévia de 60 segundos para pedidos pendentes. Músicas completas para 2ª geração ou pagos.
   const handleTimeUpdate = () => {
     if (!audioRef.current) return;
     const curr = audioRef.current.currentTime;
+    if (isFullAudioUnlocked) {
+      setCurrentTime(curr);
+      return;
+    }
     if (curr >= 60) {
       audioRef.current.pause();
       audioRef.current.currentTime = 60;
@@ -51,12 +57,17 @@ export default function CustomAudioPreview({ src, label, badge, isBonus, orderId
 
   const handleLoadedMetadata = () => {
     if (!audioRef.current) return;
-    setDuration(Math.min(audioRef.current.duration || 60, 60));
+    if (isFullAudioUnlocked) {
+      setDuration(audioRef.current.duration || 0);
+    } else {
+      setDuration(Math.min(audioRef.current.duration || 60, 60));
+    }
   };
 
   const handleSeek = (e) => {
     if (!audioRef.current) return;
-    const newTime = Math.min(parseFloat(e.target.value), 60);
+    const val = parseFloat(e.target.value);
+    const newTime = isFullAudioUnlocked ? val : Math.min(val, 60);
     audioRef.current.currentTime = newTime;
     setCurrentTime(newTime);
     if (newTime < 60 && showEndedNotice) {
@@ -145,7 +156,7 @@ export default function CustomAudioPreview({ src, label, badge, isBonus, orderId
             border: isBonus ? '1px solid #fecdd3' : '1px solid #a7f3d0',
           }}
         >
-          {isBonus ? 'Bônus Grátis Incluso ✓' : 'Incluso no Pacote ✓'}
+          {isSecondGen ? '✨ 2ª Geração Liberada ✓' : isBonus ? 'Bônus Grátis Incluso ✓' : 'Incluso no Pacote ✓'}
         </span>
       </div>
 
@@ -206,9 +217,9 @@ export default function CustomAudioPreview({ src, label, badge, isBonus, orderId
               <input
                 type="range"
                 min="0"
-                max={duration || 60}
+                max={isFullAudioUnlocked ? (duration || 180) : (duration || 60)}
                 step="0.1"
-                value={Math.min(currentTime, 60)}
+                value={isFullAudioUnlocked ? currentTime : Math.min(currentTime, 60)}
                 onChange={handleSeek}
                 style={{
                   width: '100%',
@@ -218,7 +229,7 @@ export default function CustomAudioPreview({ src, label, badge, isBonus, orderId
               />
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: '#64748b', fontWeight: '600' }}>
                 <span>{formatTime(currentTime)}</span>
-                <span>0:60 (Prévia)</span>
+                <span>{isFullAudioUnlocked ? formatTime(duration) : '0:60 (Prévia)'}</span>
               </div>
             </div>
           </div>
@@ -236,9 +247,13 @@ export default function CustomAudioPreview({ src, label, badge, isBonus, orderId
         </div>
       )}
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', color: '#64748b' }}>
-        <span>🔒</span>
-        <span>Prévia de 60s. As 2 versões completas em MP3 HD são liberadas após o pagamento.</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', color: isFullAudioUnlocked ? '#059669' : '#64748b' }}>
+        <span>{isFullAudioUnlocked ? '🎉' : '🔒'}</span>
+        <span>
+          {isFullAudioUnlocked
+            ? 'Música completa sem corte inclusa no seu pacote de 4 músicas!'
+            : 'Prévia de 60s. As 2 versões completas em MP3 HD são liberadas após o pagamento.'}
+        </span>
       </div>
     </div>
   );

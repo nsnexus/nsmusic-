@@ -74,13 +74,20 @@ export async function POST(req) {
 
     // Suporte ao bônus da 2ª geração de músicas (4 músicas = 2 gerações pagas)
     let isSecondGenApproved = false;
-    const parentOrderId = formData.orderRef || formData.parentOrderId || null;
+    let resolvedParentOrderId = formData.orderRef || formData.parentOrderId || null;
     let inheritedAddons = {};
-    if (parentOrderId && (formData.origem === 'segunda_geracao' || formData.origem === 'segunda_musica' || formData.isSecondGeneration)) {
+    const wantsSecondGen = Boolean(
+      formData.origem === 'segunda_geracao' ||
+      formData.origem === 'segunda_musica' ||
+      formData.isSecondGeneration
+    );
+
+    if (resolvedParentOrderId && wantsSecondGen) {
       try {
         const { getOrder, updateOrder } = await import('@/lib/supabaseDb');
-        const parentOrder = await getOrder(parentOrderId, env);
+        const parentOrder = await getOrder(resolvedParentOrderId, env);
         if (parentOrder && (parentOrder.paymentStatus === 'PAGO' || parentOrder.paymentStatus === 'PAGAMENTO_APROVADO')) {
+          resolvedParentOrderId = parentOrder.id || resolvedParentOrderId;
           isSecondGenApproved = true;
           inheritedAddons = {
             hasVideoAccess: Boolean(parentOrder.hasVideoAccess || parentOrder.videoAddonPaid),
@@ -88,13 +95,49 @@ export async function POST(req) {
             hasRetrospectivaAccess: Boolean(parentOrder.hasRetrospectivaAccess || parentOrder.retrospectivaAddonPaid),
           };
           // Registra o consumo da 2ª geração no pedido pai
-          await updateOrder(parentOrderId, {
+          await updateOrder(resolvedParentOrderId, {
             segundaGeracaoUsada: true,
             segundaGeracaoUsadaAt: parentOrder.segundaGeracaoUsadaAt || createdAtIso,
           }, env);
         }
       } catch (err) {
         console.warn('[orders/create] Falha ao verificar bônus de 2ª geração:', err?.message);
+      }
+    }
+
+    // Se o cliente tem telefone cadastrado e solicitou a 2ª geração sem orderRef na URL,
+    // busca pedido pai pago com 2ª geração disponível do mesmo cliente.
+    if (!isSecondGenApproved && formData.customerPhone && wantsSecondGen) {
+      try {
+        const { findOrdersByPhone } = await import('@/lib/orderLookup');
+        const { updateOrder } = await import('@/lib/supabaseDb');
+        const recentOrders = await findOrdersByPhone(formData.customerPhone, env, 10);
+        const eligibleParent = recentOrders.find(o =>
+          (o.paymentStatus === 'PAGO' || o.paymentStatus === 'PAGAMENTO_APROVADO') &&
+          !o.parentOrderId &&
+          !o.extras?.parentOrderId &&
+          !o.isSecondGeneration &&
+          !o.extras?.isSecondGeneration &&
+          !o.segundaGeracaoUsada &&
+          !o.extras?.segundaGeracaoUsada &&
+          !o.secondGenerationOrderId &&
+          !o.extras?.secondGenerationOrderId
+        );
+        if (eligibleParent) {
+          resolvedParentOrderId = eligibleParent.id;
+          isSecondGenApproved = true;
+          inheritedAddons = {
+            hasVideoAccess: Boolean(eligibleParent.hasVideoAccess || eligibleParent.videoAddonPaid),
+            hasCartaAccess: Boolean(eligibleParent.hasCartaAccess || eligibleParent.cartaAddonPaid),
+            hasRetrospectivaAccess: Boolean(eligibleParent.hasRetrospectivaAccess || eligibleParent.retrospectivaAddonPaid),
+          };
+          await updateOrder(resolvedParentOrderId, {
+            segundaGeracaoUsada: true,
+            segundaGeracaoUsadaAt: eligibleParent.segundaGeracaoUsadaAt || createdAtIso,
+          }, env);
+        }
+      } catch (phoneErr) {
+        console.warn('[orders/create] Falha ao auto-vincular 2ª geração por telefone:', phoneErr?.message);
       }
     }
 
@@ -127,7 +170,7 @@ export async function POST(req) {
       paymentStatus: isSecondGenApproved ? 'PAGAMENTO_APROVADO' : 'AGUARDANDO_PAGAMENTO',
       paidAmount: isSecondGenApproved ? 0 : 0,
       paidSku: isSecondGenApproved ? 'segunda_geracao_bonus' : null,
-      parentOrderId: parentOrderId || null,
+      parentOrderId: resolvedParentOrderId || null,
       isSecondGeneration: isSecondGenApproved,
       ...inheritedAddons,
       productionStatus: formData.productionStatus || (formData.lyrics ? 'LETRA_CRIADA' : 'EM_PRODUCAO'),
@@ -148,10 +191,10 @@ export async function POST(req) {
 
     const created = await createOrder(orderPayload, env);
 
-    if (parentOrderId && isSecondGenApproved) {
+    if (resolvedParentOrderId && isSecondGenApproved) {
       try {
         const { updateOrder } = await import('@/lib/supabaseDb');
-        await updateOrder(parentOrderId, {
+        await updateOrder(resolvedParentOrderId, {
           secondGenerationOrderId: created.id,
           segundaGeracaoOrderId: created.id,
         }, env);
@@ -180,7 +223,10 @@ export async function POST(req) {
     const response = NextResponse.json({
       success: true,
       orderId: created.id,
-      orderNumber: created.orderNumber
+      orderNumber: created.orderNumber,
+      isSecondGeneration: isSecondGenApproved,
+      paymentStatus: isSecondGenApproved ? 'PAGAMENTO_APROVADO' : 'AGUARDANDO_PAGAMENTO',
+      parentOrderId: resolvedParentOrderId || null
     }, { status: 200 });
     response.cookies.set(claimCookieName(created.id), claimToken, { httpOnly: true, secure: new URL(req.url).protocol === 'https:', sameSite: 'lax', path: '/', maxAge: 30 * 24 * 60 * 60 });
     return response;

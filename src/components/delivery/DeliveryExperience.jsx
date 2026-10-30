@@ -43,6 +43,21 @@ export default function DeliveryExperience({
     secondGenOrder?.productionStatus === 'RASCUNHO'
   );
 
+  const isChildOrder = Boolean(
+    order?.parentOrderId ||
+    order?.extras?.parentOrderId ||
+    order?.origem === 'segunda_geracao' ||
+    order?.isSecondGeneration ||
+    order?.extras?.isSecondGeneration
+  );
+  const secondGenUsed = Boolean(
+    order?.segundaGeracaoUsada ||
+    order?.extras?.segundaGeracaoUsada ||
+    order?.relatedOrder ||
+    secondGenOrder
+  );
+  const hasFreeSecondGen = Boolean(paid && !isChildOrder && !secondGenUsed);
+
   const primarySongCard = (
     <SongCard
       order={firstGenOrder || order}
@@ -246,9 +261,19 @@ export default function DeliveryExperience({
               <p className="nx-helper">Você vê os detalhes e o preço antes de comprar um complemento.</p>
             </details>
 
-            <Link href="/criar?novo=1" className="nx-button">
-              Criar outra música
-            </Link>
+            {hasFreeSecondGen ? (
+              <Link
+                href={`/criar?novo=1&origem=segunda_geracao&orderRef=${encodeURIComponent(orderId || order?.id || '')}`}
+                className="nx-button"
+                style={{ background: '#059669', borderColor: '#059669', color: '#ffffff', fontWeight: 700 }}
+              >
+                ✨ Criar Minhas +2 Músicas Grátis
+              </Link>
+            ) : (
+              <Link href="/criar?novo=1" className="nx-button">
+                Criar outra música
+              </Link>
+            )}
           </div>
         )}
 

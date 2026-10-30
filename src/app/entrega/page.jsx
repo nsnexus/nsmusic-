@@ -375,8 +375,20 @@ function EntregaContent() {
   const isPaid = isPaidState ||
     order?.paymentStatus === 'PAGAMENTO_APROVADO' ||
     order?.paymentStatus === 'PAGO' ||
+    Boolean(order?.isSecondGeneration || order?.extras?.isSecondGeneration || order?.paidSku === 'segunda_geracao_bonus' || order?.extras?.paidSku === 'segunda_geracao_bonus') ||
     order?.relatedOrder?.paymentStatus === 'PAGAMENTO_APROVADO' ||
     order?.relatedOrder?.paymentStatus === 'PAGO';
+
+  const hasFreeSecondGen = Boolean(
+    isPaid &&
+    !order?.segundaGeracaoUsada &&
+    !order?.extras?.segundaGeracaoUsada &&
+    !order?.relatedOrder &&
+    !order?.parentOrderId &&
+    !order?.extras?.parentOrderId &&
+    !order?.isSecondGeneration &&
+    !order?.extras?.isSecondGeneration
+  );
 
   // Preço e texto do bloco de pagamento, derivados do pacote escolhido. Aqui é só EXIBIÇÃO — quem
   // cobra é o servidor, a partir do sku (C-05 no AUDIT_REPORT.md). Mas exibir um valor diferente do
@@ -1796,8 +1808,22 @@ function EntregaContent() {
               <Image src="/logo.png" alt="NS Music" width={48} height={48} className="entrega-brand-logo" priority />
             </Link>
             {isPaid && (
-              <Link href="/criar" className="btn btn-primary entrega-header-action" style={{ padding: '6px 12px', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '4px', textDecoration: 'none', minHeight: '36px' }}>
-                <Sparkles size={14} color="#f472b6" aria-hidden="true" style={{ display: 'inline', verticalAlign: '-2px', marginRight: 4 }} /> <span>Nova Música</span>
+              <Link
+                href={hasFreeSecondGen ? `/criar?novo=1&origem=segunda_geracao&orderRef=${encodeURIComponent(orderId || order?.id || '')}` : '/criar'}
+                className="btn btn-primary entrega-header-action"
+                style={{
+                  padding: '6px 12px',
+                  fontSize: '0.8rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  textDecoration: 'none',
+                  minHeight: '36px',
+                  ...(hasFreeSecondGen ? { background: '#059669', borderColor: '#059669', color: '#ffffff' } : {})
+                }}
+              >
+                <Sparkles size={14} color={hasFreeSecondGen ? '#ffffff' : '#f472b6'} aria-hidden="true" style={{ display: 'inline', verticalAlign: '-2px', marginRight: 4 }} />
+                <span>{hasFreeSecondGen ? 'Criar +2 Músicas Grátis' : 'Nova Música'}</span>
               </Link>
             )}
           </div>

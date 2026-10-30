@@ -6,6 +6,7 @@ import { Gift, Sparkles, CheckCircle2, Check, ArrowRight } from 'lucide-react';
 import PixQrCode from '@/components/PixQrCode';
 
 export default function SecondSongOffer({ orderId, order }) {
+  const safeOrderId = orderId || order?.id || order?.orderNumber || '';
   const hasVideo = Boolean(order?.hasVideoAccess || order?.videoAddonPaid || order?.videoUrl || order?.has_video_access);
   const paidAmount = Number(order?.paidAmount || order?.expectedAmount || order?.extras?.paidAmount || order?.extras?.expectedAmount || 0);
   const isEligibleOrder = Boolean(hasVideo || paidAmount >= 16.89);
@@ -193,7 +194,7 @@ export default function SecondSongOffer({ orderId, order }) {
         <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
           <Link
             className="nx-button nx-primary"
-            href={`/criar?novo=1&origem=segunda_geracao&orderRef=${encodeURIComponent(orderId)}`}
+            href={`/criar?novo=1&origem=segunda_geracao&orderRef=${encodeURIComponent(safeOrderId)}`}
             style={{
               padding: '14px 28px',
               fontSize: '1rem',
@@ -265,7 +266,7 @@ export default function SecondSongOffer({ orderId, order }) {
         <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
           <Link
             className="nx-button nx-primary"
-            href={`/criar?novo=1&origem=segunda_musica&orderRef=${encodeURIComponent(orderId)}`}
+            href={`/criar?novo=1&origem=segunda_musica&orderRef=${encodeURIComponent(safeOrderId)}`}
             style={{
               padding: '14px 28px',
               fontSize: '1rem',
