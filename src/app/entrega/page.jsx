@@ -379,11 +379,17 @@ function EntregaContent() {
     order?.relatedOrder?.paymentStatus === 'PAGAMENTO_APROVADO' ||
     order?.relatedOrder?.paymentStatus === 'PAGO';
 
+  const relatedOrderHasAudio = Boolean(
+    order?.relatedOrder?.audioUrl ||
+    (Array.isArray(order?.relatedOrder?.audioFiles) && order?.relatedOrder?.audioFiles.length > 0) ||
+    ['AUDIO_GERADO', 'CONCLUIDO', 'FINALIZADO', 'ENTREGUE'].includes(order?.relatedOrder?.productionStatus)
+  );
+
   const hasFreeSecondGen = Boolean(
     isPaid &&
     !order?.segundaGeracaoUsada &&
     !order?.extras?.segundaGeracaoUsada &&
-    !order?.relatedOrder &&
+    (!order?.relatedOrder || !relatedOrderHasAudio) &&
     !order?.parentOrderId &&
     !order?.extras?.parentOrderId &&
     !order?.isSecondGeneration &&

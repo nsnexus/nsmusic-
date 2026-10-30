@@ -35,12 +35,14 @@ export default function DeliveryExperience({
   const hasSecondGenAudio = Boolean(
     secondGenTracks?.length > 0 ||
     secondGenOrder?.audioUrl ||
-    (Array.isArray(secondGenOrder?.audioFiles) && secondGenOrder.audioFiles.length > 0)
+    (Array.isArray(secondGenOrder?.audioFiles) && secondGenOrder.audioFiles.length > 0) ||
+    ['AUDIO_GERADO', 'CONCLUIDO', 'FINALIZADO', 'ENTREGUE'].includes(secondGenOrder?.productionStatus)
   );
   const isSecondGenGenerating = hasSecondGen && !hasSecondGenAudio && (
     secondGenOrder?.productionStatus === 'PROCESSANDO' ||
     secondGenOrder?.productionStatus === 'GERANDO' ||
-    secondGenOrder?.productionStatus === 'RASCUNHO'
+    secondGenOrder?.productionStatus === 'GERANDO_AUDIO' ||
+    secondGenOrder?.productionStatus === 'EM_PRODUCAO'
   );
 
   const isChildOrder = Boolean(
@@ -51,12 +53,9 @@ export default function DeliveryExperience({
     order?.extras?.isSecondGeneration
   );
   const secondGenUsed = Boolean(
-    order?.segundaGeracaoUsada ||
-    order?.extras?.segundaGeracaoUsada ||
-    order?.relatedOrder ||
-    secondGenOrder
-  );
-  const hasFreeSecondGen = Boolean(paid && !isChildOrder && !secondGenUsed);
+    (order?.segundaGeracaoUsada || order?.extras?.segundaGeracaoUsada) && (hasSecondGenAudio || !secondGenOrder)
+  ) || hasSecondGenAudio;
+  const hasFreeSecondGen = Boolean(paid && !isChildOrder && !secondGenUsed && !isSecondGenGenerating);
 
   const primarySongCard = (
     <SongCard

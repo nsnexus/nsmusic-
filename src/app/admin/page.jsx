@@ -2336,9 +2336,17 @@ export default function AdminDashboard() {
                                   <span style={{ ...styles.statusBadge, border: `1px solid ${getStatusBadgeColor(o.productionStatus)}44`, color: getStatusBadgeColor(o.productionStatus), backgroundColor: `${getStatusBadgeColor(o.productionStatus)}10` }}>
                                     {o.productionStatus || 'PENDENTE'}
                                   </span>
-                                  {o.secondGeneration || o.secondOrderCreated ? (
+                                  {o.secondGeneration?.hasAudio || (o.secondOrderCreated && !o.secondOrderDraft) ? (
                                     <span title="Cliente gerou a 2ª música (4 faixas disponíveis no pedido)" style={{ fontSize: '0.7rem', fontWeight: '800', color: '#15803d', backgroundColor: '#dcfce7', padding: '1px 6px', borderRadius: '6px', border: '1px solid #bbf7d0', display: 'inline-flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap' }}>
                                       🎵 2ª Música: Gerada
+                                    </span>
+                                  ) : (o.secondGeneration?.isGenerating || o.secondOrderGenerating) ? (
+                                    <span title="2ª música está sendo gerada pelo estúdio" style={{ fontSize: '0.7rem', fontWeight: '800', color: '#7e22ce', backgroundColor: '#f3e8ff', padding: '1px 6px', borderRadius: '6px', border: '1px solid #ddd6fe', display: 'inline-flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap' }}>
+                                      ⏳ 2ª Música: Gerando
+                                    </span>
+                                  ) : (o.secondGeneration?.isDraft || o.secondOrderDraft) ? (
+                                    <span title="Cliente iniciou o rascunho da 2ª música mas ainda não gerou o áudio" style={{ fontSize: '0.7rem', fontWeight: '700', color: '#0369a1', backgroundColor: '#e0f2fe', padding: '1px 6px', borderRadius: '6px', border: '1px solid #bae6fd', display: 'inline-flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap' }}>
+                                      📝 2ª Música: Rascunho
                                     </span>
                                   ) : (o.paymentStatus === 'PAGO' || o.paymentStatus === 'PAGAMENTO_APROVADO') ? (
                                     <span title="Cliente tem direito à 2ª geração grátis, mas ainda não gerou" style={{ fontSize: '0.7rem', fontWeight: '700', color: '#92400e', backgroundColor: '#fef3c7', padding: '1px 6px', borderRadius: '6px', border: '1px solid #fde68a', display: 'inline-flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap' }}>

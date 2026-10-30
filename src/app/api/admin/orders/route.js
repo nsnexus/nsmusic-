@@ -97,18 +97,27 @@ export async function GET(req) {
       .map(parent => {
         const child = childOrdersMap.get(parent.id) || childOrdersMap.get(parent.orderNumber);
         if (child) {
+          const childAudioFiles = Array.isArray(child.audioFiles) && child.audioFiles.length > 0 ? child.audioFiles : (child.audioUrl ? [child.audioUrl] : []);
+          const childHasAudio = childAudioFiles.length > 0 || ['AUDIO_GERADO', 'CONCLUIDO', 'FINALIZADO', 'ENTREGUE'].includes(child.productionStatus);
+          const childIsGenerating = !childHasAudio && ['GERANDO_AUDIO', 'EM_PRODUCAO', 'PROCESSANDO', 'GERANDO'].includes(child.productionStatus);
+
           parent.secondGeneration = {
             id: child.id,
             orderNumber: child.orderNumber,
             productionStatus: child.productionStatus,
             audioUrl: child.audioUrl,
-            audioFiles: Array.isArray(child.audioFiles) && child.audioFiles.length > 0 ? child.audioFiles : (child.audioUrl ? [child.audioUrl] : []),
+            audioFiles: childAudioFiles,
             lyrics: child.lyrics,
             musicStyle: child.musicStyle,
             musicMood: child.musicMood,
-            createdAt: child.createdAt
+            createdAt: child.createdAt,
+            hasAudio: childHasAudio,
+            isGenerating: childIsGenerating,
+            isDraft: !childHasAudio && !childIsGenerating,
           };
-          parent.secondOrderCreated = true;
+          parent.secondOrderCreated = childHasAudio;
+          parent.secondOrderDraft = !childHasAudio && !childIsGenerating;
+          parent.secondOrderGenerating = childIsGenerating;
         }
         return parent;
       });

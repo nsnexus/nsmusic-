@@ -147,12 +147,22 @@ export default function SecondSongOffer({ orderId, order }) {
   }
 
   // Estratégia de 4 Músicas: se o pedido pagou o pacote de 4 músicas e tem a 2ª geração livre
-  const hasFreeSecondGen = Boolean(
-    (order?.segundaGeracaoDisponivel || order?.hasSecondSongAccess || (order?.paymentStatus === 'PAGO' || order?.paymentStatus === 'PAGAMENTO_APROVADO')) &&
-    !order?.segundaGeracaoUsada &&
-    !order?.relatedOrder
+  const hasAudioGenerated = (ord) => Boolean(
+    ord?.audioUrl ||
+    (Array.isArray(ord?.audioFiles) && ord.audioFiles.length > 0) ||
+    ['AUDIO_GERADO', 'CONCLUIDO', 'FINALIZADO', 'ENTREGUE'].includes(ord?.productionStatus)
   );
-  const secondGenUsed = Boolean(order?.segundaGeracaoUsada || order?.relatedOrder);
+
+  const relatedHasAudio = hasAudioGenerated(order?.relatedOrder);
+  const isParentOrderPaid = order?.paymentStatus === 'PAGO' || order?.paymentStatus === 'PAGAMENTO_APROVADO';
+  const secondGenUsed = Boolean(
+    (order?.segundaGeracaoUsada || order?.extras?.segundaGeracaoUsada) && (relatedHasAudio || !order?.relatedOrder)
+  ) || relatedHasAudio;
+
+  const hasFreeSecondGen = Boolean(
+    (order?.segundaGeracaoDisponivel || order?.hasSecondSongAccess || isParentOrderPaid) &&
+    !secondGenUsed
+  );
 
   if (hasFreeSecondGen) {
     return (
@@ -194,7 +204,11 @@ export default function SecondSongOffer({ orderId, order }) {
         <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
           <Link
             className="nx-button nx-primary"
-            href={`/criar?novo=1&origem=segunda_geracao&orderRef=${encodeURIComponent(safeOrderId)}`}
+            href={
+              order?.relatedOrder && !relatedHasAudio
+                ? `/criar?orderId=${encodeURIComponent(order.relatedOrder.id)}&orderRef=${encodeURIComponent(safeOrderId)}&origem=segunda_geracao`
+                : `/criar?novo=1&origem=segunda_geracao&orderRef=${encodeURIComponent(safeOrderId)}`
+            }
             style={{
               padding: '14px 28px',
               fontSize: '1rem',
@@ -207,7 +221,7 @@ export default function SecondSongOffer({ orderId, order }) {
               boxShadow: '0 4px 14px rgba(5, 150, 105, 0.3)',
             }}
           >
-            ✨ Criar Minhas +2 Músicas Grátis
+            {order?.relatedOrder && !relatedHasAudio ? '✨ Continuar Minhas +2 Músicas Grátis' : '✨ Criar Minhas +2 Músicas Grátis'}
           </Link>
         </div>
       </section>

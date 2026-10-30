@@ -94,11 +94,8 @@ export async function POST(req) {
             hasCartaAccess: Boolean(parentOrder.hasCartaAccess || parentOrder.cartaAddonPaid),
             hasRetrospectivaAccess: Boolean(parentOrder.hasRetrospectivaAccess || parentOrder.retrospectivaAddonPaid),
           };
-          // Registra o consumo da 2ª geração no pedido pai
-          await updateOrder(resolvedParentOrderId, {
-            segundaGeracaoUsada: true,
-            segundaGeracaoUsadaAt: parentOrder.segundaGeracaoUsadaAt || createdAtIso,
-          }, env);
+          // O consumo da 2ª geração (segundaGeracaoUsada: true) NÃO é marcado aqui na criação.
+          // Só é concluído quando a música for de fato gerada na IA (updateTaskResult).
         }
       } catch (err) {
         console.warn('[orders/create] Falha ao verificar bônus de 2ª geração:', err?.message);
@@ -119,9 +116,7 @@ export async function POST(req) {
           !o.isSecondGeneration &&
           !o.extras?.isSecondGeneration &&
           !o.segundaGeracaoUsada &&
-          !o.extras?.segundaGeracaoUsada &&
-          !o.secondGenerationOrderId &&
-          !o.extras?.secondGenerationOrderId
+          !o.extras?.segundaGeracaoUsada
         );
         if (eligibleParent) {
           resolvedParentOrderId = eligibleParent.id;
@@ -131,10 +126,7 @@ export async function POST(req) {
             hasCartaAccess: Boolean(eligibleParent.hasCartaAccess || eligibleParent.cartaAddonPaid),
             hasRetrospectivaAccess: Boolean(eligibleParent.hasRetrospectivaAccess || eligibleParent.retrospectivaAddonPaid),
           };
-          await updateOrder(resolvedParentOrderId, {
-            segundaGeracaoUsada: true,
-            segundaGeracaoUsadaAt: eligibleParent.segundaGeracaoUsadaAt || createdAtIso,
-          }, env);
+          // O consumo da 2ª geração só é concluído quando a música for de fato gerada na IA.
         }
       } catch (phoneErr) {
         console.warn('[orders/create] Falha ao auto-vincular 2ª geração por telefone:', phoneErr?.message);

@@ -277,6 +277,22 @@ export const updateTaskResult = async (taskId, result, overrideOrderId = null, e
       await updateOrder(orderId, updates, env);
       console.log(`Ordem ${orderId} atualizada com sucesso com ${audioFiles.length} áudios!`);
 
+      // Se este pedido for uma 2ª geração, conclui o consumo no pedido pai agora que a música foi de fato gerada!
+      const parentIdToUpdate = orderData.parentOrderId || orderData.extras?.parentOrderId || orderData.orderRef || orderData.extras?.orderRef;
+      if (parentIdToUpdate && (orderData.isSecondGeneration || orderData.origem === 'segunda_geracao' || orderData.origem === 'segunda_musica' || orderData.paidSku === 'segunda_geracao_bonus')) {
+        try {
+          await updateOrder(parentIdToUpdate, {
+            segundaGeracaoUsada: true,
+            segundaGeracaoUsadaAt: new Date().toISOString(),
+            secondGenerationOrderId: orderId,
+            segundaGeracaoOrderId: orderId,
+          }, env);
+          console.log(`[db] 2ª geração concluída: pedido pai ${parentIdToUpdate} marcado como segundaGeracaoUsada.`);
+        } catch (parentErr) {
+          console.warn('[db] Falha ao marcar segundaGeracaoUsada no pedido pai:', parentErr?.message);
+        }
+      }
+
       let archiveResult = null;
       if (!isMesmaMusicaJaArquivada) {
         try {
