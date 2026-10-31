@@ -3113,538 +3113,360 @@ function EntregaContent() {
                 )}
 
                 {!isPaid && (
-                  /* SE PENDENTE: Bloco de Pagamento PIX Instantâneo (Imagem 1) */
+                  /* SE PENDENTE: Bloco de Pagamento PIX Instantâneo no Padrão Capivarinha Love (/criar) */
                   <div
                     id="pagamento"
                     style={{
-                      padding: '24px 18px',
-                      borderRadius: '20px',
-                      backgroundColor: '#ffffff',
-                      border: '1.5px solid #e2e8f0',
-                      boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.05)',
+                      maxWidth: '36rem',
+                      margin: '0 auto',
+                      width: '100%',
                       scrollMarginTop: '80px',
                     }}
                   >
-                    <div style={{ textAlign: 'center', marginBottom: '18px', position: 'relative' }}>
-                      <NotasDecorativas />
-                      <div style={{ fontSize: '1.4rem', marginBottom: '4px', position: 'relative' }}>🎵</div>
-                      <h3 style={{ fontSize: '1.25rem', fontWeight: '800', margin: '0 0 6px', color: '#1e293b', lineHeight: 1.25 }}>
-                        {promo ? (
-                          '🎁 Oferta Especial Liberada!'
-                        ) : (
-                          <>
-                            Libere as músicas completas<br />
-                            <span style={{ color: '#7c3aed' }}>em MP3 HD</span>
-                          </>
-                        )}
-                      </h3>
-                      <p style={{ fontSize: '0.84rem', color: '#64748b', margin: '6px 0 0', lineHeight: 1.45 }}>
-                        {promo ? (
-                          <>
-                            Pague apenas{' '}
-                            <strong style={{ color: 'var(--success)', fontSize: '1.1rem' }}>
-                              R$ {valorCobrado.toFixed(2).replace('.', ',')}
-                            </strong>{' '}
-                            para liberar as 2 versões completas e <strong>ganhe o Vídeo Homenagem de brinde!</strong>
-                          </>
-                        ) : (
-                          'Você ouviu a prévia. O pagamento libera as 2 versões completas, sem corte, em MP3 HD. E cada faixa acima do mínimo vem com um extra de brinde.'
-                        )}
+                    <div style={{ textAlign: 'center', marginBottom: '18px' }}>
+                      <span className="wz-guide" style={{ color: '#E32B6D', fontSize: '0.8rem', fontWeight: '800', letterSpacing: '0.04em' }}>
+                        LIBERAÇÃO IMEDIATA • ESCOLHA SEU PRESENTE
+                      </span>
+                      <h2 className="wz-t" style={{ fontSize: '1.45rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', margin: '8px 0 6px', color: '#1e293b' }}>
+                        <span>🎁</span> Escolha o seu presente
+                      </h2>
+                      <p className="wz-s" style={{ fontSize: '0.88rem', color: '#64748b', margin: '0 auto', maxWidth: '440px', lineHeight: 1.45 }}>
+                        Ao escolher qualquer opção, você libera o download imediato das suas músicas completas sem corte e ganha <strong>+2 músicas de bônus</strong>!
                       </p>
                     </div>
 
-                                        {!promo && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px', width: '100%' }}>
-                        {pacotesEntrega.map((pacote) => {
-                          const isSelected = valorEscolhido !== null && Math.abs(valorEscolhido - pacote.valor) < 0.01;
+                    {promo && (
+                      <div style={{ background: '#fdf2f8', border: '1.5px solid #fbcfe8', borderRadius: '16px', padding: '14px 16px', marginBottom: '16px', textAlign: 'center' }}>
+                        <p style={{ margin: 0, fontSize: '0.92rem', color: '#db2777', fontWeight: '800' }}>
+                          🎁 Oferta Especial Liberada!
+                        </p>
+                        <p style={{ margin: '4px 0 0', fontSize: '0.84rem', color: '#9d174d' }}>
+                          Pague apenas <strong>R$ {valorCobrado.toFixed(2).replace('.', ',')}</strong> para liberar as versões completas e ganhe o Vídeo Homenagem de brinde!
+                        </p>
+                      </div>
+                    )}
 
+                    {/* Lista de Presentes no padrão idêntico a /criar */}
+                    {!promo && (
+                      <div className="presente-list">
+                        {pacotesEntrega.map((pacote) => {
+                          const isSelected = selectedPackage === pacote.sku;
                           return (
                             <div
                               key={pacote.sku}
+                              className={`presente-card ${isSelected ? 'on' : ''}`}
+                              onClick={() => handleSelectPackageEntrega(pacote.sku)}
                               role="button"
                               tabIndex={0}
-                              onClick={() => escolherFaixa(pacote.valor, pacote.sku)}
                               onKeyDown={(e) => {
                                 if (e.key === 'Enter' || e.key === ' ') {
                                   e.preventDefault();
-                                  escolherFaixa(pacote.valor, pacote.sku);
+                                  handleSelectPackageEntrega(pacote.sku);
                                 }
                               }}
-                              style={{
-                                display: 'flex',
-                                flexDirection: 'column',
-                                padding: pacote.destaquePrincipal ? '15px 16px 14px' : '13px 15px',
-                                borderRadius: '18px',
-                                border: isSelected
-                                  ? (pacote.destaquePrincipal ? '2px solid #8b5cf6' : '2px solid #6366f1')
-                                  : (pacote.destaquePrincipal ? '1.5px solid #d8b4fe' : '1.5px solid #e2e8f0'),
-                                backgroundColor: isSelected
-                                  ? (pacote.destaquePrincipal ? '#faf5ff' : '#f8fafc')
-                                  : (pacote.destaquePrincipal ? '#ffffff' : '#ffffff'),
-                                cursor: pixLoading ? 'default' : 'pointer',
-                                position: 'relative',
-                                textAlign: 'left',
-                                transition: 'all 0.2s ease',
-                                boxShadow: isSelected
-                                  ? (pacote.destaquePrincipal
-                                      ? '0 10px 25px -4px rgba(139, 92, 246, 0.22), 0 0 0 1px rgba(139, 92, 246, 0.2)'
-                                      : '0 6px 18px -3px rgba(99, 102, 241, 0.15)')
-                                  : (pacote.destaquePrincipal ? '0 4px 14px rgba(139, 92, 246, 0.08)' : '0 2px 6px rgba(0, 0, 0, 0.02)'),
-                                transform: isSelected && pacote.destaquePrincipal ? 'scale(1.01)' : 'none',
-                              }}
                             >
-                              {/* Badge de Destaque Flutuante */}
                               {pacote.destaque && (
-                                <span
-                                  style={{
-                                    position: 'absolute',
-                                    top: '-11px',
-                                    right: '16px',
-                                    background: pacote.destaquePrincipal
-                                      ? 'linear-gradient(90deg, #7c3aed 0%, #db2777 100%)'
-                                      : 'linear-gradient(90deg, #6366f1 0%, #8b5cf6 100%)',
-                                    color: '#ffffff',
-                                    fontSize: '0.66rem',
-                                    fontWeight: '800',
-                                    padding: '3px 11px',
-                                    borderRadius: '999px',
-                                    boxShadow: '0 3px 10px rgba(124, 58, 237, 0.35)',
-                                    letterSpacing: '0.04em',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '4px',
-                                    zIndex: 2,
-                                  }}
-                                >
+                                <span className={pacote.destaqueClass || 'badge-mais-escolhido'}>
                                   {pacote.destaque}
                                 </span>
                               )}
-
-                              {/* Linha Superior: Ícone + Títulos + Preço + Radio */}
-                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
-                                {/* Ícone estilizado em gradiente + Nome do Pacote */}
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flex: 1 }}>
-                                  <div
-                                    style={{
-                                      width: '40px',
-                                      height: '40px',
-                                      borderRadius: '12px',
-                                      background: pacote.iconBg || '#f1f5f9',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
-                                      flexShrink: 0,
-                                      boxShadow: isSelected ? '0 4px 10px rgba(0, 0, 0, 0.12)' : 'none',
-                                    }}
-                                  >
-                                    {pacote.icone}
-                                  </div>
-
-                                  <div style={{ minWidth: 0 }}>
-                                    <div
-                                      style={{
-                                        fontWeight: '800',
-                                        fontSize: '0.96rem',
-                                        color: isSelected && pacote.destaquePrincipal ? '#6b21a8' : '#1e293b',
-                                        lineHeight: 1.25,
-                                        letterSpacing: '-0.01em',
-                                      }}
-                                    >
-                                      {pacote.nomePacote || pacote.titulo}
-                                    </div>
-                                    <div
-                                      style={{
-                                        fontSize: '0.74rem',
-                                        color: isSelected && pacote.destaquePrincipal ? '#9333ea' : '#64748b',
-                                        lineHeight: 1.3,
-                                        marginTop: '2px',
-                                        fontWeight: isSelected && pacote.destaquePrincipal ? '600' : '400',
-                                      }}
-                                    >
-                                      {pacote.subtitulo || (pacote.linhas ? pacote.linhas.join(' ') : '')}
-                                    </div>
-                                  </div>
-                                </div>
-
-                                {/* Preço e Seletor Radio */}
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
-                                  <div style={{ textAlign: 'right' }}>
-                                    <div
-                                      style={{
-                                        fontWeight: '900',
-                                        fontSize: pacote.destaquePrincipal ? '1.24rem' : '1.12rem',
-                                        color: isSelected ? (pacote.priceColor || '#7c3aed') : '#1e293b',
-                                        whiteSpace: 'nowrap',
-                                        letterSpacing: '-0.02em',
-                                      }}
-                                    >
-                                      R$ {pacote.valor.toFixed(2).replace('.', ',')}
-                                    </div>
-                                    {pacote.tagline && (
-                                      <div style={{ fontSize: '0.66rem', color: '#16a34a', fontWeight: '700' }}>
-                                        {pacote.tagline}
-                                      </div>
-                                    )}
-                                  </div>
-
-                                  {/* Radio Circle com Checkmark SVG */}
-                                  <div
-                                    style={{
-                                      width: '22px',
-                                      height: '22px',
-                                      borderRadius: '50%',
-                                      border: isSelected ? '2px solid #8b5cf6' : '2px solid #cbd5e1',
-                                      backgroundColor: isSelected ? '#8b5cf6' : '#ffffff',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
-                                      flexShrink: 0,
-                                      transition: 'all 0.2s ease',
-                                      boxShadow: isSelected ? '0 0 0 3px rgba(139, 92, 246, 0.2)' : 'none',
-                                    }}
-                                  >
-                                    {isSelected && (
-                                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
-                                        <polyline points="20 6 9 17 4 12" />
-                                      </svg>
-                                    )}
-                                  </div>
-                                </div>
+                              <div className="presente-radio">
+                                {isSelected && <div className="presente-radio-dot" />}
                               </div>
-
-                              {/* Checklist de Recursos Inclusos no Pacote */}
-                              {pacote.itens && pacote.itens.length > 0 && (
-                                <div
-                                  style={{
-                                    marginTop: '11px',
-                                    paddingTop: '9px',
-                                    borderTop: isSelected ? '1px solid #ede9fe' : '1px solid #f1f5f9',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    gap: '5px',
-                                  }}
-                                >
-                                  {pacote.itens.map((item, idx) => (
-                                    <div
-                                      key={idx}
-                                      style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '7px',
-                                        fontSize: '0.76rem',
-                                        color: item.destaque ? '#0f172a' : '#64748b',
-                                        fontWeight: item.destaque ? '700' : '500',
-                                      }}
-                                    >
-                                      <span style={{ color: item.destaque ? '#16a34a' : '#8b5cf6', fontSize: '0.82rem', fontWeight: 'bold' }}>
-                                        ✓
-                                      </span>
-                                      <span style={{ flex: 1 }}>{item.texto}</span>
-                                      {item.tag && (
-                                        <span
-                                          style={{
-                                            fontSize: '0.62rem',
-                                            fontWeight: '800',
-                                            padding: '1px 6px',
-                                            borderRadius: '6px',
-                                            backgroundColor: '#dcfce7',
-                                            color: '#15803d',
-                                            border: '1px solid #bbf7d0',
-                                          }}
-                                        >
-                                          {item.tag}
-                                        </span>
-                                      )}
-                                    </div>
-                                  ))}
+                              <div className="presente-content">
+                                <div className="presente-header">
+                                  <h3 className="presente-title">{pacote.icone} {pacote.nomePacote}</h3>
+                                  <span className="presente-price">R$ {pacote.valor.toFixed(2).replace('.', ',')}</span>
                                 </div>
-                              )}
+                                <p className="presente-desc">{pacote.desc}</p>
+                              </div>
                             </div>
                           );
                         })}
                       </div>
                     )}
 
-                    {pixLoading ? (
-                      <div style={{ textAlign: 'center', padding: '20px' }}>
-                        <div style={styles.spinner} />
-                        <p style={{ fontSize: '0.85rem', marginTop: '10px', color: 'var(--text-muted)' }}>Gerando PIX com aprovação instantânea...</p>
-                      </div>
-                    ) : pixError ? (
-                      /* Estado de erro visível e com saída. Antes desta tela a falha só existia como
-                         alert, que voltava a cada retentativa automática e deixava o cliente sem
-                         nenhum caminho — nem pagar, nem entender o que aconteceu. */
-                      <div style={{ textAlign: 'center', padding: '8px 4px' }}>
-                        <p style={{ fontSize: '0.95rem', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '6px' }}>
-                          {pixError}
-                        </p>
-                        <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
-                          Sua música está salva e o pedido continua valendo. Tente de novo em alguns
-                          instantes. Se continuar, fale com o suporte pelo WhatsApp que a gente
-                          libera manualmente.
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => handleGeneratePix()}
-                          className="btn btn-primary"
-                          style={{ width: '100%', padding: '14px', fontSize: '1rem', fontWeight: 'bold', background: 'linear-gradient(135deg, #059669 0%, #047857 100%)', border: 'none', color: '#fff', cursor: 'pointer' }}
+                    {/* Box de Pagamento PIX Instantâneo no padrão de /criar */}
+                    <div style={{ backgroundColor: '#ffffff', borderRadius: '20px', border: '1.5px solid #F1E4E8', padding: '22px 20px', boxShadow: '0 4px 18px rgba(0,0,0,0.03)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+                        <div
+                          style={{
+                            width: '38px',
+                            height: '38px',
+                            borderRadius: '10px',
+                            backgroundColor: '#ecfdf5',
+                            border: '1px solid #a7f3d0',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '1.15rem',
+                            flexShrink: 0,
+                          }}
                         >
-                          <RefreshCw size={16} aria-hidden="true" style={{ display: 'inline', verticalAlign: '-2px', marginRight: 6 }} /> Tentar gerar o PIX novamente
-                        </button>
+                          ⚡
+                        </div>
+                        <div>
+                          <h3 style={{ fontSize: '1.2rem', color: '#0f172a', fontWeight: '800', margin: 0 }}>
+                            Pagamento via PIX Instantâneo
+                          </h3>
+                          <span style={{ fontSize: '0.78rem', color: '#059669', fontWeight: '700' }}>
+                            ✓ Liberação automática e imediata
+                          </span>
+                        </div>
                       </div>
-                    ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', alignItems: 'center' }}>
-                        {pixInfo.qrCode ? (
-                          <div style={{ width: '100%' }}>
-                            {/* QR Code como caminho principal: parte dos clientes não localizava o
-                                botão de copiar e desistia do pagamento. O copia-e-cola continua
-                                abaixo para quem paga pelo computador. */}
-                            {/* O valor aparece colado no QR de propósito: a escada fica acima e sai
-                                da tela quando o cliente rola até aqui, e quem paga sem ver o total
-                                é quem depois manda comprovante de outro valor. */}
-                            <div
-                              style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '18px',
-                                flexWrap: 'wrap',
-                                padding: '16px 14px',
-                                marginBottom: '14px',
-                                backgroundColor: '#f5f3ff',
-                                border: '1px solid #ede9fe',
-                                borderRadius: '16px',
-                              }}
-                            >
+
+                      {pixLoading ? (
+                        <div style={{ textAlign: 'center', padding: '24px 16px' }}>
+                          <div style={styles.spinner} />
+                          <p style={{ fontSize: '0.88rem', marginTop: '12px', color: 'var(--text-muted)' }}>Gerando PIX com aprovação instantânea...</p>
+                        </div>
+                      ) : pixError ? (
+                        <div style={{ textAlign: 'center', padding: '12px 8px' }}>
+                          <p style={{ fontSize: '0.95rem', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '6px' }}>
+                            {pixError}
+                          </p>
+                          <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+                            Sua música está salva e o pedido continua valendo. Tente de novo em alguns instantes.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => handleGeneratePix(selectedPackage, false, valorEscolhido)}
+                            className="btn btn-primary"
+                            style={{ width: '100%', padding: '14px', fontSize: '1rem', fontWeight: 'bold', background: 'linear-gradient(135deg, #059669 0%, #047857 100%)', border: 'none', color: '#fff', cursor: 'pointer', borderRadius: '12px' }}
+                          >
+                            <RefreshCw size={16} aria-hidden="true" style={{ display: 'inline', verticalAlign: '-2px', marginRight: 6 }} /> Tentar gerar o PIX novamente
+                          </button>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '6px' }}>
+                          {!pixInfo?.qrCode ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                              <button
+                                type="button"
+                                disabled={pixLoading}
+                                onClick={() => handleGeneratePix(selectedPackage, false, valorEscolhido)}
+                                className="btn btn-primary"
+                                style={{ padding: '16px', fontSize: '1.05rem', fontWeight: '800', borderRadius: '14px', background: 'linear-gradient(135deg, #059669 0%, #047857 100%)', boxShadow: '0 4px 16px rgba(5, 150, 105, 0.3)', border: 'none', color: '#fff', cursor: 'pointer', width: '100%' }}
+                              >
+                                {pixLoading ? '⏳ Gerando PIX...' : `⚡ Pagar com PIX (R$ ${valorCobrado.toFixed(2).replace('.', ',')})`}
+                              </button>
+                            </div>
+                          ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', background: '#f8fafc', padding: '24px 20px', borderRadius: '20px', border: '1.5px solid #e2e8f0', maxWidth: '100%', width: '100%', boxSizing: 'border-box' }}>
+                              <span style={{ fontSize: '0.88rem', color: '#059669', fontWeight: '800', backgroundColor: '#ecfdf5', padding: '4px 14px', borderRadius: '999px', border: '1px solid #a7f3d0' }}>
+                                ✅ QR Code PIX Gerado com Sucesso!
+                              </span>
+
+                              {pixPollingTimedOut && (
+                                <div style={{ width: '100%', padding: '12px 16px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '12px', color: '#92400e', fontSize: '0.85rem', textAlign: 'center' }}>
+                                  Ainda não recebemos a confirmação automática deste pagamento. Se você já pagou, clique em &quot;Já paguei&quot; abaixo.
+                                </div>
+                              )}
+
+                              <div style={{ textAlign: 'center' }}>
+                                <p style={{ fontSize: '0.86rem', color: '#475569', marginBottom: '10px' }}>
+                                  Abra o app do seu banco e aponte a câmera para o QR Code:
+                                </p>
+                                <PixQrCode payload={pixInfo.qrCode} />
+                              </div>
+
                               <div style={{ textAlign: 'center' }}>
                                 <p style={{ fontSize: '0.84rem', color: '#64748b', margin: '0 0 2px' }}>
                                   Você vai pagar
                                 </p>
-                                <p style={{ fontSize: '1.9rem', fontWeight: '800', color: '#7c3aed', margin: '0 0 10px', lineHeight: 1.1 }}>
-                                  {valorCobradoTexto}
-                                </p>
-                                <p style={{ fontSize: '0.82rem', color: '#64748b', margin: 0, maxWidth: '190px', lineHeight: 1.4 }}>
-                                  Abra o app do seu banco e aponte a câmera para o QR Code:
+                                <p style={{ fontSize: '1.9rem', fontWeight: '800', color: '#059669', margin: '0 0 6px', lineHeight: 1 }}>
+                                  R$ {valorCobrado.toFixed(2).replace('.', ',')}
                                 </p>
                               </div>
-                              <PixQrCode payload={pixInfo.qrCode} />
-                            </div>
 
-                            <div style={{ marginBottom: '10px' }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                                <label htmlFor="pix-copia-cola-musica" style={{ fontSize: '0.8rem', color: 'var(--text-muted)', cursor: 'pointer' }}>
-                                  Ou use o código PIX Copia e Cola:
-                                </label>
-                                <span style={{ fontSize: '0.72rem', color: pixCopied ? 'var(--success)' : '#64748b', fontWeight: '600' }}>
-                                  {pixCopied ? '✅ Copiado!' : '👆 Clique na caixa para copiar'}
-                                </span>
+                              <div style={{ width: '100%' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                                  <label htmlFor="pix-copia-cola-musica" style={{ fontSize: '0.8rem', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                                    Ou use o código PIX Copia e Cola:
+                                  </label>
+                                  <span style={{ fontSize: '0.72rem', color: pixCopied ? 'var(--success)' : '#64748b', fontWeight: '600' }}>
+                                    {pixCopied ? '✅ Copiado!' : '👆 Clique na caixa para copiar'}
+                                  </span>
+                                </div>
+                                <textarea
+                                  id="pix-copia-cola-musica"
+                                  readOnly
+                                  value={pixInfo.qrCode}
+                                  onClick={(e) => {
+                                    try { e.target?.select?.(); } catch (_) {}
+                                    if (pixInfo?.qrCode) {
+                                      try {
+                                        if (navigator?.clipboard?.writeText) {
+                                          navigator.clipboard.writeText(pixInfo.qrCode).catch(() => {});
+                                        }
+                                      } catch (_) {}
+                                      setPixCopied(true);
+                                      marcarPixCopiado(orderId);
+                                      setTimeout(() => setPixCopied(false), 3000);
+                                    }
+                                  }}
+                                  title="Clique para copiar o código Pix"
+                                  style={{
+                                    width: '100%',
+                                    height: '70px',
+                                    background: pixCopied ? '#ecfdf5' : '#FFFFFF',
+                                    color: '#0f172a',
+                                    border: `1.5px solid ${pixCopied ? 'var(--success)' : 'var(--border-color)'}`,
+                                    borderRadius: '12px',
+                                    padding: '10px',
+                                    fontSize: '0.78rem',
+                                    fontFamily: 'monospace',
+                                    resize: 'none',
+                                    cursor: 'pointer',
+                                    boxSizing: 'border-box'
+                                  }}
+                                />
                               </div>
-                              <textarea
-                                id="pix-copia-cola-musica"
-                                readOnly
-                                value={pixInfo.qrCode}
-                                onClick={(e) => {
-                                  try {
-                                    e.target?.select?.();
-                                  } catch (_) {}
-                                  if (pixInfo?.qrCode) {
-                                    try {
-                                      if (navigator?.clipboard?.writeText) {
-                                        navigator.clipboard.writeText(pixInfo.qrCode).catch(() => {});
-                                      }
-                                    } catch (_) {}
+
+                              <div style={{ display: 'flex', gap: '10px', width: '100%', flexWrap: 'wrap' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(pixInfo.qrCode);
                                     setPixCopied(true);
                                     marcarPixCopiado(orderId);
                                     setTimeout(() => setPixCopied(false), 3000);
-                                  }
-                                }}
-                                title="Clique para copiar o código Pix"
-                                style={{
-                                  width: '100%',
-                                  height: '70px',
-                                  background: pixCopied ? '#ecfdf5' : '#FFFFFF',
-                                  color: '#0f172a',
-                                  border: `1.5px solid ${pixCopied ? 'var(--success)' : 'var(--border-color)'}`,
-                                  borderRadius: '8px',
-                                  padding: '10px',
-                                  fontSize: '0.75rem',
-                                  fontFamily: 'monospace',
-                                  resize: 'none',
-                                  cursor: 'pointer',
-                                  transition: 'all 0.2s ease',
-                                }}
-                              />
-                            </div>
-
-                            {/* Banner paliativo — só aparece se caiu pro fallback estático */}
-                            {pixInfo.provider === 'static' && (
-                              <div style={{ background: '#fef3c7', border: '1.5px solid #f59e0b', borderRadius: '10px', padding: '12px 14px', marginBottom: '4px', textAlign: 'center' }}>
-                                <p style={{ margin: 0, fontSize: '0.82rem', color: '#92400e', fontWeight: '600' }}>
-                                  ⚠️ Após pagar, anexe o comprovante abaixo para liberar automaticamente.
-                                </p>
-                              </div>
-                            )}
-
-                            {receiptStatus === 'failed' && (
-                              <div style={{ background: '#fee2e2', border: '1.5px solid #ef4444', borderRadius: '10px', padding: '12px 14px', marginBottom: '4px', textAlign: 'center' }}>
-                                <p style={{ margin: 0, fontSize: '0.82rem', color: '#991b1b', fontWeight: '600' }}>
-                                  Não conseguimos confirmar automaticamente. Manda pra gente pelo WhatsApp que liberamos na mão.
-                                </p>
-                              </div>
-                            )}
-
-                            <div style={{ display: 'flex', gap: '10px', width: '100%', flexWrap: 'wrap' }}>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  navigator.clipboard.writeText(pixInfo.qrCode);
-                                  setPixCopied(true);
-                                  marcarPixCopiado(orderId);
-                                  setTimeout(() => setPixCopied(false), 3000);
-                                }}
-                                style={{
-                                  flex: '1 1 140px',
-                                  padding: '14px',
-                                  borderRadius: '10px',
-                                  border: 'none',
-                                  background: pixCopied ? 'var(--success)' : 'linear-gradient(135deg, #059669 0%, #047857 100%)',
-                                  color: '#FFFFFF',
-                                  fontWeight: 'bold',
-                                  fontSize: '0.95rem',
-                                  cursor: 'pointer',
-                                  boxShadow: '0 4px 14px rgba(5, 150, 105, 0.3)'
-                                }}
-                              >
-                                <>{pixCopied ? <Check size={16} aria-hidden="true" style={{ display: 'inline', verticalAlign: '-2px', marginRight: 6 }} /> : <Copy size={16} aria-hidden="true" style={{ display: 'inline', verticalAlign: '-2px', marginRight: 6 }} />} {pixCopied ? 'Copiado!' : 'Copiar PIX'}</>
-                              </button>
-
-                              {/* Aparece sempre que existir cobrança em aberto — NÃO só depois de
-                                  copiar o código.
-                                  Até 21/09/2026 a condição era `pixCopied`, e isso escondia o
-                                  botão justamente de quem paga LENDO O QR CODE com a câmera do
-                                  banco: essa pessoa nunca clica em "Copiar PIX", então pagava e
-                                  ficava sem nenhuma forma de pedir a conferência. É o perfil dos
-                                  pagamentos que chegavam e não eram identificados. */}
-                              {(pixInfo.paymentId || order?.paymentIntentId) && (
-                                <button
-                                  type="button"
-                                  onClick={handleCheckPayment}
-                                  disabled={checandoPagamento}
+                                  }}
                                   style={{
                                     flex: '1 1 140px',
                                     padding: '14px',
-                                    borderRadius: '10px',
-                                    border: '1.5px solid var(--primary)',
-                                    background: 'transparent',
-                                    color: 'var(--primary)',
-                                    fontWeight: 'bold',
-                                    fontSize: '0.95rem',
-                                    cursor: checandoPagamento ? 'default' : 'pointer',
-                                    opacity: checandoPagamento ? 0.65 : 1,
-                                  }}
-                                >
-                                  <>{!checandoPagamento && <CheckCircle2 size={16} aria-hidden="true" style={{ display: 'inline', verticalAlign: '-2px', marginRight: 6 }} />} {checandoPagamento ? 'Verificando...' : 'Já paguei'}</>
-                                </button>
-                              )}
-                            </div>
-
-                            {checagemMsg && (
-                              <p style={{ fontSize: '0.82rem', color: checagemMsg.startsWith('✅') ? 'var(--success)' : 'var(--text-muted)', margin: '4px 0 0', textAlign: 'center', lineHeight: 1.4 }}>
-                                {checagemMsg}
-                              </p>
-                            )}
-
-                            {pixInfo.provider === 'static' && (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
-                                <input
-                                  ref={receiptInputRef}
-                                  type="file"
-                                  accept="image/*,application/pdf"
-                                  style={{ display: 'none' }}
-                                  onChange={(e) => {
-                                    const file = e.target.files?.[0];
-                                    if (file) handleReceiptUpload(file);
-                                    e.target.value = '';
-                                  }}
-                                />
-                                {/* Passo 1: tenta liberar automático primeiro. O botão do WhatsApp só
-                                    aparece depois de uma falha confirmada (receiptStatus === 'failed'),
-                                    para não competir com a tentativa automática. */}
-                                <button
-                                  type="button"
-                                  disabled={receiptStatus === 'uploading'}
-                                  onClick={() => receiptInputRef.current?.click()}
-                                  style={{
-                                    width: '100%',
-                                    padding: '14px',
-                                    borderRadius: '10px',
+                                    borderRadius: '12px',
                                     border: 'none',
-                                    background: receiptStatus === 'uploading' ? 'var(--border-color)' : 'linear-gradient(135deg, #2563eb 0%, #1e40af 100%)',
+                                    background: pixCopied ? 'var(--success)' : 'linear-gradient(135deg, #059669 0%, #047857 100%)',
                                     color: '#FFFFFF',
                                     fontWeight: 'bold',
                                     fontSize: '0.95rem',
-                                    cursor: receiptStatus === 'uploading' ? 'default' : 'pointer',
-                                    boxShadow: '0 4px 14px rgba(37, 99, 235, 0.3)'
+                                    cursor: 'pointer',
+                                    boxShadow: '0 4px 14px rgba(5, 150, 105, 0.3)'
                                   }}
                                 >
-                                  {receiptStatus === 'uploading' ? '⏳ Analisando...' : '📎 Anexar comprovante'}
+                                  <>{pixCopied ? <Check size={16} aria-hidden="true" style={{ display: 'inline', verticalAlign: '-2px', marginRight: 6 }} /> : <Copy size={16} aria-hidden="true" style={{ display: 'inline', verticalAlign: '-2px', marginRight: 6 }} />} {pixCopied ? 'Copiado!' : 'Copiar PIX'}</>
                                 </button>
 
-                                {receiptStatus === 'failed' && (
-                                  <a
-                                    href={`${linkWhatsapp(whatsappSuporte, `Olá! Acabei de pagar o pedido *#${orderId}* (R$ ${order?.totalPrice?.toFixed(2) || '9,99'}). Segue o comprovante:`)}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
+                                {(pixInfo.paymentId || order?.paymentIntentId) && (
+                                  <button
+                                    type="button"
+                                    onClick={handleCheckPayment}
+                                    disabled={checandoPagamento}
+                                    style={{
+                                      flex: '1 1 140px',
+                                      padding: '14px',
+                                      borderRadius: '12px',
+                                      border: '1.5px solid #059669',
+                                      background: 'transparent',
+                                      color: '#059669',
+                                      fontWeight: 'bold',
+                                      fontSize: '0.95rem',
+                                      cursor: checandoPagamento ? 'default' : 'pointer',
+                                      opacity: checandoPagamento ? 0.65 : 1,
+                                    }}
+                                  >
+                                    <>{!checandoPagamento && <CheckCircle2 size={16} aria-hidden="true" style={{ display: 'inline', verticalAlign: '-2px', marginRight: 6 }} />} {checandoPagamento ? 'Verificando...' : 'Já paguei'}</>
+                                  </button>
+                                )}
+                              </div>
+
+                              {checagemMsg && (
+                                <p style={{ fontSize: '0.82rem', color: checagemMsg.startsWith('✅') ? 'var(--success)' : 'var(--text-muted)', margin: '4px 0 0', textAlign: 'center', lineHeight: 1.4 }}>
+                                  {checagemMsg}
+                                </p>
+                              )}
+
+                              {/* Botão para trocar de pacote caso o cliente queira mudar */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setPixInfo({ qrCode: '', qrCodeBase64: '', paymentId: '' });
+                                }}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  color: '#64748b',
+                                  fontSize: '0.8rem',
+                                  textDecoration: 'underline',
+                                  cursor: 'pointer',
+                                  marginTop: '4px'
+                                }}
+                              >
+                                Trocar pacote ou valor
+                              </button>
+
+                              {pixInfo.provider === 'static' && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%', marginTop: '8px' }}>
+                                  <input
+                                    ref={receiptInputRef}
+                                    type="file"
+                                    accept="image/*,application/pdf"
+                                    style={{ display: 'none' }}
+                                    onChange={(e) => {
+                                      const file = e.target.files?.[0];
+                                      if (file) handleReceiptUpload(file);
+                                      e.target.value = '';
+                                    }}
+                                  />
+                                  <button
+                                    type="button"
+                                    disabled={receiptStatus === 'uploading'}
+                                    onClick={() => receiptInputRef.current?.click()}
                                     style={{
                                       width: '100%',
                                       padding: '14px',
                                       borderRadius: '10px',
                                       border: 'none',
-                                      background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)',
+                                      background: receiptStatus === 'uploading' ? 'var(--border-color)' : 'linear-gradient(135deg, #2563eb 0%, #1e40af 100%)',
                                       color: '#FFFFFF',
                                       fontWeight: 'bold',
                                       fontSize: '0.95rem',
-                                      cursor: 'pointer',
-                                      boxShadow: '0 4px 14px rgba(37, 211, 102, 0.3)',
-                                      textDecoration: 'none',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
-                                      gap: '6px'
+                                      cursor: receiptStatus === 'uploading' ? 'default' : 'pointer',
+                                      boxShadow: '0 4px 14px rgba(37, 99, 235, 0.3)'
                                     }}
                                   >
-                                    <MessageCircle size={18} aria-hidden="true" /> Mandar no WhatsApp
-                                  </a>
-                                )}
-                              </div>
-                            )}
-                          </div>
+                                    {receiptStatus === 'uploading' ? '⏳ Analisando...' : '📎 Anexar comprovante'}
+                                  </button>
+                                  {receiptStatus === 'failed' && (
+                                    <a
+                                      href={`${linkWhatsapp(whatsappSuporte, `Olá! Acabei de pagar o pedido *#${orderId}* (R$ ${valorCobrado.toFixed(2)}). Segue o comprovante:`)}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      style={{
+                                        width: '100%',
+                                        padding: '14px',
+                                        borderRadius: '10px',
+                                        border: 'none',
+                                        background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)',
+                                        color: '#FFFFFF',
+                                        fontWeight: 'bold',
+                                        fontSize: '0.95rem',
+                                        cursor: 'pointer',
+                                        boxShadow: '0 4px 14px rgba(37, 211, 102, 0.3)',
+                                        textDecoration: 'none',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '6px'
+                                      }}
+                                    >
+                                      <MessageCircle size={18} aria-hidden="true" /> Mandar no WhatsApp
+                                    </a>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )}
 
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => handleGeneratePix()}
-                            className="btn btn-primary"
-                            style={{ width: '100%', padding: '14px', fontSize: '1rem' }}
-                          >
-                            Gerar PIX{valorCobradoTexto ? ` (${valorCobradoTexto})` : ''}
-                          </button>
-                        )}
-
-                        {pixPollingTimedOut && (
-                          <div style={{ width: '100%', padding: '12px 16px', background: 'rgba(234, 179, 8, 0.15)', border: '1px solid rgba(234, 179, 8, 0.4)', borderRadius: '10px', color: '#facc15', fontSize: '0.85rem', textAlign: 'center' }}>
-                            Ainda não recebemos a confirmação automática deste pagamento. Se você já
-                            pagou, atualize a página em alguns instantes.
-                          </div>
-                        )}
-
-                        <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '10px', textAlign: 'center' }}>
-                          {pixInfo.provider === 'static'
-                            ? 'Anexe o comprovante logo após pagar para liberar na hora.'
-                            : 'A liberação é automática assim que o pagamento for confirmado. Não precisa enviar comprovante.'}
-                        </p>
-                      </div>
-                    )}
+                          <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '8px', textAlign: 'center', margin: '8px 0 0' }}>
+                            {pixInfo?.provider === 'static'
+                              ? 'Anexe o comprovante logo após pagar para liberar na hora.'
+                              : 'A liberação é automática assim que o pagamento for confirmado. Não precisa enviar comprovante.'}
+                          </p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
 
