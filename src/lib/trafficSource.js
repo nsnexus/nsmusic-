@@ -366,12 +366,22 @@ export function calcularFaturamentoPedido(o, diaFiltro = null, mesReferencia = n
   if (!o) return 0;
   let total = 0;
 
+  const isBonusOrder = Boolean(
+    o.isSecondGeneration ||
+    o.origem === 'segunda_geracao' ||
+    o.origem === 'segunda_musica' ||
+    o.paidSku === 'segunda_geracao_bonus' ||
+    o.extras?.isSecondGeneration ||
+    o.extras?.paidSku === 'segunda_geracao_bonus' ||
+    (o.parentOrderId && (o.paidAmount === 0 || Number(o.paidAmount) === 0))
+  );
+
   const musicaPaga = o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'PAGO';
-  if (musicaPaga && dataCorrespondeAoDia(o.paidAt || o.createdAt, diaFiltro, mesReferencia)) {
+  if (musicaPaga && !isBonusOrder && dataCorrespondeAoDia(o.paidAt || o.createdAt, diaFiltro, mesReferencia)) {
     let valor = 9.99;
     if (o.paidAmount !== null && o.paidAmount !== undefined && o.paidAmount !== '') {
       const v = Number(o.paidAmount);
-      if (Number.isFinite(v) && v > 0) valor = v;
+      if (Number.isFinite(v) && v >= 0) valor = v;
     } else {
       const porSku = getPriceForSku(o.paymentIntentSku);
       if (porSku !== null && o.paymentIntentSku !== 'impacto') valor = porSku;
@@ -459,12 +469,22 @@ export function calcularMetricasPorPlataforma(pedidos = [], diaFiltro = null, me
   const temFiltroDia = diaFiltro !== null && diaFiltro !== undefined && diaFiltro !== '' && diaFiltro !== 'todos';
 
   for (const o of pedidos) {
+    const isBonusOrder = Boolean(
+      o.isSecondGeneration ||
+      o.origem === 'segunda_geracao' ||
+      o.origem === 'segunda_musica' ||
+      o.paidSku === 'segunda_geracao_bonus' ||
+      o.extras?.isSecondGeneration ||
+      o.extras?.paidSku === 'segunda_geracao_bonus' ||
+      (o.parentOrderId && (o.paidAmount === 0 || Number(o.paidAmount) === 0))
+    );
+
     const platKey = getOrderPlatform(o);
     const target = metricas[platKey] || metricas.direto;
 
-    // Pedidos criados no período
+    // Pedidos criados no período (ignora 2ª geração bônus para não inflar a contagem de leads)
     const criadoNoPeriodo = temFiltroDia ? dataCorrespondeAoDia(o.createdAt, diaFiltro, mesReferencia) : true;
-    if (criadoNoPeriodo) {
+    if (criadoNoPeriodo && !isBonusOrder) {
       target.pedidosCriados += 1;
       pedidosCriadosTotalGeral += 1;
 

@@ -52,7 +52,15 @@ export default function VendasPorDiaTable() {
   };
 
   for (const o of pedidos) {
-    const musicaPaga = o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'PAGO';
+    const isBonusOrder = Boolean(
+      o.isSecondGeneration ||
+      o.origem === 'segunda_geracao' ||
+      o.origem === 'segunda_musica' ||
+      o.paidSku === 'segunda_geracao_bonus' ||
+      o.extras?.isSecondGeneration ||
+      o.extras?.paidSku === 'segunda_geracao_bonus'
+    );
+    const musicaPaga = (o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'PAGO') && !isBonusOrder;
     if (musicaPaga) somar('musicas', o.paidAt || o.createdAt);
     if (o.hasVideoAccess || o.videoAddonPaid) somar('videos', o.videoPaidAt);
     if (o.hasPlaybackAccess || o.playbackAddonPaid) somar('playbacks', o.playbackPaidAt);
@@ -74,9 +82,13 @@ export default function VendasPorDiaTable() {
         } else {
           linha.geracoesKie = (linha.geracoesKie || 0) + count;
         }
-        linha.pedidosCriados += 1;
-        if (hasMusicaGerada(o)) linha.pedidosComMusica += 1;
-        if (musicaPaga || o.videoAddonPaid) linha.pedidosPagos += 1;
+        if (!isBonusOrder) {
+          linha.pedidosCriados += 1;
+          if (hasMusicaGerada(o)) linha.pedidosComMusica += 1;
+          if (musicaPaga || o.videoAddonPaid) linha.pedidosPagos += 1;
+        } else if (o.videoAddonPaid) {
+          linha.pedidosPagos += 1;
+        }
       }
     }
   }
