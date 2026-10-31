@@ -68,13 +68,38 @@ export async function POST(req) {
         charge = existing || await createPixCharge({ orderId: existingOrderData.id, amount, description: `Pedido NS Music ${existingOrderData.id}`, txid: intent.txid }, env);
         provider = 'efi';
       } catch (error) {
-        // Preserve the existing contingency flow. The stable reservation also identifies
-        // the receipt, while an uncertain dynamic charge can still be reconciled.
-        charge = generateStaticPixPayload(amount, existingOrderData.id, undefined, intent.txid);
-        provider = 'static';
+        console.warn('[payments/create] Efí falhou, acionando contingência InfinitePay:', error.message);
+        // Fallback 1: InfinitePay Checkout
+        try {
+          const { createInfinitePayCheckoutLink } = await import('@/lib/infinitepay');
+          const infLink = await createInfinitePayCheckoutLink({
+            orderId: existingOrderData.id,
+            sku,
+            amount,
+            customerName: existingOrderData.customerName,
+            customerPhone: existingOrderData.customerPhone,
+            customerEmail: existingOrderData.customerEmail,
+          }, env);
+
+          provider = 'infinitepay';
+          charge = {
+            txid: `inf_${infLink.slug}`,
+            checkoutUrl: infLink.url,
+            isCheckoutRedirect: true,
+          };
+        } catch (infErr) {
+          console.warn('[payments/create] InfinitePay fallback também falhou, usando PIX estático:', infErr.message);
+          // Fallback 2: PIX Estático de contingência
+          charge = generateStaticPixPayload(amount, existingOrderData.id, undefined, intent.txid);
+          provider = 'static';
+        }
       }
-      if (!charge?.pixCopiaECola) return NextResponse.json({ error: 'A cobrança não está disponível. Consulte o pagamento ou tente novamente.' }, { status: 503 });
-      const saved = await supabase.from('order_payment_intents').eq('id', intent.id).update({ qr_code: charge.pixCopiaECola, txid: charge.txid, provider });
+      if (!charge?.pixCopiaECola && !charge?.checkoutUrl) return NextResponse.json({ error: 'A cobrança não está disponível. Consulte o pagamento ou tente novamente.' }, { status: 503 });
+      const saved = await supabase.from('order_payment_intents').eq('id', intent.id).update({
+        qr_code: charge.pixCopiaECola || charge.checkoutUrl,
+        txid: charge.txid,
+        provider
+      });
       if (saved.error) return NextResponse.json({ error: 'Não foi possível registrar o PIX. Tente novamente para recuperar a cobrança.' }, { status: 503 });
     }
     const recorded = await supabase.rpc('record_order_payment_intent', {
@@ -97,9 +122,10 @@ export async function POST(req) {
     return NextResponse.json({
       paymentId: charge.txid,
       status: 'pending',
-      qrCode: charge.pixCopiaECola,
+      qrCode: charge.pixCopiaECola || '',
+      checkoutUrl: charge.checkoutUrl || '',
       qrCodeBase64: '',
-      ticketUrl: '',
+      ticketUrl: charge.checkoutUrl || '',
       provider: provider
     });
 

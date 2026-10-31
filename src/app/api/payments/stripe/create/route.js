@@ -3,6 +3,8 @@ import { getRequestContext } from '@cloudflare/next-on-pages';
 import { getOrder, updateOrder } from '@/lib/supabaseDb';
 import { getPriceForSku } from '@/lib/pricing';
 import { createStripeCheckoutSession } from '@/lib/stripe';
+import { createInfinitePayCheckoutLink } from '@/lib/infinitepay';
+import { isUSOrder } from '@/lib/country';
 import { getSupabaseEdge } from '@/lib/supabase-edge';
 
 export const runtime = 'edge';
@@ -18,7 +20,7 @@ export async function POST(req) {
     } catch (e) {}
 
     const body = await req.json();
-    const { orderId, sku: rawSku, isSecondaryPayment, amount: rawAmount, successUrl, cancelUrl } = body;
+    const { orderId, sku: rawSku, isSecondaryPayment, amount: rawAmount, successUrl, cancelUrl, forceProvider } = body;
 
     if (!orderId) {
       return NextResponse.json({ error: 'orderId é obrigatório.' }, { status: 400 });
@@ -51,17 +53,55 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Pedido não encontrado.' }, { status: 404 });
     }
 
-    // Criar a sessão de checkout na Stripe
-    const session = await createStripeCheckoutSession({
-      orderId: existingOrderData.id,
-      sku,
-      amount,
-      customerEmail: existingOrderData.customerEmail,
-      customerPhone: existingOrderData.customerPhone,
-      customerName: existingOrderData.customerName,
-      successUrl,
-      cancelUrl,
-    }, env);
+    const isInternational = isUSOrder(existingOrderData);
+    let checkoutSession = null;
+    let provider = 'infinitepay';
+
+    // 1. Para pedidos nacionais: tenta InfinitePay como método principal de cartão
+    if (!isInternational && forceProvider !== 'stripe') {
+      try {
+        const infLink = await createInfinitePayCheckoutLink({
+          orderId: existingOrderData.id,
+          sku,
+          amount,
+          customerEmail: existingOrderData.customerEmail,
+          customerPhone: existingOrderData.customerPhone,
+          customerName: existingOrderData.customerName,
+          redirectUrl: successUrl,
+          cancelUrl,
+        }, env);
+
+        checkoutSession = {
+          id: `inf_${infLink.slug}`,
+          url: infLink.url,
+          provider: 'infinitepay',
+          slug: infLink.slug,
+        };
+      } catch (infErr) {
+        console.warn('[card/create] Falha na InfinitePay, acionando fallback Stripe:', infErr.message);
+      }
+    }
+
+    // 2. Fallback para Stripe: se for internacional ou se a InfinitePay falhou
+    if (!checkoutSession) {
+      provider = 'stripe';
+      const session = await createStripeCheckoutSession({
+        orderId: existingOrderData.id,
+        sku,
+        amount,
+        customerEmail: existingOrderData.customerEmail,
+        customerPhone: existingOrderData.customerPhone,
+        customerName: existingOrderData.customerName,
+        successUrl,
+        cancelUrl,
+      }, env);
+
+      checkoutSession = {
+        id: session.id,
+        url: session.url,
+        provider: 'stripe',
+      };
+    }
 
     // Registra o intent no Supabase
     try {
@@ -69,39 +109,40 @@ export async function POST(req) {
       if (supabase) {
         await supabase.rpc('record_order_payment_intent', {
           p_order_id: existingOrderData.id,
-          p_txid: session.id,
+          p_txid: checkoutSession.id,
           p_sku: sku,
           p_amount: amount,
         });
       }
     } catch (dbErr) {
-      console.warn('[stripe/create] Aviso ao registrar intent no Supabase:', dbErr?.message);
+      console.warn('[card/create] Aviso ao registrar intent no Supabase:', dbErr?.message);
     }
 
     // Atualiza o pedido com carimbos e o intent atual
     const agora = new Date().toISOString();
     await updateOrder(existingOrderData.id, {
-      stripeSessionId: session.id,
-      paymentIntentId: session.id,
+      stripeSessionId: provider === 'stripe' ? checkoutSession.id : null,
+      paymentIntentId: checkoutSession.id,
       paymentIntentSku: sku,
       stripeCheckoutAt: agora,
       paymentStatus: existingOrderData.paymentStatus === 'PAGO' || existingOrderData.paymentStatus === 'PAGAMENTO_APROVADO'
         ? existingOrderData.paymentStatus
         : 'AGUARDANDO_PAGAMENTO',
     }, env).catch((e) => {
-      console.warn('[stripe/create] Aviso ao carimbar pedido:', e?.message);
+      console.warn('[card/create] Aviso ao carimbar pedido:', e?.message);
     });
 
     return NextResponse.json({
-      sessionId: session.id,
-      checkoutUrl: session.url,
+      provider,
+      sessionId: checkoutSession.id,
+      checkoutUrl: checkoutSession.url,
       sku,
       amount,
     });
   } catch (error) {
-    console.error('[stripe/create] Erro geral:', error);
+    console.error('[card/create] Erro geral:', error);
     return NextResponse.json(
-      { error: error?.message || 'Erro ao iniciar pagamento com cartão na Stripe.' },
+      { error: error?.message || 'Erro ao iniciar pagamento com cartão.' },
       { status: 500 }
     );
   }

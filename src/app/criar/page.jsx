@@ -2570,6 +2570,10 @@ export default function CriarMusica() {
                             // com o cartão na mão.
                             const resultado = await requestPixCharge({ orderId, sku });
                             if (resultado.ok) {
+                              if (resultado.data?.checkoutUrl) {
+                                window.location.href = resultado.data.checkoutUrl;
+                                return;
+                              }
                               // IMPORTANTE: não gravar paymentId aqui. O servidor (/api/payments/create)
                               // já persiste o txid pendente em paymentIntentId. O campo paymentId só pode
                               // ser escrito pelo servidor após aprovação real (ver applyPaymentApproval em

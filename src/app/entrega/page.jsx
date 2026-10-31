@@ -74,6 +74,8 @@ function EntregaContent() {
   const promo = searchParams.get('promo');
   const stripeSessionId = searchParams.get('session_id');
   const paidParam = searchParams.get('paid');
+  const infinitePaySlug = searchParams.get('slug') || searchParams.get('invoice_slug');
+  const [isPayingCard, setIsPayingCard] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [order, setOrder] = useState(null);
@@ -289,15 +291,15 @@ function EntregaContent() {
     setMounted(true);
   }, []);
 
-  // Ao retornar do checkout da Stripe (Cartão), consulta e aprova imediatamente
+  // Ao retornar do checkout da Stripe ou InfinitePay (Cartão/Checkout), consulta e aprova imediatamente
   useEffect(() => {
-    if (orderId && (stripeSessionId || paidParam === 'stripe')) {
-      const verifyStripe = async () => {
+    if (orderId && (stripeSessionId || paidParam === 'stripe' || paidParam === 'infinitepay' || infinitePaySlug)) {
+      const verifyCheckout = async () => {
         try {
-          const pid = stripeSessionId || order?.paymentIntentId;
-          const url = pid
-            ? `/api/payments/status?orderId=${encodeURIComponent(orderId)}&paymentId=${encodeURIComponent(pid)}`
-            : `/api/payments/status?orderId=${encodeURIComponent(orderId)}`;
+          const pid = stripeSessionId || (infinitePaySlug ? `inf_${infinitePaySlug}` : order?.paymentIntentId);
+          let url = `/api/payments/status?orderId=${encodeURIComponent(orderId)}`;
+          if (pid) url += `&paymentId=${encodeURIComponent(pid)}`;
+          if (infinitePaySlug) url += `&slug=${encodeURIComponent(infinitePaySlug)}`;
           const res = await fetch(url);
           if (res.ok) {
             const data = await res.json();
@@ -307,12 +309,12 @@ function EntregaContent() {
             }
           }
         } catch (e) {
-          console.warn('[entrega] Erro ao verificar retorno da Stripe:', e);
+          console.warn('[entrega] Erro ao verificar retorno do checkout:', e);
         }
       };
-      verifyStripe();
+      verifyCheckout();
     }
-  }, [orderId, stripeSessionId, paidParam, order?.paymentIntentId]);
+  }, [orderId, stripeSessionId, paidParam, infinitePaySlug, order?.paymentIntentId]);
 
 
   // Recupera videoPixInfo do localStorage ao carregar (idempotência ao recarregar página)
@@ -974,6 +976,31 @@ function EntregaContent() {
   // combo_carta/combo_retrospectiva — dois SKUs novos não tinham como cair nesse `if` de valor
   // fixo). Quem chama agora diz o SKU direto; sem ele, cai no comportamento de sempre
   // (promoção de recuperação, ou audio_only).
+    const handlePayWithCard = async () => {
+    if (!orderId) return;
+    setIsPayingCard(true);
+    try {
+      const sku = selectedPackage || 'combo';
+      const cancelUrl = typeof window !== 'undefined'
+        ? `${window.location.origin}/entrega?orderId=${encodeURIComponent(orderId)}`
+        : undefined;
+      const res = await fetch('/api/payments/stripe/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId, sku, cancelUrl }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.checkoutUrl) {
+        throw new Error(data?.error || 'Não foi possível iniciar o pagamento com cartão.');
+      }
+      window.location.href = data.checkoutUrl;
+    } catch (err) {
+      console.error('[entrega] Erro ao pagar com cartão:', err);
+      alert(err?.message || 'Falha ao conectar com o serviço de cartão. Tente novamente.');
+      setIsPayingCard(false);
+    }
+  };
+
   const handleGeneratePix = async (explicitSku = null, isSecondary = false, valorImpacto = null) => {
     if (!order) return;
     if (isSecondary) { setPixError(''); setPendingVideoPix(true); }
@@ -1005,6 +1032,10 @@ function EntregaContent() {
 
     if (resultado.ok) {
       const data = resultado.data;
+      if (data?.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+        return;
+      }
       if (isSecondary) {
         const videoPixData = {
           qrCode: data.qrCode || '',
@@ -3236,8 +3267,29 @@ function EntregaContent() {
                           >
                             <RefreshCw size={16} aria-hidden="true" style={{ display: 'inline', verticalAlign: '-2px', marginRight: 6 }} /> Tentar gerar o PIX novamente
                           </button>
-                        </div>
-                      ) : (
+
+                              <div style={{ textAlign: 'center', marginTop: '4px' }}>
+                                <span style={{ fontSize: '0.84rem', color: '#64748b' }}>Prefere pagar no Cartão de Crédito? </span>
+                                <button
+                                  type="button"
+                                  onClick={handlePayWithCard}
+                                  disabled={isPayingCard}
+                                  style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    color: '#059669',
+                                    fontWeight: '800',
+                                    fontSize: '0.84rem',
+                                    cursor: 'pointer',
+                                    padding: '0 4px',
+                                    textDecoration: 'underline',
+                                  }}
+                                >
+                                  {isPayingCard ? 'Abrindo Cartão...' : 'Clique aqui para pagar no Cartão 💳'}
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '6px' }}>
                           {!pixInfo?.qrCode ? (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -3250,6 +3302,26 @@ function EntregaContent() {
                               >
                                 {pixLoading ? '⏳ Gerando PIX...' : `⚡ Pagar com PIX (R$ ${valorCobrado.toFixed(2).replace('.', ',')})`}
                               </button>
+                              <div style={{ textAlign: 'center', marginTop: '6px' }}>
+                                <span style={{ fontSize: '0.84rem', color: '#64748b' }}>Prefere pagar no Cartão de Crédito? </span>
+                                <button
+                                  type="button"
+                                  onClick={handlePayWithCard}
+                                  disabled={isPayingCard}
+                                  style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    color: '#059669',
+                                    fontWeight: '800',
+                                    fontSize: '0.84rem',
+                                    cursor: 'pointer',
+                                    padding: '0 4px',
+                                    textDecoration: 'underline',
+                                  }}
+                                >
+                                  {isPayingCard ? 'Abrindo Cartão...' : 'Clique aqui para pagar no Cartão 💳'}
+                                </button>
+                              </div>
                             </div>
                           ) : (
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', background: '#f8fafc', padding: '24px 20px', borderRadius: '20px', border: '1.5px solid #e2e8f0', maxWidth: '100%', width: '100%', boxSizing: 'border-box' }}>
@@ -3376,6 +3448,27 @@ function EntregaContent() {
                                   {checagemMsg}
                                 </p>
                               )}
+
+                              <div style={{ textAlign: 'center', marginTop: '10px', paddingTop: '10px', borderTop: '1px dashed #cbd5e1', width: '100%' }}>
+                                <span style={{ fontSize: '0.84rem', color: '#64748b' }}>Prefere pagar no Cartão de Crédito? </span>
+                                <button
+                                  type="button"
+                                  onClick={handlePayWithCard}
+                                  disabled={isPayingCard}
+                                  style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    color: '#059669',
+                                    fontWeight: '800',
+                                    fontSize: '0.84rem',
+                                    cursor: 'pointer',
+                                    padding: '0 4px',
+                                    textDecoration: 'underline',
+                                  }}
+                                >
+                                  {isPayingCard ? 'Abrindo Cartão...' : 'Pagar no Cartão 💳'}
+                                </button>
+                              </div>
 
                               {/* Botão para trocar de pacote caso o cliente queira mudar */}
                               <button

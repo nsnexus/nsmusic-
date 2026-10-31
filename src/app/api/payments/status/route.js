@@ -107,6 +107,35 @@ export async function GET(req) {
       }
     }
 
+    // Verificação de cobrança via InfinitePay Checkout (IDs começam com inf_ ou parâmetro slug)
+    if (String(txid).startsWith('inf_') || searchParams.get('slug')) {
+      try {
+        const slug = searchParams.get('slug') || String(txid).replace(/^inf_/, '');
+        const transactionNsu = searchParams.get('transaction_nsu') || null;
+        const { checkInfinitePayPayment } = await import('@/lib/infinitepay');
+        const checkRes = await checkInfinitePayPayment({
+          orderNsu: orderId || orderData?.id,
+          slug,
+          transactionNsu,
+        }, env);
+
+        if (checkRes.paid && orderId) {
+          const transactionAmount = checkRes.paidAmount || (orderData?.expectedAmount || 0);
+          await applyPaymentApproval(orderId, txid, {
+            status: 'approved',
+            transaction_amount: transactionAmount,
+            method: checkRes.captureMethod || 'credit_card',
+            gateway: 'infinitepay',
+          }, env);
+          return jsonNoCache({ status: "approved" });
+        }
+        return jsonNoCache({ status: "pending" });
+      } catch (err) {
+        console.warn("[PaymentStatus] Erro ao consultar InfinitePay:", err?.message);
+        return jsonNoCache({ status: "pending" });
+      }
+    }
+
     let charge;
     let providerFound = null;
     try {
