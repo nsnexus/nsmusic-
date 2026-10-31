@@ -1,14 +1,13 @@
 'use client';
 
 import React, { useEffect } from 'react';
-import { Sparkles, Music, ArrowRight, X, CheckCircle2, Zap, Download } from 'lucide-react';
+import { Sparkles, Music, ArrowRight, X, CheckCircle2, Zap, Download, Gift } from 'lucide-react';
 
 export default function PreviaEncerradaModal({
   isOpen,
   onClose,
   onGoToPix,
-  honoreeName,
-  valorTexto
+  honoreeName
 }) {
   // Fecha ao pressionar ESC
   useEffect(() => {
@@ -139,7 +138,7 @@ export default function PreviaEncerradaModal({
           }}
         >
           <Sparkles size={12} aria-hidden="true" />
-          Prévia de 60s Concluída
+          Prévia Concluída
         </div>
 
         {/* Título Principal */}
@@ -162,11 +161,50 @@ export default function PreviaEncerradaModal({
             fontSize: '0.86rem',
             color: '#64748b',
             lineHeight: 1.45,
-            margin: '0 0 18px',
+            margin: '0 0 16px',
           }}
         >
-          A prévia gratuita encerrou, mas as <strong>2 versões completas sem corte</strong> em qualidade máxima de estúdio (MP3 HD) já estão gravadas e prontas para você liberar!
+          A prévia encerrou, mas as <strong>2 versões completas sem corte</strong> em qualidade de estúdio (MP3 HD) já estão prontas para você ouvir e baixar!
         </p>
+
+        {/* Destaque do Bônus de Geração Grátis */}
+        <div
+          style={{
+            backgroundColor: '#ecfdf5',
+            border: '1.5px solid #a7f3d0',
+            borderRadius: '14px',
+            padding: '11px 14px',
+            marginBottom: '16px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            textAlign: 'left',
+          }}
+        >
+          <div
+            style={{
+              width: '36px',
+              height: '36px',
+              borderRadius: '10px',
+              backgroundColor: '#10b981',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+              color: '#ffffff',
+            }}
+          >
+            <Gift size={20} aria-hidden="true" />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: '0.82rem', fontWeight: '800', color: '#065f46', letterSpacing: '0.01em' }}>
+              BÔNUS ESPECIAL INCLUSO 🎁
+            </div>
+            <div style={{ fontSize: '0.78rem', color: '#047857', lineHeight: 1.35, marginTop: '2px' }}>
+              Ao liberar sua música agora, você ganha <strong>+1 geração grátis</strong> para criar novos arranjos de presente!
+            </div>
+          </div>
+        </div>
 
         {/* Benefícios / Checklist */}
         <div
@@ -196,7 +234,7 @@ export default function PreviaEncerradaModal({
           </div>
         </div>
 
-        {/* Botão de Ação Principal (Leva ao PIX) */}
+        {/* Botão de Ação Principal (Sem valor numérico, direciona ao PIX) */}
         <button
           type="button"
           onClick={onGoToPix}
@@ -218,7 +256,7 @@ export default function PreviaEncerradaModal({
             boxShadow: '0 6px 20px rgba(5, 150, 105, 0.35)',
           }}
         >
-          <span>Liberar Músicas no PIX Agora{valorTexto ? ` (${valorTexto})` : ''}</span>
+          <span>Liberar música completa agora</span>
           <ArrowRight size={18} aria-hidden="true" />
         </button>
 
@@ -243,4 +281,3 @@ export default function PreviaEncerradaModal({
     </div>
   );
 }
-

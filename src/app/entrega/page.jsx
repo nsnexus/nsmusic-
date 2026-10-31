@@ -3844,7 +3844,7 @@ function EntregaContent() {
             onClose={() => setShowPreviaModal(false)}
             onGoToPix={handleIrParaPix}
             honoreeName={order?.honoreeName}
-            valorTexto={valorCobradoTexto}
+
           />
 
           {/* Aba Carta — add-on com envelope animado e música */}
