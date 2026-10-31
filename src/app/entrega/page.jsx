@@ -432,95 +432,58 @@ function EntregaContent() {
   // pediu a volta no mesmo dia — um clique a mais entre chegar na tela e ver o QR custa venda.
   // Quem puxa para cima agora é o selo MAIS ESCOLHIDO na faixa de R$ 16,89, não a ausência de
   // escolha (ver faixasDeImpacto em src/lib/pricing.js).
-    const pacotesEntrega = [
-    {
-      sku: 'combo',
-      nomePacote: 'Combo Especial com Vídeo',
-      subtitulo: 'A homenagem mais completa e emocionante',
-      icone: <IconeVideo size={22} color="#ffffff" />,
-      iconBg: 'linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)',
-      priceColor: '#7c3aed',
-      valor: getPriceForSku('combo') || 16.89,
-      destaque: 'MAIS ESCOLHIDO',
-      destaquePrincipal: true,
-      tagline: 'Economize R$ 6,90 no vídeo',
-      titulo: '2 versões completas',
-      linhas: ['+ Vídeo Homenagem', '+ Carta Virtual'],
-      itens: [
-        { texto: '2 Versões completas em áudio MP3 HD (sem cortes)', destaque: false },
-        { texto: 'Vídeo Homenagem emocionante com fotos sincronizadas', destaque: true, tag: 'Brinde Especial' },
-        { texto: 'Carta Virtual interativa com dedicatória e envelope', destaque: true },
-        { texto: 'Página exclusiva de presente pronta para emocionar', destaque: false },
-      ],
-    },
+  const pacotesEntrega = [
     {
       sku: 'audio_only',
-      nomePacote: 'Somente as Músicas',
+      nomePacote: '4 Músicas Personalizadas',
       subtitulo: 'Ideal para quem deseja apenas os arquivos de áudio',
-      icone: <IconeMusica size={22} color="#ffffff" />,
-      iconBg: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-      priceColor: '#059669',
+      icone: '🎵',
       valor: getPriceForSku('audio_only') || 9.99,
-      titulo: '2 versões completas',
-      linhas: ['em MP3 HD'],
-      itens: [
-        { texto: '2 Versões completas em áudio MP3 HD (sem cortes)', destaque: false },
-        { texto: 'Página com player exclusivo para ouvir e baixar', destaque: false },
-      ],
+      desc: 'Estas 2 completas, sem corte + mais 2 liberadas depois do pagamento, com outra letra e outro estilo.',
     },
     {
       sku: 'combo_carta',
-      nomePacote: 'Música + Carta Virtual',
+      nomePacote: '4 Músicas + Carta Virtual',
       subtitulo: 'Áudios em alta qualidade + declaração especial',
-      icone: <IconeCarta size={22} color="#ffffff" />,
-      iconBg: 'linear-gradient(135deg, #ec4899 0%, #be185d 100%)',
-      priceColor: '#be185d',
-      valor: getPriceForSku('combo_carta') || 13.98,
-      titulo: '2 versões completas',
-      linhas: ['+ Carta Virtual'],
-      itens: [
-        { texto: '2 Versões completas em áudio MP3 HD (sem cortes)', destaque: false },
-        { texto: 'Carta Virtual interativa com envelope e selo exclusivo', destaque: true },
-        { texto: 'Página exclusiva de presente pronta para presentear', destaque: false },
-      ],
+      icone: '💌',
+      valor: getPriceForSku('combo_carta') || 13.90,
+      desc: 'Suas 4 músicas + uma carta com envelope, foto colada e sua assinatura.',
+    },
+    {
+      sku: 'combo',
+      nomePacote: '4 Músicas + Vídeo Homenagem',
+      subtitulo: 'A homenagem mais completa e emocionante',
+      icone: '🎬',
+      valor: getPriceForSku('combo') || 16.90,
+      destaque: 'MAIS ESCOLHIDO',
+      destaqueClass: 'badge-mais-escolhido',
+      destaquePrincipal: true,
+      desc: 'Suas 4 músicas + um lindo vídeo slideshow sincronizado com suas fotos para emocionar.',
     },
     {
       sku: 'combo_retrospectiva',
-      nomePacote: 'Super Retrospectiva',
+      nomePacote: '4 Músicas + Retrospectiva',
       subtitulo: 'Linha do tempo completa com todas as suas fotos',
-      icone: <IconeRetrospectiva size={22} color="#ffffff" />,
-      iconBg: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-      priceColor: '#b45309',
-      valor: getPriceForSku('combo_retrospectiva') || 19.98,
-      titulo: '2 versões completas',
-      linhas: ['+ Retrospectiva + Vídeo Homenagem', '+ Carta Virtual'],
-      itens: [
-        { texto: '2 Versões completas em áudio MP3 HD', destaque: false },
-        { texto: 'Retrospectiva com linha do tempo de fotos e memórias', destaque: true },
-        { texto: 'Vídeo Homenagem + Carta Virtual inclusos', destaque: false },
-      ],
+      icone: '💝',
+      valor: getPriceForSku('combo_retrospectiva') || 19.90,
+      destaque: 'MAIS COMPLETO',
+      destaqueClass: 'badge-mais-completo',
+      desc: 'Suas 4 músicas tocando numa página só de vocês: fotos, linha do tempo, contador dos dias, jogos e carta.',
     },
     {
       sku: 'combo_voz',
-      nomePacote: 'Voz Clonada por IA (VIP)',
+      nomePacote: '4 Músicas + Minha Voz',
       subtitulo: 'Você cantando a música com a sua própria voz',
-      icone: <span style={{ fontSize: '1.25rem' }}>🎤</span>,
-      iconBg: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
-      priceColor: '#4338ca',
-      valor: getPriceForSku('combo_voz') || 24.89,
-      destaque: 'NOVO',
-      titulo: '2 versões completas',
-      linhas: ['+ Voz Clonada do Cliente (IA)'],
-      itens: [
-        { texto: '2 Versões completas em áudio MP3 HD', destaque: false },
-        { texto: 'Sua própria voz cantando afinada por inteligência artificial', destaque: true, tag: 'Tecnologia IA' },
-        { texto: 'Todos os benefícios dos outros pacotes inclusos', destaque: false },
-      ],
+      icone: '🎙️',
+      valor: getPriceForSku('combo_voz') || 24.90,
+      destaque: 'EXCLUSIVO IA',
+      destaqueClass: 'badge-exclusivo',
+      desc: 'Suas 4 músicas cantadas no timbre da sua própria voz através de clonagem vocal por IA.',
     },
   ];
 
-  const [valorEscolhido, setValorEscolhido] = useState(() => getPriceForSku('combo') || 16.89);
-  const [valorDigitado, setValorDigitado] = useState(() => String(getPriceForSku('combo') || 16.89));
+  const [valorEscolhido, setValorEscolhido] = useState(() => getPriceForSku('combo') || 16.90);
+  const [valorDigitado, setValorDigitado] = useState(() => String(getPriceForSku('combo') || 16.90));
 
   const escolherFaixa = (valor, explicitSku = null) => {
     setValorEscolhido(valor);
@@ -3259,35 +3222,38 @@ function EntregaContent() {
                           <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
                             Sua música está salva e o pedido continua valendo. Tente de novo em alguns instantes.
                           </p>
-                          <button
-                            type="button"
-                            onClick={() => handleGeneratePix(selectedPackage, false, valorEscolhido)}
-                            className="btn btn-primary"
-                            style={{ width: '100%', padding: '14px', fontSize: '1rem', fontWeight: 'bold', background: 'linear-gradient(135deg, #059669 0%, #047857 100%)', border: 'none', color: '#fff', cursor: 'pointer', borderRadius: '12px' }}
-                          >
-                            <RefreshCw size={16} aria-hidden="true" style={{ display: 'inline', verticalAlign: '-2px', marginRight: 6 }} /> Tentar gerar o PIX novamente
-                          </button>
-
-                              <div style={{ textAlign: 'center', marginTop: '4px' }}>
-                                <span style={{ fontSize: '0.84rem', color: '#64748b' }}>Prefere pagar no Cartão de Crédito? </span>
-                                <button
-                                  type="button"
-                                  onClick={handlePayWithCard}
-                                  disabled={isPayingCard}
-                                  style={{
-                                    background: 'none',
-                                    border: 'none',
-                                    color: '#059669',
-                                    fontWeight: '800',
-                                    fontSize: '0.84rem',
-                                    cursor: 'pointer',
-                                    padding: '0 4px',
-                                    textDecoration: 'underline',
-                                  }}
-                                >
-                                  {isPayingCard ? 'Abrindo Cartão...' : 'Clique aqui para pagar no Cartão 💳'}
-                                </button>
-                              </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                            <button
+                              type="button"
+                              onClick={() => handleGeneratePix(selectedPackage, false, valorEscolhido)}
+                              className="btn btn-primary"
+                              style={{ width: '100%', padding: '14px', fontSize: '1rem', fontWeight: 'bold', background: 'linear-gradient(135deg, #059669 0%, #047857 100%)', border: 'none', color: '#fff', cursor: 'pointer', borderRadius: '12px' }}
+                            >
+                              <RefreshCw size={16} aria-hidden="true" style={{ display: 'inline', verticalAlign: '-2px', marginRight: 6 }} /> Tentar gerar o PIX novamente
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handlePayWithCard}
+                              disabled={isPayingCard}
+                              style={{
+                                padding: '14px',
+                                fontSize: '1rem',
+                                fontWeight: '800',
+                                borderRadius: '12px',
+                                background: '#ffffff',
+                                color: '#1e293b',
+                                border: '1.5px solid #cbd5e1',
+                                cursor: isPayingCard ? 'default' : 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '8px',
+                                width: '100%'
+                              }}
+                            >
+                              {isPayingCard ? '⏳ Abrindo Checkout Seguro...' : `💳 Pagar com Cartão de Crédito (R$ ${valorCobrado.toFixed(2).replace('.', ',')})`}
+                            </button>
+                          </div>
                             </div>
                           ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '6px' }}>
@@ -3295,33 +3261,52 @@ function EntregaContent() {
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                               <button
                                 type="button"
-                                disabled={pixLoading}
+                                disabled={pixLoading || isPayingCard}
                                 onClick={() => handleGeneratePix(selectedPackage, false, valorEscolhido)}
                                 className="btn btn-primary"
-                                style={{ padding: '16px', fontSize: '1.05rem', fontWeight: '800', borderRadius: '14px', background: 'linear-gradient(135deg, #059669 0%, #047857 100%)', boxShadow: '0 4px 16px rgba(5, 150, 105, 0.3)', border: 'none', color: '#fff', cursor: 'pointer', width: '100%' }}
+                                style={{
+                                  padding: '16px',
+                                  fontSize: '1.05rem',
+                                  fontWeight: '800',
+                                  borderRadius: '14px',
+                                  background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                                  boxShadow: '0 4px 16px rgba(5, 150, 105, 0.3)',
+                                  border: 'none',
+                                  color: '#fff',
+                                  cursor: (pixLoading || isPayingCard) ? 'default' : 'pointer',
+                                  width: '100%',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: '8px'
+                                }}
                               >
                                 {pixLoading ? '⏳ Gerando PIX...' : `⚡ Pagar com PIX (R$ ${valorCobrado.toFixed(2).replace('.', ',')})`}
                               </button>
-                              <div style={{ textAlign: 'center', marginTop: '6px' }}>
-                                <span style={{ fontSize: '0.84rem', color: '#64748b' }}>Prefere pagar no Cartão de Crédito? </span>
-                                <button
-                                  type="button"
-                                  onClick={handlePayWithCard}
-                                  disabled={isPayingCard}
-                                  style={{
-                                    background: 'none',
-                                    border: 'none',
-                                    color: '#059669',
-                                    fontWeight: '800',
-                                    fontSize: '0.84rem',
-                                    cursor: 'pointer',
-                                    padding: '0 4px',
-                                    textDecoration: 'underline',
-                                  }}
-                                >
-                                  {isPayingCard ? 'Abrindo Cartão...' : 'Clique aqui para pagar no Cartão 💳'}
-                                </button>
-                              </div>
+
+                              <button
+                                type="button"
+                                disabled={pixLoading || isPayingCard}
+                                onClick={handlePayWithCard}
+                                style={{
+                                  padding: '16px',
+                                  fontSize: '1.05rem',
+                                  fontWeight: '800',
+                                  borderRadius: '14px',
+                                  background: '#ffffff',
+                                  color: '#1e293b',
+                                  border: '1.5px solid #cbd5e1',
+                                  cursor: (pixLoading || isPayingCard) ? 'default' : 'pointer',
+                                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: '8px',
+                                  width: '100%'
+                                }}
+                              >
+                                {isPayingCard ? '⏳ Abrindo Checkout Seguro...' : `💳 Pagar com Cartão de Crédito (R$ ${valorCobrado.toFixed(2).replace('.', ',')})`}
+                              </button>
                             </div>
                           ) : (
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', background: '#f8fafc', padding: '24px 20px', borderRadius: '20px', border: '1.5px solid #e2e8f0', maxWidth: '100%', width: '100%', boxSizing: 'border-box' }}>

@@ -70,13 +70,22 @@ export async function createInfinitePayCheckoutLink(params, env = {}) {
   };
 
   if (customerName || customerPhone || customerEmail) {
-    payload.customer = {};
-    if (customerName) payload.customer.name = String(customerName).trim();
+    const cust = {};
+    if (customerName && String(customerName).trim().length > 1) {
+      cust.name = String(customerName).trim();
+    }
     if (customerPhone) {
       const cleanPhone = String(customerPhone).replace(/\D/g, '');
-      payload.customer.phone_number = cleanPhone.startsWith('55') ? `+${cleanPhone}` : `+55${cleanPhone}`;
+      if (cleanPhone.length >= 10 && cleanPhone.length <= 13) {
+        cust.phone_number = cleanPhone.startsWith('55') ? `+${cleanPhone}` : `+55${cleanPhone}`;
+      }
     }
-    if (customerEmail) payload.customer.email = String(customerEmail).trim();
+    if (customerEmail && String(customerEmail).includes('@')) {
+      cust.email = String(customerEmail).trim();
+    }
+    if (Object.keys(cust).length > 0) {
+      payload.customer = cust;
+    }
   }
 
   const res = await fetch(`${INFINITEPAY_BASE_URL}/links`, {

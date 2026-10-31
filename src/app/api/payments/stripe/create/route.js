@@ -56,6 +56,7 @@ export async function POST(req) {
     const isInternational = isUSOrder(existingOrderData);
     let checkoutSession = null;
     let provider = 'infinitepay';
+    let infErrorMsg = null;
 
     // 1. Para pedidos nacionais: tenta InfinitePay como método principal de cartão
     if (!isInternational && forceProvider !== 'stripe') {
@@ -78,6 +79,7 @@ export async function POST(req) {
           slug: infLink.slug,
         };
       } catch (infErr) {
+        infErrorMsg = infErr.message;
         console.warn('[card/create] Falha na InfinitePay, acionando fallback Stripe:', infErr.message);
       }
     }
@@ -138,6 +140,7 @@ export async function POST(req) {
       checkoutUrl: checkoutSession.url,
       sku,
       amount,
+      ...(provider === 'stripe' && infErrorMsg ? { fallbackReason: infErrorMsg } : {}),
     });
   } catch (error) {
     console.error('[card/create] Erro geral:', error);
