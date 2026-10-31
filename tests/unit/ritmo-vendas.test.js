@@ -161,4 +161,92 @@ describe('calculateIntradayPace', () => {
     const result = calculateIntradayPace(pedidos, { referenceDate: hoje, daysLimit: 7 });
     expect(result.todayRevenueSoFar).toBeCloseTo(16.89, 2);
   });
+
+  it('não adiciona receita fantasma para ordens bônus (segunda geração grátis)', () => {
+    const hoje = new Date(2026, 9, 30, 15, 0, 0);
+    const dHoje = hoje.toISOString();
+    const pedidos = [
+      // Pedido pago normal (R$ 9.99)
+      {
+        id: 'pago-1',
+        paymentStatus: 'PAGO',
+        paidAmount: 9.99,
+        productionStatus: 'AUDIO_GERADO',
+        paidAt: dHoje,
+        createdAt: dHoje,
+      },
+      // Pedido bônus grátis (paidSku: segunda_geracao_bonus, paidAmount: 0)
+      {
+        id: 'bonus-1',
+        paymentStatus: 'PAGAMENTO_APROVADO',
+        paidSku: 'segunda_geracao_bonus',
+        paidAmount: 0,
+        isSecondGeneration: true,
+        productionStatus: 'AUDIO_GERADO',
+        paidAt: null,
+        createdAt: dHoje,
+      },
+      // Pedido bônus com extras
+      {
+        id: 'bonus-2',
+        paymentStatus: 'PAGAMENTO_APROVADO',
+        extras: {
+          paidSku: 'segunda_geracao_bonus',
+          isSecondGeneration: true,
+        },
+        productionStatus: 'AUDIO_GERADO',
+        paidAt: null,
+        createdAt: dHoje,
+      },
+    ];
+
+    const result = calculateIntradayPace(pedidos, { referenceDate: hoje, daysLimit: 7 });
+
+    // Faturamento deve ser apenas 9.99, sem inflar com R$ 9.99 dos 2 pedidos bônus
+    expect(result.todayRevenueSoFar).toBeCloseTo(9.99, 2);
+    // Bônus não entra na contagem de novos criados para não distorcer o funil
+    expect(result.todayCreatedTotal).toBe(1);
+    expect(result.todayPaidTotal).toBe(1);
+    expect(result.todayConversionSoFar).toBe(100);
+  });
+
+  it('calcula taxa de conversão real quando há pedidos com música gerada e não pagos', () => {
+    const hoje = new Date(2026, 9, 30, 15, 0, 0);
+    const dHoje = hoje.toISOString();
+    const pedidos = [
+      // Pedido pago (R$ 9.99) com áudio gerado
+      {
+        id: 'pago-1',
+        paymentStatus: 'PAGO',
+        paidAmount: 9.99,
+        productionStatus: 'AUDIO_GERADO',
+        paidAt: dHoje,
+        createdAt: dHoje,
+      },
+      // Pedido NÃO pago com áudio gerado (lead que ouviu a prévia mas não comprou)
+      {
+        id: 'unpaid-com-musica',
+        paymentStatus: 'PENDENTE',
+        productionStatus: 'AUDIO_GERADO',
+        paidAt: null,
+        createdAt: dHoje,
+      },
+      // Pedido NÃO pago abandonado na etapa 1 (sem áudio gerado ainda)
+      {
+        id: 'abandonado-etapa1',
+        paymentStatus: 'PENDENTE',
+        productionStatus: 'ETAPA_1',
+        paidAt: null,
+        createdAt: dHoje,
+      },
+    ];
+
+    const result = calculateIntradayPace(pedidos, { referenceDate: hoje, daysLimit: 7 });
+
+    // Apenas pedidos com música gerada contam como oportunidade de conversão (base = 2)
+    // 1 pago / 2 com música = 50.0%
+    expect(result.todayCreatedTotal).toBe(2);
+    expect(result.todayPaidTotal).toBe(1);
+    expect(result.todayConversionSoFar).toBe(50.0);
+  });
 });

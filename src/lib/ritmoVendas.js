@@ -1,6 +1,7 @@
 import { paraData } from '@/lib/usePedidosDoMes';
 import { getPriceForSku } from '@/lib/pricing';
 import { hasMusicaGerada } from '@/lib/stats';
+import { isStripePayment, calculateStripeFee } from '@/lib/paymentFees';
 
 export const PRODUTOS_RITMO = [
   { chave: 'musica', sku: 'audio_only', getPaidAt: (o) => (o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'PAGO') ? (o.paidAt || o.createdAt) : null },
@@ -52,6 +53,16 @@ export function calculateIntradayPace(pedidos = [], options = {}) {
   for (const o of pedidos) {
     if (!o) continue;
 
+    const isBonusOrder = Boolean(
+      o.isSecondGeneration ||
+      o.origem === 'segunda_geracao' ||
+      o.origem === 'segunda_musica' ||
+      o.paidSku === 'segunda_geracao_bonus' ||
+      o.extras?.isSecondGeneration ||
+      o.extras?.paidSku === 'segunda_geracao_bonus' ||
+      (o.parentOrderId && (o.paidAmount === 0 || Number(o.paidAmount) === 0))
+    );
+
     // 1. Processa eventos de faturamento líquido real
     const registrarPagamento = (ts, valor) => {
       if (!ts || !valor || valor <= 0) return;
@@ -71,23 +82,30 @@ export function calculateIntradayPace(pedidos = [], options = {}) {
       }
     };
 
-    const musicaPaga = o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'PAGO';
+    const musicaPaga = (o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'PAGO') && !isBonusOrder;
     if (musicaPaga) {
       let valorMusica = 9.99;
       if (o.paidAmount !== null && o.paidAmount !== undefined && o.paidAmount !== '') {
         const v = Number(o.paidAmount);
-        if (Number.isFinite(v) && v > 0) valorMusica = v;
+        if (Number.isFinite(v) && v >= 0) valorMusica = v;
       } else if (o.paymentIntentSku) {
         const porSku = precoPorSku[o.paymentIntentSku];
         if (porSku !== null && porSku !== undefined && o.paymentIntentSku !== 'impacto') valorMusica = porSku;
       }
-      registrarPagamento(o.paidAt || o.createdAt, valorMusica);
+      if (isStripePayment(o)) {
+        valorMusica = Math.max(0, valorMusica - calculateStripeFee(valorMusica));
+      }
+      if (valorMusica > 0) {
+        registrarPagamento(o.paidAt || o.createdAt, valorMusica);
+      }
     }
 
     // Add-ons comprados separadamente
     if (o.videoPaymentId && (o.hasVideoAccess || o.videoAddonPaid)) {
       const v = Number(o.videoPaidAmount);
-      registrarPagamento(o.videoPaidAt || o.paidAt || o.createdAt, (Number.isFinite(v) && v > 0) ? v : 6.90);
+      let valor = (Number.isFinite(v) && v > 0) ? v : 6.90;
+      if (isStripePayment(o.videoPaymentId)) valor = Math.max(0, valor - calculateStripeFee(valor));
+      registrarPagamento(o.videoPaidAt || o.paidAt || o.createdAt, valor);
     } else if (!o.paidAmount && (o.hasVideoAccess || o.videoAddonPaid) && o.videoPaidAt) {
       // Caso legado (ex: testes sem paidAmount onde videoPaidAt foi fornecido)
       registrarPagamento(o.videoPaidAt, 6.90);
@@ -95,19 +113,27 @@ export function calculateIntradayPace(pedidos = [], options = {}) {
 
     if (o.cartaPaymentId && (o.hasCartaAccess || o.cartaAddonPaid)) {
       const v = Number(o.cartaPaidAmount);
-      registrarPagamento(o.cartaPaidAt || o.paidAt || o.createdAt, (Number.isFinite(v) && v > 0) ? v : 3.99);
+      let valor = (Number.isFinite(v) && v > 0) ? v : 3.99;
+      if (isStripePayment(o.cartaPaymentId)) valor = Math.max(0, valor - calculateStripeFee(valor));
+      registrarPagamento(o.cartaPaidAt || o.paidAt || o.createdAt, valor);
     }
     if (o.playbackPaymentId && (o.hasPlaybackAccess || o.playbackAddonPaid)) {
       const v = Number(o.playbackPaidAmount);
-      registrarPagamento(o.playbackPaidAt || o.paidAt || o.createdAt, (Number.isFinite(v) && v > 0) ? v : 4.99);
+      let valor = (Number.isFinite(v) && v > 0) ? v : 4.99;
+      if (isStripePayment(o.playbackPaymentId)) valor = Math.max(0, valor - calculateStripeFee(valor));
+      registrarPagamento(o.playbackPaidAt || o.paidAt || o.createdAt, valor);
     }
     if (o.retrospectivaPaymentId && (o.hasRetrospectivaAccess || o.retrospectivaAddonPaid)) {
       const v = Number(o.retrospectivaPaidAmount);
-      registrarPagamento(o.retrospectivaPaidAt || o.paidAt || o.createdAt, (Number.isFinite(v) && v > 0) ? v : 9.99);
+      let valor = (Number.isFinite(v) && v > 0) ? v : 9.99;
+      if (isStripePayment(o.retrospectivaPaymentId)) valor = Math.max(0, valor - calculateStripeFee(valor));
+      registrarPagamento(o.retrospectivaPaidAt || o.paidAt || o.createdAt, valor);
     }
     if (o.karaokePaymentId && (o.hasKaraokeAccess || o.karaokeAddonPaid)) {
       const v = Number(o.karaokePaidAmount);
-      registrarPagamento(o.karaokePaidAt || o.paidAt || o.createdAt, (Number.isFinite(v) && v > 0) ? v : 9.90);
+      let valor = (Number.isFinite(v) && v > 0) ? v : 9.90;
+      if (isStripePayment(o.karaokePaymentId)) valor = Math.max(0, valor - calculateStripeFee(valor));
+      registrarPagamento(o.karaokePaidAt || o.paidAt || o.createdAt, valor);
     }
 
     // 2. Processa cohort de conversão (baseado na hora de criação)
@@ -115,20 +141,32 @@ export function calculateIntradayPace(pedidos = [], options = {}) {
     if (dCriacao) {
       const dayKey = `${dCriacao.getFullYear()}-${String(dCriacao.getMonth() + 1).padStart(2, '0')}-${String(dCriacao.getDate()).padStart(2, '0')}`;
       const hour = dCriacao.getHours();
-      const isPaid = o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'PAGO' || Boolean(o.videoAddonPaid);
 
-      const comMusica = hasMusicaGerada(o);
+      if (!isBonusOrder) {
+        const comMusica = hasMusicaGerada(o);
+        const isPaid = (o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'PAGO') || Boolean(o.videoAddonPaid);
 
-      if (dayKey === todayKey) {
-        if (comMusica) todayHourlyCreated[hour] += 1;
-        if (isPaid) todayHourlyPaid[hour] += 1;
-      } else if (targetPastDaysSet.has(dayKey)) {
-        if (!pastDaysCreated[dayKey]) {
-          pastDaysCreated[dayKey] = Array(24).fill(0);
-          pastDaysPaid[dayKey] = Array(24).fill(0);
+        if (dayKey === todayKey) {
+          if (comMusica) todayHourlyCreated[hour] += 1;
+          if (isPaid) todayHourlyPaid[hour] += 1;
+        } else if (targetPastDaysSet.has(dayKey)) {
+          if (!pastDaysCreated[dayKey]) {
+            pastDaysCreated[dayKey] = Array(24).fill(0);
+            pastDaysPaid[dayKey] = Array(24).fill(0);
+          }
+          if (comMusica) pastDaysCreated[dayKey][hour] += 1;
+          if (isPaid) pastDaysPaid[dayKey][hour] += 1;
         }
-        if (comMusica) pastDaysCreated[dayKey][hour] += 1;
-        if (isPaid) pastDaysPaid[dayKey][hour] += 1;
+      } else if (o.videoAddonPaid) {
+        if (dayKey === todayKey) {
+          todayHourlyPaid[hour] += 1;
+        } else if (targetPastDaysSet.has(dayKey)) {
+          if (!pastDaysPaid[dayKey]) {
+            pastDaysCreated[dayKey] = Array(24).fill(0);
+            pastDaysPaid[dayKey] = Array(24).fill(0);
+          }
+          pastDaysPaid[dayKey][hour] += 1;
+        }
       }
     }
   }
