@@ -32,6 +32,7 @@ import { trackFbPurchase } from '@/lib/metaPixel';
 import { isOrderFromMeta, isOrderFromTikTok } from '@/lib/trafficSource';
 import DeliveryExperience from '@/components/delivery/DeliveryExperience';
 import InAppBrowserBanner from '@/components/delivery/InAppBrowserBanner';
+import PreviaEncerradaModal from '@/components/delivery/PreviaEncerradaModal';
 
 function refreshDelivery() { window.location.reload(); }
 
@@ -1167,12 +1168,40 @@ function EntregaContent() {
   // carta e a retrospectiva.
   const podeOuvirInteira = isPaid;
 
+  const [showPreviaModal, setShowPreviaModal] = useState(false);
+  const previaModalDisparadoRef = useRef(false);
+
+  const triggerPreviaEncerrada = () => {
+    if (isPaid || podeOuvirInteira) return;
+    if (previaModalDisparadoRef.current) return;
+    previaModalDisparadoRef.current = true;
+    setShowPreviaModal(true);
+  };
+
+  const handleIrParaPix = () => {
+    setShowPreviaModal(false);
+    const el = document.getElementById('pagamento');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      try {
+        el.style.transition = 'box-shadow 0.4s ease, border-color 0.4s ease';
+        el.style.boxShadow = '0 0 0 4px rgba(124, 58, 237, 0.4), 0 10px 25px -5px rgba(0, 0, 0, 0.1)';
+        el.style.borderColor = '#8b5cf6';
+        setTimeout(() => {
+          el.style.boxShadow = '0 10px 25px -5px rgba(0, 0, 0, 0.05)';
+          el.style.borderColor = '#e2e8f0';
+        }, 2500);
+      } catch (_) {}
+    }
+  };
+
   const handleAudioTimeUpdate = (e) => {
     if (podeOuvirInteira) return;
     const audio = e.target;
-    if (audio.currentTime > 60) {
+    if (audio.currentTime >= 60) {
       audio.pause();
       audio.currentTime = 60;
+      triggerPreviaEncerrada();
     }
   };
 
@@ -2491,6 +2520,9 @@ function EntregaContent() {
                       onError={() => handleAudioError('primary')}
                       onPlay={() => {
                         markPreviewListened(orderId);
+                        if (primaryAudioElRef.current && primaryAudioElRef.current.currentTime < 55) {
+                          previaModalDisparadoRef.current = false;
+                        }
                         setAudioProgress((prev) => ({
                           ...prev,
                           primary: { ...prev.primary, isPlaying: true },
@@ -2511,6 +2543,7 @@ function EntregaContent() {
                           ...prev,
                           primary: { ...prev.primary, isPlaying: false, currentTime: 0 },
                         }));
+                        triggerPreviaEncerrada();
                       }}
                       style={{ display: 'none' }}
                       src={primaryAudioUrl}
@@ -2702,6 +2735,9 @@ function EntregaContent() {
                       onError={() => handleAudioError('second')}
                       onPlay={() => {
                         markPreviewListened(orderId);
+                        if (secondAudioElRef.current && secondAudioElRef.current.currentTime < 55) {
+                          previaModalDisparadoRef.current = false;
+                        }
                         setAudioProgress((prev) => ({
                           ...prev,
                           second: { ...prev.second, isPlaying: true },
@@ -2722,6 +2758,7 @@ function EntregaContent() {
                           ...prev,
                           second: { ...prev.second, isPlaying: false, currentTime: 0 },
                         }));
+                        triggerPreviaEncerrada();
                       }}
                       style={{ display: 'none' }}
                       src={secondAudioUrl}
@@ -3800,6 +3837,15 @@ function EntregaContent() {
           {isPaid && abaProduto === 'retrospectiva' && (
             <div id="card-retrospectiva"><RetrospectivaAddonCard orderId={orderId} order={order} onUnlocked={() => setRetrospectivaLiberadaLocal(true)} /></div>
           )}
+
+          {/* Pop-up ao final da prévia para pedidos pendentes */}
+          <PreviaEncerradaModal
+            isOpen={showPreviaModal && !isPaid}
+            onClose={() => setShowPreviaModal(false)}
+            onGoToPix={handleIrParaPix}
+            honoreeName={order?.honoreeName}
+            valorTexto={valorCobradoTexto}
+          />
 
           {/* Aba Carta — add-on com envelope animado e música */}
           {isPaid && abaProduto === 'carta' && (
