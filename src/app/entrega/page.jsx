@@ -98,6 +98,17 @@ function EntregaContent() {
   const [pixError, setPixError] = useState('');
   const [pixCopied, setPixCopied] = useState(false);
   const [isPaidState, setIsPaidState] = useState(false);
+
+  // Mapeamento e separação de 1ª e 2ª geração para abas e extras independentes
+  const [selectedGenTab, setSelectedGenTab] = useState(null); // 'first' | 'second'
+  const isSecondGen = Boolean(order?.parentOrderId || order?.origem === 'segunda_geracao' || order?.isSecondGeneration);
+  const firstGenOrder = isSecondGen ? (order?.relatedOrder || null) : order;
+  const secondGenOrder = isSecondGen ? order : (order?.relatedOrder || null);
+  const hasSecondGen = Boolean(secondGenOrder);
+
+  const activeGenTab = selectedGenTab !== null ? selectedGenTab : (isSecondGen ? 'second' : 'first');
+  const activeOrder = (activeGenTab === 'second' && secondGenOrder) ? secondGenOrder : (firstGenOrder || order);
+  const activeOrderId = activeOrder?.id || activeOrder?.orderNumber || orderId;
   // Conferência manual de pagamento (pedido 20/09/2026). O polling automático só roda enquanto a
   // aba está aberta; quem paga pelo app do banco e volta depois ficava sem nenhuma forma de
   // destravar sozinho — eram 4 pagamentos presos por dia, alguns por mais de um dia.
@@ -270,17 +281,6 @@ function EntregaContent() {
   // Abas dos produtos depois de pago (pedido 04/09/2026) — antes tudo ficava empilhado numa rolagem
   // só; 'musica' cobre também o Playback (instrumental), por ser derivado da mesma faixa.
   const [abaProduto, setAbaProduto] = useState('musica');
-  const [selectedGenTab, setSelectedGenTab] = useState(null); // 'first' | 'second'
-
-  // Mapeamento e separação de 1ª e 2ª geração para abas e extras independentes
-  const isSecondGen = Boolean(order?.parentOrderId || order?.origem === 'segunda_geracao' || order?.isSecondGeneration);
-  const firstGenOrder = isSecondGen ? (order?.relatedOrder || null) : order;
-  const secondGenOrder = isSecondGen ? order : (order?.relatedOrder || null);
-  const hasSecondGen = Boolean(secondGenOrder);
-
-  const activeGenTab = selectedGenTab !== null ? selectedGenTab : (isSecondGen ? 'second' : 'first');
-  const activeOrder = (activeGenTab === 'second' && secondGenOrder) ? secondGenOrder : (firstGenOrder || order);
-  const activeOrderId = activeOrder?.id || activeOrder?.orderNumber || orderId;
   const [selectedPackage, setSelectedPackage] = useState('combo'); // 'combo' (16.89 pré-selecionado por padrão)
   const [hasVideoAccessState, setHasVideoAccessState] = useState(false);
 
