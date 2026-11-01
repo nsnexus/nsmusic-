@@ -18,7 +18,7 @@ export function readKieJob(payload = {}) {
   };
   return {
     state: String(job.state || job.status || '').toLowerCase(), model: job.model || '', result,
-    phrase: pick('verify_phrase_text', 'phrase', 'validation_phrase', 'validationPhrase', 'phrase_text'),
+    phrase: pick('verify_phrase_text', 'phrase', 'validation_phrase', 'validationPhrase', 'phrase_text', 'validateInfo'),
     verifyPhraseId: pick('verify_phrase_id', 'verifyPhraseId'),
     voiceRecordingId: pick('voice_recording_id', 'voiceRecordingId'),
     accountId: pick('account_id', 'accountId', 'suno_user_id'),

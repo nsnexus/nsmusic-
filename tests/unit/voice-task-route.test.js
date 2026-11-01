@@ -113,4 +113,30 @@ describe('Kie voice workflow', () => {
     expect(data.status).toBe('COMPLETED');
     expect(fetch.mock.calls[1][0]).toContain('generate/record-info');
   });
+
+  it('falls back to voice/validate when validation-phrase model returns 401', async () => {
+    fetch.mockResolvedValueOnce(response({ code: 401, msg: 'The API key is not authorized to use this model.' }));
+    fetch.mockResolvedValueOnce(response({ code: 200, data: { taskId: 'fallback-task-123' } }));
+
+    const res = await post({ action: 'request_phrase', voiceUrl: 'https://example.com/audio.wav' });
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toEqual({ ok: true, taskId: 'fallback-task-123', submissionTaskId: 'fallback-task-123' });
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(fetch.mock.calls[0][0]).toContain('jobs/createTask');
+    expect(fetch.mock.calls[1][0]).toContain('voice/validate');
+  });
+
+  it('falls back to voice/generate when create-voice model returns 401', async () => {
+    fetch.mockResolvedValueOnce(response({ code: 401, msg: 'The API key is not authorized to use this model.' }));
+    fetch.mockResolvedValueOnce(response({ code: 200, data: { taskId: 'fallback-gen-456' } }));
+
+    const res = await post({ action: 'create_voice', phraseTaskId: voiceId, verifyUrl: 'https://example.com/verify.wav' });
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toEqual({ ok: true, taskId: voiceId, submissionTaskId: 'fallback-gen-456' });
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(fetch.mock.calls[0][0]).toContain('jobs/createTask');
+    expect(fetch.mock.calls[1][0]).toContain('voice/generate');
+  });
 });

@@ -263,8 +263,12 @@ export default function TabelaTimbresClientes() {
     return `${DOMINIO_CANONICO}/voz/gravar/${token}`;
   };
 
-  const getTextoWhatsapp = (invite) => {
-    const url = getUrlCompleta(invite.token);
+  const getUrlDireta = (token) => {
+    return `https://nsmusic.pages.dev/voz/gravar/${token}`;
+  };
+
+  const getTextoWhatsapp = (invite, direto = false) => {
+    const url = direto ? getUrlDireta(invite.token) : getUrlCompleta(invite.token);
     const nome = invite.customerName || 'olá';
     return encodeURIComponent(
       `Olá, ${nome}! Segue o seu link exclusivo para gravar uma amostra de 15 segundos da sua voz para criarmos suas músicas personalizadas com Inteligência Artificial:\n\n👉 ${url}\n\nÉ rápido e você pode gravar direto pelo celular em um ambiente silencioso.`
@@ -624,7 +628,7 @@ export default function TabelaTimbresClientes() {
                 border: '1.5px solid #cbd5e1',
                 padding: '10px 12px',
                 borderRadius: '8px',
-                marginBottom: '14px'
+                marginBottom: '10px'
               }}>
                 <span style={{ fontSize: '0.84rem', color: '#0f172a', fontWeight: '600', wordBreak: 'break-all', flex: 1 }}>
                   {getUrlCompleta(linkRecemCriado.token)}
@@ -645,6 +649,39 @@ export default function TabelaTimbresClientes() {
                   }}
                 >
                   {copiadoId === 'recem_criado' ? '✓ Copiado!' : '📋 Copiar Link'}
+                </button>
+              </div>
+
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                background: '#f1f5f9',
+                border: '1px solid #cbd5e1',
+                padding: '8px 12px',
+                borderRadius: '8px',
+                marginBottom: '14px'
+              }}>
+                <span style={{ fontSize: '0.78rem', color: '#475569', wordBreak: 'break-all', flex: 1 }}>
+                  ⚡ Direto (.pages.dev): {getUrlDireta(linkRecemCriado.token)}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleCopiarTexto(getUrlDireta(linkRecemCriado.token), 'recem_direto')}
+                  style={{
+                    background: copiadoId === 'recem_direto' ? '#10b981' : '#ffffff',
+                    color: copiadoId === 'recem_direto' ? '#ffffff' : '#475569',
+                    border: '1px solid #cbd5e1',
+                    padding: '4px 10px',
+                    borderRadius: '6px',
+                    fontSize: '0.75rem',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap'
+                  }}
+                  title="Copiar link alternativo direto .pages.dev (para clientes com falha de conexão na operadora)"
+                >
+                  {copiadoId === 'recem_direto' ? '✓ Copiado!' : '⚡ Copiar Direto (.pages.dev)'}
                 </button>
               </div>
 
@@ -1044,6 +1081,24 @@ export default function TabelaTimbresClientes() {
                           }}
                         >
                           {copiadoId === inv.token ? '✓ Copiado!' : '📋 Copiar Link'}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleCopiarTexto(getUrlDireta(inv.token), 'dir_' + inv.token)}
+                          style={{
+                            background: copiadoId === 'dir_' + inv.token ? '#10b981' : '#f8fafc',
+                            color: copiadoId === 'dir_' + inv.token ? '#ffffff' : '#475569',
+                            border: '1px solid #cbd5e1',
+                            padding: '6px 10px',
+                            borderRadius: '7px',
+                            fontSize: '0.76rem',
+                            fontWeight: '700',
+                            cursor: 'pointer'
+                          }}
+                          title="Copiar link alternativo direto .pages.dev (para clientes com falha de conexão na operadora)"
+                        >
+                          {copiadoId === 'dir_' + inv.token ? '✓ Copiado Direto!' : '⚡ Link Direto (.pages.dev)'}
                         </button>
 
                         {inv.phone && (

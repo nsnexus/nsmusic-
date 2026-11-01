@@ -65,8 +65,43 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Ação não reconhecida.' }, { status: 400 });
     }
 
-    const data = await kieRequest('jobs/createTask', key, payload);
-    const createdTaskId = data.data?.taskId || data.data?.task_id || data.taskId;
+    let data;
+    try {
+      data = await kieRequest('jobs/createTask', key, payload);
+    } catch (createErr) {
+      if (body.action === 'request_phrase' && [401, 403, 404, 422, 502].includes(createErr.providerCode || createErr.status)) {
+        try {
+          data = await kieRequest('voice/validate', key, {
+            voice_url: body.voiceUrl,
+            vocal_start_s: Number(body.vocalStart) || 0,
+            vocal_end_s: Number(body.vocalEnd) || 20,
+            language: body.language || 'pt',
+          });
+        } catch (e2) {
+          data = await kieRequest('jobs/createTask', key, {
+            model: 'ai-music-api/generate-voice',
+            input: {
+              voiceUrl: body.voiceUrl,
+              vocalStartS: Number(body.vocalStart) || 0,
+              vocalEndS: Number(body.vocalEnd) || 20,
+              language: body.language || 'pt',
+            }
+          });
+        }
+      } else if (body.action === 'create_voice' && [401, 403, 404, 422, 502].includes(createErr.providerCode || createErr.status)) {
+        data = await kieRequest('voice/generate', key, {
+          taskId: body.phraseTaskId,
+          verifyUrl: body.verifyUrl,
+          voiceName: body.voiceName || 'Voz do Cliente',
+          description: body.description || 'Voz personalizada',
+          style: body.style || 'acoustic',
+          singerSkillLevel: 'beginner'
+        });
+      } else {
+        throw createErr;
+      }
+    }
+    const createdTaskId = data?.data?.taskId || data?.data?.task_id || data?.taskId;
     if (!createdTaskId) throw new Error('A IA não retornou o identificador da tarefa. Tente novamente.');
     if (body.action === 'generate_song' && body.orderId) {
       await saveTask(createdTaskId, 'PROCESSING', { kieTaskApi: 'jobs' }, body.orderId, { provider: 'kie', customVoiceId: body.voiceId }, env);
@@ -100,6 +135,28 @@ export async function GET(req) {
       data = await kieRequest(`generate/record-info?taskId=${encodeURIComponent(taskId)}`, key);
     }
     let job = readKieJob(data);
+
+    if (type === 'phrase' && !job.phrase) {
+      try {
+        const vi = await kieRequest(`voice/validate-info?taskId=${encodeURIComponent(taskId)}`, key);
+        if (vi?.data?.validateInfo) {
+          job.phrase = vi.data.validateInfo;
+        }
+      } catch (e) {}
+    }
+
+    if (type === 'job' && !['success', 'fail', 'failed'].includes(job.state)) {
+      try {
+        const ri = await kieRequest(`voice/record-info?taskId=${encodeURIComponent(taskId)}`, key);
+        if (ri?.data?.status === 'success') {
+          job.state = 'success';
+          if (ri.data.voiceId) job.linkedVoiceId = ri.data.voiceId;
+        } else if (ri?.data?.status === 'fail') {
+          job.state = 'fail';
+          job.failMsg = ri.data.errorMessage || ri.data.errorCode || 'Falha na validação de voz';
+        }
+      } catch (e) {}
+    }
     if (type === 'generate') {
       const tracks = extractAudioTracks({ data: readKieSongTracks(job) });
       const legacyTracks = tracks.length ? tracks : extractAudioTracks(data);
