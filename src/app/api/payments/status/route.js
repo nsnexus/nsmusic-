@@ -107,27 +107,68 @@ export async function GET(req) {
       }
     }
 
-    // Verificação de cobrança via InfinitePay Checkout (IDs começam com inf_ ou parâmetro slug)
-    if (String(txid).startsWith('inf_') || searchParams.get('slug')) {
-      try {
-        const slug = searchParams.get('slug') || String(txid).replace(/^inf_/, '');
-        const transactionNsu = searchParams.get('transaction_nsu') || null;
-        const { checkInfinitePayPayment } = await import('@/lib/infinitepay');
-        const checkRes = await checkInfinitePayPayment({
-          orderNsu: orderId || orderData?.id,
-          slug,
-          transactionNsu,
-        }, env);
+    // Verificação de cobrança via InfinitePay Checkout (IDs começam com inf_, parâmetro slug/invoice_slug ou paid=infinitepay)
+    const isInfinitePay = String(txid).startsWith('inf_')
+      || searchParams.get('slug')
+      || searchParams.get('invoice_slug')
+      || searchParams.get('paid') === 'infinitepay'
+      || String(orderData?.paymentIntentId || '').startsWith('inf_');
 
-        if (checkRes.paid && orderId) {
-          const transactionAmount = checkRes.paidAmount || (orderData?.expectedAmount || 0);
-          await applyPaymentApproval(orderId, txid, {
-            status: 'approved',
-            transaction_amount: transactionAmount,
-            method: checkRes.captureMethod || 'credit_card',
-            gateway: 'infinitepay',
+    if (isInfinitePay) {
+      try {
+        const slug = searchParams.get('slug')
+          || searchParams.get('invoice_slug')
+          || (String(txid).startsWith('inf_') ? String(txid).replace(/^inf_/, '') : '')
+          || String(orderData?.paymentIntentId || '').replace(/^inf_/, '');
+
+        const transactionNsu = searchParams.get('transaction_nsu')
+          || searchParams.get('transactionId')
+          || searchParams.get('nsu')
+          || null;
+
+        const orderNsuParam = searchParams.get('order_nsu') || orderId || orderData?.id;
+
+        if (slug) {
+          const { checkInfinitePayPayment } = await import('@/lib/infinitepay');
+
+          // 1. Tenta checagem com orderData?.id
+          let checkRes = await checkInfinitePayPayment({
+            orderNsu: orderData?.id || orderId,
+            slug,
+            transactionNsu,
           }, env);
-          return jsonNoCache({ status: "approved" });
+
+          // 2. Se não confirmou, tenta com orderData?.orderNumber
+          if (!checkRes.paid && orderData?.orderNumber) {
+            const checkRes2 = await checkInfinitePayPayment({
+              orderNsu: orderData.orderNumber,
+              slug,
+              transactionNsu,
+            }, env);
+            if (checkRes2.paid) checkRes = checkRes2;
+          }
+
+          // 3. Se ainda não confirmou, tenta com orderNsuParam
+          if (!checkRes.paid && orderNsuParam && orderNsuParam !== orderData?.id && orderNsuParam !== orderData?.orderNumber) {
+            const checkRes3 = await checkInfinitePayPayment({
+              orderNsu: orderNsuParam,
+              slug,
+              transactionNsu,
+            }, env);
+            if (checkRes3.paid) checkRes = checkRes3;
+          }
+
+          if (checkRes.paid) {
+            const targetId = orderId || orderData?.id || orderData?.orderNumber;
+            const transactionAmount = checkRes.paidAmount || (orderData?.expectedAmount || 0);
+            await applyPaymentApproval(targetId, txid || `inf_${slug}`, {
+              status: 'approved',
+              transaction_amount: transactionAmount,
+              method: checkRes.captureMethod || 'credit_card',
+              gateway: 'infinitepay',
+            }, env);
+            return jsonNoCache({ status: "approved" });
+          }
         }
         return jsonNoCache({ status: "pending" });
       } catch (err) {

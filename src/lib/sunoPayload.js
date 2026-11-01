@@ -39,6 +39,11 @@ const STYLE_TAGS = {
   'Axé': 'axé, bahian carnival groove, brass section, percussion, energetic',
   'Jazz / Blues': 'jazz blues, brushed drums, upright bass, saxophone, swing feel',
   'Infantil': "children's song, playful melody, light instrumentation, simple singalong chorus",
+  'K-Pop': 'k-pop, modern korean pop production, bright synths, catchy melodic hook, dynamic electronic beat, emotional and vibrant',
+  'Pagode Anos 90': 'pagode anos 90, retro brazilian pagode, cavaquinho, repique de mão, tan-tan, romantic harmonies, nostalgic 90s brazilian swing',
+  'Trap Acústico': 'acoustic trap, fingerstyle nylon acoustic guitar, deep 808 sub bass, crisp trap hi-hats, intimate modern melodic flow',
+  'Indie Pop': 'indie pop, warm indie acoustic, melodic guitars, shimmering soft synths, uplifting dreamy vocals',
+  'R&B / Soul': 'r&b soul, smooth rhodes piano, warm bassline, soulful lead vocals, mellow groove, emotional',
 };
 
 const MOOD_TAGS = {

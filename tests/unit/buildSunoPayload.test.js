@@ -42,6 +42,13 @@ describe('buildSunoPayload', () => {
     expect(payloadRaiz.tags).toContain('viola caipira');
   });
 
+  it('traduz K-Pop com instrumentações e sintetizadores característicos', () => {
+    const payload = buildSunoPayload({ lyrics: 'x', musicStyle: 'K-Pop', musicMood: 'Energética' });
+    expect(payload.tags).toContain('k-pop');
+    expect(payload.tags).toContain('bright synths');
+    expect(payload.tags).toContain('energetic');
+  });
+
   it('descreve dueto com vozes alternadas para voiceType dueto', () => {
     const payload = buildSunoPayload({
       lyrics: 'x',
@@ -71,7 +78,7 @@ describe('buildSunoPayload', () => {
       'Samba / Pagode', 'Folk Acústico', 'Forró / Baião', 'Trap / Rap', 'Reggae', 'Lo-Fi Chill',
       'Funk', 'Eletrônica', 'Piseiro', 'Axé', 'Jazz / Blues', 'Infantil',
     ];
-    estilos.push('Sertanejo Universitário', 'Sertanejo Raiz');
+    estilos.push('Sertanejo Universitário', 'Sertanejo Raiz', 'K-Pop', 'Pagode Anos 90', 'Trap Acústico', 'Indie Pop', 'R&B / Soul');
     for (const estilo of estilos) {
       const tags = buildSunoPayload({ lyrics: 'x', musicStyle: estilo }).tags.toLowerCase();
       for (const termo of bloqueados) {

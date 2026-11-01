@@ -61,6 +61,11 @@ export const stylesList = [
   { id: 'Axé', label: 'Axé', icon: '🌊', desc: 'Animado, ideal pra festa e verão' },
   { id: 'Jazz / Blues', label: 'Jazz / Blues', icon: '🎷', desc: 'Sofisticado, com swing e improviso' },
   { id: 'Infantil', label: 'Infantil', icon: '🧸', desc: 'Leve e divertida, pra crianças' },
+  { id: 'K-Pop', label: 'K-Pop', icon: '✨', desc: 'Pop coreano moderno e vibrante' },
+  { id: 'Pagode Anos 90', label: 'Pagode Anos 90', icon: '🪕', desc: 'Nostálgico, romântico e envolvente' },
+  { id: 'Trap Acústico', label: 'Trap Acústico', icon: '🎸', desc: 'Violão intimista com batidas trap' },
+  { id: 'Indie Pop', label: 'Indie Pop', icon: '🌸', desc: 'Leve, melódico e sonhador' },
+  { id: 'R&B / Soul', label: 'R&B / Soul', icon: '🎹', desc: 'Suave, groove marcante e emocionante' },
 ];
 
 export const moods = [

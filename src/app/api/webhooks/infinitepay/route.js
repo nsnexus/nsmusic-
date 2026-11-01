@@ -35,10 +35,33 @@ export async function POST(req) {
       return NextResponse.json({ ok: true, skipped: 'missing_identifiers' });
     }
 
-    // Busca o pedido no banco
-    const order = await findOrderByIdOrNumber(orderNsu, env);
+    // Busca o pedido no banco por ID, orderNumber ou slug
+    let order = orderNsu ? await findOrderByIdOrNumber(orderNsu, env) : null;
+
+    if (!order && slug) {
+      try {
+        const { getSupabaseEdge } = await import('@/lib/supabase-edge');
+        const supabase = getSupabaseEdge(env);
+        if (supabase) {
+          // Tenta achar por intent em order_payment_intents
+          const { data: intentRow } = await supabase
+            .from('order_payment_intents')
+            .select('order_id')
+            .or(`txid.eq.inf_${slug},txid.eq.${slug}`)
+            .limit(1)
+            .maybeSingle();
+
+          if (intentRow?.order_id) {
+            order = await findOrderByIdOrNumber(intentRow.order_id, env);
+          }
+        }
+      } catch (e) {
+        console.warn('[webhook/infinitepay] Erro na busca por slug:', e.message);
+      }
+    }
+
     if (!order) {
-      console.warn(`[webhook/infinitepay] Pedido não encontrado para order_nsu='${orderNsu}':`, body);
+      console.warn(`[webhook/infinitepay] Pedido não encontrado para order_nsu='${orderNsu}', slug='${slug}':`, body);
       return NextResponse.json({ ok: true, skipped: 'order_not_found' });
     }
 
@@ -48,11 +71,32 @@ export async function POST(req) {
     let verifiedMethod = captureMethod;
 
     try {
-      const checkRes = await checkInfinitePayPayment({
+      // 1. Tenta checagem com order.id
+      let checkRes = await checkInfinitePayPayment({
         orderNsu: order.id,
         slug,
         transactionNsu,
       }, env);
+
+      // 2. Se não confirmou, tenta checagem com order.orderNumber
+      if (!checkRes.paid && order.orderNumber) {
+        const checkRes2 = await checkInfinitePayPayment({
+          orderNsu: order.orderNumber,
+          slug,
+          transactionNsu,
+        }, env);
+        if (checkRes2.paid) checkRes = checkRes2;
+      }
+
+      // 3. Se ainda não confirmou e orderNsu original foi diferente de ambos, tenta com ele
+      if (!checkRes.paid && orderNsu && orderNsu !== order.id && orderNsu !== order.orderNumber) {
+        const checkRes3 = await checkInfinitePayPayment({
+          orderNsu,
+          slug,
+          transactionNsu,
+        }, env);
+        if (checkRes3.paid) checkRes = checkRes3;
+      }
 
       if (checkRes.paid) {
         paymentVerified = true;
@@ -61,8 +105,8 @@ export async function POST(req) {
       }
     } catch (checkErr) {
       console.warn('[webhook/infinitepay] Falha ao consultar /payment_check:', checkErr.message);
-      // Se a consulta falhou por rede, mas o webhook tem dados completos, aceita sob observação
-      if (paidAmount > 0 && slug) {
+      // Se a consulta falhou por rede, mas o webhook tem dados completos e confirmação de pagamento:
+      if ((body.paid === true || body.success === true || paidAmount > 0) && slug) {
         paymentVerified = true;
       }
     }

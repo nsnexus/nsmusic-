@@ -149,6 +149,7 @@ export async function checkInfinitePayPayment(params, env = {}) {
     handle,
     order_nsu: String(orderNsu || ''),
     slug: String(slug || ''),
+    invoice_slug: String(slug || ''),
   };
   if (transactionNsu) {
     payload.transaction_nsu = String(transactionNsu);

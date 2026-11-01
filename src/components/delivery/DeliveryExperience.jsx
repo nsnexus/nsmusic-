@@ -17,6 +17,7 @@ export default function DeliveryExperience({
   onDownload,
   downloadingSlot,
   onCoverChange,
+  onReframeCover,
   uploadingCover,
   coverError,
   onChooseGiftTrack,
@@ -76,6 +77,7 @@ export default function DeliveryExperience({
       onDownload={onDownload}
       downloadingSlot={downloadingSlot}
       onCoverChange={onCoverChange}
+      onReframeCover={onReframeCover}
       uploadingCover={uploadingCover}
       coverError={coverError}
       onChooseGiftTrack={onChooseGiftTrack}
@@ -94,6 +96,7 @@ export default function DeliveryExperience({
         onDownload={onDownload}
         downloadingSlot={downloadingSlot}
         onCoverChange={onCoverChange}
+        onReframeCover={onReframeCover}
         uploadingCover={uploadingCover}
         coverError={coverError}
         onChooseGiftTrack={onChooseGiftTrack}

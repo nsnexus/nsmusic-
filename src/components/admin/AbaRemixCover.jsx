@@ -16,7 +16,10 @@ const ESTILOS_SUGERIDOS = [
   { label: '🎷 Gospel / Worship', value: 'Contemporary worship acoustic, emotional ambient piano, deep heartfelt vocal' },
   { label: '🎧 Lo-Fi Chill', value: 'Lo-Fi chillhop acoustic remix, warm vinyl beats, mellow soothing vocals' },
   { label: '🎻 Orquestral Cinematográfico', value: 'Cinematic orchestral soundtrack, lush strings and powerful emotional vocal' },
-  { label: '🌴 Reggae Suave', value: 'Smooth acoustic roots reggae, gentle guitar skanks and sunny warm vocals' }
+  { label: '🌴 Reggae Suave', value: 'Smooth acoustic roots reggae, gentle guitar skanks and sunny warm vocals' },
+  { label: '✨ K-Pop Moderno', value: 'Modern korean pop production, bright synths, catchy melodic hook, dynamic electronic beat, emotional and vibrant' },
+  { label: '🪕 Pagode Anos 90', value: 'Pagode anos 90 nostálgico e romântico, cavaquinho, repique de mão, tan-tan, harmonias e swing brasileiro dos anos 90' },
+  { label: '🎸 Trap Acústico', value: 'Acoustic trap, fingerstyle nylon acoustic guitar, deep 808 sub bass, crisp trap hi-hats, intimate modern melodic flow' }
 ];
 
 // Extrai todas as faixas e versões de áudio de um pedido existente

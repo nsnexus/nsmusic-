@@ -43,7 +43,10 @@ const GENERO_CARDS = [
   { id: 'MPB / Bossa Nova', label: 'MPB / Acústico', icon: '☕', sub: 'Voz e violão intimista' },
   { id: 'Forró / Baião', label: 'Forró / Piseiro', icon: '🪗', sub: 'Ritmo dançante' },
   { id: 'Trap / Rap', label: 'Trap / Rap', icon: '🎙️', sub: 'Batidas modernas' },
+  { id: 'Trap Acústico', label: 'Trap Acústico', icon: '🎸', sub: 'Violão e batidas trap' },
   { id: 'Rock', label: 'Rock', icon: '🎸', sub: 'Marcante com guitarras' },
+  { id: 'K-Pop', label: 'K-Pop', icon: '✨', sub: 'Moderno e contagiante' },
+  { id: 'Pagode Anos 90', label: 'Pagode Anos 90', icon: '🪕', sub: 'Nostálgico e romântico' },
 ];
 
 const CLIMA_CARDS = [

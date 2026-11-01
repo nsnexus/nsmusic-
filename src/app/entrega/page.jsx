@@ -31,6 +31,7 @@ import { trackGooglePurchase } from '@/lib/googleAds';
 import { trackFbPurchase } from '@/lib/metaPixel';
 import { isOrderFromMeta, isOrderFromTikTok } from '@/lib/trafficSource';
 import DeliveryExperience from '@/components/delivery/DeliveryExperience';
+import CoverCropperModal from '@/components/delivery/CoverCropperModal';
 import InAppBrowserBanner from '@/components/delivery/InAppBrowserBanner';
 import PreviaEncerradaModal from '@/components/delivery/PreviaEncerradaModal';
 
@@ -75,6 +76,8 @@ function EntregaContent() {
   const stripeSessionId = searchParams.get('session_id');
   const paidParam = searchParams.get('paid');
   const infinitePaySlug = searchParams.get('slug') || searchParams.get('invoice_slug');
+  const infinitePayTransactionNsu = searchParams.get('transaction_nsu');
+  const infinitePayOrderNsu = searchParams.get('order_nsu');
   const [isPayingCard, setIsPayingCard] = useState(false);
 
   const [loading, setLoading] = useState(true);
@@ -124,10 +127,6 @@ function EntregaContent() {
   const [linkPaginaCopiado, setLinkPaginaCopiado] = useState(false);
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && window.location.hostname.includes('nsnexus.com.br')) {
-      window.location.replace(`${DOMINIO_CANONICO}${window.location.pathname}${window.location.search}${window.location.hash}`);
-      return;
-    }
     setNavegadorInApp(isInAppBrowser());
   }, []);
   // Verificação automática de comprovante por IA (provisória — ver src/lib/receiptVerification.js).
@@ -159,6 +158,78 @@ function EntregaContent() {
 
   // Edição da foto de capa — pedido 11/09/2026 ("cliente poder editar a foto de capa dele").
   const [isUploadingCover, setIsUploadingCover] = useState(false);
+  const [cropperModalOpen, setCropperModalOpen] = useState(false);
+  const [cropperImageSrc, setCropperImageSrc] = useState(null);
+
+  const handleOpenCropperWithCurrent = () => {
+    const currentCover = activeOrder?.coverUrl || order?.coverUrl;
+    if (currentCover) {
+      setCropperImageSrc(currentCover);
+      setCropperModalOpen(true);
+    }
+  };
+
+  const handleCoverSelect = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!file.type?.startsWith('image/') && !file.name?.match(/\.(jpe?g|png|webp|heic|heif|gif)$/i)) {
+      setCoverUploadError('Escolha um arquivo de imagem.');
+      return;
+    }
+    if (file.size > 20 * 1024 * 1024) {
+      setCoverUploadError('A imagem é muito grande. Escolha uma de até 20MB.');
+      return;
+    }
+    setCoverUploadError('');
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      setCropperImageSrc(evt.target.result);
+      setCropperModalOpen(true);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSaveCroppedCover = async (croppedBlob) => {
+    const targetOrderId = activeOrder?.id || activeOrderId || order?.id || orderId;
+    if (!croppedBlob || !targetOrderId) return;
+    setCoverUploadError('');
+    setIsUploadingCover(true);
+    try {
+      const uploadData = new FormData();
+      uploadData.append('file', croppedBlob, 'capa.jpg');
+      const uploadRes = await fetch(`/api/media/upload?folder=photos&orderId=${encodeURIComponent(targetOrderId)}`, {
+        method: 'POST',
+        body: uploadData
+      });
+      if (!uploadRes.ok) throw new Error('Falha no upload da foto de capa');
+      const resJson = await uploadRes.json();
+      if (!resJson?.url) throw new Error('URL da foto não retornada');
+      const url = resJson.url;
+      const updateRes = await fetch('/api/orders/client-update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: targetOrderId, coverUrl: url })
+      });
+      if (!updateRes.ok) throw new Error('Falha ao salvar a nova foto de capa no pedido');
+      setOrder(prev => {
+        if (!prev) return prev;
+        if (activeGenTab === 'second' && !isSecondGen) {
+          return {
+            ...prev,
+            relatedOrder: prev.relatedOrder ? { ...prev.relatedOrder, coverUrl: url } : prev.relatedOrder
+          };
+        }
+        return { ...prev, coverUrl: url };
+      });
+      setCropperModalOpen(false);
+    } catch (err) {
+      console.error('[entrega] Falha ao trocar a foto de capa:', err?.message);
+      setCoverUploadError('Não foi possível trocar a foto agora. Tente novamente.');
+    } finally {
+      setIsUploadingCover(false);
+    }
+  };
   const [coverUploadError, setCoverUploadError] = useState('');
 
   // Processa e normaliza imagem para JPEG compatível com todos os navegadores (incluindo iPhone HEIC/PNG)
@@ -300,6 +371,9 @@ function EntregaContent() {
           let url = `/api/payments/status?orderId=${encodeURIComponent(orderId)}`;
           if (pid) url += `&paymentId=${encodeURIComponent(pid)}`;
           if (infinitePaySlug) url += `&slug=${encodeURIComponent(infinitePaySlug)}`;
+          if (infinitePayTransactionNsu) url += `&transaction_nsu=${encodeURIComponent(infinitePayTransactionNsu)}`;
+          if (infinitePayOrderNsu) url += `&order_nsu=${encodeURIComponent(infinitePayOrderNsu)}`;
+          if (paidParam) url += `&paid=${encodeURIComponent(paidParam)}`;
           const res = await fetch(url);
           if (res.ok) {
             const data = await res.json();
@@ -950,7 +1024,12 @@ function EntregaContent() {
       const res = await fetch('/api/payments/stripe/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId, sku, cancelUrl }),
+        body: JSON.stringify({
+        orderId,
+        sku,
+        cancelUrl,
+        successUrl: typeof window !== 'undefined' ? `${window.location.origin}/entrega?orderId=${encodeURIComponent(orderId)}&paid=infinitepay` : undefined,
+      }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.checkoutUrl) {
@@ -1913,6 +1992,13 @@ function EntregaContent() {
           {abaProduto === 'karaoke' && <KaraokeAddonCard orderId={activeOrderId} order={activeOrder} />}
           {abaProduto === 'voz' && <VozClienteAddonCard orderId={activeOrderId} order={activeOrder} />}
         </ProductWorkspace>
+      <CoverCropperModal
+        isOpen={cropperModalOpen}
+        imageSrc={cropperImageSrc}
+        onClose={() => setCropperModalOpen(false)}
+        onSave={handleSaveCroppedCover}
+        isSaving={isUploadingCover}
+      />
       </>
     );
   }
@@ -1935,7 +2021,8 @@ function EntregaContent() {
           promo={promo}
           onDownload={handleDownload}
           downloadingSlot={downloadingSlot}
-          onCoverChange={handleCoverChange}
+          onCoverChange={handleCoverSelect}
+          onReframeCover={handleOpenCropperWithCurrent}
           uploadingCover={isUploadingCover}
           coverError={coverUploadError}
           onChooseGiftTrack={escolherMusicaHomenagem}
@@ -1945,6 +2032,13 @@ function EntregaContent() {
           onReceipt={handleReceiptUpload}
           onApproved={refreshDelivery}
           supportUrl={linkWhatsapp(whatsappSuporte, `Olá! Preciso de ajuda com o pedido ${activeOrder?.orderNumber || activeOrderId || orderId}.`)}
+        />
+        <CoverCropperModal
+          isOpen={cropperModalOpen}
+          imageSrc={cropperImageSrc}
+          onClose={() => setCropperModalOpen(false)}
+          onSave={handleSaveCroppedCover}
+          isSaving={isUploadingCover}
         />
       </>
     );
@@ -2302,7 +2396,7 @@ function EntregaContent() {
                     id="cover-file-input"
                     type="file"
                     accept="image/*"
-                    onChange={handleCoverChange}
+                    onChange={handleCoverSelect}
                     disabled={isUploadingCover}
                     style={{
                       position: 'absolute',
@@ -2316,6 +2410,34 @@ function EntregaContent() {
                       border: 0,
                     }}
                   />
+                  {coverUrl && (
+                    <button
+                      type="button"
+                      onClick={handleOpenCropperWithCurrent}
+                      title="Reenquadrar foto de capa"
+                      style={{
+                        position: 'absolute',
+                        top: '12px',
+                        left: '12px',
+                        padding: '7px 14px',
+                        fontSize: '0.78rem',
+                        fontWeight: '700',
+                        borderRadius: '999px',
+                        border: 'none',
+                        background: 'rgba(15, 23, 42, 0.72)',
+                        color: '#fff',
+                        cursor: isUploadingCover ? 'default' : 'pointer',
+                        backdropFilter: 'blur(6px)',
+                        WebkitBackdropFilter: 'blur(6px)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        zIndex: 5,
+                      }}
+                    >
+                      ✂️ Reenquadrar
+                    </button>
+                  )}
                   <label
                     htmlFor="cover-file-input"
                     title="Trocar foto de capa"

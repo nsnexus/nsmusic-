@@ -14,6 +14,7 @@ export default function SongCard({
   onDownload,
   downloadingSlot,
   onCoverChange,
+  onReframeCover,
   uploadingCover,
   coverError,
   onChooseGiftTrack,
@@ -232,6 +233,29 @@ export default function SongCard({
           <span>Trocar foto de capa</span>
           <input type="file" accept="image/*" onChange={onCoverChange} disabled={uploadingCover} />
         </label>
+        {onReframeCover && order?.coverUrl && (
+          <button
+            type="button"
+            onClick={onReframeCover}
+            disabled={uploadingCover}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '7px 12px',
+              fontSize: '0.8rem',
+              fontWeight: 600,
+              borderRadius: '8px',
+              border: '1px solid #e2e8f0',
+              backgroundColor: '#f8fafc',
+              color: '#334155',
+              cursor: 'pointer',
+              marginBottom: '10px',
+            }}
+          >
+            ✂️ Reenquadrar foto atual
+          </button>
+        )}
         {uploadingCover && <p className="nx-helper" role="status">Enviando sua foto…</p>}
         {coverError && <p className="nx-message nx-error" role="alert">{coverError}</p>}
         {paid && available.length > 1 && onChooseGiftTrack && (

@@ -9,14 +9,23 @@
 // Pages **só depois** que o domínio novo já estiver respondendo. Ver docs/DOMINIO.md.
 
 // Domínio oficial. É o fallback de tudo e o que aparece em canonical, sitemap e JSON-LD.
-export const DOMINIO_CANONICO = 'https://nsmusic.ia.br';
+export const DOMINIO_CANONICO = 'https://nsmusic.nsnexus.com.br';
 
 // Normaliza e rejeita o que não serve como endereço público: vazio, localhost (build local) e
-// *.pages.dev (URL de preview da Cloudflare, que muda a cada deploy e não é indexável).
+// previews efêmeros da Cloudflare (hashes aleatórios de commit).
 export function normalizarSiteUrl(valor) {
   const url = String(valor || '').trim().replace(/\/+$/, '');
   if (!url) return '';
-  if (url.includes('localhost') || url.includes('127.0.0.1') || url.includes('pages.dev')) return '';
+  if (url.includes('localhost') || url.includes('127.0.0.1')) return '';
+  // Se for *.pages.dev mas NÃO for o domínio oficial nsmusic.pages.dev (ex: preview com hash de commit):
+  if (url.includes('.pages.dev')) {
+    try {
+      const parsed = new URL(url.startsWith('http') ? url : `https://${url}`);
+      if (parsed.hostname !== 'nsmusic.pages.dev') return '';
+    } catch (e) {
+      return '';
+    }
+  }
   return url;
 }
 
