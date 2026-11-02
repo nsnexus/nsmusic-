@@ -15,6 +15,7 @@ export default function CustomAudioPlayer({
   onCanPlayTrack,
   trackLabel = 'Música 1',
   onPlayingChange,
+  onPreviewEnded,
 }) {
   const audioRef = useRef(null);
   const progressBarRef = useRef(null);
@@ -189,6 +190,7 @@ export default function CustomAudioPlayer({
             e.currentTarget.currentTime = 0;
             setIsPlaying(false);
             setCurrentTime(0);
+            onPreviewEnded?.();
           } else {
             setCurrentTime(t);
           }

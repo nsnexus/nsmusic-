@@ -202,6 +202,85 @@ export async function runJsonCompletion(systemPrompt, userPrompt, env = {}) {
   throw new Error(`Falha ao gerar resposta JSON. Último erro: ${lastError ? lastError.message : 'nenhum provedor de IA configurado'}`);
 }
 
+/**
+ * Executa um prompt pedindo texto puro (sem formatação rígida de letra de música ou JSON) —
+ * ideal para sugestões de histórias, cartas ou descrições personalizadas.
+ *
+ * @param {string} systemPrompt Instruções de persona e formato
+ * @param {string} userPrompt Dados da homenagem e diretrizes
+ * @param {object} env Variáveis de ambiente opcionais
+ * @returns {Promise<string>} O texto gerado
+ */
+export async function runTextCompletion(systemPrompt, userPrompt, env = {}) {
+  let lastError = null;
+
+  const openAiKey = (env.OPENAI_API_KEY || process.env.OPENAI_API_KEY || '').trim();
+  if (openAiKey) {
+    try {
+      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${openAiKey}`,
+        },
+        body: JSON.stringify({
+          model: process.env.OPENAI_AGENT_MODEL || 'gpt-6-luna',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          ...((process.env.OPENAI_AGENT_MODEL || 'gpt-6-luna').startsWith('gpt-5') || (process.env.OPENAI_AGENT_MODEL || 'gpt-6-luna').startsWith('gpt-6') ? {} : { temperature: 0.7 })
+        }),
+        signal: AbortSignal.timeout(20000),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const text = data.choices?.[0]?.message?.content?.trim();
+        if (text) {
+          return text.replace(/^["'“”]+|["'“”]+$/g, '').trim();
+        }
+        lastError = new Error('OpenAI respondeu sem conteúdo utilizável.');
+      } else {
+        const errText = await res.text().catch(() => '');
+        lastError = new Error(`OpenAI error ${res.status}: ${errText}`);
+      }
+    } catch (err) {
+      lastError = err;
+      console.warn('[gemini] Falha OpenAI (Texto):', err.message || err);
+    }
+  }
+
+  const keysString = env.GEMINI_API_KEYS || process.env.GEMINI_API_KEYS || env.GEMINI_API_KEY || process.env.GEMINI_API_KEY || '';
+  const keys = keysString.split(',').map((k) => k.trim()).filter(Boolean);
+  const validModels = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-flash-latest'];
+
+  for (const key of keys) {
+    for (const modelName of validModels) {
+      try {
+        const genAI = new GoogleGenerativeAI(key);
+        const model = genAI.getGenerativeModel({
+          model: modelName,
+          systemInstruction: systemPrompt,
+        });
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error(`Timeout ao chamar Gemini (${modelName})`)), 15000)
+        );
+        const result = await Promise.race([model.generateContent(userPrompt), timeoutPromise]);
+        const text = result.response.text()?.trim();
+        if (text) {
+          return text.replace(/^["'“”]+|["'“”]+$/g, '').trim();
+        }
+      } catch (err) {
+        lastError = err;
+        console.warn(`[gemini] Falha Gemini Texto (modelo ${modelName}):`, err.message || err);
+      }
+    }
+  }
+
+  throw new Error(`Falha ao gerar texto. Último erro: ${lastError ? lastError.message : 'nenhum provedor de IA configurado'}`);
+}
+
 function sanitizeLyrics(rawLyrics) {
   if (!rawLyrics) return '';
   let cleaned = rawLyrics.trim();

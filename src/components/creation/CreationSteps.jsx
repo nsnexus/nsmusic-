@@ -3,7 +3,7 @@
 import React, { useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Mic } from 'lucide-react';
+import { Mic, Sparkles } from 'lucide-react';
 import { occasions, recipients, stylesList, moods } from '@/app/criar/wizardOptions';
 
 const RECIPIENT_CARDS = [
@@ -93,7 +93,36 @@ export default function CreationSteps({
   const [chosenCardId, setChosenCardId] = useState(null);
   const [showAllStyles, setShowAllStyles] = useState(false);
   const [showCustomOccasion, setShowCustomOccasion] = useState(false);
+  const [isGeneratingStory, setIsGeneratingStory] = useState(false);
+  const [storySuggestionError, setStorySuggestionError] = useState('');
   const previousRecipient = useRef(null);
+
+  const handleSuggestStory = async () => {
+    setIsGeneratingStory(true);
+    setStorySuggestionError('');
+    try {
+      const res = await fetch('/api/lyrics/suggest-story', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          honoreeName: data.honoreeName || '',
+          customerName: data.customerName || '',
+          relationship: data.relationship || '',
+          occasion: data.occasion || '',
+        }),
+      });
+      const json = await res.json();
+      if (res.ok && json.suggestion) {
+        updateField('story', json.suggestion);
+      } else {
+        setStorySuggestionError(json.error || 'Não foi possível gerar a sugestão agora.');
+      }
+    } catch {
+      setStorySuggestionError('Erro ao conectar com o gerador de histórias. Tente novamente.');
+    } finally {
+      setIsGeneratingStory(false);
+    }
+  };
 
   // Mapeia relacionamento atual para o card selecionado
   const getActiveCardId = () => {
@@ -370,28 +399,6 @@ export default function CreationSteps({
             </div>
           )}
         </div>
-
-        {/* Faixa de Confiança */}
-        <div
-          style={{
-            marginTop: '20px',
-            marginBottom: '10px',
-            padding: '12px 16px',
-            borderRadius: '16px',
-            backgroundColor: '#eef2ff',
-            border: '1px solid #e0e7ff',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-            fontSize: '0.84rem',
-            color: '#4338ca'
-          }}
-        >
-          <span style={{ fontSize: '1.2rem', lineHeight: 1 }}>🔒</span>
-          <span>
-            <b>100% Grátis para testar:</b> Você cria a letra personalizada e ouve a prévia antes de pagar qualquer valor.
-          </span>
-        </div>
       </section>
     );
   }
@@ -432,37 +439,40 @@ export default function CreationSteps({
           </div>
         </div>
 
-        {/* Sugestões de ideias para clicar e preencher */}
-        <div style={{ marginTop: '14px', marginBottom: '14px' }}>
-          <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#64748b', display: 'block', marginBottom: '8px' }}>
-            💡 Sugestões para inspirar:
-          </span>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-            {[
-              ['Uma lembrança marcante', 'Uma lembrança que guardo com muito carinho é '],
-              ['O que mais admiro', 'O que eu mais admiro em você é '],
-              ['Uma declaração especial', 'Hoje eu queria te dizer que '],
-            ].map(([title, prompt]) => (
-              <button
-                key={title}
-                type="button"
-                onClick={() => appendStoryPrompt(prompt)}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: '100px',
-                  fontSize: '0.8rem',
-                  fontWeight: 600,
-                  backgroundColor: '#ffffff',
-                  border: '1.5px solid #e2e8f0',
-                  color: '#1e293b',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                + {title}
-              </button>
-            ))}
-          </div>
+        {/* Botão de Sugestão de História com IA (ChatGPT / Gemini) */}
+        <div style={{ marginTop: '14px', marginBottom: '12px' }}>
+          <button
+            type="button"
+            onClick={handleSuggestStory}
+            disabled={isGeneratingStory}
+            style={{
+              width: '100%',
+              minHeight: '48px',
+              padding: '12px 18px',
+              borderRadius: '100px',
+              border: '1.5px solid #c7d2fe',
+              background: 'linear-gradient(135deg, #eef2ff 0%, #ede9fe 100%)',
+              color: '#4338ca',
+              fontSize: '0.92rem',
+              fontWeight: 700,
+              cursor: isGeneratingStory ? 'wait' : 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              boxShadow: '0 2px 10px rgba(79, 70, 229, 0.08)',
+              transition: 'all 0.2s ease',
+              opacity: isGeneratingStory ? 0.75 : 1,
+            }}
+          >
+            <Sparkles size={18} style={{ color: '#6366f1' }} />
+            <span>{isGeneratingStory ? 'Criando uma história emocionante com IA...' : '✨ Pedir Sugestão de História com IA'}</span>
+          </button>
+          {storySuggestionError && (
+            <div style={{ fontSize: '0.78rem', color: '#dc2626', marginTop: '6px', textAlign: 'center' }}>
+              {storySuggestionError}
+            </div>
+          )}
         </div>
 
         {/* Botão de gravação por voz */}
@@ -481,8 +491,8 @@ export default function CreationSteps({
             fontSize: '0.92rem',
             borderRadius: '100px',
             border: '1.5px solid #e0e7ff',
-            backgroundColor: isListening ? '#fef2f2' : '#eef2ff',
-            color: isListening ? '#dc2626' : '#4f46e5',
+            backgroundColor: isListening ? '#fef2f2' : '#f8fafc',
+            color: isListening ? '#dc2626' : '#475569',
             fontWeight: 700,
             cursor: 'pointer'
           }}
@@ -490,27 +500,6 @@ export default function CreationSteps({
           <Mic size={18} aria-hidden="true" />
           <span>{isListening ? 'Parar de gravar' : 'Prefiro contar por áudio / voz'}</span>
         </button>
-
-        {/* Detalhes extras */}
-        <details className="nx-details" style={{ marginTop: '16px' }}>
-          <summary style={{ fontSize: '0.86rem', fontWeight: 600, color: '#857D80', cursor: 'pointer' }}>
-            + Nomes adicionais ou frase especial obrigatória
-          </summary>
-          <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <input
-              className="wz-inp"
-              value={data.requiredNames || ''}
-              onChange={e => updateField('requiredNames', e.target.value)}
-              placeholder="Ex: nossos filhos Pedro e Laura"
-            />
-            <input
-              className="wz-inp"
-              value={data.requiredPhrase || ''}
-              onChange={e => updateField('requiredPhrase', e.target.value)}
-              placeholder="Ex: sempre ao seu lado até o fim"
-            />
-          </div>
-        </details>
       </section>
     );
   }

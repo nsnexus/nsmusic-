@@ -1912,7 +1912,6 @@ export default function CriarMusica() {
           <div style={{ maxWidth: '34rem', margin: '0 auto' }}>
             {customLyricsMode ? (
               <div style={{ backgroundColor: '#ffffff', borderRadius: '20px', padding: '24px 20px', border: '1.5px solid #e2e8f0', boxShadow: '0 4px 18px rgba(0,0,0,0.03)' }}>
-                <span className="wz-guide">5 DE 7 · A LETRA</span>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px', marginBottom: '14px' }}>
                   <div>
                     <h2 className="wz-t" style={{ fontSize: '1.35rem', margin: 0 }}>Colar Minha Própria Letra ✍️</h2>
@@ -1994,7 +1993,6 @@ export default function CriarMusica() {
               </div>
             ) : formData.lyricsStatus === 'generating' ? (
               <div style={{ padding: '36px 20px', textAlign: 'center', backgroundColor: '#ffffff', borderRadius: '20px', border: '1.5px solid #e2e8f0', boxShadow: '0 4px 18px rgba(0,0,0,0.03)' }}>
-                <span className="wz-guide">5 DE 7 · COMPOSIÇÃO POÉTICA</span>
                 <StudioLyricsAnimation />
                 <h2 className="wz-t" style={{ fontSize: '1.35rem', marginTop: '16px' }}>
                   Escrevendo a sua letra... ✨
@@ -2034,7 +2032,6 @@ export default function CriarMusica() {
               </div>
             ) : formData.lyricsStatus === 'error' ? (
               <div style={{ backgroundColor: '#ffffff', borderRadius: '20px', border: '1.5px solid #fecdd3', padding: '32px 20px', textAlign: 'center', boxShadow: '0 4px 18px rgba(0,0,0,0.03)' }}>
-                <span className="wz-guide">5 DE 7 · COMPOSIÇÃO</span>
                 <h3 style={{ fontSize: '1.3rem', fontWeight: '800', color: '#dc2626', margin: '8px 0' }}>
                   Não foi possível compor a letra agora
                 </h3>
@@ -2064,7 +2061,6 @@ export default function CriarMusica() {
               </div>
             ) : (
               <div>
-                <span className="wz-guide">5 DE 7 · A LETRA</span>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px', marginBottom: '14px' }}>
                   <div>
                     <h1 className="wz-t" style={{ margin: 0 }}>Sua Letra Exclusiva ✨</h1>
@@ -2232,7 +2228,6 @@ export default function CriarMusica() {
           <div style={{ maxWidth: '34rem', margin: '0 auto' }}>
             {formData.sunoStatus !== 'generated' ? (
               <div className="suno-retention-box">
-                <span className="wz-guide">6 DE 7 · ESTÚDIO MUSICAL</span>
                 <StudioAudioAnimation />
                 <h2 className="wz-t" style={{ fontSize: '1.4rem', marginTop: '12px' }}>
                   Gravando suas 2 versões... 🎙️
@@ -2301,7 +2296,6 @@ export default function CriarMusica() {
               </div>
             ) : (
               <div>
-                <span className="wz-guide">{isSecondGenOrder ? '6 DE 6 · SUAS +2 MÚSICAS ESTÃO PRONTAS' : '6 DE 7 · SUAS MÚSICAS ESTÃO PRONTAS'}</span>
                 <h1 className="wz-t">{isSecondGenOrder ? 'Suas Músicas Bônus Ficaram Prontas! 🎉' : 'Ouça suas prévias! 🎧'}</h1>
                 <p className="wz-s">
                   {isSecondGenOrder ? 'Criamos 2 arranjos adicionais para ' + (formData.honoreeName || 'alguém especial') + '. Ambas completas estão inclusas no seu pacote de 4 músicas e sem cortes!' : 'Criamos 2 arranjos diferentes para ' + (formData.honoreeName || 'alguém especial') + '. Ambas completas estão inclusas no seu pacote!'}
@@ -2317,6 +2311,7 @@ export default function CriarMusica() {
                     orderId={orderId}
                     isSecondGen={isSecondGenOrder}
                     isPaid={isSecondGenOrder}
+                    coverUrl={formData.coverUrl}
                   />
 
                   {/* Versão 2 Preview Card */}
@@ -2329,6 +2324,7 @@ export default function CriarMusica() {
                       orderId={orderId}
                       isSecondGen={isSecondGenOrder}
                       isPaid={isSecondGenOrder}
+                      coverUrl={formData.coverUrl}
                     />
                   )}
                 </div>
@@ -2360,7 +2356,7 @@ export default function CriarMusica() {
           return (
             <div style={{ maxWidth: '34rem', margin: '0 auto', textAlign: 'center', backgroundColor: '#ffffff', borderRadius: '20px', border: '1.5px solid #86efac', padding: '32px 20px', boxShadow: '0 4px 18px rgba(16, 185, 129, 0.08)' }}>
               <span style={{ fontSize: '3rem', display: 'block', marginBottom: '8px' }}>🎉</span>
-              <span className="wz-guide" style={{ color: '#059669' }}>2ª GERAÇÃO LIBERADA</span>
+              <span style={{ display: 'inline-block', fontSize: '0.8rem', fontWeight: 800, color: '#059669', backgroundColor: '#dcfce7', border: '1px solid #bbf7d0', padding: '4px 14px', borderRadius: '999px', marginBottom: '8px' }}>2ª GERAÇÃO LIBERADA</span>
               <h2 className="wz-t" style={{ fontSize: '1.4rem', color: '#14532d', margin: '8px 0 10px' }}>
                 Suas +2 Músicas Bônus Estão Prontas!
               </h2>
@@ -2380,7 +2376,6 @@ export default function CriarMusica() {
 
         return (
           <div style={{ maxWidth: '34rem', margin: '0 auto' }}>
-            <span className="wz-guide">7 DE 7 · ESCOLHA SEU PRESENTE</span>
             <h1 className="wz-t" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span>🎁</span> Escolha o seu presente
             </h1>
@@ -2860,34 +2855,9 @@ export default function CriarMusica() {
       <main className="criar-main" style={{ flex: 1, padding: '32px 0 100px 0', position: 'relative', zIndex: 1 }}>
         <div className="container criar-container" style={{ maxWidth: '1120px' }}>
           
-          {/* Wizard step indicators (Estilo Capivarinha Love) */}
+          {/* Wizard step indicators */}
           {step <= TOTAL_JOURNEY_STEPS && (
             <div className="wz-top" style={{ maxWidth: '34rem', margin: '0 auto 1.25rem', padding: '0 4px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-              {step > 1 && !(step === 6 && formData.sunoStatus === 'generating') ? (
-                <button
-                  type="button"
-                  onClick={prevStep}
-                  className="wz-back"
-                  aria-label="Voltar"
-                  style={{
-                    width: '36px',
-                    height: '36px',
-                    borderRadius: '50%',
-                    border: '1px solid #F1E4E8',
-                    background: '#fff',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    fontSize: '1.1rem',
-                    color: '#1E1418'
-                  }}
-                >
-                  ←
-                </button>
-              ) : (
-                <div style={{ width: '36px' }} />
-              )}
               <div className="wz-track" style={{ flex: 1, height: '6px', background: '#e2e8f0', borderRadius: '6px', overflow: 'hidden' }}>
                 <div className="wz-fill" style={{ width: `${(step / TOTAL_JOURNEY_STEPS) * 100}%`, height: '100%', background: 'linear-gradient(90deg, #4f46e5 0%, #7c3aed 100%)', borderRadius: '6px', transition: 'width 0.35s ease' }} />
               </div>
