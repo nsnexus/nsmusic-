@@ -518,6 +518,7 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
       {review && (
         <div
           className="nx-card nx-checkout-panel"
+          id="checkout-panel"
           ref={panel}
           style={{
             marginTop: '22px',
@@ -585,6 +586,9 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
                   className="nx-button nx-primary"
                   onClick={async () => {
                     try {
+                      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+                        navigator.vibrate([40, 30, 40]);
+                      }
                       await navigator.clipboard.writeText(pix.qrCode);
                       setPixCopied(true);
                       setMessage('Código PIX copiado com sucesso! Abra o app do seu banco e escolha PIX Copia e Cola.');
@@ -618,6 +622,60 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
                   }}
                 >
                   {pixCopied ? '✅ Código PIX copiado!' : '📋 Copiar código PIX'}
+                </button>
+              </div>
+
+              {/* Guia Visual Rápido para Celular */}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(3, 1fr)',
+                  gap: '8px',
+                  margin: '12px 0 16px',
+                  textAlign: 'center',
+                }}
+              >
+                <div style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '10px 4px' }}>
+                  <div style={{ fontSize: '1.15rem', marginBottom: '2px' }}>📋</div>
+                  <strong style={{ fontSize: '0.72rem', color: '#1e293b', display: 'block', lineHeight: 1.2 }}>1. Copie o Código</strong>
+                  <span style={{ fontSize: '0.64rem', color: '#64748b' }}>No botão acima</span>
+                </div>
+                <div style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '10px 4px' }}>
+                  <div style={{ fontSize: '1.15rem', marginBottom: '2px' }}>🏦</div>
+                  <strong style={{ fontSize: '0.72rem', color: '#1e293b', display: 'block', lineHeight: 1.2 }}>2. Cole no Banco</strong>
+                  <span style={{ fontSize: '0.64rem', color: '#64748b' }}>Pix Copia e Cola</span>
+                </div>
+                <div style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '10px 4px' }}>
+                  <div style={{ fontSize: '1.15rem', marginBottom: '2px' }}>⚡</div>
+                  <strong style={{ fontSize: '0.72rem', color: '#1e293b', display: 'block', lineHeight: 1.2 }}>3. Volte e Baixe</strong>
+                  <span style={{ fontSize: '0.64rem', color: '#64748b' }}>Liberação imediata</span>
+                </div>
+              </div>
+
+              {/* Botão de Verificação Manual para dar controle ao cliente */}
+              <div style={{ marginBottom: '14px' }}>
+                <button
+                  type="button"
+                  onClick={check}
+                  disabled={checking}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    fontSize: '0.86rem',
+                    fontWeight: 700,
+                    borderRadius: '10px',
+                    backgroundColor: '#ffffff',
+                    border: '1.5px solid #cbd5e1',
+                    color: '#334155',
+                    cursor: checking ? 'default' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
+                  }}
+                >
+                  {checking ? 'Consultando confirmação com o banco…' : '🔄 Já fiz o PIX · Verificar liberação agora'}
                 </button>
               </div>
 

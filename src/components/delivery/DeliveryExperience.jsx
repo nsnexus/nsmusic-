@@ -7,6 +7,9 @@ import SongCard from './SongCard';
 import PurchaseCheckout from './PurchaseCheckout';
 import SecondSongOffer from './SecondSongOffer';
 import ReferralCard from '@/components/account/ReferralCard';
+import MobileValueComparison from './MobileValueComparison';
+import MobileTrustBadges from './MobileTrustBadges';
+import MobileStickyBar from './MobileStickyBar';
 
 export default function DeliveryExperience({
   order,
@@ -281,6 +284,13 @@ export default function DeliveryExperience({
             <div className="nx-preview-layout nx-preview-focused">
               {primarySongCard}
             </div>
+
+            {/* Comparativo de Valor Mobile: Prévia vs Oficial */}
+            <MobileValueComparison honoreeName={order?.honoreeName} />
+
+            {/* Badges de Confiança e Garantia de Emoção */}
+            <MobileTrustBadges />
+
             <PurchaseCheckout
               orderId={orderId}
               promo={promo}
@@ -288,6 +298,15 @@ export default function DeliveryExperience({
               receiptStatus={receiptStatus}
               onReceipt={onReceipt}
               onApproved={onApproved}
+            />
+
+            {/* Barra Fixa Flutuante para Celular */}
+            <MobileStickyBar
+              onScrollToCheckout={() => {
+                const el = document.getElementById('checkout-panel') || document.getElementById('pagamento');
+                el?.scrollIntoView({ behavior: 'smooth' });
+              }}
+              price="R$ 9,99"
             />
           </>
         ) : (
