@@ -25,6 +25,7 @@ import FunilStatusCards from '@/components/admin/FunilStatusCards';
 import { hasOrderGeneratedPix } from '@/lib/pixCheckout';
 import { isStripePayment, calculateStripeFee, calculateStripeNet, getPayoutStatus } from '@/lib/paymentFees';
 import { isUSOrder } from '@/lib/country';
+import { Search, RefreshCw, LogOut, Trash2 } from 'lucide-react';
 
 const getSavedAdminFilter = (key, fallback) => {
   if (typeof window === 'undefined') return fallback;
@@ -980,159 +981,43 @@ export default function AdminDashboard() {
 
   return (
     <div style={styles.wrapper}>
-      {/* Header com Tema Claro */}
-      <header style={styles.header}>
-        <div style={styles.headerContainer}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-            <Link href="/admin" style={{ display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none' }}>
-              <Image src="/logo.png" alt="NSMusic" width={36} height={36} style={{ height: '36px', width: 'auto' }} priority />
-              <span style={{ fontSize: '0.9rem', color: '#0f172a', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Painel Admin</span>
+      {/* Header Clean & Moderno — Taste Skill v2 / Impeccable */}
+      <header style={{
+        backgroundColor: '#ffffff',
+        borderBottom: '1px solid #e2e8f0',
+        position: 'sticky',
+        top: 0,
+        zIndex: 50,
+        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
+      }}>
+        {/* Linha 1: Brand + Status Badges + Ações Globais */}
+        <div style={{
+          maxWidth: '1380px',
+          margin: '0 auto',
+          padding: '12px 20px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '16px',
+          flexWrap: 'wrap',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <Link href="/admin" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none' }}>
+              <Image src="/logo.png" alt="NSMusic" width={32} height={32} style={{ height: '32px', width: 'auto' }} priority />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '1rem', color: '#0f172a', fontWeight: '800', letterSpacing: '-0.02em' }}>NS Music</span>
+                <span style={{ fontSize: '0.68rem', fontWeight: '800', color: '#475569', background: '#f1f5f9', border: '1px solid #e2e8f0', padding: '2px 8px', borderRadius: '6px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Admin
+                </span>
+              </div>
             </Link>
-
-            {/* Navegação Mobile (Caixa suspensa / Select) */}
-            <div className="admin-mobile-only" style={{ width: '100%', marginTop: '6px' }}>
-              <select
-                value={activeTab}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  if (val === 'DASHBOARD') {
-                    router.push('/admin/dashboard');
-                  } else if (val === 'ANUNCIOS') {
-                    router.push('/admin/anuncios');
-                  } else if (val === 'CARTAS') {
-                    router.push('/admin/cartas');
-                  } else {
-                    setActiveTab(val);
-                  }
-                }}
-                style={{
-                  width: '100%',
-                  padding: '9px 12px',
-                  borderRadius: '8px',
-                  border: '1.5px solid #7c3aed',
-                  backgroundColor: '#ffffff',
-                  color: '#0f172a',
-                  fontWeight: '700',
-                  fontSize: '0.88rem',
-                  outline: 'none',
-                }}
-              >
-                <option value="ORDERS">📦 Pedidos ({activeOrdersCount})</option>
-                <option value="CONTAS">👤 Contas & Créditos</option>
-                <option value="FINANCEIRO">💰 Financeiro (Receitas & Despesas)</option>
-                <option value="STUCK">💰 Conferir Pagamentos</option>
-                <option value="TIMBRES">📋 Timbres de Voz (Clientes)</option>
-                <option value="REMIX">🎛️ Remix / Cover Suno</option>
-                <option value="DASHBOARD">📊 Dashboard ➔</option>
-                <option value="ANUNCIOS">🎯 Anúncios (ROI/CPA) ➔</option>
-                <option value="CARTAS">💌 Temas da Carta ➔</option>
-                <option value="LIMITES">🚦 Limites de Geração</option>
-                <option value="AJUSTES">⚙️ Ajustes Gerais</option>
-              </select>
-            </div>
-
-            {/* Tabs Navigation Desktop */}
-            <div className="admin-desktop-only" style={{ gap: '8px', flexWrap: 'wrap' }}>
-              <button 
-                onClick={() => setActiveTab('ORDERS')}
-                style={{
-                  ...styles.tabBtn,
-                  backgroundColor: activeTab === 'ORDERS' ? '#7c3aed' : '#e2e8f0',
-                  color: activeTab === 'ORDERS' ? '#ffffff' : '#334155',
-                }}
-              >
-                📦 Pedidos ({activeOrdersCount})
-              </button>
-              <button
-                onClick={() => setActiveTab('CONTAS')}
-                style={{
-                  ...styles.tabBtn,
-                  backgroundColor: activeTab === 'CONTAS' ? '#7c3aed' : '#e2e8f0',
-                  color: activeTab === 'CONTAS' ? '#ffffff' : '#334155',
-                  fontWeight: '700',
-                }}
-              >
-                👤 Contas & Créditos
-              </button>
-              <button
-                onClick={() => setActiveTab('FINANCEIRO')}
-                style={{
-                  ...styles.tabBtn,
-                  backgroundColor: activeTab === 'FINANCEIRO' ? '#7c3aed' : '#e2e8f0',
-                  color: activeTab === 'FINANCEIRO' ? '#ffffff' : '#334155',
-                  fontWeight: '700',
-                }}
-              >
-                💰 Financeiro
-              </button>
-              <button
-                onClick={() => setActiveTab('STUCK')}
-                style={{
-                  ...styles.tabBtn,
-                  backgroundColor: activeTab === 'STUCK' ? '#7c3aed' : '#e2e8f0',
-                  color: activeTab === 'STUCK' ? '#ffffff' : '#334155',
-                }}
-              >
-                💰 Conferir Pagamentos
-              </button>
-              <button
-                onClick={() => setActiveTab('TIMBRES')}
-                style={{
-                  ...styles.tabBtn,
-                  backgroundColor: activeTab === 'TIMBRES' ? '#7c3aed' : '#e2e8f0',
-                  color: activeTab === 'TIMBRES' ? '#ffffff' : '#334155',
-                  fontWeight: '700',
-                }}
-              >
-                📋 Timbres de Voz
-              </button>
-              <button
-                onClick={() => setActiveTab('REMIX')}
-                style={{
-                  ...styles.tabBtn,
-                  backgroundColor: activeTab === 'REMIX' ? '#7c3aed' : '#e2e8f0',
-                  color: activeTab === 'REMIX' ? '#ffffff' : '#334155',
-                  fontWeight: '700',
-                }}
-              >
-                🎛️ Remix & Cover
-              </button>
-              <Link href="/admin/dashboard" style={{ ...styles.tabBtn, backgroundColor: '#e2e8f0', color: '#334155', textDecoration: 'none', display: 'inline-block' }}>
-                📊 Dashboard
-              </Link>
-              <Link href="/admin/anuncios" style={{ ...styles.tabBtn, backgroundColor: '#1e293b', color: '#60a5fa', textDecoration: 'none', display: 'inline-block', fontWeight: '700' }}>
-                🎯 Anúncios (ROI/CPA)
-              </Link>
-              <Link href="/admin/cartas" style={{ ...styles.tabBtn, backgroundColor: '#e2e8f0', color: '#334155', textDecoration: 'none', display: 'inline-block' }}>
-                💌 Temas da Carta
-              </Link>
-              <button
-                onClick={() => setActiveTab('LIMITES')}
-                style={{
-                  ...styles.tabBtn,
-                  backgroundColor: activeTab === 'LIMITES' ? '#7c3aed' : '#e2e8f0',
-                  color: activeTab === 'LIMITES' ? '#ffffff' : '#334155',
-                }}
-              >
-                🚦 Limites
-              </button>
-              <button
-                onClick={() => setActiveTab('AJUSTES')}
-                style={{
-                  ...styles.tabBtn,
-                  backgroundColor: activeTab === 'AJUSTES' ? '#7c3aed' : '#e2e8f0',
-                  color: activeTab === 'AJUSTES' ? '#ffffff' : '#334155',
-                }}
-              >
-                ⚙️ Ajustes
-              </button>
-            </div>
           </div>
 
-          <div style={styles.userInfo}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
             <UnificallyCreditsBadge />
             <KieCreditsBadge />
             <WhatsAppUsageBadge />
+
             <button
               type="button"
               onClick={() => setReloadTrigger((prev) => prev + 1)}
@@ -1145,18 +1030,122 @@ export default function AdminDashboard() {
                 fontSize: '0.8rem',
                 fontWeight: '700',
                 color: '#475569',
+                cursor: (loadingOrders || isRefreshing) ? 'default' : 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                transition: 'all 0.15s ease',
+              }}
+              title={lastRefreshedAt ? `Última atualização: ${lastRefreshedAt.toLocaleTimeString('pt-BR')}` : 'Atualizar'}
+            >
+              <RefreshCw size={13} style={{ transform: isRefreshing ? 'rotate(180deg)' : 'none', transition: 'transform 0.5s' }} />
+              <span>{isRefreshing ? 'Atualizando...' : 'Atualizar'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleLogout}
+              style={{
+                background: '#fef2f2',
+                border: '1px solid #fecaca',
+                borderRadius: '8px',
+                padding: '6px 12px',
+                fontSize: '0.8rem',
+                fontWeight: '700',
+                color: '#b91c1c',
                 cursor: 'pointer',
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '6px',
-                transition: 'all 0.2s',
+                transition: 'all 0.15s ease',
               }}
-              title={lastRefreshedAt ? `Última atualização: ${lastRefreshedAt.toLocaleTimeString('pt-BR')}` : 'Atualizar'}
+              title="Sair do painel administrativo"
             >
-              <span style={{ display: 'inline-block', transform: isRefreshing ? 'rotate(180deg)' : 'none', transition: 'transform 0.5s' }}>🔄</span>
-              {isRefreshing ? 'Atualizando...' : 'Atualizar'}
+              <LogOut size={13} />
+              <span>Sair</span>
             </button>
-            <button onClick={handleLogout} style={styles.logoutBtn}>Sair ➔</button>
+          </div>
+        </div>
+
+        {/* Linha 2: Sub-Navbar com Abas Elegantes e Limpas */}
+        <div style={{
+          backgroundColor: '#f8fafc',
+          borderTop: '1px solid #f1f5f9',
+          padding: '4px 20px',
+        }}>
+          <div style={{
+            maxWidth: '1380px',
+            margin: '0 auto',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            overflowX: 'auto',
+            scrollbarWidth: 'none',
+            WebkitOverflowScrolling: 'touch',
+            paddingBottom: '2px',
+          }}>
+            {[
+              { id: 'ORDERS', label: `📦 Pedidos (${activeOrdersCount})` },
+              { id: 'DASHBOARD', label: '📊 Dashboard', isLink: true, href: '/admin/dashboard' },
+              { id: 'ANUNCIOS', label: '🎯 Anúncios', isLink: true, href: '/admin/anuncios' },
+              { id: 'CONTAS', label: '👤 Contas' },
+              { id: 'FINANCEIRO', label: '💰 Financeiro' },
+              { id: 'STUCK', label: '🔍 Conferir Pagamentos' },
+              { id: 'TIMBRES', label: '🎤 Timbres' },
+              { id: 'REMIX', label: '🎛️ Remix' },
+              { id: 'CARTAS', label: '💌 Cartas', isLink: true, href: '/admin/cartas' },
+              { id: 'LIMITES', label: '🚦 Limites' },
+              { id: 'AJUSTES', label: '⚙️ Ajustes' },
+            ].map(tab => {
+              const isActive = activeTab === tab.id;
+              if (tab.isLink) {
+                return (
+                  <Link
+                    key={tab.id}
+                    href={tab.href}
+                    style={{
+                      padding: '7px 13px',
+                      borderRadius: '8px',
+                      fontSize: '0.82rem',
+                      fontWeight: '600',
+                      textDecoration: 'none',
+                      whiteSpace: 'nowrap',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      color: '#475569',
+                      backgroundColor: 'transparent',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <span>{tab.label}</span>
+                    <span style={{ fontSize: '0.7rem', opacity: 0.6 }}>↗</span>
+                  </Link>
+                );
+              }
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  style={{
+                    padding: '7px 13px',
+                    borderRadius: '8px',
+                    fontSize: '0.82rem',
+                    fontWeight: isActive ? '700' : '600',
+                    border: 'none',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    color: isActive ? '#ffffff' : '#475569',
+                    backgroundColor: isActive ? '#0f172a' : 'transparent',
+                    boxShadow: isActive ? '0 1px 3px rgba(15, 23, 42, 0.2)' : 'none',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
           </div>
         </div>
       </header>
@@ -1637,401 +1626,345 @@ export default function AdminDashboard() {
 
               {/* Filtros e Barra de Ações em Massa */}
               <div style={{ marginTop: '24px' }}>
-                {/* Filtro de Mercado / País (Brasil vs Estados Unidos) */}
+                {/* Painel Unificado de Filtros e Busca — Clean & Executivo */}
                 <div style={{
-                  marginBottom: '16px',
+                  backgroundColor: '#ffffff',
+                  borderRadius: '16px',
+                  border: '1px solid #e2e8f0',
+                  padding: '16px 20px',
+                  marginBottom: '20px',
+                  boxShadow: '0 1px 4px rgba(0, 0, 0, 0.03)',
                   display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  flexWrap: 'wrap'
+                  flexDirection: 'column',
+                  gap: '14px',
                 }}>
+                  {/* Linha 1: Busca Rápida + Abas de Status do Pedido + Toggle de Mercado */}
                   <div style={{
-                    display: 'inline-flex',
+                    display: 'flex',
                     alignItems: 'center',
-                    gap: '4px',
-                    backgroundColor: '#ffffff',
-                    padding: '4px 6px',
-                    borderRadius: '10px',
-                    border: '1.5px solid #cbd5e1',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-                    flexWrap: 'wrap'
+                    gap: '12px',
+                    flexWrap: 'wrap',
+                    justifyContent: 'space-between',
                   }}>
-                    <span style={{ fontSize: '0.8rem', fontWeight: '700', color: '#475569', padding: '0 8px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                      🌍 Mercado:
+                    {/* Input de Busca */}
+                    <div style={{ position: 'relative', flex: '1 1 280px', maxWidth: '440px' }}>
+                      <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', pointerEvents: 'none' }} />
+                      <input
+                        id="admin-search"
+                        type="text"
+                        placeholder="Buscar telefone, nome ou código..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '9px 34px 9px 36px',
+                          borderRadius: '10px',
+                          border: '1.5px solid #e2e8f0',
+                          fontSize: '0.88rem',
+                          color: '#0f172a',
+                          outline: 'none',
+                          boxSizing: 'border-box',
+                          backgroundColor: '#f8fafc',
+                          transition: 'border-color 0.15s ease',
+                        }}
+                      />
+                      {searchQuery && (
+                        <button
+                          type="button"
+                          onClick={() => setSearchQuery('')}
+                          style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.9rem', color: '#94a3b8', lineHeight: 1 }}
+                          title="Limpar busca"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Segmented Control: Status do Pedido */}
+                    <div style={{
+                      display: 'inline-flex',
+                      backgroundColor: '#f1f5f9',
+                      padding: '3px',
+                      borderRadius: '10px',
+                      gap: '2px',
+                      flexWrap: 'wrap',
+                    }}>
+                      {[
+                        { id: 'ALL', label: 'Todos', count: activeOrdersCount },
+                        { id: 'NEW', label: 'Novos', count: countryFilteredOrders.filter(o => o.paymentStatus === 'PAGAMENTO_APROVADO' && o.productionStatus === 'LETRA_APROVADA').length },
+                        { id: 'PRODUCTION', label: 'Em Produção', count: countryFilteredOrders.filter(o => o.productionStatus === 'EM_PRODUCAO' || o.productionStatus === 'VERSOES_EM_PRODUCAO').length },
+                        { id: 'FINISHED', label: 'Finalizados', count: countryFilteredOrders.filter(o => o.productionStatus === 'FINALIZADO' || o.productionStatus === 'ENTREGUE').length },
+                      ].map(item => {
+                        const isCurrent = filter === item.id;
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => setFilter(item.id)}
+                            style={{
+                              padding: '6px 12px',
+                              borderRadius: '8px',
+                              fontSize: '0.8rem',
+                              fontWeight: isCurrent ? '700' : '600',
+                              border: 'none',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              backgroundColor: isCurrent ? '#ffffff' : 'transparent',
+                              color: isCurrent ? '#0f172a' : '#64748b',
+                              boxShadow: isCurrent ? '0 1px 3px rgba(0,0,0,0.06)' : 'none',
+                              transition: 'all 0.15s ease',
+                            }}
+                          >
+                            <span>{item.label}</span>
+                            <span style={{
+                              fontSize: '0.7rem',
+                              padding: '1px 6px',
+                              borderRadius: '999px',
+                              backgroundColor: isCurrent ? '#f1f5f9' : 'rgba(0,0,0,0.04)',
+                              color: isCurrent ? '#0f172a' : '#64748b',
+                              fontWeight: '700',
+                            }}>
+                              {item.count}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Segmented Control: Mercado / País */}
+                    <div style={{
+                      display: 'inline-flex',
+                      backgroundColor: '#f1f5f9',
+                      padding: '3px',
+                      borderRadius: '10px',
+                      gap: '2px',
+                    }}>
+                      {[
+                        { id: 'ALL', label: '🌐 Todos', count: orders.length },
+                        { id: 'BR', label: '🇧🇷 Brasil', count: orders.filter(o => !isUSOrder(o)).length },
+                        { id: 'US', label: '🇺🇸 EUA', count: orders.filter(o => isUSOrder(o)).length },
+                      ].map(item => {
+                        const isCurrent = countryFilter === item.id;
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => setCountryFilter(item.id)}
+                            style={{
+                              padding: '6px 10px',
+                              borderRadius: '8px',
+                              fontSize: '0.78rem',
+                              fontWeight: isCurrent ? '700' : '600',
+                              border: 'none',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '5px',
+                              backgroundColor: isCurrent ? '#ffffff' : 'transparent',
+                              color: isCurrent ? '#0f172a' : '#64748b',
+                              boxShadow: isCurrent ? '0 1px 3px rgba(0,0,0,0.06)' : 'none',
+                              transition: 'all 0.15s ease',
+                            }}
+                          >
+                            <span>{item.label}</span>
+                            <span style={{ fontSize: '0.68rem', opacity: 0.75 }}>({item.count})</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Linha 2: Refinamento Secundário (Pílulas de Venda + Dropdowns Compactos) */}
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '12px',
+                    flexWrap: 'wrap',
+                    borderTop: '1px solid #f1f5f9',
+                    paddingTop: '12px',
+                  }}>
+                    {/* Pílulas de Tipo de Venda */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: '0.74rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', marginRight: '4px' }}>
+                        Canal:
+                      </span>
+                      {[
+                        { id: 'ALL', label: 'Todas' },
+                        { id: 'MUSIC', label: '🎵 Música' },
+                        { id: 'VIDEO', label: '🎬 Vídeo' },
+                        { id: 'CARD', label: '💳 Cartão' },
+                        { id: 'PIX', label: '⚡ PIX' },
+                        { id: 'PIX_COPIADO', label: '📋 PIX Não Pago' },
+                      ].map(item => {
+                        const isCurrent = purchaseTypeTab === item.id;
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => setPurchaseTypeTab(item.id)}
+                            style={{
+                              padding: '4px 10px',
+                              borderRadius: '6px',
+                              fontSize: '0.76rem',
+                              fontWeight: isCurrent ? '700' : '500',
+                              border: isCurrent ? '1px solid #cbd5e1' : '1px solid transparent',
+                              cursor: 'pointer',
+                              backgroundColor: isCurrent ? '#e2e8f0' : 'transparent',
+                              color: isCurrent ? '#0f172a' : '#64748b',
+                              transition: 'all 0.15s ease',
+                            }}
+                          >
+                            {item.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Filtros em Dropdowns Alinhados */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      {/* Datas */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <input
+                          id="admin-date-from"
+                          type="date"
+                          value={dateFrom}
+                          onChange={(e) => setDateFrom(e.target.value)}
+                          aria-label="Data inicial"
+                          style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.78rem', color: '#0f172a', backgroundColor: '#f8fafc' }}
+                        />
+                        <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>a</span>
+                        <input
+                          id="admin-date-to"
+                          type="date"
+                          value={dateTo}
+                          onChange={(e) => setDateTo(e.target.value)}
+                          aria-label="Data final"
+                          style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.78rem', color: '#0f172a', backgroundColor: '#f8fafc' }}
+                        />
+                        {(dateFrom || dateTo) && (
+                          <button
+                            type="button"
+                            onClick={() => { setDateFrom(''); setDateTo(''); }}
+                            style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#64748b', fontSize: '0.75rem', cursor: 'pointer' }}
+                            title="Limpar datas"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Status Pagamento */}
+                      <select
+                        id="admin-payment-status"
+                        value={paymentStatusFilter}
+                        onChange={(e) => setPaymentStatusFilter(e.target.value)}
+                        aria-label="Status pagamento"
+                        style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.78rem', color: '#0f172a', backgroundColor: '#f8fafc' }}
+                      >
+                        <option value="ALL">Pagamento: Todos</option>
+                        <option value="AGUARDANDO_PAGAMENTO">Aguardando</option>
+                        <option value="PAGAMENTO_APROVADO">Pago</option>
+                        <option value="RECUSADO">Recusado</option>
+                      </select>
+
+                      {/* Status Produção */}
+                      <select
+                        id="admin-production-status"
+                        value={productionStatusFilter}
+                        onChange={(e) => setProductionStatusFilter(e.target.value)}
+                        aria-label="Status produção"
+                        style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.78rem', color: '#0f172a', backgroundColor: '#f8fafc' }}
+                      >
+                        <option value="ALL">Produção: A partir da Letra</option>
+                        <option value="TODOS_INCLUINDO_RASCUNHOS">Todos (com rascunhos)</option>
+                        <option value="ETAPA_1">Etapa 1 (Pessoa)</option>
+                        <option value="ETAPA_2">Etapa 2 (História)</option>
+                        <option value="ETAPA_3">Etapa 3 (Som)</option>
+                        <option value="ETAPA_4">Etapa 4 (Revisão)</option>
+                        <option value="LETRA_GERADA">Letra gerada</option>
+                        <option value="LETRA_APROVADA">Letra aprovada</option>
+                        <option value="EM_PRODUCAO">Em produção</option>
+                        <option value="VERSOES_EM_PRODUCAO">Versões em produção</option>
+                        <option value="AUDIO_GERADO">Áudio gerado</option>
+                        <option value="FINALIZADO">Finalizado</option>
+                        <option value="ENTREGUE">Entregue</option>
+                      </select>
+
+                      {/* Provedor */}
+                      <select
+                        id="admin-provider-filter"
+                        value={providerFilter}
+                        onChange={(e) => setProviderFilter(e.target.value)}
+                        aria-label="Provedor IA"
+                        style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.78rem', color: '#0f172a', backgroundColor: '#f8fafc' }}
+                      >
+                        <option value="ALL">IA: Todas</option>
+                        <option value="suno_local">🖥️ Robô PC</option>
+                        <option value="kie">🟣 Kie.ai</option>
+                        <option value="unifically">🌐 Unifically</option>
+                      </select>
+
+                      {/* Ordenação */}
+                      <select
+                        id="admin-sort-by"
+                        value={sortBy}
+                        onChange={(e) => setSortBy(e.target.value)}
+                        aria-label="Ordenar por"
+                        style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.78rem', color: '#0f172a', backgroundColor: '#f8fafc' }}
+                      >
+                        <option value="createdAt_desc">Data (Recentes)</option>
+                        <option value="createdAt_asc">Data (Antigos)</option>
+                        <option value="paidAt_desc">Pago (Recentes)</option>
+                        <option value="paidAt_asc">Pago (Antigos)</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Banner Flutuante de Ações em Massa */}
+                {selectedOrderIds.length > 0 && (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '12px',
+                    background: '#fef2f2',
+                    border: '1.5px solid #fecaca',
+                    padding: '10px 18px',
+                    borderRadius: '12px',
+                    marginBottom: '16px',
+                    boxShadow: '0 2px 8px rgba(220, 38, 38, 0.08)',
+                  }}>
+                    <span style={{ fontSize: '0.88rem', color: '#991b1b', fontWeight: '700' }}>
+                      ⚠️ {selectedOrderIds.length} solicitação(ões) selecionada(s)
                     </span>
                     <button
                       type="button"
-                      onClick={() => setCountryFilter('ALL')}
-                      style={{
-                        padding: '6px 14px',
-                        borderRadius: '8px',
-                        border: '1px solid ' + (countryFilter === 'ALL' ? '#7c3aed' : 'transparent'),
-                        background: countryFilter === 'ALL' ? '#7c3aed' : '#f8fafc',
-                        color: countryFilter === 'ALL' ? '#ffffff' : '#334155',
-                        fontWeight: '700',
-                        fontSize: '0.83rem',
-                        cursor: 'pointer',
-                        transition: 'all 0.15s ease',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '5px'
-                      }}
-                    >
-                      <span>🌐</span>
-                      <span>Todos</span>
-                      <span style={{
-                        fontSize: '0.72rem',
-                        padding: '1px 6px',
-                        borderRadius: '999px',
-                        background: countryFilter === 'ALL' ? 'rgba(255,255,255,0.25)' : '#e2e8f0',
-                        color: countryFilter === 'ALL' ? '#ffffff' : '#475569'
-                      }}>
-                        {orders.length}
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCountryFilter('BR')}
-                      style={{
-                        padding: '6px 14px',
-                        borderRadius: '8px',
-                        border: '1px solid ' + (countryFilter === 'BR' ? '#16a34a' : 'transparent'),
-                        background: countryFilter === 'BR' ? '#16a34a' : '#f8fafc',
-                        color: countryFilter === 'BR' ? '#ffffff' : '#334155',
-                        fontWeight: '700',
-                        fontSize: '0.83rem',
-                        cursor: 'pointer',
-                        transition: 'all 0.15s ease',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '5px'
-                      }}
-                    >
-                      <span>🇧🇷</span>
-                      <span>Brasil</span>
-                      <span style={{
-                        fontSize: '0.72rem',
-                        padding: '1px 6px',
-                        borderRadius: '999px',
-                        background: countryFilter === 'BR' ? 'rgba(255,255,255,0.25)' : '#e2e8f0',
-                        color: countryFilter === 'BR' ? '#ffffff' : '#475569'
-                      }}>
-                        {orders.filter(o => !isUSOrder(o)).length}
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCountryFilter('US')}
-                      style={{
-                        padding: '6px 14px',
-                        borderRadius: '8px',
-                        border: '1px solid ' + (countryFilter === 'US' ? '#2563eb' : 'transparent'),
-                        background: countryFilter === 'US' ? '#2563eb' : '#f8fafc',
-                        color: countryFilter === 'US' ? '#ffffff' : '#334155',
-                        fontWeight: '700',
-                        fontSize: '0.83rem',
-                        cursor: 'pointer',
-                        transition: 'all 0.15s ease',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '5px'
-                      }}
-                    >
-                      <span>🇺🇸</span>
-                      <span>Estados Unidos</span>
-                      <span style={{
-                        fontSize: '0.72rem',
-                        padding: '1px 6px',
-                        borderRadius: '999px',
-                        background: countryFilter === 'US' ? 'rgba(255,255,255,0.25)' : '#dbeafe',
-                        color: countryFilter === 'US' ? '#ffffff' : '#1e40af'
-                      }}>
-                        {orders.filter(o => isUSOrder(o)).length}
-                      </span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Busca por texto em DESTAQUE (com foco em telefone) */}
-                <div style={{ marginBottom: '16px' }}>
-                  <div style={{ position: 'relative', width: '100%', maxWidth: '520px' }}>
-                    <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '1.1rem', pointerEvents: 'none' }}>📱</span>
-                    <input
-                      id="admin-search"
-                      type="text"
-                      placeholder="Buscar por telefone (ex: 9499106...), nome ou código..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '11px 36px 11px 38px',
-                        borderRadius: '10px',
-                        border: '1.5px solid #cbd5e1',
-                        fontSize: '0.92rem',
-                        color: '#0f172a',
-                        outline: 'none',
-                        boxSizing: 'border-box',
-                        backgroundColor: '#ffffff',
-                        boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
-                      }}
-                    />
-                    {searchQuery && (
-                      <button
-                        type="button"
-                        onClick={() => setSearchQuery('')}
-                        style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', color: '#94a3b8', lineHeight: 1 }}
-                        title="Limpar busca"
-                      >
-                        ✕
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Abas: tipo de compra (música/vídeo) - Mobile em Select, Desktop em Botões */}
-                <div className="admin-mobile-only" style={{ marginBottom: '14px', width: '100%' }}>
-                  <label htmlFor="admin-purchase-type-select" style={{ display: 'block', fontSize: '0.76rem', color: '#64748b', fontWeight: '700', marginBottom: '4px' }}>
-                    Tipo de Venda
-                  </label>
-                  <select
-                    id="admin-purchase-type-select"
-                    value={purchaseTypeTab}
-                    onChange={(e) => setPurchaseTypeTab(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '9px 12px',
-                      borderRadius: '8px',
-                      border: '1px solid #cbd5e1',
-                      backgroundColor: '#ffffff',
-                      color: '#0f172a',
-                      fontSize: '0.88rem',
-                      fontWeight: '600',
-                    }}
-                  >
-                    <option value="ALL">📋 Todas as vendas</option>
-                    <option value="MUSIC">🎵 Vendas de música</option>
-                    <option value="VIDEO">🎬 Vendas de vídeo</option>
-                    <option value="CARD">💳 Cartão de Crédito</option>
-                    <option value="PIX">⚡ Só PIX</option>
-                    <option value="PIX_COPIADO">📋 Copiou PIX e não pagou</option>
-                  </select>
-                </div>
-
-                <div className="admin-desktop-only" style={{ gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
-                  {[
-                    { id: 'ALL', label: 'Todas as vendas' },
-                    { id: 'MUSIC', label: '🎵 Vendas de música' },
-                    { id: 'VIDEO', label: '🎬 Vendas de vídeo' },
-                    { id: 'CARD', label: '💳 Cartão' },
-                    { id: 'PIX', label: '⚡ PIX' },
-                    { id: 'PIX_COPIADO', label: '📋 Copiou PIX e não pagou' },
-                  ].map(tab => (
-                    <button
-                      key={tab.id}
-                      type="button"
-                      onClick={() => setPurchaseTypeTab(tab.id)}
+                      onClick={handleDeleteSelectedOrders}
+                      disabled={deletingOrders}
                       style={{
                         padding: '8px 16px',
+                        background: '#dc2626',
+                        color: '#ffffff',
+                        border: 'none',
                         borderRadius: '8px',
-                        border: '1px solid ' + (purchaseTypeTab === tab.id ? '#7c3aed' : '#e2e8f0'),
-                        background: purchaseTypeTab === tab.id ? '#7c3aed' : '#ffffff',
-                        color: purchaseTypeTab === tab.id ? '#ffffff' : '#334155',
-                        fontWeight: '600',
-                        fontSize: '0.85rem',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      {tab.label}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Filtro de data e status (Grid organizado e responsivo) */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(135px, 1fr))', gap: '10px', alignItems: 'flex-end', marginBottom: '16px' }}>
-                  <div>
-                    <label htmlFor="admin-date-from" style={{ display: 'block', fontSize: '0.76rem', color: '#64748b', marginBottom: '4px', fontWeight: '600' }}>De</label>
-                    <input
-                      id="admin-date-from"
-                      type="date"
-                      value={dateFrom}
-                      onChange={(e) => setDateFrom(e.target.value)}
-                      style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.85rem', boxSizing: 'border-box' }}
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="admin-date-to" style={{ display: 'block', fontSize: '0.76rem', color: '#64748b', marginBottom: '4px', fontWeight: '600' }}>Até</label>
-                    <input
-                      id="admin-date-to"
-                      type="date"
-                      value={dateTo}
-                      onChange={(e) => setDateTo(e.target.value)}
-                      style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.85rem', boxSizing: 'border-box' }}
-                    />
-                  </div>
-                  {(dateFrom || dateTo) && (
-                    <button
-                      type="button"
-                      onClick={() => { setDateFrom(''); setDateTo(''); }}
-                      style={{ padding: '8px 14px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#ffffff', color: '#64748b', fontSize: '0.8rem', cursor: 'pointer', height: '35px' }}
-                    >
-                      Limpar datas
-                    </button>
-                  )}
-
-                  <div>
-                    <label htmlFor="admin-payment-status" style={{ display: 'block', fontSize: '0.78rem', color: '#64748b', marginBottom: '4px' }}>Status pagamento</label>
-                    <select
-                      id="admin-payment-status"
-                      value={paymentStatusFilter}
-                      onChange={(e) => setPaymentStatusFilter(e.target.value)}
-                      style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.85rem', color: '#0f172a' }}
-                    >
-                      <option value="ALL">Todos</option>
-                      <option value="AGUARDANDO_PAGAMENTO">Aguardando pagamento</option>
-                      <option value="PAGAMENTO_APROVADO">Pago</option>
-                      <option value="RECUSADO">Recusado</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label htmlFor="admin-production-status" style={{ display: 'block', fontSize: '0.78rem', color: '#64748b', marginBottom: '4px' }}>Status produção</label>
-                    <select
-                      id="admin-production-status"
-                      value={productionStatusFilter}
-                      onChange={(e) => setProductionStatusFilter(e.target.value)}
-                      style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.85rem', color: '#0f172a' }}
-                    >
-                      <option value="ALL">A partir da Letra (padrão)</option>
-                      <option value="TODOS_INCLUINDO_RASCUNHOS">Todos (incluindo etapas 1 a 4)</option>
-                      <option value="ETAPA_1">Etapa 1 (Pessoa)</option>
-                      <option value="ETAPA_2">Etapa 2 (História)</option>
-                      <option value="ETAPA_3">Etapa 3 (Som)</option>
-                      <option value="ETAPA_4">Etapa 4 (Revisão)</option>
-                      <option value="LETRA_GERADA">Letra gerada</option>
-                      <option value="LETRA_APROVADA">Letra aprovada</option>
-                      <option value="EM_PRODUCAO">Em produção</option>
-                      <option value="VERSOES_EM_PRODUCAO">Versões em produção</option>
-                      <option value="AUDIO_GERADO">Áudio gerado</option>
-                      <option value="FINALIZADO">Finalizado</option>
-                      <option value="ENTREGUE">Entregue</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label htmlFor="admin-provider-filter" style={{ display: 'block', fontSize: '0.78rem', color: '#64748b', marginBottom: '4px' }}>Provedor IA</label>
-                    <select
-                      id="admin-provider-filter"
-                      value={providerFilter}
-                      onChange={(e) => setProviderFilter(e.target.value)}
-                      style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.85rem', color: '#0f172a' }}
-                    >
-                      <option value="ALL">Todos os provedores</option>
-                      <option value="suno_local">🖥️ Robô PC (Local)</option>
-                      <option value="kie">🟣 Kie.ai</option>
-                      <option value="unifically">🌐 Unifically</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label htmlFor="admin-sort-by" style={{ display: 'block', fontSize: '0.78rem', color: '#64748b', marginBottom: '4px' }}>Ordenar por</label>
-                    <select
-                      id="admin-sort-by"
-                      value={sortBy}
-                      onChange={(e) => setSortBy(e.target.value)}
-                      style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.85rem', color: '#0f172a' }}
-                    >
-                      <option value="createdAt_desc">Criação (mais recente)</option>
-                      <option value="createdAt_asc">Criação (mais antigo)</option>
-                      <option value="paidAt_desc">Pagamento (mais recente)</option>
-                      <option value="paidAt_asc">Pagamento (mais antigo)</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div style={styles.filterBar}>
-                  <div style={styles.filterTitle}>
-                    <h3 style={{ fontSize: '1.3rem', fontWeight: '800', color: '#0f172a' }}>Gerenciamento de Solicitações</h3>
-                  </div>
-
-                  {/* Ações em Massa */}
-                  {selectedOrderIds.length > 0 && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: '#fef2f2', border: '1px solid #fca5a5', padding: '8px 16px', borderRadius: '10px' }}>
-                      <span style={{ fontSize: '0.85rem', color: '#991b1b', fontWeight: 'bold' }}>
-                        {selectedOrderIds.length} selecionado(s)
-                      </span>
-                      <button
-                        onClick={handleDeleteSelectedOrders}
-                        disabled={deletingOrders}
-                        style={{
-                          padding: '8px 14px',
-                          background: '#dc2626',
-                          color: '#ffffff',
-                          border: 'none',
-                          borderRadius: '6px',
-                          fontWeight: 'bold',
-                          fontSize: '0.85rem',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        {deletingOrders ? 'Excluindo...' : '🗑️ Excluir Selecionados'}
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Filtro por status do pedido - Mobile em select, Desktop em abas */}
-                  <div className="admin-mobile-only" style={{ marginBottom: '12px', width: '100%' }}>
-                    <label htmlFor="admin-filter-status-select" style={{ display: 'block', fontSize: '0.76rem', color: '#64748b', fontWeight: '700', marginBottom: '4px' }}>
-                      Status do Pedido
-                    </label>
-                    <select
-                      id="admin-filter-status-select"
-                      value={filter}
-                      onChange={(e) => setFilter(e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '9px 12px',
-                        borderRadius: '8px',
-                        border: '1px solid #cbd5e1',
-                        backgroundColor: '#ffffff',
-                        color: '#0f172a',
                         fontWeight: '700',
-                        fontSize: '0.88rem',
+                        fontSize: '0.84rem',
+                        cursor: deletingOrders ? 'default' : 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        boxShadow: '0 2px 6px rgba(220, 38, 38, 0.3)',
                       }}
                     >
-                      <option value="ALL">Todos os pedidos ({activeOrdersCount})</option>
-                      <option value="NEW">Novos ({countryFilteredOrders.filter(o => o.paymentStatus === 'PAGAMENTO_APROVADO' && o.productionStatus === 'LETRA_APROVADA').length})</option>
-                      <option value="PRODUCTION">Em Produção ({countryFilteredOrders.filter(o => o.productionStatus === 'EM_PRODUCAO' || o.productionStatus === 'VERSOES_EM_PRODUCAO').length})</option>
-                      <option value="FINISHED">Finalizados ({countryFilteredOrders.filter(o => o.productionStatus === 'FINALIZADO' || o.productionStatus === 'ENTREGUE').length})</option>
-                    </select>
-                  </div>
-
-                  <div className="admin-desktop-only" style={styles.filterBtns}>
-                    <button 
-                      onClick={() => setFilter('ALL')} 
-                      style={{ ...styles.filterBtn, borderBottom: filter === 'ALL' ? '3px solid #7c3aed' : 'none', color: filter === 'ALL' ? '#7c3aed' : '#64748b', fontWeight: filter === 'ALL' ? 'bold' : '600' }}
-                    >
-                      Todos ({activeOrdersCount})
-                    </button>
-                    <button 
-                      onClick={() => setFilter('NEW')} 
-                      style={{ ...styles.filterBtn, borderBottom: filter === 'NEW' ? '3px solid #7c3aed' : 'none', color: filter === 'NEW' ? '#7c3aed' : '#64748b', fontWeight: filter === 'NEW' ? 'bold' : '600' }}
-                    >
-                      Novos ({countryFilteredOrders.filter(o => o.paymentStatus === 'PAGAMENTO_APROVADO' && o.productionStatus === 'LETRA_APROVADA').length})
-                    </button>
-                    <button 
-                      onClick={() => setFilter('PRODUCTION')} 
-                      style={{ ...styles.filterBtn, borderBottom: filter === 'PRODUCTION' ? '3px solid #7c3aed' : 'none', color: filter === 'PRODUCTION' ? '#7c3aed' : '#64748b', fontWeight: filter === 'PRODUCTION' ? 'bold' : '600' }}
-                    >
-                      Em Produção ({countryFilteredOrders.filter(o => o.productionStatus === 'EM_PRODUCAO' || o.productionStatus === 'VERSOES_EM_PRODUCAO').length})
-                    </button>
-                    <button 
-                      onClick={() => setFilter('FINISHED')} 
-                      style={{ ...styles.filterBtn, borderBottom: filter === 'FINISHED' ? '3px solid #7c3aed' : 'none', color: filter === 'FINISHED' ? '#7c3aed' : '#64748b', fontWeight: filter === 'FINISHED' ? 'bold' : '600' }}
-                    >
-                      Finalizados ({countryFilteredOrders.filter(o => o.productionStatus === 'FINALIZADO' || o.productionStatus === 'ENTREGUE').length})
+                      <Trash2 size={14} />
+                      <span>{deletingOrders ? 'Excluindo...' : 'Excluir Selecionados'}</span>
                     </button>
                   </div>
-                </div>
+                )}
 
                 {loadingOrders ? (
                   <div style={styles.loadingOrders}>
