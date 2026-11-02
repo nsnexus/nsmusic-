@@ -72,7 +72,7 @@ export default function TikTokAdsDailyModal({
 
     if (Array.isArray(pedidos)) {
       for (const p of pedidos) {
-        const plat = getOrderPlatform(p);
+        const plat = getOrderPlatform(p, pedidos);
         if (plat !== 'tiktok_ads') continue;
 
         const dataRef = p.paidAt || p.createdAt;

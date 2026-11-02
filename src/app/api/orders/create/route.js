@@ -133,6 +133,154 @@ export async function POST(req) {
       }
     }
 
+    // -------------------------------------------------------------------------
+    // Atribuição de Tráfego e Plataforma (TikTok, Meta, Google, etc.)
+    // Se o pedido não veio com tracking de anúncio pago inequívoco no request,
+    // herda a atribuição de campanha do pedido pai ou do histórico recente do cliente (30 dias).
+    // Evita que recriações de versão (versão 2) sejam marcadas como "Direto / Outros".
+    // -------------------------------------------------------------------------
+    let finalTrafficSource = formData.trafficSource || formData.platform || null;
+    let finalUtmSource = formData.utmSource || null;
+    let finalUtmMedium = formData.utmMedium || null;
+    let finalUtmCampaign = formData.utmCampaign || null;
+    let finalUtmContent = formData.utmContent || null;
+    let finalUtmTerm = formData.utmTerm || null;
+    let finalFbclid = formData.fbclid || null;
+    let finalTtclid = formData.ttclid || null;
+    let finalGclid = formData.gclid || null;
+    let finalReferrer = formData.referrer || null;
+    let attributionInheritedFrom = null;
+    let inheritedOrderId = null;
+
+    const hasExplicitPaidTracking = Boolean(
+      finalTtclid ||
+      finalFbclid ||
+      finalGclid ||
+      finalTrafficSource === 'tiktok_ads' ||
+      finalTrafficSource === 'facebook_ads' ||
+      finalTrafficSource === 'google_ads' ||
+      /tiktok|bytedance|\btt\b|tt_/i.test(finalUtmSource || '') ||
+      /tiktok|bytedance/i.test(finalUtmCampaign || '') ||
+      /facebook|meta|\bfb\b|instagram|\big\b|ig_/i.test(finalUtmSource || '') ||
+      /facebook|instagram/i.test(finalUtmCampaign || '') ||
+      /google|adwords|\bgads\b/i.test(finalUtmSource || '') ||
+      /google_ads|gads/i.test(finalUtmCampaign || '')
+    );
+
+    if (!hasExplicitPaidTracking) {
+      // 1. Tenta herdar do pedido pai (se fornecido orderRef / parentOrderId)
+      const parentIdToInspect = resolvedParentOrderId || formData.orderRef || formData.parentOrderId;
+      let inheritedPaidOrder = null;
+
+      if (parentIdToInspect) {
+        try {
+          const { getOrder } = await import('@/lib/supabaseDb');
+          const pOrder = await getOrder(parentIdToInspect, env);
+          if (pOrder) {
+            const pSource = pOrder.trafficSource || pOrder.extras?.trafficSource || pOrder.extras?.platform;
+            const pTtclid = pOrder.ttclid || pOrder.extras?.ttclid;
+            const pFbclid = pOrder.fbclid || pOrder.extras?.fbclid;
+            const pGclid = pOrder.gclid || pOrder.extras?.gclid;
+            const pUtmSource = pOrder.utmSource || pOrder.extras?.utmSource || pOrder.extras?.utm_source;
+            const pUtmCampaign = pOrder.utmCampaign || pOrder.extras?.utmCampaign || pOrder.extras?.utm_campaign;
+
+            const isParentPaid = Boolean(
+              pTtclid || pFbclid || pGclid ||
+              pSource === 'tiktok_ads' || pSource === 'facebook_ads' || pSource === 'google_ads' ||
+              /tiktok|bytedance|\btt\b|tt_/i.test(pUtmSource || '') ||
+              /tiktok|bytedance/i.test(pUtmCampaign || '') ||
+              /facebook|meta|\bfb\b|instagram|\big\b|ig_/i.test(pUtmSource || '') ||
+              /google|adwords|\bgads\b/i.test(pUtmSource || '')
+            );
+
+            if (isParentPaid) {
+              inheritedPaidOrder = pOrder;
+              attributionInheritedFrom = 'parent_order';
+              inheritedOrderId = pOrder.id;
+            }
+          }
+        } catch (pErr) {
+          console.warn('[orders/create] Falha ao inspecionar atribuição do pedido pai:', pErr?.message);
+        }
+      }
+
+      // 2. Se não encontrou no pedido pai, busca pedidos recentes do mesmo telefone nos últimos 30 dias
+      if (!inheritedPaidOrder && formData.customerPhone) {
+        try {
+          const { findOrdersByPhone } = await import('@/lib/orderLookup');
+          const recentOrders = await findOrdersByPhone(formData.customerPhone, env, 10);
+          const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
+
+          for (const cand of recentOrders) {
+            const candTime = cand.createdAt ? new Date(cand.createdAt).getTime() : 0;
+            if (candTime > 0 && candTime < thirtyDaysAgo) continue;
+
+            const cSource = cand.trafficSource || cand.extras?.trafficSource || cand.extras?.platform;
+            const cTtclid = cand.ttclid || cand.extras?.ttclid;
+            const cFbclid = cand.fbclid || cand.extras?.fbclid;
+            const cGclid = cand.gclid || cand.extras?.gclid;
+            const cUtmSource = cand.utmSource || cand.extras?.utmSource || cand.extras?.utm_source;
+            const cUtmCampaign = cand.utmCampaign || cand.extras?.utmCampaign || cand.extras?.utm_campaign;
+
+            const isCandPaid = Boolean(
+              cTtclid || cFbclid || cGclid ||
+              cSource === 'tiktok_ads' || cSource === 'facebook_ads' || cSource === 'google_ads' ||
+              /tiktok|bytedance|\btt\b|tt_/i.test(cUtmSource || '') ||
+              /tiktok|bytedance/i.test(cUtmCampaign || '') ||
+              /facebook|meta|\bfb\b|instagram|\big\b|ig_/i.test(cUtmSource || '') ||
+              /google|adwords|\bgads\b/i.test(cUtmSource || '')
+            );
+
+            if (isCandPaid) {
+              inheritedPaidOrder = cand;
+              attributionInheritedFrom = 'customer_history';
+              inheritedOrderId = cand.id;
+              break;
+            }
+          }
+        } catch (phoneErr) {
+          console.warn('[orders/create] Falha ao inspecionar atribuição por telefone do cliente:', phoneErr?.message);
+        }
+      }
+
+      // 3. Aplica os dados herdados se localizados
+      if (inheritedPaidOrder) {
+        const iExtras = (inheritedPaidOrder.extras && typeof inheritedPaidOrder.extras === 'object') ? inheritedPaidOrder.extras : {};
+        if (
+          inheritedPaidOrder.ttclid ||
+          iExtras.ttclid ||
+          /tiktok|bytedance|\btt\b|tt_/i.test(inheritedPaidOrder.utmSource || iExtras.utmSource || iExtras.utm_source || '') ||
+          /tiktok|bytedance/i.test(inheritedPaidOrder.utmCampaign || iExtras.utmCampaign || iExtras.utm_campaign || '')
+        ) {
+          finalTrafficSource = 'tiktok_ads';
+        } else if (
+          inheritedPaidOrder.fbclid ||
+          iExtras.fbclid ||
+          /facebook|meta|\bfb\b|instagram|\big\b|ig_/i.test(inheritedPaidOrder.utmSource || iExtras.utmSource || iExtras.utm_source || '')
+        ) {
+          finalTrafficSource = 'facebook_ads';
+        } else if (
+          inheritedPaidOrder.gclid ||
+          iExtras.gclid ||
+          /google|adwords|\bgads\b/i.test(inheritedPaidOrder.utmSource || iExtras.utmSource || iExtras.utm_source || '')
+        ) {
+          finalTrafficSource = 'google_ads';
+        } else {
+          finalTrafficSource = inheritedPaidOrder.trafficSource || iExtras.trafficSource || iExtras.platform || 'facebook_ads';
+        }
+
+        finalUtmSource = inheritedPaidOrder.utmSource || iExtras.utmSource || iExtras.utm_source || finalUtmSource;
+        finalUtmMedium = inheritedPaidOrder.utmMedium || iExtras.utmMedium || iExtras.utm_medium || finalUtmMedium;
+        finalUtmCampaign = inheritedPaidOrder.utmCampaign || iExtras.utmCampaign || iExtras.utm_campaign || finalUtmCampaign;
+        finalUtmContent = inheritedPaidOrder.utmContent || iExtras.utmContent || iExtras.utm_content || finalUtmContent;
+        finalUtmTerm = inheritedPaidOrder.utmTerm || iExtras.utmTerm || iExtras.utm_term || finalUtmTerm;
+        finalFbclid = inheritedPaidOrder.fbclid || iExtras.fbclid || finalFbclid;
+        finalTtclid = inheritedPaidOrder.ttclid || iExtras.ttclid || finalTtclid;
+        finalGclid = inheritedPaidOrder.gclid || iExtras.gclid || finalGclid;
+        finalReferrer = inheritedPaidOrder.referrer || iExtras.referrer || finalReferrer;
+      }
+    }
+
     const orderPayload = {
       orderNumber,
       // Nunca vincule o pedido a um userId fornecido pelo navegador. Se houver
@@ -169,16 +317,18 @@ export async function POST(req) {
       createdAt: createdAtIso,
       updatedAt: createdAtIso,
       // Atribuição de plataforma de aquisição e tráfego
-      trafficSource: formData.trafficSource || formData.platform || null,
-      utmSource: formData.utmSource || null,
-      utmMedium: formData.utmMedium || null,
-      utmCampaign: formData.utmCampaign || null,
-      utmContent: formData.utmContent || null,
-      utmTerm: formData.utmTerm || null,
-      fbclid: formData.fbclid || null,
-      ttclid: formData.ttclid || null,
-      gclid: formData.gclid || null,
-      referrer: formData.referrer || null,
+      trafficSource: finalTrafficSource || 'direto',
+      utmSource: finalUtmSource,
+      utmMedium: finalUtmMedium,
+      utmCampaign: finalUtmCampaign,
+      utmContent: finalUtmContent,
+      utmTerm: finalUtmTerm,
+      fbclid: finalFbclid,
+      ttclid: finalTtclid,
+      gclid: finalGclid,
+      referrer: finalReferrer,
+      attributionInheritedFrom: attributionInheritedFrom || null,
+      inheritedOrderId: inheritedOrderId || null,
     };
 
     const created = await createOrder(orderPayload, env);

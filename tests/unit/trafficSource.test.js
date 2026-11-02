@@ -7,6 +7,8 @@ import {
   isOrderFromMeta,
   isOrderFromTikTok,
   TRAFFIC_STORAGE_KEY,
+  getComparablePhone,
+  arePhonesMatching,
 } from '../../src/lib/trafficSource.js';
 
 describe('trafficSource module', () => {
@@ -283,6 +285,175 @@ describe('trafficSource module', () => {
       expect(isOrderFromTikTok({})).toBe(false);
       expect(isOrderFromTikTok({ trafficSource: 'direto' })).toBe(false);
       expect(isOrderFromTikTok({ trafficSource: 'organico' })).toBe(false);
+    });
+
+    it('retorna true quando o pedido herda tiktok_ads via allOrders (parentOrderId ou telefone)', () => {
+      const order1 = { id: 'p1', customerPhone: '(11) 98888-7777', trafficSource: 'tiktok_ads', ttclid: 'tt-123' };
+      const order2 = { id: 'p2', customerPhone: '11988887777', trafficSource: 'direto' };
+      expect(isOrderFromTikTok(order2, [order1, order2])).toBe(true);
+
+      const orderChild = { id: 'p3', parentOrderId: 'p1', trafficSource: 'direto' };
+      expect(isOrderFromTikTok(orderChild, [order1, orderChild])).toBe(true);
+    });
+  });
+
+  describe('Atribuição Herdada e Multi-toque (getOrderPlatform com allOrders)', () => {
+    it('herda tiktok_ads do pedido pai via parentOrderId', () => {
+      const parent = { id: 'ord_parent_1', trafficSource: 'tiktok_ads', ttclid: 'tt-parent-123' };
+      const child = { id: 'ord_child_1', parentOrderId: 'ord_parent_1', trafficSource: 'direto' };
+
+      expect(getOrderPlatform(child, [parent, child])).toBe('tiktok_ads');
+    });
+
+    it('herda tiktok_ads por correspondência de telefone do cliente', () => {
+      const order1 = { id: 'ord_tt', customerPhone: '(98) 99126-6474', trafficSource: 'tiktok_ads' };
+      const order2 = { id: 'ord_dir', customerPhone: '5598991266474', trafficSource: 'direto' };
+
+      expect(getOrderPlatform(order2, [order1, order2])).toBe('tiktok_ads');
+    });
+
+    it('herda meta_ads por correspondência de email do cliente', () => {
+      const order1 = { id: 'ord_meta', customerEmail: 'cliente@exemplo.com', trafficSource: 'facebook_ads' };
+      const order2 = { id: 'ord_dir', customerEmail: 'cliente@exemplo.com', trafficSource: 'direto' };
+
+      expect(getOrderPlatform(order2, [order1, order2])).toBe('facebook_ads');
+    });
+
+    it('mantém direto quando não há nenhum vínculo prévio com campanha paga', () => {
+      const orderDirect = { id: 'ord_solo', customerPhone: '11977776666', trafficSource: 'direto' };
+      expect(getOrderPlatform(orderDirect, [orderDirect])).toBe('direto');
+    });
+  });
+
+  describe('Normalização de Telefone (getComparablePhone & arePhonesMatching)', () => {
+    it('normaliza formatos brasileiros com e sem DDI 55', () => {
+      expect(getComparablePhone('(98) 99126-6474')).toBe('98991266474');
+      expect(getComparablePhone('5598991266474')).toBe('98991266474');
+      expect(getComparablePhone('+55 (98) 99126-6474')).toBe('98991266474');
+      expect(getComparablePhone('')).toBe('');
+    });
+
+    it('reconhece correspondência entre formatos de telefone', () => {
+      expect(arePhonesMatching('(98) 99126-6474', '5598991266474')).toBe(true);
+      expect(arePhonesMatching('98991266474', '98991266474')).toBe(true);
+      expect(arePhonesMatching('98991266474', '11999998888')).toBe(false);
+    });
+  });
+
+  describe('Janela de Atribuição Paga de 30 dias (identifyTrafficSource)', () => {
+    it('preserva atribuição paga se cliente navega direto sem novos parâmetros de anúncio', () => {
+      const savedPaidTraffic = {
+        platform: 'tiktok_ads',
+        trafficSource: 'tiktok_ads',
+        ttclid: 'tt-stored-999',
+        capturedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), // 5 dias atrás
+      };
+      localStorageMock[TRAFFIC_STORAGE_KEY] = JSON.stringify(savedPaidTraffic);
+
+      vi.stubGlobal('window', {
+        location: {
+          search: '',
+          hostname: 'nsmusic.nsnexus.com.br',
+        },
+      });
+      vi.stubGlobal('document', { referrer: '' });
+
+      const res = identifyTrafficSource();
+      expect(res.platform).toBe('tiktok_ads');
+      expect(res.ttclid).toBe('tt-stored-999');
+    });
+
+    it('preserva atribuição paga se visitante chega via link do WhatsApp sem parâmetros de anúncio pago', () => {
+      const savedPaidTraffic = {
+        platform: 'tiktok_ads',
+        trafficSource: 'tiktok_ads',
+        ttclid: 'tt-stored-999',
+        capturedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+      };
+      localStorageMock[TRAFFIC_STORAGE_KEY] = JSON.stringify(savedPaidTraffic);
+
+      vi.stubGlobal('window', {
+        location: {
+          search: '?utm_source=whatsapp&utm_medium=notificacao',
+          hostname: 'nsmusic.nsnexus.com.br',
+        },
+      });
+      vi.stubGlobal('document', { referrer: 'android-app://com.whatsapp/' });
+
+      const res = identifyTrafficSource();
+      expect(res.platform).toBe('tiktok_ads');
+      expect(res.ttclid).toBe('tt-stored-999');
+    });
+
+    it('substitui atribuição se visitante clica em novo anúncio explícito do Meta (fbclid)', () => {
+      const savedPaidTraffic = {
+        platform: 'tiktok_ads',
+        trafficSource: 'tiktok_ads',
+        ttclid: 'tt-stored-999',
+        capturedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+      };
+      localStorageMock[TRAFFIC_STORAGE_KEY] = JSON.stringify(savedPaidTraffic);
+
+      vi.stubGlobal('window', {
+        location: {
+          search: '?fbclid=fb-novo-clique-123&utm_source=facebook',
+          hostname: 'nsmusic.nsnexus.com.br',
+        },
+      });
+      vi.stubGlobal('document', { referrer: 'https://l.facebook.com/' });
+
+      const res = identifyTrafficSource();
+      expect(res.platform).toBe('facebook_ads');
+      expect(res.fbclid).toBe('fb-novo-clique-123');
+    });
+  });
+
+  describe('calcularMetricasPorPlataforma com Herança', () => {
+    it('atribui receita de 2ª versão direta ao TikTok Ads quando o cliente veio do TikTok', () => {
+      const pedidos = [
+        // Versão 1: gerada via TikTok Ads, mas o cliente não gostou e não pagou
+        {
+          id: 'v1',
+          customerPhone: '(98) 99126-6474',
+          trafficSource: 'tiktok_ads',
+          ttclid: 'tt-123',
+          paymentStatus: 'AGUARDANDO_PAGAMENTO',
+          paidAmount: 0,
+          createdAt: '2026-11-01T10:00:00Z',
+        },
+        // Versão 2: cliente criou outra sem UTMs na URL, gostou e pagou R$ 9.99
+        {
+          id: 'v2',
+          customerPhone: '5598991266474',
+          trafficSource: 'direto',
+          paymentStatus: 'PAGAMENTO_APROVADO',
+          paidAmount: 9.99,
+          createdAt: '2026-11-01T10:15:00Z',
+          paidAt: '2026-11-01T10:20:00Z',
+        },
+        // Pedido verdadeiramente direto de outro cliente
+        {
+          id: 'v3',
+          customerPhone: '11977778888',
+          trafficSource: 'direto',
+          paymentStatus: 'PAGAMENTO_APROVADO',
+          paidAmount: 9.99,
+          createdAt: '2026-11-01T11:00:00Z',
+          paidAt: '2026-11-01T11:05:00Z',
+        },
+      ];
+
+      const res = calcularMetricasPorPlataforma(pedidos);
+      const tt = res.plataformas.find((p) => p.key === 'tiktok_ads');
+      const dir = res.plataformas.find((p) => p.key === 'direto');
+
+      // TikTok deve ter 1 pedido pago e R$ 9.99 de faturamento!
+      expect(tt.pedidosPagos).toBe(1);
+      expect(tt.faturamento).toBeCloseTo(9.99);
+
+      // Direto deve ter apenas 1 pedido pago (v3, o verdadeiramente sem vínculo)
+      expect(dir.pedidosPagos).toBe(1);
+      expect(dir.faturamento).toBeCloseTo(9.99);
     });
   });
 });

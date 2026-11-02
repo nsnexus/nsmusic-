@@ -10,6 +10,35 @@ export { hasMusicaGerada };
 
 export const TRAFFIC_STORAGE_KEY = 'nsmusic_traffic_source';
 
+/**
+ * Normaliza número de telefone para chave de comparação (remove DDI 55, símbolos, etc.)
+ */
+export function getComparablePhone(phone) {
+  if (!phone) return '';
+  const digits = String(phone).replace(/\D/g, '');
+  if (!digits) return '';
+  // Se começar com DDI 55 do Brasil e tiver 12 ou 13 dígitos (55 + DDD + 8 ou 9 dígitos)
+  if (digits.startsWith('55') && (digits.length === 12 || digits.length === 13)) {
+    return digits.slice(2);
+  }
+  return digits;
+}
+
+/**
+ * Compara se dois telefones pertencem ao mesmo número no padrão brasileiro
+ */
+export function arePhonesMatching(p1, p2) {
+  const c1 = getComparablePhone(p1);
+  const c2 = getComparablePhone(p2);
+  if (!c1 || !c2) return false;
+  if (c1 === c2) return true;
+  // Se ambos tiverem pelo menos 10 dígitos (DDD + 8 ou 9 dígitos)
+  if (c1.length >= 10 && c2.length >= 10) {
+    return c1.slice(0, 2) === c2.slice(0, 2) && c1.slice(-8) === c2.slice(-8);
+  }
+  return false;
+}
+
 export const PLATFORMS = {
   facebook_ads: {
     key: 'facebook_ads',
@@ -94,18 +123,62 @@ export function identifyTrafficSource() {
       if (raw) existing = JSON.parse(raw);
     } catch (e) {}
 
-    // Se o visitante está navegando sem novos parâmetros de anúncio na URL, mantém a atribuição original da sessão
+    // Janela de atribuição paga de 30 dias (padrão de mercado para campanhas de anúncios)
+    // Se o cliente já foi atraído por uma campanha paga (TikTok, Meta, Google),
+    // acessos diretos, retornos via WhatsApp ou navegações internas NÃO devem apagar a atribuição original.
+    const ATTRIBUTION_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+    const isExistingPaid = Boolean(
+      existing && (
+        existing.platform === 'tiktok_ads' ||
+        existing.platform === 'facebook_ads' ||
+        existing.platform === 'google_ads' ||
+        existing.ttclid ||
+        existing.fbclid ||
+        existing.gclid
+      )
+    );
+    const existingCapturedTime = existing?.capturedAt ? new Date(existing.capturedAt).getTime() : 0;
+    const isExistingPaidWithinWindow = isExistingPaid && (
+      !existingCapturedTime || (Date.now() - existingCapturedTime) < ATTRIBUTION_WINDOW_MS
+    );
+
+    const srcLower = utmSource.toLowerCase();
+    const medLower = utmMedium.toLowerCase();
+    const campLower = utmCampaign.toLowerCase();
+    const refLower = referrer.toLowerCase();
+    const uaLower = userAgent.toLowerCase();
+
+    // Identifica se há um clique novo e explícito em campanha paga diferente
+    const hasExplicitNewPaidClick = Boolean(
+      ttclid ||
+      fbclid ||
+      gclid ||
+      /tiktok|bytedance|\btt\b|tt_/i.test(srcLower) ||
+      /tiktok|bytedance|\btt\b|tt_/i.test(campLower) ||
+      /facebook|meta|fb|instagram|ig_/i.test(srcLower) ||
+      /facebook|instagram/i.test(campLower) ||
+      /google|adwords|\bgads\b/i.test(srcLower) ||
+      /google_ads|gads/i.test(campLower)
+    );
+
+    // Se o visitante já tem uma atribuição paga ativa nos últimos 30 dias e a nova visita
+    // NÃO trouxe um novo clique pago explícito de outra campanha (ex: veio via link do WhatsApp,
+    // clicou em "criar outra", digitou a URL ou voltou direto), preserva a campanha paga original!
+    if (isExistingPaidWithinWindow && !hasExplicitNewPaidClick) {
+      try {
+        // Garante sincronização em ambas as storages (ex: abas novas)
+        sessionStorage.setItem(TRAFFIC_STORAGE_KEY, JSON.stringify(existing));
+      } catch (e) {}
+      return existing;
+    }
+
+    // Se o visitante está navegando sem novos parâmetros de anúncio na URL, mantém o que já existia na sessão
     if (!hasNewTrackingParams && existing && existing.platform) {
       return existing;
     }
 
     // Regras de detecção de plataforma
     let platform = 'direto';
-    const srcLower = utmSource.toLowerCase();
-    const medLower = utmMedium.toLowerCase();
-    const campLower = utmCampaign.toLowerCase();
-    const refLower = referrer.toLowerCase();
-    const uaLower = userAgent.toLowerCase();
 
     // 1. TikTok Ads
     // Detecta por:
@@ -207,19 +280,23 @@ export function getStoredTrafficSource() {
 
 /**
  * Identifica a plataforma de um pedido específico.
- * Para pedidos anteriores (históricos) sem registro de trafficSource, atribui ao Facebook Ads
- * conforme diretriz do administrador ("os anteriores é tudo facebook ads").
+ * Suporta herança multi-toque de atribuição através de `allOrders`:
+ * - Se o pedido não veio com tracking próprio mas tem `parentOrderId`, herda do pai.
+ * - Se o mesmo cliente (telefone/email) possui outro pedido de campanha paga (TikTok, Meta, Google), herda a campanha.
+ * - Apenas classifica como 'direto' caso não haja nenhum vínculo com anúncios.
+ * - Para pedidos anteriores (históricos) sem registro de tracking nem vínculo, atribui ao Facebook Ads
+ *   conforme diretriz do administrador ("os anteriores é tudo facebook ads").
  */
-export function getOrderPlatform(order) {
+export function getOrderPlatform(order, allOrders = []) {
   if (!order) return 'facebook_ads';
   const extras = (order.extras && typeof order.extras === 'object') ? order.extras : {};
 
-  // 1. Click IDs inequívocos gravados no pedido (sempre têm precedência)
+  // 1. Click IDs inequívocos gravados no pedido (sempre têm precedência máxima)
   if (order.ttclid || extras.ttclid) return 'tiktok_ads';
   if (order.fbclid || extras.fbclid) return 'facebook_ads';
   if (order.gclid || extras.gclid) return 'google_ads';
 
-  // 2. Parâmetros de campanha explícitos gravados nos extras
+  // 2. Parâmetros de campanha explícitos gravados no pedido ou nos extras
   const utmSource = String(order.utmSource || extras.utmSource || extras.utm_source || '').toLowerCase();
   const utmMedium = String(order.utmMedium || extras.utmMedium || extras.utm_medium || '').toLowerCase();
   const utmCampaign = String(order.utmCampaign || extras.utmCampaign || extras.utm_campaign || '').toLowerCase();
@@ -246,27 +323,96 @@ export function getOrderPlatform(order) {
     return 'organico';
   }
 
-  // 3. Campo explícito gravado no pedido (novos pedidos após a implementação)
+  // 3. Campo explícito gravado no pedido (se for uma campanha paga confirmada)
   const rawSource = order.trafficSource || extras.trafficSource || order.platform || extras.platform;
   if (rawSource) {
     const s = String(rawSource).toLowerCase();
     if (s === 'tiktok_ads' || s === 'tiktok') return 'tiktok_ads';
     if (s === 'facebook_ads' || s === 'facebook' || s === 'meta_ads') return 'facebook_ads';
     if (s === 'google_ads' || s === 'google') return 'google_ads';
+  }
+
+  // 4. Herança de Atribuição (quando o pedido atual está como direto, organico ou sem fonte):
+  // Se o cliente veio originalmente do TikTok (ou Meta/Google), gerou uma 1ª versão mas não gostou,
+  // e depois gerou uma 2ª versão e pagou, essa venda pertence à campanha paga original!
+  if (Array.isArray(allOrders) && allOrders.length > 0) {
+    // 4.1 Herança direta por parentOrderId / orderRef
+    const parentId = order.parentOrderId || extras.parentOrderId || order.orderRef || extras.orderRef;
+    if (parentId) {
+      const parent = allOrders.find(
+        (o) => o && (o.id === parentId || o.orderNumber === parentId || o.order_number === parentId)
+      );
+      if (parent && parent !== order) {
+        // Resolve a plataforma direta do pai (sem recursão em allOrders)
+        const parentPlat = getOrderPlatform(parent);
+        if (parentPlat === 'tiktok_ads' || parentPlat === 'facebook_ads' || parentPlat === 'google_ads') {
+          return parentPlat;
+        }
+      }
+    }
+
+    // 4.2 Herança por cliente (mesmo telefone ou email)
+    const phone = getComparablePhone(
+      order.customerPhone || order.customer_phone || extras.customerPhone || extras.customer_phone
+    );
+    const email = String(
+      order.customerEmail || order.customer_email || extras.customerEmail || extras.customer_email || ''
+    ).trim().toLowerCase();
+
+    if (phone || email) {
+      for (const other of allOrders) {
+        if (!other || other === order) continue;
+        const otherPhone = getComparablePhone(
+          other.customerPhone || other.customer_phone || other.extras?.customerPhone || other.extras?.customer_phone
+        );
+        const otherEmail = String(
+          other.customerEmail || other.customer_email || other.extras?.customerEmail || other.extras?.customer_email || ''
+        ).trim().toLowerCase();
+
+        const matchPhone = Boolean(phone && otherPhone && arePhonesMatching(phone, otherPhone));
+        const matchEmail = Boolean(email && otherEmail && email === otherEmail);
+
+        if (matchPhone || matchEmail) {
+          const otherExtras = (other.extras && typeof other.extras === 'object') ? other.extras : {};
+          // Se o outro pedido tem click ID pago
+          if (other.ttclid || otherExtras.ttclid) return 'tiktok_ads';
+          if (other.fbclid || otherExtras.fbclid) return 'facebook_ads';
+          if (other.gclid || otherExtras.gclid) return 'google_ads';
+
+          // Se o outro pedido tem UTMs pagas
+          const oUtmSource = String(other.utmSource || otherExtras.utmSource || otherExtras.utm_source || '').toLowerCase();
+          const oUtmCampaign = String(other.utmCampaign || otherExtras.utmCampaign || otherExtras.utm_campaign || '').toLowerCase();
+          if (/tiktok|bytedance|\btt\b|tt_/i.test(oUtmSource) || /tiktok|bytedance/i.test(oUtmCampaign)) return 'tiktok_ads';
+          if (/facebook|meta|\bfb\b|instagram|\big\b|ig_/i.test(oUtmSource) || /facebook|instagram/i.test(oUtmCampaign)) return 'facebook_ads';
+          if (/google|adwords|\bgads\b/i.test(oUtmSource) || /google_ads|gads/i.test(oUtmCampaign)) return 'google_ads';
+
+          // Se o outro pedido tem trafficSource pago
+          const oRaw = String(other.trafficSource || otherExtras.trafficSource || other.platform || otherExtras.platform || '').toLowerCase();
+          if (oRaw === 'tiktok_ads' || oRaw === 'tiktok') return 'tiktok_ads';
+          if (oRaw === 'facebook_ads' || oRaw === 'facebook' || oRaw === 'meta_ads') return 'facebook_ads';
+          if (oRaw === 'google_ads' || oRaw === 'google') return 'google_ads';
+        }
+      }
+    }
+  }
+
+  // 5. Se o rawSource for organico ou direto explícito e não tiver nenhum vínculo com campanhas pagas
+  if (rawSource) {
+    const s = String(rawSource).toLowerCase();
     if (s === 'organico' || s === 'organic') return 'organico';
     if (s === 'direto' || s === 'direct') return 'direto';
   }
 
-  // 4. Pedidos anteriores à implementação:
+  // 6. Pedidos anteriores à implementação de rastreamento (sem tracking e sem vínculo):
   // Diretriz do administrador: todo o histórico anterior operava sob campanhas do Facebook Ads.
   return 'facebook_ads';
 }
 
 /**
  * Retorna true se o pedido foi originado no Facebook/Instagram Ads.
- * Pedidos de TikTok, Google ou acessos diretos sem rastreamento de anúncio do Facebook retornam false.
+ * Suporta verificação de herança quando `allOrders` é fornecido.
  */
-export function isOrderFromMeta(order) {
+export function isOrderFromMeta(order, allOrders = []) {
   if (!order) return false;
   const extras = (order.extras && typeof order.extras === 'object') ? order.extras : {};
 
@@ -297,13 +443,19 @@ export function isOrderFromMeta(order) {
     return true;
   }
 
+  // Se houver allOrders e o pedido não tiver identificador direto, checa herança
+  if (Array.isArray(allOrders) && allOrders.length > 0) {
+    return getOrderPlatform(order, allOrders) === 'facebook_ads';
+  }
+
   return false;
 }
 
 /**
  * Retorna true se o pedido foi originado pelo TikTok Ads.
+ * Suporta verificação de herança quando `allOrders` é fornecido.
  */
-export function isOrderFromTikTok(order) {
+export function isOrderFromTikTok(order, allOrders = []) {
   if (!order) return false;
   const extras = (order.extras && typeof order.extras === 'object') ? order.extras : {};
 
@@ -327,6 +479,11 @@ export function isOrderFromTikTok(order) {
   const rawSource = String(order.trafficSource || extras.trafficSource || order.platform || extras.platform || '').toLowerCase();
   if (rawSource === 'tiktok_ads' || rawSource === 'tiktok') {
     return true;
+  }
+
+  // Se houver allOrders e o pedido não tiver identificador direto, checa herança
+  if (Array.isArray(allOrders) && allOrders.length > 0) {
+    return getOrderPlatform(order, allOrders) === 'tiktok_ads';
   }
 
   return false;
@@ -479,7 +636,7 @@ export function calcularMetricasPorPlataforma(pedidos = [], diaFiltro = null, me
       (o.parentOrderId && (o.paidAmount === 0 || Number(o.paidAmount) === 0))
     );
 
-    const platKey = getOrderPlatform(o);
+    const platKey = getOrderPlatform(o, pedidos);
     const target = metricas[platKey] || metricas.direto;
 
     // Pedidos criados no período (ignora 2ª geração bônus para não inflar a contagem de leads)
