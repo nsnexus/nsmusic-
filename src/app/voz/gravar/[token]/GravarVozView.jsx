@@ -719,10 +719,10 @@ export default function GravarVozView({ token }) {
                 lineHeight: '1.5',
                 margin: '0 0 10px 0',
                 fontStyle: 'italic',
-                backgroundColor: 'rgba(0, 0, 0, 0.3)',
-                padding: '12px 14px',
-                borderRadius: '10px',
-                borderLeft: '4px solid #7c3aed'
+                backgroundColor: 'rgba(124, 58, 237, 0.08)',
+                padding: '14px 16px',
+                borderRadius: '12px',
+                border: '1px solid rgba(124, 58, 237, 0.35)'
               }}>
                 &quot;{fraseValidacao}&quot;
               </p>

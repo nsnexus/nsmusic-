@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { Share2, Download } from 'lucide-react';
 import { markPreviewListened } from '@/lib/previewTracking';
 import { isInAppBrowser } from '@/lib/inAppBrowser';
+import CustomAudioPlayer from './CustomAudioPlayer';
 
 export default function SongCard({
   order,
@@ -26,17 +27,17 @@ export default function SongCard({
   const [message, setMessage] = useState('');
   const [reload, setReload] = useState(0);
   const [inApp, setInApp] = useState(false);
+  const [isAudioPlaying, setIsAudioPlaying] = useState(false);
   useEffect(() => { setInApp(isInAppBrowser()); }, []);
   const audio = useRef(null);
   const available = (tracks || []).filter(Boolean);
   const index = Math.min(version, Math.max(available.length - 1, 0));
   const source = available[index] || '';
-  const previewDuration = element => Math.min(60, Number.isFinite(element.duration) ? element.duration : 60);
+  const previewDuration = element => Math.min(60, Number.isFinite(element?.duration) ? element.duration : 60);
 
   useEffect(() => {
     setAudioError(false);
-    const element = audio.current;
-    return () => { element?.pause(); };
+    setIsAudioPlaying(false);
   }, [source]);
 
   const targetId = orderId || order?.id || order?.orderNumber;
@@ -58,15 +59,116 @@ export default function SongCard({
 
   return (
     <article className="nx-card">
+      <style>{`
+        @keyframes impeccableSpinVinyl {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        @keyframes pulseLiveDot {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.4; transform: scale(0.85); }
+        }
+      `}</style>
+
       <div className="nx-song-heading">
-        <div className="nx-song-top">
-          <Image
-            src={order?.coverUrl || '/experiencia/familia.webp'}
-            alt="Capa da sua música"
-            width={160}
-            height={172}
-            unoptimized={Boolean(order?.coverUrl)}
-          />
+        <div className="nx-song-top" style={{ alignItems: 'center', gap: '20px' }}>
+          {/* Vinil Rotativo + Capa da Homenagem */}
+          <div style={{ position: 'relative', width: '136px', height: '136px', flexShrink: 0 }}>
+            {/* Vinil estilizado com sulcos de áudio que surge lateralmente e gira quando toca */}
+            <div
+              aria-hidden="true"
+              style={{
+                position: 'absolute',
+                top: '4px',
+                right: isAudioPlaying ? '-22px' : '0px',
+                width: '128px',
+                height: '128px',
+                borderRadius: '50%',
+                background: 'radial-gradient(circle, #0f172a 32%, #1e293b 33%, #0f172a 46%, #1e293b 47%, #0f172a 62%, #334155 63%, #0f172a 64%)',
+                boxShadow: isAudioPlaying ? '0 10px 24px rgba(15, 23, 42, 0.4)' : '0 4px 12px rgba(0,0,0,0.15)',
+                transition: 'right 0.5s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.5s ease',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 0,
+                animation: isAudioPlaying ? 'impeccableSpinVinyl 5.5s linear infinite' : 'none',
+              }}
+            >
+              {/* Centro do disco de vinil */}
+              <div
+                style={{
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #4f46e5 0%, #ec4899 100%)',
+                  border: '3px solid #0f172a',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#0f172a' }} />
+              </div>
+            </div>
+
+            {/* Capa Fotográfica em primeiro plano */}
+            <div
+              style={{
+                position: 'relative',
+                zIndex: 1,
+                width: '136px',
+                height: '136px',
+                borderRadius: '16px',
+                overflow: 'hidden',
+                boxShadow: '0 10px 24px -4px rgba(79, 70, 229, 0.18), 0 4px 10px -2px rgba(15, 23, 42, 0.08)',
+                border: '2px solid rgba(255, 255, 255, 0.9)',
+                backgroundColor: '#f1f5f9',
+              }}
+            >
+              <Image
+                src={order?.coverUrl || '/experiencia/familia.webp'}
+                alt="Capa da sua música"
+                width={136}
+                height={136}
+                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                unoptimized={Boolean(order?.coverUrl)}
+              />
+              {isAudioPlaying && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    bottom: '6px',
+                    left: '6px',
+                    backgroundColor: 'rgba(15, 23, 42, 0.88)',
+                    backdropFilter: 'blur(6px)',
+                    borderRadius: '999px',
+                    padding: '2.5px 8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    color: '#ffffff',
+                    fontSize: '0.62rem',
+                    fontWeight: 800,
+                    letterSpacing: '0.04em',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+                  }}
+                >
+                  <span
+                    style={{
+                      width: '6px',
+                      height: '6px',
+                      borderRadius: '50%',
+                      backgroundColor: '#10b981',
+                      display: 'inline-block',
+                      animation: 'pulseLiveDot 1.2s infinite',
+                    }}
+                  />
+                  TOCANDO
+                </div>
+              )}
+            </div>
+          </div>
+
           <div>
             {generationLabel ? (
               <span
@@ -114,7 +216,7 @@ export default function SongCard({
               key={number}
               aria-pressed={index === number}
               style={{ minHeight: '44px', fontWeight: '600' }}
-              onClick={() => { audio.current?.pause(); setVersion(number); }}
+              onClick={() => { setVersion(number); }}
             >
               {label}{!paid ? ' · prévia' : ''}
             </button>
@@ -122,36 +224,28 @@ export default function SongCard({
         })}
       </div>
 
+      {/* Player de Áudio Exclusivo e de Alta Fidelidade */}
       {source ? (
-        <audio
-          ref={audio}
-          key={`${source}-${reload}`}
-          src={reload ? `${source}${source.includes('?') ? '&' : '?'}retry=${reload}` : source}
-          controls
-          preload="metadata"
-          controlsList={paid ? undefined : 'nodownload noplaybackrate'}
-          style={{ width: '100%', height: 46 }}
-          aria-label={`${paid ? 'Música completa' : 'Prévia de até 60 segundos'}, música ${index + 1 + trackOffset}`}
-          onContextMenu={event => { if (!paid) event.preventDefault(); }}
-          onPlay={event => {
+        <CustomAudioPlayer
+          source={source}
+          reload={reload}
+          paid={paid}
+          previewMaxDuration={60}
+          trackLabel={
+            trackOffset > 0
+              ? `Música ${index + 1 + trackOffset}`
+              : available.length > 2
+                ? `Música ${index + 1 + trackOffset}`
+                : `Versão ${index + 1 + trackOffset}`
+          }
+          onPlayTrack={() => {
             if (!paid) {
-              if (event.currentTarget.currentTime >= previewDuration(event.currentTarget)) event.currentTarget.currentTime = 0;
               markPreviewListened(targetId);
             }
           }}
-          onTimeUpdate={event => {
-            if (!paid && event.currentTarget.currentTime >= previewDuration(event.currentTarget)) {
-              event.currentTarget.pause();
-              event.currentTarget.currentTime = 0;
-            }
-          }}
-          onSeeking={event => {
-            if (!paid && event.currentTarget.currentTime > previewDuration(event.currentTarget)) {
-              event.currentTarget.currentTime = previewDuration(event.currentTarget);
-            }
-          }}
-          onCanPlay={() => setAudioError(false)}
-          onError={() => setAudioError(true)}
+          onCanPlayTrack={() => setAudioError(false)}
+          onErrorTrack={() => setAudioError(true)}
+          onPlayingChange={(playing) => setIsAudioPlaying(playing)}
         />
       ) : (
         <p className="nx-message" role="status">

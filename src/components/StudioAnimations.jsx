@@ -131,11 +131,11 @@ export function StudioAudioAnimation() {
           50% { transform: scale(1.15); opacity: 0.15; }
           100% { transform: scale(1.35); opacity: 0; }
         }
-        @keyframes eqBounce1 { 0%, 100% { height: 12px; } 50% { height: 38px; } }
-        @keyframes eqBounce2 { 0%, 100% { height: 36px; } 50% { height: 16px; } }
-        @keyframes eqBounce3 { 0%, 100% { height: 20px; } 50% { height: 46px; } }
-        @keyframes eqBounce4 { 0%, 100% { height: 42px; } 50% { height: 18px; } }
-        @keyframes eqBounce5 { 0%, 100% { height: 16px; } 50% { height: 34px; } }
+        @keyframes eqPulse1 { 0%, 100% { height: 12px; } 50% { height: 38px; } }
+        @keyframes eqPulse2 { 0%, 100% { height: 36px; } 50% { height: 16px; } }
+        @keyframes eqPulse3 { 0%, 100% { height: 20px; } 50% { height: 46px; } }
+        @keyframes eqPulse4 { 0%, 100% { height: 42px; } 50% { height: 18px; } }
+        @keyframes eqPulse5 { 0%, 100% { height: 16px; } 50% { height: 34px; } }
         @keyframes floatMusicNote {
           0% { transform: translate(0, 0) scale(0.7); opacity: 0; }
           30% { opacity: 1; }
@@ -239,15 +239,15 @@ export function StudioAudioAnimation() {
 
       {/* Equalizador de Barras de Frequência Rítmicas */}
       <div style={styles.equalizerWrapper}>
-        <div style={{ ...styles.eqBar, background: '#8b5cf6', animation: 'eqBounce1 0.8s ease-in-out infinite' }} />
-        <div style={{ ...styles.eqBar, background: '#a855f7', animation: 'eqBounce3 0.65s ease-in-out infinite 0.15s' }} />
-        <div style={{ ...styles.eqBar, background: '#c084fc', animation: 'eqBounce2 0.75s ease-in-out infinite 0.3s' }} />
-        <div style={{ ...styles.eqBar, background: '#ec4899', animation: 'eqBounce4 0.6s ease-in-out infinite 0.1s' }} />
-        <div style={{ ...styles.eqBar, background: '#f472b6', animation: 'eqBounce1 0.9s ease-in-out infinite 0.25s' }} />
-        <div style={{ ...styles.eqBar, background: '#38bdf8', animation: 'eqBounce3 0.7s ease-in-out infinite 0.4s' }} />
-        <div style={{ ...styles.eqBar, background: '#818cf8', animation: 'eqBounce5 0.85s ease-in-out infinite 0.2s' }} />
-        <div style={{ ...styles.eqBar, background: '#a855f7', animation: 'eqBounce2 0.7s ease-in-out infinite 0.35s' }} />
-        <div style={{ ...styles.eqBar, background: '#ec4899', animation: 'eqBounce4 0.6s ease-in-out infinite 0.05s' }} />
+        <div style={{ ...styles.eqBar, background: '#8b5cf6', animation: 'eqPulse1 0.8s cubic-bezier(0.25, 1, 0.5, 1) infinite' }} />
+        <div style={{ ...styles.eqBar, background: '#a855f7', animation: 'eqPulse3 0.65s cubic-bezier(0.25, 1, 0.5, 1) infinite 0.15s' }} />
+        <div style={{ ...styles.eqBar, background: '#c084fc', animation: 'eqPulse2 0.75s cubic-bezier(0.25, 1, 0.5, 1) infinite 0.3s' }} />
+        <div style={{ ...styles.eqBar, background: '#ec4899', animation: 'eqPulse4 0.6s cubic-bezier(0.25, 1, 0.5, 1) infinite 0.1s' }} />
+        <div style={{ ...styles.eqBar, background: '#f472b6', animation: 'eqPulse1 0.9s cubic-bezier(0.25, 1, 0.5, 1) infinite 0.25s' }} />
+        <div style={{ ...styles.eqBar, background: '#38bdf8', animation: 'eqPulse3 0.7s cubic-bezier(0.25, 1, 0.5, 1) infinite 0.4s' }} />
+        <div style={{ ...styles.eqBar, background: '#818cf8', animation: 'eqPulse5 0.85s cubic-bezier(0.25, 1, 0.5, 1) infinite 0.2s' }} />
+        <div style={{ ...styles.eqBar, background: '#a855f7', animation: 'eqPulse2 0.7s cubic-bezier(0.25, 1, 0.5, 1) infinite 0.35s' }} />
+        <div style={{ ...styles.eqBar, background: '#ec4899', animation: 'eqPulse4 0.6s cubic-bezier(0.25, 1, 0.5, 1) infinite 0.05s' }} />
       </div>
     </div>
   );
