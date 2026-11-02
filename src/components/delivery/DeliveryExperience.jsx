@@ -273,7 +273,16 @@ export default function DeliveryExperience({
         </div>
       </header>
 
-      <main className="nx-main">
+      <main
+        className="nx-main nx-delivery-main"
+        style={{
+          maxWidth: '1000px',
+          margin: '0 auto',
+          padding: '24px 16px 90px',
+          width: '100%',
+          boxSizing: 'border-box',
+        }}
+      >
         {!paid ? (
           <>
             <div className="nx-head">
@@ -306,7 +315,6 @@ export default function DeliveryExperience({
                 const el = document.getElementById('checkout-panel') || document.getElementById('pagamento');
                 el?.scrollIntoView({ behavior: 'smooth' });
               }}
-              price="R$ 9,99"
             />
           </>
         ) : (

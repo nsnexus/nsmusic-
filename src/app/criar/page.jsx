@@ -1911,7 +1911,7 @@ export default function CriarMusica() {
         return (
           <div style={{ maxWidth: '34rem', margin: '0 auto' }}>
             {customLyricsMode ? (
-              <div style={{ backgroundColor: '#ffffff', borderRadius: '20px', padding: '24px 20px', border: '1.5px solid #F1E4E8', boxShadow: '0 4px 18px rgba(0,0,0,0.03)' }}>
+              <div style={{ backgroundColor: '#ffffff', borderRadius: '20px', padding: '24px 20px', border: '1.5px solid #e2e8f0', boxShadow: '0 4px 18px rgba(0,0,0,0.03)' }}>
                 <span className="wz-guide">5 DE 7 · A LETRA</span>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px', marginBottom: '14px' }}>
                   <div>
@@ -1993,20 +1993,20 @@ export default function CriarMusica() {
                 </div>
               </div>
             ) : formData.lyricsStatus === 'generating' ? (
-              <div style={{ padding: '36px 20px', textAlign: 'center', backgroundColor: '#ffffff', borderRadius: '20px', border: '1.5px solid #F1E4E8', boxShadow: '0 4px 18px rgba(0,0,0,0.03)' }}>
+              <div style={{ padding: '36px 20px', textAlign: 'center', backgroundColor: '#ffffff', borderRadius: '20px', border: '1.5px solid #e2e8f0', boxShadow: '0 4px 18px rgba(0,0,0,0.03)' }}>
                 <span className="wz-guide">5 DE 7 · COMPOSIÇÃO POÉTICA</span>
                 <StudioLyricsAnimation />
                 <h2 className="wz-t" style={{ fontSize: '1.35rem', marginTop: '16px' }}>
                   Escrevendo a sua letra... ✨
                 </h2>
-                <p style={{ color: '#E32B6D', fontSize: '0.94rem', fontWeight: '700', marginTop: '8px', minHeight: '30px' }}>
+                <p style={{ color: '#4f46e5', fontSize: '0.94rem', fontWeight: '700', marginTop: '8px', minHeight: '30px' }}>
                   {studioLyricsPhrases[lyricsStepIdx]}
                 </p>
                 <p className="wz-s" style={{ margin: '8px auto 0', maxWidth: '420px' }}>
                   Nossa Inteligência Poética está rimando momentos e memórias para emocionar {formData.honoreeName || 'quem você ama'}.
                 </p>
 
-                <div style={{ marginTop: '24px', borderTop: '1px solid #F1E4E8', paddingTop: '16px' }}>
+                <div style={{ marginTop: '24px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
                   <button
                     type="button"
                     onClick={() => {
@@ -2019,9 +2019,9 @@ export default function CriarMusica() {
                       gap: '8px',
                       padding: '10px 18px',
                       borderRadius: '100px',
-                      border: '1.5px dashed #E32B6D',
-                      backgroundColor: '#FFF7F9',
-                      color: '#B5124E',
+                      border: '1.5px dashed #6366f1',
+                      backgroundColor: '#eef2ff',
+                      color: '#4f46e5',
                       fontSize: '0.86rem',
                       fontWeight: '700',
                       cursor: 'pointer',
@@ -2108,9 +2108,9 @@ export default function CriarMusica() {
                 )}
 
                 {/* Card da Letra */}
-                <div style={{ backgroundColor: '#ffffff', borderRadius: '20px', border: '1.5px solid #F1E4E8', padding: '20px', boxShadow: '0 4px 18px rgba(0,0,0,0.03)', marginBottom: '14px' }}>
+                <div style={{ backgroundColor: '#ffffff', borderRadius: '20px', border: '1.5px solid #e2e8f0', padding: '20px', boxShadow: '0 4px 18px rgba(0,0,0,0.03)', marginBottom: '14px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#B5124E', letterSpacing: '0.05em' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#4f46e5', letterSpacing: '0.05em' }}>
                       LETRA DA MÚSICA · VERSÃO {formData.lyricsVersion || 1}
                     </span>
                     <button
@@ -2125,9 +2125,9 @@ export default function CriarMusica() {
                         }
                       }}
                       style={{
-                        background: isEditingLyricsDirectly ? '#F1E4E8' : '#FFF7F9',
-                        border: '1px solid #FCE4ED',
-                        color: '#B5124E',
+                        background: isEditingLyricsDirectly ? '#f1f5f9' : '#eef2ff',
+                        border: '1px solid #c7d2fe',
+                        color: '#4f46e5',
                         padding: '5px 12px',
                         borderRadius: '100px',
                         fontSize: '0.78rem',
@@ -2253,7 +2253,7 @@ export default function CriarMusica() {
                 <div className="suno-retention-tip">
                   <span style={{ fontSize: '1.5rem', flexShrink: 0 }}>⏳</span>
                   <div>
-                    <strong style={{ color: '#B5124E', display: 'block', marginBottom: '3px' }}>
+                    <strong style={{ color: '#4f46e5', display: 'block', marginBottom: '3px' }}>
                       Fique nesta tela para ouvir em primeira mão!
                     </strong>
                     <span>
@@ -2496,7 +2496,7 @@ export default function CriarMusica() {
             </div>
 
             {/* Box de Pagamento PIX e Cartão */}
-            <div style={{ backgroundColor: '#ffffff', borderRadius: '20px', border: '1.5px solid #F1E4E8', padding: '22px 20px', boxShadow: '0 4px 18px rgba(0,0,0,0.03)' }}>
+            <div style={{ backgroundColor: '#ffffff', borderRadius: '20px', border: '1.5px solid #e2e8f0', padding: '22px 20px', boxShadow: '0 4px 18px rgba(0,0,0,0.03)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
                 <div
                   style={{
@@ -2888,10 +2888,10 @@ export default function CriarMusica() {
               ) : (
                 <div style={{ width: '36px' }} />
               )}
-              <div className="wz-track" style={{ flex: 1, height: '6px', background: '#F1E4E8', borderRadius: '6px', overflow: 'hidden' }}>
-                <div className="wz-fill" style={{ width: `${(step / TOTAL_JOURNEY_STEPS) * 100}%`, height: '100%', background: 'linear-gradient(90deg, #F0417E, #D01A5C)', borderRadius: '6px', transition: 'width 0.35s ease' }} />
+              <div className="wz-track" style={{ flex: 1, height: '6px', background: '#e2e8f0', borderRadius: '6px', overflow: 'hidden' }}>
+                <div className="wz-fill" style={{ width: `${(step / TOTAL_JOURNEY_STEPS) * 100}%`, height: '100%', background: 'linear-gradient(90deg, #4f46e5 0%, #7c3aed 100%)', borderRadius: '6px', transition: 'width 0.35s ease' }} />
               </div>
-              <span className="wz-count" style={{ fontSize: '0.8rem', fontWeight: 800, color: '#857D80', whiteSpace: 'nowrap' }}>
+              <span className="wz-count" style={{ fontSize: '0.8rem', fontWeight: 800, color: '#64748b', whiteSpace: 'nowrap' }}>
                 {step}/{TOTAL_JOURNEY_STEPS}
               </span>
             </div>
@@ -2903,7 +2903,7 @@ export default function CriarMusica() {
             {step <= TOTAL_FORM_STEPS ? renderWizardStep() : renderWorkflowStep()}
           </div>
 
-          {/* Fixed Bottom Navigation Dock (Estilo Capivarinha Love) */}
+          {/* Fixed Bottom Navigation Dock (Estúdio NS Music) */}
           {formData.lyricsStatus !== 'generating' && formData.sunoStatus !== 'generating' && step < 7 && (
             <div
               className="criar-navigation-dock"
@@ -2916,7 +2916,7 @@ export default function CriarMusica() {
                 backgroundColor: 'rgba(255, 255, 255, 0.97)',
                 backdropFilter: 'blur(12px)',
                 WebkitBackdropFilter: 'blur(12px)',
-                borderTop: '1.5px solid #F1E4E8',
+                borderTop: '1.5px solid #e2e8f0',
                 boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.06)',
                 padding: '10px 16px calc(10px + env(safe-area-inset-bottom, 0px)) 16px'
               }}

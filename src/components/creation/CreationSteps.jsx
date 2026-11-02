@@ -211,15 +211,15 @@ export default function CreationSteps({
               margin: '-4px 0 16px',
               padding: '10px 14px',
               borderRadius: '14px',
-              background: '#FFF1F6',
-              border: '1px solid #FCE4ED',
+              background: '#f8fafc',
+              border: '1px solid #e2e8f0',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
               flexWrap: 'wrap',
               gap: '8px'
             }}>
-              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#B5124E' }}>
+              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#4f46e5' }}>
                 Especificar:
               </span>
               <div style={{ display: 'flex', gap: '8px' }}>
@@ -238,9 +238,9 @@ export default function CreationSteps({
                         borderRadius: '100px',
                         fontSize: '0.82rem',
                         fontWeight: 700,
-                        border: isRelActive ? '1px solid #E32B6D' : '1px solid #F1E4E8',
-                        backgroundColor: isRelActive ? '#E32B6D' : '#ffffff',
-                        color: isRelActive ? '#ffffff' : '#1E1418',
+                        border: isRelActive ? '1px solid #4f46e5' : '1px solid #cbd5e1',
+                        backgroundColor: isRelActive ? '#4f46e5' : '#ffffff',
+                        color: isRelActive ? '#ffffff' : '#1e293b',
                         cursor: 'pointer',
                         transition: 'all 0.15s ease'
                       }}
@@ -378,13 +378,13 @@ export default function CreationSteps({
             marginBottom: '10px',
             padding: '12px 16px',
             borderRadius: '16px',
-            backgroundColor: '#FFF7F9',
-            border: '1px solid #FCE4ED',
+            backgroundColor: '#eef2ff',
+            border: '1px solid #e0e7ff',
             display: 'flex',
             alignItems: 'center',
             gap: '10px',
             fontSize: '0.84rem',
-            color: '#B5124E'
+            color: '#4338ca'
           }}
         >
           <span style={{ fontSize: '1.2rem', lineHeight: 1 }}>🔒</span>
@@ -434,7 +434,7 @@ export default function CreationSteps({
 
         {/* Sugestões de ideias para clicar e preencher */}
         <div style={{ marginTop: '14px', marginBottom: '14px' }}>
-          <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#857D80', display: 'block', marginBottom: '8px' }}>
+          <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#64748b', display: 'block', marginBottom: '8px' }}>
             💡 Sugestões para inspirar:
           </span>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
@@ -453,8 +453,8 @@ export default function CreationSteps({
                   fontSize: '0.8rem',
                   fontWeight: 600,
                   backgroundColor: '#ffffff',
-                  border: '1.5px solid #F1E4E8',
-                  color: '#1E1418',
+                  border: '1.5px solid #e2e8f0',
+                  color: '#1e293b',
                   cursor: 'pointer',
                   transition: 'all 0.15s ease'
                 }}
@@ -480,9 +480,9 @@ export default function CreationSteps({
             gap: '8px',
             fontSize: '0.92rem',
             borderRadius: '100px',
-            border: '1.5px solid #FCE4ED',
-            backgroundColor: isListening ? '#ffe4e6' : '#FFF7F9',
-            color: '#B5124E',
+            border: '1.5px solid #e0e7ff',
+            backgroundColor: isListening ? '#fef2f2' : '#eef2ff',
+            color: isListening ? '#dc2626' : '#4f46e5',
             fontWeight: 700,
             cursor: 'pointer'
           }}
@@ -568,7 +568,7 @@ export default function CreationSteps({
             type="button"
             className="nx-text-button"
             onClick={() => setShowAllStyles(v => !v)}
-            style={{ marginBottom: '16px', fontSize: '0.84rem', color: '#B5124E', fontWeight: 700 }}
+            style={{ marginBottom: '16px', fontSize: '0.84rem', color: '#4f46e5', fontWeight: 700 }}
           >
             {showAllStyles ? '↑ Mostrar menos estilos' : '↓ Ver todos os estilos (+10 opções)'}
           </button>
@@ -691,12 +691,12 @@ export default function CreationSteps({
         <div className="wz-s">Confira o resumo antes de gerar a letra personalizada com a IA.</div>
 
         {/* Card Resumo */}
-        <article className="nx-card nx-review" style={{ padding: '18px', borderRadius: '18px', border: '1.5px solid #F1E4E8', marginBottom: '16px' }}>
-          <span className="nx-eyebrow" style={{ fontSize: '0.78rem', color: '#B5124E', fontWeight: 700 }}>
+        <article className="nx-card nx-review" style={{ padding: '18px', borderRadius: '18px', border: '1.5px solid #e2e8f0', marginBottom: '16px' }}>
+          <span className="nx-eyebrow" style={{ fontSize: '0.78rem', color: '#4f46e5', fontWeight: 700 }}>
             {data.occasion || 'Homenagem'}
           </span>
-          <h2 style={{ fontSize: '1.35rem', margin: '6px 0 4px', color: '#161113' }}>Para {data.honoreeName}</h2>
-          <p style={{ fontSize: '0.88rem', margin: '0 0 10px', color: '#857D80' }}>
+          <h2 style={{ fontSize: '1.35rem', margin: '6px 0 4px', color: '#0f172a' }}>Para {data.honoreeName}</h2>
+          <p style={{ fontSize: '0.88rem', margin: '0 0 10px', color: '#64748b' }}>
             De {data.customerName} · {data.musicStyle} · {data.musicMood}
             {data.voiceType && (
               <span> · Voz: {data.voiceType === 'minha_voz' ? '🎙️ Própria' : data.voiceType === 'feminina' ? 'Feminina' : data.voiceType === 'dueto' ? 'Dueto' : 'Masculina'}</span>
@@ -751,7 +751,7 @@ export default function CreationSteps({
 
         {/* Verificação de Timbre */}
         {checkingVoice && (
-          <div style={{ padding: '8px 12px', borderRadius: '10px', backgroundColor: '#FFF7F9', border: '1px solid #FCE4ED', color: '#B5124E', fontSize: '0.84rem' }}>
+          <div style={{ padding: '8px 12px', borderRadius: '10px', backgroundColor: '#eef2ff', border: '1px solid #e0e7ff', color: '#4338ca', fontSize: '0.84rem' }}>
             ⏳ Verificando se este WhatsApp possui voz cadastrada...
           </div>
         )}
@@ -763,13 +763,13 @@ export default function CreationSteps({
             marginBottom: '12px',
             padding: '14px',
             borderRadius: '16px',
-            backgroundColor: '#FFF7F9',
-            border: '1.5px solid #E32B6D'
+            backgroundColor: '#f5f3ff',
+            border: '1.5px solid #7c3aed'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
               <div>
-                <span style={{ fontWeight: 800, color: '#B5124E', fontSize: '0.92rem' }}>✨ Timbre de Voz Reconhecido!</span>
-                <p style={{ margin: '4px 0 0', fontSize: '0.82rem', color: '#1E1418' }}>
+                <span style={{ fontWeight: 800, color: '#6d28d9', fontSize: '0.92rem' }}>✨ Timbre de Voz Reconhecido!</span>
+                <p style={{ margin: '4px 0 0', fontSize: '0.82rem', color: '#1e1b4b' }}>
                   Olá, <strong>{recognizedVoice.customerName || 'Cliente'}</strong>! Deseja cantar com a sua própria voz clonada?
                 </p>
               </div>

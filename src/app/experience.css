@@ -83,6 +83,7 @@
 .nx-creation .criar-nav-next:disabled { background: var(--bg-tertiary, #E2E5F5) !important; color: var(--text-muted, #78778E) !important; box-shadow: none !important; cursor: not-allowed !important; }
 .nx-center-head { max-width: 700px; margin: 4px auto 30px; text-align: center; }
 .nx-center-head p { color: var(--nx-muted); }
+.nx-main { max-width: 1000px; padding: 24px 16px 90px; margin: auto; box-sizing: border-box; }
 .nx-delivery-main { max-width: 1160px; padding: 34px 24px 70px; margin: auto; }
 .nx-preview-layout { display: grid; grid-template-columns: minmax(0,1.4fr) minmax(0,1fr); gap: 24px; }
 .nx-preview-layout.nx-preview-focused { display: block; max-width: 800px; margin-inline: auto; }
@@ -157,7 +158,7 @@
   .nx-experience h1 { font-size: 2rem; }.nx-editorial .nx-editorial-title { font-size: 1.7rem; }
   .nx-delivery-main { padding: 25px 20px 50px; }.nx-card { padding: 21px; }
   .nx-center-head { text-align: left; }.nx-song-top { gap: 16px; }.nx-song-top img { width: 108px; height: 128px; }.nx-song-top h2 { font-size: 1.5rem; }
-  .nx-package-grid { grid-template-columns: 1fr 1fr; }.nx-package { padding: 17px 13px; }.nx-package[aria-pressed="true"] { padding: 16px 12px; }.nx-package .nx-eyebrow { font-size: .58rem; }.nx-package-price { font-size: 1.5rem; }
+  .nx-package-grid { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }.nx-package { padding: 22px 18px; }.nx-package[aria-pressed="true"] { padding: 21px 17px; }.nx-package .nx-eyebrow { font-size: .62rem; }.nx-package-price { font-size: 1.6rem; }
   .nx-checkout-summary, .nx-referral-card { flex-direction: column; align-items: stretch; gap: 16px; }
   .nx-second-offer { grid-template-columns: 1fr; gap: 10px; }.nx-second-offer h2 { font-size: 1.7rem; }.nx-offer-amount { font-size: 2rem; }
   .nx-creation .criar-navigation-inner { padding-inline: 20px; }.nx-creation .criar-nav-next { padding-inline: 17px !important; font-size: .88rem !important; }
@@ -274,47 +275,57 @@
 }
 
 /* ========================================================
-   ESTILO CAPIVARINHA LOVE — WIZARD DE CRIAÇÃO
+   ESTÚDIO MUSICAL NS MUSIC — WIZARD DE CRIAÇÃO
    ======================================================== */
 .wz-guide {
   display: flex;
-  gap: 0.75rem;
+  gap: 0.85rem;
   align-items: center;
   margin-bottom: 1.25rem;
-  background: #FFF7F9;
-  border: 1px solid #FCE4ED;
+  background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%);
+  border: 1px solid #e0e7ff;
   border-radius: 16px;
-  padding: 0.85rem 1rem;
+  padding: 0.95rem 1.15rem;
+  box-shadow: 0 4px 16px rgba(79, 70, 229, 0.04);
 }
 .wz-guide-icon {
-  font-size: 1.5rem;
+  font-size: 1.45rem;
   line-height: 1;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
 }
 .wz-guide-bubble {
   font-size: 0.88rem;
-  color: #1E1418;
+  color: #1e293b;
   line-height: 1.45;
-  font-weight: 500;
+  font-weight: 600;
 }
 .wz-t {
-  font-size: 1.45rem;
-  font-weight: 700;
-  color: #161113;
+  font-family: var(--font-family-title, inherit);
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: #0f172a;
   margin-bottom: 0.35rem;
   letter-spacing: -0.02em;
   line-height: 1.2;
 }
 .wz-s {
   font-size: 0.88rem;
-  color: #857D80;
+  color: #64748b;
   margin-bottom: 1.15rem;
   line-height: 1.45;
 }
 .cards2 {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 0.65rem;
+  gap: 0.75rem;
   margin-bottom: 1rem;
 }
 .card2 {
@@ -323,53 +334,56 @@
   align-items: center;
   justify-content: center;
   text-align: center;
-  gap: 0.2rem;
+  gap: 0.25rem;
   background: #ffffff;
-  border: 1.5px solid #F1E4E8;
+  border: 1.5px solid #e2e8f0;
   border-radius: 16px;
-  padding: 0.95rem 0.5rem;
+  padding: 1rem 0.65rem;
   cursor: pointer;
-  transition: all 0.18s ease;
-  min-height: 5.5rem;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  min-height: 5.6rem;
   position: relative;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
   width: 100%;
   box-sizing: border-box;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.03);
 }
 .card2:hover {
-  border-color: #E32B6D;
-  background: #FFF7F9;
+  border-color: #818cf8;
+  background: #f8fafc;
+  transform: translateY(-1px);
 }
 .card2:active {
-  transform: scale(0.97);
+  transform: scale(0.98);
 }
 .card2.on {
-  background: linear-gradient(135deg, #F0417E, #D01A5C) !important;
-  border-color: #D01A5C !important;
-  box-shadow: 0 6px 18px rgba(227, 43, 109, 0.28) !important;
+  background: linear-gradient(135deg, rgba(79, 70, 229, 0.06) 0%, rgba(124, 58, 237, 0.1) 100%) !important;
+  border-color: #6366f1 !important;
+  box-shadow: 0 4px 18px rgba(79, 70, 229, 0.16), 0 0 0 1px #6366f1 !important;
 }
-.card2.on .c2-lb,
-.card2.on .c2-sub {
-  color: #ffffff !important;
+.card2.on .c2-lb {
+  color: #4338ca !important;
+  font-weight: 800 !important;
 }
 .card2.on .c2-sub {
-  opacity: 0.9;
+  color: #6366f1 !important;
+  opacity: 1 !important;
 }
 .c2-ic {
-  font-size: 1.65rem;
+  font-size: 1.7rem;
   line-height: 1;
-  margin-bottom: 0.2rem;
+  margin-bottom: 0.25rem;
 }
 .c2-lb {
-  font-size: 0.85rem;
+  font-size: 0.86rem;
   font-weight: 700;
-  color: #1E1418;
+  color: #1e293b;
   line-height: 1.25;
 }
 .c2-sub {
-  font-size: 0.7rem;
-  color: #857D80;
+  font-size: 0.72rem;
+  color: #64748b;
   line-height: 1.2;
 }
 .c2-selo {
@@ -380,64 +394,66 @@
   white-space: nowrap;
   font-size: 0.65rem;
   font-weight: 800;
-  color: #7A4A00;
-  background: #FFD27A;
+  color: #92400e;
+  background: #fef3c7;
+  border: 1px solid #fde68a;
   padding: 0.15rem 0.55rem;
   border-radius: 100px;
+  box-shadow: 0 2px 6px rgba(245, 158, 11, 0.2);
 }
 .wz-inp {
   width: 100%;
-  border: 1.5px solid #F1E4E8;
+  border: 1.5px solid #cbd5e1;
   border-radius: 12px;
   padding: 0.85rem 1rem;
-  font-size: 1rem;
+  font-size: 0.98rem;
   background: #ffffff;
-  color: #1E1418;
+  color: #0f172a;
   outline: none;
   transition: all 0.18s ease;
   box-sizing: border-box;
 }
 .wz-inp:focus {
-  border-color: #E32B6D;
-  box-shadow: 0 0 0 3.5px #FCE4ED;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
 }
 .wz-inp.erro {
   border-color: #ef4444 !important;
-  background: #fff5f5;
+  background: #fef2f2;
 }
 .btn-wz-primary {
-  background: linear-gradient(135deg, #F0417E, #D01A5C);
-  color: #fff;
-  box-shadow: 0 8px 22px rgba(227, 43, 109, 0.3);
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+  color: #ffffff;
+  box-shadow: 0 8px 22px rgba(79, 70, 229, 0.35);
   border-radius: 100px;
-  padding: 0.82rem 1.25rem;
+  padding: 0.85rem 1.35rem;
   font-weight: 700;
-  font-size: 0.94rem;
+  font-size: 0.95rem;
   border: none;
   cursor: pointer;
   flex: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.45rem;
-  transition: all 0.18s ease;
+  gap: 0.5rem;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   text-decoration: none;
   white-space: nowrap;
 }
 .btn-wz-primary:hover {
-  box-shadow: 0 12px 28px rgba(227, 43, 109, 0.4);
+  box-shadow: 0 12px 28px rgba(79, 70, 229, 0.45);
   transform: translateY(-1px);
 }
 .btn-wz-primary:active {
   transform: scale(0.98);
 }
 .btn-wz-back {
-  background: #fff;
-  color: #B5124E;
-  border: 1.5px solid #FCE4ED;
-  box-shadow: 0 2px 10px rgba(22, 17, 19, 0.05);
+  background: #ffffff;
+  color: #475569;
+  border: 1.5px solid #cbd5e1;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
   border-radius: 100px;
-  padding: 0.8rem 1.1rem;
+  padding: 0.82rem 1.15rem;
   font-weight: 700;
   font-size: 0.88rem;
   cursor: pointer;
@@ -450,7 +466,9 @@
   flex-shrink: 0;
 }
 .btn-wz-back:hover {
-  border-color: #E32B6D;
+  border-color: #94a3b8;
+  color: #1e293b;
+  background: #f8fafc;
 }
 
 @media (max-width: 480px) {
@@ -465,17 +483,7 @@
   }
 }
 
-/* Capivarinha Love - Guias e Cartões de Escolha do Presente */
-.wz-guide {
-  font-size: 0.75rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #B5124E;
-  margin-bottom: 0.35rem;
-  display: block;
-}
-
+/* Cartões de Escolha do Presente */
 .presente-list {
   display: flex;
   flex-direction: column;
@@ -487,7 +495,7 @@
 .presente-card {
   position: relative;
   background: #ffffff;
-  border: 1.5px solid #F1E4E8;
+  border: 1.5px solid #e2e8f0;
   border-radius: 18px;
   padding: 1.15rem 1.25rem;
   cursor: pointer;
@@ -497,25 +505,25 @@
   gap: 0.85rem;
   text-align: left;
   user-select: none;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.03);
 }
 
 .presente-card:hover {
-  border-color: #E32B6D;
-  background: #FFFDFC;
+  border-color: #818cf8;
+  background: #f8fafc;
 }
 
 .presente-card.on {
-  border: 2px solid #E32B6D !important;
-  background: #FFF7F9 !important;
-  box-shadow: 0 6px 20px rgba(227, 43, 109, 0.12) !important;
+  border: 2px solid #6366f1 !important;
+  background: linear-gradient(135deg, rgba(79, 70, 229, 0.05) 0%, rgba(124, 58, 237, 0.08) 100%) !important;
+  box-shadow: 0 6px 20px rgba(79, 70, 229, 0.14) !important;
 }
 
 .presente-radio {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  border: 2px solid #D1C5C9;
+  border: 2px solid #cbd5e1;
   background: #ffffff;
   display: flex;
   align-items: center;
@@ -526,7 +534,7 @@
 }
 
 .presente-card.on .presente-radio {
-  border-color: #E32B6D;
+  border-color: #6366f1;
   background: #ffffff;
 }
 
@@ -534,7 +542,7 @@
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: #E32B6D;
+  background: #6366f1;
 }
 
 .presente-content {
@@ -553,7 +561,7 @@
 .presente-title {
   font-size: 1rem;
   font-weight: 750;
-  color: #1E1418;
+  color: #1e1b4b;
   margin: 0;
   line-height: 1.3;
 }
@@ -561,7 +569,7 @@
 .presente-price {
   font-size: 1.15rem;
   font-weight: 800;
-  color: #B5124E;
+  color: #4f46e5;
   white-space: nowrap;
 }
 
@@ -576,7 +584,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  background: #1E1418;
+  background: #1e1b4b;
   color: #ffffff;
   border: none;
   border-radius: 100px;
@@ -596,7 +604,7 @@
   position: absolute;
   top: -0.65rem;
   right: 1.25rem;
-  background: linear-gradient(90deg, #E32B6D 0%, #FF6B4A 100%);
+  background: linear-gradient(90deg, #4f46e5 0%, #7c3aed 100%);
   color: #ffffff;
   font-size: 0.65rem;
   font-weight: 800;
@@ -604,7 +612,7 @@
   text-transform: uppercase;
   padding: 0.2rem 0.65rem;
   border-radius: 100px;
-  box-shadow: 0 2px 8px rgba(227, 43, 109, 0.35);
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.35);
 }
 
 .badge-mais-escolhido {
