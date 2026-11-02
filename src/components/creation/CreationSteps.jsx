@@ -195,14 +195,6 @@ export default function CreationSteps({
 
     return (
       <section className="nx-form-column" style={{ width: '100%', maxWidth: '34rem', margin: '0 auto' }}>
-        {/* Balão do Guia / Mascote */}
-        <div className="wz-guide">
-          <div className="wz-guide-icon">🎵</div>
-          <div className="wz-guide-bubble">
-            Pra quem é essa música? Isso ajuda o estúdio a dar o tom perfeito na letra e na melodia.
-          </div>
-        </div>
-
         {/* 1. QUEM VAI RECEBER (GRID 2-COL DE CARDS) */}
         <div data-missing={isRelMissing ? "true" : undefined}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
@@ -412,8 +404,8 @@ export default function CreationSteps({
 
     return (
       <section className="nx-form-column" style={{ width: '100%', maxWidth: '34rem', margin: '0 auto' }}>
-        <h1 className="wz-t" style={{ marginTop: '0.5rem', marginBottom: '4px' }}>A história de vocês</h1>
-        <div className="wz-s" style={{ marginBottom: '16px' }}>
+        <h1 className="wz-t" style={{ margin: 0 }}>A história de vocês</h1>
+        <div className="wz-s">
           Conte momentos marcantes, apelidos carinhosos ou o que torna {data.honoreeName || 'essa pessoa'} tão especial. Não precisa rimar, conte do seu jeito sincero!
         </div>
 
@@ -514,13 +506,6 @@ export default function CreationSteps({
 
     return (
       <section className="nx-form-column" style={{ width: '100%', maxWidth: '34rem', margin: '0 auto' }}>
-        <div className="wz-guide">
-          <div className="wz-guide-icon">🎵</div>
-          <div className="wz-guide-bubble">
-            Qual estilo combina mais com vocês? Escolha o ritmo que vai dar vida à sua canção.
-          </div>
-        </div>
-
         {/* 1. GÊNERO MUSICAL */}
         <div data-missing={isStyleMissing ? "true" : undefined}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
@@ -587,7 +572,7 @@ export default function CreationSteps({
         </div>
 
         {/* 2. CLIMA DA MÚSICA */}
-        <div data-missing={isMoodMissing ? "true" : undefined} style={{ marginTop: '1.4rem' }}>
+        <div data-missing={isMoodMissing ? "true" : undefined} style={{ marginTop: '1.1rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
             <div className="wz-t" style={{ margin: 0 }}>Clima da música</div>
             {isMoodMissing && (
@@ -619,7 +604,7 @@ export default function CreationSteps({
         </div>
 
         {/* 3. TIPO DE VOZ */}
-        <div data-missing={isVoiceMissing ? "true" : undefined} style={{ marginTop: '1.4rem' }}>
+        <div data-missing={isVoiceMissing ? "true" : undefined} style={{ marginTop: '1.1rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
             <div className="wz-t" style={{ margin: 0 }}>Tipo de voz</div>
             {isVoiceMissing && (
@@ -669,29 +654,24 @@ export default function CreationSteps({
 
     return (
       <section className="nx-form-column" style={{ width: '100%', maxWidth: '34rem', margin: '0 auto' }}>
-        <div className="wz-guide">
-          <div className="wz-guide-icon">🎵</div>
-          <div className="wz-guide-bubble">
-            Quase pronto! Confira os detalhes do seu pedido e informe seu WhatsApp para acompanhar a composição.
-          </div>
-        </div>
-
         <div className="wz-t">Seu presente começa assim</div>
         <div className="wz-s">Confira o resumo antes de gerar a letra personalizada com a IA.</div>
 
         {/* Card Resumo */}
-        <article className="nx-card nx-review" style={{ padding: '18px', borderRadius: '18px', border: '1.5px solid #e2e8f0', marginBottom: '16px' }}>
-          <span className="nx-eyebrow" style={{ fontSize: '0.78rem', color: '#4f46e5', fontWeight: 700 }}>
-            {data.occasion || 'Homenagem'}
-          </span>
-          <h2 style={{ fontSize: '1.35rem', margin: '6px 0 4px', color: '#0f172a' }}>Para {data.honoreeName}</h2>
-          <p style={{ fontSize: '0.88rem', margin: '0 0 10px', color: '#64748b' }}>
+        <article className="nx-card nx-review" style={{ padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0', marginBottom: '16px', backgroundColor: '#ffffff', boxShadow: '0 2px 10px rgba(0,0,0,0.03)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+            <h2 style={{ fontSize: '1.15rem', fontWeight: 700, margin: 0, color: '#0f172a' }}>Para {data.honoreeName}</h2>
+            <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#4338ca', backgroundColor: '#eef2ff', padding: '2px 8px', borderRadius: '6px' }}>
+              {data.occasion || 'Homenagem'}
+            </span>
+          </div>
+          <p style={{ fontSize: '0.84rem', margin: '0 0 10px', color: '#64748b' }}>
             De {data.customerName} · {data.musicStyle} · {data.musicMood}
             {data.voiceType && (
               <span> · Voz: {data.voiceType === 'minha_voz' ? '🎙️ Própria' : data.voiceType === 'feminina' ? 'Feminina' : data.voiceType === 'dueto' ? 'Dueto' : 'Masculina'}</span>
             )}
           </p>
-          <p className="nx-story-review" style={{ fontSize: '0.86rem', lineHeight: 1.5, maxHeight: '140px', overflowY: 'auto' }}>
+          <p className="nx-story-review" style={{ fontSize: '0.84rem', lineHeight: 1.5, maxHeight: '130px', overflowY: 'auto', color: '#334155' }}>
             {data.story}
           </p>
         </article>

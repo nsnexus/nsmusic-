@@ -190,7 +190,7 @@ export default function CustomAudioPreview({
             </span>
           </div>
 
-          <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0, color: '#0f172a', lineHeight: 1.3 }}>
+          <h3 style={{ fontSize: '1.05rem', fontWeight: 700, margin: 0, color: '#0f172a', lineHeight: 1.3 }}>
             {label}
           </h3>
 

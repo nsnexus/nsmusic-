@@ -1914,7 +1914,7 @@ export default function CriarMusica() {
               <div style={{ backgroundColor: '#ffffff', borderRadius: '20px', padding: '24px 20px', border: '1.5px solid #e2e8f0', boxShadow: '0 4px 18px rgba(0,0,0,0.03)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px', marginBottom: '14px' }}>
                   <div>
-                    <h2 className="wz-t" style={{ fontSize: '1.35rem', margin: 0 }}>Colar Minha Própria Letra ✍️</h2>
+                    <h2 className="wz-t" style={{ fontSize: '1.18rem', margin: 0 }}>Colar Minha Própria Letra ✍️</h2>
                     <p className="wz-s" style={{ margin: '4px 0 0', fontSize: '0.86rem' }}>
                       Cole ou digite a composição preparada para {formData.honoreeName || 'alguém especial'}.
                     </p>
@@ -1994,7 +1994,7 @@ export default function CriarMusica() {
             ) : formData.lyricsStatus === 'generating' ? (
               <div style={{ padding: '36px 20px', textAlign: 'center', backgroundColor: '#ffffff', borderRadius: '20px', border: '1.5px solid #e2e8f0', boxShadow: '0 4px 18px rgba(0,0,0,0.03)' }}>
                 <StudioLyricsAnimation />
-                <h2 className="wz-t" style={{ fontSize: '1.35rem', marginTop: '16px' }}>
+                <h2 className="wz-t" style={{ fontSize: '1.18rem', marginTop: '12px' }}>
                   Escrevendo a sua letra... ✨
                 </h2>
                 <p style={{ color: '#4f46e5', fontSize: '0.94rem', fontWeight: '700', marginTop: '8px', minHeight: '30px' }}>
@@ -2229,7 +2229,7 @@ export default function CriarMusica() {
             {formData.sunoStatus !== 'generated' ? (
               <div className="suno-retention-box">
                 <StudioAudioAnimation />
-                <h2 className="wz-t" style={{ fontSize: '1.4rem', marginTop: '12px' }}>
+                <h2 className="wz-t" style={{ fontSize: '1.18rem', marginTop: '10px' }}>
                   Gravando suas 2 versões... 🎙️
                 </h2>
 
@@ -2852,16 +2852,16 @@ export default function CriarMusica() {
       </div></header>
 
       {/* Main content container */}
-      <main className="criar-main" style={{ flex: 1, padding: '32px 0 100px 0', position: 'relative', zIndex: 1 }}>
+      <main className="criar-main" style={{ flex: 1, position: 'relative', zIndex: 1 }}>
         <div className="container criar-container" style={{ maxWidth: '1120px' }}>
           
           {/* Wizard step indicators */}
           {step <= TOTAL_JOURNEY_STEPS && (
-            <div className="wz-top" style={{ maxWidth: '34rem', margin: '0 auto 1.25rem', padding: '0 4px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <div className="wz-track" style={{ flex: 1, height: '6px', background: '#e2e8f0', borderRadius: '6px', overflow: 'hidden' }}>
-                <div className="wz-fill" style={{ width: `${(step / TOTAL_JOURNEY_STEPS) * 100}%`, height: '100%', background: 'linear-gradient(90deg, #4f46e5 0%, #7c3aed 100%)', borderRadius: '6px', transition: 'width 0.35s ease' }} />
+            <div className="wz-top" style={{ maxWidth: '34rem', margin: '0 auto 0.85rem', padding: '0 4px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div className="wz-track" style={{ flex: 1, height: '5px', background: '#e2e8f0', borderRadius: '999px', overflow: 'hidden' }}>
+                <div className="wz-fill" style={{ width: `${(step / TOTAL_JOURNEY_STEPS) * 100}%`, height: '100%', background: 'linear-gradient(90deg, #4f46e5 0%, #7c3aed 100%)', borderRadius: '999px', transition: 'width 0.35s ease' }} />
               </div>
-              <span className="wz-count" style={{ fontSize: '0.8rem', fontWeight: 800, color: '#64748b', whiteSpace: 'nowrap' }}>
+              <span className="wz-count" style={{ fontSize: '0.76rem', fontWeight: 800, color: '#64748b', whiteSpace: 'nowrap' }}>
                 {step}/{TOTAL_JOURNEY_STEPS}
               </span>
             </div>
@@ -2869,7 +2869,7 @@ export default function CriarMusica() {
 
           {/* Form step renderers */}
           {creationError && <div className="nx-message nx-error" role="alert">{creationError}<br /><button type="button" className="nx-text-button" onClick={() => setCreationError('')}>Entendi</button></div>}
-          <div style={{ marginTop: '16px' }} className="criar-step-content">
+          <div style={{ marginTop: '8px' }} className="criar-step-content">
             {step <= TOTAL_FORM_STEPS ? renderWizardStep() : renderWorkflowStep()}
           </div>
 
