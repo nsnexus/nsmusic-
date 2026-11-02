@@ -24,6 +24,8 @@ import { StudioLyricsAnimation, StudioAudioAnimation } from '@/components/Studio
 import { IconeCelularWhatsApp } from '@/components/AppIcons';
 import { readReferralCode } from '@/lib/referralTracking';
 import { getPriceForSku } from '@/lib/pricing';
+import PackageCard from '@/components/delivery/PackageCard';
+import { deliveryPackages } from '@/lib/deliveryPackages';
 
 // Tempo na tela de produção depois do qual o cliente sempre ganha uma saída (conferir de novo,
 // recomeçar ou chamar no WhatsApp). Maior que o corte de 6 min do polling de propósito: só entra
@@ -2375,123 +2377,40 @@ export default function CriarMusica() {
         }
 
         return (
-          <div style={{ maxWidth: '34rem', margin: '0 auto' }}>
-            <h1 className="wz-t" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span>🎁</span> Escolha o seu presente
-            </h1>
-            <p className="wz-s">
-              Ao escolher qualquer opção, você libera o download imediato das suas músicas completas sem corte!
-            </p>
+          <div style={{ maxWidth: '1000px', margin: '0 auto', width: '100%', boxSizing: 'border-box', padding: '0 8px' }}>
+            <div style={{ textAlign: 'center', marginBottom: '22px' }}>
+              <span style={{ fontSize: '0.74rem', fontWeight: '800', letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6366f1', background: '#eef2ff', padding: '4px 14px', borderRadius: '999px', display: 'inline-block', marginBottom: '8px' }}>
+                ÚLTIMO PASSO
+              </span>
+              <h1 className="wz-t" style={{ fontSize: '1.6rem', color: '#0f172a', margin: '0 0 8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                <span>🎁</span> Escolha o seu presente
+              </h1>
+              <p className="wz-s" style={{ margin: '0 auto', maxWidth: '560px' }}>
+                Todas as opções incluem o download imediato das suas músicas completas sem corte em MP3 HD!
+              </p>
+            </div>
 
             {paymentErrorMessage && (
-              <div style={{ padding: '12px 16px', background: '#fef2f2', border: '1.5px solid #fecaca', borderRadius: '14px', marginBottom: '16px', color: '#dc2626', fontWeight: 'bold', fontSize: '0.88rem', textAlign: 'center' }}>
+              <div style={{ padding: '12px 16px', background: '#fef2f2', border: '1.5px solid #fecaca', borderRadius: '14px', marginBottom: '20px', color: '#dc2626', fontWeight: 'bold', fontSize: '0.88rem', textAlign: 'center' }}>
                 {paymentErrorMessage}
               </div>
             )}
 
-            {/* Os 3 Cards do Presente Idênticos à Imagem do Usuário */}
-            <div className="presente-list">
-              {/* Card 1: 4 Músicas Personalizadas (R$ 9,99) */}
-              <div
-                className={`presente-card ${selectedPackageSku === 'audio_only' ? 'on' : ''}`}
-                onClick={() => handleSelectPackage('audio_only')}
-              >
-                <div className="presente-radio">
-                  {selectedPackageSku === 'audio_only' && <div className="presente-radio-dot" />}
-                </div>
-                <div className="presente-content">
-                  <div className="presente-header">
-                    <h3 className="presente-title">🎵 4 Músicas Personalizadas</h3>
-                    <span className="presente-price">R$ 9,99</span>
-                  </div>
-                  <p className="presente-desc">
-                    Estas 2 completas, sem corte + mais 2 liberadas depois do pagamento, com outra letra e outro estilo.
-                  </p>
-                </div>
-              </div>
-
-              {/* Card 2: 4 Músicas + Carta Virtual (R$ 13,90) */}
-              <div
-                className={`presente-card ${selectedPackageSku === 'combo_carta' ? 'on' : ''}`}
-                onClick={() => handleSelectPackage('combo_carta')}
-              >
-                <div className="presente-radio">
-                  {selectedPackageSku === 'combo_carta' && <div className="presente-radio-dot" />}
-                </div>
-                <div className="presente-content">
-                  <div className="presente-header">
-                    <h3 className="presente-title">💌 4 Músicas + Carta Virtual</h3>
-                    <span className="presente-price">R$ 13,90</span>
-                  </div>
-                  <p className="presente-desc">
-                    Suas 4 músicas + uma carta com envelope, foto colada e sua assinatura.
-                  </p>
-                </div>
-              </div>
-
-              {/* Card 3: 4 Músicas + Vídeo Homenagem (R$ 16,90) [MAIS ESCOLHIDO] */}
-              <div
-                className={`presente-card ${selectedPackageSku === 'combo' ? 'on' : ''}`}
-                onClick={() => handleSelectPackage('combo')}
-              >
-                <span className="badge-mais-escolhido">MAIS ESCOLHIDO</span>
-                <div className="presente-radio">
-                  {selectedPackageSku === 'combo' && <div className="presente-radio-dot" />}
-                </div>
-                <div className="presente-content">
-                  <div className="presente-header">
-                    <h3 className="presente-title">🎬 4 Músicas + Vídeo Homenagem</h3>
-                    <span className="presente-price">R$ 16,90</span>
-                  </div>
-                  <p className="presente-desc">
-                    Suas 4 músicas + um lindo vídeo slideshow sincronizado com suas fotos para emocionar.
-                  </p>
-                </div>
-              </div>
-
-              {/* Card 4: 4 Músicas + Retrospectiva (R$ 19,90) [MAIS COMPLETO] */}
-              <div
-                className={`presente-card ${selectedPackageSku === 'combo_retrospectiva' ? 'on' : ''}`}
-                onClick={() => handleSelectPackage('combo_retrospectiva')}
-              >
-                <span className="badge-mais-completo">MAIS COMPLETO</span>
-                <div className="presente-radio">
-                  {selectedPackageSku === 'combo_retrospectiva' && <div className="presente-radio-dot" />}
-                </div>
-                <div className="presente-content">
-                  <div className="presente-header">
-                    <h3 className="presente-title">💝 4 Músicas + Retrospectiva</h3>
-                    <span className="presente-price">R$ 19,90</span>
-                  </div>
-                  <p className="presente-desc">
-                    Suas 4 músicas tocando numa página só de vocês: fotos, linha do tempo, contador dos dias, jogos e carta.
-                  </p>
-                </div>
-              </div>
-
-              {/* Card 5: 4 Músicas + Minha Voz (R$ 24,90) [EXCLUSIVO IA] */}
-              <div
-                className={`presente-card ${selectedPackageSku === 'combo_voz' ? 'on' : ''}`}
-                onClick={() => handleSelectPackage('combo_voz')}
-              >
-                <span className="badge-exclusivo">EXCLUSIVO IA</span>
-                <div className="presente-radio">
-                  {selectedPackageSku === 'combo_voz' && <div className="presente-radio-dot" />}
-                </div>
-                <div className="presente-content">
-                  <div className="presente-header">
-                    <h3 className="presente-title">🎙️ 4 Músicas + Minha Voz</h3>
-                    <span className="presente-price">R$ 24,90</span>
-                  </div>
-                  <p className="presente-desc">
-                    Suas 4 músicas cantadas no timbre da sua própria voz através de clonagem vocal por IA.
-                  </p>
-                </div>
-              </div>
+            {/* Grid dos Pacotes Idêntico ao da Página de Entrega */}
+            <div className="nx-package-grid" role="group" aria-label="Pacotes de Homenagem" style={{ marginBottom: '24px' }}>
+              {deliveryPackages().map(item => (
+                <PackageCard
+                  key={item.sku}
+                  pack={item}
+                  isSelected={selectedPackageSku === item.sku}
+                  onSelect={() => handleSelectPackage(item.sku)}
+                  disabled={isGeneratingPix || isPayingCard}
+                />
+              ))}
             </div>
 
             {/* Box de Pagamento PIX e Cartão */}
-            <div style={{ backgroundColor: '#ffffff', borderRadius: '20px', border: '1.5px solid #e2e8f0', padding: '22px 20px', boxShadow: '0 4px 18px rgba(0,0,0,0.03)' }}>
+            <div style={{ backgroundColor: '#ffffff', borderRadius: '22px', border: '1.5px solid #e2e8f0', padding: '24px 22px', boxShadow: '0 4px 20px rgba(0,0,0,0.04)', maxWidth: '720px', margin: '0 auto' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
                 <div
                   style={{
@@ -2523,6 +2442,24 @@ export default function CriarMusica() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '6px' }}>
                     {!pixInfo ? (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        {(() => {
+                          const currentPack = deliveryPackages().find(p => p.sku === selectedPackageSku) || deliveryPackages()[2];
+                          return (
+                            <div style={{ padding: '12px 16px', borderRadius: '14px', background: '#f8fafc', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                              <div>
+                                <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#6366f1', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block' }}>
+                                  PACOTE ESCOLHIDO
+                                </span>
+                                <div style={{ fontSize: '0.96rem', fontWeight: 800, color: '#0f172a' }}>
+                                  {currentPack.label}
+                                </div>
+                              </div>
+                              <div style={{ fontSize: '1.25rem', fontWeight: 900, color: '#059669' }}>
+                                R$ {getTotalPrice().toFixed(2).replace('.', ',')}
+                              </div>
+                            </div>
+                          );
+                        })()}
                         <button
                           type="button"
                           disabled={isGeneratingPix || isPayingCard}

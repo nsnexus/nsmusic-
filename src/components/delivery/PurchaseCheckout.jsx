@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Music, Mail, Film, Sparkles, Mic, Crown, ArrowRight, ShieldCheck, Check } from 'lucide-react';
 import PixQrCode from '@/components/PixQrCode';
+import PackageCard from './PackageCard';
 import { auth } from '@/lib/authClient';
 import { requestPixCharge } from '@/lib/pixCheckout';
 import { deliveryPackages, formatBrl } from '@/lib/deliveryPackages';
@@ -198,243 +199,16 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
       </div>
 
       {!recovery && (
-        <>
-          <div className="nx-package-grid" role="group" aria-label="Pacotes">
-            {catalog.slice(0, 4).map(item => {
-              const isSelected = selected === item.sku;
-              const meta = PACKAGE_METADATA[item.sku] || {};
-              const MetaIcon = meta.icon;
-              const isCombo = item.sku === 'combo';
-
-              return (
-                <button
-                  type="button"
-                  className={`nx-package${isCombo ? ' nx-package-featured' : ''}`}
-                  key={item.sku}
-                  aria-pressed={isSelected}
-                  disabled={busy}
-                  onClick={() => choose(item.sku)}
-                  style={{
-                    position: 'relative',
-                    textAlign: 'left',
-                    padding: isCombo ? '44px 18px 20px' : '22px 18px 20px',
-                    borderRadius: '20px',
-                    border: isSelected
-                      ? '2px solid #67408b'
-                      : (isCombo ? '1.5px solid #d4bfe0' : '1.5px solid #e7d5df'),
-                    background: isSelected
-                      ? (isCombo ? '#faf5f8' : '#fcfaff')
-                      : (isCombo ? '#faf7f9' : '#ffffff'),
-                    boxShadow: isSelected
-                      ? '0 10px 28px rgba(103, 64, 139, 0.18)'
-                      : (isCombo ? '0 4px 18px rgba(103, 64, 139, 0.08)' : '0 2px 8px rgba(0, 0, 0, 0.02)'),
-                    cursor: busy ? 'default' : 'pointer',
-                    transition: 'all 0.2s ease',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'space-between',
-                  }}
-                >
-                  {/* Badge de Destaque para o Combo */}
-                  {isCombo && (
-                    <span
-                      className="nx-package-badge"
-                      style={{
-                        position: 'absolute',
-                        top: 0,
-                        left: '14px',
-                        right: '14px',
-                        background: 'linear-gradient(90deg, #67408b 0%, #8b5cf6 100%)',
-                        color: '#ffffff',
-                        borderRadius: '0 0 10px 10px',
-                        padding: '5px 12px',
-                        fontSize: '0.68rem',
-                        fontWeight: '800',
-                        letterSpacing: '0.04em',
-                        textTransform: 'uppercase',
-                        textAlign: 'center',
-                        boxShadow: '0 3px 10px rgba(103, 64, 139, 0.25)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '5px',
-                      }}
-                    >
-                      <Crown size={12} aria-hidden="true" />
-                      <span>Mais Escolhido</span>
-                    </span>
-                  )}
-
-                  {/* Seletor Radio Circle com SVG */}
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: isCombo ? '38px' : '18px',
-                      right: '16px',
-                      width: '22px',
-                      height: '22px',
-                      borderRadius: '50%',
-                      border: isSelected ? '2px solid #67408b' : '2px solid #cbd5e1',
-                      backgroundColor: isSelected ? '#67408b' : '#ffffff',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      transition: 'all 0.2s ease',
-                      boxShadow: isSelected ? '0 0 0 3px rgba(103, 64, 139, 0.15)' : 'none',
-                    }}
-                  >
-                    {isSelected && (
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                    )}
-                  </div>
-
-                  <div>
-                    {/* Eyebrow */}
-                    <span
-                      className="nx-eyebrow"
-                      style={{
-                        display: 'block',
-                        fontSize: '0.68rem',
-                        fontWeight: '800',
-                        letterSpacing: '0.08em',
-                        textTransform: 'uppercase',
-                        color: isSelected ? '#67408b' : '#8c828f',
-                        marginBottom: '4px',
-                      }}
-                    >
-                      {item.eyebrow}
-                    </span>
-
-                    {/* Nome do Pacote com Ícone */}
-                    <strong
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        fontSize: '1.08rem',
-                        color: '#29232d',
-                        margin: '2px 0 6px',
-                        fontWeight: '800',
-                        lineHeight: 1.25,
-                      }}
-                    >
-                      {MetaIcon && <MetaIcon size={18} style={{ color: isSelected ? '#67408b' : '#524a56', flexShrink: 0 }} aria-hidden="true" />}
-                      <span>{item.label}</span>
-                    </strong>
-
-                    {/* Tagline / Economia */}
-                    {meta.tagline && (
-                      <div
-                        style={{
-                          display: 'inline-block',
-                          fontSize: '0.68rem',
-                          fontWeight: '800',
-                          padding: '2px 8px',
-                          borderRadius: '6px',
-                          background: meta.tagBg || '#f4edf8',
-                          color: meta.tagColor || '#67408b',
-                          marginBottom: '10px',
-                        }}
-                      >
-                        {meta.tagline}
-                      </div>
-                    )}
-
-                    {/* Preço */}
-                    <span
-                      className="nx-package-price"
-                      style={{
-                        display: 'block',
-                        fontSize: '1.75rem',
-                        fontWeight: '850',
-                        color: isSelected ? '#67408b' : '#29232d',
-                        letterSpacing: '-0.035em',
-                        margin: '4px 0 14px',
-                      }}
-                    >
-                      {formatBrl(item.price)}
-                    </span>
-                  </div>
-
-                  {/* Lista de Recursos Inclusos */}
-                  <ul
-                    style={{
-                      padding: 0,
-                      margin: 0,
-                      listStyle: 'none',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '7px',
-                      borderTop: '1px solid #ede6f0',
-                      paddingTop: '12px',
-                    }}
-                  >
-                    {item.includes.map(line => (
-                      <li
-                        key={line}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'flex-start',
-                          gap: '6px',
-                          fontSize: '0.79rem',
-                          color: '#554b5a',
-                          lineHeight: 1.35,
-                        }}
-                      >
-                        <span style={{ color: '#059669', fontWeight: 'bold', fontSize: '0.82rem', flexShrink: 0, marginTop: '-1px' }}>
-                          ✓
-                        </span>
-                        <span>{line}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Opção VIP: Clonagem de Voz */}
-          <details
-            className="nx-details"
-            style={{
-              marginTop: '18px',
-              padding: '16px 20px',
-              background: '#faf5f8',
-              borderRadius: '16px',
-              border: '1.5px solid #e7d5df',
-            }}
-          >
-            <summary style={{ cursor: 'pointer', fontSize: '0.92rem', fontWeight: '700', color: '#67408b', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Mic size={17} aria-hidden="true" />
-              <span>Também quero conhecer a opção com minha voz</span>
-            </summary>
-            <div style={{ marginTop: '10px' }}>
-              <p className="nx-helper" style={{ margin: '0 0 12px', fontSize: '0.86rem', color: '#6c636f', lineHeight: 1.5 }}>
-                Música + minha voz: <strong>{formatBrl(catalog[4].price)}</strong>. Você envia uma gravação de áudio de 30 segundos no WhatsApp após a compra para nossa IA clonar seu timbre cantando afinado. Este pacote não inclui carta, vídeo ou retrospectiva.
-              </p>
-              <button
-                type="button"
-                className="nx-button"
-                disabled={busy}
-                onClick={() => choose('combo_voz')}
-                style={{
-                  padding: '9px 18px',
-                  borderRadius: '10px',
-                  fontSize: '0.88rem',
-                  fontWeight: '600',
-                  background: selected === 'combo_voz' ? '#67408b' : '#ffffff',
-                  color: selected === 'combo_voz' ? '#ffffff' : '#67408b',
-                  border: '1.5px solid #67408b',
-                  cursor: busy ? 'default' : 'pointer',
-                }}
-              >
-                {selected === 'combo_voz' ? '✓ Música + minha voz selecionado' : 'Escolher música + minha voz'}
-              </button>
-            </div>
-          </details>
-        </>
+        <div className="nx-package-grid" role="group" aria-label="Pacotes de Homenagem">
+          {catalog.map(item =>
+            PackageCard({
+              pack: item,
+              isSelected: selected === item.sku,
+              onSelect: () => choose(item.sku),
+              disabled: busy,
+            })
+          )}
+        </div>
       )}
 
       {/* Barra de Resumo e Ação de Compra */}
@@ -445,23 +219,23 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: '16px',
-          background: '#faf5f8',
-          border: '1.5px solid #e7d5df',
-          borderRadius: '18px',
-          padding: '20px 24px',
-          margin: '22px 0 16px',
+          background: '#121626',
+          border: '1.5px solid rgba(139, 92, 246, 0.3)',
+          borderRadius: '20px',
+          padding: '22px 24px',
+          margin: '24px 0 16px',
           flexWrap: 'wrap',
-          boxShadow: '0 4px 18px rgba(103, 64, 139, 0.06)',
+          boxShadow: '0 8px 28px rgba(0, 0, 0, 0.25)',
         }}
       >
         <div>
-          <span style={{ fontSize: '0.72rem', fontWeight: '800', letterSpacing: '0.06em', textTransform: 'uppercase', color: '#67408b' }}>
+          <span style={{ fontSize: '0.72rem', fontWeight: '800', letterSpacing: '0.06em', textTransform: 'uppercase', color: '#c084fc' }}>
             Pacote Selecionado
           </span>
-          <div style={{ font: '1.25rem/1.2 Georgia, serif', color: '#29232d', margin: '2px 0 4px', fontWeight: '700' }}>
-            <strong>{pack.label} · {formatBrl(pack.price)}</strong>
+          <div style={{ fontSize: '1.25rem', color: '#ffffff', margin: '4px 0 4px', fontWeight: '800' }}>
+            <strong>{pack.label} · <span style={{ color: '#34d399' }}>{formatBrl(pack.price)}</span></strong>
           </div>
-          <p style={{ margin: 0, fontSize: '0.84rem', color: '#6c636f' }}>
+          <p style={{ margin: 0, fontSize: '0.84rem', color: '#94a3b8' }}>
             {pack.includes.join(' · ')}
           </p>
         </div>
@@ -475,20 +249,21 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
             style={{
               padding: '14px 26px',
               fontSize: '1rem',
-              fontWeight: '700',
-              borderRadius: '12px',
-              background: 'var(--nx-purple, #67408b)',
+              fontWeight: '800',
+              borderRadius: '14px',
+              background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
               color: '#ffffff',
               border: 'none',
               cursor: (busy || payingCard) ? 'default' : 'pointer',
-              boxShadow: '0 4px 14px rgba(103, 64, 139, 0.25)',
+              boxShadow: '0 4px 14px rgba(5, 150, 105, 0.35)',
               whiteSpace: 'nowrap',
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
+              gap: '8px',
             }}
           >
-            {busy ? 'Preparando seu PIX…' : (<><span style={{ marginRight: '6px' }}>Pagar Agora (PIX)</span><ArrowRight size={18} aria-hidden="true" /></>)}
+            {busy ? '⏳ Preparando seu PIX…' : (<><span>⚡ Pagar Agora com PIX ({formatBrl(pack.price)})</span><ArrowRight size={18} aria-hidden="true" /></>)}
           </button>
 
           <button
@@ -500,12 +275,12 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
               padding: '14px 20px',
               fontSize: '0.98rem',
               fontWeight: '700',
-              borderRadius: '12px',
-              background: '#ffffff',
-              color: '#29232d',
-              border: '1.5px solid #cbd5e1',
+              borderRadius: '14px',
+              background: 'rgba(255, 255, 255, 0.08)',
+              color: '#ffffff',
+              border: '1.5px solid rgba(255, 255, 255, 0.15)',
               cursor: (busy || payingCard) ? 'default' : 'pointer',
-              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
               whiteSpace: 'nowrap',
             }}
           >
