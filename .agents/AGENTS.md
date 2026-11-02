@@ -98,3 +98,4 @@ O NSMusic é uma plataforma de músicas personalizadas com IA (Suno AI via Kie.a
 - Manter build e lint funcionando após qualquer alteração.
 - Nunca confiar apenas em validação no frontend.
 - Testar alterações verificando build (`npm run build`) quando Node.js estiver disponível.
+- **Design & UI/UX**: Sempre que for criar componentes/telas novos ou melhorar algo relacionado a design/layout, use as skills **UI UX Pro Max** (`ui-ux-pro-max`) e **Taste Skill v2** (`taste-skill` / `design-taste-frontend`) em conjunto para direção de arte, inteligência visual e eliminação de padrões genéricos ("anti-slop"), e audite obrigatoriamente a interface com **Impeccable** (`impeccable`) para contraste, hierarquia, espaçamento e experiência mobile.

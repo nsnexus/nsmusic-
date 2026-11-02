@@ -56,6 +56,7 @@ docs/               CODEBASE_MAP.md (índice) · ARCHITECTURE.md · audit/
 5. Comparar valores monetários com tolerância (`Math.abs(a - b) < 0.01`), nunca `===`.
 6. Documentar toda variável de ambiente nova em `.env.example`.
 7. Alterações pequenas e rastreáveis; não mudar regra de negócio sem evidência.
+8. **Design & UI/UX**: Sempre que for criar componentes/telas novos ou melhorar algo relacionado a design/layout, use as skills **UI UX Pro Max** (`ui-ux-pro-max`) e **Taste Skill v2** (`taste-skill` / `design-taste-frontend`) em conjunto para direção de arte, inteligência visual e eliminação de padrões genéricos ("anti-slop"), e audite obrigatoriamente a interface com **Impeccable** (`impeccable`) para contraste, hierarquia, espaçamento e experiência mobile.
 
 ## Áreas críticas — leia `docs/audit/AUDIT_REPORT.md` antes de tocar
 
