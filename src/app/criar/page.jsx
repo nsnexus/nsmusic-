@@ -20,7 +20,7 @@ import PixQrCode from '@/components/PixQrCode';
 import { requestPixCharge } from '@/lib/pixCheckout';
 import { useWhatsappSuporte, linkWhatsapp } from '@/lib/useWhatsappSuporte';
 import { lerConfigSite } from '@/lib/configSite';
-import { StudioLyricsAnimation, StudioAudioAnimation } from '@/components/creation/StudioProgress';
+import { StudioLyricsAnimation, StudioAudioAnimation } from '@/components/StudioAnimations';
 import { IconeCelularWhatsApp } from '@/components/AppIcons';
 import { readReferralCode } from '@/lib/referralTracking';
 import { getPriceForSku } from '@/lib/pricing';
