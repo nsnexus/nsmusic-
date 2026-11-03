@@ -32,6 +32,7 @@ import { trackFbPurchase } from '@/lib/metaPixel';
 import { isOrderFromMeta, isOrderFromTikTok } from '@/lib/trafficSource';
 import DeliveryExperience from '@/components/delivery/DeliveryExperience';
 import CoverCropperModal from '@/components/delivery/CoverCropperModal';
+import DownloadHelpModal from '@/components/delivery/DownloadHelpModal';
 import InAppBrowserBanner from '@/components/delivery/InAppBrowserBanner';
 import PreviaEncerradaModal from '@/components/delivery/PreviaEncerradaModal';
 
@@ -808,6 +809,35 @@ function EntregaContent() {
 
 
   const [downloadingSlot, setDownloadingSlot] = useState(null); // 'primary' | 'second' | null
+  const [downloadHelpModal, setDownloadHelpModal] = useState(null);
+  const [isSendingWhatsAppModal, setIsSendingWhatsAppModal] = useState(false);
+  const [sendWhatsAppModalSuccess, setSendWhatsAppModalSuccess] = useState(false);
+
+  const handleSendWhatsAppFromModal = async () => {
+    if (isSendingWhatsAppModal) return;
+    setIsSendingWhatsAppModal(true);
+    setSendWhatsAppModalSuccess(false);
+    try {
+      const res = await fetch('/api/orders/send-audio-whatsapp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: activeOrderId || orderId || order?.id,
+          trackIndex: downloadHelpModal?.slot === 'second' ? 1 : 0,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
+        setSendWhatsAppModalSuccess(true);
+      } else {
+        alert(data.error || 'Não foi possível enviar para o WhatsApp agora.');
+      }
+    } catch (e) {
+      alert('Erro de conexão ao enviar para o WhatsApp. Tente novamente.');
+    } finally {
+      setIsSendingWhatsAppModal(false);
+    }
+  };
 
   // Acrescenta ?download=<nome> à URL do proxy: é o que faz o servidor mandar Content-Disposition e
   // o navegador BAIXAR em vez de tocar (ver src/app/api/audio/proxy/route.js).
@@ -827,23 +857,71 @@ function EntregaContent() {
 
     setDownloadingSlot(slot);
 
-    // Se estiver em navegador embutido de app (WhatsApp / Instagram / etc.):
-    // No iOS (WKWebView), requisições diretas a anexos binários causam falha com "Site indisponível".
-    // No Android, o intent do Chrome permite disparar o download nativo no Google Chrome.
+    // 1. Tenta baixar via fetch + Blob:
+    // Em celulares modernos (iOS e Android), se navigator.share suportar arquivos,
+    // aciona a gaveta nativa do sistema (Share Sheet). Isso permite ao usuário salvar
+    // em "Arquivos", enviar no WhatsApp, etc., contornando o bloqueio de download de WebViews!
+    try {
+      const res = await fetch(downloadUrl);
+      if (res.ok) {
+        const blob = await res.blob();
+
+        if (typeof navigator !== 'undefined' && typeof File !== 'undefined' && navigator.canShare) {
+          try {
+            const mime = filename.endsWith('.mp4') ? 'video/mp4' : 'audio/mpeg';
+            const file = new File([blob], filename, { type: mime });
+            if (navigator.canShare({ files: [file] })) {
+              await navigator.share({
+                files: [file],
+                title: filename,
+                text: `Seu arquivo da homenagem: ${filename}`,
+              });
+              setDownloadingSlot(null);
+              return;
+            }
+          } catch (shareErr) {
+            if (shareErr.name === 'AbortError') {
+              // Cliente abriu a gaveta de compartilhamento e fechou
+              setDownloadingSlot(null);
+              return;
+            }
+            console.warn('[entrega] navigator.share falhou, tentando fallback blob:', shareErr);
+          }
+        }
+
+        // Download padrão para computadores e navegadores sem bloqueio de Blob
+        const blobUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.setAttribute('download', filename);
+        document.body.appendChild(link);
+        link.click();
+        link.parentNode.removeChild(link);
+        setTimeout(() => window.URL.revokeObjectURL(blobUrl), 15000);
+        setDownloadingSlot(null);
+        return;
+      }
+    } catch (e) {
+      console.warn('[entrega] Erro ao baixar via fetch/blob:', e);
+    }
+
+    // 2. Se estiver em navegador embutido (WhatsApp / Instagram) e o download nativo falhou:
     if (isInAppBrowser()) {
       if (isIOS()) {
-        alert("O WhatsApp não permite baixar arquivos diretamente no iPhone.\n\nPara salvar sua música:\n1. Toque nos três pontinhos (...) no canto da tela\n2. Escolha 'Abrir no Safari/Navegador'\n\n(O link desta página foi copiado automaticamente!)");
-        try {
-          navigator.clipboard.writeText(window.location.href);
-          setLinkPaginaCopiado(true);
-        } catch (e) {}
+        // No iOS WhatsApp, em vez de alert() feio, abre o modal de ajuda com opção de envio direto pelo WhatsApp
+        setSendWhatsAppModalSuccess(false);
+        setDownloadHelpModal({
+          filename,
+          slot,
+          platform: 'ios',
+        });
         setDownloadingSlot(null);
         return;
       }
 
       if (isAndroid()) {
         try {
-          const canonicalBase = DOMINIO_CANONICO || 'https://nsmusic.ia.br';
+          const canonicalBase = DOMINIO_CANONICO || 'https://nsmusic.nsnexus.com.br';
           const fullDownloadUrl = downloadUrl.startsWith('http')
             ? downloadUrl
             : `${canonicalBase}${downloadUrl.startsWith('/') ? '' : '/'}${downloadUrl}`;
@@ -853,39 +931,19 @@ function EntregaContent() {
           return;
         } catch (e) {
           console.warn('[entrega] Fallback intent android:', e);
+          setSendWhatsAppModalSuccess(false);
+          setDownloadHelpModal({
+            filename,
+            slot,
+            platform: 'android',
+          });
+          setDownloadingSlot(null);
+          return;
         }
       }
-
-      const canonicalUrl = downloadUrl.startsWith('http')
-        ? downloadUrl
-        : `${DOMINIO_CANONICO}${downloadUrl.startsWith('/') ? '' : '/'}${downloadUrl}`;
-      window.location.href = canonicalUrl;
-      setTimeout(() => setDownloadingSlot(null), 2500);
-      return;
     }
 
-    try {
-      // 1. Tenta baixar via fetch + Blob em navegadores normais: cria URL local blob:
-      // que o navegador salva diretamente como arquivo para download
-      const res = await fetch(downloadUrl);
-      if (res.ok) {
-        const blob = await res.blob();
-        const blobUrl = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = blobUrl;
-        link.setAttribute('download', filename);
-        document.body.appendChild(link);
-        link.click();
-        link.parentNode.removeChild(link);
-        setTimeout(() => window.URL.revokeObjectURL(blobUrl), 15000);
-        return;
-      }
-    } catch (e) {
-      console.warn('[entrega] Fallback para download direto via link:', e);
-    } finally {
-      setDownloadingSlot(null);
-    }
-
+    // 3. Fallback clássico por link direto
     try {
       const link = document.createElement('a');
       link.href = downloadUrl;
@@ -898,6 +956,8 @@ function EntregaContent() {
     } catch (err) {
       console.warn('Erro ao iniciar o download:', err);
       window.open(downloadUrl, '_blank', 'noopener');
+    } finally {
+      setDownloadingSlot(null);
     }
   };
 
@@ -1999,6 +2059,16 @@ function EntregaContent() {
         onSave={handleSaveCroppedCover}
         isSaving={isUploadingCover}
       />
+        <DownloadHelpModal
+          isOpen={Boolean(downloadHelpModal)}
+          onClose={() => setDownloadHelpModal(null)}
+          platform={downloadHelpModal?.platform || 'ios'}
+          orderId={activeOrderId || orderId || order?.id}
+          honoreeName={order?.honoreeName}
+          onSendWhatsApp={handleSendWhatsAppFromModal}
+          isSendingWhatsApp={isSendingWhatsAppModal}
+          sendSuccess={sendWhatsAppModalSuccess}
+        />
       </>
     );
   }

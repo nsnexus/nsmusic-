@@ -42,7 +42,7 @@ export default function InAppBrowserBanner() {
         document.execCommand('copy');
         setCopied(true);
         setTimeout(() => setCopied(false), 3000);
-      } catch (err) {}
+      } catch (err) { }
       document.body.removeChild(textArea);
     }
   };
@@ -94,8 +94,10 @@ export default function InAppBrowserBanner() {
         </div>
 
         <p style={{ margin: 0, color: '#e9d5ff' }}>
-          Você está navegando dentro do aplicativo (WhatsApp / Instagram). Esse navegador costuma bloquear o download de arquivos no celular.
-          Para baixar seus MP3s e vídeos sem travar: toque nos <strong>três pontinhos ({ios ? '⋯' : '⋮'})</strong> no topo e escolha <strong>&quot;Abrir no {ios ? 'Safari' : 'Chrome / Navegador'}&quot;</strong>.
+          Você está navegando dentro do WhatsApp/Instagram. Se o app bloquear o download direto:
+          {ios
+            ? ' no rodapé da tela do WhatsApp, toque no ícone do Safari (🧭) ou Compartilhar (⎙) para abrir no navegador, ou use o botão verde "Receber no WhatsApp" na sua música.'
+            : ' toque nos três pontinhos (⋮) no topo para abrir no Chrome, ou use o botão verde "Receber no WhatsApp" na sua música.'}
         </p>
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '4px' }}>

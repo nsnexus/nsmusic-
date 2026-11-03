@@ -525,6 +525,23 @@ Qualquer dúvida ou se precisar de alguma coisa, é só me chamar por aqui! Muit
     const evoRes = await sendEvolutionTextMessage(phone, message, env);
     if (evoRes.success) {
       await recordWhatsAppSentSuccess(phone, 'payment', env);
+
+      // Envia o arquivo MP3 oficial direto no WhatsApp para o cliente ouvir ou salvar sem depender de navegador
+      if (urls[0]) {
+        try {
+          const safeName = honoree.replace(/[^\w]/g, '_');
+          await sendEvolutionMediaMessage(phone, {
+            mediaUrl: urls[0],
+            caption: `🎵 Arquivo oficial em MP3 da música para *${honoree}* (Versão 1). Toque para ouvir, salve no seu aparelho ou encaminhe para quem você ama! 💖`,
+            fileName: `Musica_${safeName}_Versao_1.mp3`,
+            mediaType: 'audio',
+            mimeType: 'audio/mpeg'
+          }, env);
+        } catch (mediaErr) {
+          console.warn('[WhatsApp] Falha ao enviar áudio direto via Evolution:', mediaErr?.message);
+        }
+      }
+
       return evoRes;
     }
     return { success: false, error: `${cloudError ? `cloud_api: ${cloudError} | ` : ''}evolution: ${evoRes.error}` };
