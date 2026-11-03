@@ -260,7 +260,7 @@ export default function CriarMusica() {
     sunoTracks: [],
     addVersion2: false,
     // Step 11: Pricing package
-    selectedPackage: 'promo_2_musicas',
+    selectedPackage: 'combo',
     // Step 13: Addons
     addons: {
       extraSongs2: false, // will represent version 2 addon
@@ -1096,7 +1096,7 @@ export default function CriarMusica() {
         sunoProgress: '',
         sunoTracks: [],
         addVersion2: false,
-        selectedPackage: 'promo_2_musicas',
+        selectedPackage: 'combo',
         addons: {
           extraSongs2: false,
           photoVideo: false,
@@ -1903,6 +1903,7 @@ export default function CriarMusica() {
 
   const handleSelectPackage = (sku) => {
     setSelectedPackageSku(sku);
+    setFormData(prev => ({ ...prev, selectedPackage: sku }));
     setPixInfo(null);
     setPaymentErrorMessage('');
   };
@@ -2546,9 +2547,28 @@ export default function CriarMusica() {
                           }
                         }}
                         className="btn btn-primary"
-                        style={{ padding: '16px', fontSize: '1.05rem', fontWeight: '800', borderRadius: '14px', background: 'linear-gradient(135deg, #059669 0%, #047857 100%)', color: '#ffffff', border: 'none', cursor: (isGeneratingPix || isPayingCard) ? 'default' : 'pointer', boxShadow: '0 4px 16px rgba(5, 150, 105, 0.35)', width: '100%' }}
+                        style={{
+                          width: '100%',
+                          maxWidth: '100%',
+                          boxSizing: 'border-box',
+                          padding: '16px 20px',
+                          fontSize: '1.05rem',
+                          fontWeight: '800',
+                          borderRadius: '14px',
+                          background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                          color: '#ffffff',
+                          border: 'none',
+                          cursor: (isGeneratingPix || isPayingCard) ? 'default' : 'pointer',
+                          boxShadow: '0 4px 16px rgba(5, 150, 105, 0.35)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '8px',
+                          minHeight: '52px',
+                          transition: 'all 0.15s ease',
+                        }}
                       >
-                        {isGeneratingPix ? '⏳ Gerando PIX...' : 'Gerar PIX para Liberar Agora ⚡'}
+                        {isGeneratingPix ? '⏳ Preparando seu PIX...' : `⚡ Pagar com PIX (${formatBrl(getTotalPrice())})`}
                       </button>
 
                       <button
@@ -2556,24 +2576,27 @@ export default function CriarMusica() {
                         disabled={isGeneratingPix || isPayingCard}
                         onClick={handlePayWithCard}
                         style={{
-                          padding: '14px 20px',
-                          fontSize: '0.98rem',
+                          width: '100%',
+                          maxWidth: '100%',
+                          boxSizing: 'border-box',
+                          padding: '13px 20px',
+                          fontSize: '0.96rem',
                           fontWeight: '700',
                           borderRadius: '14px',
-                          background: 'rgba(255, 255, 255, 0.07)',
+                          background: 'rgba(255, 255, 255, 0.08)',
                           color: '#ffffff',
                           border: '1.5px solid rgba(255, 255, 255, 0.15)',
                           cursor: (isGeneratingPix || isPayingCard) ? 'default' : 'pointer',
-                          boxShadow: 'none',
+                          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           gap: '8px',
-                          width: '100%',
+                          minHeight: '46px',
                           transition: 'all 0.15s ease',
                         }}
                       >
-                        {isPayingCard ? '⏳ Abrindo Checkout Seguro...' : 'Pagar com Cartão de Crédito 💳'}
+                        {isPayingCard ? '⏳ Abrindo Checkout Seguro...' : '💳 Pagar com Cartão de Crédito'}
                       </button>
                     </div>
                   ) : (

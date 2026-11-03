@@ -24,7 +24,7 @@ const PACKAGE_CONFIG = {
     color: '#c084fc', // violeta vibrante
     bgGlow: 'rgba(192, 132, 252, 0.20)',
     borderGlow: 'rgba(192, 132, 252, 0.55)',
-    tagline: 'Economize R$ 6,90 no vídeo',
+    tagline: 'O mais comprado para homenagens',
     badgeGradient: 'linear-gradient(135deg, #7c3aed 0%, #ec4899 100%)',
     badgeIcon: Crown,
   },
@@ -72,6 +72,9 @@ export default function PackageCard({ pack, isSelected, onSelect, disabled }) {
         flexDirection: 'column',
         justifyContent: 'space-between',
         minHeight: '270px',
+        width: '100%',
+        maxWidth: '100%',
+        boxSizing: 'border-box',
         cursor: disabled ? 'default' : 'pointer',
         userSelect: 'none',
         transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',

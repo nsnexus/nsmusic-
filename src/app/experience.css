@@ -813,6 +813,9 @@
   align-items: center;
   justify-content: space-between;
   margin-top: 16px;
+  box-sizing: border-box;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .nx-checkout-summary p {

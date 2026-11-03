@@ -30,7 +30,7 @@ const PACKAGE_METADATA = {
     tagline: 'Economize R$ 6,90 no vídeo',
     tagColor: '#15803d',
     tagBg: '#dcfce7',
-    badge: 'Mais Escolhido',
+    badge: 'MAIS COMPRADO',
     badgeIcon: Crown,
     featured: true,
   },
@@ -216,51 +216,62 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
         className="nx-card nx-checkout-summary"
         style={{
           display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
+          flexDirection: 'column',
           gap: '16px',
           background: '#121626',
-          border: '1.5px solid rgba(139, 92, 246, 0.3)',
+          border: '1.5px solid rgba(139, 92, 246, 0.35)',
           borderRadius: '20px',
-          padding: '22px 24px',
+          padding: '22px 20px',
           margin: '24px 0 16px',
-          flexWrap: 'wrap',
           boxShadow: '0 8px 28px rgba(0, 0, 0, 0.25)',
+          boxSizing: 'border-box',
+          width: '100%',
+          maxWidth: '100%',
+          overflow: 'hidden',
         }}
       >
-        <div>
-          <span style={{ fontSize: '0.72rem', fontWeight: '800', letterSpacing: '0.06em', textTransform: 'uppercase', color: '#c084fc' }}>
-            Pacote Selecionado
-          </span>
-          <div style={{ fontSize: '1.25rem', color: '#ffffff', margin: '4px 0 4px', fontWeight: '800' }}>
-            <strong>{pack.label} · <span style={{ color: '#34d399' }}>{formatBrl(pack.price)}</span></strong>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          <div>
+            <span style={{ fontSize: '0.72rem', fontWeight: '800', letterSpacing: '0.06em', textTransform: 'uppercase', color: '#c084fc' }}>
+              Pacote Selecionado
+            </span>
+            <div style={{ fontSize: '1.25rem', color: '#ffffff', margin: '4px 0 4px', fontWeight: '800' }}>
+              <strong>{pack.label}</strong>
+            </div>
+            <p style={{ margin: 0, fontSize: '0.84rem', color: '#94a3b8' }}>
+              {pack.includes.join(' · ')}
+            </p>
           </div>
-          <p style={{ margin: 0, fontSize: '0.84rem', color: '#94a3b8' }}>
-            {pack.includes.join(' · ')}
-          </p>
+          <div style={{ fontSize: '1.55rem', fontWeight: '900', color: '#34d399', whiteSpace: 'nowrap' }}>
+            {formatBrl(pack.price)}
+          </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
           <button
             type="button"
             className="nx-button nx-primary"
             disabled={busy || payingCard}
             onClick={generate}
             style={{
-              padding: '14px 26px',
-              fontSize: '1rem',
+              width: '100%',
+              maxWidth: '100%',
+              boxSizing: 'border-box',
+              padding: '16px 20px',
+              fontSize: '1.05rem',
               fontWeight: '800',
               borderRadius: '14px',
               background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
               color: '#ffffff',
               border: 'none',
               cursor: (busy || payingCard) ? 'default' : 'pointer',
-              boxShadow: '0 4px 14px rgba(5, 150, 105, 0.35)',
-              whiteSpace: 'nowrap',
-              display: 'inline-flex',
+              boxShadow: '0 4px 16px rgba(5, 150, 105, 0.35)',
+              display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               gap: '8px',
+              transition: 'all 0.15s ease',
+              minHeight: '52px',
             }}
           >
             {busy ? '⏳ Preparando seu PIX…' : (<><span>⚡ Pagar Agora com PIX ({formatBrl(pack.price)})</span><ArrowRight size={18} aria-hidden="true" /></>)}
@@ -272,8 +283,11 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
             disabled={busy || payingCard}
             onClick={payWithCard}
             style={{
-              padding: '14px 20px',
-              fontSize: '0.98rem',
+              width: '100%',
+              maxWidth: '100%',
+              boxSizing: 'border-box',
+              padding: '13px 20px',
+              fontSize: '0.96rem',
               fontWeight: '700',
               borderRadius: '14px',
               background: 'rgba(255, 255, 255, 0.08)',
@@ -281,10 +295,15 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
               border: '1.5px solid rgba(255, 255, 255, 0.15)',
               cursor: (busy || payingCard) ? 'default' : 'pointer',
               boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-              whiteSpace: 'nowrap',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              transition: 'all 0.15s ease',
+              minHeight: '46px',
             }}
           >
-            {payingCard ? 'Abrindo Cartão…' : '💳 Pagar no Cartão'}
+            {payingCard ? '⏳ Abrindo Checkout Seguro...' : '💳 Pagar com Cartão de Crédito'}
           </button>
         </div>
       </div>
