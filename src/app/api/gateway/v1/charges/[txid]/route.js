@@ -28,7 +28,7 @@ export async function GET(req, { params }) {
     }
 
     // 2. Busca local no Firestore
-    let charge = await getGatewayCharge(txid);
+    let charge = await getGatewayCharge(txid, env);
     if (!charge) {
       return NextResponse.json({ error: 'Cobrança não encontrada.' }, { status: 404 });
     }
@@ -41,7 +41,7 @@ export async function GET(req, { params }) {
           const transactionAmount = Number(efiCharge.valor?.original) || charge.amount;
           await applyGatewayPaymentApproval(txid, { status: 'approved', transaction_amount: transactionAmount }, env);
           // Recarrega o dado atualizado
-          charge = await getGatewayCharge(txid);
+          charge = await getGatewayCharge(txid, env);
         }
       } catch (err) {
         console.warn(`[GET /api/gateway/v1/charges/${txid}] Aviso ao consultar Efí:`, err.message);
