@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { getCloudApiConfig, enviarPagamentoConfirmadoCloud } from '@/lib/whatsappCloudApi';
+import { DOMINIO_CANONICO } from '@/lib/siteUrl';
 
 describe('confirmacao_pagamento_v2 - Envio de confirmação de pagamento oficial', () => {
   const envMock = {
@@ -62,7 +63,7 @@ describe('confirmacao_pagamento_v2 - Envio de confirmação de pagamento oficial
     // Header com imagem do banner oficial
     const headerComponent = capturedBody.template.components.find((c) => c.type === 'header');
     expect(headerComponent).toBeTruthy();
-    expect(headerComponent.parameters[0].image.link).toBe('https://nsmusic.nsnexus.com.br/banner-whatsapp.jpg');
+    expect(headerComponent.parameters[0].image.link).toBe(`${DOMINIO_CANONICO}/banner-whatsapp.jpg`);
 
     // Body com variáveis: [cliente, homenageado, linkEntrega]
     const bodyComponent = capturedBody.template.components.find((c) => c.type === 'body');
@@ -121,6 +122,6 @@ describe('confirmacao_pagamento_v2 - Envio de confirmação de pagamento oficial
     const bodyComponent = capturedBody.template.components.find((c) => c.type === 'body');
     expect(bodyComponent.parameters[0].text).toBe('Cliente');
     expect(bodyComponent.parameters[1].text).toBe('alguém especial');
-    expect(bodyComponent.parameters[2].text).toBe('https://nsmusic.nsnexus.com.br/entrega?orderId=NS-456');
+    expect(bodyComponent.parameters[2].text).toBe(`${DOMINIO_CANONICO}/entrega?orderId=NS-456`);
   });
 });
