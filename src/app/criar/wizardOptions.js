@@ -46,6 +46,7 @@ export const stylesList = [
   { id: 'Sertanejo Universitário', label: 'Sertanejo Universitário', icon: '🤠', desc: 'Moderno, jovem e acústico' },
   { id: 'Sertanejo Raiz', label: 'Sertanejo Raiz', icon: '🪕', desc: 'Modão tradicional com viola caipira' },
   { id: 'Pop', label: 'Pop', icon: '⚡', desc: 'Moderno, jovem e dançante' },
+  { id: 'Flash Back', label: 'Flash Back', icon: '🪩', desc: 'Clássicos dos anos 70, 80 e 90, dançante e nostálgico' },
   { id: 'Rock', label: 'Rock', icon: '🎸', desc: 'Atitude com guitarras marcantes' },
   { id: 'MPB / Bossa Nova', label: 'MPB / Bossa Nova', icon: '☕', desc: 'Estilo clássico e intimista' },
   { id: 'Gospel / Adoração', label: 'Gospel / Adoração', icon: '⛪', desc: 'Mensagem de fé e inspiração' },

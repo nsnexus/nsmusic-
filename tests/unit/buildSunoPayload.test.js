@@ -49,6 +49,13 @@ describe('buildSunoPayload', () => {
     expect(payload.tags).toContain('energetic');
   });
 
+  it('traduz Flash Back com sintetizadores e groove retro característicos', () => {
+    const payload = buildSunoPayload({ lyrics: 'x', musicStyle: 'Flash Back', musicMood: 'Nostálgica' });
+    expect(payload.tags).toContain('flashback');
+    expect(payload.tags).toContain('disco funk groove');
+    expect(payload.tags).toContain('nostalgic');
+  });
+
   it('descreve dueto com vozes alternadas para voiceType dueto', () => {
     const payload = buildSunoPayload({
       lyrics: 'x',

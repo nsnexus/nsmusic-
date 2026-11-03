@@ -41,6 +41,8 @@ const STYLE_TAGS = {
   'Infantil': "children's song, playful melody, light instrumentation, simple singalong chorus",
   'K-Pop': 'k-pop, modern korean pop production, bright synths, catchy melodic hook, dynamic electronic beat, emotional and vibrant',
   'Pagode Anos 90': 'pagode anos 90, retro brazilian pagode, cavaquinho, repique de mão, tan-tan, romantic harmonies, nostalgic 90s brazilian swing',
+  'Flash Back': 'flashback, classic 70s 80s 90s pop dance, disco funk groove, retro synthesizers, vintage bassline, nostalgic, melodic, danceable',
+  'Flashback': 'flashback, classic 70s 80s 90s pop dance, disco funk groove, retro synthesizers, vintage bassline, nostalgic, melodic, danceable',
   'Trap Acústico': 'acoustic trap, fingerstyle nylon acoustic guitar, deep 808 sub bass, crisp trap hi-hats, intimate modern melodic flow',
   'Indie Pop': 'indie pop, warm indie acoustic, melodic guitars, shimmering soft synths, uplifting dreamy vocals',
   'R&B / Soul': 'r&b soul, smooth rhodes piano, warm bassline, soulful lead vocals, mellow groove, emotional',

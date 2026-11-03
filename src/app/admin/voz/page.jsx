@@ -1064,7 +1064,7 @@ Com você ao meu lado eu sei onde quero estar`
               />
               {/* Sugestões Rápidas */}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                {['Sertanejo Acústico', 'Pop Romântico', 'MPB Voz e Violão', 'Pagode Romântico', 'Rock Balada'].map((s) => (
+                {['Sertanejo Acústico', 'Pop Romântico', 'MPB Voz e Violão', 'Pagode Romântico', 'Rock Balada', 'Flash Back'].map((s) => (
                   <button
                     key={s}
                     type="button"

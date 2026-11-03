@@ -46,6 +46,7 @@ const GENERO_CARDS = [
   { id: 'Trap Acústico', label: 'Trap Acústico', icon: '🎸', sub: 'Violão e batidas trap' },
   { id: 'Rock', label: 'Rock', icon: '🎸', sub: 'Marcante com guitarras' },
   { id: 'K-Pop', label: 'K-Pop', icon: '✨', sub: 'Moderno e contagiante' },
+  { id: 'Flash Back', label: 'Flash Back', icon: '🪩', sub: 'Clássicos 70, 80 e 90' },
   { id: 'Pagode Anos 90', label: 'Pagode Anos 90', icon: '🪕', sub: 'Nostálgico e romântico' },
 ];
 
