@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { isInAppBrowser, isIOS } from '@/lib/inAppBrowser';
+import { isInAppBrowser, isIOS, isAndroid, getChromeIntentUrl } from '@/lib/inAppBrowser';
 
 export default function InAppBrowserBanner() {
   const [inApp, setInApp] = useState(false);
   const [ios, setIos] = useState(false);
+  const [android, setAndroid] = useState(false);
   const [copied, setCopied] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   const [chromeIntentUrl, setChromeIntentUrl] = useState('');
@@ -15,12 +16,11 @@ export default function InAppBrowserBanner() {
     setInApp(isApp);
     const isApple = isIOS();
     setIos(isApple);
+    const isDroid = isAndroid();
+    setAndroid(isDroid);
 
     if (typeof window !== 'undefined' && !isApple) {
-      const cleanHost = window.location.host;
-      const cleanPath = window.location.pathname;
-      const cleanSearch = window.location.search;
-      setChromeIntentUrl(`intent://${cleanHost}${cleanPath}${cleanSearch}#Intent;scheme=https;package=com.android.chrome;end;`);
+      setChromeIntentUrl(getChromeIntentUrl(window.location.href));
     }
   }, []);
 
@@ -33,7 +33,7 @@ export default function InAppBrowserBanner() {
       setCopied(true);
       setTimeout(() => setCopied(false), 3000);
     } catch {
-      // Fallback para aparelhos que barram navigator.clipboard em webviews
+      // Fallback para webviews que bloqueiam clipboard moderno
       const textArea = document.createElement('textarea');
       textArea.value = window.location.href;
       document.body.appendChild(textArea);
@@ -42,7 +42,7 @@ export default function InAppBrowserBanner() {
         document.execCommand('copy');
         setCopied(true);
         setTimeout(() => setCopied(false), 3000);
-      } catch (err) { }
+      } catch (err) {}
       document.body.removeChild(textArea);
     }
   };
@@ -50,94 +50,132 @@ export default function InAppBrowserBanner() {
   return (
     <aside
       role="alert"
+      aria-live="polite"
       style={{
-        backgroundColor: '#1e142e',
-        borderBottom: '1px solid #7c3aed',
-        color: '#f3e8ff',
-        padding: '12px 16px',
+        backgroundColor: '#160b28',
+        borderBottom: '2px solid #a855f7',
+        color: '#f8fafc',
+        padding: '14px 16px',
         position: 'relative',
-        zIndex: 9998,
-        fontSize: '0.86rem',
-        lineHeight: 1.45,
+        zIndex: 9999,
+        fontSize: '0.88rem',
+        lineHeight: 1.5,
+        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.45)',
       }}
     >
       <div
         style={{
-          maxWidth: '720px',
+          maxWidth: '680px',
           margin: '0 auto',
           display: 'flex',
           flexDirection: 'column',
-          gap: '8px',
+          gap: '10px',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '10px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, color: '#fbcfe8', fontSize: '0.92rem' }}>
-            <span>⚠️</span>
-            <span>Dica importante para baixar sua música e vídeo</span>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span
+              style={{
+                backgroundColor: 'rgba(245, 158, 11, 0.2)',
+                color: '#fbbf24',
+                padding: '3px 8px',
+                borderRadius: '6px',
+                fontSize: '0.74rem',
+                fontWeight: 800,
+                letterSpacing: '0.04em',
+                border: '1px solid rgba(245, 158, 11, 0.4)',
+              }}
+            >
+              ⚠️ {ios ? 'IPHONE / WHATSAPP' : 'WHATSAPP DETECTADO'}
+            </span>
+            <span style={{ fontWeight: 700, color: '#f3e8ff', fontSize: '0.92rem' }}>
+              Para baixar sem erro no celular:
+            </span>
           </div>
+
           <button
             type="button"
             onClick={() => setDismissed(true)}
             aria-label="Fechar aviso"
             style={{
-              background: 'transparent',
+              background: 'rgba(255, 255, 255, 0.1)',
               border: 'none',
+              borderRadius: '8px',
               color: '#d8b4fe',
               fontSize: '1.2rem',
-              lineHeight: 1,
+              width: '32px',
+              height: '32px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
               cursor: 'pointer',
-              padding: '2px 6px',
+              lineHeight: 1,
             }}
           >
             ×
           </button>
         </div>
 
-        <p style={{ margin: 0, color: '#e9d5ff' }}>
-          Você está navegando dentro do WhatsApp/Instagram. Se o aplicativo bloquear o download direto:
-          {ios
-            ? ' toque no ícone do Safari (🧭) ou Compartilhar no rodapé para abrir no navegador padrão e salvar.'
-            : ' toque nos três pontinhos (⋮) no topo para abrir no Chrome e salvar.'}
+        <p style={{ margin: 0, color: '#e2e8f0', fontSize: '0.85rem' }}>
+          {ios ? (
+            <>
+              O navegador interno do WhatsApp no iPhone bloqueia o download direto de MP3. Para salvar na sua pasta <strong>Arquivos</strong>, toque no ícone do <strong>Safari (🧭)</strong> ou no botão <strong>Compartilhar</strong> no rodapé da tela e escolha <strong>&quot;Abrir no Safari&quot;</strong>.
+            </>
+          ) : (
+            <>
+              O navegador interno do WhatsApp bloqueia downloads de arquivos. Toque no botão verde abaixo para <strong>abrir no Google Chrome</strong> e salvar seus MP3s direto na pasta Downloads:
+            </>
+          )}
         </p>
 
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '4px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
           {!ios && chromeIntentUrl && (
             <a
               href={chromeIntentUrl}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '6px',
-                padding: '7px 14px',
-                backgroundColor: '#9333ea',
-                color: '#ffffff',
-                borderRadius: '8px',
+                justifyContent: 'center',
+                gap: '8px',
+                width: '100%',
+                minHeight: '48px',
+                backgroundColor: '#10b981',
+                color: '#064e3b',
+                borderRadius: '12px',
                 textDecoration: 'none',
-                fontWeight: 600,
-                fontSize: '0.82rem',
+                fontWeight: 800,
+                fontSize: '0.92rem',
+                boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)',
+                padding: '10px 16px',
+                boxSizing: 'border-box',
+                textAlign: 'center',
               }}
             >
-              🌐 Abrir direto no Chrome
+              🌐 Abrir no Google Chrome para Baixar
             </a>
           )}
+
           <button
             type="button"
             onClick={handleCopyLink}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
+              justifyContent: 'center',
               gap: '6px',
-              padding: '7px 14px',
-              backgroundColor: 'rgba(255, 255, 255, 0.12)',
-              border: '1px solid rgba(255, 255, 255, 0.25)',
+              width: '100%',
+              minHeight: '40px',
+              backgroundColor: 'rgba(255, 255, 255, 0.08)',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
               color: '#ffffff',
-              borderRadius: '8px',
+              borderRadius: '10px',
               cursor: 'pointer',
               fontWeight: 600,
               fontSize: '0.82rem',
+              boxSizing: 'border-box',
             }}
           >
-            {copied ? '✅ Link copiado! Cole no navegador' : '🔗 Copiar link para o navegador'}
+            {copied ? '✅ Link copiado! Cole no navegador' : (ios ? '🔗 Copiar link para colar no Safari' : '🔗 Copiar link para o navegador')}
           </button>
         </div>
       </div>

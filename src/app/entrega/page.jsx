@@ -19,7 +19,7 @@ import { requestPixCharge } from '@/lib/pixCheckout';
 import { compressImage } from '@/lib/imageCompress';
 import { getPriceForSku, faixasDeImpacto } from '@/lib/pricing';
 import { markPreviewListened } from '@/lib/previewTracking';
-import { isInAppBrowser, isIOS, isAndroid } from '@/lib/inAppBrowser';
+import { isInAppBrowser, isIOS, isAndroid, getChromeIntentUrl } from '@/lib/inAppBrowser';
 import { DOMINIO_CANONICO } from '@/lib/siteUrl';
 import { IconeMusica, IconeCarta, IconeVideo, IconeRetrospectiva, IconeWhatsApp, NotasDecorativas } from '@/components/AppIcons';
 import { Lock, Check, Copy, Share2, Eye, Download, RefreshCw, Sparkles, ExternalLink, Camera, Music, Headphones, Volume2, FileText, CheckCircle2, MessageCircle } from 'lucide-react';
@@ -34,6 +34,7 @@ import DeliveryExperience from '@/components/delivery/DeliveryExperience';
 import CoverCropperModal from '@/components/delivery/CoverCropperModal';
 import InAppBrowserBanner from '@/components/delivery/InAppBrowserBanner';
 import PreviaEncerradaModal from '@/components/delivery/PreviaEncerradaModal';
+import IosInAppDownloadModal from '@/components/delivery/IosInAppDownloadModal';
 
 function refreshDelivery() { window.location.reload(); }
 
@@ -808,6 +809,7 @@ function EntregaContent() {
 
 
   const [downloadingSlot, setDownloadingSlot] = useState(null); // 'primary' | 'second' | null
+  const [iosDownloadModalData, setIosDownloadModalData] = useState({ isOpen: false, downloadUrl: '', filename: '' });
 
 
   // Acrescenta ?download=<nome> à URL do proxy: é o que faz o servidor mandar Content-Disposition e
@@ -828,46 +830,52 @@ function EntregaContent() {
 
     setDownloadingSlot(slot);
 
-    // 1. Tenta baixar via fetch + Blob:
-    // Em celulares modernos (iOS e Android), se navigator.share suportar arquivos,
-    // aciona a gaveta nativa do sistema (Share Sheet). Isso permite ao usuário salvar
-    // em "Arquivos" ou "Salvar no dispositivo" com 1 toque, sem bloqueios de WebView!
+    // 1. Tratamento específico para navegadores embutidos de aplicativos (WhatsApp, Instagram, etc.):
+    // O navegador interno desses apps bloqueia downloads para o sistema de arquivos do celular.
+    if (isInAppBrowser()) {
+      if (isAndroid()) {
+        // No Android: dispara o download diretamente pelo Google Chrome nativo via Intent!
+        // O usuário clica em "Continuar" no aviso de segurança do WhatsApp e o Chrome
+        // abre o endpoint com Content-Disposition: attachment, salvando o arquivo na hora na pasta Downloads.
+        const fullUrl = downloadUrl.startsWith('http')
+          ? downloadUrl
+          : `${window.location.origin}${downloadUrl}`;
+        const cleanHostAndPath = fullUrl.replace(/^https?:\/\//, '');
+        const chromeDownloadIntent = `intent://${cleanHostAndPath}#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(fullUrl)};end;`;
+
+        window.location.href = chromeDownloadIntent;
+        setDownloadingSlot(null);
+        return;
+      }
+
+      if (isIOS()) {
+        // No iPhone: WhatsApp WebView não suporta intents nem download de blobs.
+        // Abre o modal orientativo para abrir no Safari ou copiar o link direto.
+        setIosDownloadModalData({
+          isOpen: true,
+          downloadUrl: downloadUrl.startsWith('http') ? downloadUrl : `${window.location.origin}${downloadUrl}`,
+          filename: filename || 'musica.mp3',
+        });
+        setDownloadingSlot(null);
+        return;
+      }
+    }
+
+    // 2. Download em navegadores padrão (Google Chrome, Safari, Samsung Internet, Edge, etc.):
+    // Baixa diretamente via Blob + <a> download, sem acionar navigator.share
     try {
       const res = await fetch(downloadUrl);
       if (res.ok) {
         const blob = await res.blob();
-
-        if (typeof navigator !== 'undefined' && typeof File !== 'undefined' && navigator.canShare) {
-          try {
-            const mime = filename.endsWith('.mp4') ? 'video/mp4' : 'audio/mpeg';
-            const file = new File([blob], filename, { type: mime });
-            if (navigator.canShare({ files: [file] })) {
-              await navigator.share({
-                files: [file],
-                title: filename,
-                text: `Seu arquivo: ${filename}`,
-              });
-              setDownloadingSlot(null);
-              return;
-            }
-          } catch (shareErr) {
-            if (shareErr.name === 'AbortError') {
-              setDownloadingSlot(null);
-              return;
-            }
-            console.warn('[entrega] navigator.share falhou, tentando fallback:', shareErr);
-          }
-        }
-
-        // Download padrão para navegadores: cria URL local blob e simula o clique
         const blobUrl = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = blobUrl;
         link.setAttribute('download', filename);
+        link.style.display = 'none';
         document.body.appendChild(link);
         link.click();
         link.parentNode.removeChild(link);
-        setTimeout(() => window.URL.revokeObjectURL(blobUrl), 15000);
+        setTimeout(() => window.URL.revokeObjectURL(blobUrl), 30000);
         setDownloadingSlot(null);
         return;
       }
@@ -875,13 +883,15 @@ function EntregaContent() {
       console.warn('[entrega] Tentativa fetch/blob falhou, usando fallback direto:', e);
     }
 
-    // 2. Fallback direto para o link com Content-Disposition: attachment
+    // 3. Fallback direto para o link com Content-Disposition: attachment
     try {
+      const fullUrl = downloadUrl.startsWith('http') ? downloadUrl : `${window.location.origin}${downloadUrl}`;
       const link = document.createElement('a');
-      link.href = downloadUrl;
+      link.href = fullUrl;
       link.setAttribute('download', filename);
       link.target = '_blank';
       link.rel = 'noopener noreferrer';
+      link.style.display = 'none';
       document.body.appendChild(link);
       link.click();
       link.parentNode.removeChild(link);
@@ -1990,6 +2000,13 @@ function EntregaContent() {
         onSave={handleSaveCroppedCover}
         isSaving={isUploadingCover}
       />
+      <IosInAppDownloadModal
+        isOpen={iosDownloadModalData.isOpen}
+        onClose={() => setIosDownloadModalData({ isOpen: false, downloadUrl: '', filename: '' })}
+        downloadUrl={iosDownloadModalData.downloadUrl}
+        filename={iosDownloadModalData.filename}
+      />
+
 
       </>
     );
@@ -2032,12 +2049,27 @@ function EntregaContent() {
           onSave={handleSaveCroppedCover}
           isSaving={isUploadingCover}
         />
+      <IosInAppDownloadModal
+        isOpen={iosDownloadModalData.isOpen}
+        onClose={() => setIosDownloadModalData({ isOpen: false, downloadUrl: '', filename: '' })}
+        downloadUrl={iosDownloadModalData.downloadUrl}
+        filename={iosDownloadModalData.filename}
+      />
+
       </>
     );
   }
 
   return (
     <div className={`nx-legacy-${abaProduto}`} style={isPaid ? { ...styles.wrapper, backgroundColor: '#07030d' } : styles.wrapper}>
+      <InAppBrowserBanner />
+      <IosInAppDownloadModal
+        isOpen={iosDownloadModalData.isOpen}
+        onClose={() => setIosDownloadModalData({ isOpen: false, downloadUrl: '', filename: '' })}
+        downloadUrl={iosDownloadModalData.downloadUrl}
+        filename={iosDownloadModalData.filename}
+      />
+
       {/* Header */}
       <header
         style={{

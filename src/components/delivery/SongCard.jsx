@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { Share2, Download, MessageCircle } from 'lucide-react';
 import { markPreviewListened } from '@/lib/previewTracking';
-import { isInAppBrowser } from '@/lib/inAppBrowser';
+import { isInAppBrowser, isIOS, isAndroid, getChromeIntentUrl } from '@/lib/inAppBrowser';
 import CustomAudioPlayer from './CustomAudioPlayer';
 
 export default function SongCard({
@@ -27,8 +27,12 @@ export default function SongCard({
   const [message, setMessage] = useState('');
   const [reload, setReload] = useState(0);
   const [inApp, setInApp] = useState(false);
+  const [ios, setIos] = useState(false);
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
-  useEffect(() => { setInApp(isInAppBrowser()); }, []);
+  useEffect(() => {
+    setInApp(isInAppBrowser());
+    setIos(isIOS());
+  }, []);
   const audio = useRef(null);
   const available = (tracks || []).filter(Boolean);
   const index = Math.min(version, Math.max(available.length - 1, 0));
@@ -293,24 +297,48 @@ export default function SongCard({
 
       {paid && inApp && (
         <div className="nx-message" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '12px 14px', marginTop: '10px' }}>
-          <p style={{ margin: '0 0 6px', fontSize: '0.82rem', color: '#475569', lineHeight: 1.45 }}>
-            💡 <strong>Dica para salvar no celular:</strong> Se o download não iniciar dentro do WhatsApp, toque nos 3 pontinhos (ou ícone do Safari no rodapé) e escolha <strong>Abrir no navegador</strong> para salvar direto nos seus Arquivos/Downloads.
+          <p style={{ margin: '0 0 8px', fontSize: '0.82rem', color: '#475569', lineHeight: 1.45 }}>
+            💡 <strong>Dica para salvar no celular:</strong> O WhatsApp bloqueia o download direto de arquivos.
+            {ios
+              ? ' No iPhone, toque no ícone do Safari (🧭) ou Compartilhar no rodapé para abrir no Safari e salvar.'
+              : ' Toque no botão abaixo para abrir no Chrome ou toque nos 3 pontinhos no topo da tela.'}
           </p>
-          <button
-            type="button"
-            className="nx-text-button"
-            style={{ fontSize: '0.8rem', fontWeight: 700, color: '#6366f1' }}
-            onClick={async () => {
-              try {
-                await navigator.clipboard.writeText(window.location.href);
-                setMessage('✅ Link copiado! Cole no Chrome ou Safari para baixar.');
-              } catch {
-                setMessage('Use o menu do aplicativo e escolha abrir no navegador.');
-              }
-            }}
-          >
-            📋 Copiar link desta página
-          </button>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+            {!ios && (
+              <a
+                href={getChromeIntentUrl()}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '7px 12px',
+                  background: '#10b981',
+                  color: '#064e3b',
+                  borderRadius: '8px',
+                  textDecoration: 'none',
+                  fontWeight: 700,
+                  fontSize: '0.8rem',
+                }}
+              >
+                🌐 Abrir no Chrome
+              </a>
+            )}
+            <button
+              type="button"
+              className="nx-text-button"
+              style={{ fontSize: '0.8rem', fontWeight: 700, color: '#6366f1' }}
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(window.location.href);
+                  setMessage('✅ Link copiado! Cole no Chrome ou Safari para baixar.');
+                } catch {
+                  setMessage('Use o menu do aplicativo e escolha abrir no navegador.');
+                }
+              }}
+            >
+              📋 Copiar link da página
+            </button>
+          </div>
         </div>
       )}
 

@@ -520,6 +520,8 @@ export const sendPaymentApprovedTemplate = async (phone, { customerName, honoree
 ${audiosList ? `${audiosList}\n\n` : ''}📱 *Acessar página completa do seu pedido:*
 ${url}${videoBlock}
 
+💡 *Dica:* Se a página abrir dentro do WhatsApp, toque nos 3 pontinhos no topo (Android) ou no ícone do Safari (🧭) no rodapé e escolha *"Abrir no Navegador"* para salvar os MP3s direto na sua pasta de Downloads.
+
 Qualquer dúvida ou se precisar de alguma coisa, é só me chamar por aqui! Muito obrigado pela confiança! 💜`;
 
     const evoRes = await sendEvolutionTextMessage(phone, message, env);
