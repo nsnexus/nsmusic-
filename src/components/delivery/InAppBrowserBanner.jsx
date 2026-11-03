@@ -94,10 +94,10 @@ export default function InAppBrowserBanner() {
         </div>
 
         <p style={{ margin: 0, color: '#e9d5ff' }}>
-          Você está navegando dentro do WhatsApp/Instagram. Se o app bloquear o download direto:
+          Você está navegando dentro do WhatsApp/Instagram. Se o aplicativo bloquear o download direto:
           {ios
-            ? ' no rodapé da tela do WhatsApp, toque no ícone do Safari (🧭) ou Compartilhar (⎙) para abrir no navegador, ou use o botão verde "Receber no WhatsApp" na sua música.'
-            : ' toque nos três pontinhos (⋮) no topo para abrir no Chrome, ou use o botão verde "Receber no WhatsApp" na sua música.'}
+            ? ' toque no ícone do Safari (🧭) ou Compartilhar no rodapé para abrir no navegador padrão e salvar.'
+            : ' toque nos três pontinhos (⋮) no topo para abrir no Chrome e salvar.'}
         </p>
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '4px' }}>

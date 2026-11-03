@@ -50,34 +50,6 @@ export default function SongCard({
     } catch (error) { if (error.name !== 'AbortError') setMessage('Não foi possível compartilhar agora. Tente novamente.'); }
   };
 
-  const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
-
-  const handleSendToWhatsApp = async () => {
-    if (sendingWhatsApp) return;
-    setSendingWhatsApp(true);
-    setMessage('');
-    try {
-      const res = await fetch('/api/orders/send-audio-whatsapp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          orderId: targetId,
-          trackIndex: index + trackOffset
-        }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok && data.success) {
-        setMessage('✅ Música enviada diretamente para o seu WhatsApp! Abra seu aplicativo para ouvir e salvar.');
-      } else {
-        setMessage(data.error || 'Não foi possível enviar para o WhatsApp agora. Use o botão Baixar MP3.');
-      }
-    } catch (err) {
-      setMessage('Falha na conexão com o WhatsApp. Tente novamente em instantes.');
-    } finally {
-      setSendingWhatsApp(false);
-    }
-  };
-
   const getSlot = (idx) => {
     if (trackOffset === 0) return idx === 0 ? 'primary' : 'second';
     return idx === 0 ? 'third' : 'fourth';
@@ -297,7 +269,7 @@ export default function SongCard({
       )}
 
       {paid && source && (
-        <div className="nx-song-actions" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div className="nx-song-actions">
           <button
             type="button"
             className="nx-button nx-primary"
@@ -314,36 +286,6 @@ export default function SongCard({
               ? 'Preparando download…'
               : `Baixar MP3 · Música ${index + 1 + trackOffset}`}
           </button>
-
-          <button
-            type="button"
-            className="nx-button"
-            disabled={sendingWhatsApp}
-            onClick={handleSendToWhatsApp}
-            style={{
-              width: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px',
-              backgroundColor: '#ecfdf5',
-              color: '#065f46',
-              border: '1.5px solid #a7f3d0',
-              fontWeight: '700',
-              padding: '11px 16px',
-              borderRadius: '12px',
-              cursor: sendingWhatsApp ? 'default' : 'pointer',
-              transition: 'all 0.15s ease',
-              fontSize: '0.92rem',
-            }}
-          >
-            <MessageCircle size={18} color="#059669" />
-            <span>
-              {sendingWhatsApp
-                ? 'Enviando para seu WhatsApp…'
-                : 'Receber áudio direto no WhatsApp 📲'}
-            </span>
-          </button>
         </div>
       )}
 
@@ -352,7 +294,7 @@ export default function SongCard({
       {paid && inApp && (
         <div className="nx-message" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '12px 14px', marginTop: '10px' }}>
           <p style={{ margin: '0 0 6px', fontSize: '0.82rem', color: '#475569', lineHeight: 1.45 }}>
-            💡 <strong>Dica para celular:</strong> Se o WhatsApp bloquear o download direto para a sua pasta de arquivos, toque em <strong>Receber áudio direto no WhatsApp</strong> acima para receber o arquivo na sua conversa, ou abra no Chrome/Safari pelo menu do app.
+            💡 <strong>Dica para salvar no celular:</strong> Se o download não iniciar dentro do WhatsApp, toque nos 3 pontinhos (ou ícone do Safari no rodapé) e escolha <strong>Abrir no navegador</strong> para salvar direto nos seus Arquivos/Downloads.
           </p>
           <button
             type="button"

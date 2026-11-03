@@ -32,7 +32,6 @@ import { trackFbPurchase } from '@/lib/metaPixel';
 import { isOrderFromMeta, isOrderFromTikTok } from '@/lib/trafficSource';
 import DeliveryExperience from '@/components/delivery/DeliveryExperience';
 import CoverCropperModal from '@/components/delivery/CoverCropperModal';
-import DownloadHelpModal from '@/components/delivery/DownloadHelpModal';
 import InAppBrowserBanner from '@/components/delivery/InAppBrowserBanner';
 import PreviaEncerradaModal from '@/components/delivery/PreviaEncerradaModal';
 
@@ -809,35 +808,7 @@ function EntregaContent() {
 
 
   const [downloadingSlot, setDownloadingSlot] = useState(null); // 'primary' | 'second' | null
-  const [downloadHelpModal, setDownloadHelpModal] = useState(null);
-  const [isSendingWhatsAppModal, setIsSendingWhatsAppModal] = useState(false);
-  const [sendWhatsAppModalSuccess, setSendWhatsAppModalSuccess] = useState(false);
 
-  const handleSendWhatsAppFromModal = async () => {
-    if (isSendingWhatsAppModal) return;
-    setIsSendingWhatsAppModal(true);
-    setSendWhatsAppModalSuccess(false);
-    try {
-      const res = await fetch('/api/orders/send-audio-whatsapp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          orderId: activeOrderId || orderId || order?.id,
-          trackIndex: downloadHelpModal?.slot === 'second' ? 1 : 0,
-        }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok && data.success) {
-        setSendWhatsAppModalSuccess(true);
-      } else {
-        alert(data.error || 'Não foi possível enviar para o WhatsApp agora.');
-      }
-    } catch (e) {
-      alert('Erro de conexão ao enviar para o WhatsApp. Tente novamente.');
-    } finally {
-      setIsSendingWhatsAppModal(false);
-    }
-  };
 
   // Acrescenta ?download=<nome> à URL do proxy: é o que faz o servidor mandar Content-Disposition e
   // o navegador BAIXAR em vez de tocar (ver src/app/api/audio/proxy/route.js).
@@ -860,7 +831,7 @@ function EntregaContent() {
     // 1. Tenta baixar via fetch + Blob:
     // Em celulares modernos (iOS e Android), se navigator.share suportar arquivos,
     // aciona a gaveta nativa do sistema (Share Sheet). Isso permite ao usuário salvar
-    // em "Arquivos", enviar no WhatsApp, etc., contornando o bloqueio de download de WebViews!
+    // em "Arquivos" ou "Salvar no dispositivo" com 1 toque, sem bloqueios de WebView!
     try {
       const res = await fetch(downloadUrl);
       if (res.ok) {
@@ -874,22 +845,21 @@ function EntregaContent() {
               await navigator.share({
                 files: [file],
                 title: filename,
-                text: `Seu arquivo da homenagem: ${filename}`,
+                text: `Seu arquivo: ${filename}`,
               });
               setDownloadingSlot(null);
               return;
             }
           } catch (shareErr) {
             if (shareErr.name === 'AbortError') {
-              // Cliente abriu a gaveta de compartilhamento e fechou
               setDownloadingSlot(null);
               return;
             }
-            console.warn('[entrega] navigator.share falhou, tentando fallback blob:', shareErr);
+            console.warn('[entrega] navigator.share falhou, tentando fallback:', shareErr);
           }
         }
 
-        // Download padrão para computadores e navegadores sem bloqueio de Blob
+        // Download padrão para navegadores: cria URL local blob e simula o clique
         const blobUrl = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = blobUrl;
@@ -902,48 +872,10 @@ function EntregaContent() {
         return;
       }
     } catch (e) {
-      console.warn('[entrega] Erro ao baixar via fetch/blob:', e);
+      console.warn('[entrega] Tentativa fetch/blob falhou, usando fallback direto:', e);
     }
 
-    // 2. Se estiver em navegador embutido (WhatsApp / Instagram) e o download nativo falhou:
-    if (isInAppBrowser()) {
-      if (isIOS()) {
-        // No iOS WhatsApp, em vez de alert() feio, abre o modal de ajuda com opção de envio direto pelo WhatsApp
-        setSendWhatsAppModalSuccess(false);
-        setDownloadHelpModal({
-          filename,
-          slot,
-          platform: 'ios',
-        });
-        setDownloadingSlot(null);
-        return;
-      }
-
-      if (isAndroid()) {
-        try {
-          const canonicalBase = DOMINIO_CANONICO || 'https://nsmusic.nsnexus.com.br';
-          const fullDownloadUrl = downloadUrl.startsWith('http')
-            ? downloadUrl
-            : `${canonicalBase}${downloadUrl.startsWith('/') ? '' : '/'}${downloadUrl}`;
-          const urlNoProto = fullDownloadUrl.replace(/^https?:\/\//, '');
-          window.location.href = `intent://${urlNoProto}#Intent;scheme=https;package=com.android.chrome;end;`;
-          setTimeout(() => setDownloadingSlot(null), 3000);
-          return;
-        } catch (e) {
-          console.warn('[entrega] Fallback intent android:', e);
-          setSendWhatsAppModalSuccess(false);
-          setDownloadHelpModal({
-            filename,
-            slot,
-            platform: 'android',
-          });
-          setDownloadingSlot(null);
-          return;
-        }
-      }
-    }
-
-    // 3. Fallback clássico por link direto
+    // 2. Fallback direto para o link com Content-Disposition: attachment
     try {
       const link = document.createElement('a');
       link.href = downloadUrl;
@@ -954,8 +886,7 @@ function EntregaContent() {
       link.click();
       link.parentNode.removeChild(link);
     } catch (err) {
-      console.warn('Erro ao iniciar o download:', err);
-      window.open(downloadUrl, '_blank', 'noopener');
+      window.location.href = downloadUrl;
     } finally {
       setDownloadingSlot(null);
     }
@@ -2059,16 +1990,7 @@ function EntregaContent() {
         onSave={handleSaveCroppedCover}
         isSaving={isUploadingCover}
       />
-        <DownloadHelpModal
-          isOpen={Boolean(downloadHelpModal)}
-          onClose={() => setDownloadHelpModal(null)}
-          platform={downloadHelpModal?.platform || 'ios'}
-          orderId={activeOrderId || orderId || order?.id}
-          honoreeName={order?.honoreeName}
-          onSendWhatsApp={handleSendWhatsAppFromModal}
-          isSendingWhatsApp={isSendingWhatsAppModal}
-          sendSuccess={sendWhatsAppModalSuccess}
-        />
+
       </>
     );
   }
