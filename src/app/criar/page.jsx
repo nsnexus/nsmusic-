@@ -25,7 +25,7 @@ import { IconeCelularWhatsApp } from '@/components/AppIcons';
 import { readReferralCode } from '@/lib/referralTracking';
 import { getPriceForSku } from '@/lib/pricing';
 import PackageCard from '@/components/delivery/PackageCard';
-import { deliveryPackages } from '@/lib/deliveryPackages';
+import { deliveryPackages, formatBrl } from '@/lib/deliveryPackages';
 
 // Tempo na tela de produção depois do qual o cliente sempre ganha uma saída (conferir de novo,
 // recomeçar ou chamar no WhatsApp). Maior que o corte de 6 min do polling de propósito: só entra
