@@ -33,7 +33,7 @@ async function resolveAudioUrlDoPedido(orderId, faixaRaw, env = {}) {
       }
       if ((!resolved || resolved.includes('/api/audio/proxy')) && Array.isArray(data.audioIds) && data.audioIds.length > 0) {
         const audioId = (Number.isFinite(indice) && indice >= 0 && data.audioIds[indice]) ? data.audioIds[indice] : data.audioIds[0];
-        if (audioId) resolved = `https://audiostream.kie.ai/stream/${audioId}.mp3`;
+        if (audioId) resolved = `https://tempfile.aiquickdraw.com/r/${audioId}.mp3`;
       }
     }
 
@@ -42,6 +42,32 @@ async function resolveAudioUrlDoPedido(orderId, faixaRaw, env = {}) {
     console.warn('[Audio Proxy] Falha ao resolver áudio do pedido:', err?.message);
     return '';
   }
+}
+
+function parseByteRange(rangeHeader, totalLength) {
+  if (!rangeHeader || typeof rangeHeader !== 'string' || !rangeHeader.startsWith('bytes=')) {
+    return null;
+  }
+  const parts = rangeHeader.replace(/^bytes=/, '').split('-');
+  const rawStart = parts[0]?.trim();
+  const rawEnd = parts[1]?.trim();
+
+  let start = rawStart ? parseInt(rawStart, 10) : NaN;
+  let end = rawEnd ? parseInt(rawEnd, 10) : NaN;
+
+  if (isNaN(start)) {
+    if (isNaN(end)) return null;
+    start = Math.max(0, totalLength - end);
+    end = totalLength - 1;
+  } else if (isNaN(end)) {
+    end = totalLength - 1;
+  }
+
+  if (start < 0 || start >= totalLength || end < start || end >= totalLength) {
+    return { invalid: true };
+  }
+
+  return { start, end };
 }
 
 export async function GET(req) {
@@ -92,14 +118,33 @@ export async function GET(req) {
           headers.set('Cache-Control', 'public, max-age=86400, must-revalidate');
           headers.set('Access-Control-Allow-Origin', '*');
           headers.set('Accept-Ranges', 'bytes');
-          headers.set('Content-Length', String(buffer.byteLength));
-
           const downloadNameR2 = searchParams.get('download');
           if (downloadNameR2) {
             const safeNameR2 = downloadNameR2.replace(/[^\w.\- ]/g, '_').slice(0, 120) || 'musica.mp3';
             headers.set('Content-Disposition', `attachment; filename="${safeNameR2}"`);
           }
 
+          const rangeHeader = req.headers.get('range');
+          const range = !downloadNameR2 ? parseByteRange(rangeHeader, buffer.byteLength) : null;
+
+          if (range?.invalid) {
+            return new Response(null, {
+              status: 416,
+              headers: {
+                'Content-Range': `bytes */${buffer.byteLength}`,
+                'Accept-Ranges': 'bytes'
+              }
+            });
+          }
+
+          if (range) {
+            const chunk = buffer.slice(range.start, range.end + 1);
+            headers.set('Content-Range', `bytes ${range.start}-${range.end}/${buffer.byteLength}`);
+            headers.set('Content-Length', String(chunk.byteLength));
+            return new Response(chunk, { status: 206, headers });
+          }
+
+          headers.set('Content-Length', String(buffer.byteLength));
           return new Response(buffer, { status: 200, headers });
         }
         console.warn(`[Audio Proxy] Objeto não encontrado no R2 pra key: ${objectKey}`);
@@ -151,12 +196,15 @@ export async function GET(req) {
       // que der pra derivar o UUID, e o musicfile fica só como reserva.
       const derivedUuid = formattedRaw.includes('musicfile.kie.ai') ? uuidFromKieBase64(formattedRaw) : '';
       if (derivedUuid) {
-        candidates.push(`https://audiostream.kie.ai/stream/${derivedUuid}.mp3`);
         candidates.push(`https://tempfile.aiquickdraw.com/r/${derivedUuid}.mp3`);
+        candidates.push(`https://file.aiquickdraw.com/r/${derivedUuid}.mp3`);
+        candidates.push(`https://audiostream.kie.ai/stream/${derivedUuid}.mp3`);
       }
       if (itemId && !isUnificallyUrl) {
-        candidates.push(`https://audiostream.kie.ai/stream/${itemId}.mp3`);
         candidates.push(`https://tempfile.aiquickdraw.com/r/${itemId}.mp3`);
+        candidates.push(`https://file.aiquickdraw.com/r/${itemId}.mp3`);
+        candidates.push(`https://cdn1.suno.ai/${itemId}.mp3`);
+        candidates.push(`https://audiostream.kie.ai/stream/${itemId}.mp3`);
       }
 
       // musicfile.kie.ai fica atrás de CloudFront com assinatura por path exato — qualquer sufixo
@@ -186,13 +234,15 @@ export async function GET(req) {
     }
 
     if (itemId && !isUnificallyUrl) {
+      candidates.push(`https://tempfile.aiquickdraw.com/r/${itemId}.mp3`);
+      candidates.push(`https://file.aiquickdraw.com/r/${itemId}.mp3`);
+      candidates.push(`https://cdn1.suno.ai/${itemId}.mp3`);
+      candidates.push(`https://cdn2.suno.ai/${itemId}.mp3`);
       candidates.push(`https://audiostream.kie.ai/stream/${itemId}.mp3`);
       try {
         const b64 = btoa(itemId);
         candidates.push(`https://musicfile.kie.ai/${b64}`);
       } catch (e) {}
-      candidates.push(`https://cdn1.suno.ai/${itemId}.mp3`);
-      candidates.push(`https://cdn2.suno.ai/${itemId}.mp3`);
       candidates.push(`https://audiopipe.suno.ai/?item_id=${itemId}`);
     }
 
@@ -338,6 +388,29 @@ export async function GET(req) {
       // Só ASCII seguro no filename: acento/emoji em cabeçalho HTTP quebra a resposta inteira.
       const safeName = downloadName.replace(/[^\w.\- ]/g, '_').slice(0, 120) || 'musica.mp3';
       headers.set('Content-Disposition', `attachment; filename="${safeName}"`);
+    }
+
+    const rangeHeader = req.headers.get('range');
+    const range = !downloadName ? parseByteRange(rangeHeader, audioBuffer.byteLength) : null;
+
+    if (range?.invalid) {
+      return new Response(null, {
+        status: 416,
+        headers: {
+          'Content-Range': `bytes */${audioBuffer.byteLength}`,
+          'Accept-Ranges': 'bytes'
+        }
+      });
+    }
+
+    if (range) {
+      const chunk = audioBuffer.slice(range.start, range.end + 1);
+      headers.set('Content-Range', `bytes ${range.start}-${range.end}/${audioBuffer.byteLength}`);
+      headers.set('Content-Length', String(chunk.byteLength));
+      return new Response(chunk, {
+        status: 206,
+        headers
+      });
     }
 
     // Do buffer de verdade, não do header da origem — já bufferizamos o corpo inteiro acima, então

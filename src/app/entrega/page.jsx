@@ -2645,13 +2645,33 @@ function EntregaContent() {
                       autoPlay={!isPaid}
                       controlsList={!isPaid ? "nodownload noplaybackrate" : undefined}
                       onContextMenu={(e) => !isPaid && e.preventDefault()}
+                      onLoadedMetadata={(e) => {
+                        const d = Number(e.currentTarget.duration);
+                        if (Number.isFinite(d) && d > 0) {
+                          setAudioProgress((prev) => ({
+                            ...prev,
+                            primary: { ...prev.primary, duration: d },
+                          }));
+                        }
+                      }}
+                      onDurationChange={(e) => {
+                        const d = Number(e.currentTarget.duration);
+                        if (Number.isFinite(d) && d > 0) {
+                          setAudioProgress((prev) => ({
+                            ...prev,
+                            primary: { ...prev.primary, duration: d },
+                          }));
+                        }
+                      }}
                       onTimeUpdate={(e) => {
                         handleAudioTimeUpdate(e);
+                        const cur = e.target.currentTime;
+                        const dur = Number(e.target.duration);
                         setAudioProgress((prev) => ({
                           ...prev,
                           primary: {
-                            currentTime: e.target.currentTime,
-                            duration: e.target.duration || prev.primary.duration || 60,
+                            currentTime: cur,
+                            duration: (Number.isFinite(dur) && dur > 0) ? dur : (prev.primary.duration || 60),
                             isPlaying: !e.target.paused,
                           },
                         }));
@@ -2860,13 +2880,33 @@ function EntregaContent() {
                       ref={secondAudioElRef}
                       controlsList={!isPaid ? "nodownload noplaybackrate" : undefined}
                       onContextMenu={(e) => !isPaid && e.preventDefault()}
+                      onLoadedMetadata={(e) => {
+                        const d = Number(e.currentTarget.duration);
+                        if (Number.isFinite(d) && d > 0) {
+                          setAudioProgress((prev) => ({
+                            ...prev,
+                            second: { ...prev.second, duration: d },
+                          }));
+                        }
+                      }}
+                      onDurationChange={(e) => {
+                        const d = Number(e.currentTarget.duration);
+                        if (Number.isFinite(d) && d > 0) {
+                          setAudioProgress((prev) => ({
+                            ...prev,
+                            second: { ...prev.second, duration: d },
+                          }));
+                        }
+                      }}
                       onTimeUpdate={(e) => {
                         handleAudioTimeUpdate(e);
+                        const cur = e.target.currentTime;
+                        const dur = Number(e.target.duration);
                         setAudioProgress((prev) => ({
                           ...prev,
                           second: {
-                            currentTime: e.target.currentTime,
-                            duration: e.target.duration || 60,
+                            currentTime: cur,
+                            duration: (Number.isFinite(dur) && dur > 0) ? dur : (prev.second.duration || 60),
                             isPlaying: !e.target.paused,
                           },
                         }));

@@ -197,8 +197,12 @@ export default function CustomAudioPlayer({
         }}
         onLoadedMetadata={(e) => {
           const rawDur = Number.isFinite(e.currentTarget.duration) ? e.currentTarget.duration : 0;
-          setDuration(rawDur);
+          if (rawDur > 0) setDuration(rawDur);
           onCanPlayTrack?.();
+        }}
+        onDurationChange={(e) => {
+          const rawDur = Number.isFinite(e.currentTarget.duration) ? e.currentTarget.duration : 0;
+          if (rawDur > 0) setDuration(rawDur);
         }}
         onCanPlay={onCanPlayTrack}
         onError={onErrorTrack}

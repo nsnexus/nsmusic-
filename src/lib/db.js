@@ -130,8 +130,9 @@ export const extractAudioTracks = (result) => {
     if (isUnifically) {
       url = urlCandidates.find(u => u.includes('unifically.com')) || urlCandidates[0] || '';
     } else {
-      url = urlCandidates.find((u) => u.includes('audiostream.kie.ai'))
-        || urlCandidates.find((u) => !u.includes('musicfile.kie.ai') && !u.includes('tempfile.aiquickdraw.com'))
+      url = urlCandidates.find((u) => u.includes('tempfile.aiquickdraw.com') || u.includes('file.aiquickdraw.com'))
+        || urlCandidates.find((u) => u.includes('cdn1.suno.ai') || u.includes('cdn2.suno.ai'))
+        || urlCandidates.find((u) => u.includes('audiostream.kie.ai'))
         || urlCandidates.find((u) => !u.includes('musicfile.kie.ai'))
         || urlCandidates[0] || '';
 
@@ -141,6 +142,9 @@ export const extractAudioTracks = (result) => {
     }
 
     const imageUrl = t.image_url || t.imageUrl || t.cover_image_url || t.coverImageUrl || '';
+    const duration = (typeof t.duration === 'number' && Number.isFinite(t.duration) && t.duration > 0)
+      ? t.duration
+      : null;
 
     return {
       ...t,
@@ -148,6 +152,7 @@ export const extractAudioTracks = (result) => {
       audioUrl: url,
       trackId: trackId || '',
       imageUrl,
+      ...(duration ? { duration } : {}),
     };
   }).filter(t => t && t.audio_url);
 };
