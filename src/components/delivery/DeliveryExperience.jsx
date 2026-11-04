@@ -6,7 +6,6 @@ import Image from 'next/image';
 import SongCard from './SongCard';
 import PurchaseCheckout from './PurchaseCheckout';
 import SecondSongOffer from './SecondSongOffer';
-import ReferralCard from '@/components/account/ReferralCard';
 import MobileValueComparison from './MobileValueComparison';
 import MobileTrustBadges from './MobileTrustBadges';
 import MobileStickyBar from './MobileStickyBar';
@@ -473,7 +472,6 @@ export default function DeliveryExperience({
             )}
 
             {!hasSecondGen && <SecondSongOffer orderId={orderId} order={order} />}
-            <ReferralCard />
 
             <details className="nx-card nx-extra-options">
               <summary>
