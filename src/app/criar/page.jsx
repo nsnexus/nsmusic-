@@ -2397,66 +2397,27 @@ export default function CriarMusica() {
 
         return (
           <div style={{ maxWidth: '1000px', margin: '0 auto', width: '100%', boxSizing: 'border-box', padding: '0 16px' }}>
-            {/* Barra superior de navegação da Etapa 7 */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                flexWrap: 'wrap',
-                gap: '10px',
-                marginBottom: '16px',
-                padding: '8px 12px',
-                background: '#ffffff',
-                border: '1px solid #e2e8f0',
-                borderRadius: '14px',
-                boxShadow: '0 1px 4px rgba(0, 0, 0, 0.04)'
-              }}
-            >
+            <div style={{ marginBottom: '12px', textAlign: 'left' }}>
               <button
                 type="button"
                 onClick={() => {
                   setStep(6);
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                 }}
-                className="btn-wz-back"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '7px 14px',
-                  fontSize: '0.84rem',
-                  fontWeight: '700',
-                  color: '#334155',
-                  backgroundColor: '#f1f5f9',
-                  border: '1px solid #cbd5e1',
-                  borderRadius: '10px',
-                  cursor: 'pointer'
-                }}
-              >
-                <span>←</span>
-                <span>Voltar e ouvir prévias</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleCreateNewSongFromScratch}
                 style={{
                   background: 'none',
                   border: 'none',
-                  color: '#64748b',
-                  fontSize: '0.82rem',
+                  color: '#6366f1',
+                  fontSize: '0.86rem',
                   fontWeight: '600',
-                  textDecoration: 'underline',
                   cursor: 'pointer',
-                  padding: '6px 8px',
+                  padding: '4px 0',
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '4px'
+                  gap: '6px'
                 }}
               >
-                <span>🔄</span>
-                <span>Criar outra música do zero</span>
+                ← Voltar para ouvir as prévias
               </button>
             </div>
 
@@ -2471,76 +2432,6 @@ export default function CriarMusica() {
                 Todas as opções incluem o download imediato das suas músicas completas sem corte em MP3 HD!
               </p>
             </div>
-
-            {/* Banner/Atalho de prévias das músicas */}
-            {formData.sunoTracks && formData.sunoTracks.length > 0 && (
-              <div
-                style={{
-                  background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.07) 0%, rgba(139, 92, 246, 0.07) 100%)',
-                  border: '1px solid rgba(99, 102, 241, 0.25)',
-                  borderRadius: '16px',
-                  padding: '12px 18px',
-                  marginBottom: '20px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  flexWrap: 'wrap',
-                  gap: '12px'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <div
-                    style={{
-                      width: '36px',
-                      height: '36px',
-                      borderRadius: '10px',
-                      background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
-                      color: '#ffffff',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '1rem',
-                      flexShrink: 0
-                    }}
-                  >
-                    🎧
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '0.9rem', fontWeight: '700', color: '#1e1b4b' }}>
-                      Quer reouvir as 2 versões da música?
-                    </div>
-                    <div style={{ fontSize: '0.78rem', color: '#475569' }}>
-                      Você pode voltar e ouvir as prévias completas antes de finalizar seu pagamento.
-                    </div>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setStep(6);
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                  style={{
-                    backgroundColor: '#ffffff',
-                    border: '1.5px solid #6366f1',
-                    color: '#4f46e5',
-                    padding: '8px 16px',
-                    borderRadius: '10px',
-                    fontWeight: '700',
-                    fontSize: '0.84rem',
-                    cursor: 'pointer',
-                    boxShadow: '0 2px 6px rgba(99, 102, 241, 0.12)',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px'
-                  }}
-                >
-                  <span>🎧</span>
-                  <span>Ouvir prévias novamente</span>
-                </button>
-              </div>
-            )}
 
             {paymentErrorMessage && (
               <div style={{ padding: '12px 16px', background: '#fef2f2', border: '1.5px solid #fecaca', borderRadius: '14px', marginBottom: '20px', color: '#dc2626', fontWeight: 'bold', fontSize: '0.88rem', textAlign: 'center' }}>
@@ -2951,63 +2842,21 @@ export default function CriarMusica() {
                   </div>
               </div>
 
-              {/* Navegação e Ações Secundárias no Rodapé da Etapa 7 */}
-              <div
-                style={{
-                  maxWidth: '760px',
-                  margin: '28px auto 40px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: '14px',
-                  textAlign: 'center'
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={() => {
-                    setStep(6);
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                  className="btn-wz-back"
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    padding: '12px 24px',
-                    fontSize: '0.92rem',
-                    fontWeight: '700',
-                    color: '#334155',
-                    backgroundColor: '#ffffff',
-                    border: '1.5px solid #cbd5e1',
-                    borderRadius: '12px',
-                    cursor: 'pointer',
-                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.05)'
-                  }}
-                >
-                  <span>←</span>
-                  <span>Voltar para ouvir as prévias das músicas</span>
-                </button>
-
+              {/* Link discreto no rodapé caso o cliente queira recomeçar */}
+              <div style={{ textAlign: 'center', marginTop: '24px', marginBottom: '36px' }}>
                 <button
                   type="button"
                   onClick={handleCreateNewSongFromScratch}
                   style={{
                     background: 'none',
                     border: 'none',
-                    color: '#64748b',
-                    fontSize: '0.86rem',
-                    fontWeight: '600',
-                    textDecoration: 'underline',
+                    color: '#94a3b8',
+                    fontSize: '0.84rem',
                     cursor: 'pointer',
-                    padding: '6px 12px',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px'
+                    textDecoration: 'underline'
                   }}
                 >
-                  <span>🔄</span>
-                  <span>Não gostou das músicas? Criar uma nova música do zero</span>
+                  Recomeçar e fazer outra música do zero
                 </button>
               </div>
             </div>
