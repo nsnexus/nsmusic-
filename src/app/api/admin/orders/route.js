@@ -15,6 +15,7 @@ const ADMIN_ORDER_COLUMNS = [
   'order_number',
   'customer_name',
   'customer_phone',
+  'customer_phone_digits',
   'customer_email',
   'user_id',
   'honoree_name',
@@ -110,7 +111,27 @@ export async function GET(req) {
 
     if (search) {
       const safe = search.replace(/[,()]/g, '');
-      q = q.or(`customer_name.ilike.*${safe}*,customer_phone.ilike.*${safe}*,customer_email.ilike.*${safe}*,honoree_name.ilike.*${safe}*,order_number.ilike.*${safe}*`);
+      const digits = search.replace(/\D/g, '');
+      const terms = [
+        `customer_name.ilike.*${safe}*`,
+        `customer_phone.ilike.*${safe}*`,
+        `customer_email.ilike.*${safe}*`,
+        `honoree_name.ilike.*${safe}*`,
+        `order_number.ilike.*${safe}*`
+      ];
+      if (digits && digits.length >= 4) {
+        terms.push(`customer_phone.ilike.*${digits}*`);
+        terms.push(`customer_phone_digits.ilike.*${digits}*`);
+        if (digits.length >= 7) {
+          const suffix8 = digits.length >= 8 ? digits.slice(-8) : digits;
+          const suffix7 = digits.slice(-7);
+          terms.push(`customer_phone.ilike.*${suffix8}*`);
+          terms.push(`customer_phone_digits.ilike.*${suffix8}*`);
+          terms.push(`customer_phone.ilike.*${suffix7}*`);
+          terms.push(`customer_phone_digits.ilike.*${suffix7}*`);
+        }
+      }
+      q = q.or(terms.join(','));
     }
 
     q = q.order('created_at', { ascending: false }).limit(limitCount).offset(offset);
@@ -125,24 +146,36 @@ export async function GET(req) {
       .map(mapSupabaseOrderToFirestore)
       .filter(Boolean);
 
-    // Mapeia e oculta pedidos de 2ª geração para não poluir a listagem principal do admin
-    const isChildOrder = (o) => {
+    // Mapeia e consolida pedidos de 2ª geração para não poluir a listagem principal do admin
+    const parentIdsInBatch = new Set(allMapped.map(o => o.id));
+    const parentNumbersInBatch = new Set(allMapped.map(o => o.orderNumber).filter(Boolean));
+
+    const isChildWithParentInBatch = (o) => {
       if (!o) return false;
-      if (o.parentOrderId) return true;
-      if (o.isSecondGeneration && o.paidSku === 'segunda_geracao_bonus') return true;
-      if (o.origem === 'segunda_geracao' || o.origem === 'segunda_musica') return true;
+      if (search) return false; // Em buscas ativas, NUNCA oculta nenhum pedido correspondente
+      const hasParent = Boolean(o.parentOrderId);
+      const isSecond = Boolean(o.isSecondGeneration && o.paidSku === 'segunda_geracao_bonus') ||
+                       o.origem === 'segunda_geracao' || o.origem === 'segunda_musica';
+      if (!hasParent && !isSecond) return false;
+
+      // Oculta como linha avulsa APENAS se o pedido pai correspondente já estiver no mesmo lote,
+      // pois os dados de áudio/status serão consolidados na linha do pai.
+      // Se o pai não está na listagem atual (ex: criado em outra data), o pedido do filho NÃO é ocultado.
+      if (o.parentOrderId && (parentIdsInBatch.has(o.parentOrderId) || parentNumbersInBatch.has(o.parentOrderId))) {
+        return true;
+      }
       return false;
     };
 
     const childOrdersMap = new Map();
     for (const o of allMapped) {
-      if (isChildOrder(o) && o.parentOrderId) {
+      if (o.parentOrderId) {
         childOrdersMap.set(o.parentOrderId, o);
       }
     }
 
     const orders = allMapped
-      .filter(o => !isChildOrder(o))
+      .filter(o => !isChildWithParentInBatch(o))
       .map(parent => {
         const child = childOrdersMap.get(parent.id) || childOrdersMap.get(parent.orderNumber);
         if (child) {
@@ -153,6 +186,7 @@ export async function GET(req) {
           parent.secondGeneration = {
             id: child.id,
             orderNumber: child.orderNumber,
+            customerName: child.customerName,
             productionStatus: child.productionStatus,
             audioUrl: child.audioUrl,
             audioFiles: childAudioFiles,
@@ -167,6 +201,29 @@ export async function GET(req) {
           parent.secondOrderCreated = childHasAudio;
           parent.secondOrderDraft = !childHasAudio && !childIsGenerating;
           parent.secondOrderGenerating = childIsGenerating;
+
+          // Se o pai não tem áudio gerado mas o filho tem áudio, promove o status e áudio para o pai
+          if (childHasAudio && (!parent.audioUrl && (!parent.audioFiles || parent.audioFiles.length === 0))) {
+            parent.productionStatus = child.productionStatus || 'AUDIO_GERADO';
+            parent.audioUrl = child.audioUrl;
+            parent.audioFiles = childAudioFiles;
+          }
+
+          // Se o nome do pai é genérico ('Cliente') ou formato de CPF e o filho tem o nome real, promove o nome
+          const isCpfOrGeneric = !parent.customerName || parent.customerName === 'Cliente' || /^\d[\d.\-\/\s]+$/.test(String(parent.customerName).trim());
+          if (isCpfOrGeneric && child.customerName && child.customerName !== 'Cliente') {
+            parent.customerName = child.customerName;
+          }
+
+          // Se o telefone do pai está vazio ou incompleto e o filho tem telefone válido, promove o telefone
+          if ((!parent.customerPhone || String(parent.customerPhone).replace(/\D/g, '').length < 8) && child.customerPhone) {
+            parent.customerPhone = child.customerPhone;
+          }
+
+          // Se o pai não tem registro de reprodução da prévia e o filho já ouviu, reflete o timestamp
+          if (!parent.previewListenedAt && child.previewListenedAt) {
+            parent.previewListenedAt = child.previewListenedAt;
+          }
         }
         return parent;
       });

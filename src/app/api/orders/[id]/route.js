@@ -100,18 +100,39 @@ export async function GET(req, { params }) {
           }
           order.relatedOrder = sanitizeOrderForResponse(related);
           if (related.parentOrderId === order.id || related.parentOrderId === order.orderNumber || (!parentId && !order.isSecondGeneration)) {
+            const childAudioFiles = Array.isArray(related.audioFiles) && related.audioFiles.length > 0 ? related.audioFiles : (related.audioUrl ? [related.audioUrl] : []);
+            const childHasAudio = childAudioFiles.length > 0 || ['AUDIO_GERADO', 'CONCLUIDO', 'FINALIZADO', 'ENTREGUE'].includes(related.productionStatus);
+            const childIsGenerating = !childHasAudio && ['GERANDO_AUDIO', 'EM_PRODUCAO', 'PROCESSANDO', 'GERANDO'].includes(related.productionStatus);
+
             order.secondGeneration = {
               id: related.id,
               orderNumber: related.orderNumber,
+              customerName: related.customerName,
               productionStatus: related.productionStatus,
               audioUrl: related.audioUrl,
-              audioFiles: Array.isArray(related.audioFiles) && related.audioFiles.length > 0 ? related.audioFiles : (related.audioUrl ? [related.audioUrl] : []),
+              audioFiles: childAudioFiles,
               lyrics: related.lyrics,
               musicStyle: related.musicStyle,
               musicMood: related.musicMood,
-              createdAt: related.createdAt
+              createdAt: related.createdAt,
+              hasAudio: childHasAudio,
+              isGenerating: childIsGenerating,
+              isDraft: !childHasAudio && !childIsGenerating,
             };
-            order.secondOrderCreated = true;
+            order.secondOrderCreated = childHasAudio;
+            order.secondOrderDraft = !childHasAudio && !childIsGenerating;
+            order.secondOrderGenerating = childIsGenerating;
+
+            if (childHasAudio && (!order.audioUrl && (!order.audioFiles || order.audioFiles.length === 0))) {
+              order.productionStatus = related.productionStatus || 'AUDIO_GERADO';
+              order.audioUrl = related.audioUrl;
+              order.audioFiles = childAudioFiles;
+            }
+
+            const isCpfOrGeneric = !order.customerName || order.customerName === 'Cliente' || /^\d[\d.\-\/\s]+$/.test(String(order.customerName).trim());
+            if (isCpfOrGeneric && related.customerName && related.customerName !== 'Cliente') {
+              order.customerName = related.customerName;
+            }
           }
         }
       }

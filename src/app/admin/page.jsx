@@ -525,18 +525,24 @@ export default function AdminDashboard() {
         : (qDigits.startsWith('55') && qDigits.length >= 3 && qDigits[2] !== '9' ? qDigits.substring(2) : qDigits);
 
       result = result.filter(o => {
-        const nameMatch = (o.customerName || '').toLowerCase().includes(q);
+        const nameMatch = (o.customerName || '').toLowerCase().includes(q) ||
+                          (o.secondGeneration?.customerName || '').toLowerCase().includes(q);
         const honoreeMatch = (o.honoreeName || '').toLowerCase().includes(q);
-        const codeMatch = (o.orderNumber || o.id || '').toLowerCase().includes(q);
+        const codeMatch = (o.orderNumber || o.id || '').toLowerCase().includes(q) ||
+                          (o.secondGeneration?.orderNumber || o.secondGeneration?.id || '').toLowerCase().includes(q);
         const rawPhone = String(o.customerPhone || o.customer_phone_digits || '').replace(/\D/g, '');
         const rawPhoneNo55 = rawPhone.startsWith('55') && rawPhone.length >= 12
           ? rawPhone.substring(2)
           : (rawPhone.startsWith('55') && rawPhone.length >= 3 && rawPhone[2] !== '9' ? rawPhone.substring(2) : rawPhone);
+        const qDigitsSuffix8 = qDigits.length >= 8 ? qDigits.slice(-8) : '';
+        const qDigitsSuffix7 = qDigits.length >= 7 ? qDigits.slice(-7) : '';
         const phoneMatch = qDigits.length >= 3 && (
           rawPhone.includes(qDigits) ||
           (qDigitsNo55.length >= 3 && rawPhoneNo55.includes(qDigitsNo55)) ||
           (qDigitsNo55.length >= 3 && rawPhone.includes(qDigitsNo55)) ||
-          (qDigits.length >= 3 && rawPhoneNo55.includes(qDigits))
+          (qDigits.length >= 3 && rawPhoneNo55.includes(qDigits)) ||
+          (qDigitsSuffix8 && rawPhone.includes(qDigitsSuffix8)) ||
+          (qDigitsSuffix7 && rawPhone.includes(qDigitsSuffix7))
         );
         return nameMatch || honoreeMatch || codeMatch || phoneMatch;
       });
