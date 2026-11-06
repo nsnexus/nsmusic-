@@ -37,13 +37,54 @@ const getSavedAdminFilter = (key, fallback) => {
   }
 };
 
+// Cache rápido em memória (SPA) e no sessionStorage para carregar instantaneamente ao voltar de um pedido
+let inMemoryOrdersCache = {
+  key: '',
+  orders: null,
+  timestamp: 0,
+};
+
+const getCachedOrders = (cacheKey) => {
+  if (typeof window === 'undefined') return null;
+  // 1. Memória rápida do módulo (0ms na navegação SPA do Next.js)
+  if (inMemoryOrdersCache.orders && inMemoryOrdersCache.key === cacheKey) {
+    return inMemoryOrdersCache.orders;
+  }
+  // 2. Fallback para sessionStorage
+  try {
+    const raw = sessionStorage.getItem('ns_admin_cached_orders');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.key === cacheKey && Array.isArray(parsed.orders)) {
+        inMemoryOrdersCache = parsed;
+        return parsed.orders;
+      }
+    }
+  } catch (e) {}
+  return null;
+};
+
+const setCachedOrders = (cacheKey, orders) => {
+  if (typeof window === 'undefined') return;
+  inMemoryOrdersCache = {
+    key: cacheKey,
+    orders,
+    timestamp: Date.now(),
+  };
+  try {
+    sessionStorage.setItem('ns_admin_cached_orders', JSON.stringify({
+      key: cacheKey,
+      orders,
+      timestamp: Date.now(),
+    }));
+  } catch (e) {}
+};
+
 export default function AdminDashboard() {
   const [user, setUser] = useState(null);
   const [checkingAuth, setCheckingAuth] = useState(true);
-  const [orders, setOrders] = useState([]);
-  const [loadingOrders, setLoadingOrders] = useState(true);
 
-  // Padrão "hoje" — reduz leituras do Firestore no carregamento inicial (ver where() na query de orders).
+  // Padrão "hoje" — reduz leituras do banco no carregamento inicial
   const todayLocalStr = () => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -65,6 +106,27 @@ export default function AdminDashboard() {
   const [providerFilter, setProviderFilter] = useState(() => getSavedAdminFilter('providerFilter', 'ALL'));
   const [sortBy, setSortBy] = useState(() => getSavedAdminFilter('sortBy', 'createdAt_desc')); // 'createdAt_desc'|'createdAt_asc'|'paidAt_desc'|'paidAt_asc'
 
+  // Paginação — carrega 500 de início para cobrir o histórico típico do admin.
+  const PAGE_SIZE = 200;
+  const [pageSize, setPageSize] = useState(500);
+  const [loadAll, setLoadAll] = useState(false);
+
+  // Helper de chave de cache
+  const buildCacheKey = (from = dateFrom, to = dateTo, search = debouncedSearch, size = pageSize, all = loadAll) =>
+    `${from || ''}_${to || ''}_${search || ''}_${size}_${all}`;
+
+  // Inicializa com cache se disponível (carregamento instantâneo em 0ms ao voltar do pedido)
+  const [orders, setOrders] = useState(() => {
+    const initialKey = `${getSavedAdminFilter('dateFrom', todayLocalStr())}_${getSavedAdminFilter('dateTo', '')}_${getSavedAdminFilter('searchQuery', '')}_500_false`;
+    const cached = getCachedOrders(initialKey);
+    return Array.isArray(cached) ? cached : [];
+  });
+  const [loadingOrders, setLoadingOrders] = useState(() => {
+    const initialKey = `${getSavedAdminFilter('dateFrom', todayLocalStr())}_${getSavedAdminFilter('dateTo', '')}_${getSavedAdminFilter('searchQuery', '')}_500_false`;
+    const cached = getCachedOrders(initialKey);
+    return !Array.isArray(cached);
+  });
+
   // Controle de auto-atualização em tempo real e renovação de token
   const [reloadTrigger, setReloadTrigger] = useState(0);
   const [lastRefreshedAt, setLastRefreshedAt] = useState(() => new Date());
@@ -84,11 +146,6 @@ export default function AdminDashboard() {
   const [agentEnabled, setAgentEnabled] = useState(true);
   const [togglingAgent, setTogglingAgent] = useState(false);
 
-  // Paginação — carrega 500 de início para cobrir o histórico típico do admin.
-  // "Carregar todos" remove o limite completamente (útil para busca/filtro em toda a base).
-  const PAGE_SIZE = 200;
-  const [pageSize, setPageSize] = useState(500);
-  const [loadAll, setLoadAll] = useState(false);
   const [hasMoreOrders, setHasMoreOrders] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   
@@ -216,8 +273,15 @@ export default function AdminDashboard() {
     let cancelado = false;
 
     const carregar = async () => {
-      if (orders.length === 0) {
-        setLoadingOrders(true);
+      const currentCacheKey = buildCacheKey();
+      const cached = getCachedOrders(currentCacheKey);
+
+      if (!cached || cached.length === 0) {
+        if (orders.length === 0) {
+          setLoadingOrders(true);
+        } else {
+          setIsRefreshing(true);
+        }
       } else {
         setIsRefreshing(true);
       }
@@ -258,13 +322,10 @@ export default function AdminDashboard() {
             const json = await res.json();
             if (json?.ok && Array.isArray(json.orders)) {
               if (cancelado) return;
-              if (loadAll) {
-                setHasMoreOrders(false);
-                setOrders(json.orders);
-              } else {
-                setHasMoreOrders(json.orders.length > pageSize);
-                setOrders(json.orders.slice(0, pageSize));
-              }
+              const resultOrders = loadAll ? json.orders : json.orders.slice(0, pageSize);
+              setHasMoreOrders(loadAll ? false : json.orders.length > pageSize);
+              setOrders(resultOrders);
+              setCachedOrders(currentCacheKey, resultOrders);
               setLastRefreshedAt(new Date());
               setLoadingOrders(false);
               setIsRefreshing(false);
@@ -290,6 +351,20 @@ export default function AdminDashboard() {
       cancelado = true;
     };
   }, [user, loadAll, pageSize, dateFrom, dateTo, debouncedSearch, reloadTrigger]);
+
+  // Restaura suavemente a posição de rolagem salva ao voltar dos detalhes de um pedido
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const savedScroll = sessionStorage.getItem('ns_admin_scroll_pos');
+      if (savedScroll && orders.length > 0) {
+        sessionStorage.removeItem('ns_admin_scroll_pos');
+        requestAnimationFrame(() => {
+          window.scrollTo({ top: Number(savedScroll), behavior: 'instant' });
+        });
+      }
+    } catch (e) {}
+  }, [orders.length > 0]);
 
   // Auto-atualização periódica (a cada 25 segundos) e ao focar na janela do painel
   useEffect(() => {
@@ -916,7 +991,11 @@ export default function AdminDashboard() {
       });
       if (res.ok) {
         setSelectedOrderIds(prev => prev.filter(item => item !== id));
-        setOrders(prev => prev.filter(item => item.id !== id));
+        setOrders(prev => {
+          const updated = prev.filter(item => item.id !== id);
+          setCachedOrders(buildCacheKey(), updated);
+          return updated;
+        });
       } else {
         alert("Falha ao excluir a solicitação.");
       }
@@ -942,7 +1021,11 @@ export default function AdminDashboard() {
       if (res.ok) {
         const idsToRemove = [...selectedOrderIds];
         setSelectedOrderIds([]);
-        setOrders(prev => prev.filter(item => !idsToRemove.includes(item.id)));
+        setOrders(prev => {
+          const updated = prev.filter(item => !idsToRemove.includes(item.id));
+          setCachedOrders(buildCacheKey(), updated);
+          return updated;
+        });
         alert("Solicitações excluídas com sucesso!");
       } else {
         alert("Falha ao excluir solicitações.");
@@ -1999,7 +2082,12 @@ export default function AdminDashboard() {
                             <tr
                               key={o.id}
                               className="admin-order-row"
-                              onClick={() => router.push(`/admin/pedidos/${o.id}`)}
+                              onClick={() => {
+                                if (typeof window !== 'undefined') {
+                                  sessionStorage.setItem('ns_admin_scroll_pos', String(window.scrollY || window.pageYOffset || 0));
+                                }
+                                router.push(`/admin/pedidos/${o.id}`);
+                              }}
                               title="Clique para abrir detalhes do pedido"
                               style={{
                                 ...styles.tr,

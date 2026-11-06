@@ -33,16 +33,45 @@ function localDayEnd(dateStr) {
   return dateStr ? new Date(`${dateStr}T23:59:59.999`) : null;
 }
 
+// Cache em memória rápida e sessionStorage para evitar que os cards pisquem loading ao voltar de um pedido
+let inMemoryFaturamentoCache = {};
+
+function getCachedFaturamento(key) {
+  if (inMemoryFaturamentoCache[key]) return inMemoryFaturamentoCache[key];
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = sessionStorage.getItem(`ns_admin_fat_${key}`);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      inMemoryFaturamentoCache[key] = parsed;
+      return parsed;
+    }
+  } catch (e) {}
+  return null;
+}
+
+function setCachedFaturamento(key, data) {
+  inMemoryFaturamentoCache[key] = data;
+  if (typeof window === 'undefined') return;
+  try {
+    sessionStorage.setItem(`ns_admin_fat_${key}`, JSON.stringify(data));
+  } catch (e) {}
+}
+
 export default function FaturamentoCards({ dateFrom, dateTo, reloadTrigger }) {
+  const cacheKey = `${dateFrom || 'all'}_${dateTo || 'all'}`;
+  const initialCached = getCachedFaturamento(cacheKey);
+
   const [pedidos, setPedidos] = useState([]);
-  const [supaStats, setSupaStats] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [supaStats, setSupaStats] = useState(() => initialCached);
+  const [loading, setLoading] = useState(() => !initialCached);
   const [erro, setErro] = useState('');
 
   useEffect(() => {
     let ativo = true;
     (async () => {
-      if (!supaStats) setLoading(true);
+      const cached = getCachedFaturamento(cacheKey);
+      if (!cached && !supaStats) setLoading(true);
       setErro('');
 
       // 1. Tenta buscar direto os totais calculados no Supabase (alta performance)
@@ -72,6 +101,7 @@ export default function FaturamentoCards({ dateFrom, dateTo, reloadTrigger }) {
           if (json?.ok && typeof json.faturamentoTotal === 'number') {
             if (!ativo) return;
             setSupaStats(json);
+            setCachedFaturamento(cacheKey, json);
             setLoading(false);
             return;
           }

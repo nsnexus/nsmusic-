@@ -7,6 +7,55 @@ import { mapSupabaseOrderToFirestore } from '@/lib/supabaseSync';
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
+// Colunas otimizadas para a listagem e busca do painel administrativo.
+// Omite campos pesados desnecessários na tabela (como retrospectiva, história completa,
+// slideshow_images, carta_texto e dumps de erros) para acelerar a query e reduzir o tráfego em ~70%.
+const ADMIN_ORDER_COLUMNS = [
+  'id',
+  'order_number',
+  'customer_name',
+  'customer_phone',
+  'customer_email',
+  'user_id',
+  'honoree_name',
+  'recipient_type',
+  'relationship',
+  'occasion',
+  'music_style',
+  'music_mood',
+  'voice_type',
+  'lyrics',
+  'production_status',
+  'suno_provider',
+  'suno_generation_count',
+  'suno_requested_at',
+  'audio_url',
+  'audio_files',
+  'audio_ids',
+  'cover_url',
+  'payment_status',
+  'paid_at',
+  'has_video_access',
+  'has_carta_access',
+  'has_retrospectiva_access',
+  'has_playback_access',
+  'has_karaoke_access',
+  'video_url',
+  'video_status',
+  'playback_url',
+  'playback_status',
+  'carta_tema_escolhido',
+  'carta_musica_url',
+  'homenagem_musica_url',
+  'preview_listened_at',
+  'terms_accepted',
+  'terms_accepted_at',
+  'created_at',
+  'updated_at',
+  'deleted_at',
+  'extras'
+].join(',');
+
 export async function GET(req) {
   let env = {};
   try {
@@ -34,7 +83,7 @@ export async function GET(req) {
       return NextResponse.json({ error: 'supabase_not_configured' }, { status: 500 });
     }
 
-    let q = supabase.from('orders').select('*')
+    let q = supabase.from('orders').select(ADMIN_ORDER_COLUMNS)
       .is('deleted_at', null)
       .neq('production_status', 'CONFIG');
 
