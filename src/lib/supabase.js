@@ -1,7 +1,8 @@
-import { NativeSupabaseClient } from './supabase-edge.js';
+import { NativeSupabaseClient, resolveSupabaseConfig } from './supabase-edge.js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const config = resolveSupabaseConfig();
+const supabaseUrl = config.url;
+const supabaseAnonKey = config.anonKey;
 
 // Cliente público do Supabase para uso no navegador com zero dependências externas.
 // Se as variáveis ainda não foram configuradas, retorna null de forma segura sem quebrar o build.

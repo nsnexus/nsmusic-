@@ -686,9 +686,31 @@ export class NativeSupabaseClient {
 let cachedClient = null;
 let cachedKey = null;
 
+/**
+ * Resolve as credenciais do Supabase de acordo com a chave seletora DATABASE_TARGET.
+ * DATABASE_TARGET = 'VPS' (padrão) -> prioriza VPS_SUPABASE_*
+ * DATABASE_TARGET = 'CLOUD'        -> prioriza CLOUD_SUPABASE_*
+ * Sempre mantém fallback transparente para NEXT_PUBLIC_SUPABASE_* e SUPABASE_SERVICE_ROLE_KEY.
+ */
+export function resolveSupabaseConfig(env = {}) {
+  const target = String(env?.DATABASE_TARGET || process.env.DATABASE_TARGET || 'VPS').trim().toUpperCase();
+
+  if (target === 'CLOUD') {
+    const url = env?.CLOUD_SUPABASE_URL || process.env.CLOUD_SUPABASE_URL || env?.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const anonKey = env?.CLOUD_SUPABASE_ANON_KEY || process.env.CLOUD_SUPABASE_ANON_KEY || env?.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const serviceKey = env?.CLOUD_SUPABASE_SERVICE_ROLE_KEY || process.env.CLOUD_SUPABASE_SERVICE_ROLE_KEY || env?.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || anonKey;
+    return { url, anonKey, serviceKey, target: 'CLOUD' };
+  }
+
+  // Padrão: VPS
+  const url = env?.VPS_SUPABASE_URL || process.env.VPS_SUPABASE_URL || env?.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = env?.VPS_SUPABASE_ANON_KEY || process.env.VPS_SUPABASE_ANON_KEY || env?.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const serviceKey = env?.VPS_SUPABASE_SERVICE_ROLE_KEY || process.env.VPS_SUPABASE_SERVICE_ROLE_KEY || env?.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || anonKey;
+  return { url, anonKey, serviceKey, target: 'VPS' };
+}
+
 export function getSupabaseEdge(env = {}) {
-  const url = env?.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey = env?.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || env?.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const { url, serviceKey } = resolveSupabaseConfig(env);
 
   if (!url || !serviceKey) {
     return null;

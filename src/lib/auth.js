@@ -7,9 +7,10 @@
 //   1. Role 'admin' nos metadados do usuário (app_metadata ou user_metadata).
 //   2. Allowlist de e-mail `ADMIN_EMAILS`. Qualquer um dos dois concede acesso.
 
+import { resolveSupabaseConfig } from './supabase-edge.js';
+
 export async function verifySupabaseToken(token, env = {}) {
-  const url = env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const { url, anonKey } = resolveSupabaseConfig(env);
   if (!token || !url || !anonKey) return null;
 
   try {

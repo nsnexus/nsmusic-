@@ -1,15 +1,16 @@
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
 import { requireAdmin } from '@/lib/auth';
+import { resolveSupabaseConfig } from '@/lib/supabase-edge';
 
 export const runtime = 'edge';
 
 function getSupabaseAdminConfig(env) {
-  const url = (env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/$/, '');
-  const serviceKey = env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !serviceKey) return null;
+  const { url, serviceKey } = resolveSupabaseConfig(env);
+  const cleanUrl = (url || '').replace(/\/$/, '');
+  if (!cleanUrl || !serviceKey) return null;
   return {
-    url,
+    url: cleanUrl,
     headers: {
       apikey: serviceKey,
       Authorization: `Bearer ${serviceKey}`,
