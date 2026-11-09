@@ -12,7 +12,7 @@ import KieCreditsBadge from '@/components/admin/KieCreditsBadge';
 import UnificallyCreditsBadge from '@/components/admin/UnificallyCreditsBadge';
 import WhatsAppUsageBadge from '@/components/admin/WhatsAppUsageBadge';
 import PlatformIcon from '@/components/admin/PlatformIcon';
-import { getOrderPlatform, PLATFORMS } from '@/lib/trafficSource';
+import { getOrderPlatform, PLATFORMS, isBonusOrder } from '@/lib/trafficSource';
 import { formatToWhatsAppNumber } from '@/lib/whatsappTemplates';
 import { hasPreviewTrackingData } from '@/lib/previewTracking';
 import Link from 'next/link';
@@ -469,6 +469,9 @@ export default function AdminDashboard() {
 
   const getFilteredOrders = () => {
     let result = orders;
+
+    // Regra mandatória: Pedidos bônus, cortesias e 2ª geração NÃO devem aparecer na tabela de pedidos
+    result = result.filter(o => !isBonusOrder(o));
 
     // Filtro por mercado / país (Brasil vs Estados Unidos)
     if (countryFilter === 'BR') {

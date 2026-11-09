@@ -516,6 +516,26 @@ export function dataCorrespondeAoDia(dataVal, diaFiltro, mesReferencia) {
 }
 
 /**
+ * Identifica se um pedido é cortesia, bônus ou 2ª geração gratuita.
+ * Conforme regra de negócio mandatória: pedidos bônus NÃO devem aparecer na tabela de pedidos
+ * nem no funil de produção/abandono, constando exclusivamente na contagem de gerações e custos de API.
+ */
+export function isBonusOrder(o) {
+  if (!o) return false;
+  return Boolean(
+    o.isSecondGeneration ||
+    o.origem === 'segunda_geracao' ||
+    o.origem === 'segunda_musica' ||
+    o.paidSku === 'segunda_geracao_bonus' ||
+    o.extras?.isSecondGeneration ||
+    o.extras?.origem === 'segunda_geracao' ||
+    o.extras?.origem === 'segunda_musica' ||
+    o.extras?.paidSku === 'segunda_geracao_bonus' ||
+    (o.parentOrderId && (o.paidAmount === 0 || Number(o.paidAmount) === 0 || !o.paidAmount))
+  );
+}
+
+/**
  * Calcula o faturamento real pago de um pedido individual (música + add-ons avulsos).
  * Permite filtrar por dia específico caso informado.
  */
@@ -523,18 +543,10 @@ export function calcularFaturamentoPedido(o, diaFiltro = null, mesReferencia = n
   if (!o) return 0;
   let total = 0;
 
-  const isBonusOrder = Boolean(
-    o.isSecondGeneration ||
-    o.origem === 'segunda_geracao' ||
-    o.origem === 'segunda_musica' ||
-    o.paidSku === 'segunda_geracao_bonus' ||
-    o.extras?.isSecondGeneration ||
-    o.extras?.paidSku === 'segunda_geracao_bonus' ||
-    (o.parentOrderId && (o.paidAmount === 0 || Number(o.paidAmount) === 0))
-  );
+  const bonus = isBonusOrder(o);
 
   const musicaPaga = o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'PAGO';
-  if (musicaPaga && !isBonusOrder && dataCorrespondeAoDia(o.paidAt || o.createdAt, diaFiltro, mesReferencia)) {
+  if (musicaPaga && !bonus && dataCorrespondeAoDia(o.paidAt || o.createdAt, diaFiltro, mesReferencia)) {
     let valor = 9.99;
     if (o.paidAmount !== null && o.paidAmount !== undefined && o.paidAmount !== '') {
       const v = Number(o.paidAmount);
@@ -626,22 +638,14 @@ export function calcularMetricasPorPlataforma(pedidos = [], diaFiltro = null, me
   const temFiltroDia = diaFiltro !== null && diaFiltro !== undefined && diaFiltro !== '' && diaFiltro !== 'todos';
 
   for (const o of pedidos) {
-    const isBonusOrder = Boolean(
-      o.isSecondGeneration ||
-      o.origem === 'segunda_geracao' ||
-      o.origem === 'segunda_musica' ||
-      o.paidSku === 'segunda_geracao_bonus' ||
-      o.extras?.isSecondGeneration ||
-      o.extras?.paidSku === 'segunda_geracao_bonus' ||
-      (o.parentOrderId && (o.paidAmount === 0 || Number(o.paidAmount) === 0))
-    );
+    const bonus = isBonusOrder(o);
 
     const platKey = getOrderPlatform(o, pedidos);
     const target = metricas[platKey] || metricas.direto;
 
     // Pedidos criados no período (ignora 2ª geração bônus para não inflar a contagem de leads)
     const criadoNoPeriodo = temFiltroDia ? dataCorrespondeAoDia(o.createdAt, diaFiltro, mesReferencia) : true;
-    if (criadoNoPeriodo && !isBonusOrder) {
+    if (criadoNoPeriodo && !bonus) {
       target.pedidosCriados += 1;
       pedidosCriadosTotalGeral += 1;
 

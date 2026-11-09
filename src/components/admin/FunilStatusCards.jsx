@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { getAdminAuthToken } from '@/lib/authClient';
 import { hasMusicaGerada } from '@/lib/stats';
+import { isBonusOrder } from '@/lib/trafficSource';
 
 /**
  * FunilStatusCards
@@ -58,8 +59,6 @@ export default function FunilStatusCards({
 
   // Cálculos do Funil em memória (instantâneo, 0 requisições extras)
   const stats = useMemo(() => {
-    const totalOrders = orders.length;
-
     let etapa1 = 0;
     let etapa2 = 0;
     let etapa3 = 0;
@@ -69,8 +68,14 @@ export default function FunilStatusCards({
     let audioGerado = 0;
     let pagos = 0;
     let musicasGeradas = 0;
+    let totalRealOrders = 0;
 
     for (const o of orders) {
+      // Regra mandatória: pedidos bônus/cortesias NUNCA entram no funil de vendas
+      if (isBonusOrder(o)) continue;
+
+      totalRealOrders++;
+
       if (hasMusicaGerada(o)) {
         musicasGeradas++;
       }
@@ -89,9 +94,10 @@ export default function FunilStatusCards({
       else if (st === 'LETRA_GERADA') letraGerada++;
       else if (st === 'EM_PRODUCAO' || st === 'LETRA_APROVADA' || st === 'VERSOES_EM_PRODUCAO') emProducao++;
       else if (st === 'AUDIO_GERADO') audioGerado++;
-      else if (st === 'FINALIZADO' || st === 'ENTREGUE') pagos++;
       else etapa1++; // Fallback seguro
     }
+
+    const totalOrders = totalRealOrders;
 
     const calcPct = (num) => {
       if (!totalOrders) return '0%';

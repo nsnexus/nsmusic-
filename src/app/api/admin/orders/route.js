@@ -3,6 +3,7 @@ import { getRequestContext } from '@cloudflare/next-on-pages';
 import { requireAdmin } from '@/lib/auth';
 import { getSupabaseEdge } from '@/lib/supabase-edge';
 import { mapSupabaseOrderToFirestore } from '@/lib/supabaseSync';
+import { isBonusOrder } from '@/lib/trafficSource.js';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
@@ -146,27 +147,9 @@ export async function GET(req) {
       .map(mapSupabaseOrderToFirestore)
       .filter(Boolean);
 
-    // Mapeia e consolida pedidos de 2ª geração para não poluir a listagem principal do admin
-    const parentIdsInBatch = new Set(allMapped.map(o => o.id));
-    const parentNumbersInBatch = new Set(allMapped.map(o => o.orderNumber).filter(Boolean));
-
-    const isChildWithParentInBatch = (o) => {
-      if (!o) return false;
-      if (search) return false; // Em buscas ativas, NUNCA oculta nenhum pedido correspondente
-      const hasParent = Boolean(o.parentOrderId);
-      const isSecond = Boolean(o.isSecondGeneration && o.paidSku === 'segunda_geracao_bonus') ||
-                       o.origem === 'segunda_geracao' || o.origem === 'segunda_musica';
-      if (!hasParent && !isSecond) return false;
-
-      // Oculta como linha avulsa APENAS se o pedido pai correspondente já estiver no mesmo lote,
-      // pois os dados de áudio/status serão consolidados na linha do pai.
-      // Se o pai não está na listagem atual (ex: criado em outra data), o pedido do filho NÃO é ocultado.
-      if (o.parentOrderId && (parentIdsInBatch.has(o.parentOrderId) || parentNumbersInBatch.has(o.parentOrderId))) {
-        return true;
-      }
-      return false;
-    };
-
+    // Regra mandatória: Pedidos bônus, cortesias e 2ª geração NÃO devem aparecer como pedidos avulsos
+    // na listagem nem na tabela de pedidos do admin. Seus áudios/status são consolidados no pedido pai,
+    // e suas gerações são apuradas exclusivamente em relatórios de custo da Suno/Kie.ai.
     const childOrdersMap = new Map();
     for (const o of allMapped) {
       if (o.parentOrderId) {
@@ -175,7 +158,7 @@ export async function GET(req) {
     }
 
     const orders = allMapped
-      .filter(o => !isChildWithParentInBatch(o))
+      .filter(o => !isBonusOrder(o))
       .map(parent => {
         const child = childOrdersMap.get(parent.id) || childOrdersMap.get(parent.orderNumber);
         if (child) {
