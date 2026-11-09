@@ -273,7 +273,7 @@ export async function GET(req) {
       while (true) {
         const { data, error } = await supabase
           .from('orders')
-          .select('id, order_number, customer_phone, payment_status, paid_at, created_at, has_video_access, has_carta_access, has_playback_access, has_retrospectiva_access, suno_generation_count, suno_requested_at, suno_provider, extras')
+          .select('id, order_number, customer_phone, payment_status, paid_at, created_at, has_video_access, has_carta_access, has_playback_access, has_retrospectiva_access, suno_generation_count, suno_requested_at, suno_provider, ready_template_sent, payment_whatsapp_sent, whatsapp_sent, extras')
           .gte('created_at', inicio)
           .lt('created_at', fim)
           .is('deleted_at', 'null')
@@ -300,6 +300,9 @@ export async function GET(req) {
             sunoGenerationCount: row.suno_generation_count,
             sunoRequestedAt: row.suno_requested_at,
             sunoProvider: row.suno_provider || null,
+            readyTemplateSent: Boolean(row.ready_template_sent ?? extras.readyTemplateSent),
+            paymentWhatsappSent: Boolean(row.payment_whatsapp_sent ?? extras.paymentWhatsappSent),
+            whatsappSent: Boolean(row.whatsapp_sent ?? extras.whatsappSent),
             videoAddonPaid: extras.videoAddonPaid ?? (row.has_video_access && row.payment_status === 'PAGO'),
             videoPaidAt: extras.videoPaidAt ?? row.paid_at,
             playbackAddonPaid: extras.playbackAddonPaid ?? (row.has_playback_access && row.payment_status === 'PAGO'),

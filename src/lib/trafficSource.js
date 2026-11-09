@@ -622,18 +622,25 @@ export function calcularFaturamentoPedido(o, diaFiltro = null, mesReferencia = n
  * Suporta filtro por dia específico (diaFiltro: número 1..31 ou 'todos'/null).
  */
 export function calcularMetricasPorPlataforma(pedidos = [], diaFiltro = null, mesReferencia = null) {
+  const KIE_COST_PER_GENERATION = 0.30;
+  const WHATSAPP_COST_PER_MSG = 0.035;
+
   const metricas = {
-    facebook_ads: { ...PLATFORMS.facebook_ads, pedidosCriados: 0, musicasGeradas: 0, pedidosPagos: 0, faturamento: 0 },
-    tiktok_ads: { ...PLATFORMS.tiktok_ads, pedidosCriados: 0, musicasGeradas: 0, pedidosPagos: 0, faturamento: 0 },
-    google_ads: { ...PLATFORMS.google_ads, pedidosCriados: 0, musicasGeradas: 0, pedidosPagos: 0, faturamento: 0 },
-    organico: { ...PLATFORMS.organico, pedidosCriados: 0, musicasGeradas: 0, pedidosPagos: 0, faturamento: 0 },
-    direto: { ...PLATFORMS.direto, pedidosCriados: 0, musicasGeradas: 0, pedidosPagos: 0, faturamento: 0 },
+    facebook_ads: { ...PLATFORMS.facebook_ads, pedidosCriados: 0, musicasGeradas: 0, pedidosPagos: 0, faturamento: 0, geracoesKie: 0, gastoKie: 0, mensagensWhatsApp: 0, gastoWhatsApp: 0 },
+    tiktok_ads: { ...PLATFORMS.tiktok_ads, pedidosCriados: 0, musicasGeradas: 0, pedidosPagos: 0, faturamento: 0, geracoesKie: 0, gastoKie: 0, mensagensWhatsApp: 0, gastoWhatsApp: 0 },
+    google_ads: { ...PLATFORMS.google_ads, pedidosCriados: 0, musicasGeradas: 0, pedidosPagos: 0, faturamento: 0, geracoesKie: 0, gastoKie: 0, mensagensWhatsApp: 0, gastoWhatsApp: 0 },
+    organico: { ...PLATFORMS.organico, pedidosCriados: 0, musicasGeradas: 0, pedidosPagos: 0, faturamento: 0, geracoesKie: 0, gastoKie: 0, mensagensWhatsApp: 0, gastoWhatsApp: 0 },
+    direto: { ...PLATFORMS.direto, pedidosCriados: 0, musicasGeradas: 0, pedidosPagos: 0, faturamento: 0, geracoesKie: 0, gastoKie: 0, mensagensWhatsApp: 0, gastoWhatsApp: 0 },
   };
 
   let faturamentoTotalGeral = 0;
   let pedidosPagosTotalGeral = 0;
   let pedidosCriadosTotalGeral = 0;
   let musicasGeradasTotalGeral = 0;
+  let geracoesKieTotalGeral = 0;
+  let gastoKieTotalGeral = 0;
+  let mensagensWhatsAppTotalGeral = 0;
+  let gastoWhatsAppTotalGeral = 0;
 
   const temFiltroDia = diaFiltro !== null && diaFiltro !== undefined && diaFiltro !== '' && diaFiltro !== 'todos';
 
@@ -643,15 +650,36 @@ export function calcularMetricasPorPlataforma(pedidos = [], diaFiltro = null, me
     const platKey = getOrderPlatform(o, pedidos);
     const target = metricas[platKey] || metricas.direto;
 
-    // Pedidos criados no período (ignora 2ª geração bônus para não inflar a contagem de leads)
+    // Pedidos criados no período
     const criadoNoPeriodo = temFiltroDia ? dataCorrespondeAoDia(o.createdAt, diaFiltro, mesReferencia) : true;
-    if (criadoNoPeriodo && !bonus) {
-      target.pedidosCriados += 1;
-      pedidosCriadosTotalGeral += 1;
+    if (criadoNoPeriodo) {
+      if (!bonus) {
+        target.pedidosCriados += 1;
+        pedidosCriadosTotalGeral += 1;
 
-      if (hasMusicaGerada(o)) {
-        target.musicasGeradas += 1;
-        musicasGeradasTotalGeral += 1;
+        if (hasMusicaGerada(o)) {
+          target.musicasGeradas += 1;
+          musicasGeradasTotalGeral += 1;
+        }
+      }
+
+      // Custo com Kie.ai (IA) - conta inclusive gerações bônus/cortesias conforme regra de negócio
+      const countGens = Number(o.sunoGenerationCount) || (o.sunoRequestedAt ? 1 : 0);
+      const isKie = o.sunoProvider !== 'suno_local';
+      if (isKie && countGens > 0) {
+        target.geracoesKie += countGens;
+        geracoesKieTotalGeral += countGens;
+        const custoGens = countGens * KIE_COST_PER_GENERATION;
+        target.gastoKie += custoGens;
+        gastoKieTotalGeral += custoGens;
+      }
+
+      // Mensagens WhatsApp enviadas na criação/prévia pronta
+      if (o.readyTemplateSent || (o.whatsappSent && !o.paymentWhatsappSent)) {
+        target.mensagensWhatsApp += 1;
+        mensagensWhatsAppTotalGeral += 1;
+        target.gastoWhatsApp += WHATSAPP_COST_PER_MSG;
+        gastoWhatsAppTotalGeral += WHATSAPP_COST_PER_MSG;
       }
     }
 
@@ -663,8 +691,20 @@ export function calcularMetricasPorPlataforma(pedidos = [], diaFiltro = null, me
 
       pedidosPagosTotalGeral += 1;
       faturamentoTotalGeral += valor;
+
+      // Mensagem WhatsApp de entrega (após confirmação do pagamento)
+      if (o.paymentWhatsappSent) {
+        target.mensagensWhatsApp += 1;
+        mensagensWhatsAppTotalGeral += 1;
+        target.gastoWhatsApp += WHATSAPP_COST_PER_MSG;
+        gastoWhatsAppTotalGeral += WHATSAPP_COST_PER_MSG;
+      }
     }
   }
+
+  // Arredondamentos de segurança
+  gastoKieTotalGeral = Math.round(gastoKieTotalGeral * 100) / 100;
+  gastoWhatsAppTotalGeral = Math.round(gastoWhatsAppTotalGeral * 100) / 100;
 
   // Calcula taxas e tickets médios
   // O percentual de conversão é calculado sobre os pedidos com músicas geradas (não de meros acessos/etapas)
@@ -676,6 +716,8 @@ export function calcularMetricasPorPlataforma(pedidos = [], diaFiltro = null, me
 
     return {
       ...m,
+      gastoKie: Math.round(m.gastoKie * 100) / 100,
+      gastoWhatsApp: Math.round(m.gastoWhatsApp * 100) / 100,
       conversao: Math.round(conversao * 10) / 10,
       ticketMedio: Math.round(ticketMedio * 100) / 100,
       percFaturamento: Math.round(percFaturamento * 10) / 10,
@@ -689,6 +731,10 @@ export function calcularMetricasPorPlataforma(pedidos = [], diaFiltro = null, me
       pedidosPagos: pedidosPagosTotalGeral,
       pedidosCriados: pedidosCriadosTotalGeral,
       musicasGeradas: musicasGeradasTotalGeral,
+      geracoesKie: geracoesKieTotalGeral,
+      gastoKie: gastoKieTotalGeral,
+      mensagensWhatsApp: mensagensWhatsAppTotalGeral,
+      gastoWhatsApp: gastoWhatsAppTotalGeral,
       conversaoGeral: musicasGeradasTotalGeral > 0
         ? Math.round((pedidosPagosTotalGeral / musicasGeradasTotalGeral) * 1000) / 10
         : (pedidosPagosTotalGeral > 0 ? 100 : 0),

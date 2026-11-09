@@ -179,13 +179,23 @@ export default function VendasPorPlataformaCard({ monthValue }) {
         if (!googleConfigurado && gasto === 0) pendenteMensagem = 'Gasto Google Ads não sincronizado';
       }
 
-      const lucro = Math.round((plat.faturamento - gasto) * 100) / 100;
-      const roas = gasto > 0 ? Math.round((plat.faturamento / gasto) * 100) / 100 : null;
-      const cpa = (plat.pedidosPagos > 0 && gasto > 0) ? Math.round((gasto / plat.pedidosPagos) * 100) / 100 : null;
+      const gastoAds = gasto;
+      const gastoKie = plat.gastoKie || 0;
+      const gastoWhatsApp = plat.gastoWhatsApp || 0;
+      const gastoTotalCanal = Math.round((gastoAds + gastoKie + gastoWhatsApp) * 100) / 100;
+
+      // Lucro Líquido Real debitando Ads, API Kie e Mensagens WhatsApp
+      const lucro = Math.round((plat.faturamento - gastoTotalCanal) * 100) / 100;
+      const roas = gastoAds > 0 ? Math.round((plat.faturamento / gastoAds) * 100) / 100 : null;
+      const cpa = (plat.pedidosPagos > 0 && gastoAds > 0) ? Math.round((gastoAds / plat.pedidosPagos) * 100) / 100 : null;
 
       return {
         ...plat,
-        gasto,
+        gasto: gastoAds,
+        gastoAds,
+        gastoKie,
+        gastoWhatsApp,
+        gastoTotalCanal,
         metaBase,
         metaImposto,
         configurado,
@@ -201,14 +211,23 @@ export default function VendasPorPlataformaCard({ monthValue }) {
   const totaisConsolidados = useMemo(() => {
     const metaImpostoTotal = Math.round(metaTaxableSpend * 0.138 * 100) / 100;
     const metaTotalComImposto = Math.round((metaSpend + metaImpostoTotal) * 100) / 100;
-    const gastoTotal = Math.round((metaTotalComImposto + tiktokSpend + googleSpend) * 100) / 100;
-    const lucroTotal = Math.round((totais.faturamento - gastoTotal) * 100) / 100;
-    const roasGeral = gastoTotal > 0 ? Math.round((totais.faturamento / gastoTotal) * 100) / 100 : null;
-    const cpaGeral = (totais.pedidosPagos > 0 && gastoTotal > 0) ? Math.round((gastoTotal / totais.pedidosPagos) * 100) / 100 : null;
+    const gastoAdsTotal = Math.round((metaTotalComImposto + tiktokSpend + googleSpend) * 100) / 100;
+    const gastoKieTotal = Math.round((totais.gastoKie || 0) * 100) / 100;
+    const gastoWhatsAppTotal = Math.round((totais.gastoWhatsApp || 0) * 100) / 100;
+    const gastoGeralTotal = Math.round((gastoAdsTotal + gastoKieTotal + gastoWhatsAppTotal) * 100) / 100;
+
+    // Lucro Líquido Real = Faturamento - Gasto Ads - Gasto Kie - Gasto WhatsApp
+    const lucroTotal = Math.round((totais.faturamento - gastoGeralTotal) * 100) / 100;
+    const roasGeral = gastoAdsTotal > 0 ? Math.round((totais.faturamento / gastoAdsTotal) * 100) / 100 : null;
+    const cpaGeral = (totais.pedidosPagos > 0 && gastoAdsTotal > 0) ? Math.round((gastoAdsTotal / totais.pedidosPagos) * 100) / 100 : null;
 
     return {
       ...totais,
-      gastoTotal,
+      gastoAds: gastoAdsTotal,
+      gastoTotal: gastoAdsTotal,
+      gastoKie: gastoKieTotal,
+      gastoWhatsApp: gastoWhatsAppTotal,
+      gastoGeralTotal,
       lucroTotal,
       roasGeral,
       cpaGeral,
@@ -271,11 +290,29 @@ export default function VendasPorPlataformaCard({ monthValue }) {
               Gasto Ads:
             </span>
             <span style={{ fontSize: '0.95rem', fontWeight: '800', color: '#dc2626' }}>
-              {formatMoney(totaisConsolidados.gastoTotal)}
+              {formatMoney(totaisConsolidados.gastoAds)}
             </span>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', backgroundColor: '#f8fafc', padding: '6px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', backgroundColor: '#f8fafc', padding: '6px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }} title={`${totaisConsolidados.geracoesKie || 0} gerações Suno via Kie.ai (R$ 0,30 cada)`}>
+            <span style={{ fontSize: '0.7rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>
+              API Kie:
+            </span>
+            <span style={{ fontSize: '0.95rem', fontWeight: '800', color: '#ea580c' }}>
+              {formatMoney(totaisConsolidados.gastoKie)}
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', backgroundColor: '#f8fafc', padding: '6px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }} title={`${totaisConsolidados.mensagensWhatsApp || 0} msgs WhatsApp oficiais enviadas (~R$ 0,035 cada)`}>
+            <span style={{ fontSize: '0.7rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>
+              Msg WhatsApp:
+            </span>
+            <span style={{ fontSize: '0.95rem', fontWeight: '800', color: '#0284c7' }}>
+              {formatMoney(totaisConsolidados.gastoWhatsApp)}
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', backgroundColor: '#f8fafc', padding: '6px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }} title="Faturamento debitando Ads, API Kie e Mensagens WhatsApp">
             <span style={{ fontSize: '0.7rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>
               Lucro Líquido:
             </span>
@@ -662,6 +699,12 @@ export default function VendasPorPlataformaCard({ monthValue }) {
                                 📅 Editar TikTok Ads Dia a Dia
                               </button>
                             )}
+                            {(plat.gastoKie > 0 || plat.gastoWhatsApp > 0) && (
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px', fontSize: '0.72rem', color: '#64748b' }}>
+                                <span>IA + WhatsApp:</span>
+                                <span>{formatMoney((plat.gastoKie || 0) + (plat.gastoWhatsApp || 0))}</span>
+                              </div>
+                            )}
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', fontSize: '0.78rem' }}>
                               <span style={{ color: '#64748b' }}>Lucro Líquido:</span>
                               <strong style={{ color: plat.lucro >= 0 ? '#059669' : '#dc2626' }}>
@@ -772,6 +815,8 @@ export default function VendasPorPlataformaCard({ monthValue }) {
                   <th style={{ padding: '10px 12px', fontWeight: '700', textAlign: 'right' }}>Ticket Médio</th>
                   <th style={{ padding: '10px 12px', fontWeight: '700', textAlign: 'right' }}>Faturamento</th>
                   <th style={{ padding: '10px 12px', fontWeight: '700', textAlign: 'right' }}>Invest. Ads</th>
+                  <th style={{ padding: '10px 12px', fontWeight: '700', textAlign: 'right' }} title="Custo com gerações de áudio Kie.ai (R$ 0,30/geração)">API Kie</th>
+                  <th style={{ padding: '10px 12px', fontWeight: '700', textAlign: 'right' }} title="Custo com mensagens de WhatsApp oficiais da Meta (~R$ 0,035/msg)">WhatsApp</th>
                   <th style={{ padding: '10px 12px', fontWeight: '700', textAlign: 'right' }}>Lucro Líquido</th>
                   <th style={{ padding: '10px 12px', fontWeight: '700', textAlign: 'right' }}>ROAS</th>
                   <th style={{ padding: '10px 12px', fontWeight: '700', textAlign: 'right' }}>CPA</th>
@@ -856,6 +901,12 @@ export default function VendasPorPlataformaCard({ monthValue }) {
                           )}
                         </div>
                       </td>
+                      <td style={{ padding: '10px 12px', textAlign: 'right', color: '#ea580c', fontWeight: '600' }} title={`${plat.geracoesKie || 0} gerações Suno`}>
+                        {plat.gastoKie > 0 ? formatMoney(plat.gastoKie) : '-'}
+                      </td>
+                      <td style={{ padding: '10px 12px', textAlign: 'right', color: '#0284c7', fontWeight: '600' }} title={`${plat.mensagensWhatsApp || 0} msgs WhatsApp`}>
+                        {plat.gastoWhatsApp > 0 ? formatMoney(plat.gastoWhatsApp) : '-'}
+                      </td>
                       <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '800' }}>
                         <span style={{ color: plat.lucro >= 0 ? '#059669' : '#dc2626' }}>
                           {formatMoney(plat.lucro)}
@@ -880,7 +931,9 @@ export default function VendasPorPlataformaCard({ monthValue }) {
                   <td style={{ padding: '12px', textAlign: 'right', color: '#059669' }}>{totais.conversaoGeral}%</td>
                   <td style={{ padding: '12px', textAlign: 'right' }}>{formatMoney(totais.ticketMedioGeral)}</td>
                   <td style={{ padding: '12px', textAlign: 'right', color: '#059669' }}>{formatMoney(totais.faturamento)}</td>
-                  <td style={{ padding: '12px', textAlign: 'right', color: '#dc2626' }}>{formatMoney(totaisConsolidados.gastoTotal)}</td>
+                  <td style={{ padding: '12px', textAlign: 'right', color: '#dc2626' }}>{formatMoney(totaisConsolidados.gastoAds)}</td>
+                  <td style={{ padding: '12px', textAlign: 'right', color: '#ea580c' }}>{formatMoney(totaisConsolidados.gastoKie)}</td>
+                  <td style={{ padding: '12px', textAlign: 'right', color: '#0284c7' }}>{formatMoney(totaisConsolidados.gastoWhatsApp)}</td>
                   <td style={{ padding: '12px', textAlign: 'right' }}>
                     <span style={{ color: totaisConsolidados.lucroTotal >= 0 ? '#059669' : '#dc2626' }}>
                       {formatMoney(totaisConsolidados.lucroTotal)}
@@ -913,7 +966,7 @@ export default function VendasPorPlataformaCard({ monthValue }) {
           >
             <span style={{ fontSize: '1.1rem' }}>ℹ️</span>
             <div>
-              <strong>Integração de Anúncios:</strong> O gasto de <strong>Facebook Ads</strong> é sincronizado automaticamente via Meta Marketing API (Insights diários por data). O <strong>TikTok Ads</strong> pode ser informado dia a dia ou integrado via <code>TIKTOK_ADVERTISER_ID</code>. Pedidos pagos são atribuídos por UTMs, <code>fbclid</code> e <code>ttclid</code>.
+              <strong>Custos e Deduções:</strong> O <strong>Gasto Ads</strong> considera Meta Ads e TikTok Ads. A <strong>API Kie</strong> apura R$ 0,30 por geração Suno via Kie.ai (robô local isento). O custo de <strong>WhatsApp</strong> apura R$ 0,035 por mensagem oficial enviada via Meta Cloud API (prévia e entrega). O <strong>Lucro Líquido</strong> deduz anúncios, IA e WhatsApp do faturamento.
             </div>
           </div>
         </>
