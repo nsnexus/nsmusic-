@@ -249,4 +249,83 @@ describe('calculateIntradayPace', () => {
     expect(result.todayPaidTotal).toBe(1);
     expect(result.todayConversionSoFar).toBe(50.0);
   });
+
+  it('calcula métricas hora a hora (vendas, conversão, médias e destaques do dia)', () => {
+    const hoje = new Date(2026, 8, 28, 16, 0, 0); // 16h
+    const dHoje10 = new Date(2026, 8, 28, 10, 15, 0).toISOString();
+    const dHoje14_1 = new Date(2026, 8, 28, 14, 10, 0).toISOString();
+    const dHoje14_2 = new Date(2026, 8, 28, 14, 30, 0).toISOString();
+    const dHoje14_unpaid = new Date(2026, 8, 28, 14, 45, 0).toISOString();
+    const dOntem14 = new Date(2026, 8, 27, 14, 20, 0).toISOString();
+
+    const pedidos = [
+      // 10h: 1 criação, 1 venda paga (100% conversão)
+      {
+        id: 'h10-1',
+        paymentStatus: 'PAGO',
+        productionStatus: 'AUDIO_GERADO',
+        paidAmount: 9.99,
+        paidAt: dHoje10,
+        createdAt: dHoje10,
+      },
+      // 14h: 3 criações, 2 vendas pagas (66.7% conversão)
+      {
+        id: 'h14-1',
+        paymentStatus: 'PAGO',
+        productionStatus: 'AUDIO_GERADO',
+        paidAmount: 9.99,
+        paidAt: dHoje14_1,
+        createdAt: dHoje14_1,
+      },
+      {
+        id: 'h14-2',
+        paymentStatus: 'PAGO',
+        productionStatus: 'AUDIO_GERADO',
+        paidAmount: 9.99,
+        paidAt: dHoje14_2,
+        createdAt: dHoje14_2,
+      },
+      {
+        id: 'h14-3',
+        paymentStatus: 'PENDENTE',
+        productionStatus: 'AUDIO_GERADO',
+        paidAt: null,
+        createdAt: dHoje14_unpaid,
+      },
+      // Ontem às 14h: 1 venda paga
+      {
+        id: 'ontem-14',
+        paymentStatus: 'PAGO',
+        productionStatus: 'AUDIO_GERADO',
+        paidAmount: 9.99,
+        paidAt: dOntem14,
+        createdAt: dOntem14,
+      },
+    ];
+
+    const result = calculateIntradayPace(pedidos, { referenceDate: hoje, daysLimit: 7 });
+
+    // Vendas hora a hora de hoje
+    expect(result.todayHourlyPaid[10]).toBe(1);
+    expect(result.todayHourlyPaid[14]).toBe(2);
+    expect(result.todayHourlyPaid[11]).toBe(0);
+    // Horas futuras (17h+) devem ser null
+    expect(result.todayHourlyPaid[17]).toBeNull();
+
+    // Criações e Conversão hora a hora
+    expect(result.todayHourlyCreated[14]).toBe(3);
+    expect(result.todayHourlyConversion[10]).toBe(100);
+    expect(result.todayHourlyConversion[14]).toBeCloseTo(66.7, 1);
+
+    // Média de ontem para 14h
+    expect(result.avgHourlyPaid[14]).toBe(1);
+
+    // Destaques do dia
+    expect(result.bestHourSales).toEqual({ hour: 14, count: 2, revenue: 19.98 });
+    expect(result.bestHourConversion.hour).toBe(10);
+    expect(result.bestHourConversion.rate).toBe(100);
+
+    // Projeção do fim do dia em quantidade de vendas
+    expect(result.projectedDayEndPaid).toBeGreaterThanOrEqual(3);
+  });
 });

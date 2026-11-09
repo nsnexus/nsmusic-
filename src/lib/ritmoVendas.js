@@ -180,10 +180,35 @@ export function calculateIntradayPace(pedidos = [], options = {}) {
   }
 
   const pastDayKeys = Object.keys(pastDaysHourlyRevenue);
-  const daysAveragedCount = pastDayKeys.length;
+  const conversionDayKeys = Object.keys(pastDaysCreated);
+  const allPastDayKeys = Array.from(new Set([...pastDayKeys, ...conversionDayKeys]));
+  const daysAveragedCount = allPastDayKeys.length;
   const avgCumulativeRevenue = Array(24).fill(0);
 
+  // Médias horárias não-acumuladas (hora a hora) dos dias anteriores
+  const avgHourlyRevenue = Array(24).fill(0);
+  const avgHourlyPaid = Array(24).fill(0);
+  const avgHourlyCreated = Array(24).fill(0);
+  const avgHourlyConversion = Array(24).fill(0);
+
   if (daysAveragedCount > 0) {
+    for (let h = 0; h < 24; h++) {
+      let sumRev = 0;
+      let sumPaid = 0;
+      let sumCreated = 0;
+      for (const dKey of allPastDayKeys) {
+        sumRev += (pastDaysHourlyRevenue[dKey]?.[h] || 0);
+        sumPaid += (pastDaysPaid[dKey]?.[h] || 0);
+        sumCreated += (pastDaysCreated[dKey]?.[h] || 0);
+      }
+      avgHourlyRevenue[h] = Math.round((sumRev / daysAveragedCount) * 100) / 100;
+      avgHourlyPaid[h] = Math.round((sumPaid / daysAveragedCount) * 10) / 10;
+      avgHourlyCreated[h] = Math.round((sumCreated / daysAveragedCount) * 10) / 10;
+      avgHourlyConversion[h] = sumCreated > 0
+        ? Math.round((sumPaid / sumCreated) * 1000) / 10
+        : 0;
+    }
+
     const pastDaysCumMap = {};
     for (const dKey of pastDayKeys) {
       pastDaysCumMap[dKey] = Array(24).fill(0);
@@ -229,7 +254,7 @@ export function calculateIntradayPace(pedidos = [], options = {}) {
     }
   }
 
-  // 6. Curvas Acumuladas de Conversão (%)
+  // 6. Curvas Acumuladas e Horárias de Conversão (%)
   const todayCumulativeConversion = Array(24).fill(null);
   let runCreated = 0;
   let runPaid = 0;
@@ -242,7 +267,6 @@ export function calculateIntradayPace(pedidos = [], options = {}) {
   }
 
   const avgCumulativeConversion = Array(24).fill(0);
-  const conversionDayKeys = Object.keys(pastDaysCreated);
   if (conversionDayKeys.length > 0) {
     for (let h = 0; h < 24; h++) {
       let sumRates = 0;
@@ -268,6 +292,81 @@ export function calculateIntradayPace(pedidos = [], options = {}) {
   const todayConversionSoFar = todayCumulativeConversion[currentHour] || 0;
   const avgConversionSoFar = avgCumulativeConversion[currentHour] || 0;
 
+  // 7. Arrays de exibição hora a hora (hoje: valores reais até currentHour, null no futuro)
+  const todayHourlyPaidDisplay = Array(24).fill(null);
+  const todayHourlyRevenueDisplay = Array(24).fill(null);
+  const todayHourlyCreatedDisplay = Array(24).fill(null);
+  const todayHourlyConversionDisplay = Array(24).fill(null);
+
+  for (let h = 0; h <= currentHour; h++) {
+    todayHourlyPaidDisplay[h] = todayHourlyPaid[h];
+    todayHourlyRevenueDisplay[h] = Math.round(todayHourlyRevenue[h] * 100) / 100;
+    todayHourlyCreatedDisplay[h] = todayHourlyCreated[h];
+    todayHourlyConversionDisplay[h] = todayHourlyCreated[h] > 0
+      ? Math.round((todayHourlyPaid[h] / todayHourlyCreated[h]) * 1000) / 10
+      : 0;
+  }
+
+  // 8. Ritmo e Projeção de Quantidade de Vendas
+  const todayPaidSoFar = runPaid;
+  let avgPaidAtCurrentHour = 0;
+  for (let h = 0; h <= currentHour; h++) {
+    avgPaidAtCurrentHour += avgHourlyPaid[h];
+  }
+  avgPaidAtCurrentHour = Math.round(avgPaidAtCurrentHour * 10) / 10;
+
+  let paidDiffPercent = 0;
+  if (avgPaidAtCurrentHour > 0) {
+    paidDiffPercent = Math.round(((todayPaidSoFar - avgPaidAtCurrentHour) / avgPaidAtCurrentHour) * 1000) / 10;
+  }
+
+  const projectedHourlyPaid = Array(24).fill(null);
+  const projectedHourlyRevenue = Array(24).fill(null);
+  let projectedDayEndPaid = todayPaidSoFar;
+
+  if (avgPaidAtCurrentHour > 0 && daysAveragedCount > 0) {
+    const paceRatioPaid = todayPaidSoFar / avgPaidAtCurrentHour;
+    let projRunPaid = todayPaidSoFar;
+    for (let h = currentHour + 1; h < 24; h++) {
+      const projH = Math.round(avgHourlyPaid[h] * paceRatioPaid * 10) / 10;
+      projectedHourlyPaid[h] = projH;
+      projRunPaid += projH;
+    }
+    projectedDayEndPaid = Math.round(projRunPaid);
+  } else {
+    for (let h = currentHour + 1; h < 24; h++) {
+      projectedHourlyPaid[h] = 0;
+    }
+  }
+
+  if (avgRevenueAtCurrentHour > 0 && daysAveragedCount > 0) {
+    const paceRatioRev = todayRevenueSoFar / avgRevenueAtCurrentHour;
+    for (let h = currentHour + 1; h < 24; h++) {
+      projectedHourlyRevenue[h] = Math.round(avgHourlyRevenue[h] * paceRatioRev * 100) / 100;
+    }
+  }
+
+  // 9. Destaques do dia (Melhor hora de vendas e de conversão)
+  let bestHourSales = null;
+  let maxSales = 0;
+  let bestHourConversion = null;
+  let maxConv = 0;
+
+  for (let h = 0; h <= currentHour; h++) {
+    const p = todayHourlyPaid[h] || 0;
+    const c = todayHourlyCreated[h] || 0;
+    const conv = c > 0 ? (p / c) * 100 : 0;
+
+    if (p > maxSales) {
+      maxSales = p;
+      bestHourSales = { hour: h, count: p, revenue: Math.round((todayHourlyRevenue[h] || 0) * 100) / 100 };
+    }
+    if (conv > maxConv && c >= 1) {
+      maxConv = conv;
+      bestHourConversion = { hour: h, rate: Math.round(conv * 10) / 10, paid: p, created: c };
+    }
+  }
+
   return {
     currentHour,
     todayRevenueSoFar,
@@ -285,5 +384,22 @@ export function calculateIntradayPace(pedidos = [], options = {}) {
     daysLimit,
     todayCreatedTotal: runCreated,
     todayPaidTotal: runPaid,
+    // Novos campos hora a hora
+    todayHourlyPaid: todayHourlyPaidDisplay,
+    todayHourlyRevenue: todayHourlyRevenueDisplay,
+    todayHourlyCreated: todayHourlyCreatedDisplay,
+    todayHourlyConversion: todayHourlyConversionDisplay,
+    avgHourlyPaid,
+    avgHourlyRevenue,
+    avgHourlyCreated,
+    avgHourlyConversion,
+    projectedHourlyPaid,
+    projectedHourlyRevenue,
+    projectedDayEndPaid,
+    todayPaidSoFar,
+    avgPaidAtCurrentHour,
+    paidDiffPercent,
+    bestHourSales,
+    bestHourConversion,
   };
 }
