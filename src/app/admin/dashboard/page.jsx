@@ -48,7 +48,7 @@ export default function AdminDashboard() {
       if (!auth.currentUser || auth.currentUser.email !== 'narcisofelizardo@gmail.com') {
         router.push('/admin/login');
       }
-    }, 1500);
+    }, 4500);
 
     const unsubscribe = onAuthStateChanged(auth, (authUser) => {
       clearTimeout(timeout);
@@ -123,7 +123,7 @@ export default function AdminDashboard() {
     ? Math.round((monthlySeries.totalConvertido / monthlySeries.totalFeito) * 1000) / 10
     : 0;
 
-  if (checkingAuth || (loadingOrders && orders.length === 0)) {
+  if (checkingAuth) {
     return (
       <div style={styles.loadingWrapper}>
         <div style={styles.spinner} />
@@ -224,12 +224,19 @@ export default function AdminDashboard() {
           <VendasPorEstadoMapa />
 
           {/* Solicitações x Conversões por dia com rótulos de dados (no final da página) */}
-          <div className="glass-card" style={{ marginTop: '32px', padding: '24px', borderRadius: '16px', backgroundColor: '#ffffff', border: '1px solid #e2e8f0' }}>
+          <div className="glass-card admin-card-responsive" style={{ marginTop: '32px', padding: '24px', borderRadius: '16px', backgroundColor: '#ffffff', border: '1px solid #e2e8f0' }}>
             <h3 style={{ fontSize: '1.1rem', fontWeight: '700', color: '#0f172a', margin: '0 0 4px' }}>Músicas Geradas x Conversões por dia</h3>
             <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '0 0 20px' }}>
               Barras: quantidade de músicas geradas e convertidas por dia. Linha: % de conversão do dia (eixo direito).
             </p>
-            <ConversionChart series={monthlySeries} />
+            {loadingOrders && orders.length === 0 ? (
+              <div style={{ padding: '36px 0', textAlign: 'center', color: '#64748b', fontSize: '0.88rem' }}>
+                <div style={{ ...styles.spinner, margin: '0 auto 12px' }} />
+                Carregando gráfico mensal...
+              </div>
+            ) : (
+              <ConversionChart series={monthlySeries} />
+            )}
           </div>
         </div>
       </main>

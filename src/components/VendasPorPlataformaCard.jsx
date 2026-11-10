@@ -245,7 +245,7 @@ export default function VendasPorPlataformaCard({ monthValue }) {
 
   return (
     <div
-      className="glass-card"
+      className="glass-card admin-card-responsive"
       style={{
         marginTop: '24px',
         padding: '24px',
@@ -256,16 +256,21 @@ export default function VendasPorPlataformaCard({ monthValue }) {
       }}
     >
       {/* Cabeçalho */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '14px', marginBottom: '16px' }}>
+        <div style={{ minWidth: '240px', flex: '1 1 auto' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             <span style={{ fontSize: '1.4rem' }}>🎯</span>
             <h3 style={{ fontSize: '1.2rem', fontWeight: '800', color: '#0f172a', margin: 0 }}>
               Faturamento e Lucro por Plataforma
             </h3>
+            {loading && pedidos.length === 0 && (
+              <span style={{ fontSize: '0.72rem', color: '#7c3aed', backgroundColor: '#f3e8ff', padding: '2px 8px', borderRadius: '10px', fontWeight: '600' }}>
+                ⏳ Carregando vendas...
+              </span>
+            )}
             {loadingAds && (
               <span style={{ fontSize: '0.72rem', color: '#64748b', backgroundColor: '#f1f5f9', padding: '2px 8px', borderRadius: '10px' }}>
-                ⏳ Carregando dados de anúncios...
+                ⏳ Carregando anúncios...
               </span>
             )}
           </div>
@@ -274,60 +279,60 @@ export default function VendasPorPlataformaCard({ monthValue }) {
           </p>
         </div>
 
-        {/* Resumo Consolidado no Topo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', backgroundColor: '#f8fafc', padding: '6px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-            <span style={{ fontSize: '0.7rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>
+        {/* Resumo Consolidado no Topo (Grade Responsiva 2 colunas no celular / linha no desktop) */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px', width: '100%', maxWidth: '840px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', backgroundColor: '#f8fafc', padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+            <span style={{ fontSize: '0.68rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>
               Faturamento:
             </span>
             <span style={{ fontSize: '0.95rem', fontWeight: '800', color: '#059669' }}>
-              {formatMoney(totaisConsolidados.faturamento)}
+              {loading && pedidos.length === 0 ? '⏳ Calculando...' : formatMoney(totaisConsolidados.faturamento)}
             </span>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', backgroundColor: '#f8fafc', padding: '6px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-            <span style={{ fontSize: '0.7rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', backgroundColor: '#f8fafc', padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+            <span style={{ fontSize: '0.68rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>
               Gasto Ads:
             </span>
             <span style={{ fontSize: '0.95rem', fontWeight: '800', color: '#dc2626' }}>
-              {formatMoney(totaisConsolidados.gastoAds)}
+              {loadingAds ? '⏳ ...' : formatMoney(totaisConsolidados.gastoAds)}
             </span>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', backgroundColor: '#f8fafc', padding: '6px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }} title={`${totaisConsolidados.geracoesKie || 0} gerações Suno via Kie.ai (R$ 0,30 cada)`}>
-            <span style={{ fontSize: '0.7rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', backgroundColor: '#f8fafc', padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }} title={`${totaisConsolidados.geracoesKie || 0} gerações Suno via Kie.ai (R$ 0,30 cada)`}>
+            <span style={{ fontSize: '0.68rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>
               API Kie:
             </span>
             <span style={{ fontSize: '0.95rem', fontWeight: '800', color: '#ea580c' }}>
-              {formatMoney(totaisConsolidados.gastoKie)}
+              {loading && pedidos.length === 0 ? '⏳ ...' : formatMoney(totaisConsolidados.gastoKie)}
             </span>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', backgroundColor: '#f8fafc', padding: '6px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }} title={`${totaisConsolidados.mensagensWhatsApp || 0} msgs WhatsApp oficiais enviadas (~R$ 0,035 cada)`}>
-            <span style={{ fontSize: '0.7rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', backgroundColor: '#f8fafc', padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }} title={`${totaisConsolidados.mensagensWhatsApp || 0} msgs WhatsApp oficiais enviadas (~R$ 0,035 cada)`}>
+            <span style={{ fontSize: '0.68rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>
               Msg WhatsApp:
             </span>
             <span style={{ fontSize: '0.95rem', fontWeight: '800', color: '#0284c7' }}>
-              {formatMoney(totaisConsolidados.gastoWhatsApp)}
+              {loading && pedidos.length === 0 ? '⏳ ...' : formatMoney(totaisConsolidados.gastoWhatsApp)}
             </span>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', backgroundColor: '#f8fafc', padding: '6px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }} title="Faturamento debitando Ads, API Kie e Mensagens WhatsApp">
-            <span style={{ fontSize: '0.7rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', backgroundColor: '#f8fafc', padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }} title="Faturamento debitando Ads, API Kie e Mensagens WhatsApp">
+            <span style={{ fontSize: '0.68rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>
               Lucro Líquido:
             </span>
-            <span style={{ fontSize: '0.95rem', fontWeight: '800', color: totaisConsolidados.lucroTotal >= 0 ? '#059669' : '#dc2626' }}>
-              {formatMoney(totaisConsolidados.lucroTotal)}
+            <span style={{ fontSize: '0.95rem', fontWeight: '800', color: (totaisConsolidados.lucroTotal >= 0 || (loading && pedidos.length === 0)) ? '#059669' : '#dc2626' }}>
+              {loading && pedidos.length === 0 ? '⏳ Calculando...' : formatMoney(totaisConsolidados.lucroTotal)}
             </span>
           </div>
 
           {totaisConsolidados.roasGeral !== null && (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', backgroundColor: '#f8fafc', padding: '6px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-              <span style={{ fontSize: '0.7rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', backgroundColor: '#f8fafc', padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+              <span style={{ fontSize: '0.68rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>
                 ROAS Geral:
               </span>
               <span style={{ fontSize: '0.95rem', fontWeight: '800', color: '#7c3aed' }}>
-                {totaisConsolidados.roasGeral.toFixed(2)}x
+                {loading && pedidos.length === 0 ? '⏳ ...' : `${totaisConsolidados.roasGeral.toFixed(2)}x`}
               </span>
             </div>
           )}
