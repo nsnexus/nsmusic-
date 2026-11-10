@@ -45,19 +45,19 @@ beforeEach(() => {
 });
 
 describe('isBlockedByFreeLimit', () => {
-  it('não bloqueia automaticamente por cota (bloqueio 100% manual via blacklist do admin)', async () => {
+  it('não bloqueia quem gerou menos de 5 músicas (ex: 2 pedidos não pagos)', async () => {
     phoneMatches = [{ orderNumber: '1' }, { orderNumber: '2' }];
     const blocked = await isBlockedByFreeLimit('11999999999', '');
     expect(blocked).toBe(false);
   });
 
-  it('não bloqueia mesmo com 5+ pedidos não pagos', async () => {
+  it('bloqueia automaticamente quem atingiu 5 pedidos sem pagamento', async () => {
     phoneMatches = Array.from({ length: 5 }, (_, i) => ({ orderNumber: String(i), paymentStatus: 'AGUARDANDO_PAGAMENTO' }));
     const blocked = await isBlockedByFreeLimit('11999999999', '');
-    expect(blocked).toBe(false);
+    expect(blocked).toBe(true);
   });
 
-  it('não bloqueia com compras ou sem compras', async () => {
+  it('não bloqueia quem tem 6 pedidos onde 1 foi pago (cota ampliada para 10)', async () => {
     phoneMatches = Array.from({ length: 6 }, (_, i) => ({
       orderNumber: String(i),
       paymentStatus: i === 0 ? 'PAGAMENTO_APROVADO' : 'AGUARDANDO_PAGAMENTO',
@@ -66,12 +66,21 @@ describe('isBlockedByFreeLimit', () => {
     expect(blocked).toBe(false);
   });
 
-  it('retorna false para qualquer combinação de telefone/e-mail', async () => {
+  it('bloqueia quem tem 10 pedidos e apenas 1 foi pago (cota ampliada de 10 esgotada)', async () => {
+    phoneMatches = Array.from({ length: 10 }, (_, i) => ({
+      orderNumber: String(i),
+      paymentStatus: i === 0 ? 'PAGO' : 'AGUARDANDO_PAGAMENTO',
+    }));
+    const blocked = await isBlockedByFreeLimit('11999999999', '');
+    expect(blocked).toBe(true);
+  });
+
+  it('soma pedidos de telefone e e-mail sem duplicar pedidos compartilhados', async () => {
     const shared = { orderNumber: 'shared-1' };
     phoneMatches = [shared, { orderNumber: 'p2' }, { orderNumber: 'p3' }];
-    emailMatches = [shared, { orderNumber: 'e2' }, { orderNumber: 'e3' }];
+    emailMatches = [shared, { orderNumber: 'e2' }, { orderNumber: 'e3' }]; // Total: 5 únicos não pagos
     const blocked = await isBlockedByFreeLimit('11999999999', 'cliente@example.com');
-    expect(blocked).toBe(false);
+    expect(blocked).toBe(true);
   });
 
   it('ignora telefone/e-mail vazios ou inválidos sem lançar exceção', async () => {

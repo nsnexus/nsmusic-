@@ -22,11 +22,24 @@ export async function POST(req) {
       try {
         const { findOrderByIdOrNumber } = await import('@/lib/orderLookup');
         const { isContactBlocked } = await import('@/lib/blocklist');
+        const { isBlockedByFreeLimit } = await import('@/app/api/orders/create/route');
         const order = await findOrderByIdOrNumber(orderId, env);
         if (order) {
           const block = await isContactBlocked(order.customerPhone, order.customerEmail, env);
           if (block.blocked) {
             return NextResponse.json({ error: 'Contato bloqueado para novas gerações na plataforma.' }, { status: 403 });
+          }
+
+          const isPaid = order.paymentStatus === 'PAGO' || order.paymentStatus === 'PAGAMENTO_APROVADO';
+          const isBonus = Boolean(order.isSecondGeneration || order.origem === 'segunda_geracao' || order.origem === 'segunda_musica');
+          if (!isPaid && !isBonus) {
+            const freeLimitBlocked = await isBlockedByFreeLimit(order.customerPhone, order.customerEmail, env);
+            if (freeLimitBlocked) {
+              return NextResponse.json(
+                { error: 'Você atingiu o limite de 5 músicas geradas sem pagamento. Realize o pagamento de uma das músicas para continuar.', blocked: true, reason: 'cota_excedida' },
+                { status: 403 }
+              );
+            }
           }
         }
       } catch (checkErr) {

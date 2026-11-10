@@ -1049,7 +1049,7 @@ export default function CriarMusica() {
           hasPaid: (data.pagos || 0) > 0,
           restantes: data.restantes,
           cota: data.cota,
-          isBlocked: Boolean(data.manualBlock),
+          isBlocked: Boolean(data.isBlocked),
           manualBlock: Boolean(data.manualBlock),
           reason: data.reason || null
         };
@@ -1141,11 +1141,15 @@ export default function CriarMusica() {
 
     setIsSubmitting(true);
     try {
-      // Verifica trava de bloqueio manual (blacklist) no servidor antes de prosseguir
-      const { isBlocked, manualBlock } = await checkUserLimit(formData.customerPhone, formData.customerEmail);
+      // Verifica trava de bloqueio (cota esgotada ou blacklist) no servidor antes de prosseguir
+      const { isBlocked, manualBlock, reason } = await checkUserLimit(formData.customerPhone, formData.customerEmail);
       if (isBlocked || manualBlock) {
         setIsSubmitting(false);
-        setCreationError('Este contato foi bloqueado para novas gerações na plataforma. Entre em contato com o suporte para mais informações.');
+        if (reason === 'cota_excedida') {
+          setCreationError('Você atingiu o limite de 5 músicas geradas sem pagamento. Para liberar novas músicas, conclua o pagamento de uma das suas criações anteriores.');
+        } else {
+          setCreationError('Este contato foi bloqueado para novas gerações na plataforma. Entre em contato com o suporte para mais informações.');
+        }
         return;
       }
 

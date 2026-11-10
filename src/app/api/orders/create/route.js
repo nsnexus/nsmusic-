@@ -13,8 +13,62 @@ import { claimCookieName, hashOrderClaim } from '@/lib/orderClaim';
 export const runtime = 'edge';
 export { generateUniqueOrderNumber };
 
-// Cota automática desativada a pedido do administrador: bloqueio agora é 100% manual via blacklist do painel admin.
+// Cota de gerações por telefone/e-mail: 5 músicas grátis. A cada compra paga, acrescenta mais 5 à cota
+// (ver src/lib/cotaGeracoes.js). Se o cliente gerou 5 músicas e não pagou nenhuma, o bloqueio automático
+// é acionado para impedir abuso e custos desnecessários com a API Suno/Kie.ai.
 export async function isBlockedByFreeLimit(phone, email, env = {}) {
+  const digits = phone ? phone.replace(/\D/g, '') : '';
+  const hasEmail = Boolean(email && email.includes('@'));
+
+  if (digits.length < 10 && !hasEmail) {
+    return false;
+  }
+
+  const supabase = getSupabaseEdge(env);
+  if (!supabase) return false;
+
+  try {
+    const orParts = [];
+    if (digits.length >= 10) {
+      const variants = generatePhoneVariants(phone);
+      if (variants.length > 0) {
+        const inList = variants.map((v) => `"${v}"`).join(',');
+        orParts.push(`customer_phone.in.(${inList})`);
+      } else {
+        orParts.push(`customer_phone.eq.${phone}`);
+      }
+    }
+    if (hasEmail) {
+      orParts.push(`customer_email.eq.${email.trim().toLowerCase()}`);
+    }
+
+    if (orParts.length > 0) {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('order_number, payment_status, created_at, deleted_at, is_second_generation, paid_sku')
+        .is('deleted_at', null)
+        .or(orParts.join(','));
+
+      if (!error && Array.isArray(data)) {
+        // Ignora cortesias de segunda geração vinculadas a pedidos pagos
+        const matches = data
+          .filter((o) => !o.is_second_generation && o.paid_sku !== 'segunda_geracao_bonus')
+          .map((o) => ({
+            orderNumber: o.order_number,
+            paymentStatus: o.payment_status,
+            createdAt: o.created_at,
+          }));
+        const resetAt = phone ? await lerResetDeCota(phone, env) : '';
+        return Boolean(calcularCota(matches, { resetAt }).bloqueado);
+      }
+      if (error) {
+        console.warn('[isBlockedByFreeLimit] Erro ao consultar cota no Supabase:', error.message);
+      }
+    }
+  } catch (e) {
+    console.warn('[isBlockedByFreeLimit] Exceção ao verificar cota:', e.message);
+  }
+
   return false;
 }
 
@@ -50,6 +104,26 @@ export async function POST(req) {
         },
         { status: 403 }
       );
+    }
+
+    // Trava de cota automática (5 músicas sem pagamento -> bloqueio automático)
+    const isSecondGenRequested = Boolean(
+      formData.origem === 'segunda_geracao' ||
+      formData.origem === 'segunda_musica' ||
+      formData.isSecondGeneration
+    );
+    if (!isSecondGenRequested) {
+      const isFreeLimitBlocked = await isBlockedByFreeLimit(formData.customerPhone, formData.customerEmail, env);
+      if (isFreeLimitBlocked) {
+        return NextResponse.json(
+          {
+            error: 'Você atingiu o limite de 5 músicas geradas sem pagamento. Para liberar novas músicas, finalize o pagamento de uma das suas criações.',
+            blocked: true,
+            reason: 'cota_excedida'
+          },
+          { status: 403 }
+        );
+      }
     }
 
     const orderNumber = await generateUniqueOrderNumber(env);

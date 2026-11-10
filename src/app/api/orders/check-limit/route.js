@@ -72,16 +72,18 @@ export async function GET(req) {
       if (orParts.length > 0) {
         const { data, error } = await supabase
           .from('orders')
-          .select('order_number, payment_status, created_at, deleted_at')
+          .select('order_number, payment_status, created_at, deleted_at, is_second_generation, paid_sku')
           .is('deleted_at', null)
           .or(orParts.join(','));
 
         if (!error && Array.isArray(data)) {
-          matches = data.map((o) => ({
-            orderNumber: o.order_number,
-            paymentStatus: o.payment_status,
-            createdAt: o.created_at,
-          }));
+          matches = data
+            .filter((o) => !o.is_second_generation && o.paid_sku !== 'segunda_geracao_bonus')
+            .map((o) => ({
+              orderNumber: o.order_number,
+              paymentStatus: o.payment_status,
+              createdAt: o.created_at,
+            }));
         } else if (error) {
           console.warn('[check-limit] Erro ao consultar pedidos no Supabase:', error.message);
         }
@@ -91,14 +93,14 @@ export async function GET(req) {
     const resetAt = phone ? await lerResetDeCota(phone, env) : '';
     const cota = calcularCota(matches, { resetAt });
 
-    // Bloqueio automático por cota desativado a pedido do administrador (bloqueio agora é 100% manual)
     return NextResponse.json({
-      isBlocked: false,
+      isBlocked: Boolean(cota.bloqueado),
       totalCount: cota.usados,
       cota: cota.cota,
       pagos: cota.pagos,
       restantes: cota.restantes,
       manualBlock: false,
+      reason: cota.bloqueado ? 'cota_excedida' : null,
     });
   } catch (error) {
     console.error('[check-limit] Falha ao verificar cota:', error.message);
