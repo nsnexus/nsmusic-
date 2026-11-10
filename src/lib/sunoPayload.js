@@ -63,20 +63,35 @@ const MOOD_TAGS = {
 
 const VOICE_TAGS = {
   dueto: 'duet male and female vocalists, alternating verses, harmonized chorus',
-  masculina: 'male lead vocal',
-  feminina: 'female lead vocal',
+  masculina: 'male lead vocal, man singing',
+  masculino: 'male lead vocal, man singing',
+  homem: 'male lead vocal, man singing',
+  male: 'male lead vocal, man singing',
+  feminina: 'female lead vocal, woman singing',
+  feminino: 'female lead vocal, woman singing',
+  mulher: 'female lead vocal, woman singing',
+  female: 'female lead vocal, woman singing',
 };
 
-export function buildSunoPayload(formData) {
+export function buildSunoPayload(formData = {}) {
   const style = formData.musicStyle || '';
   const mood = formData.musicMood || '';
-  const voice = String(formData.voiceType || '').toLowerCase();
+  let voice = String(formData.voiceType || '').toLowerCase().trim();
+
+  // Se o pedido era voz personalizada/minha_voz ou solo, tenta inferir ou manter o gênero correto
+  if (voice === 'minha_voz' || voice === 'solo' || !voice) {
+    if (formData.customVoiceGender === 'female' || formData.voiceGender === 'female' || formData.isFemaleVoice || formData.generoVoz === 'feminina') {
+      voice = 'feminina';
+    } else if (formData.customVoiceGender === 'male' || formData.voiceGender === 'male' || formData.isMaleVoice || formData.generoVoz === 'masculina') {
+      voice = 'masculina';
+    }
+  }
 
   // Fallback usa o próprio texto do cliente quando o valor não está no catálogo (estilo digitado à
   // mão no WhatsApp, por exemplo) — perder a intenção dele seria pior que perder a instrumentação.
   const stylePart = STYLE_TAGS[style] || style;
   const moodPart = MOOD_TAGS[mood] || mood;
-  const voicePart = VOICE_TAGS[voice] || (voice ? `${voice} vocal` : '');
+  const voicePart = VOICE_TAGS[voice] || (voice && voice !== 'solo' && voice !== 'minha_voz' ? `${voice} vocal` : '');
 
   const tags = [stylePart, moodPart, voicePart, 'brazilian portuguese lyrics, studio quality']
     .filter(Boolean)

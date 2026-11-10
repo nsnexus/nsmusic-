@@ -771,6 +771,11 @@ export default function OrderDetailsAdmin() {
     if (!confirm('Deseja desvincular a voz clonada deste pedido? As próximas gerações usarão as vozes normais de estúdio do Suno.')) return;
     try {
       const token = await getAdminAuthToken();
+      const fallbackVoice = (order?.voiceType && order.voiceType !== 'minha_voz' && order.voiceType !== 'solo')
+        ? order.voiceType
+        : 'feminina';
+
+      // 1. Atualiza o pedido principal
       await fetch('/api/orders/update', {
         method: 'POST',
         headers: {
@@ -781,7 +786,7 @@ export default function OrderDetailsAdmin() {
           orderId,
           isCustomVoice: false,
           customVoiceId: null,
-          voiceType: 'solo',
+          voiceType: fallbackVoice,
           extras: {
             ...(order?.extras || {}),
             isCustomVoice: false,
@@ -789,15 +794,44 @@ export default function OrderDetailsAdmin() {
           }
         })
       });
+
+      // 2. Se houver 2ª geração vinculada, desvincula dela também!
+      const childOrderId = order?.secondGeneration?.id || order?.secondGenerationOrderId || order?.segundaGeracaoOrderId;
+      if (childOrderId) {
+        try {
+          await fetch('/api/orders/update', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { Authorization: `Bearer ${token}` } : {})
+            },
+            body: JSON.stringify({
+              orderId: childOrderId,
+              isCustomVoice: false,
+              customVoiceId: null,
+              voiceType: fallbackVoice,
+              extras: {
+                ...(order?.secondGeneration?.extras || {}),
+                isCustomVoice: false,
+                customVoiceId: null,
+              }
+            })
+          });
+        } catch (childErr) {
+          console.warn('Falha ao desvincular voz do pedido bônus:', childErr);
+        }
+      }
+
       setUseCustomVoice(false);
       setOrder(prev => ({
         ...prev,
         isCustomVoice: false,
         customVoiceId: null,
-        voiceType: 'solo',
+        voiceType: fallbackVoice,
         extras: { ...(prev?.extras || {}), isCustomVoice: false, customVoiceId: null }
       }));
-      alert('Voz clonada desvinculada com sucesso!');
+      await fetchOrder();
+      alert('Voz clonada desvinculada com sucesso de todas as versões do pedido (Principal e 2ª Geração)!');
     } catch (e) {
       alert('Erro ao desvincular voz: ' + e.message);
     }

@@ -108,13 +108,9 @@ export async function requestSunoGeneration({ orderId, prompt, tags, preferredPr
   if (orderId && useCustomVoice !== false) {
     try {
       const order = await getOrder(orderId, env);
-      if (
-        order?.isCustomVoice ||
-        order?.voiceType === 'minha_voz' ||
-        order?.customVoiceId ||
-        order?.extras?.isCustomVoice ||
-        order?.extras?.customVoiceId
-      ) {
+      const isExplicitlyDisabled = order?.isCustomVoice === false || order?.extras?.isCustomVoice === false;
+      const vId = order?.customVoiceId || order?.extras?.customVoiceId;
+      if (!isExplicitlyDisabled && vId && (order?.isCustomVoice || order?.voiceType === 'minha_voz' || order?.extras?.isCustomVoice)) {
         isCustomVoiceOrder = true;
       }
     } catch (e) {}

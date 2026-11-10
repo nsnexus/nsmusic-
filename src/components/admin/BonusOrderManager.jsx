@@ -19,6 +19,7 @@ export default function BonusOrderManager({
   const [isEditingStyle, setIsEditingStyle] = useState(false);
   const [selectedStyle, setSelectedStyle] = useState('');
   const [selectedMood, setSelectedMood] = useState('');
+  const [selectedVoiceType, setSelectedVoiceType] = useState('feminina');
   const [stylePrompt, setStylePrompt] = useState('');
 
   const [isEditingTracks, setIsEditingTracks] = useState(false);
@@ -42,11 +43,19 @@ export default function BonusOrderManager({
   useEffect(() => {
     if (secondGen) {
       setLyricsText(secondGen.lyrics || '');
-      setSelectedStyle(secondGen.musicStyle || parentOrder?.musicStyle || 'Pop');
-      setSelectedMood(secondGen.musicMood || parentOrder?.musicMood || 'Emocionante');
+      const initialStyle = secondGen.musicStyle || parentOrder?.musicStyle || 'Pop';
+      const initialMood = secondGen.musicMood || parentOrder?.musicMood || 'Emocionante';
+      const rawVoice = (secondGen.voiceType || parentOrder?.voiceType || 'feminina').toLowerCase();
+      const initialVoice = (rawVoice === 'minha_voz' || rawVoice === 'solo') ? 'feminina' : rawVoice;
+
+      setSelectedStyle(initialStyle);
+      setSelectedMood(initialMood);
+      setSelectedVoiceType(initialVoice);
+
       setStylePrompt(secondGen.sunoPrompt || buildSunoPayload({
-        musicStyle: secondGen.musicStyle || parentOrder?.musicStyle || 'Pop',
-        musicMood: secondGen.musicMood || parentOrder?.musicMood || 'Emocionante'
+        musicStyle: initialStyle,
+        musicMood: initialMood,
+        voiceType: initialVoice,
       }).tags);
 
       const files = Array.isArray(secondGen.audioFiles) && secondGen.audioFiles.length > 0
@@ -56,6 +65,7 @@ export default function BonusOrderManager({
       setTrack2Url(files[1] || '');
 
       setSelectedStatus(secondGen.productionStatus || 'EM_PRODUCAO');
+      setUseCustomVoice(Boolean(secondGen.isCustomVoice || secondGen.customVoiceId));
     }
   }, [secondGen, parentOrder]);
 
@@ -122,14 +132,35 @@ export default function BonusOrderManager({
     const computedTags = stylePrompt.trim() || buildSunoPayload({
       musicStyle: selectedStyle,
       musicMood: selectedMood,
+      voiceType: selectedVoiceType,
     }).tags;
 
     const ok = await updateBonusOrder({
       musicStyle: selectedStyle,
       musicMood: selectedMood,
+      voiceType: selectedVoiceType,
       sunoPrompt: computedTags,
     }, 'style');
     if (ok) setIsEditingStyle(false);
+  };
+
+  // Desvincular voz clonada da 2ª geração
+  const handleDetachBonusVoice = async () => {
+    if (!secondGen?.id) return;
+    if (!confirm('Deseja desvincular a voz clonada da 2ª geração? As próximas gerações usarão a voz de estúdio selecionada.')) return;
+    const ok = await updateBonusOrder({
+      isCustomVoice: false,
+      customVoiceId: null,
+      voiceType: selectedVoiceType || 'feminina',
+      extras: {
+        ...(secondGen.extras || {}),
+        isCustomVoice: false,
+        customVoiceId: null,
+      }
+    }, 'detach_bonus_voice');
+    if (ok) {
+      setUseCustomVoice(false);
+    }
   };
 
   // 3. Salvar Áudios Manuais (Faixas 3 e 4)
@@ -167,6 +198,7 @@ export default function BonusOrderManager({
     const tagsFinal = (stylePrompt || secondGen?.sunoPrompt || buildSunoPayload({
       musicStyle: selectedStyle,
       musicMood: selectedMood,
+      voiceType: selectedVoiceType || secondGen?.voiceType || 'feminina',
     }).tags).trim();
 
     try {
@@ -516,7 +548,10 @@ export default function BonusOrderManager({
                   🎼 Estilo & Tags do Estúdio (Suno AI)
                 </strong>
                 <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: '#64748b' }}>
-                  Ritmo: <strong>{secondGen.musicStyle || 'Pop'}</strong> · Clima: <strong>{secondGen.musicMood || 'Emocionante'}</strong>
+                  Ritmo: <strong>{secondGen.musicStyle || 'Pop'}</strong> · Clima: <strong>{secondGen.musicMood || 'Emocionante'}</strong> · Voz: <strong>{selectedVoiceType === 'masculina' ? '👨 Masculina' : selectedVoiceType === 'dueto' ? '👥 Dueto' : '👩 Feminina'}</strong>
+                  {Boolean(secondGen.isCustomVoice || secondGen.customVoiceId) && (
+                    <span style={{ marginLeft: '6px', color: '#9333ea', fontWeight: '700' }}>(🎙️ Voz Clonada Ativa)</span>
+                  )}
                 </p>
               </div>
               <button
@@ -539,7 +574,7 @@ export default function BonusOrderManager({
 
             {isEditingStyle && (
               <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px dashed #cbd5e1' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px', marginBottom: '10px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px', marginBottom: '10px' }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: '700', color: '#475569', marginBottom: '4px' }}>
                       Gênero Musical:
@@ -548,7 +583,7 @@ export default function BonusOrderManager({
                       value={selectedStyle}
                       onChange={(e) => {
                         setSelectedStyle(e.target.value);
-                        setStylePrompt(buildSunoPayload({ musicStyle: e.target.value, musicMood: selectedMood }).tags);
+                        setStylePrompt(buildSunoPayload({ musicStyle: e.target.value, musicMood: selectedMood, voiceType: selectedVoiceType }).tags);
                       }}
                       style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.8rem' }}
                     >
@@ -566,13 +601,31 @@ export default function BonusOrderManager({
                       value={selectedMood}
                       onChange={(e) => {
                         setSelectedMood(e.target.value);
-                        setStylePrompt(buildSunoPayload({ musicStyle: selectedStyle, musicMood: e.target.value }).tags);
+                        setStylePrompt(buildSunoPayload({ musicStyle: selectedStyle, musicMood: e.target.value, voiceType: selectedVoiceType }).tags);
                       }}
                       style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.8rem' }}
                     >
                       {moods.map((m) => (
                         <option key={m.id} value={m.id}>{m.icon} {m.label}</option>
                       ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: '700', color: '#475569', marginBottom: '4px' }}>
+                      Tipo de Voz (Estúdio):
+                    </label>
+                    <select
+                      value={selectedVoiceType}
+                      onChange={(e) => {
+                        setSelectedVoiceType(e.target.value);
+                        setStylePrompt(buildSunoPayload({ musicStyle: selectedStyle, musicMood: selectedMood, voiceType: e.target.value }).tags);
+                      }}
+                      style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.8rem' }}
+                    >
+                      <option value="feminina">👩 Voz Feminina</option>
+                      <option value="masculina">👨 Voz Masculina</option>
+                      <option value="dueto">👥 Dueto (Feminina + Masculina)</option>
                     </select>
                   </div>
                 </div>
@@ -741,16 +794,38 @@ export default function BonusOrderManager({
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                {Boolean(parentOrder?.isCustomVoice || parentOrder?.customVoiceId) && (
-                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '0.78rem', color: '#5b21b6', fontWeight: '700', cursor: 'pointer' }}>
-                    <input
-                      type="checkbox"
-                      checked={useCustomVoice}
-                      onChange={(e) => setUseCustomVoice(e.target.checked)}
-                      disabled={isGeneratingSuno}
-                    />
-                    🎙️ Usar Voz Clonada
-                  </label>
+                {Boolean(parentOrder?.isCustomVoice || parentOrder?.customVoiceId || secondGen?.isCustomVoice || secondGen?.customVoiceId) && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '0.78rem', color: '#5b21b6', fontWeight: '700', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={useCustomVoice}
+                        onChange={(e) => setUseCustomVoice(e.target.checked)}
+                        disabled={isGeneratingSuno}
+                      />
+                      🎙️ Usar Voz Clonada
+                    </label>
+                    {Boolean(secondGen?.isCustomVoice || secondGen?.customVoiceId) && (
+                      <button
+                        type="button"
+                        onClick={handleDetachBonusVoice}
+                        disabled={savingAction === 'detach_bonus_voice' || isGeneratingSuno}
+                        style={{
+                          background: '#fef2f2',
+                          color: '#dc2626',
+                          border: '1px solid #fca5a5',
+                          borderRadius: '6px',
+                          padding: '3px 8px',
+                          fontSize: '0.72rem',
+                          fontWeight: '700',
+                          cursor: 'pointer',
+                        }}
+                        title="Desvincula a voz clonada do pedido bônus para que ele cante apenas com vozes de estúdio"
+                      >
+                        {savingAction === 'detach_bonus_voice' ? 'Desvinculando...' : '✖️ Desvincular do Bônus'}
+                      </button>
+                    )}
+                  </div>
                 )}
 
                 <button
