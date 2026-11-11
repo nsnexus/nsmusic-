@@ -24,6 +24,8 @@ vi.mock('@/lib/supabase-edge', () => ({
       select: function () { return this; },
       is: function () { return this; },
       neq: function () { return this; },
+      gt: function () { return this; },
+      lt: function () { return this; },
       gte: function (col, val) {
         mockGteCalls.push({ table, col, val });
         return this;
@@ -142,5 +144,71 @@ describe('GET /api/admin/reports?tipo=faturamento', () => {
 
     const vendasGte = mockGteCalls.find(c => c.table === 'vendas_por_dia' && c.col === 'dia');
     expect(vendasGte?.val).toBe('2026-10-11');
+  });
+});
+
+describe('GET /api/admin/reports?tipo=pedidos_mes', () => {
+  it('retorna os pedidos do mês mapeados com extras otimizados sem campos pesados', async () => {
+    mockSupabaseOrdersData = [
+      {
+        id: 'ord-mes-1',
+        order_number: 'NS-1234',
+        customer_phone: '11999998888',
+        payment_status: 'PAGO',
+        paid_at: '2026-11-05T12:00:00.000Z',
+        created_at: '2026-11-05T11:50:00.000Z',
+        has_video_access: true,
+        has_carta_access: false,
+        has_playback_access: false,
+        has_retrospectiva_access: false,
+        has_karaoke_access: false,
+        suno_generation_count: 2,
+        suno_requested_at: '2026-11-05T11:51:00.000Z',
+        suno_provider: 'kie',
+        ready_template_sent: true,
+        payment_whatsapp_sent: true,
+        whatsapp_sent: true,
+        extras: {
+          paidAmount: 9.99,
+          trafficSource: 'facebook',
+          platform: 'meta',
+          utmSource: 'fb_ads',
+          videoAddonPaid: true,
+          videoPaidAmount: 6.90,
+          unwantedHeavyField: 'this should be filtered out from dashboard extras'
+        }
+      }
+    ];
+
+    const req = new Request('http://localhost/api/admin/reports?tipo=pedidos_mes&mes=2026-11');
+    const res = await GET(req);
+    expect(res.status).toBe(200);
+
+    const json = await res.json();
+    expect(json.ok).toBe(true);
+    expect(json.mes).toBe('2026-11');
+    expect(json.total).toBe(1);
+    expect(json.pedidos).toHaveLength(1);
+
+    const p = json.pedidos[0];
+    expect(p.id).toBe('ord-mes-1');
+    expect(p.paidAmount).toBe(9.99);
+    expect(p.videoAddonPaid).toBe(true);
+    expect(p.videoPaidAmount).toBe(6.90);
+    expect(p.extras.trafficSource).toBe('facebook');
+    expect(p.extras.platform).toBe('meta');
+    expect(p.extras.unwantedHeavyField).toBeUndefined();
+  });
+
+  it('suporta consulta de dia específico via &dia=11', async () => {
+    mockSupabaseOrdersData = [];
+    const req = new Request('http://localhost/api/admin/reports?tipo=pedidos_mes&mes=2026-11&dia=11');
+    const res = await GET(req);
+    expect(res.status).toBe(200);
+
+    const json = await res.json();
+    expect(json.ok).toBe(true);
+    expect(json.total).toBe(0);
+    expect(json.pedidos).toEqual([]);
   });
 });

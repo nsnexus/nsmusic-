@@ -265,33 +265,24 @@ export async function GET(req) {
       const mesNum = Number(mesStr);
       const diasNoMes = new Date(ano, mesNum, 0).getDate();
 
-      // Projeção otimizada: seleciona apenas as colunas raiz e campos essenciais do JSONB extras.
-      // Remove campos textuais pesados (lyrics, story, prompt, audioFiles com metadados) que causavam
-      // payloads gigantes (>20MB) e timeouts/travamento em conexões móveis (4G/5G).
+      // Projeção otimizada: seleciona apenas as colunas necessárias e o JSONB extras direto.
+      // Omite colunas pesadas como lyrics, story, suno_prompt, audio_files, slideshow_images
+      // que inflavam o payload, mantendo a consulta rápida e 100% compatível com PostgREST.
       const selectColumns = [
         'id', 'order_number', 'customer_phone', 'payment_status', 'paid_at', 'created_at',
         'has_video_access', 'has_carta_access', 'has_playback_access', 'has_retrospectiva_access',
-        'suno_generation_count', 'suno_requested_at', 'suno_provider',
-        'ready_template_sent', 'payment_whatsapp_sent', 'whatsapp_sent',
-        'extras->trafficSource', 'extras->platform', 'extras->paidAmount', 'extras->paymentIntentSku',
-        'extras->isSecondGeneration', 'extras->origem', 'extras->paidSku', 'extras->parentOrderId',
-        'extras->videoPaymentId', 'extras->videoPaidAt', 'extras->videoPaidAmount', 'extras->videoAddonPaid',
-        'extras->cartaPaymentId', 'extras->cartaPaidAt', 'extras->cartaPaidAmount', 'extras->cartaAddonPaid',
-        'extras->playbackPaymentId', 'extras->playbackPaidAt', 'extras->playbackPaidAmount', 'extras->playbackAddonPaid',
-        'extras->retrospectivaPaymentId', 'extras->retrospectivaPaidAt', 'extras->retrospectivaPaidAmount', 'extras->retrospectivaAddonPaid',
-        'extras->karaokePaymentId', 'extras->karaokePaidAt', 'extras->karaokePaidAmount', 'extras->karaokeAddonPaid', 'extras->hasKaraokeAccess',
-        'extras->utmSource', 'extras->utmMedium', 'extras->utmCampaign', 'extras->utmContent', 'extras->utmTerm',
-        'extras->fbclid', 'extras->ttclid', 'extras->gclid', 'extras->referrer', 'extras->userAgent',
-        'extras->productionStatus', 'extras->audioUrl'
+        'has_karaoke_access', 'suno_generation_count', 'suno_requested_at', 'suno_provider',
+        'ready_template_sent', 'payment_whatsapp_sent', 'whatsapp_sent', 'extras'
       ].join(',');
 
       const mapearPedido = (row) => {
         const isPago = row.payment_status === 'PAGO' || row.payment_status === 'PAGAMENTO_APROVADO';
-        const hasVid = Boolean(row.has_video_access || row.videoAddonPaid);
-        const hasCarta = Boolean(row.has_carta_access || row.cartaAddonPaid);
-        const hasPlay = Boolean(row.has_playback_access || row.playbackAddonPaid);
-        const hasRetro = Boolean(row.has_retrospectiva_access || row.retrospectivaAddonPaid);
-        const hasKara = Boolean(row.hasKaraokeAccess || row.karaokeAddonPaid);
+        const extras = row.extras || {};
+        const hasVid = Boolean(row.has_video_access || extras.videoAddonPaid);
+        const hasCarta = Boolean(row.has_carta_access || extras.cartaAddonPaid);
+        const hasPlay = Boolean(row.has_playback_access || extras.playbackAddonPaid);
+        const hasRetro = Boolean(row.has_retrospectiva_access || extras.retrospectivaAddonPaid);
+        const hasKara = Boolean(row.has_karaoke_access || extras.hasKaraokeAccess || extras.karaokeAddonPaid);
 
         return {
           id: row.id,
@@ -308,143 +299,107 @@ export async function GET(req) {
           sunoGenerationCount: row.suno_generation_count,
           sunoRequestedAt: row.suno_requested_at,
           sunoProvider: row.suno_provider || null,
-          readyTemplateSent: Boolean(row.ready_template_sent ?? row.readyTemplateSent),
-          paymentWhatsappSent: Boolean(row.payment_whatsapp_sent ?? row.paymentWhatsappSent),
-          whatsappSent: Boolean(row.whatsapp_sent ?? row.whatsappSent),
-          videoAddonPaid: row.videoAddonPaid ?? (hasVid && isPago),
-          videoPaidAt: row.videoPaidAt ?? row.paid_at,
-          videoPaidAmount: row.videoPaidAmount,
-          videoPaymentId: row.videoPaymentId,
-          playbackAddonPaid: row.playbackAddonPaid ?? (hasPlay && isPago),
-          playbackPaidAt: row.playbackPaidAt ?? row.paid_at,
-          playbackPaidAmount: row.playbackPaidAmount,
-          playbackPaymentId: row.playbackPaymentId,
-          cartaAddonPaid: row.cartaAddonPaid ?? (hasCarta && isPago),
-          cartaPaidAt: row.cartaPaidAt ?? row.paid_at,
-          cartaPaidAmount: row.cartaPaidAmount,
-          cartaPaymentId: row.cartaPaymentId,
-          retrospectivaAddonPaid: row.retrospectivaAddonPaid ?? (hasRetro && isPago),
-          retrospectivaPaidAt: row.retrospectivaPaidAt ?? row.paid_at,
-          retrospectivaPaidAmount: row.retrospectivaPaidAmount,
-          retrospectivaPaymentId: row.retrospectivaPaymentId,
-          karaokeAddonPaid: row.karaokeAddonPaid ?? (hasKara && isPago),
-          karaokePaidAt: row.karaokePaidAt ?? row.paid_at,
-          karaokePaidAmount: row.karaokePaidAmount,
-          karaokePaymentId: row.karaokePaymentId,
-          paidAmount: row.paidAmount ?? null,
-          paymentIntentSku: row.paymentIntentSku ?? null,
-          isSecondGeneration: Boolean(row.isSecondGeneration),
-          origem: row.origem ?? null,
-          paidSku: row.paidSku ?? null,
-          parentOrderId: row.parentOrderId ?? null,
-          trafficSource: row.trafficSource ?? null,
-          platform: row.platform ?? null,
-          utmSource: row.utmSource ?? null,
-          utmMedium: row.utmMedium ?? null,
-          utmCampaign: row.utmCampaign ?? null,
-          utmContent: row.utmContent ?? null,
-          utmTerm: row.utmTerm ?? null,
-          fbclid: row.fbclid ?? null,
-          ttclid: row.ttclid ?? null,
-          gclid: row.gclid ?? null,
-          referrer: row.referrer ?? null,
-          userAgent: row.userAgent ?? null,
-          productionStatus: row.productionStatus ?? null,
-          audioUrl: row.audioUrl ?? null,
-          hasAudio: Boolean(row.audioUrl),
+          readyTemplateSent: Boolean(row.ready_template_sent ?? extras.readyTemplateSent),
+          paymentWhatsappSent: Boolean(row.payment_whatsapp_sent ?? extras.paymentWhatsappSent),
+          whatsappSent: Boolean(row.whatsapp_sent ?? extras.whatsappSent),
+          videoAddonPaid: extras.videoAddonPaid ?? (hasVid && isPago),
+          videoPaidAt: extras.videoPaidAt ?? row.paid_at,
+          videoPaidAmount: extras.videoPaidAmount,
+          videoPaymentId: extras.videoPaymentId,
+          playbackAddonPaid: extras.playbackAddonPaid ?? (hasPlay && isPago),
+          playbackPaidAt: extras.playbackPaidAt ?? row.paid_at,
+          playbackPaidAmount: extras.playbackPaidAmount,
+          playbackPaymentId: extras.playbackPaymentId,
+          cartaAddonPaid: extras.cartaAddonPaid ?? (hasCarta && isPago),
+          cartaPaidAt: extras.cartaPaidAt ?? row.paid_at,
+          cartaPaidAmount: extras.cartaPaidAmount,
+          cartaPaymentId: extras.cartaPaymentId,
+          retrospectivaAddonPaid: extras.retrospectivaAddonPaid ?? (hasRetro && isPago),
+          retrospectivaPaidAt: extras.retrospectivaPaidAt ?? row.paid_at,
+          retrospectivaPaidAmount: extras.retrospectivaPaidAmount,
+          retrospectivaPaymentId: extras.retrospectivaPaymentId,
+          karaokeAddonPaid: extras.karaokeAddonPaid ?? (hasKara && isPago),
+          karaokePaidAt: extras.karaokePaidAt ?? row.paid_at,
+          karaokePaidAmount: extras.karaokePaidAmount,
+          karaokePaymentId: extras.karaokePaymentId,
+          paidAmount: extras.paidAmount ?? null,
+          paymentIntentSku: extras.paymentIntentSku ?? null,
+          isSecondGeneration: Boolean(extras.isSecondGeneration),
+          origem: extras.origem ?? null,
+          paidSku: extras.paidSku ?? null,
+          parentOrderId: extras.parentOrderId ?? null,
+          trafficSource: extras.trafficSource ?? null,
+          platform: extras.platform ?? null,
+          utmSource: extras.utmSource ?? null,
+          utmMedium: extras.utmMedium ?? null,
+          utmCampaign: extras.utmCampaign ?? null,
+          utmContent: extras.utmContent ?? null,
+          utmTerm: extras.utmTerm ?? null,
+          fbclid: extras.fbclid ?? null,
+          ttclid: extras.ttclid ?? null,
+          gclid: extras.gclid ?? null,
+          referrer: extras.referrer ?? null,
+          userAgent: extras.userAgent ?? null,
+          productionStatus: row.production_status || extras.productionStatus || null,
+          audioUrl: row.audio_url || extras.audioUrl || null,
+          hasAudio: Boolean(row.audio_url || extras.audioUrl),
           extras: {
-            trafficSource: row.trafficSource,
-            platform: row.platform,
-            paidAmount: row.paidAmount,
-            paymentIntentSku: row.paymentIntentSku,
-            isSecondGeneration: row.isSecondGeneration,
-            origem: row.origem,
-            paidSku: row.paidSku,
-            parentOrderId: row.parentOrderId,
-            utmSource: row.utmSource,
-            utmMedium: row.utmMedium,
-            utmCampaign: row.utmCampaign,
-            fbclid: row.fbclid,
-            ttclid: row.ttclid,
-            gclid: row.gclid,
+            trafficSource: extras.trafficSource,
+            platform: extras.platform,
+            paidAmount: extras.paidAmount,
+            paymentIntentSku: extras.paymentIntentSku,
+            isSecondGeneration: extras.isSecondGeneration,
+            origem: extras.origem,
+            paidSku: extras.paidSku,
+            parentOrderId: extras.parentOrderId,
+            utmSource: extras.utmSource,
+            utmMedium: extras.utmMedium,
+            utmCampaign: extras.utmCampaign,
+            fbclid: extras.fbclid,
+            ttclid: extras.ttclid,
+            gclid: extras.gclid,
           }
         };
       };
 
-      let todosPedidos = [];
+      let inicio = new Date(Date.UTC(ano, mesNum - 1, 1, 0, 0, 0, 0)).toISOString();
+      let fim = new Date(Date.UTC(ano, mesNum, 1, 0, 0, 0, 0)).toISOString();
 
-      // 1. Se filtro de dia específico for solicitado, consulta apenas aquele dia em ~1s
       if (diaParam && !isNaN(Number(diaParam))) {
         const diaNum = Math.max(1, Math.min(diasNoMes, Number(diaParam)));
-        const inicioDia = new Date(Date.UTC(ano, mesNum - 1, diaNum, 0, 0, 0, 0)).toISOString();
-        const fimDia = diaNum >= diasNoMes
+        inicio = new Date(Date.UTC(ano, mesNum - 1, diaNum, 0, 0, 0, 0)).toISOString();
+        fim = diaNum >= diasNoMes
           ? new Date(Date.UTC(ano, mesNum, 1, 0, 0, 0, 0)).toISOString()
           : new Date(Date.UTC(ano, mesNum - 1, diaNum + 1, 0, 0, 0, 0)).toISOString();
+      }
 
-        let lastCreatedAt = null;
-        const pageSize = 1000;
-        while (true) {
-          let q = supabase
-            .from('orders')
-            .select(selectColumns)
-            .gte('created_at', lastCreatedAt || inicioDia)
-            .lt('created_at', fimDia)
-            .is('deleted_at', 'null')
-            .order('created_at', { ascending: true })
-            .limit(pageSize);
+      let todosPedidos = [];
+      let lastCreatedAt = null;
+      const pageSize = 1000;
 
-          if (lastCreatedAt) q = q.gt('created_at', lastCreatedAt);
-          const { data, error } = await q;
-          if (error) throw new Error(error.message);
-          if (!data || data.length === 0) break;
-          todosPedidos = todosPedidos.concat(data.map(mapearPedido));
-          if (data.length < pageSize) break;
-          lastCreatedAt = data[data.length - 1].created_at;
-        }
-      } else {
-        // 2. Consulta de mês completo: particiona em 5 fatias de datas executadas em paralelo via Promise.all.
-        // Utiliza paginação por cursor (created_at) para evitar o custo quadrático de OFFSET em tabelas grandes.
-        const chunkSize = Math.ceil(diasNoMes / 5);
-        const ranges = [];
-        for (let i = 0; i < 5; i++) {
-          const startDay = i * chunkSize + 1;
-          const endDay = Math.min(diasNoMes, (i + 1) * chunkSize);
-          if (startDay <= diasNoMes) {
-            const startIso = new Date(Date.UTC(ano, mesNum - 1, startDay, 0, 0, 0, 0)).toISOString();
-            const endIso = endDay >= diasNoMes
-              ? new Date(Date.UTC(ano, mesNum, 1, 0, 0, 0, 0)).toISOString()
-              : new Date(Date.UTC(ano, mesNum - 1, endDay + 1, 0, 0, 0, 0)).toISOString();
-            ranges.push({ startIso, endIso });
-          }
+      while (true) {
+        let q = supabase
+          .from('orders')
+          .select(selectColumns);
+
+        if (lastCreatedAt) {
+          q = q.gt('created_at', lastCreatedAt);
+        } else {
+          q = q.gte('created_at', inicio);
         }
 
-        const chunkPromises = ranges.map(async ({ startIso, endIso }) => {
-          let rows = [];
-          let lastCreatedAt = null;
-          const pageSize = 1000;
-          while (true) {
-            let q = supabase
-              .from('orders')
-              .select(selectColumns)
-              .gte('created_at', lastCreatedAt || startIso)
-              .lt('created_at', endIso)
-              .is('deleted_at', 'null')
-              .order('created_at', { ascending: true })
-              .limit(pageSize);
+        q = q
+          .lt('created_at', fim)
+          .is('deleted_at', null)
+          .order('created_at', { ascending: true })
+          .limit(pageSize);
 
-            if (lastCreatedAt) q = q.gt('created_at', lastCreatedAt);
-            const { data, error } = await q;
-            if (error) throw error;
-            if (!data || data.length === 0) break;
-            rows = rows.concat(data.map(mapearPedido));
-            if (data.length < pageSize) break;
-            lastCreatedAt = data[data.length - 1].created_at;
-          }
-          return rows;
-        });
-
-        const results = await Promise.all(chunkPromises);
-        todosPedidos = results.flat();
+        const { data, error } = await q;
+        if (error) throw new Error(error.message);
+        if (!data || data.length === 0) break;
+        todosPedidos = todosPedidos.concat(data.map(mapearPedido));
+        if (data.length < pageSize) break;
+        lastCreatedAt = data[data.length - 1].created_at;
       }
 
       return NextResponse.json({

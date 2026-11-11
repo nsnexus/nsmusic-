@@ -60,7 +60,7 @@ async function buscarPedidosDoMes(mes, forcar = false) {
   }
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s timeout seguro para mobile
+  const timeoutId = setTimeout(() => controller.abort(), 35000); // 35s timeout seguro para conexões móveis
 
   try {
     const token = await getAdminAuthToken();
@@ -78,7 +78,8 @@ async function buscarPedidosDoMes(mes, forcar = false) {
         return json.pedidos;
       }
     } else {
-      console.warn(`[usePedidosDoMes] API retornou status ${res.status}`);
+      const errText = await res.text().catch(() => '');
+      console.warn(`[usePedidosDoMes] API retornou status ${res.status}:`, errText);
     }
   } catch (err) {
     clearTimeout(timeoutId);
@@ -97,7 +98,7 @@ async function buscarPedidosDoMes(mes, forcar = false) {
     }
   }
 
-  return [];
+  return null;
 }
 
 export function usePedidosDoMes(mes) {
@@ -128,7 +129,7 @@ export function usePedidosDoMes(mes) {
 
         const validos = await p;
         if (!ativo) return;
-        if (validos && validos.length > 0) {
+        if (validos !== null && Array.isArray(validos)) {
           setPedidos(validos);
           setErro('');
         } else if (!emCache || emCache.length === 0) {
