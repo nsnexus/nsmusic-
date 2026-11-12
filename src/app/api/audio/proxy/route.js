@@ -110,21 +110,61 @@ export async function GET(req) {
     if (r2PublicUrl && env?.nsmusic_media && rawUrl.startsWith(`${r2PublicUrl}/`)) {
       const objectKey = rawUrl.slice(r2PublicUrl.length + 1).split('?')[0];
       try {
-        const obj = await env.nsmusic_media.get(objectKey);
-        if (obj) {
-          const buffer = await obj.arrayBuffer();
+        const downloadNameR2 = searchParams.get('download');
+        const rangeHeader = req.headers.get('range');
+        const buildR2Headers = (httpMetadata) => {
           const headers = new Headers();
-          headers.set('Content-Type', obj.httpMetadata?.contentType || 'audio/mpeg');
+          headers.set('Content-Type', httpMetadata?.contentType || 'audio/mpeg');
           headers.set('Cache-Control', 'public, max-age=86400, must-revalidate');
           headers.set('Access-Control-Allow-Origin', '*');
           headers.set('Accept-Ranges', 'bytes');
-          const downloadNameR2 = searchParams.get('download');
           if (downloadNameR2) {
             const safeNameR2 = downloadNameR2.replace(/[^\w.\- ]/g, '_').slice(0, 120) || 'musica.mp3';
             headers.set('Content-Disposition', `attachment; filename="${safeNameR2}"`);
           }
+          return headers;
+        };
 
-          const rangeHeader = req.headers.get('range');
+        // Streaming direto do R2 para Range (HTTP 206) sem carregar o arquivo inteiro na RAM do Worker.
+        if (!downloadNameR2 && rangeHeader && typeof env.nsmusic_media.head === 'function') {
+          const meta = await env.nsmusic_media.head(objectKey);
+          if (meta && Number.isFinite(meta.size)) {
+            const range = parseByteRange(rangeHeader, meta.size);
+            if (range?.invalid) {
+              return new Response(null, {
+                status: 416,
+                headers: {
+                  'Content-Range': `bytes */${meta.size}`,
+                  'Accept-Ranges': 'bytes'
+                }
+              });
+            }
+            if (range) {
+              const reqLength = range.end - range.start + 1;
+              const rangedObj = await env.nsmusic_media.get(objectKey, {
+                range: { offset: range.start, length: reqLength }
+              });
+              if (rangedObj?.body) {
+                const headers = buildR2Headers(rangedObj.httpMetadata || meta.httpMetadata);
+                headers.set('Content-Range', `bytes ${range.start}-${range.end}/${meta.size}`);
+                headers.set('Content-Length', String(reqLength));
+                return new Response(rangedObj.body, { status: 206, headers });
+              }
+            }
+          }
+        }
+
+        const obj = await env.nsmusic_media.get(objectKey);
+        if (obj) {
+          const headers = buildR2Headers(obj.httpMetadata);
+
+          // Download completo ou GET inicial sem Range: stream direto de obj.body com 0 MB de buffer.
+          if ((!rangeHeader || downloadNameR2) && obj.body && Number.isFinite(obj.size)) {
+            headers.set('Content-Length', String(obj.size));
+            return new Response(obj.body, { status: 200, headers });
+          }
+
+          const buffer = await obj.arrayBuffer();
           const range = !downloadNameR2 ? parseByteRange(rangeHeader, buffer.byteLength) : null;
 
           if (range?.invalid) {

@@ -255,8 +255,18 @@ export async function GET(req) {
         return typeof u === 'string' && u.startsWith('http');
       });
 
-      const isReady = rawStatus.includes('SUCCESS') || rawStatus.includes('COMPLETE') || rawStatus.includes('FINISH') || rawStatus.includes('DONE');
-      const isPending = ['PENDING', 'RUNNING', 'QUEUED', 'SUBMITTED', 'IN_PROGRESS', 'PROCESSING'].includes(rawStatus);
+      const isReady = ['SUCCESS', 'COMPLETE', 'COMPLETED', 'FINISHED', 'DONE'].includes(rawStatus);
+      const isPending = [
+        'PENDING',
+        'RUNNING',
+        'QUEUED',
+        'SUBMITTED',
+        'IN_PROGRESS',
+        'PROCESSING',
+        'TEXT_SUCCESS',
+        'FIRST_SUCCESS',
+        'GENERATING',
+      ].includes(rawStatus);
 
       // Se temos áudios reais disponíveis e o status é de sucesso ou não está explicitamente pendente
       if ((isReady || hasRealAudio) && (!isPending || isReady)) {

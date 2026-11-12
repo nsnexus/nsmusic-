@@ -823,7 +823,7 @@ function EntregaContent() {
     return `${base}${base.includes('?') ? '&' : '?'}download=${encodeURIComponent(safeName)}`;
   };
 
-  const handleDownload = async (url, filename, slot = 'primary') => {
+  const handleDownload = (url, filename, slot = 'primary') => {
     if (downloadingSlot) return;
     const downloadUrl = withDownloadFlag(url, filename);
     if (!downloadUrl) return;
@@ -861,44 +861,25 @@ function EntregaContent() {
       }
     }
 
-    // 2. Download em navegadores padrão (Google Chrome, Safari, Samsung Internet, Edge, etc.):
-    // Baixa diretamente via Blob + <a> download, sem acionar navigator.share
-    try {
-      const res = await fetch(downloadUrl);
-      if (res.ok) {
-        const blob = await res.blob();
-        const blobUrl = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = blobUrl;
-        link.setAttribute('download', filename);
-        link.style.display = 'none';
-        document.body.appendChild(link);
-        link.click();
-        link.parentNode.removeChild(link);
-        setTimeout(() => window.URL.revokeObjectURL(blobUrl), 30000);
-        setDownloadingSlot(null);
-        return;
-      }
-    } catch (e) {
-      console.warn('[entrega] Tentativa fetch/blob falhou, usando fallback direto:', e);
-    }
-
-    // 3. Fallback direto para o link com Content-Disposition: attachment
+    // 2. Download síncrono em navegadores padrão (Safari iOS, Chrome Mobile, Samsung Internet, Edge, Desktop):
+    // Evita `await fetch() + blob()`, que no celular/4G demora vários segundos e expira a janela de
+    // ativação de gesto do usuário (user activation) fazendo o Safari/Chrome bloquear o `link.click()`.
+    // Como `/api/audio/proxy` e `/api/image-proxy` são mesma origem e já enviam
+    // `Content-Disposition: attachment`, o link direto aciona o gerenciador de downloads nativo na hora.
     try {
       const fullUrl = downloadUrl.startsWith('http') ? downloadUrl : `${window.location.origin}${downloadUrl}`;
+      const safeName = (filename || 'musica.mp3').replace(/[^\w.\- ]/g, '_');
       const link = document.createElement('a');
       link.href = fullUrl;
-      link.setAttribute('download', filename);
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
+      link.setAttribute('download', safeName);
       link.style.display = 'none';
       document.body.appendChild(link);
       link.click();
-      link.parentNode.removeChild(link);
+      link.parentNode?.removeChild(link);
     } catch (err) {
-      window.location.href = downloadUrl;
+      window.location.assign(downloadUrl);
     } finally {
-      setDownloadingSlot(null);
+      setTimeout(() => setDownloadingSlot(null), 1500);
     }
   };
 

@@ -107,6 +107,31 @@ describe('POST /api/suno/webhook', () => {
     expect(updateTaskResultMock).toHaveBeenCalledWith('kie-task-xyz', payload, null, expect.anything());
   });
 
+  it('ignora callbacks intermediários text/first da Kie.ai sem arquivar prematuramente', async () => {
+    for (const callbackType of ['text', 'first']) {
+      updateTaskResultMock.mockClear();
+      const payload = {
+        taskId: 'kie-task-premature',
+        data: {
+          callbackType,
+          data: [{ id: 'track-1', stream_audio_url: 'https://audiostream.kie.ai/stream/track-1.mp3' }],
+        }
+      };
+
+      const req = new Request('https://nsmusic.nsnexus.com.br/api/suno/webhook?secret=kie-secret-123', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.handled).toBe('intermediate_callback_ignored');
+      expect(updateTaskResultMock).not.toHaveBeenCalled();
+    }
+  });
+
   it('rejeita callback da Kie.ai com secret incorreto', async () => {
     const payload = {
       taskId: 'kie-task-xyz',

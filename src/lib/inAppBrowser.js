@@ -12,6 +12,7 @@ const PADROES = [
   'Instagram',
   'WhatsApp',
   'WA4A',                                  // WhatsApp for Android WebView
+  'Telegram',                              // Telegram In-App Browser
   '; wv)',                                 // Android System WebView indicator
   'Line/',
   'MicroMessenger',                        // WeChat

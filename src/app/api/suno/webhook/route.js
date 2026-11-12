@@ -115,6 +115,18 @@ export async function POST(req) {
       return NextResponse.json({ success: true, code: 200, msg: 'success', handled: 'failed_retry_initiated' }, { status: 200 });
     }
 
+    // A Kie.ai envia callbacks intermediários (`text` e `first`) ANTES de a música terminar de gerar
+    // e antes de finalizar o MP3 no CDN definitivo (tempfile.aiquickdraw.com). Processar esses
+    // callbacks prematuros fazia o sistema arquivar streams sem cabeçalho Xing (frames=0 / cortados).
+    const callbackType = String(data?.data?.callbackType || data?.callbackType || '').toLowerCase().trim();
+    if (callbackType === 'text' || callbackType === 'first') {
+      console.log(`[Webhook Suno] Callback intermediário (${callbackType}) da tarefa ${taskId} ignorado para aguardar conclusão final.`);
+      return NextResponse.json(
+        { success: true, code: 200, msg: 'success', handled: 'intermediate_callback_ignored', callbackType },
+        { status: 200 }
+      );
+    }
+
     // Salva no banco e garante a entrega da notificação de WhatsApp antes de finalizar
     await updateTaskResult(taskId, data, null, env);
     return NextResponse.json({ success: true, code: 200, msg: 'success' }, { status: 200 });

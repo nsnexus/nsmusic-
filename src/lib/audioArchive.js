@@ -21,6 +21,9 @@
 // de novo a cada render). Fallback pro Firebase Storage é mantido só pra ambiente sem o binding
 // (ex: antes do primeiro deploy com o binding configurado) — nunca falha por falta de R2.
 
+import { getOrder, updateOrder } from './supabaseDb.js';
+import { inspectMp3Buffer, repairMp3XingHeader } from './mp3XingFix.js';
+
 const MIN_AUDIO_BYTES = 100 * 1024;      // 100 KB — abaixo disso não é música de verdade
 const MAX_AUDIO_BYTES = 25 * 1024 * 1024; // 25 MB — teto de segurança
 
@@ -82,9 +85,25 @@ async function fetchSourceAudio(sourceUrl) {
   // tentativa, que é o que aparece no log para investigação.
   const origens = origensParaArquivar(sourceUrl);
   let ultimoMotivo = 'sem_origem';
+  let tempfileDeu404 = false;
+
   for (const origem of origens) {
+    // Se tempfile e file.aiquickdraw retornaram 404 na janela imediata pós-complete, aguarda 1.2s e
+    // tenta tempfile uma última vez antes de cair no audiostream (que vem sem cabeçalho Xing válido).
+    if (origem.includes('audiostream.kie.ai') && tempfileDeu404) {
+      const tempfileOrigin = origens.find((u) => u.includes('tempfile.aiquickdraw.com'));
+      if (tempfileOrigin) {
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+        const retryTempfile = await fetchUmaOrigem(tempfileOrigin);
+        if (retryTempfile.ok) return retryTempfile;
+      }
+    }
+
     const tentativa = await fetchUmaOrigem(origem);
     if (tentativa.ok) return tentativa;
+    if (origem.includes('tempfile.aiquickdraw.com') && tentativa.reason === 'origem_http_404') {
+      tempfileDeu404 = true;
+    }
     ultimoMotivo = `${tentativa.reason} (${origens.length} origens tentadas)`;
   }
   return { ok: false, reason: ultimoMotivo };
@@ -106,9 +125,14 @@ async function fetchUmaOrigem(sourceUrl) {
   const contentType = res.headers.get('content-type') || '';
   // A CDN já devolveu HTML/XML de erro com status 200 (incidente 28/08/2026) — sem esta checagem,
   // arquivaríamos uma página de erro achando que era a música.
-  if (contentType.includes('text/') || contentType.includes('xml')) {
+  if (contentType.includes('text/') || contentType.includes('xml') || contentType.includes('json')) {
     return { ok: false, reason: `origem_nao_audio_${contentType.split(';')[0]}` };
   }
+
+  const contentLengthStr = res.headers.get('content-length');
+  const contentLength = contentLengthStr ? parseInt(contentLengthStr, 10) : -1;
+  if (contentLength === 0) return { ok: false, reason: 'origem_content_length_zero' };
+  if (contentLength > MAX_AUDIO_BYTES) return { ok: false, reason: `origem_muito_grande_${contentLength}b` };
 
   let buffer;
   try {
@@ -122,8 +146,29 @@ async function fetchUmaOrigem(sourceUrl) {
 
   if (buffer.byteLength < MIN_AUDIO_BYTES) return { ok: false, reason: `origem_muito_pequena_${buffer.byteLength}b` };
   if (buffer.byteLength > MAX_AUDIO_BYTES) return { ok: false, reason: `origem_muito_grande_${buffer.byteLength}b` };
+  if (contentLength > 0 && buffer.byteLength !== contentLength) {
+    return { ok: false, reason: `origem_truncada_${buffer.byteLength}_de_${contentLength}b` };
+  }
 
-  return { ok: true, buffer };
+  let finalBuffer = buffer;
+  let xingRepaired = false;
+  const isStreamOrigin = sourceUrl.includes('audiostream.kie.ai');
+  const mp3Info = inspectMp3Buffer(buffer);
+  if (mp3Info.validMp3) {
+    if (mp3Info.actualFrames < 50) {
+      return { ok: false, reason: `mp3_incompleto_${mp3Info.actualFrames}_frames` };
+    }
+    if (mp3Info.xingBroken) {
+      const fixed = repairMp3XingHeader(buffer);
+      if (fixed.repaired) {
+        finalBuffer = fixed.buffer;
+        xingRepaired = true;
+        console.log(`[audioArchive] Xing VBR reparado antes de gravar no R2 (${sourceUrl}): frames=${fixed.info.xingFrames}, bytes=${fixed.info.xingBytes}`);
+      }
+    }
+  }
+
+  return { ok: true, buffer: finalBuffer, fromStream: isStreamOrigin, xingRepaired };
 }
 
 /**
@@ -142,30 +187,38 @@ export async function copyAudioToR2(sourceUrl, destPath, r2Bucket, publicBaseUrl
   }
 
   const publicUrl = `${publicBaseUrl.replace(/\/$/, '')}/${destPath}`;
-  return { ok: true, url: publicUrl, bytes: fetched.buffer.byteLength };
+  return {
+    ok: true,
+    url: publicUrl,
+    bytes: fetched.buffer.byteLength,
+    fromStream: Boolean(fetched.fromStream),
+    xingRepaired: Boolean(fetched.xingRepaired),
+  };
 }
 
 /**
  * Arquiva TODAS as faixas de um pedido no Cloudflare R2 e devolve o novo array
  * pronto pra gravar em orders/{id}.audioFiles/audioUrl. Faixa já no nosso storage é
- * preservada como está — não recopia.
+ * preservada como está — não recopia (exceto quando opts.forceOverwrite = true).
  *
  * @param {string} orderId
  * @param {string[]} files URLs atuais das faixas (Kie.ai/Suno ou já nossas)
- * @param {{r2Bucket?: object, r2PublicUrl?: string}} opts
- * @returns {Promise<{files: string[], anyFailure: boolean, filesCopied: number, bytesCopied: number, destino: string}>}
+ * @param {{r2Bucket?: object, r2PublicUrl?: string, forceOverwrite?: boolean}} opts
+ * @returns {Promise<{files: string[], anyFailure: boolean, anyFromStream: boolean, repairedCount: number, filesCopied: number, bytesCopied: number, destino: string}>}
  */
 export async function archiveAudioFiles(orderId, files, opts = {}) {
-  const { r2Bucket, r2PublicUrl } = opts;
+  const { r2Bucket, r2PublicUrl, forceOverwrite = false } = opts;
   const usaR2 = Boolean(r2Bucket && r2PublicUrl);
   const archived = [];
   let anyFailure = false;
+  let anyFromStream = false;
+  let repairedCount = 0;
   let filesCopied = 0;
   let bytesCopied = 0;
 
   for (let i = 0; i < files.length; i++) {
     const source = files[i];
-    if (isOurStorage(source)) {
+    if (!forceOverwrite && isOurStorage(source)) {
       archived.push(source);
       continue;
     }
@@ -184,6 +237,8 @@ export async function archiveAudioFiles(orderId, files, opts = {}) {
       archived.push(copy.url);
       filesCopied++;
       bytesCopied += copy.bytes;
+      if (copy.fromStream) anyFromStream = true;
+      if (copy.xingRepaired) repairedCount++;
     } else {
       anyFailure = true;
       console.warn(`[audioArchive] Falha ao arquivar faixa ${i + 1} do pedido ${orderId}: ${copy.reason}`);
@@ -191,7 +246,7 @@ export async function archiveAudioFiles(orderId, files, opts = {}) {
     }
   }
 
-  return { files: archived, anyFailure, filesCopied, bytesCopied, destino: 'r2' };
+  return { files: archived, anyFailure, anyFromStream, repairedCount, filesCopied, bytesCopied, destino: 'r2' };
 }
 
 /**
@@ -208,9 +263,7 @@ export async function archiveAudioFiles(orderId, files, opts = {}) {
  *
  * @returns {Promise<{arquivou: boolean, motivo?: string, files?: string[]}>}
  */
-import { getOrder, updateOrder } from './supabaseDb.js';
-
-export async function arquivarAudioDoPedido({ orderRef, orderId: explicitOrderId, env = {}, doc: docRef, getDoc, updateDoc }) {
+export async function arquivarAudioDoPedido({ orderRef, orderId: explicitOrderId, env = {}, doc: docRef, getDoc, updateDoc, forceOverwrite = false }) {
   const orderId = explicitOrderId || (typeof orderRef === 'string' ? orderRef : orderRef?.id);
   if (!orderId) return { arquivou: false, motivo: 'sem_order_id' };
   try {
@@ -232,7 +285,7 @@ export async function arquivarAudioDoPedido({ orderRef, orderId: explicitOrderId
 
       // Reserva sequencial: webhook e polling chegam em paralelo e copiariam os mesmos MB duas vezes.
       const temArquivosExternos = filesParaArquivar.some((u) => !isOurStorage(u));
-      if (filesParaArquivar.length > 0 && temArquivosExternos && !freshData.audioArchiving) {
+      if (filesParaArquivar.length > 0 && (temArquivosExternos || forceOverwrite) && !freshData.audioArchiving) {
         await updateOrder(orderId, { audioArchiving: true }, env);
         deveArquivar = true;
       }
@@ -249,10 +302,11 @@ export async function arquivarAudioDoPedido({ orderRef, orderId: explicitOrderId
       return { arquivou: false, motivo: 'sem_destino' };
     }
 
-    const { files: archived, anyFailure } = await archiveAudioFiles(orderId, filesParaArquivar, {
+    const { files: archived, anyFailure, anyFromStream } = await archiveAudioFiles(orderId, filesParaArquivar, {
       r2Bucket,
       r2PublicUrl,
-      taskId: freshData.sunoTaskId
+      taskId: freshData.sunoTaskId,
+      forceOverwrite,
     });
 
     // Nunca gravar menos faixas do que o pedido já tinha: a Suno entrega duas versões e o cliente
@@ -268,6 +322,7 @@ export async function arquivarAudioDoPedido({ orderRef, orderId: explicitOrderId
       audioFiles: archived,
       audioUrl: archived[0],
       audioArchiving: false,
+      audioArchivedFromStream: Boolean(anyFromStream),
       ...(anyFailure
         ? { audioArchiveFailedAt: nowIso }
         : { audioArchivedAt: nowIso, audioArchiveFailedAt: null }),

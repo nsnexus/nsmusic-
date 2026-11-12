@@ -248,8 +248,15 @@ export const updateTaskResult = async (taskId, result, overrideOrderId = null, e
 
       const isAguardandoNovaGeracao = orderData.productionStatus === 'GERANDO_AUDIO' || orderData.productionStatus === 'EM_PRODUCAO';
       const isNovaTarefa = Boolean(orderData.sunoTaskId && orderData.sunoTaskId !== taskId);
+      const incomingIsFinalizedNonStream = Boolean(
+        primaryAudio &&
+        !primaryAudio.includes('audiostream.kie.ai') &&
+        !isOurStorage(primaryAudio)
+      );
+      const wasArchivedFromStream = Boolean(orderData.audioArchivedFromStream || orderData.extras?.audioArchivedFromStream);
+      const shouldUpgradeFromStream = Boolean(wasArchivedFromStream && incomingIsFinalizedNonStream);
 
-      const isRegeracao = isAguardandoNovaGeracao || isNovoTrack || isNovaTarefa;
+      const isRegeracao = isAguardandoNovaGeracao || isNovoTrack || isNovaTarefa || shouldUpgradeFromStream;
       const isMesmaMusicaJaArquivada = orderTemAudioNosso && !isRegeracao;
 
       const { appendAudioHistory } = await import('./audioHistory.js');
@@ -269,6 +276,7 @@ export const updateTaskResult = async (taskId, result, overrideOrderId = null, e
         updates.audioArchivedAt = null;
         updates.audioArchiveFailedAt = null;
         updates.audioArchiving = false;
+        updates.audioArchivedFromStream = false;
       }
 
       if (!orderData.coverUrl && tracks[0]?.imageUrl) {
@@ -302,7 +310,7 @@ export const updateTaskResult = async (taskId, result, overrideOrderId = null, e
       if (!isMesmaMusicaJaArquivada) {
         try {
           const { arquivarAudioDoPedido } = await import('./audioArchive.js');
-          archiveResult = await arquivarAudioDoPedido({ orderId, env });
+          archiveResult = await arquivarAudioDoPedido({ orderId, env, forceOverwrite: shouldUpgradeFromStream });
         } catch (err) {
           console.warn('[db] Falha ao arquivar áudio na chegada:', err.message);
         }

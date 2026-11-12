@@ -336,4 +336,35 @@ describe('GET /api/suno/status — Timeout de 3 minutos e Failover para Kie.ai',
     expect(global.fetch.mock.calls[0][0]).toContain('api.unifically.com');
     expect(global.fetch.mock.calls[1][0]).toContain('api.kie.ai');
   });
+
+  it('mantém PROCESSING quando Kie.ai retorna status intermediário TEXT_SUCCESS ou FIRST_SUCCESS', async () => {
+    process.env.KIE_API_KEY = 'kie-secret';
+    process.env.SUNO_PRIMARY_PROVIDER = 'kie';
+
+    for (const kieStatus of ['TEXT_SUCCESS', 'FIRST_SUCCESS']) {
+      updateTaskResultCalls = [];
+      store.tasks['task-kie-mid'] = { id: 'task-kie-mid', provider: 'kie', orderId: 'order-mid' };
+
+      global.fetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          code: 200,
+          data: {
+            status: kieStatus,
+            response: {
+              sunoData: [{ id: '11111111-2222-3333-4444-555555555555', streamAudioUrl: 'https://audiostream.kie.ai/stream/11111111-2222-3333-4444-555555555555.mp3' }],
+            },
+          },
+        }),
+      });
+
+      const res = await GET(new Request('http://localhost:3000/api/suno/status?taskId=task-kie-mid'));
+      const data = await res.json();
+
+      expect(data.status).toBe('PROCESSING');
+      expect(data.kieStatus).toBe(kieStatus);
+      expect(updateTaskResultCalls).toHaveLength(0);
+    }
+  });
 });
