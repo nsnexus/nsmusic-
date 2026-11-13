@@ -47,6 +47,16 @@ beforeEach(() => {
       payment_status: 'PAGO',
       production_status: 'AUDIO_GERADO',
       created_at: '2026-09-25T15:00:00.000Z'
+    },
+    {
+      id: 'order-2-bonus',
+      order_number: 'NS-2222-2026',
+      customer_name: 'Marcos Bonus',
+      customer_phone: '11988887777',
+      payment_status: 'PAGO',
+      production_status: 'AUDIO_GERADO',
+      created_at: '2026-09-25T16:00:00.000Z',
+      extras: { isSecondGeneration: true }
     }
   ];
 });
@@ -59,7 +69,7 @@ describe('GET /api/admin/orders', () => {
     expect(res.status).toBe(401);
   });
 
-  it('retorna pedidos mapeados em camelCase a partir do Supabase', async () => {
+  it('retorna pedidos mapeados em camelCase a partir do Supabase e oculta bônus por padrão (generationType=MAIN)', async () => {
     const req = new Request('http://localhost/api/admin/orders?dateFrom=2026-09-25&dateTo=2026-09-25');
     const res = await GET(req);
     expect(res.status).toBe(200);
@@ -72,6 +82,29 @@ describe('GET /api/admin/orders', () => {
     expect(json.orders[0].orderNumber).toBe('NS-1111-2026');
     expect(json.orders[0].customerName).toBe('Marcos');
     expect(json.orders[0].paymentStatus).toBe('PAGO');
+  });
+
+  it('retorna apenas pedidos bônus quando generationType=BONUS', async () => {
+    const req = new Request('http://localhost/api/admin/orders?generationType=BONUS');
+    const res = await GET(req);
+    expect(res.status).toBe(200);
+
+    const json = await res.json();
+    expect(json.ok).toBe(true);
+    expect(json.orders).toHaveLength(1);
+    expect(json.orders[0].id).toBe('order-2-bonus');
+    expect(json.orders[0].isBonusOrder).toBe(true);
+  });
+
+  it('retorna principais e bônus juntos quando generationType=ALL', async () => {
+    const req = new Request('http://localhost/api/admin/orders?generationType=ALL');
+    const res = await GET(req);
+    expect(res.status).toBe(200);
+
+    const json = await res.json();
+    expect(json.ok).toBe(true);
+    expect(json.orders).toHaveLength(2);
+    expect(json.orders.map(o => o.id)).toEqual(['order-1', 'order-2-bonus']);
   });
 });
 

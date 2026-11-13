@@ -123,6 +123,7 @@ export async function GET(req) {
   const search = (searchParams.get('search') || '').trim();
   const paymentStatus = searchParams.get('paymentStatus') || 'ALL';
   const productionStatus = searchParams.get('productionStatus') || 'ALL';
+  const generationType = (searchParams.get('generationType') || 'MAIN').toUpperCase(); // 'MAIN' | 'BONUS' | 'ALL'
   const limitCount = Math.min(Math.max(Number(searchParams.get('limit')) || 200, 1), 1000);
   const offset = Math.max(Number(searchParams.get('offset')) || 0, 0);
 
@@ -214,15 +215,23 @@ export async function GET(req) {
     }
 
     const orders = allMapped
-      .filter(o => !isBonusOrder(o))
-      .map(parent => {
-        const child = childOrdersMap.get(parent.id) || childOrdersMap.get(parent.orderNumber);
-        if (child) {
+      .filter(o => {
+        const isBonus = isBonusOrder(o);
+        if (generationType === 'BONUS') return isBonus;
+        if (generationType === 'MAIN') return !isBonus;
+        return true; // 'ALL' inclui principais e bônus
+      })
+      .map(item => {
+        const isBonus = isBonusOrder(item);
+        item.isBonusOrder = isBonus;
+
+        const child = childOrdersMap.get(item.id) || childOrdersMap.get(item.orderNumber);
+        if (child && !isBonus) {
           const childAudioFiles = Array.isArray(child.audioFiles) && child.audioFiles.length > 0 ? child.audioFiles : (child.audioUrl ? [child.audioUrl] : []);
           const childHasAudio = childAudioFiles.length > 0 || ['AUDIO_GERADO', 'CONCLUIDO', 'FINALIZADO', 'ENTREGUE'].includes(child.productionStatus);
           const childIsGenerating = !childHasAudio && ['GERANDO_AUDIO', 'EM_PRODUCAO', 'PROCESSANDO', 'GERANDO'].includes(child.productionStatus);
 
-          parent.secondGeneration = {
+          item.secondGeneration = {
             id: child.id,
             orderNumber: child.orderNumber,
             customerName: child.customerName,
@@ -237,34 +246,34 @@ export async function GET(req) {
             isGenerating: childIsGenerating,
             isDraft: !childHasAudio && !childIsGenerating,
           };
-          parent.secondOrderCreated = childHasAudio;
-          parent.secondOrderDraft = !childHasAudio && !childIsGenerating;
-          parent.secondOrderGenerating = childIsGenerating;
+          item.secondOrderCreated = childHasAudio;
+          item.secondOrderDraft = !childHasAudio && !childIsGenerating;
+          item.secondOrderGenerating = childIsGenerating;
 
           // Se o pai não tem áudio gerado mas o filho tem áudio, promove o status e áudio para o pai
-          if (childHasAudio && (!parent.audioUrl && (!parent.audioFiles || parent.audioFiles.length === 0))) {
-            parent.productionStatus = child.productionStatus || 'AUDIO_GERADO';
-            parent.audioUrl = child.audioUrl;
-            parent.audioFiles = childAudioFiles;
+          if (childHasAudio && (!item.audioUrl && (!item.audioFiles || item.audioFiles.length === 0))) {
+            item.productionStatus = child.productionStatus || 'AUDIO_GERADO';
+            item.audioUrl = child.audioUrl;
+            item.audioFiles = childAudioFiles;
           }
 
           // Se o nome do pai é genérico ('Cliente') ou formato de CPF e o filho tem o nome real, promove o nome
-          const isCpfOrGeneric = !parent.customerName || parent.customerName === 'Cliente' || /^\d[\d.\-\/\s]+$/.test(String(parent.customerName).trim());
+          const isCpfOrGeneric = !item.customerName || item.customerName === 'Cliente' || /^\d[\d.\-\/\s]+$/.test(String(item.customerName).trim());
           if (isCpfOrGeneric && child.customerName && child.customerName !== 'Cliente') {
-            parent.customerName = child.customerName;
+            item.customerName = child.customerName;
           }
 
           // Se o telefone do pai está vazio ou incompleto e o filho tem telefone válido, promove o telefone
-          if ((!parent.customerPhone || String(parent.customerPhone).replace(/\D/g, '').length < 8) && child.customerPhone) {
-            parent.customerPhone = child.customerPhone;
+          if ((!item.customerPhone || String(item.customerPhone).replace(/\D/g, '').length < 8) && child.customerPhone) {
+            item.customerPhone = child.customerPhone;
           }
 
           // Se o pai não tem registro de reprodução da prévia e o filho já ouviu, reflete o timestamp
-          if (!parent.previewListenedAt && child.previewListenedAt) {
-            parent.previewListenedAt = child.previewListenedAt;
+          if (!item.previewListenedAt && child.previewListenedAt) {
+            item.previewListenedAt = child.previewListenedAt;
           }
         }
-        return parent;
+        return item;
       });
     return NextResponse.json({
       ok: true,

@@ -121,6 +121,7 @@ export default function AdminDashboard() {
   const [paymentStatusFilter, setPaymentStatusFilter] = useState(() => getSavedAdminFilter('paymentStatusFilter', 'ALL'));
   const [productionStatusFilter, setProductionStatusFilter] = useState(() => getSavedAdminFilter('productionStatusFilter', 'ALL'));
   const [providerFilter, setProviderFilter] = useState(() => getSavedAdminFilter('providerFilter', 'ALL'));
+  const [generationTypeFilter, setGenerationTypeFilter] = useState(() => getSavedAdminFilter('generationTypeFilter', 'MAIN')); // 'MAIN' | 'BONUS' | 'ALL'
   const [sortBy, setSortBy] = useState(() => getSavedAdminFilter('sortBy', 'createdAt_desc')); // 'createdAt_desc'|'createdAt_asc'|'paidAt_desc'|'paidAt_asc'
 
   // Paginação — carrega 500 de início para cobrir o histórico típico do admin.
@@ -129,17 +130,17 @@ export default function AdminDashboard() {
   const [loadAll, setLoadAll] = useState(false);
 
   // Helper de chave de cache
-  const buildCacheKey = (from = dateFrom, to = dateTo, search = debouncedSearch, size = pageSize, all = loadAll) =>
-    `${from || ''}_${to || ''}_${search || ''}_${size}_${all}`;
+  const buildCacheKey = (from = dateFrom, to = dateTo, search = debouncedSearch, genType = generationTypeFilter, size = pageSize, all = loadAll) =>
+    `${from || ''}_${to || ''}_${search || ''}_${genType || 'MAIN'}_${size}_${all}`;
 
   // Inicializa com cache se disponível (carregamento instantâneo em 0ms ao voltar do pedido)
   const [orders, setOrders] = useState(() => {
-    const initialKey = `${getSavedAdminFilter('dateFrom', '')}_${getSavedAdminFilter('dateTo', '')}_${getSavedAdminFilter('searchQuery', '')}_500_false`;
+    const initialKey = `${getSavedAdminFilter('dateFrom', '')}_${getSavedAdminFilter('dateTo', '')}_${getSavedAdminFilter('searchQuery', '')}_${getSavedAdminFilter('generationTypeFilter', 'MAIN')}_500_false`;
     const cached = getCachedOrders(initialKey);
     return Array.isArray(cached) ? cached : [];
   });
   const [loadingOrders, setLoadingOrders] = useState(() => {
-    const initialKey = `${getSavedAdminFilter('dateFrom', '')}_${getSavedAdminFilter('dateTo', '')}_${getSavedAdminFilter('searchQuery', '')}_500_false`;
+    const initialKey = `${getSavedAdminFilter('dateFrom', '')}_${getSavedAdminFilter('dateTo', '')}_${getSavedAdminFilter('searchQuery', '')}_${getSavedAdminFilter('generationTypeFilter', 'MAIN')}_500_false`;
     const cached = getCachedOrders(initialKey);
     return !Array.isArray(cached);
   });
@@ -203,10 +204,11 @@ export default function AdminDashboard() {
       sessionStorage.setItem('ns_admin_paymentStatusFilter', JSON.stringify(paymentStatusFilter));
       sessionStorage.setItem('ns_admin_productionStatusFilter', JSON.stringify(productionStatusFilter));
       sessionStorage.setItem('ns_admin_providerFilter', JSON.stringify(providerFilter));
+      sessionStorage.setItem('ns_admin_generationTypeFilter', JSON.stringify(generationTypeFilter));
       sessionStorage.setItem('ns_admin_sortBy', JSON.stringify(sortBy));
       sessionStorage.setItem('ns_admin_activeTab', JSON.stringify(activeTab));
     } catch (e) {}
-  }, [countryFilter, filter, purchaseTypeTab, dateFrom, dateTo, searchQuery, paymentStatusFilter, productionStatusFilter, providerFilter, sortBy, activeTab]);
+  }, [countryFilter, filter, purchaseTypeTab, dateFrom, dateTo, searchQuery, paymentStatusFilter, productionStatusFilter, providerFilter, generationTypeFilter, sortBy, activeTab]);
 
   // Número de WhatsApp do suporte, editável aqui em vez de hardcoded no código (pedido 21/09/2026:
   // o número principal foi suspenso e o dono vai alternar de volta em dois dias — trocar isso não
@@ -313,6 +315,7 @@ export default function AdminDashboard() {
             if (dateFrom) params.set('dateFrom', dateFrom);
             if (dateTo) params.set('dateTo', dateTo);
           }
+          params.set('generationType', generationTypeFilter);
           params.set('limit', String(loadAll ? 1000 : pageSize + 1));
 
           let res = await fetch(`/api/admin/orders?${params.toString()}`, {
@@ -367,7 +370,7 @@ export default function AdminDashboard() {
     return () => {
       cancelado = true;
     };
-  }, [user, loadAll, pageSize, dateFrom, dateTo, debouncedSearch, reloadTrigger]);
+  }, [user, loadAll, pageSize, dateFrom, dateTo, debouncedSearch, generationTypeFilter, reloadTrigger]);
 
   // Restaura suavemente a posição de rolagem salva ao voltar dos detalhes de um pedido
   useEffect(() => {
@@ -487,8 +490,12 @@ export default function AdminDashboard() {
   const getFilteredOrders = () => {
     let result = orders;
 
-    // Regra mandatória: Pedidos bônus, cortesias e 2ª geração NÃO devem aparecer na tabela de pedidos
-    result = result.filter(o => !isBonusOrder(o));
+    // Filtro por tipo de geração: Principal vs Bônus vs Todas
+    if (generationTypeFilter === 'BONUS') {
+      result = result.filter(o => isBonusOrder(o));
+    } else if (generationTypeFilter === 'MAIN') {
+      result = result.filter(o => !isBonusOrder(o));
+    }
 
     // Filtro por mercado / país (Brasil vs Estados Unidos)
     if (countryFilter === 'BR') {
@@ -2074,6 +2081,27 @@ export default function AdminDashboard() {
                         )}
                       </div>
 
+                      {/* Tipo de Geração: Principal vs Bônus vs Todas */}
+                      <select
+                        id="admin-generation-type"
+                        value={generationTypeFilter}
+                        onChange={(e) => setGenerationTypeFilter(e.target.value)}
+                        aria-label="Tipo de geração"
+                        style={{
+                          padding: '5px 8px',
+                          borderRadius: '6px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '0.78rem',
+                          color: generationTypeFilter === 'BONUS' ? '#7c3aed' : generationTypeFilter === 'ALL' ? '#0284c7' : '#0f172a',
+                          backgroundColor: generationTypeFilter === 'BONUS' ? '#f5f3ff' : generationTypeFilter === 'ALL' ? '#f0f9ff' : '#f8fafc',
+                          fontWeight: generationTypeFilter !== 'MAIN' ? '700' : '500'
+                        }}
+                      >
+                        <option value="MAIN">🎵 Principal</option>
+                        <option value="BONUS">🎁 Bônus (2ª Geração)</option>
+                        <option value="ALL">✨ Todas (Principal + Bônus)</option>
+                      </select>
+
                       {/* Status Pagamento */}
                       <select
                         id="admin-payment-status"
@@ -2430,6 +2458,26 @@ export default function AdminDashboard() {
                                     </span>
                                   )}
                                   <span>{o.orderNumber || o.id.substring(0, 8)}</span>
+                                  {isBonusOrder(o) && (
+                                    <span
+                                      title={o.parentOrderId ? `Geração Bônus (Pedido Pai: ${o.parentOrderId})` : 'Geração Bônus / 2ª Geração'}
+                                      style={{
+                                        fontSize: '0.68rem',
+                                        fontWeight: '800',
+                                        backgroundColor: '#f5f3ff',
+                                        color: '#7c3aed',
+                                        border: '1px solid #ddd6fe',
+                                        padding: '1px 5px',
+                                        borderRadius: '4px',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '2px',
+                                        lineHeight: 1.2
+                                      }}
+                                    >
+                                      🎁 Bônus
+                                    </span>
+                                  )}
                                 </div>
                               </td>
                               <td style={{ ...styles.td, fontWeight: '700' }}>
