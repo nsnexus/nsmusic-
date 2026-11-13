@@ -72,6 +72,16 @@ export async function POST(req) {
       updates.contingencyModeAtualizadoEm = new Date().toISOString();
     }
 
+    if (body?.abandonedPixRecoveryEnabled !== undefined) {
+      updates.abandonedPixRecoveryEnabled = Boolean(body.abandonedPixRecoveryEnabled);
+      updates.abandonedPixRecoveryEnabledAtualizadoEm = new Date().toISOString();
+    }
+
+    if (body?.abandonedPixRecoveryMaxPerHour !== undefined) {
+      updates.abandonedPixRecoveryMaxPerHour = Math.max(1, Math.min(50, Number(body.abandonedPixRecoveryMaxPerHour) || 15));
+      updates.abandonedPixRecoveryMaxPerHourAtualizadoEm = new Date().toISOString();
+    }
+
     const newValor = { ...currentValor, ...updates };
 
     await supabase
@@ -87,7 +97,9 @@ export async function POST(req) {
       whatsappSuporte: newValor.whatsappSuporte || WHATSAPP_SUPORTE_PADRAO,
       agentEnabled: newValor.agentEnabled !== false,
       sunoPrimaryProvider: newValor.sunoPrimaryProvider || process.env.SUNO_PRIMARY_PROVIDER || 'unifically',
-      contingencyMode: newValor.contingencyMode === true
+      contingencyMode: newValor.contingencyMode === true,
+      abandonedPixRecoveryEnabled: newValor.abandonedPixRecoveryEnabled === true,
+      abandonedPixRecoveryMaxPerHour: Number(newValor.abandonedPixRecoveryMaxPerHour) || 15
     });
   } catch (err) {
     console.error('[admin/config] falha ao salvar configuração:', err.message);
@@ -142,6 +154,8 @@ export async function GET(req) {
         agentEnabled: configData.agentEnabled !== false,
         sunoPrimaryProvider: configData.sunoPrimaryProvider || defaultProvider,
         contingencyMode: configData.contingencyMode === true,
+        abandonedPixRecoveryEnabled: configData.abandonedPixRecoveryEnabled === true,
+        abandonedPixRecoveryMaxPerHour: Number(configData.abandonedPixRecoveryMaxPerHour) || 15,
         sunoWorkerHeartbeat: workerHeartbeat
       },
       { headers: { 'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60' } }
@@ -152,7 +166,9 @@ export async function GET(req) {
       whatsappSuporte: WHATSAPP_SUPORTE_PADRAO,
       agentEnabled: true,
       sunoPrimaryProvider: 'unifically',
-      contingencyMode: false
+      contingencyMode: false,
+      abandonedPixRecoveryEnabled: false,
+      abandonedPixRecoveryMaxPerHour: 15
     });
   }
 }

@@ -240,6 +240,18 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
           }
         }
 
+        // Atribuição de recuperação de PIX abandonado:
+        // Se este pedido recebeu mensagem automática da Meta Cloud API de recuperação, registra conversão
+        const receivedRecovery = Boolean(
+          orderData?.abandoned_pix_recovery_sent ||
+          orderData?.extras?.abandoned_pix_recovery_sent
+        );
+        if (receivedRecovery && !orderData?.recovered_via_abandoned_pix && !orderData?.extras?.recovered_via_abandoned_pix) {
+          updates.recovered_via_abandoned_pix = true;
+          updates.recovered_via_abandoned_pix_at = nowIso;
+          updates.recovered_via_abandoned_pix_amount = valorPago;
+        }
+
         await updateOrder(orderId, updates, env);
 
         // Registra transação na tabela payments do Supabase

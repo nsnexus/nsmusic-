@@ -50,6 +50,7 @@ export function getCloudApiConfig(env = {}) {
     templatePagamento: ler('WHATSAPP_TEMPLATE_PAGAMENTO') || 'confirmacao_pagamento_v2',
     templatePagamentoDownloads: ler('WHATSAPP_TEMPLATE_PAGAMENTO_DOWNLOADS') || 'confirmacao_pagamento_downloads',
     templatePagamentoV2: ler('WHATSAPP_TEMPLATE_PAGAMENTO_V2') || 'confirmacao_pagamento_v2',
+    templateRecuperacao: ler('WHATSAPP_TEMPLATE_RECOVERY') || 'recuperacao_pedido_24h',
     enabled: Boolean(token && phoneNumberId),
   };
 }
@@ -264,3 +265,30 @@ export async function enviarPagamentoConfirmadoCloud(phone, { cliente, homenagea
     env
   );
 }
+
+/**
+ * "Recuperação de pedido / PIX abandonado" — template oficial de marketing da Meta Cloud API.
+ * Notifica leads que iniciaram checkout mas não concluíram o pagamento dentro da janela de 24 horas.
+ *
+ * Variáveis do corpo do template aprovado (pt_BR):
+ *   {{1}}: Primeiro nome do cliente
+ *   {{2}}: Nome do homenageado
+ *   {{3}}: Link do pedido / entrega
+ *   {{4}}: Link do WhatsApp do suporte administrativo para dúvidas
+ */
+export async function enviarRecuperacaoCarrinhoCloud(phone, { cliente, homenageado, link, linkSuporte }, env = {}) {
+  const config = getCloudApiConfig(env);
+  const cfgSite = await lerConfigSite(env).catch(() => ({}));
+  const numSuporte = normalizarNumeroWhatsapp(cfgSite?.whatsappSuporte) || WHATSAPP_SUPORTE_PADRAO;
+  const resolvedLinkSuporte = linkSuporte || `https://wa.me/${numSuporte}`;
+
+  const templateToUse = config.templateRecuperacao || 'recuperacao_pedido_24h';
+  const nomeCliente = cliente || 'Cliente';
+  const nomeHomenageado = homenageado || 'alguém especial';
+  const linkPedido = link || resolverSiteUrl(env?.NEXT_PUBLIC_SITE_URL);
+
+  const variaveis = [nomeCliente, nomeHomenageado, linkPedido, resolvedLinkSuporte];
+
+  return sendCloudApiTemplate(phone, templateToUse, variaveis, {}, env);
+}
+

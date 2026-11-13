@@ -21,6 +21,7 @@ import TabelaTimbresClientes from '@/components/admin/TabelaTimbresClientes';
 import AbaFinanceiro from '@/components/admin/AbaFinanceiro';
 import AbaRemixCover from '@/components/admin/AbaRemixCover';
 import AbaContas from '@/components/admin/AbaContas';
+import AbandonedPixRecoveryPanel from '@/components/admin/AbandonedPixRecoveryPanel';
 import FunilStatusCards from '@/components/admin/FunilStatusCards';
 import { hasOrderGeneratedPix } from '@/lib/pixCheckout';
 import { isStripePayment, calculateStripeFee, calculateStripeNet, getPayoutStatus } from '@/lib/paymentFees';
@@ -1225,6 +1226,7 @@ export default function AdminDashboard() {
               { id: 'ORDERS', label: `📦 Pedidos (${activeOrdersCount})` },
               { id: 'DASHBOARD', label: '📊 Dashboard', isLink: true, href: '/admin/dashboard' },
               { id: 'ANUNCIOS', label: '🎯 Anúncios', isLink: true, href: '/admin/anuncios' },
+              { id: 'RECUPERACAO', label: '💬 Recuperação PIX' },
               { id: 'CONTAS', label: '👤 Contas' },
               { id: 'FINANCEIRO', label: '💰 Financeiro' },
               { id: 'STUCK', label: '🔍 Conferir Pagamentos' },
@@ -1290,7 +1292,9 @@ export default function AdminDashboard() {
       <main style={{ flex: 1, padding: '32px 0' }}>
         <div className="container" style={{ maxWidth: '1280px', margin: '0 auto', padding: '0 20px' }}>
           
-          {activeTab === 'CONTAS' ? (
+          {activeTab === 'RECUPERACAO' ? (
+            <AbandonedPixRecoveryPanel />
+          ) : activeTab === 'CONTAS' ? (
             <AbaContas authUser={user} />
           ) : activeTab === 'FINANCEIRO' ? (
             <AbaFinanceiro />

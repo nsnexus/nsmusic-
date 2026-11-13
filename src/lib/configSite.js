@@ -28,7 +28,9 @@ export async function lerConfigSite(env = {}) {
               agentEnabled: json.agentEnabled !== false,
               sunoPrimaryProvider: json.sunoPrimaryProvider || null,
               contingencyMode: json.contingencyMode === true,
-              sunoWorkerHeartbeat: json.sunoWorkerHeartbeat || null
+              sunoWorkerHeartbeat: json.sunoWorkerHeartbeat || null,
+              abandonedPixRecoveryEnabled: json.abandonedPixRecoveryEnabled === true,
+              abandonedPixRecoveryMaxPerHour: Number(json.abandonedPixRecoveryMaxPerHour) || 15
             };
           }
         }
@@ -50,6 +52,8 @@ export async function lerConfigSite(env = {}) {
           agentEnabled: data.valor.agentEnabled !== false,
           sunoPrimaryProvider: data.valor.sunoPrimaryProvider || null,
           contingencyMode: data.valor.contingencyMode === true,
+          abandonedPixRecoveryEnabled: data.valor.abandonedPixRecoveryEnabled === true,
+          abandonedPixRecoveryMaxPerHour: Number(data.valor.abandonedPixRecoveryMaxPerHour) || 15,
           ...data.valor
         };
       }
@@ -59,7 +63,9 @@ export async function lerConfigSite(env = {}) {
       whatsappSuporte: WHATSAPP_SUPORTE_PADRAO,
       agentEnabled: true,
       sunoPrimaryProvider: null,
-      contingencyMode: false
+      contingencyMode: false,
+      abandonedPixRecoveryEnabled: false,
+      abandonedPixRecoveryMaxPerHour: 15
     };
   } catch (e) {
     console.warn('[config] não foi possível ler config/site:', e.message);
@@ -67,7 +73,9 @@ export async function lerConfigSite(env = {}) {
       whatsappSuporte: WHATSAPP_SUPORTE_PADRAO,
       agentEnabled: true,
       sunoPrimaryProvider: null,
-      contingencyMode: false
+      contingencyMode: false,
+      abandonedPixRecoveryEnabled: false,
+      abandonedPixRecoveryMaxPerHour: 15
     };
   }
 }

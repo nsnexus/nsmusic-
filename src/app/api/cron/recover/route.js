@@ -1,14 +1,16 @@
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
 import { getSupabaseEdge } from '@/lib/supabase-edge';
+import { requireAdmin } from '@/lib/auth';
+import { runAbandonedPixRecovery } from '@/lib/abandonedPixRecovery';
 
 export const runtime = 'edge';
 
-// Executado a cada 15 minutos via Cron Trigger do Worker efi-proxy (ver workers/efi-proxy/wrangler.toml)
-// DESATIVADO: O cliente já recebe a notificação da música pronta diretamente pela Meta Cloud API Oficial
-// assim que a geração conclui. A régua de recuperação via API não-oficial (Evolution) foi desativada
-// para evitar mensagens repetidas e risco de banimento.
-export async function GET(req) {
+/**
+ * Endpoint executado periodicamente (a cada 1 hora) por agendador externo ou disparado manualmente pelo admin.
+ * Executa a reconciliação de indicações e a recuperação de PIX abandonado da Meta Cloud API.
+ */
+async function handleRecover(req) {
   try {
     let env = {};
     try {
@@ -17,27 +19,53 @@ export async function GET(req) {
     } catch (e) {}
 
     const cronSecret = String(env.CRON_SECRET || process.env.CRON_SECRET || '').trim();
-    if (!cronSecret) {
-      return NextResponse.json({ error: 'CRON_SECRET não configurada no servidor.' }, { status: 500 });
+    const authHeader = req.headers?.get?.('authorization') || '';
+
+    let isAuthorized = false;
+
+    // 1. Autorização via Bearer Token do Cron
+    if (cronSecret && authHeader === `Bearer ${cronSecret}`) {
+      isAuthorized = true;
+    } else {
+      // 2. Autorização via sessão de Administrador (para acionamento manual do painel)
+      const adminAuth = await requireAdmin(req, env);
+      if (adminAuth.ok) {
+        isAuthorized = true;
+      }
     }
 
-    const authHeader = req.headers.get('authorization');
-    if (authHeader !== `Bearer ${cronSecret}`) {
+    if (!isAuthorized) {
       return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 });
     }
 
-    // Only reconcile rewards for verified payments. The WhatsApp recovery campaign stays off.
+    // Reconcilia recompensas de indicação pendentes
     const supabase = getSupabaseEdge(env);
-    const reconciled = supabase ? await supabase.rpc('reconcile_pending_referrals', { p_limit: 50 }) : null;
+    let referralRewardsReconciled = 0;
+    try {
+      const reconciled = supabase ? await supabase.rpc('reconcile_pending_referrals', { p_limit: 50 }) : null;
+      referralRewardsReconciled = reconciled?.error ? 0 : Number(reconciled?.data) || 0;
+    } catch (e) {
+      console.warn('[cron/recover] Erro ao reconciliar indicações:', e.message);
+    }
+
+    // Executa a régua de recuperação de PIX abandonado via Meta Cloud API Oficial
+    const recoveryResult = await runAbandonedPixRecovery({ env });
+
     return NextResponse.json({
       success: true,
-      referralRewardsReconciled: reconciled?.error ? 0 : Number(reconciled?.data) || 0,
-      message: 'Régua de recuperação via WhatsApp não-oficial desativada (notificação oficial enviada na entrega).',
-      results: { total: 0, eligible: 0, processed: 0, sent: [] }
+      referralRewardsReconciled,
+      recovery: recoveryResult,
     });
-
   } catch (err) {
-    console.error("Erro no Cron de Recuperação:", err);
-    return NextResponse.json({ error: 'Falha interna do Cron.' }, { status: 500 });
+    console.error('[cron/recover] Erro inesperado:', err);
+    return NextResponse.json({ error: 'Falha interna do Cron de Recuperação.' }, { status: 500 });
   }
+}
+
+export async function GET(req) {
+  return handleRecover(req);
+}
+
+export async function POST(req) {
+  return handleRecover(req);
 }
