@@ -67,11 +67,16 @@ export async function GET(req) {
         return false;
       });
 
+      const orderWithPhone = userOrders.find((ord) => ord.customer_phone && String(ord.customer_phone).replace(/\D/g, '').length >= 8);
+      const derivedPhone = orderWithPhone ? orderWithPhone.customer_phone : '';
+      const orderWithName = userOrders.find((ord) => ord.customer_name && ord.customer_name.trim().length >= 2);
+      const derivedName = orderWithName ? orderWithName.customer_name : '';
+
       return {
         id: u.id,
         email: u.email,
-        phone: u.phone || u.user_metadata?.phone || '',
-        name: u.user_metadata?.name || u.user_metadata?.full_name || '',
+        phone: u.phone || u.user_metadata?.phone || u.user_metadata?.whatsapp || derivedPhone,
+        name: u.user_metadata?.name || u.user_metadata?.full_name || derivedName,
         createdAt: u.created_at,
         lastSignInAt: u.last_sign_in_at,
         orders: userOrders.map((o) => ({

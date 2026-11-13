@@ -34,7 +34,7 @@ vi.mock('@/lib/supabase-edge', () => ({
   }))
 }));
 
-const { GET } = await import('@/app/api/admin/orders/route');
+const { GET, normalizeDateBounds } = await import('@/app/api/admin/orders/route');
 
 beforeEach(() => {
   mockAdminOk = true;
@@ -72,5 +72,37 @@ describe('GET /api/admin/orders', () => {
     expect(json.orders[0].orderNumber).toBe('NS-1111-2026');
     expect(json.orders[0].customerName).toBe('Marcos');
     expect(json.orders[0].paymentStatus).toBe('PAGO');
+  });
+});
+
+describe('normalizeDateBounds', () => {
+  it('cobre as 24 horas completas do dia quando apenas dateFrom é informado', () => {
+    const { fromIso, toIso } = normalizeDateBounds('2026-11-05', '');
+    expect(fromIso).toBe('2026-11-05T00:00:00-03:00');
+    expect(toIso).toBe('2026-11-05T23:59:59.999-03:00');
+  });
+
+  it('normaliza intervalo dateFrom e dateTo', () => {
+    const { fromIso, toIso } = normalizeDateBounds('2026-11-01', '2026-11-05');
+    expect(fromIso).toBe('2026-11-01T00:00:00-03:00');
+    expect(toIso).toBe('2026-11-05T23:59:59.999-03:00');
+  });
+
+  it('inverte automaticamente se dateFrom for maior que dateTo', () => {
+    const { fromIso, toIso } = normalizeDateBounds('2026-11-05', '2026-11-01');
+    expect(fromIso).toBe('2026-11-01T00:00:00-03:00');
+    expect(toIso).toBe('2026-11-05T23:59:59.999-03:00');
+  });
+
+  it('extrai parte de data quando ISO string é passada', () => {
+    const { fromIso, toIso } = normalizeDateBounds('2026-11-05T03:00:00.000Z', '');
+    expect(fromIso).toBe('2026-11-05T00:00:00-03:00');
+    expect(toIso).toBe('2026-11-05T23:59:59.999-03:00');
+  });
+
+  it('retorna null quando nenhuma data é informada', () => {
+    const { fromIso, toIso } = normalizeDateBounds('', '');
+    expect(fromIso).toBeNull();
+    expect(toIso).toBeNull();
   });
 });

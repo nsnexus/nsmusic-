@@ -77,4 +77,26 @@ describe('POST /api/video/upload (S08)', () => {
       videoStatus: 'CONCLUIDO'
     }), expect.any(Object));
   });
+
+  it('permite upload de video/webm com parâmetros de codec (mobile Chrome / Android)', async () => {
+    getOrder.mockResolvedValue({
+      id: 'ord-webm',
+      hasVideoAccess: true,
+      package: 'combo',
+    });
+    updateOrder.mockResolvedValue({ success: true });
+
+    const blob = new Blob(['video webm bytes'], { type: 'video/webm' });
+    const req = new Request('https://nsmusic.com.br/api/video/upload?orderId=ord-webm&ext=webm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'video/webm;codecs=vp8,opus' },
+      body: blob,
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.url).toMatch(/^https:\/\/media\.nsnexus\.com\.br\/videos\/ord-webm\/video_\d+\.webm$/);
+    expect(mockPutCalled).toBe(true);
+  });
 });

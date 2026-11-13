@@ -119,6 +119,8 @@ create index if not exists orders_phone_idx       on orders (customer_phone)  wh
 create index if not exists orders_status_idx      on orders (payment_status, created_at desc);
 create index if not exists orders_producao_idx    on orders (production_status, created_at desc);
 create unique index if not exists orders_number_idx on orders (order_number);
+create index if not exists orders_suno_task_id_idx on orders (suno_task_id) where suno_task_id is not null;
+create index if not exists orders_parent_order_id_idx on orders ((extras->>'parentOrderId')) where extras->>'parentOrderId' is not null;
 
 -- ============================================================================
 -- payments — uma linha por transação confirmada

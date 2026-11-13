@@ -84,16 +84,33 @@ export default function AdminDashboard() {
   const [user, setUser] = useState(null);
   const [checkingAuth, setCheckingAuth] = useState(true);
 
-  // Padrão "hoje" — reduz leituras do banco no carregamento inicial
+  // Helpers de data local (fuso do navegador / Brasil)
   const todayLocalStr = () => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   };
 
+  const yesterdayLocalStr = () => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+
+  const daysAgoLocalStr = (days) => {
+    const d = new Date();
+    d.setDate(d.getDate() - days);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+
+  const firstDayOfMonthLocalStr = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+  };
+
   const [countryFilter, setCountryFilter] = useState(() => getSavedAdminFilter('countryFilter', 'ALL')); // 'ALL', 'BR', 'US'
   const [filter, setFilter] = useState(() => getSavedAdminFilter('filter', 'ALL')); // 'ALL', 'NEW', 'PRODUCTION', 'FINISHED'
   const [purchaseTypeTab, setPurchaseTypeTab] = useState(() => getSavedAdminFilter('purchaseTypeTab', 'ALL')); // 'ALL', 'MUSIC', 'VIDEO'
-  const [dateFrom, setDateFrom] = useState(() => getSavedAdminFilter('dateFrom', todayLocalStr()));
+  const [dateFrom, setDateFrom] = useState(() => getSavedAdminFilter('dateFrom', ''));
   const [dateTo, setDateTo] = useState(() => getSavedAdminFilter('dateTo', ''));
   const [searchQuery, setSearchQuery] = useState(() => getSavedAdminFilter('searchQuery', ''));
   const [debouncedSearch, setDebouncedSearch] = useState(() => getSavedAdminFilter('searchQuery', ''));
@@ -117,12 +134,12 @@ export default function AdminDashboard() {
 
   // Inicializa com cache se disponível (carregamento instantâneo em 0ms ao voltar do pedido)
   const [orders, setOrders] = useState(() => {
-    const initialKey = `${getSavedAdminFilter('dateFrom', todayLocalStr())}_${getSavedAdminFilter('dateTo', '')}_${getSavedAdminFilter('searchQuery', '')}_500_false`;
+    const initialKey = `${getSavedAdminFilter('dateFrom', '')}_${getSavedAdminFilter('dateTo', '')}_${getSavedAdminFilter('searchQuery', '')}_500_false`;
     const cached = getCachedOrders(initialKey);
     return Array.isArray(cached) ? cached : [];
   });
   const [loadingOrders, setLoadingOrders] = useState(() => {
-    const initialKey = `${getSavedAdminFilter('dateFrom', todayLocalStr())}_${getSavedAdminFilter('dateTo', '')}_${getSavedAdminFilter('searchQuery', '')}_500_false`;
+    const initialKey = `${getSavedAdminFilter('dateFrom', '')}_${getSavedAdminFilter('dateTo', '')}_${getSavedAdminFilter('searchQuery', '')}_500_false`;
     const cached = getCachedOrders(initialKey);
     return !Array.isArray(cached);
   });
@@ -293,8 +310,8 @@ export default function AdminDashboard() {
           if (debouncedSearch && debouncedSearch.trim().length >= 2) {
             params.set('search', debouncedSearch.trim());
           } else {
-            if (dateFrom) params.set('dateFrom', localDayStartIso(dateFrom));
-            if (dateTo) params.set('dateTo', localDayEndIso(dateTo));
+            if (dateFrom) params.set('dateFrom', dateFrom);
+            if (dateTo) params.set('dateTo', dateTo);
           }
           params.set('limit', String(loadAll ? 1000 : pageSize + 1));
 
@@ -515,8 +532,29 @@ export default function AdminDashboard() {
       });
     }
 
-    // Filtro de data já aconteceu na query do Firestore (where() em createdAt) — orders só chega
-    // aqui com o intervalo certo, não precisa refiltrar.
+    // Filtro de data: garante consistência imediata no cliente (mesmo com cache local)
+    if (dateFrom || dateTo) {
+      let sDate = dateFrom;
+      let eDate = dateTo || dateFrom;
+      if (sDate && eDate && sDate > eDate) {
+        const tmp = sDate;
+        sDate = eDate;
+        eDate = tmp;
+      }
+      const fromTimestamp = sDate ? new Date(`${sDate}T00:00:00-03:00`).getTime() : null;
+      const toTimestamp = eDate ? new Date(`${eDate}T23:59:59.999-03:00`).getTime() : null;
+
+      result = result.filter(o => {
+        const createdMs = o.createdAt ? new Date(o.createdAt).getTime() : 0;
+        const paidMs = o.paidAt ? new Date(o.paidAt).getTime() : 0;
+
+        const isPaid = o.paymentStatus === 'PAGO' || o.paymentStatus === 'PAGAMENTO_APROVADO';
+        const matchCreated = createdMs > 0 && (!fromTimestamp || createdMs >= fromTimestamp) && (!toTimestamp || createdMs <= toTimestamp);
+        const matchPaid = isPaid && paidMs > 0 && (!fromTimestamp || paidMs >= fromTimestamp) && (!toTimestamp || paidMs <= toTimestamp);
+
+        return matchCreated || matchPaid;
+      });
+    }
 
     // Busca por texto: telefone, nome do cliente, homenageado ou código do pedido.
     // String() garante que customerPhone numérico não quebre o .replace().
@@ -1917,8 +1955,96 @@ export default function AdminDashboard() {
 
                     {/* Filtros em Dropdowns Alinhados */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                      {/* Datas */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      {/* Datas & Atalhos Rápidos */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
+                        <div style={{ display: 'inline-flex', gap: '3px', background: '#f1f5f9', padding: '2px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                          <button
+                            type="button"
+                            onClick={() => { const t = todayLocalStr(); setDateFrom(t); setDateTo(t); }}
+                            style={{
+                              padding: '3px 8px',
+                              borderRadius: '4px',
+                              fontSize: '0.74rem',
+                              fontWeight: (dateFrom === todayLocalStr() && (dateTo === todayLocalStr() || !dateTo)) ? '700' : '500',
+                              backgroundColor: (dateFrom === todayLocalStr() && (dateTo === todayLocalStr() || !dateTo)) ? '#0f172a' : 'transparent',
+                              color: (dateFrom === todayLocalStr() && (dateTo === todayLocalStr() || !dateTo)) ? '#ffffff' : '#475569',
+                              border: 'none',
+                              cursor: 'pointer',
+                            }}
+                            title="Filtrar pedidos de hoje"
+                          >
+                            Hoje
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { const y = yesterdayLocalStr(); setDateFrom(y); setDateTo(y); }}
+                            style={{
+                              padding: '3px 8px',
+                              borderRadius: '4px',
+                              fontSize: '0.74rem',
+                              fontWeight: (dateFrom === yesterdayLocalStr() && (dateTo === yesterdayLocalStr() || !dateTo)) ? '700' : '500',
+                              backgroundColor: (dateFrom === yesterdayLocalStr() && (dateTo === yesterdayLocalStr() || !dateTo)) ? '#0f172a' : 'transparent',
+                              color: (dateFrom === yesterdayLocalStr() && (dateTo === yesterdayLocalStr() || !dateTo)) ? '#ffffff' : '#475569',
+                              border: 'none',
+                              cursor: 'pointer',
+                            }}
+                            title="Filtrar pedidos de ontem"
+                          >
+                            Ontem
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setDateFrom(daysAgoLocalStr(7)); setDateTo(todayLocalStr()); }}
+                            style={{
+                              padding: '3px 8px',
+                              borderRadius: '4px',
+                              fontSize: '0.74rem',
+                              fontWeight: (dateFrom === daysAgoLocalStr(7) && dateTo === todayLocalStr()) ? '700' : '500',
+                              backgroundColor: (dateFrom === daysAgoLocalStr(7) && dateTo === todayLocalStr()) ? '#0f172a' : 'transparent',
+                              color: (dateFrom === daysAgoLocalStr(7) && dateTo === todayLocalStr()) ? '#ffffff' : '#475569',
+                              border: 'none',
+                              cursor: 'pointer',
+                            }}
+                            title="Últimos 7 dias"
+                          >
+                            7D
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setDateFrom(firstDayOfMonthLocalStr()); setDateTo(todayLocalStr()); }}
+                            style={{
+                              padding: '3px 8px',
+                              borderRadius: '4px',
+                              fontSize: '0.74rem',
+                              fontWeight: (dateFrom === firstDayOfMonthLocalStr() && dateTo === todayLocalStr()) ? '700' : '500',
+                              backgroundColor: (dateFrom === firstDayOfMonthLocalStr() && dateTo === todayLocalStr()) ? '#0f172a' : 'transparent',
+                              color: (dateFrom === firstDayOfMonthLocalStr() && dateTo === todayLocalStr()) ? '#ffffff' : '#475569',
+                              border: 'none',
+                              cursor: 'pointer',
+                            }}
+                            title="Este mês"
+                          >
+                            Mês
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setDateFrom(''); setDateTo(''); }}
+                            style={{
+                              padding: '3px 8px',
+                              borderRadius: '4px',
+                              fontSize: '0.74rem',
+                              fontWeight: (!dateFrom && !dateTo) ? '700' : '500',
+                              backgroundColor: (!dateFrom && !dateTo) ? '#0f172a' : 'transparent',
+                              color: (!dateFrom && !dateTo) ? '#ffffff' : '#475569',
+                              border: 'none',
+                              cursor: 'pointer',
+                            }}
+                            title="Todos os pedidos"
+                          >
+                            Todos
+                          </button>
+                        </div>
+
                         <input
                           id="admin-date-from"
                           type="date"
@@ -1940,8 +2066,8 @@ export default function AdminDashboard() {
                           <button
                             type="button"
                             onClick={() => { setDateFrom(''); setDateTo(''); }}
-                            style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#64748b', fontSize: '0.75rem', cursor: 'pointer' }}
-                            title="Limpar datas"
+                            style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#ef4444', fontSize: '0.75rem', cursor: 'pointer', fontWeight: 600 }}
+                            title="Limpar datas e ver todos"
                           >
                             ✕
                           </button>

@@ -398,11 +398,11 @@ export async function createSlideshowVideo(orderId, imageUrls, audioUrl, orderDa
         return;
       }
 
-      // Progresso no Firestore e na UI
+      // Progresso na UI e atualização periódica do pedido
       const progressPercent = Math.min(95, Math.floor((elapsed / duration) * 90) + 10);
       if (onProgress) onProgress(progressPercent);
-      if (Math.floor(elapsed) % 5 === 0) {
-        updateDoc(orderRef, { videoProgress: progressPercent }).catch(() => {});
+      if (Math.floor(elapsed) % 10 === 0) {
+        updateOrderClient(orderId, { videoProgress: progressPercent }).catch(() => {});
       }
 
       const currentIndex = Math.min(

@@ -71,7 +71,6 @@ export default function CriarMusica() {
   const [orderId, setOrderId] = useState('');
   const [taskId, setTaskId] = useState('');
   const [isRestored, setIsRestored] = useState(false);
-  const [needsReload, setNeedsReload] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSelfTribute, setIsSelfTribute] = useState(false);
   const [customLyricsMode, setCustomLyricsMode] = useState(false);
@@ -94,15 +93,7 @@ export default function CriarMusica() {
     return () => { ativo = false; };
   }, []);
 
-  // Força reload da página após gerar a música para resetar o DOM e o AudioPlayer
-  useEffect(() => {
-    if (needsReload && typeof window !== 'undefined') {
-      const timer = setTimeout(() => {
-        window.location.reload();
-      }, 6000); // 6s de delay para dar tempo das CDNs da Suno/Kie.ai propagarem o arquivo MP3
-      return () => clearTimeout(timer);
-    }
-  }, [needsReload]);
+
 
   // Dispara ViewContent no TikTok Pixel ao acessar a página de criação
   useEffect(() => {

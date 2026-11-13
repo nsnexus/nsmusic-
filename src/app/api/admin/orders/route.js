@@ -58,6 +58,53 @@ const ADMIN_ORDER_COLUMNS = [
   'extras'
 ].join(',');
 
+/**
+ * Normaliza os limites de data (dateFrom e dateTo) para o fuso do Brasil (UTC-3).
+ * Suporta formatos 'YYYY-MM-DD' e ISO 8601 ('YYYY-MM-DDTHH:mm:ss.sssZ').
+ * Quando apenas dateFrom é fornecido, cobre as 24 horas daquele dia completo (00:00 a 23:59:59.999).
+ * Se dateFrom > dateTo, inverte automaticamente para evitar intervalos vazios.
+ */
+export function normalizeDateBounds(dateFrom, dateTo) {
+  const rawFrom = (dateFrom || '').trim();
+  const rawTo = (dateTo || '').trim();
+  if (!rawFrom && !rawTo) return { fromIso: null, toIso: null };
+
+  const toDayStartIso = (val) => {
+    if (!val) return null;
+    const datePart = val.includes('T') ? val.split('T')[0] : val;
+    return `${datePart}T00:00:00-03:00`;
+  };
+
+  const toDayEndIso = (val) => {
+    if (!val) return null;
+    const datePart = val.includes('T') ? val.split('T')[0] : val;
+    return `${datePart}T23:59:59.999-03:00`;
+  };
+
+  let fromIso = null;
+  let toIso = null;
+
+  if (rawFrom && rawTo) {
+    let s = rawFrom;
+    let e = rawTo;
+    const sDate = s.includes('T') ? s.split('T')[0] : s;
+    const eDate = e.includes('T') ? e.split('T')[0] : e;
+    if (sDate > eDate) {
+      s = rawTo;
+      e = rawFrom;
+    }
+    fromIso = toDayStartIso(s);
+    toIso = toDayEndIso(e);
+  } else if (rawFrom) {
+    fromIso = toDayStartIso(rawFrom);
+    toIso = toDayEndIso(rawFrom);
+  } else if (rawTo) {
+    toIso = toDayEndIso(rawTo);
+  }
+
+  return { fromIso, toIso };
+}
+
 export async function GET(req) {
   let env = {};
   try {
@@ -89,13 +136,22 @@ export async function GET(req) {
       .is('deleted_at', null)
       .neq('production_status', 'CONFIG');
 
-    if (dateFrom && !search) {
-      const fromIso = dateFrom.includes('T') ? dateFrom : `${dateFrom}T00:00:00-03:00`;
-      q = q.gte('created_at', fromIso);
-    }
-    if (dateTo) {
-      const toIso = dateTo.includes('T') ? dateTo : `${dateTo}T23:59:59.999-03:00`;
-      q = q.lte('created_at', toIso);
+    if ((dateFrom || dateTo) && !search) {
+      const { fromIso, toIso } = normalizeDateBounds(dateFrom, dateTo);
+
+      if (paymentStatus === 'PAGO' || paymentStatus === 'PAGAMENTO_APROVADO') {
+        // Quando filtra pagos, traz quem foi pago OU criado naquele período
+        if (fromIso && toIso) {
+          q = q.or(`and(created_at.gte.${fromIso},created_at.lte.${toIso}),and(paid_at.gte.${fromIso},paid_at.lte.${toIso})`);
+        } else if (fromIso) {
+          q = q.or(`created_at.gte.${fromIso},paid_at.gte.${fromIso}`);
+        } else if (toIso) {
+          q = q.or(`created_at.lte.${toIso},paid_at.lte.${toIso}`);
+        }
+      } else {
+        if (fromIso) q = q.gte('created_at', fromIso);
+        if (toIso) q = q.lte('created_at', toIso);
+      }
     }
 
     if (paymentStatus && paymentStatus !== 'ALL') {

@@ -9,6 +9,7 @@ const nextConfig = {
   },
   experimental: {
     cpus: 1,
+    optimizePackageImports: ['lucide-react'],
   },
 };
 

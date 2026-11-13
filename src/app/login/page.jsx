@@ -30,6 +30,7 @@ function GoogleIcon() {
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -90,6 +91,28 @@ export default function LoginPage() {
     }
   };
 
+  const handlePhoneChange = (e) => {
+    const raw = e.target.value.replace(/\D/g, '').slice(0, 11);
+    let formatted = raw;
+    if (raw.length > 2) {
+      formatted = `(${raw.slice(0, 2)}) ${raw.slice(2)}`;
+    }
+    if (raw.length > 7) {
+      formatted = `(${raw.slice(0, 2)}) ${raw.slice(2, 7)}-${raw.slice(7)}`;
+    } else if (raw.length > 6) {
+      formatted = `(${raw.slice(0, 2)}) ${raw.slice(2, 6)}-${raw.slice(6)}`;
+    }
+    setPhone(formatted);
+  };
+
+  const isPhoneValid = (val) => {
+    const digits = (val || '').replace(/\D/g, '');
+    const clean = digits.startsWith('55') && digits.length >= 12 ? digits.slice(2) : digits;
+    if (clean.length < 10 || clean.length > 11) return false;
+    const ddd = parseInt(clean.substring(0, 2), 10);
+    return ddd >= 11 && ddd <= 99;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -99,6 +122,13 @@ export default function LoginPage() {
     if (!trimmedEmail || !trimmedEmail.includes('@')) {
       setError('Por favor, digite um e-mail válido.');
       return;
+    }
+
+    if (isSignUp) {
+      if (!phone.trim() || !isPhoneValid(phone)) {
+        setError('Por favor, informe seu WhatsApp com DDD (ex: 11 98888-7777). O número é obrigatório para você receber o link da sua música gravada.');
+        return;
+      }
     }
 
     if (isSignUp && password !== confirmPassword) {
@@ -114,7 +144,13 @@ export default function LoginPage() {
     setSubmitting(true);
     try {
       if (isSignUp) {
-        await createUserWithEmailAndPassword(auth, trimmedEmail, password);
+        const cleanDigits = phone.replace(/\D/g, '');
+        const normalizedPhone = cleanDigits.startsWith('55') ? cleanDigits : `55${cleanDigits}`;
+        await createUserWithEmailAndPassword(auth, trimmedEmail, password, {
+          phone: normalizedPhone,
+          whatsapp: normalizedPhone,
+          customer_phone: normalizedPhone
+        });
       } else {
         await signInWithEmailAndPassword(auth, trimmedEmail, password);
       }
@@ -365,6 +401,30 @@ export default function LoginPage() {
                     style={getInputStyle('email')}
                   />
                 </div>
+
+                {isSignUp && (
+                  <div>
+                    <label htmlFor="login-phone" style={styles.label}>
+                      Seu WhatsApp com DDD (obrigatório):
+                    </label>
+                    <input 
+                      id="login-phone"
+                      name="phone"
+                      type="tel"
+                      placeholder="(11) 98888-7777"
+                      required
+                      autoComplete="tel"
+                      value={phone}
+                      onChange={handlePhoneChange}
+                      onFocus={() => setFocusedField('phone')}
+                      onBlur={() => setFocusedField(null)}
+                      style={getInputStyle('phone')}
+                    />
+                    <span style={{ fontSize: '0.78rem', color: '#454467', marginTop: '5px', display: 'block', lineHeight: '1.4' }}>
+                      📲 Obrigatório para você receber a notificação e o link da sua música no WhatsApp.
+                    </span>
+                  </div>
+                )}
 
                 <div>
                   <label htmlFor="login-password" style={styles.label}>

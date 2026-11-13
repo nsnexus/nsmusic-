@@ -223,15 +223,8 @@ ${pedido.lyrics}`;
   }
 }
 
-// Número do dono do estúdio, para quando a conversa precisa de gente.
-//
-// Não é segredo (é o WhatsApp de atendimento), mas fica em variável de ambiente para não exigir
-// deploy quando mudar — já aconteceu de o número principal ser suspenso e precisar trocar na hora.
-const WHATSAPP_DONO_PADRAO = '5594991064043';
-
-export function numeroDoDono(env = {}) {
-  return readEnvValue(env, 'ADMIN_WHATSAPP') || WHATSAPP_DONO_PADRAO;
-}
+import { numeroDoDono } from './ownerPhone.js';
+export { numeroDoDono };
 
 /**
  * Chama o dono quando a máquina não resolve.

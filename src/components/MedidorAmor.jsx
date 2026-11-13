@@ -133,7 +133,7 @@ function Slide({ item, proximo, ativo, honoreeName, customerName, alturaGrande }
           );
         })()}
         {ehFinal && (honoreeName || customerName) && (
-          <p style={{ marginTop: '18px', fontFamily: "'Grand Hotel', cursive", fontSize: '1.6rem', color: '#fff', textShadow: '0 0 26px rgba(255,127,171,0.7)' }}>
+          <p style={{ marginTop: '18px', fontFamily: "var(--font-grand-hotel), 'Grand Hotel', cursive", fontSize: '1.6rem', color: '#fff', textShadow: '0 0 26px rgba(255,127,171,0.7)' }}>
             {customerName}{customerName && honoreeName ? ' & ' : ''}{honoreeName}
           </p>
         )}

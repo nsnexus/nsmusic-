@@ -58,7 +58,8 @@ export async function POST(req) {
   }
 
   const contentType = req.headers.get('content-type') || '';
-  if (!MIME_ALLOWLIST.includes(contentType)) {
+  const baseMime = contentType.split(';')[0].trim().toLowerCase();
+  if (!['video/mp4', 'video/webm'].includes(baseMime)) {
     return NextResponse.json({ error: 'Tipo de arquivo não permitido.' }, { status: 400 });
   }
 

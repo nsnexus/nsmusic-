@@ -9,6 +9,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['tests/**/*.test.js'],
+    maxConcurrency: 4,
   },
   resolve: {
     alias: {

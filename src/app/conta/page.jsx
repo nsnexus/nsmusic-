@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { auth, onAuthStateChanged, signOut } from '@/lib/authClient';
+import { supabase } from '@/lib/supabase';
 
 export default function ContaPage() {
   const [user, setUser] = useState(null);
@@ -14,6 +15,62 @@ export default function ContaPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+
+  const [phoneInput, setPhoneInput] = useState('');
+  const [savingPhone, setSavingPhone] = useState(false);
+  const [phoneSavedMsg, setPhoneSavedMsg] = useState('');
+  const [phoneError, setPhoneError] = useState('');
+
+  const userPhone = user?.phone || user?.user_metadata?.phone || user?.user_metadata?.whatsapp || '';
+
+  const handlePhoneInputChange = (e) => {
+    const raw = e.target.value.replace(/\D/g, '').slice(0, 11);
+    let formatted = raw;
+    if (raw.length > 2) {
+      formatted = `(${raw.slice(0, 2)}) ${raw.slice(2)}`;
+    }
+    if (raw.length > 7) {
+      formatted = `(${raw.slice(0, 2)}) ${raw.slice(2, 7)}-${raw.slice(7)}`;
+    } else if (raw.length > 6) {
+      formatted = `(${raw.slice(0, 2)}) ${raw.slice(2, 6)}-${raw.slice(6)}`;
+    }
+    setPhoneInput(formatted);
+  };
+
+  const handleSavePhone = async (e) => {
+    e.preventDefault();
+    setPhoneError('');
+    setPhoneSavedMsg('');
+    const digits = phoneInput.replace(/\D/g, '');
+    const clean = digits.startsWith('55') && digits.length >= 12 ? digits.slice(2) : digits;
+    if (clean.length < 10 || clean.length > 11) {
+      setPhoneError('Digite um celular válido com DDD (10 ou 11 dígitos).');
+      return;
+    }
+    const ddd = parseInt(clean.substring(0, 2), 10);
+    if (ddd < 11 || ddd > 99) {
+      setPhoneError('DDD inválido.');
+      return;
+    }
+    const normalizedPhone = `55${clean}`;
+    setSavingPhone(true);
+    try {
+      const { data, error: updateErr } = await supabase.auth.updateUser({
+        data: {
+          phone: normalizedPhone,
+          whatsapp: normalizedPhone,
+          customer_phone: normalizedPhone
+        }
+      });
+      if (updateErr) throw updateErr;
+      if (data?.user) setUser(data.user);
+      setPhoneSavedMsg('WhatsApp cadastrado com sucesso!');
+    } catch (err) {
+      setPhoneError(err.message || 'Erro ao salvar WhatsApp.');
+    } finally {
+      setSavingPhone(false);
+    }
+  };
 
   const userRef = useRef(null);
 
@@ -103,6 +160,46 @@ export default function ContaPage() {
           <>
             <span className="nx-eyebrow">Minha conta</span>
             <h1>Seus presentes<br />reunidos em um só lugar.</h1>
+
+            {!userPhone && (
+              <section className="nx-card" style={{ marginBottom: 24, border: '1.5px solid #3b82f6', background: '#eff6ff', padding: '20px 24px', borderRadius: '16px' }}>
+                <span className="nx-eyebrow" style={{ color: '#2563eb', fontWeight: '700' }}>📲 Complete seu cadastro</span>
+                <h2 style={{ fontSize: '1.25rem', color: '#1e3a8a', marginTop: 4, fontWeight: '800' }}>
+                  Receba suas músicas e avisos no WhatsApp
+                </h2>
+                <p style={{ color: '#1e40af', fontSize: '0.88rem', margin: '6px 0 16px', lineHeight: '1.5' }}>
+                  Informe seu número de WhatsApp com DDD para receber links de recuperação, aviso quando a música ficar pronta e suporte rápido.
+                </p>
+                <form onSubmit={handleSavePhone} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <input
+                    type="tel"
+                    placeholder="(11) 98888-7777"
+                    value={phoneInput}
+                    onChange={handlePhoneInputChange}
+                    required
+                    style={{
+                      padding: '10px 14px',
+                      borderRadius: '8px',
+                      border: '1px solid #93c5fd',
+                      fontSize: '0.9rem',
+                      maxWidth: '220px',
+                      color: '#0f172a',
+                      background: '#ffffff'
+                    }}
+                  />
+                  <button
+                    type="submit"
+                    disabled={savingPhone}
+                    className="nx-button nx-primary"
+                    style={{ padding: '10px 18px', fontSize: '0.88rem' }}
+                  >
+                    {savingPhone ? 'Salvando...' : 'Salvar WhatsApp'}
+                  </button>
+                </form>
+                {phoneError && <p style={{ color: '#dc2626', fontSize: '0.82rem', marginTop: 8 }}>⚠️ {phoneError}</p>}
+                {phoneSavedMsg && <p style={{ color: '#16a34a', fontSize: '0.82rem', marginTop: 8 }}>✅ {phoneSavedMsg}</p>}
+              </section>
+            )}
 
             {error && (
               <p className="nx-message nx-error" role="alert">

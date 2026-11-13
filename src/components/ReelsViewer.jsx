@@ -375,7 +375,7 @@ export default function ReelsViewer({
         >
           <p
             style={{
-              fontFamily: "'Grand Hotel', cursive",
+              fontFamily: "var(--font-grand-hotel), 'Grand Hotel', cursive",
               fontSize: '1.7rem',
               color: '#fff',
               margin: 0,

@@ -559,7 +559,7 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
 
     if (txResult.isKaraokeOnly) {
       try {
-        const { numeroDoDono } = await import('./agentTools.js');
+        const { numeroDoDono } = await import('./ownerPhone.js');
         const { sendWhatsAppTextMessage } = await import('./whatsapp.js');
         const freshData = await getOrder(orderId, env);
         const orderInfo = freshData || txResult.orderData || {};

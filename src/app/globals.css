@@ -1,10 +1,10 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800;900&family=Work+Sans:wght@400;500;600;700;800&family=Grand+Hotel&family=Playfair+Display:ital,wght@0,700;0,900;1,600&family=Cinzel:wght@500;600;700;800&display=swap');
+/* Fontes otimizadas via next/font/google com zero network-blocking e auto-hosting */
 
 /* Fonte de destaque das páginas de presente (retrospectiva, carta, medidor e a aba Música de
    /entrega) — Cinzel, serifa romana com ar de convite, escolhida pelo dono do estúdio em
    04/09/2026 no lugar da Playfair ("muito sem graça"). Sempre com fallback serif real. */
 :root {
-  --font-family-gala: 'Cinzel', 'Playfair Display', Georgia, serif;
+  --font-family-gala: var(--font-cinzel), var(--font-playfair), 'Cinzel', 'Playfair Display', Georgia, serif;
 }
 
 :root {
@@ -64,8 +64,9 @@
   --glass-shadow: 0 8px 28px 0 rgba(79, 70, 229, 0.08);
 
   /* Fonts — Outfit (geométrica, robusta) nos títulos ecoa o peso do wordmark da logo; Work Sans no corpo */
-  --font-family-title: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-family-body: 'Work Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-family-title: var(--font-outfit), 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-family-body: var(--font-work-sans), 'Work Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-family-cursive: var(--font-grand-hotel), 'Grand Hotel', cursive;
 }
 
 * {

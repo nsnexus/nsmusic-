@@ -1,9 +1,41 @@
 import Script from 'next/script';
+import { Outfit, Work_Sans, Cinzel, Playfair_Display, Grand_Hotel } from 'next/font/google';
 import './globals.css';
 import './experience.css';
 import { organizationJsonLd, serviceJsonLd } from '@/lib/structuredData';
 import { SITE_URL } from '@/lib/siteUrl';
 import TrafficTracker from '@/components/TrafficTracker';
+
+const outfit = Outfit({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-outfit',
+});
+
+const workSans = Work_Sans({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-work-sans',
+});
+
+const cinzel = Cinzel({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-cinzel',
+});
+
+const playfair = Playfair_Display({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-playfair',
+});
+
+const grandHotel = Grand_Hotel({
+  weight: '400',
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-grand-hotel',
+});
 
 // Descrição única, usada em todo lugar (meta, OpenGraph, Twitter) — pedido 20/09/2026 ("deixar o
 // site otimizado para leitura de IA"). Diz O QUE é, PARA QUEM serve, QUANTO custa e EM QUANTO
@@ -59,7 +91,7 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="pt-BR">
+    <html lang="pt-BR" className={`${outfit.variable} ${workSans.variable} ${cinzel.variable} ${playfair.variable} ${grandHotel.variable}`}>
       <head>
         {/* Verificação de domínio da Meta. A Meta emite um código POR DOMÍNIO, e as duas tags
             convivem: a primeira é de nsmusic.nsnexus.com.br, a segunda de nsmusic.ia.br

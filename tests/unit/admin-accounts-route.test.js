@@ -160,4 +160,57 @@ describe('POST /api/admin/accounts - link_order e unlink_order', () => {
     expect(json.ok).toBe(true);
     expect(json.message).toContain('desvinculado com sucesso');
   });
+
+  it('GET /api/admin/accounts lista contas e deriva telefone de pedidos vinculados quando vazio no perfil', async () => {
+    global.fetch = vi.fn(async (url) => {
+      const urlStr = String(url);
+      if (urlStr.includes('/auth/v1/admin/users')) {
+        return {
+          ok: true,
+          json: async () => ({
+            users: [
+              {
+                id: 'user-sem-tel',
+                email: 'semtel@exemplo.com',
+                phone: '',
+                user_metadata: {},
+                created_at: '2026-09-01T00:00:00.000Z'
+              }
+            ]
+          })
+        };
+      }
+      if (urlStr.includes('/rest/v1/orders')) {
+        return {
+          ok: true,
+          json: async () => [
+            {
+              id: 'ord-1',
+              order_number: 'NS-9999',
+              user_id: 'user-sem-tel',
+              customer_name: 'Maria Silva',
+              customer_email: 'semtel@exemplo.com',
+              customer_phone: '11988887777',
+              honoree_name: 'João',
+              music_style: 'Pop',
+              payment_status: 'PAGO',
+              production_status: 'FINALIZADO',
+              audio_files: ['https://cdn.example.com/audio.mp3'],
+              created_at: '2026-09-02T00:00:00.000Z'
+            }
+          ]
+        };
+      }
+      return { ok: true, json: async () => ({}) };
+    });
+
+    const req = new Request('http://localhost/api/admin/accounts');
+    const res = await GET(req);
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.ok).toBe(true);
+    expect(json.users).toHaveLength(1);
+    expect(json.users[0].phone).toBe('11988887777');
+    expect(json.users[0].name).toBe('Maria Silva');
+  });
 });

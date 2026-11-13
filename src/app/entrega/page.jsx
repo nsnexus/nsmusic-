@@ -3,12 +3,12 @@
 import React, { useState, useEffect, useRef, Suspense } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
 import { primeAudioContext } from '@/lib/audioContext';
 import { AUDIO_CACHE_VERSION } from '@/lib/audioCacheVersion';
 import PixQrCode from '@/components/PixQrCode';
 import ProductWorkspace from '@/components/delivery/ProductWorkspace';
-import VideoEditor from '@/components/delivery/VideoEditor';
 import PlaybackAddonCard from '@/components/PlaybackAddonCard';
 import KaraokeAddonCard from '@/components/KaraokeAddonCard';
 import CartaAddonCard from '@/components/CartaAddonCard';
@@ -31,10 +31,13 @@ import { trackGooglePurchase } from '@/lib/googleAds';
 import { trackFbPurchase } from '@/lib/metaPixel';
 import { isOrderFromMeta, isOrderFromTikTok } from '@/lib/trafficSource';
 import DeliveryExperience from '@/components/delivery/DeliveryExperience';
-import CoverCropperModal from '@/components/delivery/CoverCropperModal';
 import InAppBrowserBanner from '@/components/delivery/InAppBrowserBanner';
-import PreviaEncerradaModal from '@/components/delivery/PreviaEncerradaModal';
-import IosInAppDownloadModal from '@/components/delivery/IosInAppDownloadModal';
+
+// Otimização de bundle: carregamento sob demanda dos editores e modais pesados
+const VideoEditor = dynamic(() => import('@/components/delivery/VideoEditor'), { ssr: false });
+const CoverCropperModal = dynamic(() => import('@/components/delivery/CoverCropperModal'), { ssr: false });
+const PreviaEncerradaModal = dynamic(() => import('@/components/delivery/PreviaEncerradaModal'), { ssr: false });
+const IosInAppDownloadModal = dynamic(() => import('@/components/delivery/IosInAppDownloadModal'), { ssr: false });
 
 function refreshDelivery() { window.location.reload(); }
 

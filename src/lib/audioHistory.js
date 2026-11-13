@@ -1,4 +1,4 @@
-import { extractAudioTracks } from './db.js';
+import { extractAudioTracks } from './audioTracks.js';
 
 /**
  * Normaliza e consolida o histórico de versões de áudio de um pedido.

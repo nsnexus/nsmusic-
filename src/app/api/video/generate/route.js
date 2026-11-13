@@ -18,8 +18,8 @@ export async function POST(req) {
       return NextResponse.json({ error: 'orderId e imageUrls (array de fotos) são obrigatórios.' }, { status: 400 });
     }
 
-    if (imageUrls.length < 10 || imageUrls.length > 20) {
-      return NextResponse.json({ error: 'Você precisa enviar entre 10 e 20 fotos para gerar o vídeo.' }, { status: 400 });
+    if (imageUrls.length < 3 || imageUrls.length > 20) {
+      return NextResponse.json({ error: 'Você precisa enviar entre 3 e 20 fotos para gerar o vídeo.' }, { status: 400 });
     }
 
     const orderData = await getOrder(orderId, env);

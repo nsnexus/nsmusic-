@@ -34,9 +34,14 @@ export async function signInWithEmailAndPassword(_unusedAuth, email, password) {
   return data;
 }
 
-export async function createUserWithEmailAndPassword(_unusedAuth, email, password) {
+export async function createUserWithEmailAndPassword(_unusedAuth, email, password, metadata = {}) {
   if (!supabase?.auth) throw new Error('Serviço de autenticação não configurado.');
-  const { data, error } = await supabase.auth.signUp({ email, password });
+  const signUpOptions = (metadata && Object.keys(metadata).length > 0) ? { data: metadata } : undefined;
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    ...(signUpOptions ? { options: signUpOptions } : {})
+  });
   if (error) {
     const err = new Error(error.message);
     const msg = (error.message || '').toLowerCase();
