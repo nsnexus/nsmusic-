@@ -355,6 +355,23 @@ export async function POST(req) {
       }
     }
 
+    // Metadados técnicos do cliente para Conversions API (Meta CAPI e TikTok Events API)
+    // Permite correspondência avançada precisa enviando o IP real (via Cloudflare Edge) e o User-Agent
+    const clientIp = req.headers?.get?.('cf-connecting-ip') ||
+      req.headers?.get?.('x-real-ip') ||
+      req.headers?.get?.('x-forwarded-for')?.split(',')[0]?.trim() ||
+      null;
+    const clientUserAgent = req.headers?.get?.('user-agent') || formData.userAgent || null;
+
+    const cookieHeader = req.headers?.get?.('cookie') || '';
+    const fbpCookieMatch = cookieHeader.match(/(?:^|;\s*)_fbp=([^;]+)/);
+    const fbcCookieMatch = cookieHeader.match(/(?:^|;\s*)_fbc=([^;]+)/);
+    const fbpFromCookie = fbpCookieMatch ? decodeURIComponent(fbpCookieMatch[1]) : null;
+    const fbcFromCookie = fbcCookieMatch ? decodeURIComponent(fbcCookieMatch[1]) : null;
+
+    const finalFbp = formData.fbp || fbpFromCookie || null;
+    const finalFbc = formData.fbc || fbcFromCookie || (finalFbclid ? `fb.1.${Math.floor(Date.now() / 1000)}.${finalFbclid}` : null);
+
     const orderPayload = {
       orderNumber,
       // Nunca vincule o pedido a um userId fornecido pelo navegador. Se houver
@@ -365,6 +382,10 @@ export async function POST(req) {
       customerName: formData.customerName || 'Cliente',
       customerPhone: formData.customerPhone || '',
       customerEmail: formData.customerEmail || '',
+      clientIp,
+      clientUserAgent,
+      fbc: finalFbc,
+      fbp: finalFbp,
       honoreeName: formData.honoreeName || '',
       recipientType: formData.recipientType || '',
       relationship: formData.relationship || '',

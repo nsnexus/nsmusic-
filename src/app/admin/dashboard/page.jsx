@@ -5,16 +5,29 @@ import { useRouter } from 'next/navigation';
 import { auth, onAuthStateChanged, signOut } from '@/lib/authClient';
 import Link from 'next/link';
 import Image from 'next/image';
+import dynamic from 'next/dynamic';
 import { usePedidosDoMes } from '@/lib/usePedidosDoMes';
-import VendasPorDiaTable from '@/components/VendasPorDiaTable';
-import VendasPorHoraHeatmap from '@/components/VendasPorHoraHeatmap';
-import VendasPorEstadoMapa from '@/components/VendasPorEstadoMapa';
 import RitmoVendasCard from '@/components/RitmoVendasCard';
 import VendasPorPlataformaCard from '@/components/VendasPorPlataformaCard';
 import KieCreditsBadge from '@/components/admin/KieCreditsBadge';
 import UnificallyCreditsBadge from '@/components/admin/UnificallyCreditsBadge';
 import WhatsAppUsageBadge from '@/components/admin/WhatsAppUsageBadge';
 import { hasMusicaGerada } from '@/lib/stats';
+
+// Componentes pesados carregados sob demanda (code-splitting) para reduzir First Load JS
+// e não bloquear a renderização inicial do dashboard.
+const VendasPorDiaTable = dynamic(() => import('@/components/VendasPorDiaTable'), {
+  ssr: false,
+  loading: () => <div style={{ padding: '24px', textAlign: 'center', color: '#64748b' }}>Carregando vendas por dia...</div>,
+});
+const VendasPorHoraHeatmap = dynamic(() => import('@/components/VendasPorHoraHeatmap'), {
+  ssr: false,
+  loading: () => <div style={{ padding: '24px', textAlign: 'center', color: '#64748b' }}>Carregando mapa por horário...</div>,
+});
+const VendasPorEstadoMapa = dynamic(() => import('@/components/VendasPorEstadoMapa'), {
+  ssr: false,
+  loading: () => <div style={{ padding: '24px', textAlign: 'center', color: '#64748b' }}>Carregando mapa por estado...</div>,
+});
 
 // toISOStr precisa lidar com os dois formatos gravados historicamente (Timestamp do Firestore e
 // string ISO) — mesmo utilitário replicado de admin/page.jsx.
@@ -216,12 +229,12 @@ export default function AdminDashboard() {
           <RitmoVendasCard />
 
           {/* Faturamento e conversões por plataforma (Facebook Ads, TikTok Ads, Orgânico, Direto) */}
-          <VendasPorPlataformaCard monthValue={monthValue} />
+          <VendasPorPlataformaCard monthValue={monthValue} pedidos={orders} loading={loadingOrders} />
 
           {/* Vendas por dia (+ faturamento líquido, gerações e conversão), mapa de calor por horário e mapa por estado */}
-          <VendasPorDiaTable />
-          <VendasPorHoraHeatmap />
-          <VendasPorEstadoMapa />
+          <VendasPorDiaTable mes={monthValue} pedidos={orders} loading={loadingOrders} />
+          <VendasPorHoraHeatmap mes={monthValue} pedidos={orders} loading={loadingOrders} />
+          <VendasPorEstadoMapa mes={monthValue} pedidos={orders} loading={loadingOrders} />
 
           {/* Solicitações x Conversões por dia com rótulos de dados (no final da página) */}
           <div className="glass-card admin-card-responsive" style={{ marginTop: '32px', padding: '24px', borderRadius: '16px', backgroundColor: '#ffffff', border: '1px solid #e2e8f0' }}>

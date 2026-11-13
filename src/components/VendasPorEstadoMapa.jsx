@@ -23,9 +23,20 @@ const pagouAlgumProduto = (o) => Boolean(
   o.hasCartaAccess || o.cartaAddonPaid || o.hasRetrospectivaAccess || o.retrospectivaAddonPaid
 );
 
-export default function VendasPorEstadoMapa() {
-  const [mes, setMes] = useState(mesAtualStr);
-  const { pedidos, loading, erro } = usePedidosDoMes(mes);
+export default function VendasPorEstadoMapa({
+  pedidos: pedidosProp = null,
+  mes: mesProp = null,
+  loading: loadingProp = null,
+  erro: erroProp = null,
+}) {
+  const [internalMes, setInternalMes] = useState(mesAtualStr);
+  const mes = mesProp || internalMes;
+  const setMes = (novoMes) => setInternalMes(novoMes);
+
+  const { pedidos: pedidosHook, loading: loadingHook, erro: erroHook } = usePedidosDoMes(pedidosProp ? null : mes);
+  const pedidos = pedidosProp !== null ? pedidosProp : pedidosHook;
+  const loading = loadingProp !== null ? loadingProp : loadingHook;
+  const erro = erroProp !== null ? erroProp : erroHook;
   const [hover, setHover] = useState(null); // uf
 
   const { porEstado, semEstado, totalVendas } = useMemo(() => {

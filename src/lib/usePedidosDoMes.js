@@ -46,7 +46,7 @@ function obterDoCache(mes) {
 function salvarNoCache(mes, pedidos) {
   const item = { timestamp: Date.now(), pedidos };
   cacheMes.set(mes, item);
-  if (typeof window !== 'undefined') {
+  if (typeof window !== 'undefined' && Array.isArray(pedidos) && pedidos.length <= 500) {
     try {
       sessionStorage.setItem(`nsmusic_cache_pedidos_${mes}`, JSON.stringify(item));
     } catch (_) {}

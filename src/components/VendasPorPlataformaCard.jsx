@@ -21,7 +21,7 @@ function mesAtualPadrao() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-export default function VendasPorPlataformaCard({ monthValue }) {
+export default function VendasPorPlataformaCard({ monthValue, pedidos: pedidosProp = null, loading: loadingProp = null }) {
   const mesAtivo = monthValue || mesAtualPadrao();
 
   const [ano, mesNum] = useMemo(() => {
@@ -77,7 +77,9 @@ export default function VendasPorPlataformaCard({ monthValue }) {
     return Array.from({ length: maxDia }, (_, i) => maxDia - i);
   }, [diasNoMes, ehMesAtual, hojeDia]);
 
-  const { pedidos, loading, erro } = usePedidosDoMes(mesAtivo);
+  const { pedidos: pedidosHook, loading: loadingHook, erro } = usePedidosDoMes(pedidosProp ? null : mesAtivo);
+  const pedidos = pedidosProp !== null ? pedidosProp : pedidosHook;
+  const loading = loadingProp !== null ? loadingProp : loadingHook;
   const { adsSpend, loadingAds, saveManualSpend } = useAdsSpend(mesAtivo);
 
   const { plataformas, totais } = useMemo(() => {

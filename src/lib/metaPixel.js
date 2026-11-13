@@ -21,16 +21,17 @@ function normalizeEmail(email) {
 // E-mail é opcional no formulário (só o telefone é obrigatório e verificado) — por isso nunca
 // bloqueamos no e-mail ausente, só enviamos o que existir. Se não houver nem telefone válido nem
 // e-mail, não há nada de novo pra mandar e a chamada é ignorada.
-export function pushAdvancedMatching(phone, email) {
+export function pushAdvancedMatching(phone, email, externalId = null) {
   if (typeof window === 'undefined' || !window.fbq) return;
 
   const ph = normalizePhone(phone);
   const em = normalizeEmail(email);
-  if (!ph && !em) return;
+  if (!ph && !em && !externalId) return;
 
   const matchData = {};
   if (ph) matchData.ph = ph;
   if (em) matchData.em = em;
+  if (externalId) matchData.external_id = String(externalId).trim();
 
   for (const pixelId of META_PIXEL_IDS) {
     window.fbq('init', pixelId, matchData);
@@ -43,7 +44,7 @@ export function pushAdvancedMatching(phone, email) {
 export function trackFbPurchase({ orderId, value, currency = 'BRL', contentName = 'Música Homenagem Personalizada', eventId: customEventId, phone, email }) {
   if (typeof window === 'undefined' || !window.fbq || !orderId) return;
 
-  pushAdvancedMatching(phone, email);
+  pushAdvancedMatching(phone, email, orderId);
 
   const eventId = customEventId || `purchase_${orderId}_musica`;
 

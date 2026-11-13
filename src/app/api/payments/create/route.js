@@ -52,6 +52,22 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Pedido não encontrado.' }, { status: 404 });
     }
 
+    // Atualiza IP e User-Agent do cliente no pedido caso ainda não estejam gravados (para Meta/TikTok CAPI)
+    const clientIp = req.headers?.get?.('cf-connecting-ip') ||
+      req.headers?.get?.('x-real-ip') ||
+      req.headers?.get?.('x-forwarded-for')?.split(',')[0]?.trim() ||
+      null;
+    const clientUserAgent = req.headers?.get?.('user-agent') || null;
+
+    if (clientIp || clientUserAgent) {
+      const updates = {};
+      if (clientIp && !existingOrderData.clientIp && !existingOrderData.extras?.clientIp) updates.clientIp = clientIp;
+      if (clientUserAgent && !existingOrderData.clientUserAgent && !existingOrderData.extras?.clientUserAgent) updates.clientUserAgent = clientUserAgent;
+      if (Object.keys(updates).length > 0) {
+        updateOrder(existingOrderData.id, updates, env).catch(() => {});
+      }
+    }
+
     const supabase = getSupabaseEdge(env);
     if (!supabase) return NextResponse.json({ error: 'Pagamento indisponível no momento.' }, { status: 503 });
     const { data: intent, error: reservationError } = await supabase.rpc('reserve_order_payment', {

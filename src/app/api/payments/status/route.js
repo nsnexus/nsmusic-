@@ -29,6 +29,12 @@ export async function GET(req) {
     const paymentId = searchParams.get('paymentId');
     const orderId = searchParams.get('orderId');
 
+    const clientIp = req.headers?.get?.('cf-connecting-ip') ||
+      req.headers?.get?.('x-real-ip') ||
+      req.headers?.get?.('x-forwarded-for')?.split(',')[0]?.trim() ||
+      null;
+    const clientUserAgent = req.headers?.get?.('user-agent') || null;
+
     // ── 1. Verificação rápida no Banco (Supabase como primário, Firestore como fallback) ──
     let orderData = null;
     if (orderId) {
@@ -166,6 +172,8 @@ export async function GET(req) {
               transaction_amount: transactionAmount,
               method: checkRes.captureMethod || 'credit_card',
               gateway: 'infinitepay',
+              clientIp,
+              clientUserAgent,
             }, env);
             return jsonNoCache({ status: "approved" });
           }
@@ -243,7 +251,12 @@ export async function GET(req) {
 
     if (charge?.status === 'CONCLUIDA' && orderId && txidBelongsToOrder) {
       const transactionAmount = Number(charge.valor?.original);
-      await applyPaymentApproval(orderId, txid, { status: 'approved', transaction_amount: transactionAmount }, env);
+      await applyPaymentApproval(orderId, txid, {
+        status: 'approved',
+        transaction_amount: transactionAmount,
+        clientIp,
+        clientUserAgent,
+      }, env);
       return jsonNoCache({ status: "approved" });
     }
     if (charge?.status === 'CONCLUIDA' && orderId && !txidBelongsToOrder) {

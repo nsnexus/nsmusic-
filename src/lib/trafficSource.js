@@ -39,6 +39,73 @@ export function arePhonesMatching(p1, p2) {
   return false;
 }
 
+/**
+ * Gera uma chave normalizada de telefone para busca O(1) em Map.
+ * Compatível com a regra de arePhonesMatching (DDD + últimos 8 dígitos).
+ */
+export function getPhoneMatchKey(rawPhone) {
+  const c = getComparablePhone(rawPhone);
+  if (!c) return '';
+  if (c.length >= 10) {
+    return `${c.slice(0, 2)}_${c.slice(-8)}`;
+  }
+  return c;
+}
+
+// Cache de indexação em memória para eliminar busca quadrática O(N²) em grandes listas de pedidos.
+// WeakMap permite coleta de lixo automática quando a lista de pedidos for descartada.
+const platformIndexCache = new WeakMap();
+
+function getPlatformIndexes(allOrders) {
+  let index = platformIndexCache.get(allOrders);
+  if (index) return index;
+
+  const byId = new Map();
+  const byPhone = new Map();
+  const byEmail = new Map();
+
+  for (let i = 0; i < allOrders.length; i++) {
+    const other = allOrders[i];
+    if (!other) continue;
+
+    if (other.id) byId.set(String(other.id), other);
+    if (other.orderNumber) byId.set(String(other.orderNumber), other);
+    if (other.order_number) byId.set(String(other.order_number), other);
+
+    const otherExtras = (other.extras && typeof other.extras === 'object') ? other.extras : {};
+    let paidPlat = null;
+
+    if (other.ttclid || otherExtras.ttclid) paidPlat = 'tiktok_ads';
+    else if (other.fbclid || otherExtras.fbclid) paidPlat = 'facebook_ads';
+    else if (other.gclid || otherExtras.gclid) paidPlat = 'google_ads';
+    else {
+      const oUtmSource = String(other.utmSource || otherExtras.utmSource || otherExtras.utm_source || '').toLowerCase();
+      const oUtmCampaign = String(other.utmCampaign || otherExtras.utmCampaign || otherExtras.utm_campaign || '').toLowerCase();
+      if (/tiktok|bytedance|\btt\b|tt_/i.test(oUtmSource) || /tiktok|bytedance/i.test(oUtmCampaign)) paidPlat = 'tiktok_ads';
+      else if (/facebook|meta|\bfb\b|instagram|\big\b|ig_/i.test(oUtmSource) || /facebook|instagram/i.test(oUtmCampaign)) paidPlat = 'facebook_ads';
+      else if (/google|adwords|\bgads\b/i.test(oUtmSource) || /google_ads|gads/i.test(oUtmCampaign)) paidPlat = 'google_ads';
+      else {
+        const oRaw = String(other.trafficSource || otherExtras.trafficSource || other.platform || otherExtras.platform || '').toLowerCase();
+        if (oRaw === 'tiktok_ads' || oRaw === 'tiktok') paidPlat = 'tiktok_ads';
+        else if (oRaw === 'facebook_ads' || oRaw === 'facebook' || oRaw === 'meta_ads') paidPlat = 'facebook_ads';
+        else if (oRaw === 'google_ads' || oRaw === 'google') paidPlat = 'google_ads';
+      }
+    }
+
+    if (paidPlat) {
+      const pKey = getPhoneMatchKey(other.customerPhone || other.customer_phone || otherExtras.customerPhone || otherExtras.customer_phone);
+      if (pKey && !byPhone.has(pKey)) byPhone.set(pKey, paidPlat);
+
+      const e = String(other.customerEmail || other.customer_email || otherExtras.customerEmail || otherExtras.customer_email || '').trim().toLowerCase();
+      if (e && !byEmail.has(e)) byEmail.set(e, paidPlat);
+    }
+  }
+
+  index = { byId, byPhone, byEmail };
+  platformIndexCache.set(allOrders, index);
+  return index;
+}
+
 export const PLATFORMS = {
   facebook_ads: {
     key: 'facebook_ads',
@@ -91,6 +158,16 @@ export const PLATFORMS = {
     icon: '🔗',
   },
 };
+
+function readBrowserCookie(name) {
+  if (typeof document === 'undefined') return null;
+  try {
+    const match = document.cookie.match(new RegExp('(?:^|;\\s*)' + name + '=([^;]*)'));
+    return match ? decodeURIComponent(match[1]) : null;
+  } catch (e) {
+    return null;
+  }
+}
 
 /**
  * Lê os parâmetros da URL atual e Referrer do navegador e identifica a plataforma.
@@ -235,6 +312,9 @@ export function identifyTrafficSource() {
       platform = 'organico';
     }
 
+    const fbp = readBrowserCookie('_fbp') || existing?.fbp || null;
+    const fbc = readBrowserCookie('_fbc') || existing?.fbc || (fbclid ? `fb.1.${Math.floor(Date.now() / 1000)}.${fbclid}` : null);
+
     const trafficData = {
       platform,
       trafficSource: platform,
@@ -247,6 +327,9 @@ export function identifyTrafficSource() {
       ttclid: ttclid || (existing?.ttclid || null),
       gclid: gclid || (existing?.gclid || null),
       referrer: referrer || (existing?.referrer || null),
+      userAgent: userAgent || (existing?.userAgent || null),
+      fbp,
+      fbc,
       capturedAt: new Date().toISOString(),
     };
 
@@ -336,12 +419,12 @@ export function getOrderPlatform(order, allOrders = []) {
   // Se o cliente veio originalmente do TikTok (ou Meta/Google), gerou uma 1ª versão mas não gostou,
   // e depois gerou uma 2ª versão e pagou, essa venda pertence à campanha paga original!
   if (Array.isArray(allOrders) && allOrders.length > 0) {
-    // 4.1 Herança direta por parentOrderId / orderRef
+    const { byId, byPhone, byEmail } = getPlatformIndexes(allOrders);
+
+    // 4.1 Herança direta por parentOrderId / orderRef (busca O(1) via Map)
     const parentId = order.parentOrderId || extras.parentOrderId || order.orderRef || extras.orderRef;
     if (parentId) {
-      const parent = allOrders.find(
-        (o) => o && (o.id === parentId || o.orderNumber === parentId || o.order_number === parentId)
-      );
+      const parent = byId.get(String(parentId));
       if (parent && parent !== order) {
         // Resolve a plataforma direta do pai (sem recursão em allOrders)
         const parentPlat = getOrderPlatform(parent);
@@ -351,48 +434,19 @@ export function getOrderPlatform(order, allOrders = []) {
       }
     }
 
-    // 4.2 Herança por cliente (mesmo telefone ou email)
-    const phone = getComparablePhone(
+    // 4.2 Herança por cliente (mesmo telefone ou email - busca O(1) via Map)
+    const phoneKey = getPhoneMatchKey(
       order.customerPhone || order.customer_phone || extras.customerPhone || extras.customer_phone
     );
+    if (phoneKey && byPhone.has(phoneKey)) {
+      return byPhone.get(phoneKey);
+    }
+
     const email = String(
       order.customerEmail || order.customer_email || extras.customerEmail || extras.customer_email || ''
     ).trim().toLowerCase();
-
-    if (phone || email) {
-      for (const other of allOrders) {
-        if (!other || other === order) continue;
-        const otherPhone = getComparablePhone(
-          other.customerPhone || other.customer_phone || other.extras?.customerPhone || other.extras?.customer_phone
-        );
-        const otherEmail = String(
-          other.customerEmail || other.customer_email || other.extras?.customerEmail || other.extras?.customer_email || ''
-        ).trim().toLowerCase();
-
-        const matchPhone = Boolean(phone && otherPhone && arePhonesMatching(phone, otherPhone));
-        const matchEmail = Boolean(email && otherEmail && email === otherEmail);
-
-        if (matchPhone || matchEmail) {
-          const otherExtras = (other.extras && typeof other.extras === 'object') ? other.extras : {};
-          // Se o outro pedido tem click ID pago
-          if (other.ttclid || otherExtras.ttclid) return 'tiktok_ads';
-          if (other.fbclid || otherExtras.fbclid) return 'facebook_ads';
-          if (other.gclid || otherExtras.gclid) return 'google_ads';
-
-          // Se o outro pedido tem UTMs pagas
-          const oUtmSource = String(other.utmSource || otherExtras.utmSource || otherExtras.utm_source || '').toLowerCase();
-          const oUtmCampaign = String(other.utmCampaign || otherExtras.utmCampaign || otherExtras.utm_campaign || '').toLowerCase();
-          if (/tiktok|bytedance|\btt\b|tt_/i.test(oUtmSource) || /tiktok|bytedance/i.test(oUtmCampaign)) return 'tiktok_ads';
-          if (/facebook|meta|\bfb\b|instagram|\big\b|ig_/i.test(oUtmSource) || /facebook|instagram/i.test(oUtmCampaign)) return 'facebook_ads';
-          if (/google|adwords|\bgads\b/i.test(oUtmSource) || /google_ads|gads/i.test(oUtmCampaign)) return 'google_ads';
-
-          // Se o outro pedido tem trafficSource pago
-          const oRaw = String(other.trafficSource || otherExtras.trafficSource || other.platform || otherExtras.platform || '').toLowerCase();
-          if (oRaw === 'tiktok_ads' || oRaw === 'tiktok') return 'tiktok_ads';
-          if (oRaw === 'facebook_ads' || oRaw === 'facebook' || oRaw === 'meta_ads') return 'facebook_ads';
-          if (oRaw === 'google_ads' || oRaw === 'google') return 'google_ads';
-        }
-      }
+    if (email && byEmail.has(email)) {
+      return byEmail.get(email);
     }
   }
 

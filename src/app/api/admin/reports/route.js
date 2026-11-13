@@ -429,7 +429,7 @@ export async function GET(req) {
       while (true) {
         const { data, error } = await supabase
           .from('orders')
-          .select('id, order_number, customer_phone, payment_status, paid_at, created_at, production_status, audio_url, audio_files, has_video_access, has_carta_access, has_playback_access, has_retrospectiva_access, has_karaoke_access, suno_generation_count, suno_requested_at, extras')
+          .select('id, order_number, customer_phone, payment_status, paid_at, created_at, production_status, audio_url, has_video_access, has_carta_access, has_playback_access, has_retrospectiva_access, has_karaoke_access, suno_generation_count, suno_requested_at, extras')
           .or(`created_at.gte.${inicio},paid_at.gte.${inicio}`)
           .is('deleted_at', null)
           .order('created_at', { ascending: true })
@@ -448,7 +448,6 @@ export async function GET(req) {
             paymentStatus: row.payment_status,
             productionStatus: row.production_status,
             audioUrl: row.audio_url,
-            audioFiles: row.audio_files,
             paidAt: row.paid_at,
             createdAt: row.created_at,
             hasVideoAccess: row.has_video_access,
@@ -460,14 +459,26 @@ export async function GET(req) {
             sunoRequestedAt: row.suno_requested_at,
             videoAddonPaid: extras.videoAddonPaid ?? (row.has_video_access && row.payment_status === 'PAGO'),
             videoPaidAt: extras.videoPaidAt ?? row.paid_at,
+            videoPaidAmount: extras.videoPaidAmount,
+            videoPaymentId: extras.videoPaymentId,
             playbackAddonPaid: extras.playbackAddonPaid ?? (row.has_playback_access && row.payment_status === 'PAGO'),
             playbackPaidAt: extras.playbackPaidAt ?? row.paid_at,
+            playbackPaidAmount: extras.playbackPaidAmount,
+            playbackPaymentId: extras.playbackPaymentId,
             cartaAddonPaid: extras.cartaAddonPaid ?? (row.has_carta_access && row.payment_status === 'PAGO'),
             cartaPaidAt: extras.cartaPaidAt ?? row.paid_at,
+            cartaPaidAmount: extras.cartaPaidAmount,
+            cartaPaymentId: extras.cartaPaymentId,
             retrospectivaAddonPaid: extras.retrospectivaAddonPaid ?? (row.has_retrospectiva_access && row.payment_status === 'PAGO'),
             retrospectivaPaidAt: extras.retrospectivaPaidAt ?? row.paid_at,
+            retrospectivaPaidAmount: extras.retrospectivaPaidAmount,
+            retrospectivaPaymentId: extras.retrospectivaPaymentId,
             paidAmount: extras.paidAmount ?? null,
-            ...extras,
+            paymentIntentSku: extras.paymentIntentSku ?? null,
+            isSecondGeneration: Boolean(extras.isSecondGeneration),
+            origem: extras.origem ?? null,
+            paidSku: extras.paidSku ?? null,
+            parentOrderId: extras.parentOrderId ?? null,
           });
         }
 

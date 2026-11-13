@@ -322,6 +322,46 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
         txResult.isSecondSongOnly
       );
 
+      // Metadados técnicos do cliente para Advanced Matching em Meta CAPI e TikTok Events API
+      const effectiveClientIp = payment?.clientIp ||
+        freshData?.clientIp ||
+        freshData?.extras?.clientIp ||
+        freshData?.extras?.ip ||
+        txResult.orderData?.clientIp ||
+        orderForAttribution?.clientIp ||
+        orderForAttribution?.extras?.clientIp ||
+        null;
+
+      const effectiveClientUserAgent = payment?.clientUserAgent ||
+        freshData?.clientUserAgent ||
+        freshData?.extras?.clientUserAgent ||
+        freshData?.extras?.userAgent ||
+        txResult.orderData?.clientUserAgent ||
+        orderForAttribution?.clientUserAgent ||
+        orderForAttribution?.extras?.clientUserAgent ||
+        null;
+
+      const effectiveFbc = freshData?.fbc ||
+        freshData?.extras?.fbc ||
+        txResult.orderData?.fbc ||
+        orderForAttribution?.fbc ||
+        orderForAttribution?.extras?.fbc ||
+        null;
+
+      const effectiveFbp = freshData?.fbp ||
+        freshData?.extras?.fbp ||
+        txResult.orderData?.fbp ||
+        orderForAttribution?.fbp ||
+        orderForAttribution?.extras?.fbp ||
+        null;
+
+      const effectiveFbclid = freshData?.fbclid ||
+        freshData?.extras?.fbclid ||
+        txResult.orderData?.fbclid ||
+        orderForAttribution?.fbclid ||
+        orderForAttribution?.extras?.fbclid ||
+        null;
+
       // Meta CAPI: Somente envia se o pedido veio de anúncio do Facebook/Instagram E for a compra principal (música)
       // Conforme diretriz do produtor: add-ons NUNCA devem contar como compras no Facebook para contar apenas novos clientes compradores
       if (isMeta && !isAddonPayment) {
@@ -341,6 +381,11 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
             eventId,
             customerPhone: txResult.orderData?.customerPhone || orderForAttribution?.customerPhone,
             customerEmail: txResult.orderData?.customerEmail || orderForAttribution?.customerEmail,
+            clientIpAddress: effectiveClientIp,
+            clientUserAgent: effectiveClientUserAgent,
+            fbc: effectiveFbc,
+            fbp: effectiveFbp,
+            fbclid: effectiveFbclid,
           }, env);
 
           if (sendResult.sent) {
@@ -375,6 +420,8 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
               customerPhone: txResult.orderData?.customerPhone || orderForAttribution?.customerPhone,
               customerEmail: txResult.orderData?.customerEmail || orderForAttribution?.customerEmail,
               ttclid: effectiveTtclid,
+              ip: effectiveClientIp,
+              userAgent: effectiveClientUserAgent,
             }, env);
 
             if (sendResult.sent) {

@@ -45,22 +45,77 @@ function normalizeEmailForMatching(email) {
 
 /**
  * Envia um evento de Purchase pro Conversions API da Meta (para todos os pixels configurados).
- * @param {{orderId: string, value: number, contentName: string, customerPhone?: string, customerEmail?: string}} params
+ * Suporta Advanced Matching com IP do cliente (client_ip_address), User-Agent (client_user_agent),
+ * cookies fbc, fbp e identificador externo (external_id) para atingir nota máxima no Event Quality Match Score.
+ *
+ * @param {{
+ *   orderId: string,
+ *   value: number,
+ *   contentName?: string,
+ *   eventId?: string,
+ *   customerPhone?: string,
+ *   customerEmail?: string,
+ *   clientIpAddress?: string,
+ *   clientUserAgent?: string,
+ *   fbc?: string,
+ *   fbp?: string,
+ *   fbclid?: string,
+ * }} params
  * @param {object} env contexto de ambiente resolvido pela rota chamadora
  * @returns {Promise<{sent: boolean, reason?: string}>}
  */
-export async function sendMetaPurchaseEvent({ orderId, value, contentName = 'Música Homenagem Personalizada', eventId: customEventId, customerPhone, customerEmail }, env) {
+export async function sendMetaPurchaseEvent({
+  orderId,
+  value,
+  contentName = 'Música Homenagem Personalizada',
+  eventId: customEventId,
+  customerPhone,
+  customerEmail,
+  clientIpAddress,
+  clientUserAgent,
+  fbc,
+  fbp,
+  fbclid,
+}, env) {
   if (typeof value !== 'number' || value <= 0) {
     return { sent: false, reason: 'invalid_value' };
   }
 
-  // Hasheado (SHA-256) — a Meta nunca recebe o telefone/e-mail em texto puro, só o hash pra
+  // Hasheado (SHA-256) — a Meta nunca recebe o telefone/e-mail/external_id em texto puro, só o hash pra
   // correspondência (ver .claude/rules/security.md — nunca logar PII; aqui nem chega a logar).
   const userData = {};
   const normalizedPhone = normalizePhoneForMatching(customerPhone);
   const normalizedEmail = normalizeEmailForMatching(customerEmail);
   if (normalizedPhone) userData.ph = [await sha256Hex(normalizedPhone)];
   if (normalizedEmail) userData.em = [await sha256Hex(normalizedEmail)];
+
+  if (orderId) {
+    userData.external_id = [await sha256Hex(String(orderId).trim())];
+  }
+
+  // IP do cliente em texto puro (IPv4 ou IPv6 — a Meta exige texto puro e proíbe hash no IP)
+  if (clientIpAddress && typeof clientIpAddress === 'string') {
+    const cleanIp = clientIpAddress.split(',')[0].trim();
+    if (cleanIp) userData.client_ip_address = cleanIp;
+  }
+
+  // User-Agent do navegador em texto puro (a Meta exige texto puro e proíbe hash no User-Agent)
+  if (clientUserAgent && typeof clientUserAgent === 'string') {
+    const cleanUa = clientUserAgent.trim();
+    if (cleanUa) userData.client_user_agent = cleanUa;
+  }
+
+  // Cookie _fbc da Meta ou geração a partir do fbclid
+  if (fbc && typeof fbc === 'string' && fbc.trim()) {
+    userData.fbc = fbc.trim();
+  } else if (fbclid && typeof fbclid === 'string' && fbclid.trim()) {
+    userData.fbc = `fb.1.${Math.floor(Date.now() / 1000)}.${fbclid.trim()}`;
+  }
+
+  // Cookie _fbp da Meta (Browser ID)
+  if (fbp && typeof fbp === 'string' && fbp.trim()) {
+    userData.fbp = fbp.trim();
+  }
 
   // event_id idêntico entre servidor (CAPI) e navegador (Pixel) para a Meta desduplicar 100%
   const eventId = customEventId || `purchase_${orderId}_musica`;

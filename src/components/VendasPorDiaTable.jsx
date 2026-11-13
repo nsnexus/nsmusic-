@@ -1,20 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { usePedidosDoMes, paraData } from '@/lib/usePedidosDoMes';
 import { getPriceForSku } from '@/lib/pricing';
-import { calcularFaturamentoPedido } from '@/lib/trafficSource';
+import { isBonusOrder } from '@/lib/trafficSource';
+import { isStripePayment, calculateStripeFee } from '@/lib/paymentFees';
 import { hasMusicaGerada } from '@/lib/stats';
 
 // Tabela "vendas por dia" do dashboard admin (pedido 04/09/2026) — quantidade vendida por produto,
-// por dia do mês, com total no fim. Ver src/lib/usePedidosDoMes.js pro porquê da consulta própria.
+// por dia do mês, com total no fim.
 //
-// Contagem por PRODUTO usa o campo `*PaidAt` de cada um (gravado por src/lib/payments.js na mesma
-// transação que concede o acesso, tanto pra add-on isolado quanto pra combo — ver skuGrants*Access)
-// — assim um vídeo/carta/retrospectiva vendido junto da música no mesmo checkout (combo) conta no
-// dia certo sem precisar de lógica separada pra "veio de combo ou avulso".
-//
-// Pedido 12/09/2026: + Faturamento, Gerações e Taxa de conversão por dia.
+// Otimização: processamento em passada linear O(N) com useMemo para evitar travamento da UI
+// e re-execução de 155.000 iterações em cada re-render.
+// Suporta pedidos e mês injetados via props para compartilhar o cache único do Dashboard.
 
 function mesAtualStr() {
   const d = new Date();
@@ -29,106 +27,178 @@ const PRODUTOS = [
   { chave: 'retrospectivas', label: '📖 Retrospectivas', sku: 'retrospectiva_addon' },
 ];
 
-export default function VendasPorDiaTable() {
-  const [mes, setMes] = useState(mesAtualStr);
-  const { pedidos, loading, erro } = usePedidosDoMes(mes);
-
-  const [ano, mesNum] = mes.split('-').map(Number);
-  const diasNoMes = new Date(ano, mesNum, 0).getDate();
-
-  // Uma linha por dia do mês, zerada — preenchida abaixo com o que foi vendido/gerado/criado em cada uma.
-  const porDia = Array.from({ length: diasNoMes }, (_, i) => ({
-    dia: i + 1,
-    musicas: 0, videos: 0, playbacks: 0, cartas: 0, retrospectivas: 0,
-    geracoes: 0, pedidosCriados: 0, pedidosComMusica: 0, pedidosPagos: 0,
-  }));
-
-  const somar = (campo, dataVal) => {
-    const d = paraData(dataVal);
-    if (!d) return;
-    if (d.getFullYear() !== ano || d.getMonth() !== mesNum - 1) return; // pago em outro mês, não conta aqui
-    const linha = porDia[d.getDate() - 1];
-    if (linha) linha[campo] += 1;
+export default function VendasPorDiaTable({
+  pedidos: pedidosProp = null,
+  mes: mesProp = null,
+  loading: loadingProp = null,
+  erro: erroProp = null,
+}) {
+  const [internalMes, setInternalMes] = useState(mesAtualStr);
+  const mes = mesProp || internalMes;
+  const setMes = (novoMes) => {
+    setInternalMes(novoMes);
   };
 
-  for (const o of pedidos) {
-    const isBonusOrder = Boolean(
-      o.isSecondGeneration ||
-      o.origem === 'segunda_geracao' ||
-      o.origem === 'segunda_musica' ||
-      o.paidSku === 'segunda_geracao_bonus' ||
-      o.extras?.isSecondGeneration ||
-      o.extras?.paidSku === 'segunda_geracao_bonus'
-    );
-    const musicaPaga = (o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'PAGO') && !isBonusOrder;
-    if (musicaPaga) somar('musicas', o.paidAt || o.createdAt);
-    if (o.hasVideoAccess || o.videoAddonPaid) somar('videos', o.videoPaidAt);
-    if (o.hasPlaybackAccess || o.playbackAddonPaid) somar('playbacks', o.playbackPaidAt);
-    if (o.hasCartaAccess || o.cartaAddonPaid) somar('cartas', o.cartaPaidAt);
-    if (o.hasRetrospectivaAccess || o.retrospectivaAddonPaid) somar('retrospectivas', o.retrospectivaPaidAt);
+  const { pedidos: pedidosHook, loading: loadingHook, erro: erroHook } = usePedidosDoMes(pedidosProp ? null : mes);
+  const pedidos = pedidosProp !== null ? pedidosProp : pedidosHook;
+  const loading = loadingProp !== null ? loadingProp : loadingHook;
+  const erro = erroProp !== null ? erroProp : erroHook;
 
-    // Gerações e conversão são por data de CRIAÇÃO do pedido, não de pagamento — a chamada à Kie.ai
-    // acontece na criação, e "taxa de conversão do dia" aqui significa "desse pedidos criados NESTE
-    // dia, quantos % já converteram em venda (não importa quando pagaram)" — cohort por criação, não
-    // por pagamento (misturar as duas datas daria um número sem significado real).
-    const dCriacao = paraData(o.createdAt);
-    if (dCriacao && dCriacao.getFullYear() === ano && dCriacao.getMonth() === mesNum - 1) {
-      const linha = porDia[dCriacao.getDate() - 1];
-      if (linha) {
-        const count = Number(o.sunoGenerationCount) || (o.sunoRequestedAt ? 1 : 0);
-        linha.geracoes += count;
-        if (o.sunoProvider === 'suno_local') {
-          linha.geracoesBot = (linha.geracoesBot || 0) + count;
+  const [ano, mesNum] = useMemo(() => mes.split('-').map(Number), [mes]);
+  const diasNoMes = useMemo(() => new Date(ano, mesNum, 0).getDate(), [ano, mesNum]);
+
+  const { porDia, totais, linhasVisiveis } = useMemo(() => {
+    // Uma linha por dia do mês, zerada — preenchida abaixo em passada linear única O(N)
+    const porDiaList = Array.from({ length: diasNoMes }, (_, i) => ({
+      dia: i + 1,
+      musicas: 0, videos: 0, playbacks: 0, cartas: 0, retrospectivas: 0,
+      geracoes: 0, pedidosCriados: 0, pedidosComMusica: 0, pedidosPagos: 0,
+      faturamento: 0,
+    }));
+
+    const somar = (campo, dataVal) => {
+      const d = paraData(dataVal);
+      if (!d) return;
+      if (d.getFullYear() !== ano || d.getMonth() !== mesNum - 1) return; // pago em outro mês, não conta aqui
+      const linha = porDiaList[d.getDate() - 1];
+      if (linha) linha[campo] += 1;
+    };
+
+    const somarFaturamento = (dataVal, valor) => {
+      if (!dataVal || !valor || valor <= 0) return;
+      const d = paraData(dataVal);
+      if (!d) return;
+      if (d.getFullYear() !== ano || d.getMonth() !== mesNum - 1) return;
+      const linha = porDiaList[d.getDate() - 1];
+      if (linha) linha.faturamento += valor;
+    };
+
+    const precoMusicaPadrao = getPriceForSku('audio_only') || 9.99;
+    const precoVideoPadrao = getPriceForSku('video_addon') || 6.90;
+    const precoPlaybackPadrao = getPriceForSku('playback_addon') || 4.99;
+    const precoCartaPadrao = getPriceForSku('carta_addon') || 4.99;
+    const precoRetroPadrao = getPriceForSku('retrospectiva_addon') || 14.90;
+
+    for (const o of pedidos) {
+      if (!o) continue;
+      const bonus = isBonusOrder(o);
+      const musicaPaga = (o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'PAGO') && !bonus;
+
+      // 1. Contagem e Faturamento de Música
+      if (musicaPaga) {
+        somar('musicas', o.paidAt || o.createdAt);
+        let valorMusica = precoMusicaPadrao;
+        if (o.paidAmount !== null && o.paidAmount !== undefined && o.paidAmount !== '') {
+          const v = Number(o.paidAmount);
+          if (Number.isFinite(v) && v >= 0) valorMusica = v;
         } else {
-          linha.geracoesKie = (linha.geracoesKie || 0) + count;
+          const porSku = getPriceForSku(o.paymentIntentSku);
+          if (porSku !== null && o.paymentIntentSku !== 'impacto') valorMusica = porSku;
         }
-        if (!isBonusOrder) {
-          linha.pedidosCriados += 1;
-          if (hasMusicaGerada(o)) linha.pedidosComMusica += 1;
-          if (musicaPaga || o.videoAddonPaid) linha.pedidosPagos += 1;
-        } else if (o.videoAddonPaid) {
-          linha.pedidosPagos += 1;
+        if (isStripePayment(o)) {
+          valorMusica = Math.max(0, valorMusica - calculateStripeFee(valorMusica));
+        }
+        somarFaturamento(o.paidAt || o.createdAt, valorMusica);
+      }
+
+      // 2. Contagem e Faturamento de Add-ons
+      if (o.hasVideoAccess || o.videoAddonPaid) {
+        somar('videos', o.videoPaidAt);
+        if (o.videoPaymentId) {
+          const v = Number(o.videoPaidAmount);
+          let valor = (Number.isFinite(v) && v > 0) ? v : precoVideoPadrao;
+          if (isStripePayment(o.videoPaymentId)) valor = Math.max(0, valor - calculateStripeFee(valor));
+          somarFaturamento(o.videoPaidAt || o.paidAt || o.createdAt, valor);
+        }
+      }
+
+      if (o.hasPlaybackAccess || o.playbackAddonPaid) {
+        somar('playbacks', o.playbackPaidAt);
+        if (o.playbackPaymentId) {
+          const v = Number(o.playbackPaidAmount);
+          let valor = (Number.isFinite(v) && v > 0) ? v : precoPlaybackPadrao;
+          if (isStripePayment(o.playbackPaymentId)) valor = Math.max(0, valor - calculateStripeFee(valor));
+          somarFaturamento(o.playbackPaidAt || o.paidAt || o.createdAt, valor);
+        }
+      }
+
+      if (o.hasCartaAccess || o.cartaAddonPaid) {
+        somar('cartas', o.cartaPaidAt);
+        if (o.cartaPaymentId) {
+          const v = Number(o.cartaPaidAmount);
+          let valor = (Number.isFinite(v) && v > 0) ? v : precoCartaPadrao;
+          if (isStripePayment(o.cartaPaymentId)) valor = Math.max(0, valor - calculateStripeFee(valor));
+          somarFaturamento(o.cartaPaidAt || o.paidAt || o.createdAt, valor);
+        }
+      }
+
+      if (o.hasRetrospectivaAccess || o.retrospectivaAddonPaid) {
+        somar('retrospectivas', o.retrospectivaPaidAt);
+        if (o.retrospectivaPaymentId) {
+          const v = Number(o.retrospectivaPaidAmount);
+          let valor = (Number.isFinite(v) && v > 0) ? v : precoRetroPadrao;
+          if (isStripePayment(o.retrospectivaPaymentId)) valor = Math.max(0, valor - calculateStripeFee(valor));
+          somarFaturamento(o.retrospectivaPaidAt || o.paidAt || o.createdAt, valor);
+        }
+      }
+
+      // 3. Gerações e conversão por data de CRIAÇÃO do pedido
+      const dCriacao = paraData(o.createdAt);
+      if (dCriacao && dCriacao.getFullYear() === ano && dCriacao.getMonth() === mesNum - 1) {
+        const linha = porDiaList[dCriacao.getDate() - 1];
+        if (linha) {
+          const count = Number(o.sunoGenerationCount) || (o.sunoRequestedAt ? 1 : 0);
+          linha.geracoes += count;
+          if (o.sunoProvider === 'suno_local') {
+            linha.geracoesBot = (linha.geracoesBot || 0) + count;
+          } else {
+            linha.geracoesKie = (linha.geracoesKie || 0) + count;
+          }
+          if (!bonus) {
+            linha.pedidosCriados += 1;
+            if (hasMusicaGerada(o)) linha.pedidosComMusica += 1;
+            if (musicaPaga || o.videoAddonPaid) linha.pedidosPagos += 1;
+          } else if (o.videoAddonPaid) {
+            linha.pedidosPagos += 1;
+          }
         }
       }
     }
-  }
 
-  // Calcula o faturamento líquido real pago em cada dia (respeitando combos e paidAmount)
-  for (let d = 1; d <= diasNoMes; d++) {
-    let fatDia = 0;
-    for (const o of pedidos) {
-      fatDia += calcularFaturamentoPedido(o, String(d), mes);
+    // Arredonda faturamento por dia para 2 casas
+    for (let i = 0; i < diasNoMes; i++) {
+      porDiaList[i].faturamento = Math.round(porDiaList[i].faturamento * 100) / 100;
     }
-    porDia[d - 1].faturamento = fatDia;
-  }
 
-  const KIE_COST_PER_GENERATION = 0.30;
+    const KIE_COST_PER_GENERATION = 0.30;
+    const totaisCalc = porDiaList.reduce((acc, linha) => {
+      for (const { chave } of PRODUTOS) acc[chave] += linha[chave];
+      acc.geracoes += linha.geracoes;
+      acc.geracoesBot = (acc.geracoesBot || 0) + (linha.geracoesBot || 0);
+      acc.geracoesKie = (acc.geracoesKie || 0) + (linha.geracoesKie || 0);
+      acc.pedidosCriados += linha.pedidosCriados;
+      acc.pedidosComMusica = (acc.pedidosComMusica || 0) + (linha.pedidosComMusica || 0);
+      acc.pedidosPagos += linha.pedidosPagos;
+      acc.faturamento += linha.faturamento;
+      acc.gasto += (linha.geracoesKie || 0) * KIE_COST_PER_GENERATION;
+      acc.economiaBot = (acc.economiaBot || 0) + ((linha.geracoesBot || 0) * KIE_COST_PER_GENERATION);
+      return acc;
+    }, { musicas: 0, videos: 0, playbacks: 0, cartas: 0, retrospectivas: 0, geracoes: 0, geracoesBot: 0, geracoesKie: 0, pedidosCriados: 0, pedidosComMusica: 0, pedidosPagos: 0, faturamento: 0, gasto: 0, economiaBot: 0 });
+
+    totaisCalc.faturamento = Math.round(totaisCalc.faturamento * 100) / 100;
+
+    const hoje = new Date();
+    const ehMesAtual = hoje.getFullYear() === ano && hoje.getMonth() === mesNum - 1;
+    const linhasVisiveisCalc = (ehMesAtual ? porDiaList.filter((l) => l.dia <= hoje.getDate()) : porDiaList).slice().reverse();
+
+    return { porDia: porDiaList, totais: totaisCalc, linhasVisiveis: linhasVisiveisCalc };
+  }, [pedidos, diasNoMes, ano, mesNum]);
+
   const faturamentoDia = (linha) => linha.faturamento;
   const conversaoDia = (linha) => {
     const base = linha.pedidosComMusica > 0 ? linha.pedidosComMusica : (linha.geracoes > 0 ? linha.geracoes : 0);
     return base > 0 ? (linha.pedidosPagos / base) * 100 : null;
   };
-
-  const totais = porDia.reduce((acc, linha) => {
-    for (const { chave } of PRODUTOS) acc[chave] += linha[chave];
-    acc.geracoes += linha.geracoes;
-    acc.geracoesBot = (acc.geracoesBot || 0) + (linha.geracoesBot || 0);
-    acc.geracoesKie = (acc.geracoesKie || 0) + (linha.geracoesKie || 0);
-    acc.pedidosCriados += linha.pedidosCriados;
-    acc.pedidosComMusica = (acc.pedidosComMusica || 0) + (linha.pedidosComMusica || 0);
-    acc.pedidosPagos += linha.pedidosPagos;
-    acc.faturamento += linha.faturamento;
-    // Gasto apenas com Kie.ai (Robô local tem custo R$ 0,00)
-    acc.gasto += (linha.geracoesKie || 0) * KIE_COST_PER_GENERATION;
-    acc.economiaBot = (acc.economiaBot || 0) + ((linha.geracoesBot || 0) * KIE_COST_PER_GENERATION);
-    return acc;
-  }, { musicas: 0, videos: 0, playbacks: 0, cartas: 0, retrospectivas: 0, geracoes: 0, geracoesBot: 0, geracoesKie: 0, pedidosCriados: 0, pedidosComMusica: 0, pedidosPagos: 0, faturamento: 0, gasto: 0, economiaBot: 0 });
-
-  const hoje = new Date();
-  const ehMesAtual = hoje.getFullYear() === ano && hoje.getMonth() === mesNum - 1;
-  // Mais recente primeiro (pedido 11/09/2026) — dia de hoje/último dia do mês no topo, sem precisar
-  // rolar até o fim da tabela pra ver a venda mais recente.
-  const linhasVisiveis = (ehMesAtual ? porDia.filter((l) => l.dia <= hoje.getDate()) : porDia).slice().reverse();
 
   const fmtMoeda = (v) => `R$ ${v.toFixed(2).replace('.', ',')}`;
 
