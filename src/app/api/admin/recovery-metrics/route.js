@@ -79,11 +79,15 @@ export async function POST(req) {
         abandonedPixRecoveryEnabledAtualizadoEm: new Date().toISOString(),
       };
 
-      await supabase.from('config').upsert({
+      const { error: upsertErr } = await supabase.from('config').upsert({
         chave: 'site',
         valor: newValor,
         updated_at: new Date().toISOString(),
       });
+      if (upsertErr) {
+        console.error('[admin/recovery-metrics] Falha ao salvar config/site:', upsertErr.message);
+        return NextResponse.json({ error: 'Não foi possível salvar a configuração.' }, { status: 500 });
+      }
 
       return NextResponse.json({
         ok: true,
@@ -112,11 +116,15 @@ export async function POST(req) {
         abandonedPixRecoveryMaxPerHourAtualizadoEm: new Date().toISOString(),
       };
 
-      await supabase.from('config').upsert({
+      const { error: upsertErr } = await supabase.from('config').upsert({
         chave: 'site',
         valor: newValor,
         updated_at: new Date().toISOString(),
       });
+      if (upsertErr) {
+        console.error('[admin/recovery-metrics] Falha ao salvar config/site:', upsertErr.message);
+        return NextResponse.json({ error: 'Não foi possível salvar a configuração.' }, { status: 500 });
+      }
 
       return NextResponse.json({
         ok: true,
