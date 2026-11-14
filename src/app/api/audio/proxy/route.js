@@ -2,8 +2,87 @@ import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
 import { isAllowedMediaUrl } from '@/lib/proxyAllowlist';
 import { getOrder } from '@/lib/supabaseDb';
+import { embedId3v2Tags } from '@/lib/mp3TagWriter';
 
 export const runtime = 'edge';
+
+// Utilitário para enriquecer o MP3 com metadados oficiais (capa, título, direitos autorais, letra)
+async function aplicarTagsId3ParaDownload(audioBytes, orderId, env = {}) {
+  if (!audioBytes || audioBytes.byteLength === 0) {
+    return audioBytes;
+  }
+
+  try {
+    let order = null;
+    if (orderId) {
+      try {
+        order = await getOrder(orderId, env);
+      } catch (e) {
+        console.warn('[Audio Proxy] Falha ao carregar pedido para tags ID3:', e?.message);
+      }
+    }
+
+    const currentYear = new Date().getFullYear().toString();
+    const honoree = order?.honoreeName || order?.title || '';
+    const trackTitle = honoree ? `Canção para ${honoree}` : 'Canção Personalizada';
+
+    const tags = {
+      title: trackTitle,
+      artist: 'NS Music Studio',
+      album: 'Homenagem Especial — NS Music',
+      copyright: `© ${currentYear} NS Music (nsmusic.com.br). Todos os direitos reservados.`,
+      year: currentYear,
+      lyrics: order?.lyrics || '',
+    };
+
+    // Tenta carregar a imagem de capa (coverUrl)
+    const coverUrl = order?.coverUrl;
+    if (coverUrl && typeof coverUrl === 'string') {
+      try {
+        const r2PublicUrl = String(env?.R2_PUBLIC_URL || process.env.R2_PUBLIC_URL || '').replace(/\/+$/, '');
+        let imageBytes = null;
+        let imageMimeType = 'image/jpeg';
+
+        // 1. Tenta carregar direto do R2 se for do nosso bucket
+        if (r2PublicUrl && env?.nsmusic_media && coverUrl.startsWith(`${r2PublicUrl}/`)) {
+          const key = coverUrl.slice(r2PublicUrl.length + 1).split('?')[0];
+          const obj = await env.nsmusic_media.get(key);
+          if (obj) {
+            imageBytes = await obj.arrayBuffer();
+            imageMimeType = obj.httpMetadata?.contentType || (key.endsWith('.png') ? 'image/png' : 'image/jpeg');
+          }
+        }
+
+        // 2. Se não veio do R2, tenta buscar via fetch com timeout curto (3.5s)
+        if (!imageBytes && (coverUrl.startsWith('http://') || coverUrl.startsWith('https://'))) {
+          const imgRes = await fetch(coverUrl, {
+            signal: AbortSignal.timeout(3500),
+            headers: { 'User-Agent': 'NSMusic-AudioProxy/1.0' }
+          });
+          if (imgRes.ok) {
+            imageBytes = await imgRes.arrayBuffer();
+            const ct = imgRes.headers.get('content-type');
+            if (ct && (ct.includes('png') || ct.includes('jpeg') || ct.includes('jpg'))) {
+              imageMimeType = ct.split(';')[0].trim();
+            }
+          }
+        }
+
+        if (imageBytes && imageBytes.byteLength > 0) {
+          tags.imageBytes = new Uint8Array(imageBytes);
+          tags.imageMimeType = imageMimeType;
+        }
+      } catch (imgErr) {
+        console.warn('[Audio Proxy] Não foi possível carregar foto de capa para ID3:', imgErr?.message);
+      }
+    }
+
+    return embedId3v2Tags(audioBytes, tags);
+  } catch (err) {
+    console.warn('[Audio Proxy] Erro ao aplicar tags ID3 no download:', err?.message);
+    return audioBytes;
+  }
+}
 
 // Resolve o endereço real do áudio a partir do pedido, para que o cliente nunca precise receber a
 // URL da CDN para tocar a música. `faixa` é o índice em audioFiles (0 = primeira versão).
@@ -81,6 +160,12 @@ export async function GET(req) {
     const { searchParams } = new URL(req.url);
     let rawUrl = searchParams.get('url');
 
+    let effectiveOrderId = searchParams.get('orderId') || '';
+    if (!effectiveOrderId && rawUrl) {
+      const matchOrder = rawUrl.match(/audios\/([^\/]+)\//);
+      if (matchOrder) effectiveOrderId = matchOrder[1];
+    }
+
     // Forma opaca: ?orderId=X&faixa=0, sem expor o endereço da CDN na barra de endereços nem no
     // DevTools (pedido 21/09/2026, depois de o dono ver a URL original do MP3 no inspetor).
     // O servidor resolve qual arquivo é, a partir do pedido.
@@ -90,9 +175,8 @@ export async function GET(req) {
     // lugar ÓBVIO (o player e a aba Rede), não do documento do pedido. Fechar aquilo exigiria a
     // página parar de ler o pedido cru — mudança bem maior, ainda não feita.
     if (!rawUrl) {
-      const orderId = searchParams.get('orderId') || '';
-      if (orderId) {
-        rawUrl = await resolveAudioUrlDoPedido(orderId, searchParams.get('faixa'), env);
+      if (effectiveOrderId) {
+        rawUrl = await resolveAudioUrlDoPedido(effectiveOrderId, searchParams.get('faixa'), env);
       }
     }
 
@@ -158,8 +242,16 @@ export async function GET(req) {
         if (obj) {
           const headers = buildR2Headers(obj.httpMetadata);
 
-          // Download completo ou GET inicial sem Range: stream direto de obj.body com 0 MB de buffer.
-          if ((!rangeHeader || downloadNameR2) && obj.body && Number.isFinite(obj.size)) {
+          // Download com tags ID3 (foto de capa do cliente, título, artista, direitos autorais e letra)
+          if (downloadNameR2) {
+            const rawBuf = await obj.arrayBuffer();
+            const taggedBytes = await aplicarTagsId3ParaDownload(rawBuf, effectiveOrderId, env);
+            headers.set('Content-Length', String(taggedBytes.byteLength));
+            return new Response(taggedBytes, { status: 200, headers });
+          }
+
+          // GET inicial sem Range: stream direto de obj.body com 0 MB de buffer.
+          if (!rangeHeader && obj.body && Number.isFinite(obj.size)) {
             headers.set('Content-Length', String(obj.size));
             return new Response(obj.body, { status: 200, headers });
           }
@@ -428,6 +520,11 @@ export async function GET(req) {
       // Só ASCII seguro no filename: acento/emoji em cabeçalho HTTP quebra a resposta inteira.
       const safeName = downloadName.replace(/[^\w.\- ]/g, '_').slice(0, 120) || 'musica.mp3';
       headers.set('Content-Disposition', `attachment; filename="${safeName}"`);
+
+      // Embute tags ID3 (foto de capa, direitos autorais, artista, título) se for download
+      if (audioBuffer) {
+        audioBuffer = await aplicarTagsId3ParaDownload(audioBuffer, effectiveOrderId, env);
+      }
     }
 
     const rangeHeader = req.headers.get('range');

@@ -47,7 +47,14 @@ export default function SongCard({
   const targetId = orderId || order?.id || order?.orderNumber;
 
   const share = async () => {
-    const url = `${window.location.origin}/h/${encodeURIComponent(targetId)}`;
+    let chosenVersion = 1;
+    if (order?.homenagemMusicaUrl && Array.isArray(order?.audioFiles)) {
+      const idx = order.audioFiles.indexOf(order.homenagemMusicaUrl);
+      if (idx >= 0) chosenVersion = idx + 1;
+    } else if (typeof order?.homenagemTrackIndex === 'number') {
+      chosenVersion = order.homenagemTrackIndex + 1;
+    }
+    const url = `${window.location.origin}/h/${encodeURIComponent(targetId)}?v=${chosenVersion}`;
     try {
       if (navigator.share) await navigator.share({ title: `Uma homenagem para ${order?.honoreeName || 'alguém especial'}`, text: 'Preparei uma música para você.', url });
       else { await navigator.clipboard.writeText(url); setMessage('Link do presente copiado.'); }

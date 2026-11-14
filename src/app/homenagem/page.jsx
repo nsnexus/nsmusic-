@@ -85,15 +85,41 @@ export function HomenagemView({ orderId: propOrderId }) {
   const hasVideo = isPaid && Boolean(order.videoUrl || order.relatedOrder?.videoUrl);
 
   const todasAsFaixas = isPaid
-    ? (order.audioFiles && order.audioFiles.length > 0 ? order.audioFiles : (order.audioUrl ? [order.audioUrl] : []))
+    ? (Array.isArray(order.audioFiles) && order.audioFiles.length > 0 ? order.audioFiles : (order.audioUrl ? [order.audioUrl] : []))
     : [];
-  const escolhida = order.homenagemMusicaUrl;
-  const faixaCorrespondente = escolhida
-    ? (todasAsFaixas.includes(escolhida) ? escolhida : (todasAsFaixas.find((f) => f.includes(escolhida) || escolhida.includes(f)) || escolhida))
-    : null;
-  const audioList = faixaCorrespondente
-    ? [faixaCorrespondente]
-    : todasAsFaixas;
+
+  // 1. Resolução via query param (?v=1, ?v=2, ?versao=1/2 ou ?faixa=0/1)
+  const vParam = searchParams?.get('v') || searchParams?.get('versao') || searchParams?.get('faixa');
+  let vIndex = null;
+  if (vParam) {
+    const parsed = parseInt(vParam, 10);
+    if (!isNaN(parsed)) {
+      vIndex = (vParam === '0' || parsed === 0) ? 0 : parsed - 1;
+    }
+  }
+
+  // 2. Resolução via música escolhida salva no pedido (coluna ou extras)
+  const escolhida = order.homenagemMusicaUrl || order.extras?.homenagemMusicaUrl || order.extras?.homenagem_musica_url;
+  const trackIndexSalvo = typeof order.homenagemTrackIndex === 'number'
+    ? order.homenagemTrackIndex
+    : (typeof order.extras?.homenagemTrackIndex === 'number' ? order.extras.homenagemTrackIndex : null);
+
+  let faixaFinal = null;
+
+  if (vIndex !== null && vIndex >= 0 && vIndex < todasAsFaixas.length) {
+    faixaFinal = todasAsFaixas[vIndex];
+  } else if (escolhida) {
+    faixaFinal = todasAsFaixas.includes(escolhida)
+      ? escolhida
+      : (todasAsFaixas.find((f) => f.includes(escolhida) || escolhida.includes(f)) || escolhida);
+  } else if (trackIndexSalvo !== null && trackIndexSalvo >= 0 && trackIndexSalvo < todasAsFaixas.length) {
+    faixaFinal = todasAsFaixas[trackIndexSalvo];
+  } else if (todasAsFaixas.length > 0) {
+    // Padrão de segurança: o homenageado sempre ouve uma única versão dedicada, nunca as duas concorrentes
+    faixaFinal = todasAsFaixas[0];
+  }
+
+  const audioList = faixaFinal ? [faixaFinal] : [];
 
   const videoUrl = hasVideo ? (order.videoUrl || order.relatedOrder?.videoUrl) : null;
 

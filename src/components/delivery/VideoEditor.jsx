@@ -14,7 +14,14 @@ export default function VideoEditor({ order, orderId, access, existingPhotos, fi
   const minPhotos = 3;
   const total = (existingPhotos?.length || 0) + (files?.length || 0);
   const ready = total >= minPhotos && total <= 20 && Boolean(tracks[0]);
-  const url = typeof window !== 'undefined' ? `${window.location.origin}/h/${orderId}` : '';
+  let chosenVersion = 1;
+  if (order?.homenagemMusicaUrl && Array.isArray(order?.audioFiles)) {
+    const idx = order.audioFiles.indexOf(order.homenagemMusicaUrl);
+    if (idx >= 0) chosenVersion = idx + 1;
+  } else if (typeof order?.homenagemTrackIndex === 'number') {
+    chosenVersion = order.homenagemTrackIndex + 1;
+  }
+  const url = typeof window !== 'undefined' ? `${window.location.origin}/h/${orderId}?v=${chosenVersion}` : '';
   const [isGenerateVisible, setIsGenerateVisible] = useState(false);
   const prevFilesLength = useRef(total);
 

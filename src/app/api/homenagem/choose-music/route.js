@@ -76,8 +76,24 @@ export async function POST(req) {
     }
 
     const idParaAtualizar = order.id || orderId;
-    await updateOrder(idParaAtualizar, { homenagemMusicaUrl: urlFinal, updatedAt: new Date().toISOString() }, env);
-    return NextResponse.json({ ok: true, homenagemMusicaUrl: urlFinal });
+    const finalTrackIndex = trackIndex !== null && !isNaN(trackIndex) ? trackIndex : (faixasValidas.indexOf(urlFinal) >= 0 ? faixasValidas.indexOf(urlFinal) : 0);
+
+    const updatePayload = {
+      homenagemMusicaUrl: urlFinal,
+      homenagemTrackIndex: finalTrackIndex,
+      extras: {
+        homenagemMusicaUrl: urlFinal,
+        homenagemTrackIndex: finalTrackIndex,
+      },
+      updatedAt: new Date().toISOString()
+    };
+
+    await updateOrder(idParaAtualizar, updatePayload, env);
+    if (order.orderNumber && order.orderNumber !== idParaAtualizar) {
+      await updateOrder(order.orderNumber, updatePayload, env).catch(() => {});
+    }
+
+    return NextResponse.json({ ok: true, homenagemMusicaUrl: urlFinal, trackIndex: finalTrackIndex });
   } catch (error) {
     console.warn('[homenagem/choose-music] Erro:', error.message);
     return NextResponse.json({ error: 'Erro interno ao salvar a música escolhida' }, { status: 500 });

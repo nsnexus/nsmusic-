@@ -815,15 +815,17 @@ function EntregaContent() {
   const [iosDownloadModalData, setIosDownloadModalData] = useState({ isOpen: false, downloadUrl: '', filename: '' });
 
 
-  // Acrescenta ?download=<nome> à URL do proxy: é o que faz o servidor mandar Content-Disposition e
+  // Acrescenta ?download=<nome>&orderId=<orderId> à URL do proxy: é o que faz o servidor mandar Content-Disposition,
+  // embutir a foto de capa do cliente (ID3v2 APIC), título, artista, direitos autorais no MP3, e
   // o navegador BAIXAR em vez de tocar (ver src/app/api/audio/proxy/route.js).
   const withDownloadFlag = (url, filename) => {
     if (!url) return '';
     const safeName = (filename || 'musica.mp3').replace(/[^\w.\- ]/g, '_');
+    const orderParam = orderId ? `&orderId=${encodeURIComponent(orderId)}` : '';
     const base = url.startsWith('/api/') || url.startsWith('blob:')
       ? url
       : `/api/audio/proxy?url=${encodeURIComponent(url)}`;
-    return `${base}${base.includes('?') ? '&' : '?'}download=${encodeURIComponent(safeName)}`;
+    return `${base}${base.includes('?') ? '&' : '?'}${orderParam.replace(/^&/, '')}&download=${encodeURIComponent(safeName)}`;
   };
 
   const handleDownload = (url, filename, slot = 'primary') => {
@@ -986,7 +988,7 @@ function EntregaContent() {
   const handleCopyLink = (customUrl = null) => {
     if (typeof window !== 'undefined' && orderId) {
       const validUrl = typeof customUrl === 'string' && customUrl.trim() ? customUrl.trim() : null;
-      const url = validUrl || `${window.location.origin}/h/${orderId}`;
+      const url = validUrl || sharePageUrl || `${window.location.origin}/h/${orderId}`;
       navigator.clipboard.writeText(url);
       setCopied(true);
       setTimeout(() => setCopied(false), 3000);
@@ -1269,6 +1271,20 @@ function EntregaContent() {
   // sempre fez. Mesmo padrão que a Carta já usa desde 04/09.
   const [musicaHomenagem, setMusicaHomenagem] = useState('');
   const [salvandoMusicaHomenagem, setSalvandoMusicaHomenagem] = useState(false);
+  const autoSavedDefaultTrackRef = useRef(false);
+
+  // Faixas do pedido em URL crua (sem o envelope do proxy) — é essa forma que /api/homenagem/choose-music
+  // valida contra o documento, então o seletor da página de presente precisa mandar exatamente ela.
+  const faixasDoPedido = [...new Set(
+    [order?.audioUrl, ...(Array.isArray(order?.audioFiles) ? order.audioFiles : [])].filter(Boolean)
+  )];
+
+  const selectedGiftTrackIndex = faixasDoPedido.findIndex((url, idx) => {
+    if (musicaHomenagem) return musicaHomenagem === url;
+    if (order?.homenagemMusicaUrl) return order.homenagemMusicaUrl === url;
+    return idx === 0;
+  });
+  const selectedGiftVersion = selectedGiftTrackIndex >= 0 ? selectedGiftTrackIndex + 1 : 1;
 
   const escolherMusicaHomenagem = async (url, trackIndex = 0) => {
     setMusicaHomenagem(url);
@@ -1307,8 +1323,15 @@ function EntregaContent() {
   };
 
   useEffect(() => {
-    if (order?.homenagemMusicaUrl) setMusicaHomenagem(order.homenagemMusicaUrl);
-  }, [order?.homenagemMusicaUrl]);
+    if (order?.homenagemMusicaUrl) {
+      setMusicaHomenagem(order.homenagemMusicaUrl);
+    } else if (order?.id && faixasDoPedido.length > 0 && !musicaHomenagem && !autoSavedDefaultTrackRef.current) {
+      autoSavedDefaultTrackRef.current = true;
+      const defaultUrl = faixasDoPedido[0];
+      setMusicaHomenagem(defaultUrl);
+      escolherMusicaHomenagem(defaultUrl, 0);
+    }
+  }, [order?.homenagemMusicaUrl, order?.id, faixasDoPedido.length]);
 
   // Precisa ser calculado aqui (antes dos hooks abaixo, que dependem dele) em vez de depois dos
   // early returns de `loading`/`order` — hooks têm que rodar sempre na mesma ordem em todo render.
@@ -1356,12 +1379,6 @@ function EntregaContent() {
   const activeTracks = (activeGenTab === 'second' && secondGenTracks?.length)
     ? secondGenTracks
     : (firstGenTracks?.length ? firstGenTracks : [primaryAudioUrl, secondAudioUrl].filter(Boolean));
-
-  // Faixas do pedido em URL crua (sem o envelope do proxy) — é essa forma que /api/homenagem/choose-music
-  // valida contra o documento, então o seletor da página de presente precisa mandar exatamente ela.
-  const faixasDoPedido = [...new Set(
-    [order?.audioUrl, ...(Array.isArray(order?.audioFiles) ? order.audioFiles : [])].filter(Boolean)
-  )];
 
   // A URL do áudio às vezes fica pronta no pedido antes do arquivo terminar de propagar na CDN da
   // Kie.ai — e nem sempre isso dispara `onError` no <audio> (às vezes ele só fica "pendurado", sem
@@ -1541,9 +1558,10 @@ function EntregaContent() {
   }
 
   // Safe client-side URLs
-  const sharePageUrl = mounted && typeof window !== 'undefined' ? `${window.location.origin}/h/${orderId}` : '';
+  const sharePagePath = `/h/${orderId}?v=${selectedGiftVersion}`;
+  const sharePageUrl = mounted && typeof window !== 'undefined' ? `${window.location.origin}${sharePagePath}` : '';
   const qrCodeUrl = sharePageUrl ? `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(sharePageUrl)}` : '';
-  const whatsappShareText = `Preparei uma homenagem muito especial para você! ❤️ Ouça aqui: ${sharePageUrl || `https://nsmusic.com.br/h/${orderId}`}`;
+  const whatsappShareText = `Preparei uma homenagem muito especial para você! ❤️ Ouça aqui: ${sharePageUrl || `https://nsmusic.com.br${sharePagePath}`}`;
   const whatsappShareUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(whatsappShareText)}`;
 
   const cartaPageUrl = mounted && typeof window !== 'undefined' ? `${window.location.origin}/c/${orderId}` : '';
@@ -2173,7 +2191,7 @@ function EntregaContent() {
               orderId={orderId}
               linkUrl={sharePageUrl}
               whatsappUrl={whatsappShareUrl}
-              viewUrl={`/h/${orderId}`}
+              viewUrl={sharePagePath}
               onCopy={() => handleCopyLink(sharePageUrl)}
               copied={copied}
             />
@@ -3209,7 +3227,7 @@ function EntregaContent() {
                           <>{copied ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />} {copied ? 'Link Copiado!' : 'Copiar Link'}</>
                         </button>
                         <a
-                          href={`/h/${orderId}`}
+                          href={sharePagePath || `/h/${orderId}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="btn btn-secondary"
