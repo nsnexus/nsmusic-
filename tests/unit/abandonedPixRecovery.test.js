@@ -189,6 +189,8 @@ describe('Recuperação de PIX Abandonado — Regras de Negócio', () => {
                 in: vi.fn(() => ({
                   gte: vi.fn(() => ({
                     lte: vi.fn(() => ({
+                  or: vi.fn(function () { return this; }),
+                      or: vi.fn(function () { return this; }),
                       order: vi.fn(() => ({
                         limit: vi.fn().mockResolvedValue({ data: mockCandidates, error: null }),
                       })),
@@ -252,6 +254,7 @@ describe('Recuperação de PIX Abandonado — Regras de Negócio', () => {
             in: vi.fn(() => ({
               gte: vi.fn(() => ({
                 lte: vi.fn(() => ({
+                  or: vi.fn(function () { return this; }),
                   order: vi.fn(() => ({
                     limit: vi.fn().mockResolvedValue({ data: mockCandidates, error: null }),
                   })),

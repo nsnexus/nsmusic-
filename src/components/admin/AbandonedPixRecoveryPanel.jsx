@@ -259,6 +259,17 @@ export default function AbandonedPixRecoveryPanel() {
               <span style={{ color: '#dc2626' }}><strong>Falhas de envio:</strong> {triggerFeedback.failedCount}</span>
             )}
           </div>
+          {Array.isArray(triggerFeedback.results) && triggerFeedback.results.some((r) => r.status !== 'SENT') && (
+            <ul style={{ margin: '10px 0 0', paddingLeft: '18px', fontSize: '0.78rem', color: '#991b1b' }}>
+              {triggerFeedback.results
+                .filter((r) => r.status !== 'SENT')
+                .map((r) => (
+                  <li key={r.orderId}>
+                    <strong>{r.orderNumber || r.orderId}</strong>: {r.error || 'erro desconhecido'}
+                  </li>
+                ))}
+            </ul>
+          )}
         </div>
       )}
 
