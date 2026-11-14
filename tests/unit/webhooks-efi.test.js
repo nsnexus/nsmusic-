@@ -78,6 +78,28 @@ describe('POST /api/webhooks/efi', () => {
     expect(applyPaymentApprovalMock).not.toHaveBeenCalled();
   });
 
+  it('aceita a notificação real da Efí, que acrescenta "/pix" ao fim da URL cadastrada (?secret=XXX/pix)', async () => {
+    process.env.EFI_WEBHOOK_SECRET = 'segredo-correto';
+    getChargeStatusMock.mockResolvedValue({ status: 'CONCLUIDA', valor: { original: '9.99' } });
+
+    const req = makeReq('https://x/api/webhooks/efi?secret=segredo-correto/pix', { pix: [{ txid: 'TXID1' }] });
+    const res = await POST(req);
+
+    expect(res.status).toBe(200);
+    expect(applyPaymentApprovalMock).toHaveBeenCalledTimes(1);
+    expect(applyPaymentApprovalMock.mock.calls[0][0]).toBe('order-1');
+  });
+
+  it('continua rejeitando segredo errado mesmo com o sufixo "/pix"', async () => {
+    process.env.EFI_WEBHOOK_SECRET = 'segredo-correto';
+    getChargeStatusMock.mockResolvedValue({ status: 'CONCLUIDA', valor: { original: '9.99' } });
+
+    const req = makeReq('https://x/api/webhooks/efi?secret=errado/pix', { pix: [{ txid: 'TXID1' }] });
+    await POST(req);
+
+    expect(applyPaymentApprovalMock).not.toHaveBeenCalled();
+  });
+
   it('rejeita silenciosamente (200) sem processar quando EFI_WEBHOOK_SECRET não está configurado (fail-closed)', async () => {
     getChargeStatusMock.mockResolvedValue({ status: 'CONCLUIDA', valor: { original: '9.99' } });
 

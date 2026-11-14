@@ -14,7 +14,14 @@ function isValidSecret(req, env) {
     return false;
   }
   const { searchParams } = new URL(req.url);
-  const received = searchParams.get('secret');
+  // A Efí ACRESCENTA "/pix" ao final da URL cadastrada ao enviar cada notificação (documentado em
+  // dev.efipay.com.br/docs/api-pix/webhooks — por isso eles recomendam terminar a URL com
+  // "&ignorar="). O webhook foi cadastrado como "...?secret=XXX", então o que chega é
+  // "secret=XXX/pix": a comparação estrita falhava e TODA notificação era descartada em silêncio —
+  // o pagamento só convergia pelo polling do navegador ou pelo botão manual do painel.
+  // Aceitamos o sufixo "/pix" (e qualquer caminho depois de "/", que nunca faz parte do segredo).
+  const raw = String(searchParams.get('secret') || '');
+  const received = raw.split('/')[0].trim();
   return Boolean(received && received === expected);
 }
 
