@@ -115,15 +115,25 @@ export async function runAbandonedPixRecovery({ env = {}, maxBatch = 15, force =
   const minCreatedAt = new Date(agora - 24 * 60 * 60 * 1000).toISOString();
   const maxCreatedAt = new Date(agora - 60 * 60 * 1000).toISOString();
 
-  // Consulta pedidos não pagos dentro da janela de 24 horas
+  // Consulta pedidos não pagos dentro da janela de 24 horas QUE GERARAM PIX.
+  // O filtro de "clicou em pagar" precisa acontecer no banco: todo pedido nasce como
+  // AGUARDANDO_PAGAMENTO (mesmo quem só ouviu a prévia), então sem isso o limit cortava a busca nos
+  // 100 pedidos mais recentes e quase todos eram descartados depois por não terem gerado PIX.
+  // Os campos abaixo moram em `extras` (ver mapOrderUpdatesToSupabase); hasClickedToPay continua
+  // validando em memória como segunda checagem.
+  const pixGeradoNoBanco = ['pixGeneratedAt', 'pixRequestedAt', 'pixCopiedAt', 'paymentIntentId', 'pixTxid', 'txid']
+    .map((campo) => `extras->>${campo}.not.is.null`)
+    .join(',');
+
   const { data: candidates, error: queryErr } = await supabase
     .from('orders')
     .select('id, order_number, customer_name, customer_phone, customer_email, honoree_name, payment_status, paid_at, suno_requested_at, created_at, extras')
     .in('payment_status', ['AGUARDANDO_PAGAMENTO', 'PENDENTE'])
     .gte('created_at', minCreatedAt)
     .lte('created_at', maxCreatedAt)
+    .or(pixGeradoNoBanco)
     .order('created_at', { ascending: false })
-    .limit(100);
+    .limit(500);
 
   if (queryErr) {
     console.error('[abandonedPixRecovery] Erro ao buscar pedidos candidatos:', queryErr.message);
@@ -134,7 +144,7 @@ export async function runAbandonedPixRecovery({ env = {}, maxBatch = 15, force =
     return {
       success: true,
       enabled: true,
-      message: 'Nenhum pedido pendente encontrado na janela de 1h a 24h.',
+      message: 'Nenhum pedido que gerou PIX e não pagou na janela de 1h a 24h.',
       candidatesFound: 0,
       sentCount: 0,
       processed: 0,
@@ -231,7 +241,6 @@ export async function runAbandonedPixRecovery({ env = {}, maxBatch = 15, force =
           orderId: order.id,
           orderNumber: order.order_number,
           customerName: order.customer_name,
-          phone: order.customer_phone,
           status: 'SENT',
         });
       } else {
@@ -240,7 +249,6 @@ export async function runAbandonedPixRecovery({ env = {}, maxBatch = 15, force =
           orderId: order.id,
           orderNumber: order.order_number,
           customerName: order.customer_name,
-          phone: order.customer_phone,
           status: 'FAILED',
           error: dispatch.error || 'Erro desconhecido na Meta Cloud API',
         });
@@ -254,7 +262,6 @@ export async function runAbandonedPixRecovery({ env = {}, maxBatch = 15, force =
         orderId: order.id,
         orderNumber: order.order_number,
         customerName: order.customer_name,
-        phone: order.customer_phone,
         status: 'ERROR',
         error: sendErr.message,
       });
