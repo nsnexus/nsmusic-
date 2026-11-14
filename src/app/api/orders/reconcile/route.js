@@ -245,9 +245,28 @@ async function checkAndApplyCharge(orderId, txid, env, result) {
   }
 }
 
+// Campos de acesso que indicam que o add-on daquele SKU já foi liberado.
+const ADDON_ACCESS = {
+  video_addon: ['has_video_access', 'videoAddonPaid'],
+  playback_addon: ['has_playback_access', 'playbackAddonPaid'],
+  carta_addon: ['has_carta_access', 'cartaAddonPaid'],
+  retrospectiva_addon: ['has_retrospectiva_access', 'retrospectivaAddonPaid'],
+  karaoke_addon: ['has_karaoke_access', 'karaokeAddonPaid'],
+};
+const JANELA_PIX_HORAS = 48;
+const MAX_PIX_CONSULTADOS = 30;
+const LOTE_CONSULTA_EFI = 5;
+
+// Antes: pegava só os 10 pedidos AGUARDANDO_PAGAMENTO com updated_at mais recente e descartava os
+// de menos de 3min. Com muitos PIX gerados e abandonados, o pedido que de fato pagou saía desse
+// top 10 em minutos e nunca mais era consultado — e só o txid ATUAL era verificado. Na prática o
+// cron não convergia quase nada e sobrava o botão manual do painel.
+//
+// Agora parte de order_payment_intents (todo PIX gerado fica registrado ali, inclusive cobranças
+// antigas do mesmo pedido e add-ons), mesma base que o botão "checar" do painel usa: últimas 48h,
+// prioriza quem copiou o PIX e consulta até 30 cobranças na Efí em lotes paralelos de 5.
 async function reconcilePendingPayments(env) {
-  const result = { checked: 0, approved: 0, stillPending: 0, viaPixCopiado: 0 };
-  const jaVerificados = new Set();
+  const result = { checked: 0, approved: 0, stillPending: 0, viaPixCopiado: 0, candidatos: 0 };
 
   const supabase = getSupabaseEdge(env);
   if (!supabase) {
@@ -255,36 +274,70 @@ async function reconcilePendingPayments(env) {
     return result;
   }
 
-  const verificar = async (orderData) => {
-    if (jaVerificados.has(orderData.id)) return;
-    jaVerificados.add(orderData.id);
-
-    const txid = orderData.paymentIntentId || orderData.extras?.paymentIntentId;
-    if (!txid) return;
-    if (!isOlderThan(orderData.updatedAt, MIN_AGE_MINUTES)) return;
-
-    result.checked++;
-    await checkAndApplyCharge(orderData.id, txid, env, result);
-  };
-
   try {
-    const { data: rows, error } = await supabase
-      .from('orders')
-      .select('*')
-      .eq('payment_status', 'AGUARDANDO_PAGAMENTO')
-      .is('deleted_at', null)
-      .order('updated_at', { ascending: false })
-      .limit(MAX_PAYMENT_ORDERS);
+    const agora = Date.now();
+    const desde = new Date(agora - JANELA_PIX_HORAS * 3600000).toISOString();
+    const ate = new Date(agora - MIN_AGE_MINUTES * 60000).toISOString();
 
-    if (error) throw error;
+    const { data: intents, error: intentsErr } = await supabase
+      .from('order_payment_intents')
+      .select('order_id,txid,sku,created_at')
+      .eq('provider', 'efi')
+      .gte('created_at', desde)
+      .lte('created_at', ate)
+      .order('created_at', { ascending: false })
+      .limit(300);
+    if (intentsErr) throw new Error(intentsErr.message);
+    if (!Array.isArray(intents) || intents.length === 0) return result;
 
-    const orders = (rows || []).map(mapSupabaseOrderToFirestore);
-    for (const orderData of orders) {
-      await verificar(orderData);
+    const orderIds = [...new Set(intents.map((i) => i.order_id).filter(Boolean))];
+    const pedidos = new Map();
+    for (let i = 0; i < orderIds.length; i += 80) {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('id,payment_status,deleted_at,has_video_access,has_playback_access,has_carta_access,has_retrospectiva_access,has_karaoke_access,extras')
+        .in('id', orderIds.slice(i, i + 80));
+      if (error) throw new Error(error.message);
+      for (const row of data || []) pedidos.set(row.id, row);
+    }
+
+    const vistos = new Set();
+    const candidatos = [];
+    for (const intent of intents) {
+      const txid = String(intent.txid || '').trim();
+      if (!txid || vistos.has(txid) || txid.startsWith('NSMUSIC')) continue;
+      vistos.add(txid);
+
+      const pedido = pedidos.get(intent.order_id);
+      if (!pedido || pedido.deleted_at) continue;
+      const extras = pedido.extras || {};
+
+      const acesso = ADDON_ACCESS[intent.sku];
+      if (acesso) {
+        if (pedido[acesso[0]] || extras[acesso[1]]) continue;
+      } else if (pedido.payment_status === 'PAGO' || pedido.payment_status === 'PAGAMENTO_APROVADO') {
+        continue;
+      }
+
+      candidatos.push({ orderId: pedido.id, txid, copiou: Boolean(extras.pixCopiedAt) });
+    }
+
+    // Quem copiou o PIX tem muito mais chance de ter pago: vai na frente (ordem estável por data).
+    candidatos.sort((a, b) => Number(b.copiou) - Number(a.copiou));
+    result.candidatos = candidatos.length;
+
+    const aConsultar = candidatos.slice(0, MAX_PIX_CONSULTADOS);
+    for (let i = 0; i < aConsultar.length; i += LOTE_CONSULTA_EFI) {
+      const lote = aConsultar.slice(i, i + LOTE_CONSULTA_EFI);
+      await Promise.all(lote.map(async (c) => {
+        result.checked++;
+        if (c.copiou) result.viaPixCopiado++;
+        await checkAndApplyCharge(c.orderId, c.txid, env, result);
+      }));
     }
   } catch (err) {
-    console.warn('[reconcile] Falha ao listar pedidos aguardando pagamento:', err.message);
-    result.error = `consulta_orders: ${err.message}`;
+    console.warn('[reconcile] Falha ao reconciliar PIX pendentes:', err.message);
+    result.error = `reconcile_pix: ${err.message}`;
   }
 
   return result;

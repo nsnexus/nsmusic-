@@ -156,9 +156,15 @@ obrigatória da cobrança na API da Efí antes de aprovar qualquer pagamento (ve
 ```bash
 EFI_CLIENT_ID=... EFI_CLIENT_SECRET=... EFI_PIX_KEY=... EFI_ENV=sandbox \
 EFI_CERT_PATH=./cert.pem EFI_KEY_PATH=./key.pem \
-EFI_WEBHOOK_URL="https://SEU_DOMINIO/api/webhooks/efi?secret=O_MESMO_EFI_WEBHOOK_SECRET_DO_PASSO_4" \
+EFI_WEBHOOK_URL="https://SEU_DOMINIO/api/webhooks/efi?secret=O_MESMO_EFI_WEBHOOK_SECRET_DO_PASSO_4&ignorar=" \
   node scripts/register-efi-webhook.mjs
 ```
+
+> ⚠️ **A Efí acrescenta `/pix` ao final da URL cadastrada** em toda notificação (achado 14/11/2026).
+> Cadastrada como `...?secret=XXX`, a notificação chegava com `secret=XXX/pix`, o segredo não batia e
+> o webhook descartava TODOS os pagamentos em silêncio. A Efí recomenda terminar a URL com
+> `&ignorar=` (o `/pix` cai nesse parâmetro). O código agora tolera os dois formatos e também
+> responde em `/api/webhooks/efi/pix`, mas ao recadastrar use a URL acima, com `&ignorar=`.
 
 ### 6. Configurar a reconciliação agendada
 
