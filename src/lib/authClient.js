@@ -3,12 +3,23 @@
 import { supabase } from './supabase.js';
 import { isJwtExpiredOrExpiring } from './supabase-edge.js';
 
+// Um único refresh em voo por vez: o dashboard monta ~7 consumidores ao mesmo tempo (hooks de
+// pedidos, badges, gasto de anúncios) e, com o token vencido, cada um disparava o próprio refresh
+// com o MESMO refresh token. Com rotação de refresh token, as chamadas perdedoras podem falhar e o
+// fluxo de falha apaga a sessão do localStorage — derrubando as demais requisições com 401.
+let refreshEmVoo = null;
+
 export async function getAdminAuthToken(force = false) {
   if (typeof window === 'undefined') return null;
   let token = localStorage.getItem('supabase_admin_token') || localStorage.getItem('supabase_auth_token') || null;
   if (force || isJwtExpiredOrExpiring(token)) {
     if (supabase?.auth?.refreshSession) {
-      const res = await supabase.auth.refreshSession();
+      if (!refreshEmVoo) {
+        refreshEmVoo = supabase.auth.refreshSession().finally(() => {
+          refreshEmVoo = null;
+        });
+      }
+      const res = await refreshEmVoo;
       if (res?.data?.session?.access_token) {
         token = res.data.session.access_token;
       }

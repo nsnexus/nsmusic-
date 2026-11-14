@@ -53,60 +53,100 @@ function salvarNoCache(mes, pedidos) {
   }
 }
 
-async function buscarPedidosDoMes(mes, forcar = false) {
-  if (!forcar) {
-    const emCache = obterDoCache(mes);
-    if (emCache) return emCache;
-  }
+function lerCacheExpirado(mes) {
+  // Último recurso: devolve o cache mesmo vencido para não deixar o dashboard em branco.
+  const emMem = cacheMes.get(mes);
+  if (emMem && Array.isArray(emMem.pedidos) && emMem.pedidos.length > 0) return emMem.pedidos;
+  if (typeof window === 'undefined') return null;
+  try {
+    const bruto = sessionStorage.getItem(`nsmusic_cache_pedidos_${mes}`);
+    if (bruto) {
+      const parsed = JSON.parse(bruto);
+      if (Array.isArray(parsed?.pedidos) && parsed.pedidos.length > 0) return parsed.pedidos;
+    }
+  } catch (_) {}
+  return null;
+}
 
+async function tentarBuscar(mes, token) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 35000); // 35s timeout seguro para conexões móveis
-
   try {
-    const token = await getAdminAuthToken();
     const headers = token ? { Authorization: `Bearer ${token}` } : {};
     const res = await fetch(`/api/admin/reports?tipo=pedidos_mes&mes=${encodeURIComponent(mes)}`, {
       headers,
       signal: controller.signal,
     });
+    return res;
+  } finally {
     clearTimeout(timeoutId);
+  }
+}
 
-    if (res.ok) {
-      const json = await res.json().catch(() => null);
-      if (json?.ok && Array.isArray(json.pedidos)) {
-        salvarNoCache(mes, json.pedidos);
-        return json.pedidos;
+const MES_VALIDO = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+async function buscarPedidosDoMes(mes, forcar = false) {
+  // Sem mês válido não há o que buscar. Antes, os cards filhos chamavam o hook com `null`
+  // quando recebiam `pedidos` por prop, disparando `?mes=null` -> 500 no servidor -> erro
+  // vermelho em todos os cards mesmo com os dados já carregados.
+  if (!mes || !MES_VALIDO.test(mes)) return null;
+
+  if (!forcar) {
+    const emCache = obterDoCache(mes);
+    if (emCache) return emCache;
+  }
+
+  // Até 2 tentativas: renova o token em 401 e repete uma vez em 5xx/timeout/rede.
+  let token = await getAdminAuthToken();
+  for (let tentativa = 0; tentativa < 2; tentativa++) {
+    try {
+      const res = await tentarBuscar(mes, token);
+
+      if (res.ok) {
+        const json = await res.json().catch(() => null);
+        if (json?.ok && Array.isArray(json.pedidos)) {
+          salvarNoCache(mes, json.pedidos);
+          return json.pedidos;
+        }
+        break; // resposta 200 malformada: não adianta repetir
       }
-    } else {
+
+      if (res.status === 401 && tentativa === 0) {
+        token = await getAdminAuthToken(true);
+        continue;
+      }
+      if (res.status >= 500 && tentativa === 0) {
+        await new Promise((r) => setTimeout(r, 800));
+        continue;
+      }
+
       const errText = await res.text().catch(() => '');
       console.warn(`[usePedidosDoMes] API retornou status ${res.status}:`, errText);
-    }
-  } catch (err) {
-    clearTimeout(timeoutId);
-    console.warn('[usePedidosDoMes] Falha ao carregar do Supabase via API:', err.message);
-    // Em caso de erro de rede, tenta usar o último cache disponível mesmo que expirado
-    if (typeof window !== 'undefined') {
-      try {
-        const bruto = sessionStorage.getItem(`nsmusic_cache_pedidos_${mes}`);
-        if (bruto) {
-          const parsed = JSON.parse(bruto);
-          if (Array.isArray(parsed?.pedidos) && parsed.pedidos.length > 0) {
-            return parsed.pedidos;
-          }
-        }
-      } catch (_) {}
+      break;
+    } catch (err) {
+      console.warn('[usePedidosDoMes] Falha ao carregar pedidos do mês:', err.message);
+      if (tentativa === 0) {
+        await new Promise((r) => setTimeout(r, 800));
+        continue;
+      }
     }
   }
 
-  return null;
+  return lerCacheExpirado(mes);
 }
 
 export function usePedidosDoMes(mes) {
-  const [pedidos, setPedidos] = useState(() => obterDoCache(mes) || []);
-  const [loading, setLoading] = useState(() => (obterDoCache(mes) ? false : true));
+  const [pedidos, setPedidos] = useState(() => (mes ? obterDoCache(mes) || [] : []));
+  const [loading, setLoading] = useState(() => (mes ? !obterDoCache(mes) : false));
   const [erro, setErro] = useState('');
 
   useEffect(() => {
+    // Cards que recebem `pedidos` por prop chamam o hook com `mes = null`: nada a fazer.
+    if (!mes) {
+      setLoading(false);
+      setErro('');
+      return undefined;
+    }
     let ativo = true;
     const emCache = obterDoCache(mes);
     if (emCache && emCache.length > 0) {
