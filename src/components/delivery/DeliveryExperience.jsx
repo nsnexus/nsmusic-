@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import Image from 'next/image';
 import SongCard from './SongCard';
@@ -9,6 +10,14 @@ import SecondSongOffer from './SecondSongOffer';
 import MobileValueComparison from './MobileValueComparison';
 import MobileTrustBadges from './MobileTrustBadges';
 import MobileStickyBar from './MobileStickyBar';
+
+const PreviaEncerradaModal = dynamic(() => import('./PreviaEncerradaModal'), { ssr: false });
+
+// Leva o cliente até a escolha de pacote. Usado pelo pop-up de fim de prévia e pela barra fixa.
+function irParaPagamento() {
+  const el = document.getElementById('checkout-panel') || document.getElementById('pagamento');
+  el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
 
 export default function DeliveryExperience({
   order,
@@ -45,6 +54,10 @@ export default function DeliveryExperience({
   );
 
   const [internalTab, setInternalTab] = useState(isChildOrder ? 'second' : 'first');
+  // Quando os 60s de prévia acabam, o cliente precisa ver na hora onde comprar — antes o player
+  // só parava e a página ficava sem nenhum caminho visível até o cliente rolar.
+  const [previaEncerrada, setPreviaEncerrada] = useState(false);
+  const handlePreviewEnded = () => { if (!paid) setPreviaEncerrada(true); };
   const activeTab = activeGenTab !== undefined ? activeGenTab : internalTab;
   const setActiveTab = onSelectGenTab || setInternalTab;
 
@@ -83,6 +96,7 @@ export default function DeliveryExperience({
       uploadingCover={uploadingCover}
       coverError={coverError}
       onChooseGiftTrack={onChooseGiftTrack}
+      onPreviewEnded={handlePreviewEnded}
     />
   );
 
@@ -309,11 +323,13 @@ export default function DeliveryExperience({
             />
 
             {/* Barra Fixa Flutuante para Celular */}
-            <MobileStickyBar
-              onScrollToCheckout={() => {
-                const el = document.getElementById('checkout-panel') || document.getElementById('pagamento');
-                el?.scrollIntoView({ behavior: 'smooth' });
-              }}
+            <MobileStickyBar onScrollToCheckout={irParaPagamento} />
+
+            <PreviaEncerradaModal
+              isOpen={previaEncerrada}
+              onClose={() => setPreviaEncerrada(false)}
+              onGoToPix={() => { setPreviaEncerrada(false); irParaPagamento(); }}
+              honoreeName={order?.honoreeName}
             />
           </>
         ) : (
