@@ -260,6 +260,10 @@ export async function GET(req) {
     if (tipo === 'pedidos_mes') {
       const mes = searchParams.get('mes') || formatLocalDate(new Date()).slice(0, 7);
       const diaParam = searchParams.get('dia');
+      // `mes` inválido (ex: "null") gerava Date inválida -> RangeError -> 500 genérico.
+      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(mes)) {
+        return NextResponse.json({ error: 'Parâmetro mes inválido (use AAAA-MM).' }, { status: 400 });
+      }
       const [anoStr, mesStr] = mes.split('-');
       const ano = Number(anoStr);
       const mesNum = Number(mesStr);
@@ -272,7 +276,10 @@ export async function GET(req) {
         'id', 'order_number', 'customer_phone', 'payment_status', 'paid_at', 'created_at',
         'has_video_access', 'has_carta_access', 'has_playback_access', 'has_retrospectiva_access',
         'has_karaoke_access', 'suno_generation_count', 'suno_requested_at', 'suno_provider',
-        'ready_template_sent', 'payment_whatsapp_sent', 'whatsapp_sent', 'extras'
+        'ready_template_sent', 'payment_whatsapp_sent', 'whatsapp_sent', 'extras',
+        // Usadas por mapearPedido -> hasMusicaGerada. Sem elas, "Músicas Geradas" só contava
+        // pedidos pagos ou com status/áudio duplicado no extras, subestimando gerações e conversão.
+        'production_status', 'audio_url'
       ].join(',');
 
       const mapearPedido = (row) => {
@@ -362,15 +369,21 @@ export async function GET(req) {
         };
       };
 
-      let inicio = new Date(Date.UTC(ano, mesNum - 1, 1, 0, 0, 0, 0)).toISOString();
-      let fim = new Date(Date.UTC(ano, mesNum, 1, 0, 0, 0, 0)).toISOString();
+      // Limites no fuso oficial (America/Sao_Paulo, UTC-3 fixo desde 2019) — o front agrupa por
+      // data local; com limites em UTC o mês perdia as vendas das 21h-24h do último dia e herdava
+      // as do último dia do mês anterior.
+      const pad = (n) => String(n).padStart(2, '0');
+      const proxAno = mesNum === 12 ? ano + 1 : ano;
+      const proxMes = mesNum === 12 ? 1 : mesNum + 1;
+      let inicio = `${ano}-${pad(mesNum)}-01T00:00:00-03:00`;
+      let fim = `${proxAno}-${pad(proxMes)}-01T00:00:00-03:00`;
 
       if (diaParam && !isNaN(Number(diaParam))) {
         const diaNum = Math.max(1, Math.min(diasNoMes, Number(diaParam)));
-        inicio = new Date(Date.UTC(ano, mesNum - 1, diaNum, 0, 0, 0, 0)).toISOString();
+        inicio = `${ano}-${pad(mesNum)}-${pad(diaNum)}T00:00:00-03:00`;
         fim = diaNum >= diasNoMes
-          ? new Date(Date.UTC(ano, mesNum, 1, 0, 0, 0, 0)).toISOString()
-          : new Date(Date.UTC(ano, mesNum - 1, diaNum + 1, 0, 0, 0, 0)).toISOString();
+          ? fim
+          : `${ano}-${pad(mesNum)}-${pad(diaNum + 1)}T00:00:00-03:00`;
       }
 
       let todosPedidos = [];
