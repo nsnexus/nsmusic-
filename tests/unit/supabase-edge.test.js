@@ -13,6 +13,19 @@ describe('supabase-edge client', () => {
     expect(query.queryParams.get('offset')).toBe('10');
   });
 
+  it('suporta filter() em coluna JSON (usado pela recuperação de PIX abandonado)', () => {
+    const client = getSupabaseEdge({
+      NEXT_PUBLIC_SUPABASE_URL: 'https://test.supabase.co',
+      SUPABASE_SERVICE_ROLE_KEY: 'test-key',
+    });
+
+    const query = client
+      .from('orders')
+      .select('id')
+      .filter('extras->>abandoned_pix_recovery_sent', 'eq', 'true');
+    expect(query.queryParams.get('extras->>abandoned_pix_recovery_sent')).toBe('eq.true');
+  });
+
   it('configura offset() diretamente', () => {
     const client = getSupabaseEdge({
       NEXT_PUBLIC_SUPABASE_URL: 'https://test.supabase.co',

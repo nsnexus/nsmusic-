@@ -212,6 +212,17 @@ class SupabaseTableQuery {
     return this;
   }
 
+  /**
+   * Filtro genérico do PostgREST (mesma assinatura do supabase-js): `.filter(coluna, operador, valor)`.
+   * Necessário para colunas JSON, ex: `.filter('extras->>parentOrderId', 'eq', id)`.
+   * Antes não existia neste cliente — quem chamava recebia `TypeError: filter is not a function`
+   * (os testes mockavam o cliente e não pegaram).
+   */
+  filter(column, operator, value) {
+    this.queryParams.append(column, `${operator}.${value}`);
+    return this;
+  }
+
   or(filterString) {
     this.queryParams.append('or', `(${filterString})`);
     return this;
