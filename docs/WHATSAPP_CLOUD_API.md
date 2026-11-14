@@ -85,6 +85,19 @@ Caso precise de suporte no WhatsApp, acesse o link {{4}} para falar com nossa eq
   * `{{3}}`: Link permanente da página de entrega liberada
   * `{{4}}`: Link dinâmico de suporte via WhatsApp (`https://wa.me/5594991081351`) lido em tempo real da configuração do Admin
 
+### 3. `recuperacao_pedido_24h` (ID: `2168491414033161`) — Categoria: MARKETING
+
+```text
+Olá, {{1}}! Passando para avisar que a sua música especial de {{2}} ainda está salva e pronta para você ouvir e baixar. Mas atenção: por questões de armazenamento, sua prévia fica disponível por apenas 24 horas! Para garantir seu pedido agora, acesse o link {{3}}. Se precisar de ajuda ou tiver qualquer dúvida, acesse o link {{4}} para falar com nossa equipe.
+```
+
+* **Variáveis**:
+  * `{{1}}`: Primeiro nome do cliente
+  * `{{2}}`: Nome do homenageado
+  * `{{3}}`: Link de entrega/pagamento do pedido
+  * `{{4}}`: Link dinâmico de suporte via WhatsApp lido das configurações do Admin
+
+
 ---
 
 ## Como Disparar um Envio de Teste Manual

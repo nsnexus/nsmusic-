@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 
-const TEMPLATE_BODY = `Olá, {{1}}! Passando para avisar que a sua música especial de {{2}} ainda está salva e pronta para você ouvir e baixar. Mas atenção: por questões de armazenamento, sua prévia fica disponível por apenas 24 horas! Para garantir seu pedido agora, acesse: {{3}}. Se precisar de ajuda ou tiver qualquer dúvida, fale direto conosco pelo WhatsApp: {{4}}`;
+const TEMPLATE_BODY = `Olá, {{1}}! Passando para avisar que a sua música especial de {{2}} ainda está salva e pronta para você ouvir e baixar. Mas atenção: por questões de armazenamento, sua prévia fica disponível por apenas 24 horas! Para garantir seu pedido agora, acesse o link {{3}}. Se precisar de ajuda ou tiver qualquer dúvida, acesse o link {{4}} para falar com nossa equipe.`;
 
 export default function RecoveryMetaTemplateBox({ whatsappSuporte = '' }) {
   const [copiado, setCopiado] = useState(false);
@@ -51,7 +51,7 @@ export default function RecoveryMetaTemplateBox({ whatsappSuporte = '' }) {
               Modelo Oficial Meta Cloud API (WhatsApp Marketing)
             </h3>
             <p style={{ margin: 0, fontSize: '0.8rem', color: '#64748b' }}>
-              Cadastre este modelo no Meta Business Manager &gt; WhatsApp Manager &gt; Modelos de Mensagem.
+              Modelo registrado na Meta (ID: <code>2168491414033161</code>) · Categoria Marketing (pt_BR).
             </p>
           </div>
         </div>
