@@ -8,16 +8,16 @@ export default function MobileStickyBar({ onScrollToCheckout }) {
 
   useEffect(() => {
     const handleScroll = () => {
-      // Aparece após rolar 260px (quando passa do player de música)
-      const scrolled = window.scrollY > 260;
+      // Visível desde o topo: antes só aparecia depois de 260px de rolagem, e quem terminava a
+      // prévia sem rolar não via nenhum botão de compra na tela.
       // Esconde se o painel de pagamento já estiver visível na tela
       const checkoutEl = document.getElementById('checkout-panel') || document.getElementById('pagamento');
       if (checkoutEl) {
         const rect = checkoutEl.getBoundingClientRect();
         const inView = rect.top < window.innerHeight * 0.75 && rect.bottom > 80;
-        setIsVisible(scrolled && !inView);
+        setIsVisible(!inView);
       } else {
-        setIsVisible(scrolled);
+        setIsVisible(true);
       }
     };
 

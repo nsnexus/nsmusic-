@@ -21,6 +21,7 @@ export default function SongCard({
   onChooseGiftTrack,
   generationLabel,
   trackOffset = 0,
+  onPreviewEnded,
 }) {
   const [version, setVersion] = useState(0);
   const [audioError, setAudioError] = useState(false);
@@ -247,6 +248,7 @@ export default function SongCard({
           reload={reload}
           paid={paid}
           previewMaxDuration={60}
+          onPreviewEnded={!paid ? onPreviewEnded : undefined}
           trackLabel={
             trackOffset > 0
               ? `Música ${index + 1 + trackOffset}`

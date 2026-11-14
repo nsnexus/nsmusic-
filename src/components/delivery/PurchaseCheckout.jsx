@@ -64,6 +64,7 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
   const [payingCard, setPayingCard] = useState(false);
   const busyRef = useRef(false);
   const panel = useRef(null);
+  const summary = useRef(null);
   const attempts = useRef(0);
   const recovery = promo === '24h' || promo === '48h';
   const pack = recovery
@@ -185,6 +186,11 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
     setPix(null);
     setError('');
     setMessage('');
+    // O botão de pagar fica abaixo de todos os cards; no celular o cliente escolhia o pacote e
+    // "nada acontecia". Leva a tela até o resumo com o botão verde logo depois da escolha.
+    const rolar = () => summary.current?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+    if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') window.requestAnimationFrame(rolar);
+    else rolar();
   };
 
   return (
@@ -214,6 +220,7 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
       {/* Barra de Resumo e Ação de Compra */}
       <div
         className="nx-card nx-checkout-summary"
+        ref={summary}
         style={{
           display: 'flex',
           flexDirection: 'column',
