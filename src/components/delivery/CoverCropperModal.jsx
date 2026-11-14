@@ -19,6 +19,7 @@ export default function CoverCropperModal({
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageError, setImageError] = useState(false);
   const [imageNaturalSize, setImageNaturalSize] = useState({ width: 0, height: 0 });
 
   const imageRef = useRef(null);
@@ -31,6 +32,7 @@ export default function CoverCropperModal({
       setPan({ x: 0, y: 0 });
       setRotation(0);
       setImageLoaded(false);
+      setImageError(false);
     }
   }, [isOpen, imageSrc]);
 
@@ -38,6 +40,13 @@ export default function CoverCropperModal({
     const { naturalWidth, naturalHeight } = e.target;
     setImageNaturalSize({ width: naturalWidth, height: naturalHeight });
     setImageLoaded(true);
+    setImageError(false);
+  };
+
+  const handleImageError = () => {
+    console.warn('[CoverCropperModal] Falha ao carregar imagem para enquadramento.');
+    setImageError(true);
+    setImageLoaded(false);
   };
 
   // Drag com PointerEvents (compatível com mouse e touch)
@@ -116,10 +125,10 @@ export default function CoverCropperModal({
       ctx.scale(zoom, zoom);
       ctx.drawImage(
         img,
-        -drawWidth / (2 * zoom),
-        -drawHeight / (2 * zoom),
-        drawWidth / zoom,
-        drawHeight / zoom
+        -drawWidth / 2,
+        -drawHeight / 2,
+        drawWidth,
+        drawHeight
       );
       ctx.restore();
 
@@ -254,12 +263,13 @@ export default function CoverCropperModal({
             }}
           >
             {/* Imagem a ser reenquadrada */}
-            {imageSrc && (
+            {imageSrc && !imageError && (
               <img
                 ref={imageRef}
-                src={imageSrc}
+                src={typeof imageSrc === 'string' && imageSrc.startsWith('http') ? `/api/image-proxy?url=${encodeURIComponent(imageSrc)}` : imageSrc}
                 alt="Prévia de enquadramento"
                 onLoad={handleImageLoad}
+                onError={handleImageError}
                 crossOrigin="anonymous"
                 style={{
                   position: 'absolute',
@@ -275,6 +285,21 @@ export default function CoverCropperModal({
                   transition: isDragging ? 'none' : 'transform 0.08s ease-out',
                 }}
               />
+            )}
+
+            {imageError && (
+              <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px', textAlign: 'center', color: '#f87171', backgroundColor: 'rgba(0,0,0,0.6)' }}>
+                <p style={{ fontSize: '0.85rem', fontWeight: 600, margin: '0 0 10px' }}>
+                  Não foi possível abrir esta foto para recorte.
+                </p>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  style={{ padding: '6px 14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.1)', color: '#fff', fontSize: '0.8rem', cursor: 'pointer' }}
+                >
+                  Escolher outra foto
+                </button>
+              </div>
             )}
 
             {/* Linhas de guia sutis (regra dos terços) */}

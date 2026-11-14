@@ -168,7 +168,10 @@ function EntregaContent() {
   const handleOpenCropperWithCurrent = () => {
     const currentCover = activeOrder?.coverUrl || order?.coverUrl;
     if (currentCover) {
-      setCropperImageSrc(currentCover);
+      const proxiedUrl = typeof currentCover === 'string' && currentCover.startsWith('http')
+        ? `/api/image-proxy?url=${encodeURIComponent(currentCover)}`
+        : currentCover;
+      setCropperImageSrc(proxiedUrl);
       setCropperModalOpen(true);
     }
   };
@@ -181,17 +184,25 @@ function EntregaContent() {
       setCoverUploadError('Escolha um arquivo de imagem.');
       return;
     }
-    if (file.size > 20 * 1024 * 1024) {
-      setCoverUploadError('A imagem é muito grande. Escolha uma de até 20MB.');
+    if (file.size > 25 * 1024 * 1024) {
+      setCoverUploadError('A imagem é muito grande. Escolha uma de até 25MB.');
       return;
     }
     setCoverUploadError('');
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      setCropperImageSrc(evt.target.result);
+
+    try {
+      // URL.createObjectURL é instantâneo e não trava o navegador móvel com strings gigantes em base64
+      const objectUrl = URL.createObjectURL(file);
+      setCropperImageSrc(objectUrl);
       setCropperModalOpen(true);
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        setCropperImageSrc(evt.target.result);
+        setCropperModalOpen(true);
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleSaveCroppedCover = async (croppedBlob) => {
@@ -2416,7 +2427,16 @@ function EntregaContent() {
 
                 {/* Card de Capa com Troca e Overlay (Imagens 4 e 5) */}
                 <div style={isPaid ? { ...styles.coverWrapper, boxShadow: '0 16px 40px rgba(236,72,153,0.22)', border: '1.5px solid rgba(255,255,255,0.12)' } : { ...styles.coverWrapper, borderRadius: '18px', overflow: 'hidden' }}>
-                  <img src={coverUrl} alt="Capa da música" style={styles.coverImg} />
+                  <img
+                    src={coverUrl}
+                    alt="Capa da música"
+                    style={styles.coverImg}
+                    onError={(e) => {
+                      if (e.currentTarget.src !== '/experiencia/familia.webp') {
+                        e.currentTarget.src = '/experiencia/familia.webp';
+                      }
+                    }}
+                  />
 
                   <input
                     id="cover-file-input"

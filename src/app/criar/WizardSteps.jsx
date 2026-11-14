@@ -788,6 +788,11 @@ export default function WizardSteps({
                   <img
                     src={formData.coverUrl}
                     alt="Capa personalizada"
+                    onError={(e) => {
+                      if (e.currentTarget.src !== '/experiencia/familia.webp') {
+                        e.currentTarget.src = '/experiencia/familia.webp';
+                      }
+                    }}
                     style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
                   />
                 ) : (

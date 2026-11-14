@@ -231,6 +231,11 @@ export default function ContaPage() {
                       height={426}
                       unoptimized={Boolean(order.coverUrl)}
                       sizes="(max-width: 700px) 90vw, 330px"
+                      onError={(e) => {
+                        if (e.currentTarget.src !== '/experiencia/familia.webp') {
+                          e.currentTarget.src = '/experiencia/familia.webp';
+                        }
+                      }}
                     />
                     <span className="nx-eyebrow">{paid ? 'Presente liberado' : 'Sua criação'}</span>
                     <h2>Para {order.honoreeName || 'alguém especial'}</h2>

@@ -919,18 +919,11 @@ export default function CriarMusica() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 10 * 1024 * 1024) {
-      setCreationError("A imagem selecionada é muito grande. Escolha uma imagem de até 10MB.");
+    if (file.size > 25 * 1024 * 1024) {
+      setCreationError("A imagem selecionada é muito grande. Escolha uma imagem de até 25MB.");
       return;
     }
 
-    // A flag sobe AQUI, não no início do upload para o Storage: ler o arquivo, decodificar e
-    // redimensionar no canvas leva segundos num celular com foto grande, e era exatamente nessa
-    // janela que o cliente clicava em "Continuar" e a foto se perdia. Enquanto ela for true, o
-    // wizard não avança (ver isNextDisabled e selectFieldAndAdvance).
-    //
-    // Consequência: TODO caminho de saída daqui para baixo precisa baixar a flag, senão o wizard
-    // fica travado para sempre — um bug pior do que o que estamos corrigindo.
     setIsUploadingCover(true);
 
     const failUpload = (mensagem) => {
@@ -938,82 +931,86 @@ export default function CriarMusica() {
       setCreationError(mensagem);
     };
 
-    const reader = new FileReader();
-    reader.onerror = () => failUpload("Não foi possível ler a imagem selecionada. Tente novamente.");
-    reader.onload = (event) => {
-      // window.Image (não `new Image()`) — o identificador `Image` neste arquivo é o componente do
-      // next/image importado no topo, que sombreia o construtor nativo do navegador. Chamar
-      // `new Image()" aqui invocava o componente React em vez do <img> nativo, e o TypeError
-      // resultante ("is not a constructor") só aparecia no overlay de dev do Next, nunca em
-      // console.error — por isso o upload de capa parecia simplesmente não fazer nada.
+    let objectUrl = null;
+    try {
+      objectUrl = URL.createObjectURL(file);
+    } catch (_) {}
+
+    const processImg = (srcUrl) => {
       const img = new window.Image();
-      img.onerror = () => failUpload("Não foi possível abrir a imagem selecionada. Tente outra foto.");
-      img.onload = () => {
-       // Rede de segurança: uma exceção síncrona aqui (canvas sem contexto 2d, drawImage recusando
-       // a imagem) escaparia do handler de evento sem passar por nenhum dos resets abaixo, e o
-       // wizard ficaria travado sem o cliente conseguir sequer voltar atrás.
-       try {
-        const canvas = document.createElement('canvas');
-        const MAX_WIDTH = 800;
-        const MAX_HEIGHT = 800;
-        let width = img.width;
-        let height = img.height;
-
-        if (width > height) {
-          if (width > MAX_WIDTH) {
-            height *= MAX_WIDTH / width;
-            width = MAX_WIDTH;
-          }
-        } else {
-          if (height > MAX_HEIGHT) {
-            width *= MAX_HEIGHT / height;
-            height = MAX_HEIGHT;
-          }
-        }
-
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
-
-        // Faz upload para o Firebase Storage em vez de gravar base64 no Firestore — um documento tem
-        // limite de 1 MiB, e o base64 também estourava o payload de /api/lyrics/generate no Safari
-        // (ver M-08 no AUDIT_REPORT.md).
-        canvas.toBlob(async (blob) => {
-          if (!blob) {
-            failUpload("Não foi possível processar a imagem. Tente novamente.");
-            return;
-          }
-          try {
-            const uploadData = new FormData();
-            uploadData.append('file', blob, 'cover.jpg');
-            const uploadRes = await fetch('/api/media/upload?folder=covers', {
-              method: 'POST',
-              body: uploadData
-            });
-            if (!uploadRes.ok) {
-              throw new Error('Falha no upload da foto de capa');
-            }
-            const resJson = await uploadRes.json();
-            if (!resJson?.url) {
-              throw new Error('URL da foto não retornada');
-            }
-            updateField('coverUrl', resJson.url);
-          } catch (err) {
-            console.error("Erro ao enviar foto de capa para o R2:", err);
-            setCreationError("Falha ao enviar a foto de capa. Tente novamente.");
-          } finally {
-            setIsUploadingCover(false);
-          }
-        }, 'image/jpeg', 0.82);
-       } catch (err) {
-         console.error("Erro ao processar a imagem de capa:", err);
-         failUpload("Não foi possível processar a imagem. Tente outra foto.");
-       }
+      img.onerror = () => {
+        if (objectUrl) URL.revokeObjectURL(objectUrl);
+        failUpload("Não foi possível abrir a imagem selecionada. Tente outra foto.");
       };
-      img.src = event.target.result;
+      img.onload = () => {
+        if (objectUrl) URL.revokeObjectURL(objectUrl);
+        try {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 1000;
+          const MAX_HEIGHT = 1000;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
+          }
+
+          canvas.width = Math.round(width);
+          canvas.height = Math.round(height);
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+          canvas.toBlob(async (blob) => {
+            if (!blob) {
+              failUpload("Não foi possível processar a imagem. Tente novamente.");
+              return;
+            }
+            try {
+              const uploadData = new FormData();
+              uploadData.append('file', blob, 'cover.jpg');
+              const uploadRes = await fetch('/api/media/upload?folder=covers', {
+                method: 'POST',
+                body: uploadData
+              });
+              if (!uploadRes.ok) {
+                throw new Error('Falha no upload da foto de capa');
+              }
+              const resJson = await uploadRes.json();
+              if (!resJson?.url) {
+                throw new Error('URL da foto não retornada');
+              }
+              updateField('coverUrl', resJson.url);
+            } catch (err) {
+              console.error("Erro ao enviar foto de capa para o R2:", err);
+              setCreationError("Falha ao enviar a foto de capa. Tente novamente.");
+            } finally {
+              setIsUploadingCover(false);
+            }
+          }, 'image/jpeg', 0.88);
+        } catch (err) {
+          console.error("Erro ao processar a imagem de capa:", err);
+          failUpload("Não foi possível processar a imagem. Tente outra foto.");
+        }
+      };
+      img.src = srcUrl;
     };
-    reader.readAsDataURL(file);
+
+    if (objectUrl) {
+      processImg(objectUrl);
+    } else {
+      const reader = new FileReader();
+      reader.onerror = () => failUpload("Não foi possível ler a imagem selecionada. Tente novamente.");
+      reader.onload = (event) => processImg(event.target.result);
+      reader.readAsDataURL(file);
+    }
   };
 
   const [showLimitModal, setShowLimitModal] = useState(false);

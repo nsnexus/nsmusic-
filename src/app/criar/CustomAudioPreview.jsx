@@ -122,6 +122,11 @@ export default function CustomAudioPreview({
               height={108}
               style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
               unoptimized={Boolean(coverUrl)}
+              onError={(e) => {
+                if (e.currentTarget.src !== '/experiencia/familia.webp') {
+                  e.currentTarget.src = '/experiencia/familia.webp';
+                }
+              }}
             />
             {isAudioPlaying && (
               <div

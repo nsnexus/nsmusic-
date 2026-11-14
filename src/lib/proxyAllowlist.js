@@ -36,7 +36,7 @@ const ALLOWED_HOSTS = [
 export function isAllowedMediaHost(hostname) {
   if (!hostname) return false;
   const host = hostname.toLowerCase();
-  return ALLOWED_HOSTS.some((allowed) => host === allowed) || host.endsWith('.unifically.com');
+  return ALLOWED_HOSTS.some((allowed) => host === allowed) || host.endsWith('.unifically.com') || host.endsWith('.r2.dev');
 }
 
 export function isAllowedMediaUrl(rawUrl) {

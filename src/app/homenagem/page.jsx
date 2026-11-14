@@ -225,6 +225,11 @@ export function HomenagemView({ orderId: propOrderId }) {
                   <img
                     src={order.coverUrl}
                     alt={`Capa da homenagem para ${honoreeName}`}
+                    onError={(e) => {
+                      if (e.currentTarget.src !== '/experiencia/familia.webp') {
+                        e.currentTarget.src = '/experiencia/familia.webp';
+                      }
+                    }}
                     style={{
                       width: '140px',
                       height: '140px',
