@@ -74,11 +74,11 @@ describe('checkout em um clique após escolher pacote', () => {
   });
   it('trocar pacote limpa o código anterior e aguarda nova confirmação', async () => {
     await button(render(), 'Pagar Agora').props.onClick();
-    button(render(), 'Suas palavras').props.onClick();
+    button(render(), 'O essencial').props.onClick();
     expect(state.request).toHaveBeenCalledTimes(1);
     expect(nodes(render()).some(node => node.type === 'textarea')).toBe(false);
     await button(render(), 'Pagar Agora').props.onClick();
-    expect(state.request.mock.calls[1][0].sku).toBe('combo_carta');
+    expect(state.request.mock.calls[1][0].sku).toBe('audio_only');
   });
   it('mostra erro e permite repetir sem um passo extra de revisão', async () => {
     state.request.mockResolvedValueOnce({ ok: false, error: 'Serviço indisponível.' });

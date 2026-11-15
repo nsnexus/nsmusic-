@@ -307,12 +307,6 @@ export default function DeliveryExperience({
               {primarySongCard}
             </div>
 
-            {/* Comparativo de Valor Mobile: Prévia vs Oficial */}
-            <MobileValueComparison honoreeName={order?.honoreeName} />
-
-            {/* Badges de Confiança e Garantia de Emoção */}
-            <MobileTrustBadges />
-
             <PurchaseCheckout
               orderId={orderId}
               promo={promo}
@@ -321,6 +315,12 @@ export default function DeliveryExperience({
               onReceipt={onReceipt}
               onApproved={onApproved}
             />
+
+            {/* Comparativo de Valor Mobile: Prévia vs Oficial */}
+            <MobileValueComparison honoreeName={order?.honoreeName} />
+
+            {/* Badges de Confiança e Garantia de Emoção */}
+            <MobileTrustBadges />
 
             {/* Barra Fixa Flutuante para Celular */}
             <MobileStickyBar onScrollToCheckout={irParaPagamento} />

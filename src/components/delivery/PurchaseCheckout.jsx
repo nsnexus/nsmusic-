@@ -11,13 +11,16 @@ import { requestPixCharge } from '@/lib/pixCheckout';
 import { deliveryPackages, formatBrl, PROMESSA } from '@/lib/deliveryPackages';
 import { getPriceForSku } from '@/lib/pricing';
 
+const PRINCIPAIS = ['audio_only', 'combo'];
 const MAX_AGE = 55 * 60 * 1000;
 
 export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStatus, onReceipt, onApproved }) {
   const catalog = deliveryPackages();
   // Pré-seleciona por padrão o pacote 'combo' (R$ 16,89 / R$ 16,90 — Música + Vídeo)
   const [selected, setSelected] = useState('combo');
+  const upgradeDiff = Number(getPriceForSku('combo')) - Number(getPriceForSku('audio_only'));
   const [review, setReview] = useState(false);
+  const [showMore, setShowMore] = useState(false);
   const [pix, setPix] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -172,9 +175,15 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
         </p>
       </div>
 
+      {!recovery && upgradeDiff > 0.005 && (
+        <p style={{ margin: '0 0 14px', color: '#29232d', fontSize: '0.96rem', fontWeight: 700 }}>
+          Por só {formatBrl(upgradeDiff)} a mais que a música sozinha, você leva o Vídeo Homenagem com as fotos.
+        </p>
+      )}
+
       {!recovery && (
         <div className="nx-package-grid" role="group" aria-label="Pacotes de Homenagem">
-          {catalog.map(item => (
+          {catalog.filter(item => PRINCIPAIS.includes(item.sku) || showMore || selected === item.sku).map(item => (
             <Fragment key={item.sku}>
               {PackageCard({
                 pack: item,
@@ -188,6 +197,16 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
             </Fragment>
           ))}
         </div>
+      )}
+
+      {!recovery && !showMore && catalog.some(item => !PRINCIPAIS.includes(item.sku) && item.sku !== selected) && (
+        <button
+          type="button"
+          onClick={() => setShowMore(true)}
+          style={{ display: 'block', margin: '14px auto 0', background: 'none', border: 'none', color: '#6c636f', fontSize: '0.92rem', textDecoration: 'underline', cursor: 'pointer', padding: '8px' }}
+        >
+          Ver mais presentes: Carta, Retrospectiva, Minha Voz
+        </button>
       )}
 
       {/* Barra de Resumo e Ação de Compra */}
