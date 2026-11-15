@@ -2,54 +2,16 @@
 
 import { Fragment, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Music, Mail, Film, Sparkles, Mic, Crown, ArrowRight, ShieldCheck, Check } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import PixQrCode from '@/components/PixQrCode';
 import PackageCard from './PackageCard';
 import InlinePayButton from './InlinePayButton';
 import { auth } from '@/lib/authClient';
 import { requestPixCharge } from '@/lib/pixCheckout';
-import { deliveryPackages, formatBrl } from '@/lib/deliveryPackages';
+import { deliveryPackages, formatBrl, PROMESSA } from '@/lib/deliveryPackages';
 import { getPriceForSku } from '@/lib/pricing';
 
 const MAX_AGE = 55 * 60 * 1000;
-
-const PACKAGE_METADATA = {
-  audio_only: {
-    icon: Music,
-    tagline: 'Essencial em MP3 HD',
-    tagColor: '#059669',
-    tagBg: '#dcfce7',
-  },
-  combo_carta: {
-    icon: Mail,
-    tagline: 'Com Carta Virtual',
-    tagColor: '#be185d',
-    tagBg: '#fce7f3',
-  },
-  combo: {
-    icon: Film,
-    tagline: 'Economize R$ 6,90 no vídeo',
-    tagColor: '#15803d',
-    tagBg: '#dcfce7',
-    badge: 'MAIS COMPRADO',
-    badgeIcon: Crown,
-    featured: true,
-  },
-  combo_retrospectiva: {
-    icon: Sparkles,
-    tagline: 'Vídeo + Carta + Linha do Tempo',
-    tagColor: '#b45309',
-    tagBg: '#fef3c7',
-  },
-  combo_voz: {
-    icon: Mic,
-    tagline: 'Voz Clonada por IA',
-    tagColor: '#4338ca',
-    tagBg: '#e0e7ff',
-    badge: 'NOVO',
-    badgeIcon: Sparkles,
-  },
-};
 
 export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStatus, onReceipt, onApproved }) {
   const catalog = deliveryPackages();
@@ -69,7 +31,7 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
   const attempts = useRef(0);
   const recovery = promo === '24h' || promo === '48h';
   const pack = recovery
-    ? { sku: `recovery_combo_${promo}`, label: 'Sua oferta especial', price: getPriceForSku(`recovery_combo_${promo}`), includes: ['2 versões completas em MP3', 'Vídeo homenagem com fotos'] }
+    ? { sku: `recovery_combo_${promo}`, label: 'Sua oferta especial', price: getPriceForSku(`recovery_combo_${promo}`), includes: ['2 músicas completas em MP3 HD', 'Vídeo homenagem com fotos'] }
     : catalog.find(item => item.sku === selected) || catalog.find(item => item.sku === 'combo') || catalog[0];
 
   useEffect(() => {
@@ -206,7 +168,7 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
           Como você quer emocionar?
         </h2>
         <p style={{ color: '#6c636f', fontSize: '0.96rem', margin: 0 }}>
-          Todas as opções incluem as duas versões completas em áudio MP3 HD. Pagamento único via PIX, sem assinatura.
+          {PROMESSA.checkout} Pagamento único via PIX, sem assinatura.
         </p>
       </div>
 

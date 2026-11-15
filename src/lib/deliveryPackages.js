@@ -1,5 +1,14 @@
 import { getPriceForSku } from './pricing.js';
 
+// Promessa única do produto. Toda tela que fala do que o pagamento libera usa estas frases.
+// Regra de negócio: o pagamento libera as 2 versões completas já geradas e mais 2 de bônus (4 músicas).
+export const PROMESSA = {
+  curta: '2 músicas completas agora + 2 de bônus depois do pagamento',
+  checkout: 'Todas as opções incluem as 2 músicas completas em MP3 HD e mais 2 de bônus depois do pagamento.',
+  modal: 'As 2 músicas completas em MP3 HD, sem corte',
+  bonus: 'Mais 2 músicas de bônus, com outra letra e outro estilo',
+};
+
 export function deliveryPackages() {
   return [
     {
@@ -48,10 +57,10 @@ export function deliveryPackages() {
       label: '4 Músicas + Minha Voz',
       icon: '🎙️',
       eyebrow: 'Do seu jeito',
-      desc: 'Suas 4 músicas cantadas no timbre da sua própria voz através de IA.',
+      desc: 'Suas 4 músicas, com versões cantadas no timbre da sua própria voz por IA.',
       hasPreview: true,
       previewType: 'voz',
-      includes: ['2 versões com sua voz clonada por IA', 'Treinamento vocal exclusivo']
+      includes: ['4 músicas, com 2 delas cantadas na sua voz por IA', 'Treinamento vocal exclusivo']
     },
   ].map(pack => ({ ...pack, price: getPriceForSku(pack.sku) }));
 }

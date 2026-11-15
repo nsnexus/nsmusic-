@@ -2,6 +2,8 @@
 
 import React, { useEffect } from 'react';
 import { Sparkles, Music, ArrowRight, X, CheckCircle2, Zap, Download, Gift } from 'lucide-react';
+import { formatBrl } from '@/lib/deliveryPackages';
+import { getPriceForSku } from '@/lib/pricing';
 
 export default function PreviaEncerradaModal({
   isOpen,
@@ -164,7 +166,7 @@ export default function PreviaEncerradaModal({
             margin: '0 0 16px',
           }}
         >
-          A prévia encerrou, mas as <strong>2 versões completas sem corte</strong> em qualidade de estúdio (MP3 HD) já estão prontas para você ouvir e baixar!
+          A prévia encerrou, mas as <strong>2 músicas completas, sem corte</strong>, em qualidade de estúdio (MP3 HD) já estão prontas para você ouvir e baixar!
         </p>
 
         {/* Destaque do Bônus de Geração Grátis */}
@@ -201,7 +203,7 @@ export default function PreviaEncerradaModal({
               BÔNUS ESPECIAL INCLUSO 🎁
             </div>
             <div style={{ fontSize: '0.78rem', color: '#047857', lineHeight: 1.35, marginTop: '2px' }}>
-              Ao liberar sua música agora, você ganha <strong>+1 geração grátis</strong> para criar novos arranjos de presente!
+              Ao liberar sua música, você ganha <strong>mais 2 músicas de bônus</strong>, com outra letra e outro estilo.
             </div>
           </div>
         </div>
@@ -222,7 +224,7 @@ export default function PreviaEncerradaModal({
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', color: '#1e293b', fontWeight: '600' }}>
             <CheckCircle2 size={16} color="#16a34a" style={{ flexShrink: 0 }} aria-hidden="true" />
-            <span><strong>2 versões completas</strong> (todos os versos e refrão)</span>
+            <span><strong>2 músicas completas</strong> (todos os versos e refrão)</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', color: '#1e293b', fontWeight: '600' }}>
             <Download size={16} color="#7c3aed" style={{ flexShrink: 0 }} aria-hidden="true" />
@@ -256,7 +258,7 @@ export default function PreviaEncerradaModal({
             boxShadow: '0 6px 20px rgba(5, 150, 105, 0.35)',
           }}
         >
-          <span>Liberar música completa agora</span>
+          <span>Liberar música completa · {formatBrl(getPriceForSku('audio_only'))}</span>
           <ArrowRight size={18} aria-hidden="true" />
         </button>
 

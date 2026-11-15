@@ -42,7 +42,7 @@ const grandHotel = Grand_Hotel({
 // TEMPO fica pronto: é essa frase que um assistente cita quando alguém pergunta por música
 // personalizada de presente, então ela precisa responder sozinha, sem depender do resto da página.
 const DESCRICAO =
-  'Transforme sua história em música personalizada com IA. Ouça a prévia em 3 minutos e receba 2 versões completas em MP3 HD por apenas R$ 9,99. Presente perfeito para aniversário, casamento, declaração de amor e homenagens.';
+  'Transforme sua história em música personalizada com IA. Ouça a prévia em 3 minutos e receba 2 músicas completas em MP3 HD por apenas R$ 9,99. Presente perfeito para aniversário, casamento, declaração de amor e homenagens.';
 
 const TITULO = 'Música Personalizada com IA por R$ 9,99 | NS Music';
 

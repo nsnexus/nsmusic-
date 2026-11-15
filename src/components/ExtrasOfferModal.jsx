@@ -33,7 +33,7 @@ export default function ExtrasOfferModal({
       icone: <IconeMusica />,
       iconBg: '#dcfce7',
       titulo: 'Só a música',
-      desc: "2 versões completas em MP3 HD (sem marca d'água)",
+      desc: "2 músicas completas em MP3 HD (sem marca d'água)",
       preco: precoFormatado('audio_only'),
       destaque: false,
     },
@@ -42,7 +42,7 @@ export default function ExtrasOfferModal({
       icone: <IconeClaquete />,
       iconBg: '#fce7f3',
       titulo: 'Música + Vídeo Homenagem',
-      desc: '2 versões MP3 + Vídeo com fotos e letra sincronizada',
+      desc: '2 músicas MP3 + Vídeo com fotos e letra sincronizada',
       preco: precoFormatado('combo'),
       destaque: false,
     },
@@ -51,7 +51,7 @@ export default function ExtrasOfferModal({
       icone: <IconeLivro />,
       iconBg: '#ede9fe',
       titulo: 'Música + Retrospectiva',
-      desc: '2 versões MP3 + Retrospectiva completa com fotos e vídeo',
+      desc: '2 músicas MP3 + Retrospectiva completa com fotos e vídeo',
       preco: precoFormatado('combo_retrospectiva'),
       destaque: '👑 MAIS ESCOLHIDO',
     },
@@ -60,7 +60,7 @@ export default function ExtrasOfferModal({
       icone: <IconeEnvelope />,
       iconBg: '#fce7f3',
       titulo: 'Música + Carta Virtual',
-      desc: '2 versões MP3 + Carta virtual personalizada para emocionar',
+      desc: '2 músicas MP3 + Carta virtual personalizada para emocionar',
       preco: precoFormatado('combo_carta'),
       destaque: false,
     },
@@ -448,7 +448,7 @@ export default function ExtrasOfferModal({
           }}
         >
           <span>🎁</span>
-          <span>Todos os pacotes incluem as 2 versões em MP3 HD.</span>
+          <span>Todos os pacotes incluem as 2 músicas em MP3 HD.</span>
         </div>
       </div>
     </div>
