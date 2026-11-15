@@ -35,8 +35,8 @@ const OCASIAO_CARDS = [
 ];
 
 const GENERO_CARDS = [
-  { id: 'Sertanejo Universitário', label: 'Sertanejo Universitário', icon: '🤠', sub: 'Moderno e romântico', destaque: true },
-  { id: 'Sertanejo Raiz', label: 'Sertanejo Raiz', icon: '🪕', sub: 'Modão e viola caipira', destaque: true },
+  { id: 'Sertanejo Universitário', label: 'Sertanejo Universitário', icon: '🤠', sub: 'Moderno e romântico' },
+  { id: 'Sertanejo Raiz', label: 'Sertanejo Raiz', icon: '🪕', sub: 'Modão e viola caipira' },
   { id: 'Romântica', label: 'Romântica / Pop', icon: '💖', sub: 'Suave e envolvente' },
   { id: 'Samba / Pagode', label: 'Pagode / Samba', icon: '🥁', sub: 'Alegre e descontraído' },
   { id: 'Gospel / Adoração', label: 'Gospel / Louvor', icon: '⛪', sub: 'Fé e inspiração' },
@@ -459,8 +459,8 @@ export default function CreationSteps({
               opacity: isGeneratingStory ? 0.75 : 1,
             }}
           >
-            <Sparkles size={18} style={{ color: '#6366f1' }} />
-            <span>{isGeneratingStory ? 'Criando uma história emocionante com IA...' : '✨ Pedir Sugestão de História com IA'}</span>
+            <Sparkles size={18} style={{ color: '#6366f1', flexShrink: 0 }} />
+            <span style={{ whiteSpace: 'nowrap' }}>{isGeneratingStory ? 'Criando sua história...' : 'Sugerir história com IA'}</span>
           </button>
           {storySuggestionError && (
             <div style={{ fontSize: '0.78rem', color: '#dc2626', marginTop: '6px', textAlign: 'center' }}>
@@ -491,8 +491,12 @@ export default function CreationSteps({
             cursor: 'pointer'
           }}
         >
-          <Mic size={18} aria-hidden="true" />
-          <span>{isListening ? 'Parar de gravar' : 'Prefiro contar por áudio / voz'}</span>
+          {isListening ? (
+            <span className="rec-wave" aria-hidden="true"><i /><i /><i /><i /><i /></span>
+          ) : (
+            <Mic size={18} aria-hidden="true" />
+          )}
+          <span style={{ whiteSpace: 'nowrap' }}>{isListening ? 'Gravando… toque para parar' : 'Prefiro contar por áudio / voz'}</span>
         </button>
       </section>
     );

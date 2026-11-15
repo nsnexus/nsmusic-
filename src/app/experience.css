@@ -2515,3 +2515,12 @@
   .nx-song-heading .nx-eyebrow { letter-spacing: .06em; }
   .nx-song-heading p { font-size: .85rem; margin: 2px 0 0; }
 }
+
+.rec-dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:#dc2626;animation:recPulse 1s ease-in-out infinite}
+.rec-wave{display:inline-flex;align-items:center;gap:3px;height:20px}
+.rec-wave i{display:block;width:3px;height:6px;border-radius:2px;background:#dc2626;animation:recWave .9s ease-in-out infinite}
+.rec-wave i:nth-child(2){animation-delay:.12s}.rec-wave i:nth-child(3){animation-delay:.24s}
+.rec-wave i:nth-child(4){animation-delay:.36s}.rec-wave i:nth-child(5){animation-delay:.48s}
+@keyframes recWave{0%,100%{height:5px}50%{height:20px}}
+@keyframes recPulse{0%,100%{opacity:1}50%{opacity:.3}}
+@media (prefers-reduced-motion:reduce){.rec-wave i{animation:none;height:12px}}
