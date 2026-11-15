@@ -1439,3 +1439,13 @@ label {
   overflow-x: auto;
 }
 
+
+
+/* Admin: cards de faturamento mais compactos no celular (3 por linha) */
+@media (max-width: 640px) {
+  .fat-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 6px !important; }
+  .fat-card { padding: 8px 8px !important; gap: 2px !important; border-radius: 10px !important; min-width: 0; }
+  .fat-label { font-size: 0.62rem !important; }
+  .fat-valor { font-size: 0.92rem !important; overflow-wrap: anywhere; }
+  .fat-sub { font-size: 0.58rem !important; margin-top: 0 !important; }
+}
