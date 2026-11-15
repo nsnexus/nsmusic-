@@ -1,5 +1,6 @@
 'use client';
 
+import { Zap, Loader2 } from 'lucide-react';
 import { formatBrl } from '@/lib/deliveryPackages';
 
 /**
@@ -26,14 +27,17 @@ export default function InlinePayButton({ price, onClick, busy, disabled }) {
           fontSize: '1.05rem',
           fontWeight: 800,
           borderRadius: '14px',
-          background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+          background: 'var(--nx-pay, #059669)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '8px',
           color: '#ffffff',
           border: 'none',
           cursor: disabled || busy ? 'default' : 'pointer',
-          boxShadow: '0 6px 18px rgba(5, 150, 105, 0.35)',
         }}
       >
-        {busy ? '⏳ Preparando seu PIX…' : `⚡ Pagar com PIX (${formatBrl(price)})`}
+        {busy ? (<><Loader2 size={18} aria-hidden="true" /><span>Preparando seu PIX…</span></>) : (<><Zap size={18} aria-hidden="true" /><span>Pagar com PIX ({formatBrl(price)})</span></>)}
       </button>
     </div>
   );
