@@ -1,4 +1,5 @@
 import { getSupabaseEdge } from './supabase-edge.js';
+import { updateOrder } from './supabaseDb.js';
 
 /**
  * Sanitiza o número de telefone/WhatsApp para um padrão numérico único (ex: 5511999999999).
@@ -200,7 +201,52 @@ export async function resetCustomerVoice(phone, env = {}) {
     };
   }
   if (falhas.length) console.warn('[customerVoices] reset parcial:', falhas.join('; '));
-  return { ok: true, phone: cleanPhone, status: 'redefinido' };
+
+  // Sem isto o pedido continuava marcado como "cantado pela voz do cliente" e a página de entrega
+  // seguia mostrando a música antiga, sem oferecer a regravação.
+  let pedidosDesvinculados = 0;
+  try {
+    pedidosDesvinculados = await desvincularVozDosPedidos(supabase, cleanPhone, env);
+  } catch (e) {
+    console.warn('[customerVoices] falha ao desvincular voz dos pedidos:', e?.message);
+    return { ok: true, phone: cleanPhone, status: 'redefinido', pedidosDesvinculados: 0, aviso: 'Timbre redefinido, mas não foi possível atualizar os pedidos do cliente.' };
+  }
+  return { ok: true, phone: cleanPhone, status: 'redefinido', pedidosDesvinculados };
+}
+
+function soDigitos(v) {
+  return String(v || '').replace(/\D/g, '');
+}
+
+// Mesmo número com ou sem DDI 55 e com qualquer formatação.
+function mesmoTelefone(a, b) {
+  const x = soDigitos(a).replace(/^55(?=\d{10,11}$)/, '');
+  const y = soDigitos(b).replace(/^55(?=\d{10,11}$)/, '');
+  return x.length >= 10 && x === y;
+}
+
+function pedidoUsaVozClonada(row) {
+  const ex = row?.extras && typeof row.extras === 'object' ? row.extras : {};
+  return row?.voice_type === 'minha_voz' || ex.isCustomVoice === true || Boolean(ex.customVoiceId);
+}
+
+export async function desvincularVozDosPedidos(supabase, cleanPhone, env = {}) {
+  const final = soDigitos(cleanPhone).slice(-4);
+  if (final.length < 4) return 0;
+  const { data, error } = await supabase
+    .from('orders')
+    .select('id, customer_phone, voice_type, extras')
+    .like('customer_phone', `%${final}`)
+    .is('deleted_at', null)
+    .limit(200);
+  if (error) throw new Error(error.message || 'erro ao buscar pedidos');
+  const alvos = (data || []).filter((row) => mesmoTelefone(row.customer_phone, cleanPhone) && pedidoUsaVozClonada(row));
+  for (const row of alvos) {
+    const updates = { isCustomVoice: false, customVoiceId: null, customVoiceAudioUrl: null };
+    if (row.voice_type === 'minha_voz') updates.voiceType = 'feminina';
+    await updateOrder(row.id, updates, env);
+  }
+  return alvos.length;
 }
 
 /**

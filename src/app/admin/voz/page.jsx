@@ -105,7 +105,7 @@ Com você ao meu lado eu sei onde quero estar`
       });
       const data = await res.json();
       if (res.ok && data.ok) {
-        setMsgSucesso(`Timbre de ${nome} redefinido com sucesso!`);
+        setMsgSucesso(data.aviso || `Timbre de ${nome} redefinido. ${data.pedidosDesvinculados ? `${data.pedidosDesvinculados} pedido(s) liberado(s) para regravar.` : 'Nenhum pedido com voz clonada encontrado.'}`);
         await carregarClientesVoz();
       } else {
         setMsgErro(data.error || 'Erro ao redefinir timbre.');
