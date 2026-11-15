@@ -5,6 +5,7 @@ import { getSupabaseEdge } from '@/lib/supabase-edge';
 import { getRequestContext } from '@cloudflare/next-on-pages';
 import { createOrder } from '@/lib/supabaseDb';
 import { isContactBlocked } from '@/lib/blocklist';
+import { obterIpDoCliente, isBlockedByIpLimit } from '@/lib/cotaPorIp';
 import { generateUniqueOrderNumber } from '@/lib/orderNumber';
 import { generatePhoneVariants } from '@/lib/orderLookup';
 import { getCustomer } from '@/lib/auth';
@@ -94,7 +95,8 @@ export async function POST(req) {
     }
 
     // Trava de bloqueio manual (Blacklist do administrador)
-    const manualBlock = await isContactBlocked(formData.customerPhone, formData.customerEmail, env);
+    const ipDoCliente = obterIpDoCliente(req);
+    const manualBlock = await isContactBlocked(formData.customerPhone, formData.customerEmail, env, ipDoCliente);
     if (manualBlock.blocked) {
       return NextResponse.json(
         {
@@ -113,11 +115,12 @@ export async function POST(req) {
       formData.isSecondGeneration
     );
     if (!isSecondGenRequested) {
-      const isFreeLimitBlocked = await isBlockedByFreeLimit(formData.customerPhone, formData.customerEmail, env);
+      const isFreeLimitBlocked = (await isBlockedByFreeLimit(formData.customerPhone, formData.customerEmail, env))
+        || (await isBlockedByIpLimit(ipDoCliente, env));
       if (isFreeLimitBlocked) {
         return NextResponse.json(
           {
-            error: 'Você atingiu o limite de 5 músicas geradas sem pagamento. Para liberar novas músicas, finalize o pagamento de uma das suas criações.',
+            error: 'Você atingiu o limite de músicas geradas sem pagamento. Para liberar novas músicas, finalize o pagamento de uma das suas criações.',
             blocked: true,
             reason: 'cota_excedida'
           },

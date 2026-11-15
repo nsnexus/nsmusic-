@@ -4,6 +4,7 @@ import { getSupabaseEdge } from '@/lib/supabase-edge';
 import { calcularCota } from '@/lib/cotaGeracoes';
 import { lerResetDeCota } from '@/lib/cotaReset';
 import { isContactBlocked } from '@/lib/blocklist';
+import { obterIpDoCliente } from '@/lib/cotaPorIp';
 import { generatePhoneVariants } from '@/lib/orderLookup';
 
 export const runtime = 'edge';
@@ -37,7 +38,7 @@ export async function GET(req) {
     }
 
     // 1. Checa se o contato está na lista manual de bloqueio (blacklist)
-    const manualBlock = await isContactBlocked(phone, email, env);
+    const manualBlock = await isContactBlocked(phone, email, env, obterIpDoCliente(req));
     if (manualBlock?.blocked) {
       return NextResponse.json({
         isBlocked: true,

@@ -47,6 +47,9 @@ export function normalizarEmailParaBloqueio(email) {
  * Gera um ID consistente para o registro de bloqueio.
  */
 export function gerarIdBloqueio(tipo, valor) {
+  if (tipo === 'ip') {
+    return `ip_${String(valor || '').trim().toLowerCase()}`;
+  }
   if (tipo === 'phone') {
     return `phone_${normalizarTelefoneParaBloqueio(valor)}`;
   }
@@ -135,7 +138,7 @@ async function salvarBlocklist(blockedContacts, env = {}) {
  * @param {object} env
  * @returns {Promise<{blocked: boolean, reason?: string, blockedAt?: string, item?: object}>}
  */
-export async function isContactBlocked(phone, email, env = {}) {
+export async function isContactBlocked(phone, email, env = {}, ip = '') {
   const list = await getBlocklist(env);
   if (!Array.isArray(list) || list.length === 0) {
     return { blocked: false };
@@ -143,8 +146,18 @@ export async function isContactBlocked(phone, email, env = {}) {
 
   const phoneVariations = obterVariacoesTelefone(phone);
   const normalizedEmail = normalizarEmailParaBloqueio(email);
+  const normalizedIp = String(ip || '').trim().toLowerCase();
 
   for (const item of list) {
+    if (item.type === 'ip' && normalizedIp && String(item.value || '').toLowerCase() === normalizedIp) {
+      return {
+        blocked: true,
+        reason: item.reason || 'IP bloqueado pelo administrador',
+        blockedAt: item.blockedAt,
+        item,
+      };
+    }
+
     if (item.type === 'phone' && phoneVariations.length > 0) {
       const itemVariations = obterVariacoesTelefone(item.value);
       const bateu = phoneVariations.some((v) => itemVariations.includes(v));
@@ -176,12 +189,13 @@ export async function isContactBlocked(phone, email, env = {}) {
 /**
  * Adiciona um contato à lista de bloqueados.
  */
-export async function addBlockContact({ phone, email, name = '', reason = '', blockedBy = '' }, env = {}) {
+export async function addBlockContact({ phone, email, ip, name = '', reason = '', blockedBy = '' }, env = {}) {
   const phoneDigits = normalizarTelefoneParaBloqueio(phone);
   const emailNorm = normalizarEmailParaBloqueio(email);
+  const ipNorm = /^[0-9a-fA-F:.]{3,45}$/.test(String(ip || '').trim()) ? String(ip).trim().toLowerCase() : '';
 
-  if (!phoneDigits && !emailNorm) {
-    throw new Error('Informe ao menos um telefone ou e-mail válido para bloquear.');
+  if (!phoneDigits && !emailNorm && !ipNorm) {
+    throw new Error('Informe ao menos um telefone, e-mail ou IP válido para bloquear.');
   }
 
   const list = await getBlocklist(env);
@@ -196,6 +210,26 @@ export async function addBlockContact({ phone, email, name = '', reason = '', bl
       type: 'phone',
       value: phoneDigits,
       displayValue: String(phone).trim(),
+      name: name ? String(name).trim() : '',
+      reason: reason ? String(reason).trim() : 'Bloqueio manual de geração excessiva',
+      blockedAt: agora,
+      blockedBy: blockedBy || 'admin',
+    };
+    if (index >= 0) {
+      novaLista[index] = item;
+    } else {
+      novaLista.unshift(item);
+    }
+  }
+
+  if (ipNorm) {
+    const id = gerarIdBloqueio('ip', ipNorm);
+    const index = novaLista.findIndex((i) => i.id === id);
+    const item = {
+      id,
+      type: 'ip',
+      value: ipNorm,
+      displayValue: ipNorm,
       name: name ? String(name).trim() : '',
       reason: reason ? String(reason).trim() : 'Bloqueio manual de geração excessiva',
       blockedAt: agora,
@@ -247,6 +281,7 @@ export async function removeBlockContact(idOuValor, env = {}) {
 
   const novaLista = list.filter((item) => {
     if (item.id === raw) return false;
+    if (item.type === 'ip' && (item.value === raw.toLowerCase() || item.id === `ip_${raw.toLowerCase()}`)) return false;
     if (item.type === 'phone' && digits && (item.value === digits || item.id === `phone_${digits}`)) {
       return false;
     }
