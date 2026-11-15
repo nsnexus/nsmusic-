@@ -6,6 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import SongCard from './SongCard';
 import PurchaseCheckout from './PurchaseCheckout';
+import { CheckCircle2 } from 'lucide-react';
 import SecondSongOffer from './SecondSongOffer';
 import MobileValueComparison from './MobileValueComparison';
 import MobileTrustBadges from './MobileTrustBadges';
@@ -457,8 +458,29 @@ export default function DeliveryExperience({
               </div>
             )}
 
+            <div
+              role="status"
+              style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '14px 16px', margin: '0 0 16px', borderRadius: '14px', background: '#ecfdf5', border: '1px solid #a7f3d0', color: '#064e3b' }}
+            >
+              <CheckCircle2 size={22} aria-hidden="true" style={{ flexShrink: 0, marginTop: '2px', color: '#059669' }} />
+              <div style={{ fontSize: '0.94rem', lineHeight: 1.45 }}>
+                <strong>Pagamento confirmado.</strong> Suas músicas completas estão logo abaixo. Para salvar, toque em <strong>Baixar MP3</strong> em cada música.
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => document.getElementById('minhas-musicas')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                    style={{ marginTop: '8px', background: 'none', border: 'none', padding: 0, color: '#047857', fontWeight: 700, textDecoration: 'underline', cursor: 'pointer', fontSize: '0.92rem' }}
+                  >
+                    Ir para minhas músicas
+                  </button>
+                </div>
+              </div>
+            </div>
+
             {/* CARD DA MÚSICA SELECIONADA */}
-            {isSecondTab ? secondSongCard : primarySongCard}
+            <div id="minhas-musicas" style={{ scrollMarginTop: '16px' }}>
+              {isSecondTab ? secondSongCard : primarySongCard}
+            </div>
 
             {/* EXTRAS E ARQUIVOS VINCULADOS À HOMENAGEM ATIVA */}
             {bonuses.some(item => item.owned) && (
