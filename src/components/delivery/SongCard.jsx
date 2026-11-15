@@ -82,6 +82,7 @@ export default function SongCard({
           <div className="nx-cover-wrap" style={{ position: 'relative', width: '136px', height: '136px', flexShrink: 0 }}>
             {/* Vinil estilizado com sulcos de áudio que surge lateralmente e gira quando toca */}
             <div
+              className="nx-vinyl"
               aria-hidden="true"
               style={{
                 position: 'absolute',
@@ -119,6 +120,7 @@ export default function SongCard({
 
             {/* Capa Fotográfica em primeiro plano */}
             <div
+              className="nx-cover-img"
               style={{
                 position: 'relative',
                 zIndex: 1,
