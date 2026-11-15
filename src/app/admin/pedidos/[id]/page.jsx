@@ -1062,7 +1062,9 @@ export default function OrderDetailsAdmin() {
                 Cliente: <strong style={{ color: '#0f172a' }}>{order.customerName}</strong> ({order.customerEmail || 'Sem e-mail'}) • <strong style={{ color: '#2563eb' }}>{order.customerPhone || 'Sem telefone'}</strong>
               </p>
 
-              {/* Card de Vínculo de Conta de Usuário */}
+              {/* Card de Vínculo de Conta de Usuário (recolhido: uso raro) */}
+              <details style={{ marginTop: '10px' }}>
+                <summary style={{ cursor: 'pointer', fontSize: '0.85rem', fontWeight: 700, color: '#475569' }}>Conta vinculada e rastreio</summary>
               {(() => {
                 const linkedUser = accounts.find(u => u.id === orderUserId);
                 const orderEmail = (order.customerEmail || '').toLowerCase().trim();
@@ -1292,6 +1294,7 @@ export default function OrderDetailsAdmin() {
                   </div>
                 );
               })()}
+              </details>
               {/* Achado 09/09/2026: pedido do dono do estúdio pra saber se o cliente realmente ouviu
                   a prévia (ver src/lib/previewTracking.js) — ajuda a separar "não gostou" de "nunca
                   conseguiu carregar o áudio". */}
@@ -1302,39 +1305,9 @@ export default function OrderDetailsAdmin() {
                     ? '🔇 Ainda não deu play na prévia'
                     : '— Pedido de antes do rastreamento de prévia (09/09/2026), sem esse dado'}
               </p>
-              <div style={{ display: 'flex', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
-                <button
-                  type="button"
-                  onClick={handleCopyLyrics}
-                  style={{
-                    ...styles.quickActionBtn,
-                    background: copiedLyrics ? '#059669' : 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)',
-                    color: '#fff',
-                    fontWeight: '700',
-                    border: 'none',
-                    boxShadow: '0 2px 6px rgba(124, 58, 237, 0.25)',
-                    cursor: 'pointer'
-                  }}
-                  title="Copiar a letra completa da música para gerar no Suno"
-                >
-                  {copiedLyrics ? '✅ Letra copiada!' : '📋 Copiar Letra'}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCopyTags}
-                  style={{
-                    ...styles.quickActionBtn,
-                    background: copiedTags ? '#059669' : 'linear-gradient(135deg, #db2777 0%, #9333ea 100%)',
-                    color: '#fff',
-                    fontWeight: '700',
-                    border: 'none',
-                    boxShadow: '0 2px 6px rgba(219, 39, 119, 0.25)',
-                    cursor: 'pointer'
-                  }}
-                  title="Copiar prompt de estilo / tags musicais para colar no Suno"
-                >
-                  {copiedTags ? '✅ Tags copiadas!' : '🏷️ Copiar Tags / Estilo'}
-                </button>
+              <details style={{ marginTop: '12px' }}>
+                <summary style={{ cursor: 'pointer', fontSize: '0.85rem', fontWeight: 700, color: '#475569' }}>Mais ações</summary>
+              <div style={{ display: 'flex', gap: '8px', marginTop: '10px', flexWrap: 'wrap' }}>
                 {order.customerPhone && (
                   <a
                     href={`https://wa.me/${formatToWhatsAppNumber(order.customerPhone)}`}
@@ -1381,6 +1354,7 @@ export default function OrderDetailsAdmin() {
                   🔗 Abrir página do cliente
                 </a>
               </div>
+              </details>
             </div>
             <div style={styles.priceTag}>
               R$ {(Number(order.total) || 9.99).toFixed(2)}
@@ -1447,6 +1421,64 @@ export default function OrderDetailsAdmin() {
               )}
             </div>
           )}
+
+          {/* Ações do dia a dia: confirmar pagamento, baixar, copiar letra/tags, gerar de novo */}
+          {(() => {
+            const pagoConfirmado = order.paymentStatus === 'PAGAMENTO_APROVADO' || order.paymentStatus === 'PAGO' || Boolean(order.paidAt);
+            const nomeArquivo = (honoreeName || order.honoreeName || 'musica').replace(/[^\p{L}\p{N}\- ]/gu, '').trim() || 'musica';
+            const btn = { padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#ffffff', color: '#0f172a', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' };
+            const grupo = { display: 'flex', flexDirection: 'column', gap: '8px', minWidth: 0 };
+            const rotulo = { fontSize: '0.72rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' };
+            return (
+              <section aria-label="Ações rápidas do pedido" style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '16px', marginBottom: '20px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+                <div style={grupo}>
+                  <span style={rotulo}>Pagamento</span>
+                  <span role="status" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontWeight: 800, fontSize: '0.95rem', color: pagoConfirmado ? '#166534' : '#b45309' }}>
+                    {pagoConfirmado ? '✓ Pago' : 'Não pago'}
+                  </span>
+                  {!pagoConfirmado && (
+                    <button type="button" onClick={handleCheckPaymentNow} disabled={checkingPayment} style={{ ...btn, opacity: checkingPayment ? 0.6 : 1 }}>
+                      {checkingPayment ? 'Verificando...' : 'Verificar pagamento agora'}
+                    </button>
+                  )}
+                  {checkPaymentMsg && <span style={{ fontSize: '0.8rem', color: '#475569' }}>{checkPaymentMsg}</span>}
+                </div>
+                <div style={grupo}>
+                  <span style={rotulo}>Baixar músicas</span>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    <button type="button" disabled={!audioUrl} onClick={() => handleDownload(audioUrl, `${nomeArquivo}-1.mp3`)} style={{ ...btn, opacity: audioUrl ? 1 : 0.5, cursor: audioUrl ? 'pointer' : 'not-allowed' }}>
+                      Música 1
+                    </button>
+                    <button type="button" disabled={!audioUrl2} onClick={() => handleDownload(audioUrl2, `${nomeArquivo}-2.mp3`)} style={{ ...btn, opacity: audioUrl2 ? 1 : 0.5, cursor: audioUrl2 ? 'pointer' : 'not-allowed' }}>
+                      Música 2
+                    </button>
+                  </div>
+                  {!audioUrl && !audioUrl2 && <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Nenhum áudio gerado ainda.</span>}
+                </div>
+                <div style={grupo}>
+                  <span style={rotulo}>Copiar para o Suno</span>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    <button type="button" onClick={handleCopyLyrics} style={{ ...btn, color: copiedLyrics ? '#166534' : '#0f172a' }}>
+                      {copiedLyrics ? '✓ Letra copiada' : 'Copiar letra'}
+                    </button>
+                    <button type="button" onClick={handleCopyTags} style={{ ...btn, color: copiedTags ? '#166534' : '#0f172a' }}>
+                      {copiedTags ? '✓ Tags copiadas' : 'Copiar tags'}
+                    </button>
+                  </div>
+                </div>
+                <div style={grupo}>
+                  <span style={rotulo}>Gerar de novo</span>
+                  <button
+                    type="button"
+                    onClick={() => { const el = document.getElementById('card-suno'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}
+                    style={{ ...btn, background: '#7c3aed', borderColor: '#7c3aed', color: '#ffffff' }}
+                  >
+                    Ir para gerar música
+                  </button>
+                </div>
+              </section>
+            );
+          })()}
 
           <div className="admin-order-grid" style={{ display: 'flex', gap: '32px', flexWrap: 'wrap', width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
             
@@ -1909,7 +1941,7 @@ export default function OrderDetailsAdmin() {
             <div className="admin-order-info-side" style={styles.infoSide}>
               
               {/* Suno AI card with auto generator */}
-              <div className="admin-card-responsive" style={styles.card}>
+              <div id="card-suno" className="admin-card-responsive" style={styles.card}>
                 <h3 style={styles.cardTitle}>Prompts & Geração Suno AI 🤖</h3>
                 
                 <div style={{ marginBottom: '16px', minWidth: 0, maxWidth: '100%' }}>
