@@ -272,9 +272,10 @@ export default function FaturamentoCards({ dateFrom, dateTo, reloadTrigger }) {
   ];
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px' }}>
+    <div className="fat-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px' }}>
       {cards.map((c) => (
         <div
+          className="fat-card"
           key={c.label}
           style={{
             background: '#fff',
@@ -288,10 +289,10 @@ export default function FaturamentoCards({ dateFrom, dateTo, reloadTrigger }) {
             boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
           }}
         >
-          <span style={{ fontSize: '0.74rem', color: '#64748b', fontWeight: '600', lineHeight: '1.2' }}>{c.label}</span>
-          <h2 style={{ margin: 0, fontSize: '1.28rem', fontWeight: '800', color: c.cor, letterSpacing: '-0.02em', lineHeight: '1.2' }}>{c.valor}</h2>
+          <span className="fat-label" style={{ fontSize: '0.74rem', color: '#64748b', fontWeight: '600', lineHeight: '1.2' }}>{c.label}</span>
+          <h2 className="fat-valor" style={{ margin: 0, fontSize: '1.28rem', fontWeight: '800', color: c.cor, letterSpacing: '-0.02em', lineHeight: '1.2' }}>{c.valor}</h2>
           {c.sub && (
-            <span style={{ fontSize: '0.68rem', fontWeight: '700', color: c.sub.includes('Economia') ? '#059669' : '#0284c7', marginTop: '2px' }}>
+            <span className="fat-sub" style={{ fontSize: '0.68rem', fontWeight: '700', color: c.sub.includes('Economia') ? '#059669' : '#0284c7', marginTop: '2px' }}>
               {c.sub}
             </span>
           )}
