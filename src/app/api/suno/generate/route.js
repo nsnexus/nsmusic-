@@ -6,7 +6,8 @@ export const runtime = 'edge';
 
 export async function POST(req) {
   try {
-    const { prompt, tags, orderId, useCustomVoice } = await req.json();
+    const { prompt, tags: tagsRecebidas, orderId, useCustomVoice, autoTags } = await req.json();
+    let tags = tagsRecebidas;
 
     if (!prompt?.trim() || !tags?.trim()) {
       return NextResponse.json({ error: 'Estilo musical e detalhes do homenageado são obrigatórios.' }, { status: 400 });
@@ -47,6 +48,34 @@ export async function POST(req) {
         }
       } catch (checkErr) {
         console.warn('[suno/generate] Falha ao conferir bloqueio do pedido:', checkErr.message);
+      }
+    }
+
+    // Tags sob medida a partir da letra (só quando o chamador pede: o wizard do site). Tags editadas
+    // à mão pelo admin chegam sem autoTags e nunca são sobrescritas. Falhou ou demorou → tags padrão.
+    if (autoTags === true && orderId) {
+      try {
+        const { findOrderByIdOrNumber } = await import('@/lib/orderLookup');
+        const { gerarTagsDeEstilo } = await import('@/lib/sunoTags');
+        const order = await findOrderByIdOrNumber(orderId, env);
+        if (order) {
+          const refinadas = await gerarTagsDeEstilo({
+            lyrics: prompt,
+            baseTags: tagsRecebidas,
+            musicStyle: order.musicStyle,
+            musicMood: order.musicMood,
+            voiceType: order.voiceType,
+            occasion: order.occasion,
+            relationship: order.relationship,
+          }, env);
+          if (refinadas) {
+            tags = refinadas;
+            const { updateOrder } = await import('@/lib/supabaseDb');
+            await updateOrder(order.id || orderId, { sunoPrompt: refinadas, updatedAt: new Date().toISOString() }, env).catch(() => {});
+          }
+        }
+      } catch (tagErr) {
+        console.warn('[suno/generate] Tags sob medida indisponíveis, usando as padrão:', tagErr?.message);
       }
     }
 

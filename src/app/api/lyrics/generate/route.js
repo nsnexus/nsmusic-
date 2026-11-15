@@ -1,4 +1,5 @@
 import { runGeminiWithFailover } from '@/lib/gemini';
+import { validarLetra } from '@/lib/letraValidacao';
 import { NextResponse } from 'next/server';
 
 export const runtime = 'edge';
@@ -85,9 +86,15 @@ Diretrizes Obrigatórias de Composição:
    ${requiredPhrase ? `- Incorpore a frase obrigatória "${requiredPhrase}" exatamente no refrão ou refrão final.` : ''}
    ${requiredNames ? `- Incorpore naturalmente os nomes "${requiredNames}" na letra.` : ''}
 
-6. O tom deve refletir o clima "${musicMood}" e o ritmo "${musicStyle}".
+6. USO DO NOME E FIDELIDADE AOS FATOS (REGRAS QUE JÁ FORAM ERRADAS ANTES):
+   - O nome "${recipient}" DEVE aparecer escrito na letra, no refrão e em pelo menos mais um verso. NUNCA troque o nome só pelo parentesco ("meu filho", "minha mãe"). O parentesco pode acompanhar o nome (ex: "meu filho ${recipient}"), mas o nome tem que estar lá.
+   - Use SOMENTE fatos presentes na história e nos momentos informados. É proibido inventar nomes, idades, profissões, cidades, datas ou acontecimentos.
+   - Se a história citar outras pessoas (irmãos, pais, cônjuge), use os nomes exatamente como escritos.
+   - Conserve o gênero gramatical correto para ${recipient} e para ${sender} conforme a relação ("${rel}") e a história.
 
-7. RETORNE EXCLUSIVAMENTE O TEXTO DA LETRA DA MÚSICA. É ESTRITAMENTE PROIBIDO incluir saudações, explicações, observações ou comentários de cortesia no final ou início, pois o texto será enviado diretamente para o motor de gravação de áudio.
+7. O tom deve refletir o clima "${musicMood}" e o ritmo "${musicStyle}".
+
+8. RETORNE EXCLUSIVAMENTE O TEXTO DA LETRA DA MÚSICA. É ESTRITAMENTE PROIBIDO incluir saudações, explicações, observações ou comentários de cortesia no final ou início, pois o texto será enviado diretamente para o motor de gravação de áudio.
 
 Estrutura da Letra (utilize exatamente estes cabeçalhos em colchetes):
 [Verso 1]
@@ -97,7 +104,27 @@ Estrutura da Letra (utilize exatamente estes cabeçalhos em colchetes):
 [Ponte]
 [Refrão Final]`;
 
-    const lyrics = await runGeminiWithFailover(prompt);
+    let lyrics = await runGeminiWithFailover(prompt);
+
+    // Conferência objetiva antes de entregar ao cliente: se faltar o nome do homenageado, a frase
+    // obrigatória etc., pede UMA correção à IA mostrando a letra e os problemas. Se ainda assim
+    // houver problema, entrega a melhor versão (e avisa nos logs) em vez de travar o cliente.
+    const checar = (texto) => validarLetra({ lyrics: texto, honoreeName: recipient, requiredNames, requiredPhrase });
+    let problemas = checar(lyrics);
+    if (problemas.length > 0) {
+      try {
+        const correcao = `${prompt}\n\nA versão abaixo ficou com problemas. Reescreva a letra COMPLETA corrigindo TODOS eles, mantendo o que já está bom.\n\nPROBLEMAS A CORRIGIR:\n- ${problemas.join('\n- ')}\n\nVERSÃO ATUAL:\n${lyrics}`;
+        const corrigida = await runGeminiWithFailover(correcao);
+        const novosProblemas = checar(corrigida);
+        if (novosProblemas.length <= problemas.length) {
+          lyrics = corrigida;
+          problemas = novosProblemas;
+        }
+      } catch (e) {
+        console.warn('[lyrics/generate] Falha na correção automática da letra:', e?.message);
+      }
+      if (problemas.length > 0) console.warn('[lyrics/generate] Letra entregue com pendências:', problemas.length);
+    }
 
     return NextResponse.json({ lyrics });
   } catch (error) {

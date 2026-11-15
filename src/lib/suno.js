@@ -527,6 +527,8 @@ export async function maybeAutoRetrySunoFailure({ taskId, orderId, env = {}, rea
   }
 
   const payload = buildSunoPayload(orderData);
+  // Reaproveita as tags sob medida já gravadas no pedido (ver api/suno/generate, autoTags).
+  if (orderData.sunoPrompt?.trim()) payload.tags = orderData.sunoPrompt.trim();
   if (!payload.prompt?.trim() || !payload.tags?.trim()) {
     await updateOrder(orderId, { sunoRetryReserved: false, updatedAt: new Date().toISOString() }, env).catch(() => {});
     await recordSunoFailure(orderId, `falhou_${reason}_sem_dados_para_retry`, env);
