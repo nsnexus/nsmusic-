@@ -1179,8 +1179,8 @@ export default function AdminDashboard() {
           justifyContent: 'space-between',
           gap: '16px',
           flexWrap: 'wrap',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        }} className="adm-hd">
+          <div className="adm-hd-brand" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <Link href="/admin" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none' }}>
               <Image src="/logo.png" alt="NSMusic" width={32} height={32} style={{ height: '32px', width: 'auto' }} priority />
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1192,13 +1192,17 @@ export default function AdminDashboard() {
             </Link>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-            <UnificallyCreditsBadge />
-            <KieCreditsBadge />
-            <WhatsAppUsageBadge />
+          <div className="adm-hd-right" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <div className="adm-hd-badges">
+              <UnificallyCreditsBadge />
+              <KieCreditsBadge />
+              <WhatsAppUsageBadge />
+            </div>
 
             <button
               type="button"
+              className="adm-hd-btn"
+              aria-label="Atualizar"
               onClick={() => setReloadTrigger((prev) => prev + 1)}
               disabled={loadingOrders || isRefreshing}
               style={{
@@ -1218,11 +1222,13 @@ export default function AdminDashboard() {
               title={lastRefreshedAt ? `Última atualização: ${lastRefreshedAt.toLocaleTimeString('pt-BR')}` : 'Atualizar'}
             >
               <RefreshCw size={13} style={{ transform: isRefreshing ? 'rotate(180deg)' : 'none', transition: 'transform 0.5s' }} />
-              <span>{isRefreshing ? 'Atualizando...' : 'Atualizar'}</span>
+              <span className="adm-hd-lbl">{isRefreshing ? 'Atualizando...' : 'Atualizar'}</span>
             </button>
 
             <button
               type="button"
+              className="adm-hd-btn"
+              aria-label="Sair"
               onClick={handleLogout}
               style={{
                 background: '#fef2f2',
@@ -1241,7 +1247,7 @@ export default function AdminDashboard() {
               title="Sair do painel administrativo"
             >
               <LogOut size={13} />
-              <span>Sair</span>
+              <span className="adm-hd-lbl">Sair</span>
             </button>
           </div>
         </div>

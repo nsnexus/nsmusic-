@@ -1449,3 +1449,17 @@ label {
   .fat-valor { font-size: 0.92rem !important; overflow-wrap: anywhere; }
   .fat-sub { font-size: 0.58rem !important; margin-top: 0 !important; }
 }
+
+
+/* Admin: cabeçalho enxuto no celular (marca + ações na 1ª linha, créditos rolando na 2ª, sem ficar fixo) */
+.adm-hd-badges { display: contents; }
+@media (max-width: 640px) {
+  header:has(.adm-hd) { position: static !important; }
+  .adm-hd { padding: 8px 12px !important; gap: 8px !important; }
+  .adm-hd-brand { flex: 1 1 auto; order: 1; }
+  .adm-hd-right { display: contents !important; }
+  .adm-hd-btn { order: 2; padding: 8px !important; }
+  .adm-hd-lbl { display: none !important; }
+  .adm-hd-badges { order: 3; display: flex; width: 100%; gap: 6px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .adm-hd-badges > * { flex: 0 0 auto; font-size: 0.72rem !important; padding: 4px 8px !important; white-space: nowrap; }
+}
