@@ -1,5 +1,6 @@
 'use client';
 
+import PedidoNaoEncontrado from '@/components/PedidoNaoEncontrado';
 import React, { useState, useEffect, useRef, Suspense } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -83,6 +84,7 @@ function EntregaContent() {
   const infinitePayTransactionNsu = searchParams.get('transaction_nsu');
   const infinitePayOrderNsu = searchParams.get('order_nsu');
   const [isPayingCard, setIsPayingCard] = useState(false);
+  const [cardError, setCardError] = useState('');
 
   const [loading, setLoading] = useState(true);
   const [order, setOrder] = useState(null);
@@ -1013,6 +1015,7 @@ function EntregaContent() {
   // (promoção de recuperação, ou audio_only).
     const handlePayWithCard = async () => {
     if (!orderId) return;
+    setCardError('');
     setIsPayingCard(true);
     try {
       const sku = selectedPackage || 'combo';
@@ -1036,7 +1039,7 @@ function EntregaContent() {
       window.location.href = data.checkoutUrl;
     } catch (err) {
       console.error('[entrega] Erro ao pagar com cartão:', err);
-      alert(err?.message || 'Falha ao conectar com o serviço de cartão. Tente novamente.');
+      setCardError('Não foi possível abrir o pagamento com cartão agora. Tente de novo ou pague com PIX.');
       setIsPayingCard(false);
     }
   };
@@ -1551,7 +1554,7 @@ function EntregaContent() {
 
   if (loading) {
     return (
-      <div style={styles.wrapper} className="flex-center">
+      <div style={{ ...styles.wrapper, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
         <div style={styles.spinner} />
         <p style={{ marginTop: '20px', color: 'var(--text-secondary)' }}>Carregando sua página de entrega...</p>
       </div>
@@ -1559,13 +1562,7 @@ function EntregaContent() {
   }
 
   if (!order) {
-    return (
-      <div style={{ ...styles.wrapper, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '80vh', gap: '16px', textAlign: 'center' }}>
-        <h2 style={{ fontSize: '1.8rem', color: 'var(--text-primary)' }}>Pedido não encontrado</h2>
-        <p style={{ color: 'var(--text-secondary)' }}>Verifique o link ou entre em contato com o suporte do estúdio.</p>
-        <Link href="/" className="btn btn-primary">Voltar ao início</Link>
-      </div>
-    );
+    return <PedidoNaoEncontrado />;
   }
 
   // Safe client-side URLs
@@ -3461,6 +3458,7 @@ function EntregaContent() {
                             >
                               {isPayingCard ? '⏳ Abrindo Checkout Seguro...' : `💳 Pagar com Cartão de Crédito (R$ ${valorCobrado.toFixed(2).replace('.', ',')})`}
                             </button>
+{cardError && <p role="alert" style={{ margin: '10px 0 0', padding: '10px 12px', borderRadius: '10px', background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b', fontSize: '0.9rem', lineHeight: 1.4 }}>{cardError}</p>}
                           </div>
                             </div>
                           ) : (
@@ -3515,6 +3513,7 @@ function EntregaContent() {
                               >
                                 {isPayingCard ? '⏳ Abrindo Checkout Seguro...' : `💳 Pagar com Cartão de Crédito (R$ ${valorCobrado.toFixed(2).replace('.', ',')})`}
                               </button>
+{cardError && <p role="alert" style={{ margin: '10px 0 0', padding: '10px 12px', borderRadius: '10px', background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b', fontSize: '0.9rem', lineHeight: 1.4 }}>{cardError}</p>}
                             </div>
                           ) : (
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', background: '#f8fafc', padding: '24px 20px', borderRadius: '20px', border: '1.5px solid #e2e8f0', maxWidth: '100%', width: '100%', boxSizing: 'border-box' }}>
@@ -3978,7 +3977,7 @@ function EntregaContent() {
 export default function EntregaPedido() {
   return (
     <Suspense fallback={
-      <div style={styles.wrapper} className="flex-center">
+      <div style={{ ...styles.wrapper, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
         <div style={styles.spinner} />
         <p style={{ marginTop: '20px', color: 'var(--text-secondary)' }}>Carregando sua página de entrega...</p>
       </div>

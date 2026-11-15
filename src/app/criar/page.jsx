@@ -78,6 +78,7 @@ export default function CriarMusica() {
   const [pastedLyricsText, setPastedLyricsText] = useState('');
   const [isEditingLyricsDirectly, setIsEditingLyricsDirectly] = useState(false);
   const [editingLyricsText, setEditingLyricsText] = useState('');
+  const [lyricsEditError, setLyricsEditError] = useState('');
   const [lyricsSaveSuccess, setLyricsSaveSuccess] = useState(false);
   const [creationError, setCreationError] = useState('');
 
@@ -1353,9 +1354,10 @@ export default function CriarMusica() {
   const handleSaveDirectLyrics = async () => {
     const trimmed = (editingLyricsText || '').trim();
     if (trimmed.length < 15) {
-      alert('A letra precisa ter pelo menos 15 caracteres.');
+      setLyricsEditError('A letra precisa ter pelo menos 15 caracteres.');
       return;
     }
+    setLyricsEditError('');
     updateField('lyrics', trimmed);
     setIsEditingLyricsDirectly(false);
     setLyricsSaveSuccess(true);
@@ -2235,6 +2237,7 @@ export default function CriarMusica() {
                         className="wz-inp"
                         style={{ minHeight: '320px', lineHeight: '1.7', resize: 'vertical' }}
                       />
+                      {lyricsEditError && <p role="alert" style={{ margin: '0 0 8px', padding: '10px 12px', borderRadius: '10px', background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b', fontSize: '0.9rem', lineHeight: 1.4 }}>{lyricsEditError}</p>}
                       <div style={{ display: 'flex', gap: '8px' }}>
                         <button
                           type="button"

@@ -1,5 +1,6 @@
 'use client';
 
+import PedidoNaoEncontrado from '@/components/PedidoNaoEncontrado';
 import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -82,10 +83,10 @@ function AcompanharContent() {
 
   if (error || !order) {
     return (
-      <div style={styles.loadingWrapper}>
-        <h3 style={{ fontFamily: 'var(--font-family-title)', color: 'var(--danger)' }}>{error || 'Erro inesperado.'}</h3>
-        <Link href="/" className="btn btn-primary" style={{ marginTop: '16px' }}>Voltar ao Início</Link>
-      </div>
+      <PedidoNaoEncontrado
+        titulo={orderId ? 'Não encontramos esse pedido' : 'Falta o link do seu pedido'}
+        motivo={orderId ? undefined : 'Abra o link que enviamos para você no WhatsApp.'}
+      />
     );
   }
 
