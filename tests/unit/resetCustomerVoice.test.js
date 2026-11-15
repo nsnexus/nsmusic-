@@ -21,11 +21,12 @@ function criarMock({ voices = [], config = [], erroUpdate = null }) {
         }
         return { data: linhas().map((r) => ({ ...r })), error: null };
       };
+      // Igual ao supabase-edge real: filtros encadeados antes; update() é terminal e devolve Promise.
       const api = {
-        update(patch) { q.acao = 'update'; q.patch = patch; return api; },
         select() { return api; },
         in(c, vals) { q.filtros.push([c, vals]); return api; },
         eq(c, v) { q.filtros.push([c, [v]]); return api; },
+        update(patch) { q.acao = 'update'; q.patch = patch; return Promise.resolve(exec()); },
         then(res, rej) { return Promise.resolve(exec()).then(res, rej); },
       };
       return api;
