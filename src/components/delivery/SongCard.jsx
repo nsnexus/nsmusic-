@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
-import { Download, MessageCircle } from 'lucide-react';
+import { Download, MessageCircle, Pencil, Crop } from 'lucide-react';
 import { markPreviewListened } from '@/lib/previewTracking';
 import { isInAppBrowser, isIOS, isAndroid, getChromeIntentUrl } from '@/lib/inAppBrowser';
 import CustomAudioPlayer from './CustomAudioPlayer';
@@ -68,129 +68,58 @@ export default function SongCard({
 
       <div className="nx-song-heading">
         <div className="nx-song-top" style={{ alignItems: 'center', gap: '20px' }}>
-          {/* Vinil Rotativo + Capa da Homenagem */}
-          <div className="nx-cover-wrap" style={{ position: 'relative', width: '136px', height: '136px', flexShrink: 0 }}>
-            {/* Vinil estilizado com sulcos de áudio que surge lateralmente e gira quando toca */}
-            <div
-              className="nx-vinyl"
-              aria-hidden="true"
-              style={{
-                position: 'absolute',
-                top: '4px',
-                right: isAudioPlaying ? '-22px' : '0px',
-                width: '128px',
-                height: '128px',
-                borderRadius: '50%',
-                background: 'radial-gradient(circle, #0f172a 32%, #1e293b 33%, #0f172a 46%, #1e293b 47%, #0f172a 62%, #334155 63%, #0f172a 64%)',
-                boxShadow: isAudioPlaying ? '0 10px 24px rgba(15, 23, 42, 0.4)' : '0 4px 12px rgba(0,0,0,0.15)',
-                transition: 'right 0.5s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.5s ease',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                zIndex: 0,
-                animation: isAudioPlaying ? 'impeccableSpinVinyl 5.5s linear infinite' : 'none',
+          {/* Capa da homenagem: estática; enquanto toca, só um equalizador discreto no canto */}
+          <div
+            className="nx-cover-wrap nx-cover-img"
+            style={{
+              position: 'relative', width: '136px', height: '136px', flexShrink: 0,
+              borderRadius: '16px', overflow: 'hidden', backgroundColor: '#f1f5f9',
+              boxShadow: isAudioPlaying
+                ? '0 0 0 3px rgba(109, 40, 217, 0.18), 0 10px 24px -6px rgba(31, 26, 36, 0.28)'
+                : '0 10px 24px -8px rgba(31, 26, 36, 0.22)',
+              transition: 'box-shadow 0.3s ease',
+            }}
+          >
+            <Image
+              src={order?.coverUrl || '/experiencia/familia.webp'}
+              alt="Capa da sua música"
+              width={136}
+              height={136}
+              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+              unoptimized={Boolean(order?.coverUrl)}
+              onError={(e) => {
+                if (e.currentTarget.src !== '/experiencia/familia.webp') {
+                  e.currentTarget.src = '/experiencia/familia.webp';
+                }
               }}
-            >
-              {/* Centro do disco de vinil */}
-              <div
-                style={{
-                  width: '38px',
-                  height: '38px',
-                  borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #4f46e5 0%, #ec4899 100%)',
-                  border: '3px solid #0f172a',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#0f172a' }} />
-              </div>
-            </div>
+            />
 
-            {/* Capa Fotográfica em primeiro plano */}
-            <div
-              className="nx-cover-img"
-              style={{
-                position: 'relative',
-                zIndex: 1,
-                width: '136px',
-                height: '136px',
-                borderRadius: '16px',
-                overflow: 'hidden',
-                boxShadow: '0 10px 24px -4px rgba(79, 70, 229, 0.18), 0 4px 10px -2px rgba(15, 23, 42, 0.08)',
-                border: '2px solid rgba(255, 255, 255, 0.9)',
-                backgroundColor: '#f1f5f9',
-              }}
-            >
-              <Image
-                src={order?.coverUrl || '/experiencia/familia.webp'}
-                alt="Capa da sua música"
-                width={136}
-                height={136}
-                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                unoptimized={Boolean(order?.coverUrl)}
-                onError={(e) => {
-                  if (e.currentTarget.src !== '/experiencia/familia.webp') {
-                    e.currentTarget.src = '/experiencia/familia.webp';
-                  }
-                }}
-              />
-              {onCoverChange && (
-                <>
-                  <label
-                    style={{ position: 'absolute', top: '6px', left: '6px', zIndex: 3, display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '3px 8px', borderRadius: '999px', background: 'rgba(15, 23, 42, 0.82)', color: '#ffffff', fontSize: '0.64rem', fontWeight: 800, cursor: uploadingCover ? 'wait' : 'pointer', whiteSpace: 'nowrap' }}
-                  >
-                    {uploadingCover ? 'Enviando…' : '✏️ Trocar'}
-                    <input type="file" accept="image/*" onChange={onCoverChange} disabled={uploadingCover} aria-label="Trocar foto de capa" style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }} />
-                  </label>
-                  {onReframeCover && order?.coverUrl && (
-                    <button
-                      type="button"
-                      onClick={onReframeCover}
-                      disabled={uploadingCover}
-                      aria-label="Reenquadrar foto da capa"
-                      style={{ position: 'absolute', top: '6px', right: '6px', zIndex: 3, width: '24px', height: '24px', borderRadius: '50%', border: 'none', background: 'rgba(15, 23, 42, 0.82)', color: '#ffffff', fontSize: '0.7rem', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
-                    >
-                      ✂️
-                    </button>
-                  )}
-                </>
-              )}
-              {isAudioPlaying && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    bottom: '6px',
-                    left: '6px',
-                    backgroundColor: 'rgba(15, 23, 42, 0.88)',
-                    backdropFilter: 'blur(6px)',
-                    borderRadius: '999px',
-                    padding: '2.5px 8px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '5px',
-                    color: '#ffffff',
-                    fontSize: '0.62rem',
-                    fontWeight: 800,
-                    letterSpacing: '0.04em',
-                    boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
-                  }}
-                >
-                  <span
-                    style={{
-                      width: '6px',
-                      height: '6px',
-                      borderRadius: '50%',
-                      backgroundColor: '#10b981',
-                      display: 'inline-block',
-                      animation: 'pulseLiveDot 1.2s infinite',
-                    }}
+            {isAudioPlaying && (
+              <span className="nx-eq" role="img" aria-label="Tocando">
+                <i /><i /><i /><i />
+              </span>
+            )}
+
+            {onCoverChange && (
+              <span style={{ position: 'absolute', top: '6px', right: '6px', display: 'flex', flexDirection: 'column', gap: '6px', zIndex: 2 }}>
+                <label className="nx-cover-action" title="Trocar foto da capa" style={{ cursor: uploadingCover ? 'wait' : 'pointer' }}>
+                  {uploadingCover ? <span className="nx-cover-spin" aria-hidden="true" /> : <Pencil size={14} aria-hidden="true" />}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={onCoverChange}
+                    disabled={uploadingCover}
+                    aria-label="Trocar foto da capa"
+                    style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }}
                   />
-                  TOCANDO
-                </div>
-              )}
-            </div>
+                </label>
+                {onReframeCover && order?.coverUrl && (
+                  <button type="button" className="nx-cover-action" onClick={onReframeCover} disabled={uploadingCover} aria-label="Reenquadrar foto da capa" title="Reenquadrar">
+                    <Crop size={14} aria-hidden="true" />
+                  </button>
+                )}
+              </span>
+            )}
           </div>
 
           <div>

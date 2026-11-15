@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Play, Pause, RotateCcw, RotateCw, Volume2, VolumeX } from 'lucide-react';
-import EqualizerWaveform from './EqualizerWaveform';
 import AudioScrubber from './AudioScrubber';
 
 export default function CustomAudioPlayer({
@@ -244,8 +243,6 @@ export default function CustomAudioPlayer({
           </span>
         </div>
 
-        {/* Visualizador de Onda Estético */}
-        <EqualizerWaveform isPlaying={isPlaying} currentTime={currentTime} barCount={18} />
       </div>
 
       {/* Barra de Progresso Deslizante Interativa */}
