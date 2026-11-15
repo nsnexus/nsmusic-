@@ -4,7 +4,7 @@ import React, { useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Mic, Sparkles } from 'lucide-react';
-import { occasions, recipients, stylesList, moods } from '@/app/criar/wizardOptions';
+import { recipients, stylesList, moods } from '@/app/criar/wizardOptions';
 
 const RECIPIENT_CARDS = [
   { id: 'namorado', label: 'Namorada / Namorado', icon: '💗', sub: 'Amor & paixão', relations: ['Namorada', 'Namorado'] },
@@ -379,16 +379,17 @@ export default function CreationSteps({
 
           {(showCustomOccasion || (!isOccasionInQuick && !!data.occasion)) && (
             <div style={{ marginTop: '10px' }}>
-              <select
+              <label htmlFor="wz-ocasiao-outra" className="wz-s" style={{ display: 'block', marginBottom: '6px' }}>Qual é a ocasião?</label>
+              <input
+                id="wz-ocasiao-outra"
+                type="text"
                 className="wz-inp"
-                value={data.occasion || ''}
+                maxLength={60}
+                autoFocus
+                value={isOccasionInQuick ? '' : (data.occasion || '')}
                 onChange={e => updateField('occasion', e.target.value)}
-              >
-                <option value="">Selecione outra ocasião...</option>
-                {occasions.map(o => (
-                  <option key={o.id} value={o.id}>{o.icon} {o.label}</option>
-                ))}
-              </select>
+                placeholder="Ex: Bodas de prata, Despedida, Volta por cima..."
+              />
             </div>
           )}
         </div>
