@@ -82,7 +82,6 @@ export default function DeliveryExperience({
   const secondGenUsed = Boolean(
     (order?.segundaGeracaoUsada || order?.extras?.segundaGeracaoUsada) && (hasSecondGenAudio || !secondGenOrder)
   ) || hasSecondGenAudio;
-  const hasFreeSecondGen = Boolean(paid && !isChildOrder && !secondGenUsed && !isSecondGenGenerating);
 
   const primarySongCard = (
     <SongCard
@@ -436,19 +435,6 @@ export default function DeliveryExperience({
             {!hasSecondGen && <SecondSongOffer orderId={orderId} order={order} />}
 
 
-            {hasFreeSecondGen ? (
-              <Link
-                href={`/criar?novo=1&origem=segunda_geracao&orderRef=${encodeURIComponent(orderId || order?.id || '')}`}
-                className="nx-button"
-                style={{ background: 'var(--nx-pay, #059669)', borderColor: '#059669', color: '#ffffff', fontWeight: 700 }}
-              >
-                ✨ Criar Minhas +2 Músicas Grátis
-              </Link>
-            ) : (
-              <Link href="/criar?novo=1" className="nx-button">
-                Criar outra música
-              </Link>
-            )}
           </div>
         )}
 
