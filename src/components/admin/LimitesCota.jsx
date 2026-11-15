@@ -12,6 +12,7 @@ export default function LimitesCota() {
   const [abaInterna, setAbaInterna] = useState('GERADORES'); // 'GERADORES' | 'BLOQUEADOS'
 
   // Campos do formulário manual de bloqueio
+  const [novoIp, setNovoIp] = useState('');
   const [novoTelefone, setNovoTelefone] = useState('');
   const [novoNome, setNovoNome] = useState('');
   const [novoMotivo, setNovoMotivo] = useState('Gerou mais de 9 músicas sem pagar');
@@ -63,19 +64,21 @@ export default function LimitesCota() {
   };
 
   // Ação 2: Bloquear contato manualmente
-  const bloquearContato = async (telefone, nome = '', motivo = '') => {
-    if (!telefone) return;
-    setProcessando(`block_${telefone}`);
+  const bloquearContato = async (telefone, nome = '', motivo = '', ip = '') => {
+    if (!telefone && !ip) return;
+    setProcessando(`block_${telefone || ip}`);
     setMsg('');
     try {
       await chamar('POST', {
         action: 'block',
         telefone,
+        ip,
         nome,
         motivo: motivo || novoMotivo || 'Gerações excessivas',
       });
-      setMsg(`✅ Contato ${telefone} bloqueado com sucesso na plataforma.`);
+      setMsg(`✅ ${telefone || ip} bloqueado com sucesso na plataforma.`);
       setNovoTelefone('');
+      setNovoIp('');
       setNovoNome('');
       await carregar();
     } catch (e) {
@@ -162,13 +165,13 @@ export default function LimitesCota() {
           🚫 Bloquear Contato Manualmente
         </h3>
         <p style={{ fontSize: '0.8rem', color: '#7f1d1d', margin: '0 0 12px' }}>
-          Digite o telefone ou e-mail da pessoa que você deseja impedir de gerar músicas.
+          Digite o WhatsApp e/ou o IP da pessoa que você deseja impedir de gerar músicas. O IP vale também se ela trocar de número. Atenção: operadoras móveis dividem o mesmo IP entre muitos clientes, então use IP só para quem reincide.
         </p>
 
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            bloquearContato(novoTelefone, novoNome, novoMotivo);
+            bloquearContato(novoTelefone, novoNome, novoMotivo, novoIp);
           }}
           style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}
         >
@@ -177,6 +180,7 @@ export default function LimitesCota() {
             placeholder="WhatsApp (ex: 98984578421)"
             value={novoTelefone}
             onChange={(e) => setNovoTelefone(e.target.value)}
+            aria-label="WhatsApp a bloquear"
             style={{
               padding: '8px 12px',
               borderRadius: '8px',
@@ -185,7 +189,15 @@ export default function LimitesCota() {
               flex: '1 1 180px',
               background: '#fff',
             }}
-            required
+            required={!novoIp}
+          />
+          <input
+            type="text"
+            placeholder="IP (ex: 200.10.20.30)"
+            aria-label="IP a bloquear"
+            value={novoIp}
+            onChange={(e) => setNovoIp(e.target.value)}
+            style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #fca5a5', fontSize: '0.85rem', flex: '1 1 160px', background: '#fff' }}
           />
           <input
             type="text"
@@ -432,7 +444,7 @@ export default function LimitesCota() {
                           fontWeight: '700',
                           textTransform: 'uppercase',
                         }}>
-                          {b.type === 'phone' ? 'WhatsApp' : 'E-mail'}
+                          {b.type === 'phone' ? 'WhatsApp' : b.type === 'ip' ? 'IP' : 'E-mail'}
                         </span>
                       </td>
                       <td style={{ padding: '10px 12px', color: '#0f172a', fontFamily: 'monospace', fontWeight: '700' }}>

@@ -25,7 +25,9 @@ export async function POST(req) {
         const { isBlockedByFreeLimit } = await import('@/app/api/orders/create/route');
         const order = await findOrderByIdOrNumber(orderId, env);
         if (order) {
-          const block = await isContactBlocked(order.customerPhone, order.customerEmail, env);
+          const { obterIpDoCliente, isBlockedByIpLimit } = await import('@/lib/cotaPorIp');
+          const ipDoCliente = obterIpDoCliente(req);
+          const block = await isContactBlocked(order.customerPhone, order.customerEmail, env, ipDoCliente);
           if (block.blocked) {
             return NextResponse.json({ error: 'Contato bloqueado para novas gerações na plataforma.' }, { status: 403 });
           }
@@ -33,10 +35,11 @@ export async function POST(req) {
           const isPaid = order.paymentStatus === 'PAGO' || order.paymentStatus === 'PAGAMENTO_APROVADO';
           const isBonus = Boolean(order.isSecondGeneration || order.origem === 'segunda_geracao' || order.origem === 'segunda_musica');
           if (!isPaid && !isBonus) {
-            const freeLimitBlocked = await isBlockedByFreeLimit(order.customerPhone, order.customerEmail, env);
+            const freeLimitBlocked = (await isBlockedByFreeLimit(order.customerPhone, order.customerEmail, env))
+              || (await isBlockedByIpLimit(ipDoCliente, env));
             if (freeLimitBlocked) {
               return NextResponse.json(
-                { error: 'Você atingiu o limite de 5 músicas geradas sem pagamento. Realize o pagamento de uma das músicas para continuar.', blocked: true, reason: 'cota_excedida' },
+                { error: 'Você atingiu o limite de músicas geradas sem pagamento. Realize o pagamento de uma das músicas para continuar.', blocked: true, reason: 'cota_excedida' },
                 { status: 403 }
               );
             }

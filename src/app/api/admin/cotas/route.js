@@ -145,6 +145,7 @@ export async function POST(req) {
       const res = await addBlockContact({
         phone: body?.telefone,
         email: body?.email,
+        ip: body?.ip,
         name: body?.nome || body?.name || '',
         reason: body?.motivo || body?.reason || 'Bloqueio manual de geração excessiva',
         blockedBy: auth.email || auth.uid || 'admin',
@@ -154,7 +155,7 @@ export async function POST(req) {
 
     // Ação: Desbloquear pessoa
     if (action === 'unblock') {
-      const idOuValor = body?.id || body?.telefone || body?.email;
+      const idOuValor = body?.id || body?.telefone || body?.email || body?.ip;
       const res = await removeBlockContact(idOuValor, env);
       return NextResponse.json(res);
     }
