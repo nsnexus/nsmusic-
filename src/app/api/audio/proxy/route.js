@@ -3,6 +3,7 @@ import { getRequestContext } from '@cloudflare/next-on-pages';
 import { isAllowedMediaUrl } from '@/lib/proxyAllowlist';
 import { getOrder } from '@/lib/supabaseDb';
 import { embedId3v2Tags } from '@/lib/mp3TagWriter';
+import { isIosWebView } from '@/lib/userAgent';
 
 export const runtime = 'edge';
 
@@ -160,6 +161,10 @@ export async function GET(req) {
     const { searchParams } = new URL(req.url);
     let rawUrl = searchParams.get('url');
 
+    // WebView do iPhone (link aberto de dentro do WhatsApp etc.) não consegue baixar anexo e mostra
+    // "Site indisponível". Nesse caso ignoramos ?download= e entregamos o áudio inline.
+    const downloadSolicitado = isIosWebView(req.headers.get('user-agent')) ? null : searchParams.get('download');
+
     let effectiveOrderId = searchParams.get('orderId') || '';
     if (!effectiveOrderId && rawUrl) {
       const matchOrder = rawUrl.match(/audios\/([^\/]+)\//);
@@ -194,7 +199,7 @@ export async function GET(req) {
     if (r2PublicUrl && env?.nsmusic_media && rawUrl.startsWith(`${r2PublicUrl}/`)) {
       const objectKey = rawUrl.slice(r2PublicUrl.length + 1).split('?')[0];
       try {
-        const downloadNameR2 = searchParams.get('download');
+        const downloadNameR2 = downloadSolicitado;
         const rangeHeader = req.headers.get('range');
         const buildR2Headers = (httpMetadata) => {
           const headers = new Headers();
@@ -515,7 +520,7 @@ export async function GET(req) {
     // JavaScript falha por qualquer motivo, o fallback (abrir a URL numa aba) só abre o player — foi
     // o que o cliente viu ao clicar em "Baixar" depois de pagar. Com Content-Disposition o download
     // acontece mesmo por link direto, sem depender de baixar o arquivo inteiro na memória da aba.
-    const downloadName = searchParams.get('download');
+    const downloadName = downloadSolicitado;
     if (downloadName) {
       // Só ASCII seguro no filename: acento/emoji em cabeçalho HTTP quebra a resposta inteira.
       const safeName = downloadName.replace(/[^\w.\- ]/g, '_').slice(0, 120) || 'musica.mp3';
