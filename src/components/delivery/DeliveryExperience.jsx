@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
+import AtalhosPresentes from './AtalhosPresentes';
+import CompartilharPresente from './CompartilharPresente';
 import Image from 'next/image';
 import SongCard from './SongCard';
 import PurchaseCheckout from './PurchaseCheckout';
@@ -341,8 +343,8 @@ export default function DeliveryExperience({
                   background: 'linear-gradient(135deg, #fdf2f8 0%, #f5f3ff 100%)',
                   border: '1.5px solid #f472b6',
                   borderRadius: '20px',
-                  padding: '16px 20px',
-                  marginBottom: '14px',
+                  padding: '10px 14px',
+                  marginBottom: '10px',
                   textAlign: 'center',
                   boxShadow: '0 4px 15px rgba(244, 114, 182, 0.12)'
                 }}
@@ -370,11 +372,7 @@ export default function DeliveryExperience({
                   Você tem acesso a <strong>todas as 4 versões completas</strong> (2 da 1ª homenagem + 2 da 2ª homenagem). Alterne entre as abas abaixo para ouvir, compartilhar ou personalizar os extras de cada uma.
                 </p>
               </div>
-            ) : (
-              <p className="nx-message nx-success">
-                Pagamento confirmado. Seu presente está liberado para ouvir e guardar.
-              </p>
-            )}
+            ) : null}
 
             {/* SELETOR DE ABAS QUANDO EXISTE 2ª GERAÇÃO */}
             {hasSecondGen && (
@@ -460,30 +458,23 @@ export default function DeliveryExperience({
 
             <div
               role="status"
-              style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '14px 16px', margin: '0 0 16px', borderRadius: '14px', background: '#ecfdf5', border: '1px solid #a7f3d0', color: '#064e3b' }}
+              style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', margin: '0 0 12px', borderRadius: '12px', background: '#ecfdf5', border: '1px solid #a7f3d0', color: '#064e3b', fontSize: '0.88rem', lineHeight: 1.35 }}
             >
-              <CheckCircle2 size={22} aria-hidden="true" style={{ flexShrink: 0, marginTop: '2px', color: '#059669' }} />
-              <div style={{ fontSize: '0.94rem', lineHeight: 1.45 }}>
-                <strong>Pagamento confirmado.</strong> Suas músicas completas estão logo abaixo. Para salvar, toque em <strong>Baixar MP3</strong> em cada música.
-                <div>
-                  <button
-                    type="button"
-                    onClick={() => document.getElementById('minhas-musicas')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-                    style={{ marginTop: '8px', background: 'none', border: 'none', padding: 0, color: '#047857', fontWeight: 700, textDecoration: 'underline', cursor: 'pointer', fontSize: '0.92rem' }}
-                  >
-                    Ir para minhas músicas
-                  </button>
-                </div>
-              </div>
+              <CheckCircle2 size={20} aria-hidden="true" style={{ flexShrink: 0, color: '#059669' }} />
+              <span><strong>Pagamento confirmado.</strong> Para salvar, toque em <strong>Baixar MP3</strong> em cada música.</span>
             </div>
+
+            <AtalhosPresentes itens={bonuses} onProduct={onProduct} />
 
             {/* CARD DA MÚSICA SELECIONADA */}
             <div id="minhas-musicas" style={{ scrollMarginTop: '16px' }}>
               {isSecondTab ? secondSongCard : primarySongCard}
             </div>
 
+            <CompartilharPresente order={currentOrderForBonuses || order} orderId={currentOrderForBonuses?.id || orderId} />
+
             {/* EXTRAS E ARQUIVOS VINCULADOS À HOMENAGEM ATIVA */}
-            {bonuses.some(item => item.owned) && (
+            {bonuses.some(item => item.owned && !['video', 'carta', 'retrospectiva'].includes(item.key)) && (
               <section>
                 <div className="nx-section-heading">
                   <h2>
@@ -497,7 +488,7 @@ export default function DeliveryExperience({
                   <p>Personalize os itens que acompanham a sua música.</p>
                 </div>
                 <div className="nx-bonus-grid">
-                  {bonuses.filter(item => item.owned).map(item => (
+                  {bonuses.filter(item => item.owned && !['video', 'carta', 'retrospectiva'].includes(item.key)).map(item => (
                     <article className="nx-card" key={item.key}>
                       <h3>{item.label}</h3>
                       <button type="button" className="nx-text-button" onClick={() => onProduct(item.key)}>
