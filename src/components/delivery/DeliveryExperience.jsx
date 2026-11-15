@@ -9,7 +9,6 @@ import CompartilharPresente from './CompartilharPresente';
 import Image from 'next/image';
 import SongCard from './SongCard';
 import PurchaseCheckout from './PurchaseCheckout';
-import { CheckCircle2 } from 'lucide-react';
 import SecondSongOffer from './SecondSongOffer';
 import MobileValueComparison from './MobileValueComparison';
 import MobileTrustBadges from './MobileTrustBadges';
@@ -83,7 +82,6 @@ export default function DeliveryExperience({
   const secondGenUsed = Boolean(
     (order?.segundaGeracaoUsada || order?.extras?.segundaGeracaoUsada) && (hasSecondGenAudio || !secondGenOrder)
   ) || hasSecondGenAudio;
-  const hasFreeSecondGen = Boolean(paid && !isChildOrder && !secondGenUsed && !isSecondGenGenerating);
 
   const primarySongCard = (
     <SongCard
@@ -338,42 +336,6 @@ export default function DeliveryExperience({
           </>
         ) : (
           <div className="nx-post-layout">
-            {hasSecondGen ? (
-              <div
-                style={{
-                  background: 'linear-gradient(135deg, #fdf2f8 0%, #f5f3ff 100%)',
-                  border: '1.5px solid #f472b6',
-                  borderRadius: '20px',
-                  padding: '10px 14px',
-                  marginBottom: '10px',
-                  textAlign: 'center',
-                  boxShadow: '0 4px 15px rgba(244, 114, 182, 0.12)'
-                }}
-              >
-                <span
-                  style={{
-                    display: 'inline-block',
-                    fontSize: '0.74rem',
-                    fontWeight: '800',
-                    letterSpacing: '0.06em',
-                    textTransform: 'uppercase',
-                    color: '#be185d',
-                    background: '#fce7f3',
-                    padding: '3px 12px',
-                    borderRadius: '999px',
-                    marginBottom: '6px'
-                  }}
-                >
-                  Pacote de 4 Músicas liberado
-                </span>
-                <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1e1b4b', margin: '0 0 6px' }}>
-                  Suas 4 Músicas Personalizadas
-                </h2>
-                <p style={{ fontSize: '0.88rem', color: '#475569', margin: 0, lineHeight: 1.5 }}>
-                  Você tem acesso a <strong>todas as 4 versões completas</strong> (2 da 1ª homenagem + 2 da 2ª homenagem). Alterne entre as abas abaixo para ouvir, compartilhar ou personalizar os extras de cada uma.
-                </p>
-              </div>
-            ) : null}
 
             {/* SELETOR DE ABAS QUANDO EXISTE 2ª GERAÇÃO */}
             {hasSecondGen && (
@@ -382,13 +344,13 @@ export default function DeliveryExperience({
                 aria-label="Escolha a homenagem"
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: 'repeat(2, 1fr)',
-                  gap: '10px',
+                  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                  gap: '6px',
                   background: '#f8fafc',
                   border: '1px solid #e2e8f0',
                   padding: '6px',
                   borderRadius: '16px',
-                  marginBottom: '18px'
+                  marginBottom: '12px'
                 }}
               >
                 <button
@@ -401,7 +363,8 @@ export default function DeliveryExperience({
                     flexDirection: 'column',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    padding: '12px 10px',
+                    padding: '10px 6px',
+                    minWidth: 0,
                     borderRadius: '12px',
                     border: !isSecondTab ? '1.5px solid #059669' : '1.5px solid transparent',
                     cursor: 'pointer',
@@ -412,9 +375,9 @@ export default function DeliveryExperience({
                     fontWeight: !isSecondTab ? 700 : 500,
                   }}
                 >
-                  <span style={{ fontSize: '0.94rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ fontSize: '0.86rem', display: 'flex', alignItems: 'center', gap: '4px', maxWidth: '100%', minWidth: 0 }}>
                     <span>🎵</span>
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '140px' }}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
                       {firstGenOrder?.honoreeName ? `Para ${firstGenOrder.honoreeName}` : '1ª Canção'}
                     </span>
                   </span>
@@ -433,7 +396,8 @@ export default function DeliveryExperience({
                     flexDirection: 'column',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    padding: '12px 10px',
+                    padding: '10px 6px',
+                    minWidth: 0,
                     borderRadius: '12px',
                     border: isSecondTab ? '1.5px solid #7c3aed' : '1.5px solid transparent',
                     cursor: 'pointer',
@@ -444,9 +408,9 @@ export default function DeliveryExperience({
                     fontWeight: isSecondTab ? 700 : 500,
                   }}
                 >
-                  <span style={{ fontSize: '0.94rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ fontSize: '0.86rem', display: 'flex', alignItems: 'center', gap: '4px', maxWidth: '100%', minWidth: 0 }}>
                     <span>✨</span>
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '140px' }}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
                       {secondGenOrder?.honoreeName ? `Para ${secondGenOrder.honoreeName}` : '2ª Canção'}
                     </span>
                   </span>
@@ -456,14 +420,6 @@ export default function DeliveryExperience({
                 </button>
               </div>
             )}
-
-            <div
-              role="status"
-              style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', margin: '0 0 12px', borderRadius: '12px', background: '#ecfdf5', border: '1px solid #a7f3d0', color: '#064e3b', fontSize: '0.88rem', lineHeight: 1.35 }}
-            >
-              <CheckCircle2 size={20} aria-hidden="true" style={{ flexShrink: 0, color: '#059669' }} />
-              <span><strong>Pagamento confirmado.</strong> Para salvar, toque em <strong>Baixar MP3</strong> em cada música.</span>
-            </div>
 
             <AtalhosPresentes itens={bonuses} onProduct={onProduct} />
 
@@ -479,19 +435,6 @@ export default function DeliveryExperience({
             {!hasSecondGen && <SecondSongOffer orderId={orderId} order={order} />}
 
 
-            {hasFreeSecondGen ? (
-              <Link
-                href={`/criar?novo=1&origem=segunda_geracao&orderRef=${encodeURIComponent(orderId || order?.id || '')}`}
-                className="nx-button"
-                style={{ background: 'var(--nx-pay, #059669)', borderColor: '#059669', color: '#ffffff', fontWeight: 700 }}
-              >
-                ✨ Criar Minhas +2 Músicas Grátis
-              </Link>
-            ) : (
-              <Link href="/criar?novo=1" className="nx-button">
-                Criar outra música
-              </Link>
-            )}
           </div>
         )}
 
