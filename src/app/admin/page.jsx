@@ -1258,13 +1258,13 @@ export default function AdminDashboard() {
             display: 'flex',
             alignItems: 'center',
             gap: '4px',
-            overflowX: 'auto',
-            scrollbarWidth: 'none',
-            WebkitOverflowScrolling: 'touch',
             paddingBottom: '2px',
+            position: 'relative',
           }}>
-            {ABAS_PRINCIPAIS.map(tab => renderAba(tab))}
-            <div style={{ position: 'relative' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', overflowX: 'auto', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch', flex: '1 1 auto', minWidth: 0 }}>
+              {ABAS_PRINCIPAIS.map(tab => renderAba(tab))}
+            </div>
+            <div style={{ flexShrink: 0 }}>
               <button
                 type="button"
                 onClick={() => setMaisAberto(v => !v)}
@@ -1281,7 +1281,7 @@ export default function AdminDashboard() {
                 <span>{abaMaisAtiva ? abaMaisAtiva.label : 'Mais'}</span>
               </button>
               {maisAberto && (
-                <div role="menu" style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 60, minWidth: '200px', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '6px', boxShadow: '0 8px 24px rgba(15, 23, 42, 0.12)', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                <div role="menu" style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 60, minWidth: '200px', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '6px', boxShadow: '0 8px 24px rgba(15, 23, 42, 0.12)', display: 'flex', flexDirection: 'column', gap: '2px' }}>
                   {ABAS_MAIS.map(tab => renderAba(tab, true))}
                 </div>
               )}
@@ -1822,162 +1822,7 @@ export default function AdminDashboard() {
                       )}
                     </div>
 
-                    {/* Segmented Control: Status do Pedido */}
-                    <div style={{
-                      display: 'inline-flex',
-                      backgroundColor: '#f1f5f9',
-                      padding: '3px',
-                      borderRadius: '10px',
-                      gap: '2px',
-                      flexWrap: 'wrap',
-                    }}>
-                      {[
-                        { id: 'ALL', label: 'Todos', count: activeOrdersCount },
-                        { id: 'NEW', label: 'Novos', count: countryFilteredOrders.filter(o => o.paymentStatus === 'PAGAMENTO_APROVADO' && o.productionStatus === 'LETRA_APROVADA').length },
-                        { id: 'PRODUCTION', label: 'Em Produção', count: countryFilteredOrders.filter(o => o.productionStatus === 'EM_PRODUCAO' || o.productionStatus === 'VERSOES_EM_PRODUCAO').length },
-                        { id: 'FINISHED', label: 'Finalizados', count: countryFilteredOrders.filter(o => o.productionStatus === 'FINALIZADO' || o.productionStatus === 'ENTREGUE').length },
-                      ].map(item => {
-                        const isCurrent = filter === item.id;
-                        return (
-                          <button
-                            key={item.id}
-                            type="button"
-                            onClick={() => setFilter(item.id)}
-                            style={{
-                              padding: '6px 12px',
-                              borderRadius: '8px',
-                              fontSize: '0.8rem',
-                              fontWeight: isCurrent ? '700' : '600',
-                              border: 'none',
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '6px',
-                              backgroundColor: isCurrent ? '#ffffff' : 'transparent',
-                              color: isCurrent ? '#0f172a' : '#64748b',
-                              boxShadow: isCurrent ? '0 1px 3px rgba(0,0,0,0.06)' : 'none',
-                              transition: 'all 0.15s ease',
-                            }}
-                          >
-                            <span>{item.label}</span>
-                            <span style={{
-                              fontSize: '0.7rem',
-                              padding: '1px 6px',
-                              borderRadius: '999px',
-                              backgroundColor: isCurrent ? '#f1f5f9' : 'rgba(0,0,0,0.04)',
-                              color: isCurrent ? '#0f172a' : '#64748b',
-                              fontWeight: '700',
-                            }}>
-                              {item.count}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    {/* Segmented Control: Mercado / País */}
-                    <div style={{
-                      display: 'inline-flex',
-                      backgroundColor: '#f1f5f9',
-                      padding: '3px',
-                      borderRadius: '10px',
-                      gap: '2px',
-                    }}>
-                      {[
-                        { id: 'ALL', label: '🌐 Todos', count: orders.length },
-                        { id: 'BR', label: '🇧🇷 Brasil', count: orders.filter(o => !isUSOrder(o)).length },
-                        { id: 'US', label: '🇺🇸 EUA', count: orders.filter(o => isUSOrder(o)).length },
-                      ].map(item => {
-                        const isCurrent = countryFilter === item.id;
-                        return (
-                          <button
-                            key={item.id}
-                            type="button"
-                            onClick={() => setCountryFilter(item.id)}
-                            style={{
-                              padding: '6px 10px',
-                              borderRadius: '8px',
-                              fontSize: '0.78rem',
-                              fontWeight: isCurrent ? '700' : '600',
-                              border: 'none',
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '5px',
-                              backgroundColor: isCurrent ? '#ffffff' : 'transparent',
-                              color: isCurrent ? '#0f172a' : '#64748b',
-                              boxShadow: isCurrent ? '0 1px 3px rgba(0,0,0,0.06)' : 'none',
-                              transition: 'all 0.15s ease',
-                            }}
-                          >
-                            <span>{item.label}</span>
-                            <span style={{ fontSize: '0.68rem', opacity: 0.75 }}>({item.count})</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Linha 2: Refinamento Secundário (Pílulas de Venda + Dropdowns Compactos) */}
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '12px',
-                    flexWrap: 'wrap',
-                    borderTop: '1px solid #f1f5f9',
-                    paddingTop: '12px',
-                  }}>
-                    {/* Pílulas de Tipo de Venda */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: '0.74rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', marginRight: '4px' }}>
-                        Canal:
-                      </span>
-                      {[
-                        { id: 'ALL', label: 'Todas' },
-                        { id: 'MUSIC', label: 'Música' },
-                        { id: 'VIDEO', label: 'Vídeo' },
-                        { id: 'CARD', label: 'Cartão' },
-                        { id: 'PIX', label: 'PIX' },
-                        { id: 'PIX_COPIADO', label: 'PIX não pago' },
-                      ].map(item => {
-                        const isCurrent = purchaseTypeTab === item.id;
-                        return (
-                          <button
-                            key={item.id}
-                            type="button"
-                            onClick={() => setPurchaseTypeTab(item.id)}
-                            style={{
-                              padding: '4px 10px',
-                              borderRadius: '6px',
-                              fontSize: '0.76rem',
-                              fontWeight: isCurrent ? '700' : '500',
-                              border: isCurrent ? '1px solid #cbd5e1' : '1px solid transparent',
-                              cursor: 'pointer',
-                              backgroundColor: isCurrent ? '#e2e8f0' : 'transparent',
-                              color: isCurrent ? '#0f172a' : '#64748b',
-                              transition: 'all 0.15s ease',
-                            }}
-                          >
-                            {item.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => setMaisFiltros(v => !v)}
-                      aria-expanded={maisFiltros}
-                      style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '5px 12px', fontSize: '0.78rem', fontWeight: 700, color: '#475569', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-                    >
-                      <SlidersHorizontal size={14} aria-hidden="true" />
-                      {maisFiltros ? 'Menos filtros' : 'Mais filtros'}
-                    </button>
-
-                    {/* Filtros em Dropdowns Alinhados */}
-                    <div style={{ display: maisFiltros ? 'flex' : 'none', width: '100%', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                      {/* Datas & Atalhos Rápidos */}
+                    {/* Datas & Atalhos Rápidos */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
                         <div style={{ display: 'inline-flex', gap: '3px', background: '#f1f5f9', padding: '2px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
                           <button
@@ -2117,7 +1962,154 @@ export default function AdminDashboard() {
                         <option value="ALL">✨ Todas (Principal + Bônus)</option>
                       </select>
 
-                      {/* Status Pagamento */}
+                      <button
+                      type="button"
+                      onClick={() => setMaisFiltros(v => !v)}
+                      aria-expanded={maisFiltros}
+                      style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '5px 12px', fontSize: '0.78rem', fontWeight: 700, color: '#475569', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                    >
+                      <SlidersHorizontal size={14} aria-hidden="true" />
+                      {maisFiltros ? 'Menos filtros' : 'Mais filtros'}
+                    </button>
+
+                    
+                  </div>
+
+                  {/* Filtros menos usados: recolhidos por padrão */}
+                  {maisFiltros && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', borderTop: '1px solid #f1f5f9', paddingTop: '12px' }}>
+{/* Segmented Control: Status do Pedido */}
+                    <div style={{
+                      display: 'inline-flex',
+                      backgroundColor: '#f1f5f9',
+                      padding: '3px',
+                      borderRadius: '10px',
+                      gap: '2px',
+                      flexWrap: 'wrap',
+                    }}>
+                      {[
+                        { id: 'ALL', label: 'Todos', count: activeOrdersCount },
+                        { id: 'NEW', label: 'Novos', count: countryFilteredOrders.filter(o => o.paymentStatus === 'PAGAMENTO_APROVADO' && o.productionStatus === 'LETRA_APROVADA').length },
+                        { id: 'PRODUCTION', label: 'Em Produção', count: countryFilteredOrders.filter(o => o.productionStatus === 'EM_PRODUCAO' || o.productionStatus === 'VERSOES_EM_PRODUCAO').length },
+                        { id: 'FINISHED', label: 'Finalizados', count: countryFilteredOrders.filter(o => o.productionStatus === 'FINALIZADO' || o.productionStatus === 'ENTREGUE').length },
+                      ].map(item => {
+                        const isCurrent = filter === item.id;
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => setFilter(item.id)}
+                            style={{
+                              padding: '6px 12px',
+                              borderRadius: '8px',
+                              fontSize: '0.8rem',
+                              fontWeight: isCurrent ? '700' : '600',
+                              border: 'none',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              backgroundColor: isCurrent ? '#ffffff' : 'transparent',
+                              color: isCurrent ? '#0f172a' : '#64748b',
+                              boxShadow: isCurrent ? '0 1px 3px rgba(0,0,0,0.06)' : 'none',
+                              transition: 'all 0.15s ease',
+                            }}
+                          >
+                            <span>{item.label}</span>
+                            <span style={{
+                              fontSize: '0.7rem',
+                              padding: '1px 6px',
+                              borderRadius: '999px',
+                              backgroundColor: isCurrent ? '#f1f5f9' : 'rgba(0,0,0,0.04)',
+                              color: isCurrent ? '#0f172a' : '#64748b',
+                              fontWeight: '700',
+                            }}>
+                              {item.count}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Segmented Control: Mercado / País */}
+                    <div style={{
+                      display: 'inline-flex',
+                      backgroundColor: '#f1f5f9',
+                      padding: '3px',
+                      borderRadius: '10px',
+                      gap: '2px',
+                    }}>
+                      {[
+                        { id: 'ALL', label: '🌐 Todos', count: orders.length },
+                        { id: 'BR', label: '🇧🇷 Brasil', count: orders.filter(o => !isUSOrder(o)).length },
+                        { id: 'US', label: '🇺🇸 EUA', count: orders.filter(o => isUSOrder(o)).length },
+                      ].map(item => {
+                        const isCurrent = countryFilter === item.id;
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => setCountryFilter(item.id)}
+                            style={{
+                              padding: '6px 10px',
+                              borderRadius: '8px',
+                              fontSize: '0.78rem',
+                              fontWeight: isCurrent ? '700' : '600',
+                              border: 'none',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '5px',
+                              backgroundColor: isCurrent ? '#ffffff' : 'transparent',
+                              color: isCurrent ? '#0f172a' : '#64748b',
+                              boxShadow: isCurrent ? '0 1px 3px rgba(0,0,0,0.06)' : 'none',
+                              transition: 'all 0.15s ease',
+                            }}
+                          >
+                            <span>{item.label}</span>
+                            <span style={{ fontSize: '0.68rem', opacity: 0.75 }}>({item.count})</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  {/* Pílulas de Tipo de Venda */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: '0.74rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', marginRight: '4px' }}>
+                        Canal:
+                      </span>
+                      {[
+                        { id: 'ALL', label: 'Todas' },
+                        { id: 'MUSIC', label: 'Música' },
+                        { id: 'VIDEO', label: 'Vídeo' },
+                        { id: 'CARD', label: 'Cartão' },
+                        { id: 'PIX', label: 'PIX' },
+                        { id: 'PIX_COPIADO', label: 'PIX não pago' },
+                      ].map(item => {
+                        const isCurrent = purchaseTypeTab === item.id;
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => setPurchaseTypeTab(item.id)}
+                            style={{
+                              padding: '4px 10px',
+                              borderRadius: '6px',
+                              fontSize: '0.76rem',
+                              fontWeight: isCurrent ? '700' : '500',
+                              border: isCurrent ? '1px solid #cbd5e1' : '1px solid transparent',
+                              cursor: 'pointer',
+                              backgroundColor: isCurrent ? '#e2e8f0' : 'transparent',
+                              color: isCurrent ? '#0f172a' : '#64748b',
+                              transition: 'all 0.15s ease',
+                            }}
+                          >
+                            {item.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Status Pagamento */}
                       <select
                         id="admin-payment-status"
                         value={paymentStatusFilter}
@@ -2181,8 +2173,8 @@ export default function AdminDashboard() {
                         <option value="paidAt_desc">Pago (Recentes)</option>
                         <option value="paidAt_asc">Pago (Antigos)</option>
                       </select>
-                    </div>
                   </div>
+                  )}
                 </div>
 
                 {/* Banner Flutuante de Ações em Massa */}

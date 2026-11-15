@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { getAdminAuthToken } from '@/lib/authClient';
 import { hasMusicaGerada } from '@/lib/stats';
 import { isBonusOrder } from '@/lib/trafficSource';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 
 /**
  * FunilStatusCards
@@ -24,6 +25,7 @@ export default function FunilStatusCards({
   activePaymentFilter = 'ALL',
   onSelectPaymentFilter,
 }) {
+  const [aberto, setAberto] = useState(false);
   const [visitsData, setVisitsData] = useState({ total: 0, byPlatform: {}, loaded: false });
 
   // Busca contador de visitas único por período de forma incremental
@@ -295,9 +297,9 @@ export default function FunilStatusCards({
           justifyContent: 'space-between',
           flexWrap: 'wrap',
           gap: '10px',
-          marginBottom: '14px',
-          paddingBottom: '12px',
-          borderBottom: '1px solid #f1f5f9',
+          marginBottom: aberto ? '14px' : 0,
+          paddingBottom: aberto ? '12px' : 0,
+          borderBottom: aberto ? '1px solid #f1f5f9' : 'none',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -328,14 +330,27 @@ export default function FunilStatusCards({
                 {stats.totalOrders} criações iniciadas • {stats.totalComMusica} músicas geradas
               </span>
             </h3>
-            <p style={{ margin: 0, fontSize: '0.78rem', color: '#64748b' }}>
-              Acompanhe onde os clientes estão parando. Clique em qualquer etapa para filtrar os pedidos na lista.
-            </p>
+            {aberto && (
+              <p style={{ margin: 0, fontSize: '0.78rem', color: '#64748b' }}>
+                Acompanhe onde os clientes estão parando. Clique em qualquer etapa para filtrar os pedidos na lista.
+              </p>
+            )}
           </div>
         </div>
 
         {/* Resumo da Conversão Geral */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={() => setAberto(v => !v)}
+            aria-expanded={aberto}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '7px 14px', fontSize: '0.82rem', fontWeight: 700, color: '#334155', cursor: 'pointer' }}
+          >
+            {aberto ? 'Ocultar funil' : 'Ver funil'}
+            {aberto ? <ChevronUp size={15} aria-hidden="true" /> : <ChevronDown size={15} aria-hidden="true" />}
+          </button>
+
+          {aberto && (
           <div
             style={{
               display: 'inline-flex',
@@ -354,6 +369,7 @@ export default function FunilStatusCards({
             <span style={{ color: '#16a34a', fontWeight: '800' }}>{stats.pctPagos}</span>
             <span style={{ color: '#64748b', fontSize: '0.74rem' }}>({stats.pagos} de {stats.totalComMusica} com música)</span>
           </div>
+          )}
 
           {(activeProductionFilter !== 'ALL' || activePaymentFilter !== 'ALL') && (
             <button
@@ -381,6 +397,7 @@ export default function FunilStatusCards({
       </div>
 
       {/* Grid de Cards de cada Etapa */}
+      {aberto && (
       <div
         style={{
           display: 'grid',
@@ -491,6 +508,7 @@ export default function FunilStatusCards({
           );
         })}
       </div>
+      )}
     </div>
   );
 }
