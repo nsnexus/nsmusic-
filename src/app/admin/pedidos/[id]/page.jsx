@@ -54,6 +54,7 @@ export default function OrderDetailsAdmin() {
   const [copiedImpactLink, setCopiedImpactLink] = useState(false);
   const [copiedLyrics, setCopiedLyrics] = useState(false);
   const [copiedTags, setCopiedTags] = useState(false);
+  const [copiedBonus, setCopiedBonus] = useState('');
 
   const [sunoPrompt, setSunoPrompt] = useState('');
   const [useCustomVoice, setUseCustomVoice] = useState(false);
@@ -1024,7 +1025,7 @@ export default function OrderDetailsAdmin() {
           
           <div style={styles.titleRow}>
             <div>
-              <h1 style={{ fontSize: '1.8rem', fontWeight: '800', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              <h1 style={{ fontSize: '1.25rem', fontWeight: '800', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                 <span>Pedido {order.orderNumber || orderId}</span>
                 {isUSOrder(order) ? (
                   <span style={{
@@ -1426,6 +1427,21 @@ export default function OrderDetailsAdmin() {
           {(() => {
             const pagoConfirmado = order.paymentStatus === 'PAGAMENTO_APROVADO' || order.paymentStatus === 'PAGO' || Boolean(order.paidAt);
             const nomeArquivo = (honoreeName || order.honoreeName || 'musica').replace(/[^\p{L}\p{N}\- ]/gu, '').trim() || 'musica';
+            const bonus = !order.parentOrderId && !order.isSecondGeneration ? order.secondGeneration : null;
+            const bonusFiles = bonus ? (Array.isArray(bonus.audioFiles) && bonus.audioFiles.length > 0 ? bonus.audioFiles : (bonus.audioUrl ? [bonus.audioUrl] : [])) : [];
+            let bonusTags = '';
+            if (bonus) {
+              bonusTags = bonus.sunoPrompt || '';
+              if (!bonusTags) {
+                try { bonusTags = buildSunoPayload({ musicStyle: bonus.musicStyle || order.musicStyle, musicMood: bonus.musicMood || order.musicMood, voiceType: bonus.voiceType || order.voiceType }).tags; } catch (e) { bonusTags = `${bonus.musicStyle || order.musicStyle || 'Pop'}, ${bonus.musicMood || order.musicMood || 'Emocionante'}`; }
+              }
+            }
+            const copiarBonus = (tipo, texto) => {
+              if (!texto || typeof window === 'undefined') return;
+              navigator.clipboard.writeText(texto);
+              setCopiedBonus(tipo);
+              setTimeout(() => setCopiedBonus(''), 3000);
+            };
             const btn = { padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#ffffff', color: '#0f172a', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' };
             const grupo = { display: 'flex', flexDirection: 'column', gap: '8px', minWidth: 0 };
             const rotulo = { fontSize: '0.72rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' };
@@ -1476,6 +1492,38 @@ export default function OrderDetailsAdmin() {
                     Ir para gerar música
                   </button>
                 </div>
+                {bonus && (
+                  <div style={{ gridColumn: '1 / -1', borderTop: '1px solid #e2e8f0', paddingTop: '14px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+                    <div style={grupo}>
+                      <span style={rotulo}>Música bônus {bonus.orderNumber ? `#${bonus.orderNumber}` : ''}</span>
+                      <Link href={`/admin/pedidos/${bonus.id}`} style={{ fontSize: '0.85rem', fontWeight: 700, color: '#2563eb' }}>
+                        Abrir pedido bônus
+                      </Link>
+                      {!bonus.hasAudio && <span style={{ fontSize: '0.8rem', color: '#64748b' }}>{bonus.isGenerating ? 'Gerando...' : 'Ainda sem áudio.'}</span>}
+                    </div>
+                    <div style={grupo}>
+                      <span style={rotulo}>Baixar bônus</span>
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                        {[0, 1].map((i) => (
+                          <button key={i} type="button" disabled={!bonusFiles[i]} onClick={() => handleDownload(bonusFiles[i], `${nomeArquivo}-bonus-${i + 1}.mp3`)} style={{ ...btn, opacity: bonusFiles[i] ? 1 : 0.5, cursor: bonusFiles[i] ? 'pointer' : 'not-allowed' }}>
+                            Bônus {i + 1}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div style={grupo}>
+                      <span style={rotulo}>Copiar bônus</span>
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                        <button type="button" disabled={!bonus.lyrics} onClick={() => copiarBonus('lyrics', bonus.lyrics)} style={{ ...btn, opacity: bonus.lyrics ? 1 : 0.5, color: copiedBonus === 'lyrics' ? '#166534' : '#0f172a' }}>
+                          {copiedBonus === 'lyrics' ? '✓ Letra copiada' : 'Copiar letra'}
+                        </button>
+                        <button type="button" onClick={() => copiarBonus('tags', bonusTags)} style={{ ...btn, color: copiedBonus === 'tags' ? '#166534' : '#0f172a' }}>
+                          {copiedBonus === 'tags' ? '✓ Tags copiadas' : 'Copiar tags'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </section>
             );
           })()}
@@ -2549,12 +2597,12 @@ const styles = {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: '32px',
+    marginBottom: '16px',
     flexWrap: 'wrap',
     gap: '16px',
   },
   priceTag: {
-    fontSize: '1.8rem',
+    fontSize: '1.15rem',
     fontWeight: '850',
     color: '#059669',
   },
