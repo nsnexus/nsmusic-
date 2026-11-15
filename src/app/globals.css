@@ -789,7 +789,7 @@ label {
   .criar-progress { height: 8px !important; border-radius: 999px; }
   .criar-step-content { margin-top: 20px !important; }
   .criar-navigation-dock {
-    padding: 10px 0 calc(10px + env(safe-area-inset-bottom)) !important;
+    padding: 12px 16px calc(14px + env(safe-area-inset-bottom)) !important;
     background: rgba(247, 248, 252, 0.94) !important;
     backdrop-filter: blur(14px);
     -webkit-backdrop-filter: blur(14px);
