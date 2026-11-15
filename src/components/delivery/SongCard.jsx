@@ -2,8 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
-import { Share2, Download, MessageCircle } from 'lucide-react';
-import { buildGiftUrl } from '@/lib/giftShare';
+import { Download, MessageCircle } from 'lucide-react';
 import { markPreviewListened } from '@/lib/previewTracking';
 import { isInAppBrowser, isIOS, isAndroid, getChromeIntentUrl } from '@/lib/inAppBrowser';
 import CustomAudioPlayer from './CustomAudioPlayer';
@@ -20,7 +19,6 @@ export default function SongCard({
   uploadingCover,
   coverError,
   onChooseGiftTrack,
-  generationLabel,
   trackOffset = 0,
   onPreviewEnded,
 }) {
@@ -47,14 +45,6 @@ export default function SongCard({
   }, [source]);
 
   const targetId = orderId || order?.id || order?.orderNumber;
-
-  const share = async () => {
-    const url = buildGiftUrl(window.location.origin, order, targetId);
-    try {
-      if (navigator.share) await navigator.share({ title: `Uma homenagem para ${order?.honoreeName || 'alguém especial'}`, text: 'Preparei uma música para você.', url });
-      else { await navigator.clipboard.writeText(url); setMessage('Link do presente copiado.'); }
-    } catch (error) { if (error.name !== 'AbortError') setMessage('Não foi possível compartilhar agora. Tente novamente.'); }
-  };
 
   const getSlot = (idx) => {
     if (trackOffset === 0) return idx === 0 ? 'primary' : 'second';
@@ -204,36 +194,10 @@ export default function SongCard({
           </div>
 
           <div>
-            {generationLabel ? (
-              <span
-                style={{
-                  display: 'inline-block',
-                  fontSize: '0.72rem',
-                  fontWeight: '800',
-                  letterSpacing: '0.06em',
-                  textTransform: 'uppercase',
-                  color: trackOffset > 0 ? '#6d28d9' : '#047857',
-                  background: trackOffset > 0 ? '#f5f3ff' : '#ecfdf5',
-                  border: `1px solid ${trackOffset > 0 ? '#ddd6fe' : '#a7f3d0'}`,
-                  padding: '3px 10px',
-                  borderRadius: '999px',
-                  marginBottom: '8px',
-                }}
-              >
-                {generationLabel}
-              </span>
-            ) : (
-              <span className="nx-eyebrow">Um presente só seu</span>
-            )}
             <h2>Uma canção para {order?.honoreeName || 'alguém especial'}</h2>
             <p>De {order?.customerName || 'você'}, com carinho.</p>
           </div>
         </div>
-        {paid && (
-          <button type="button" className="nx-share-button" aria-label="Compartilhar presente" onClick={share}>
-            <Share2 size={19} />
-          </button>
-        )}
       </div>
 
       <div className="nx-versions" role="group" aria-label="Versões da música">
