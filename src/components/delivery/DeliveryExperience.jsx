@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
+import CompletePresente from './CompletePresente';
 import AtalhosPresentes from './AtalhosPresentes';
 import CompartilharPresente from './CompartilharPresente';
 import Image from 'next/image';
@@ -471,55 +472,12 @@ export default function DeliveryExperience({
               {isSecondTab ? secondSongCard : primarySongCard}
             </div>
 
-            <CompartilharPresente order={currentOrderForBonuses || order} orderId={currentOrderForBonuses?.id || orderId} />
+            <CompletePresente itens={bonuses} onProduct={onProduct} />
 
-            {/* EXTRAS E ARQUIVOS VINCULADOS À HOMENAGEM ATIVA */}
-            {bonuses.some(item => item.owned && !['video', 'carta', 'retrospectiva'].includes(item.key)) && (
-              <section>
-                <div className="nx-section-heading">
-                  <h2>
-                    Seus presentes e arquivos
-                    {hasSecondGen && (
-                      <span style={{ fontSize: '0.84rem', fontWeight: 500, color: '#64748b', display: 'block', marginTop: '2px' }}>
-                        Personalizados para {currentOrderForBonuses?.honoreeName || (isSecondTab ? '2ª Canção' : '1ª Canção')}
-                      </span>
-                    )}
-                  </h2>
-                  <p>Personalize os itens que acompanham a sua música.</p>
-                </div>
-                <div className="nx-bonus-grid">
-                  {bonuses.filter(item => item.owned && !['video', 'carta', 'retrospectiva'].includes(item.key)).map(item => (
-                    <article className="nx-card" key={item.key}>
-                      <h3>{item.label}</h3>
-                      <button type="button" className="nx-text-button" onClick={() => onProduct(item.key)}>
-                        {item.action} →
-                      </button>
-                    </article>
-                  ))}
-                </div>
-              </section>
-            )}
+            <CompartilharPresente order={currentOrderForBonuses || order} orderId={currentOrderForBonuses?.id || orderId} />
 
             {!hasSecondGen && <SecondSongOffer orderId={orderId} order={order} />}
 
-            <details className="nx-card nx-extra-options">
-              <summary>
-                Quero completar meu presente
-                {hasSecondGen && (
-                  <span style={{ fontSize: '0.82rem', fontWeight: 400, color: '#64748b', marginLeft: '6px' }}>
-                    (para {currentOrderForBonuses?.honoreeName || (isSecondTab ? '2ª canção' : '1ª canção')})
-                  </span>
-                )}
-              </summary>
-              <div className="nx-chips">
-                {bonuses.filter(item => !item.owned).map(item => (
-                  <button type="button" key={item.key} onClick={() => onProduct(item.key)}>
-                    {item.label} →
-                  </button>
-                ))}
-              </div>
-              <p className="nx-helper">Você vê os detalhes e o preço antes de comprar um complemento.</p>
-            </details>
 
             {hasFreeSecondGen ? (
               <Link

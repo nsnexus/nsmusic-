@@ -1,13 +1,16 @@
 'use client';
 
 import React from 'react';
-import { Film, Mail, Images } from 'lucide-react';
+import { Film, Mail, Images, Music, Mic2, AudioLines } from 'lucide-react';
 
-const ICONES = { video: Film, carta: Mail, retrospectiva: Images };
+const ICONES = { video: Film, carta: Mail, retrospectiva: Images, playback: Music, karaoke: Mic2, voz: AudioLines };
 const ROTULOS = {
   video: { novo: 'Criar vídeo', feito: 'Ver vídeo', sub: 'Enviar fotos' },
   carta: { novo: 'Escrever carta', feito: 'Ver carta', sub: 'Carta virtual' },
   retrospectiva: { novo: 'Montar retrospectiva', feito: 'Montar retrospectiva', sub: 'Fotos e datas' },
+  playback: { novo: 'Playback', feito: 'Playback', sub: 'Ouvir e baixar' },
+  karaoke: { novo: 'Karaokê', feito: 'Karaokê', sub: 'Cantar junto' },
+  voz: { novo: 'Minha voz', feito: 'Minha voz', sub: 'Personalizar' },
 };
 
 // Atalhos no topo da página paga para os presentes que o cliente já comprou
