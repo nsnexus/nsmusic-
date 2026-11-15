@@ -34,6 +34,7 @@ export default function VozClienteAddonCard({ orderId, order }) {
   const [verificacaoBlob, setVerificacaoBlob] = useState(null);
   const [processandoVoz, setProcessandoVoz] = useState(false);
   const [statusMsg, setStatusMsg] = useState('');
+  const [erroVoz, setErroVoz] = useState('');
   const [musicaGeradaUrl, setMusicaGeradaUrl] = useState(
     order?.customVoiceAudioUrl ||
     order?.extras?.customVoiceAudioUrl ||
@@ -205,7 +206,8 @@ export default function VozClienteAddonCard({ orderId, order }) {
         setSegundos(s => s + 1);
       }, 1000);
     } catch (err) {
-      alert('Por favor, permita o acesso ao microfone para gravar sua voz.');
+      console.warn('[voz] microfone indisponível:', err?.name);
+      setErroVoz('Não conseguimos usar o microfone. Permita o acesso nas configurações do navegador e tente de novo.');
     }
   };
 
@@ -267,7 +269,8 @@ export default function VozClienteAddonCard({ orderId, order }) {
       setFraseValidacao(fraseObtida);
       setEtapaGravacao(2);
     } catch (err) {
-      alert(`Erro: ${err.message}`);
+      console.warn('[voz] falha no processamento:', err?.message);
+      setErroVoz('Não foi possível processar sua voz agora. Tente novamente em instantes.');
     } finally {
       setProcessandoVoz(false);
       setStatusMsg('');
@@ -277,9 +280,10 @@ export default function VozClienteAddonCard({ orderId, order }) {
   // Dispara a regeração da música com a voz e faz polling até concluir
   const iniciarGeracaoComVoz = async (targetVoiceId, optionalRecordingId = null) => {
     if (!targetVoiceId) {
-      alert('Timbre de voz não encontrado. Por favor, grave a sua amostra.');
+      setErroVoz('Não encontramos sua voz salva. Grave uma nova amostra para continuar.');
       return;
     }
+    setErroVoz('');
     setProcessandoVoz(true);
     setStatusMsg('Iniciando composição com o seu timbre de voz...');
 
@@ -345,7 +349,8 @@ export default function VozClienteAddonCard({ orderId, order }) {
       setMusicaGeradaUrl(musicaUrl);
       setEtapaGravacao(3);
     } catch (err) {
-      alert(`Erro ao gerar música com voz: ${err.message}`);
+      console.warn('[voz] falha ao gerar música:', err?.message);
+      setErroVoz('Não foi possível gerar a música com a sua voz agora. Tente novamente em instantes.');
     } finally {
       setProcessandoVoz(false);
       setStatusMsg('');
@@ -444,7 +449,8 @@ export default function VozClienteAddonCard({ orderId, order }) {
       // 5. Inicia a regeração da música com a nova voz
       await iniciarGeracaoComVoz(finalVoiceId, createdRecordId);
     } catch (err) {
-      alert(`Erro: ${err.message}`);
+      console.warn('[voz] falha no processamento:', err?.message);
+      setErroVoz('Não foi possível processar sua voz agora. Tente novamente em instantes.');
     } finally {
       setProcessandoVoz(false);
       setStatusMsg('');
@@ -551,6 +557,7 @@ export default function VozClienteAddonCard({ orderId, order }) {
                     Identificamos o seu timbre de voz salvo (<strong>{customVoiceData.customerName}</strong>).
                   </p>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxWidth: '340px', margin: '0 auto' }}>
+                    {erroVoz && <p role="alert" style={{ margin: '0 0 10px', padding: '10px 12px', borderRadius: '10px', background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b', fontSize: '0.9rem', lineHeight: 1.4 }}>{erroVoz}</p>}
                     <button
                       type="button"
                       onClick={() => iniciarGeracaoComVoz(customVoiceData.voiceId, customVoiceData.voiceRecordingId)}
@@ -764,6 +771,7 @@ export default function VozClienteAddonCard({ orderId, order }) {
                   <div style={{ marginBottom: '20px' }}>
                     <p style={{ fontSize: '0.8rem', color: '#a1a1aa', margin: '0 0 6px' }}>Ouça como ficou:</p>
                     <audio controls src={amostraUrl} style={{ width: '100%', marginBottom: '12px' }} />
+                    {erroVoz && <p role="alert" style={{ margin: '0 0 10px', padding: '10px 12px', borderRadius: '10px', background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b', fontSize: '0.9rem', lineHeight: 1.4 }}>{erroVoz}</p>}
                     <button
                       type="button"
                       onClick={handleEnviarAmostra}
@@ -846,7 +854,9 @@ export default function VozClienteAddonCard({ orderId, order }) {
                 </div>
 
                 {verificacaoBlob && !gravando && (
-                  <button
+<>
+                  {erroVoz && <p role="alert" style={{ margin: '0 0 10px', padding: '10px 12px', borderRadius: '10px', background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b', fontSize: '0.9rem', lineHeight: 1.4 }}>{erroVoz}</p>}
+                    <button
                     type="button"
                     onClick={handleFinalizarCriacao}
                     disabled={processandoVoz}
@@ -864,6 +874,7 @@ export default function VozClienteAddonCard({ orderId, order }) {
                   >
                     {processandoVoz ? statusMsg : '🚀 Treinar Voz e Gerar Música'}
                   </button>
+</>
                 )}
               </div>
             )}
