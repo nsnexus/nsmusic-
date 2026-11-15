@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { Fragment, useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { auth } from '@/lib/authClient';
@@ -25,6 +25,7 @@ import { IconeCelularWhatsApp } from '@/components/AppIcons';
 import { readReferralCode } from '@/lib/referralTracking';
 import { getPriceForSku } from '@/lib/pricing';
 import PackageCard from '@/components/delivery/PackageCard';
+import InlinePayButton from '@/components/delivery/InlinePayButton';
 import { deliveryPackages, formatBrl } from '@/lib/deliveryPackages';
 
 // Tempo na tela de produção depois do qual o cliente sempre ganha uma saída (conferir de novo,
@@ -1900,6 +1901,96 @@ export default function CriarMusica() {
     setPaymentErrorMessage('');
   };
 
+  // Gera o PIX do pacote escolhido. Compartilhada pelo botão do resumo e pelo botão que aparece
+  // logo abaixo do card no celular (InlinePayButton).
+  const gerarPixCriar = async () => {
+    setIsGeneratingPix(true);
+    setPaymentErrorMessage('');
+    if (!formData.customerPhone || !isPhoneValid(formData.customerPhone)) {
+      setPaymentErrorMessage('Por favor, informe um WhatsApp válido com DDD antes de gerar o PIX.');
+      setIsGeneratingPix(false);
+      return;
+    }
+    try {
+      if (orderId) {
+        // hasVideoAccess NUNCA é definido aqui: é um flag de acesso a produto pago
+        // e só pode ser concedido pelo servidor após confirmação de pagamento
+        // (ver C-09/A-07 em docs/audit/AUDIT_REPORT.md).
+        try {
+          await fetch('/api/orders/client-update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              orderId,
+              total: getTotalPrice(),
+              package: formData.selectedPackage,
+              pixRequestedAt: new Date().toISOString()
+            })
+          });
+        } catch (e) {
+          console.warn(e);
+          setPaymentErrorMessage('Não foi possível salvar os dados do pedido. Verifique sua internet e tente novamente.');
+          setIsGeneratingPix(false);
+          return;
+        }
+      }
+
+      const sku = selectedPackageSku || 'combo';
+      // Retentativa compartilhada com o checkout de /entrega (ver
+      // src/lib/pixCheckout.js): a chamada à Efí falha de forma intermitente e
+      // insistir resolve, em vez de devolver um erro para o cliente que estava
+      // com o cartão na mão.
+      const resultado = await requestPixCharge({ orderId, sku });
+      if (resultado.ok) {
+        if (resultado.data?.checkoutUrl) {
+          window.location.href = resultado.data.checkoutUrl;
+          return;
+        }
+        // IMPORTANTE: não gravar paymentId aqui. O servidor (/api/payments/create)
+        // já persiste o txid pendente em paymentIntentId. O campo paymentId só pode
+        // ser escrito pelo servidor após aprovação real (ver applyPaymentApproval em
+        // src/lib/payments.js) — gravá-lo aqui, ainda pendente, é o que permitia que
+        // /api/payments/status aprovasse o pedido sem nunca checar a Efí (bug da
+        // aprovação falsa).
+        setPixInfo(resultado.data);
+        // O código PIX aparece na caixa de pagamento, abaixo dos pacotes — leva a tela até ela,
+        // inclusive quando o PIX foi gerado pelo botão logo abaixo do card (InlinePayButton).
+        if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+          window.requestAnimationFrame(() => document.getElementById('criar-pagamento-box')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+        }
+
+        if (typeof window !== 'undefined' && window.fbq) {
+          // Correspondência avançada manual: telefone é obrigatório e já validado
+          // aqui, e-mail é opcional e só entra quando preenchido.
+          pushAdvancedMatching(formData.customerPhone, formData.customerEmail);
+          // Valor real do carrinho (9.99 ou 16.89 com vídeo), não um fixo — combo
+          // era subcontado como se fosse sempre a música avulsa.
+          window.fbq('track', 'InitiateCheckout', { value: getTotalPrice(), currency: 'BRL' });
+        }
+
+        identifyTikTok(formData.customerPhone, formData.customerEmail, orderId);
+        trackTikTok('InitiateCheckout', {
+          contents: [
+            {
+              content_id: sku || 'audio_only',
+              content_type: 'product',
+              content_name: 'Música Personalizada com IA',
+            },
+          ],
+          value: getTotalPrice(),
+          currency: 'BRL',
+        });
+      } else {
+        setPaymentErrorMessage(resultado.error);
+      }
+    } catch (err) {
+      console.error(err);
+      setPaymentErrorMessage('Falha ao conectar com o serviço de pagamento. Tente novamente.');
+    } finally {
+      setIsGeneratingPix(false);
+    }
+  };
+
   const renderWorkflowStep = () => {
     switch (step) {
       case 5: // Etapa 5: Geração de Letra & Edição / Opção "Já tenho minha letra" (Padrão Capivarinha Love)
@@ -2434,18 +2525,22 @@ export default function CriarMusica() {
             {/* Grid dos Pacotes Idêntico ao da Página de Entrega */}
             <div className="nx-package-grid" role="group" aria-label="Pacotes de Homenagem" style={{ marginBottom: '24px' }}>
               {deliveryPackages().map(item => (
-                <PackageCard
-                  key={item.sku}
-                  pack={item}
-                  isSelected={selectedPackageSku === item.sku}
-                  onSelect={() => handleSelectPackage(item.sku)}
-                  disabled={isGeneratingPix || isPayingCard}
-                />
+                <Fragment key={item.sku}>
+                  <PackageCard
+                    pack={item}
+                    isSelected={selectedPackageSku === item.sku}
+                    onSelect={() => handleSelectPackage(item.sku)}
+                    disabled={isGeneratingPix || isPayingCard}
+                  />
+                  {selectedPackageSku === item.sku && !pixInfo && (
+                    <InlinePayButton price={getTotalPrice()} onClick={gerarPixCriar} busy={isGeneratingPix} disabled={isPayingCard} />
+                  )}
+                </Fragment>
               ))}
             </div>
 
             {/* Box de Pagamento PIX e Cartão */}
-            <div style={{ backgroundColor: '#121626', borderRadius: '22px', border: '1.5px solid rgba(139, 92, 246, 0.3)', padding: '24px 22px', boxShadow: '0 8px 28px rgba(0,0,0,0.25)', maxWidth: '760px', margin: '0 auto' }}>
+            <div id="criar-pagamento-box" style={{ backgroundColor: '#121626', borderRadius: '22px', border: '1.5px solid rgba(139, 92, 246, 0.3)', padding: '24px 22px', boxShadow: '0 8px 28px rgba(0,0,0,0.25)', maxWidth: '760px', margin: '0 auto', scrollMarginTop: '80px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
                 <div
                   style={{
@@ -2498,88 +2593,7 @@ export default function CriarMusica() {
                         <button
                           type="button"
                           disabled={isGeneratingPix || isPayingCard}
-                          onClick={async () => {
-                          setIsGeneratingPix(true);
-                          setPaymentErrorMessage('');
-                          if (!formData.customerPhone || !isPhoneValid(formData.customerPhone)) {
-                            setPaymentErrorMessage('Por favor, informe um WhatsApp válido com DDD antes de gerar o PIX.');
-                            setIsGeneratingPix(false);
-                            return;
-                          }
-                          try {
-                            if (orderId) {
-                              // hasVideoAccess NUNCA é definido aqui: é um flag de acesso a produto pago
-                              // e só pode ser concedido pelo servidor após confirmação de pagamento
-                              // (ver C-09/A-07 em docs/audit/AUDIT_REPORT.md).
-                              try {
-                                await fetch('/api/orders/client-update', {
-                                  method: 'POST',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({
-                                    orderId,
-                                    total: getTotalPrice(),
-                                    package: formData.selectedPackage,
-                                    pixRequestedAt: new Date().toISOString()
-                                  })
-                                });
-                              } catch (e) {
-                                console.warn(e);
-                                setPaymentErrorMessage('Não foi possível salvar os dados do pedido. Verifique sua internet e tente novamente.');
-                                setIsGeneratingPix(false);
-                                return;
-                              }
-                            }
-
-                            const sku = selectedPackageSku || 'combo';
-                            // Retentativa compartilhada com o checkout de /entrega (ver
-                            // src/lib/pixCheckout.js): a chamada à Efí falha de forma intermitente e
-                            // insistir resolve, em vez de devolver um erro para o cliente que estava
-                            // com o cartão na mão.
-                            const resultado = await requestPixCharge({ orderId, sku });
-                            if (resultado.ok) {
-                              if (resultado.data?.checkoutUrl) {
-                                window.location.href = resultado.data.checkoutUrl;
-                                return;
-                              }
-                              // IMPORTANTE: não gravar paymentId aqui. O servidor (/api/payments/create)
-                              // já persiste o txid pendente em paymentIntentId. O campo paymentId só pode
-                              // ser escrito pelo servidor após aprovação real (ver applyPaymentApproval em
-                              // src/lib/payments.js) — gravá-lo aqui, ainda pendente, é o que permitia que
-                              // /api/payments/status aprovasse o pedido sem nunca checar a Efí (bug da
-                              // aprovação falsa).
-                              setPixInfo(resultado.data);
-
-                              if (typeof window !== 'undefined' && window.fbq) {
-                                // Correspondência avançada manual: telefone é obrigatório e já validado
-                                // aqui, e-mail é opcional e só entra quando preenchido.
-                                pushAdvancedMatching(formData.customerPhone, formData.customerEmail);
-                                // Valor real do carrinho (9.99 ou 16.89 com vídeo), não um fixo — combo
-                                // era subcontado como se fosse sempre a música avulsa.
-                                window.fbq('track', 'InitiateCheckout', { value: getTotalPrice(), currency: 'BRL' });
-                              }
-
-                              identifyTikTok(formData.customerPhone, formData.customerEmail, orderId);
-                              trackTikTok('InitiateCheckout', {
-                                contents: [
-                                  {
-                                    content_id: sku || 'audio_only',
-                                    content_type: 'product',
-                                    content_name: 'Música Personalizada com IA',
-                                  },
-                                ],
-                                value: getTotalPrice(),
-                                currency: 'BRL',
-                              });
-                            } else {
-                              setPaymentErrorMessage(resultado.error);
-                            }
-                          } catch (err) {
-                            console.error(err);
-                            setPaymentErrorMessage('Falha ao conectar com o serviço de pagamento. Tente novamente.');
-                          } finally {
-                            setIsGeneratingPix(false);
-                          }
-                        }}
+                          onClick={gerarPixCriar}
                         className="btn btn-primary"
                         style={{
                           width: '100%',

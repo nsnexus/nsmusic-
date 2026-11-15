@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Music, Mail, Film, Sparkles, Mic, Crown, ArrowRight, ShieldCheck, Check } from 'lucide-react';
 import PixQrCode from '@/components/PixQrCode';
 import PackageCard from './PackageCard';
+import InlinePayButton from './InlinePayButton';
 import { auth } from '@/lib/authClient';
 import { requestPixCharge } from '@/lib/pixCheckout';
 import { deliveryPackages, formatBrl } from '@/lib/deliveryPackages';
@@ -186,9 +187,14 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
     setPix(null);
     setError('');
     setMessage('');
-    // O botão de pagar fica abaixo de todos os cards; no celular o cliente escolhia o pacote e
-    // "nada acontecia". Leva a tela até o resumo com o botão verde logo depois da escolha.
-    const rolar = () => summary.current?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+    // No celular o botão de pagar aparece logo abaixo do card escolhido (InlinePayButton); garante
+    // que ele fique à vista. Em telas maiores ele é escondido via CSS, então leva até o resumo.
+    const rolar = () => {
+      if (typeof document === 'undefined') return;
+      const inline = document.getElementById('inline-pay');
+      if (inline && inline.offsetParent !== null) inline.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
+      else summary.current?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+    };
     if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') window.requestAnimationFrame(rolar);
     else rolar();
   };
@@ -206,14 +212,19 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
 
       {!recovery && (
         <div className="nx-package-grid" role="group" aria-label="Pacotes de Homenagem">
-          {catalog.map(item =>
-            PackageCard({
-              pack: item,
-              isSelected: selected === item.sku,
-              onSelect: () => choose(item.sku),
-              disabled: busy,
-            })
-          )}
+          {catalog.map(item => (
+            <Fragment key={item.sku}>
+              {PackageCard({
+                pack: item,
+                isSelected: selected === item.sku,
+                onSelect: () => choose(item.sku),
+                disabled: busy,
+              })}
+              {selected === item.sku && (
+                <InlinePayButton price={item.price} onClick={generate} busy={busy} disabled={payingCard} />
+              )}
+            </Fragment>
+          ))}
         </div>
       )}
 
