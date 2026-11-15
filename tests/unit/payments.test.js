@@ -141,6 +141,36 @@ describe('applyPaymentApproval', () => {
     expect(store['order4'].hasVideoAccess).toBeUndefined();
   });
 
+  it('combo pago com id fora do registro (ex.: comprovante): acha o SKU pelo valor das cobranças do pedido', async () => {
+    store['order_combo_e2e'] = {
+      paymentIntentId: 'TXID_AUDIO', paymentIntentSku: 'audio_only',
+      paymentIntentSkuByTxid: { TXID_COMBO: 'combo', TXID_AUDIO: 'audio_only' },
+      paymentIntentAmountByTxid: { TXID_COMBO: 16.9, TXID_AUDIO: 9.99 },
+      paymentId: null,
+    };
+
+    const result = await applyPaymentApproval('order_combo_e2e', 'E2E_DO_COMPROVANTE', { status: 'approved', transaction_amount: 16.9 });
+
+    expect(result.applied).toBe(true);
+    expect(store['order_combo_e2e'].paidSku).toBe('combo');
+    expect(store['order_combo_e2e'].hasVideoAccess).toBe(true);
+    expect(store['order_combo_e2e'].hasCartaAccess).toBe(true);
+  });
+
+  it('valor que bate com duas cobranças de SKUs diferentes não é adivinhado', async () => {
+    store['order_ambiguo'] = {
+      paymentIntentId: 'TXID_X', paymentIntentSku: 'audio_only',
+      paymentIntentSkuByTxid: { A: 'audio_only', B: 'retrospectiva_addon' },
+      paymentIntentAmountByTxid: { A: 9.99, B: 9.99 },
+      paymentId: null,
+    };
+
+    await applyPaymentApproval('order_ambiguo', 'OUTRO', { status: 'approved', transaction_amount: 9.99 });
+
+    expect(store['order_ambiguo'].paidSku).toBe('audio_only');
+    expect(store['order_ambiguo'].hasRetrospectivaAccess).toBeUndefined();
+  });
+
   it('A-09: o mesmo paymentId não é processado duas vezes (idempotência)', async () => {
     store['order5'] = { paymentIntentSku: 'audio_only', paymentId: null };
 

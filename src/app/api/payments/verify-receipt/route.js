@@ -113,7 +113,9 @@ export async function POST(req) {
     }
 
     if (isBankConfirmed) {
-      const result = await applyPaymentApproval(orderId, extracted.e2eId, {
+      // Aprova pelo txid da cobrança que a Efí confirmou: é ele que identifica o SKU pago (combo etc.).
+      // Com o e2eId do comprovante, o SKU não era encontrado e o combo virava 'audio_only'.
+      const result = await applyPaymentApproval(orderId, txid, {
         status: 'approved',
         transaction_amount: extracted.valor,
       }, env);
