@@ -200,7 +200,7 @@ export default function PreviaEncerradaModal({
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: '0.82rem', fontWeight: '800', color: '#065f46', letterSpacing: '0.01em' }}>
-              BÔNUS ESPECIAL INCLUSO 🎁
+              Bônus incluso
             </div>
             <div style={{ fontSize: '0.78rem', color: '#047857', lineHeight: 1.35, marginTop: '2px' }}>
               Ao liberar sua música, você ganha <strong>mais 2 músicas de bônus</strong>, com outra letra e outro estilo.
