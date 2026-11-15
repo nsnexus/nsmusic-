@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { Share2, Download, MessageCircle } from 'lucide-react';
+import { buildGiftUrl } from '@/lib/giftShare';
 import { markPreviewListened } from '@/lib/previewTracking';
 import { isInAppBrowser, isIOS, isAndroid, getChromeIntentUrl } from '@/lib/inAppBrowser';
 import CustomAudioPlayer from './CustomAudioPlayer';
@@ -48,14 +49,7 @@ export default function SongCard({
   const targetId = orderId || order?.id || order?.orderNumber;
 
   const share = async () => {
-    let chosenVersion = 1;
-    if (order?.homenagemMusicaUrl && Array.isArray(order?.audioFiles)) {
-      const idx = order.audioFiles.indexOf(order.homenagemMusicaUrl);
-      if (idx >= 0) chosenVersion = idx + 1;
-    } else if (typeof order?.homenagemTrackIndex === 'number') {
-      chosenVersion = order.homenagemTrackIndex + 1;
-    }
-    const url = `${window.location.origin}/h/${encodeURIComponent(targetId)}?v=${chosenVersion}`;
+    const url = buildGiftUrl(window.location.origin, order, targetId);
     try {
       if (navigator.share) await navigator.share({ title: `Uma homenagem para ${order?.honoreeName || 'alguém especial'}`, text: 'Preparei uma música para você.', url });
       else { await navigator.clipboard.writeText(url); setMessage('Link do presente copiado.'); }
@@ -85,7 +79,7 @@ export default function SongCard({
       <div className="nx-song-heading">
         <div className="nx-song-top" style={{ alignItems: 'center', gap: '20px' }}>
           {/* Vinil Rotativo + Capa da Homenagem */}
-          <div style={{ position: 'relative', width: '136px', height: '136px', flexShrink: 0 }}>
+          <div className="nx-cover-wrap" style={{ position: 'relative', width: '136px', height: '136px', flexShrink: 0 }}>
             {/* Vinil estilizado com sulcos de áudio que surge lateralmente e gira quando toca */}
             <div
               aria-hidden="true"

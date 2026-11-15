@@ -2503,3 +2503,13 @@
   align-items: flex-start;
   gap: 8px;
 }
+
+/* Entrega paga: topo mais compacto no celular */
+@media (max-width: 560px) {
+  .nx-post-layout > * { margin-bottom: 14px; }
+  .nx-cover-wrap { width: 92px !important; height: 92px !important; }
+  .nx-song-top { gap: 12px !important; }
+  .nx-song-heading h2 { font-size: 1.2rem; line-height: 1.2; }
+  .nx-song-heading .nx-eyebrow { letter-spacing: .06em; }
+  .nx-song-heading p { font-size: .85rem; margin: 2px 0 0; }
+}
