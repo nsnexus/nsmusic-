@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { auth, onAuthStateChanged, signOut } from '@/lib/authClient';
 import { lerConfigSite, normalizarNumeroWhatsapp, WHATSAPP_SUPORTE_PADRAO } from '@/lib/configSite';
 import { getPriceForSku } from '@/lib/pricing';
+import { formatBrl } from '@/lib/deliveryPackages';
 import { buildSunoPayload } from '@/lib/sunoPayload';
 import FaturamentoCards from '@/components/FaturamentoCards';
 import LimitesCota from '@/components/admin/LimitesCota';
@@ -2259,7 +2260,6 @@ export default function AdminDashboard() {
                               style={{
                                 ...styles.tr,
                                 backgroundColor: isSelected ? '#f1f5f9' : isPaid ? '#f0fdf4' : '#ffffff',
-                                borderLeft: isPaid ? '4px solid #22c55e' : '4px solid transparent'
                               }}
                             >
                               <td style={styles.td}>
@@ -2494,9 +2494,9 @@ export default function AdminDashboard() {
                                   const fee = isUs ? (total * 0.029 + 0.30) : (isCard ? calculateStripeFee(total) : 0);
                                   const net = isUs ? Math.max(0, total - fee) : (isCard ? calculateStripeNet(total) : total);
                                   const payout = isCard ? getPayoutStatus(o.paidAt || o.videoPaidAt || o.createdAt) : null;
-                                  const formattedValue = isUs ? `$ ${total.toFixed(2)} USD` : `R$ ${total.toFixed(2).replace('.', ',')}`;
-                                  const formattedNet = isUs ? `$ ${net.toFixed(2)} USD` : `R$ ${net.toFixed(2).replace('.', ',')}`;
-                                  const formattedFee = isUs ? `$ ${fee.toFixed(2)}` : `R$ ${fee.toFixed(2).replace('.', ',')}`;
+                                  const formattedValue = isUs ? `$ ${total.toFixed(2)} USD` : formatBrl(total);
+                                  const formattedNet = isUs ? `$ ${net.toFixed(2)} USD` : formatBrl(net);
+                                  const formattedFee = isUs ? `$ ${fee.toFixed(2)}` : formatBrl(fee);
                                   return (
                                     <div>
                                       <button
@@ -2530,7 +2530,7 @@ export default function AdminDashboard() {
                                         <div style={{ marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
                                           {items.map((item) => (
                                             <span key={item.label} style={{ fontSize: '0.7rem', fontWeight: '600', color: '#334155', whiteSpace: 'nowrap' }}>
-                                              {item.label}: {isUs ? `$ ${item.amount.toFixed(2)}` : `R$ ${item.amount.toFixed(2).replace('.', ',')}`}
+                                              {item.label}: {isUs ? `$ ${item.amount.toFixed(2)}` : formatBrl(item.amount)}
                                             </span>
                                           ))}
                                         </div>
@@ -2693,7 +2693,7 @@ export default function AdminDashboard() {
                       <strong>
                         {auditResult.verificados} cobrança(s) conferida(s) em {auditResult.dias} dia(s) —{' '}
                         {auditResult.pagosNaoLiberados} paga(s) e não liberada(s)
-                        {auditResult.pagosNaoLiberados > 0 ? ` (R$ ${auditResult.valorTotal.toFixed(2).replace('.', ',')})` : ''}.
+                        {auditResult.pagosNaoLiberados > 0 ? ` (${formatBrl(auditResult.valorTotal)})` : ''}.
                       </strong>
                       {auditResult.naoVerificados > 0 && (
                         <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px dashed #cbd5e1' }}>
@@ -2728,7 +2728,7 @@ export default function AdminDashboard() {
                             <div key={it.txid} style={{ padding: '8px 10px', background: '#ffffff', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem', color: '#0f172a' }}>
                               <strong>{it.orderNumber || it.orderId}</strong> · {it.customerName || 'Cliente'} · {it.customerPhone || 'sem telefone'}
                               <br />
-                              {it.tipo === 'addon' ? `Add-on (${it.sku})` : 'Música'} · R$ {Number(it.valor || 0).toFixed(2).replace('.', ',')} · pago em {it.pagoEm ? new Date(it.pagoEm).toLocaleString('pt-BR') : '—'}
+                              {it.tipo === 'addon' ? `Add-on (${it.sku})` : 'Música'} · {formatBrl(Number(it.valor || 0))} · pago em {it.pagoEm ? new Date(it.pagoEm).toLocaleString('pt-BR') : '—'}
                               {it.aprovado && <span style={{ color: '#059669', fontWeight: '700' }}> · ✅ liberado agora</span>}
                               {it.erroAprovacao && <span style={{ color: '#b91c1c', fontWeight: '700' }}> · ❌ falhou ao liberar</span>}
                             </div>
