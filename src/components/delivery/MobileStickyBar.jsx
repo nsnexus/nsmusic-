@@ -66,7 +66,7 @@ export default function MobileStickyBar({ onScrollToCheckout }) {
           onClick={onScrollToCheckout}
           style={{
             width: '100%',
-            backgroundColor: '#059669',
+            backgroundColor: 'var(--nx-pay, #059669)',
             color: '#ffffff',
             border: 'none',
             borderRadius: '14px',

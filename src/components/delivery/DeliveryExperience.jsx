@@ -195,7 +195,7 @@ export default function DeliveryExperience({
         <Link
           href={`/criar?orderRef=${encodeURIComponent(secondGenOrder?.id || secondGenOrder?.orderNumber || '')}`}
           className="nx-button"
-          style={{ background: '#059669', color: '#fff', borderColor: '#059669', textDecoration: 'none' }}
+          style={{ background: 'var(--nx-pay, #059669)', color: '#fff', borderColor: '#059669', textDecoration: 'none' }}
         >
           Continuar Criação da 2ª Música →
         </Link>
@@ -512,7 +512,7 @@ export default function DeliveryExperience({
               <Link
                 href={`/criar?novo=1&origem=segunda_geracao&orderRef=${encodeURIComponent(orderId || order?.id || '')}`}
                 className="nx-button"
-                style={{ background: '#059669', borderColor: '#059669', color: '#ffffff', fontWeight: 700 }}
+                style={{ background: 'var(--nx-pay, #059669)', borderColor: '#059669', color: '#ffffff', fontWeight: 700 }}
               >
                 ✨ Criar Minhas +2 Músicas Grátis
               </Link>
