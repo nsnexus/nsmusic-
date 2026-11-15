@@ -15,7 +15,7 @@ export async function GET(req) {
     const supabase = getSupabaseEdge(env);
     if (!supabase) throw new Error('Conta indisponível.');
     const { data, error } = await supabase.from('orders')
-      .select('id,order_number,honoree_name,cover_url,music_style,payment_status,production_status,created_at')
+      .select('id,order_number,honoree_name,cover_url,music_style,payment_status,production_status,created_at,has_video_access,has_carta_access,has_retrospectiva_access,has_playback_access,has_karaoke_access,voz:extras->hasCustomVoiceAccess,voz_paga:extras->customVoiceAddonPaid')
       .eq('user_id', customer.uid).is('deleted_at', null)
       .neq('production_status', 'RASCUNHO').neq('production_status', 'CONFIG')
       .order('created_at', { ascending: false }).range(page * 20, page * 20 + 20);
@@ -25,6 +25,11 @@ export async function GET(req) {
         id: row.id, orderNumber: row.order_number, honoreeName: row.honoree_name,
         coverUrl: row.cover_url, musicStyle: row.music_style, paymentStatus: row.payment_status,
         productionStatus: row.production_status, createdAt: row.created_at,
+        extras: {
+          video: Boolean(row.has_video_access), carta: Boolean(row.has_carta_access),
+          retrospectiva: Boolean(row.has_retrospectiva_access), playback: Boolean(row.has_playback_access),
+          karaoke: Boolean(row.has_karaoke_access), voz: row.voz === true || row.voz_paga === true,
+        },
       })), hasMore: (data || []).length > 20,
     }, { headers: { 'Cache-Control': 'no-store' } });
   } catch {

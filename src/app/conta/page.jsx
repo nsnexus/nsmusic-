@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import ListaPedidos from '@/components/conta/ListaPedidos';
 import { auth, onAuthStateChanged, signOut } from '@/lib/authClient';
 import { supabase } from '@/lib/supabase';
 
@@ -218,35 +219,7 @@ export default function ContaPage() {
               </Link>
             </div>
 
-            <div className="nx-library-grid">
-              {orders.map(order => {
-                const paid = ['PAGO', 'PAGAMENTO_APROVADO'].includes(order.paymentStatus);
-                return (
-                  <article className="nx-card" key={order.id}>
-                    <Image
-                      className="nx-library-cover"
-                      src={order.coverUrl || '/experiencia/familia.webp'}
-                      alt=""
-                      width={640}
-                      height={426}
-                      unoptimized={Boolean(order.coverUrl)}
-                      sizes="(max-width: 700px) 90vw, 330px"
-                      onError={(e) => {
-                        if (e.currentTarget.src !== '/experiencia/familia.webp') {
-                          e.currentTarget.src = '/experiencia/familia.webp';
-                        }
-                      }}
-                    />
-                    <span className="nx-eyebrow">{paid ? 'Presente liberado' : 'Sua criação'}</span>
-                    <h2>Para {order.honoreeName || 'alguém especial'}</h2>
-                    <p className="nx-helper">{order.musicStyle || 'Música personalizada'} · {order.orderNumber}</p>
-                    <Link className="nx-button nx-primary" href={`/entrega?orderId=${encodeURIComponent(order.id)}`}>
-                      {paid ? 'Ouvir e acessar presente' : 'Acompanhar e ouvir prévia'}
-                    </Link>
-                  </article>
-                );
-              })}
-            </div>
+            <ListaPedidos orders={orders} />
 
             {!loading && !orders.length && !error && (
               <div className="nx-card">
