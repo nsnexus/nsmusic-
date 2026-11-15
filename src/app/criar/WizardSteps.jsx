@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { Mic, Users, Check, Camera, Trash2, Heart, Music, Sparkles } from 'lucide-react';
 import { styles } from './wizardStyles';
 import { occasions, stylesList, moods, recipients } from './wizardOptions';
+import { formatBrl } from '@/lib/deliveryPackages';
+import { getPriceForSku } from '@/lib/pricing';
 
 export default function WizardSteps({
   step,
@@ -33,6 +35,9 @@ export default function WizardSteps({
           <h1 style={styles.stepTitle}>Quem vai ser homenageado? ✨</h1>
           <p style={styles.stepSubtitle}>
             Escolha a ocasião e os nomes de quem está dedicando e recebendo a música.
+          </p>
+          <p style={{ textAlign: 'center', margin: '-6px 0 18px', fontSize: '0.92rem', color: '#475569', fontWeight: 600 }}>
+            Você ouve a prévia grátis antes de pagar. A música completa sai a partir de {formatBrl(getPriceForSku('audio_only'))}, só se gostar.
           </p>
 
           <div
@@ -64,10 +69,10 @@ export default function WizardSteps({
                 📅
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <label style={{ fontSize: '0.94rem', fontWeight: '700', color: '#0f172a', marginBottom: '8px', display: 'block' }}>
+                <label htmlFor="wz-campo-1" style={{ fontSize: '0.94rem', fontWeight: '700', color: '#0f172a', marginBottom: '8px', display: 'block' }}>
                   Qual é a ocasião especial? <span style={{ color: '#ef4444' }}>*</span>
                 </label>
-                <select
+                <select id="wz-campo-1"
                   value={formData.occasion || ''}
                   onChange={(e) => updateField('occasion', e.target.value)}
                   style={{
@@ -115,10 +120,10 @@ export default function WizardSteps({
                 👤
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <label style={{ fontSize: '0.94rem', fontWeight: '700', color: '#0f172a', marginBottom: '8px', display: 'block' }}>
+                <label htmlFor="wz-campo-2" style={{ fontSize: '0.94rem', fontWeight: '700', color: '#0f172a', marginBottom: '8px', display: 'block' }}>
                   Seu primeiro nome (quem está dedicando) <span style={{ color: '#ef4444' }}>*</span>
                 </label>
-                <input
+                <input id="wz-campo-2"
                   type="text"
                   value={formData.customerName || ''}
                   onChange={(e) => {
@@ -166,7 +171,7 @@ export default function WizardSteps({
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
-                  <label style={{ fontSize: '0.94rem', fontWeight: '700', color: '#0f172a', margin: 0 }}>
+                  <label htmlFor="wz-honoree" style={{ fontSize: '0.94rem', fontWeight: '700', color: '#0f172a', margin: 0 }}>
                     Nome de quem vai receber a música <span style={{ color: '#ef4444' }}>*</span>
                   </label>
                   
@@ -206,7 +211,7 @@ export default function WizardSteps({
                   </button>
                 </div>
 
-                <input
+                <input id="wz-honoree"
                   type="text"
                   value={formData.honoreeName || ''}
                   readOnly={isSelfTribute}
@@ -253,7 +258,7 @@ export default function WizardSteps({
                 ❤️
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <label style={{ fontSize: '0.94rem', fontWeight: '700', color: '#0f172a', marginBottom: '8px', display: 'block' }}>
+                <label htmlFor="wz-campo-3" style={{ fontSize: '0.94rem', fontWeight: '700', color: '#0f172a', marginBottom: '8px', display: 'block' }}>
                   O que essa pessoa é sua? (Grau de parentesco ou relação) <span style={{ color: '#ef4444' }}>*</span>
                 </label>
 
@@ -277,7 +282,7 @@ export default function WizardSteps({
                   </div>
                 ) : (
                   <>
-                    <select
+                    <select id="wz-campo-3"
                       value={formData.relationship || ''}
                       onChange={(e) => {
                         const val = e.target.value;
@@ -394,7 +399,7 @@ export default function WizardSteps({
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
-                  <label style={{ fontSize: '0.94rem', fontWeight: '700', color: '#0f172a', margin: 0 }}>
+                  <label htmlFor="wz-story" style={{ fontSize: '0.94rem', fontWeight: '700', color: '#0f172a', margin: 0 }}>
                     Sua história de vida, momentos e sentimentos <span style={{ color: '#ef4444' }}>*</span>
                   </label>
 
@@ -448,7 +453,7 @@ export default function WizardSteps({
                   </button>
                 </div>
 
-                <textarea
+                <textarea id="wz-story"
                   value={formData.story || ''}
                   onChange={(e) => updateField('story', e.target.value)}
                   placeholder="Como vocês se conheceram? Qual o momento mais especial? O que essa pessoa significa pra você? (Ou clique no botão Ditar por Voz acima para falar)"
@@ -546,10 +551,10 @@ export default function WizardSteps({
                 🎸
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <label style={{ fontSize: '0.94rem', fontWeight: '700', color: '#0f172a', marginBottom: '8px', display: 'block' }}>
+                <label htmlFor="wz-campo-4" style={{ fontSize: '0.94rem', fontWeight: '700', color: '#0f172a', marginBottom: '8px', display: 'block' }}>
                   Ritmo da música (Gênero) <span style={{ color: '#ef4444' }}>*</span>
                 </label>
-                <select
+                <select id="wz-campo-4"
                   value={formData.musicStyle || ''}
                   onChange={(e) => updateField('musicStyle', e.target.value)}
                   style={{
@@ -596,10 +601,10 @@ export default function WizardSteps({
                 ✨
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <label style={{ fontSize: '0.94rem', fontWeight: '700', color: '#0f172a', marginBottom: '8px', display: 'block' }}>
+                <label htmlFor="wz-campo-5" style={{ fontSize: '0.94rem', fontWeight: '700', color: '#0f172a', marginBottom: '8px', display: 'block' }}>
                   Clima da música (Sentimento) <span style={{ color: '#ef4444' }}>*</span>
                 </label>
-                <select
+                <select id="wz-campo-5"
                   value={formData.musicMood || ''}
                   onChange={(e) => updateField('musicMood', e.target.value)}
                   style={{
@@ -977,10 +982,10 @@ export default function WizardSteps({
                     👤
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <label style={{ fontSize: '0.92rem', fontWeight: '700', color: '#0f172a', marginBottom: '6px', display: 'block' }}>
+                    <label htmlFor="wz-campo-6" style={{ fontSize: '0.92rem', fontWeight: '700', color: '#0f172a', marginBottom: '6px', display: 'block' }}>
                       Seu nome completo ou apelido <span style={{ color: '#ef4444' }}>*</span>
                     </label>
-                    <input
+                    <input id="wz-campo-6"
                       type="text"
                       value={formData.customerName || ''}
                       onChange={(e) => updateField('customerName', e.target.value)}
@@ -1023,10 +1028,10 @@ export default function WizardSteps({
                     💬
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <label style={{ fontSize: '0.92rem', fontWeight: '700', color: '#0f172a', marginBottom: '6px', display: 'block' }}>
+                    <label htmlFor="wz-campo-7" style={{ fontSize: '0.92rem', fontWeight: '700', color: '#0f172a', marginBottom: '6px', display: 'block' }}>
                       Seu WhatsApp (com DDD) <span style={{ color: '#ef4444' }}>*</span>
                     </label>
-                    <input
+                    <input id="wz-campo-7"
                       type="tel"
                       value={formData.customerPhone || ''}
                       onChange={(e) => handlePhoneChange(e.target.value)}
