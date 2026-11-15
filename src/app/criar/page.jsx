@@ -1484,6 +1484,7 @@ export default function CriarMusica() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...buildSunoPayload(formData),
+          autoTags: true,
           orderId: activeOrderId
         })
       });
