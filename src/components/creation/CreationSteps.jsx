@@ -166,9 +166,16 @@ export default function CreationSteps({
     }
 
     if (card.relations && card.relations.length > 0) {
+      // Cards com duas opções (Mãe / Pai etc.) não pré-selecionam: a pessoa precisa escolher de
+      // propósito, senão muita gente segue sem perceber que ficou "Pai" marcado.
       if (!card.relations.includes(data.relationship)) {
-        updateField('relationship', card.relations[0]);
-        updateField('recipientType', card.relations[0]);
+        if (card.relations.length > 1) {
+          updateField('relationship', '');
+          updateField('recipientType', '');
+        } else {
+          updateField('relationship', card.relations[0]);
+          updateField('recipientType', card.relations[0]);
+        }
       }
       return;
     }
@@ -193,6 +200,8 @@ export default function CreationSteps({
     const isOccasionInQuick = quickOccasionIds.includes(data.occasion);
 
     const activeCardObj = RECIPIENT_CARDS.find(c => c.id === activeCardId);
+    const normNome = (v) => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+    const namesLookSwapped = Boolean(normNome(data.honoreeName)) && normNome(data.honoreeName) === normNome(data.customerName);
 
     return (
       <section className="nx-form-column" style={{ width: '100%', maxWidth: '34rem', margin: '0 auto' }}>
@@ -229,20 +238,20 @@ export default function CreationSteps({
 
           {/* Sub-pills se a categoria tem mais de uma variação (ex: Namorada vs Namorado, Mãe vs Pai) */}
           {activeCardObj && activeCardObj.relations && activeCardObj.relations.length > 1 && (
-            <div style={{
+            <div data-missing={!data.relationship ? 'true' : undefined} style={{
               margin: '-4px 0 16px',
               padding: '10px 14px',
               borderRadius: '14px',
-              background: '#f8fafc',
-              border: '1px solid #e2e8f0',
+              background: !data.relationship ? '#fffbeb' : '#f8fafc',
+              border: !data.relationship ? (showValidation ? '1.5px solid #dc2626' : '1.5px solid #f59e0b') : '1px solid #e2e8f0',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
               flexWrap: 'wrap',
               gap: '8px'
             }}>
-              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#4f46e5' }}>
-                Especificar:
+              <span style={{ fontSize: '0.84rem', fontWeight: 700, color: !data.relationship ? (showValidation ? '#dc2626' : '#b45309') : '#4f46e5' }}>
+                {!data.relationship ? `Escolha: ${activeCardObj.relations.join(' ou ')}` : 'Quem é?'}
               </span>
               <div style={{ display: 'flex', gap: '8px' }}>
                 {activeCardObj.relations.map(rel => {
@@ -256,9 +265,9 @@ export default function CreationSteps({
                         updateField('recipientType', rel);
                       }}
                       style={{
-                        padding: '6px 14px',
+                        padding: '8px 18px',
                         borderRadius: '100px',
-                        fontSize: '0.82rem',
+                        fontSize: '0.88rem',
                         fontWeight: 700,
                         border: isRelActive ? '1px solid #4f46e5' : '1px solid #cbd5e1',
                         backgroundColor: isRelActive ? '#4f46e5' : '#ffffff',
@@ -291,33 +300,48 @@ export default function CreationSteps({
 
         {/* 2. NOMES NA MÚSICA */}
         <div style={{ marginTop: '1.4rem' }}>
-          <div className="wz-t">Nome de quem vai receber</div>
-          <div className="wz-s">
-            Coloque o nome ou apelido de quem vai receber a homenagem. Esse nome vai aparecer na letra <b>exatamente como você escrever</b>.
-          </div>
+          {!isSelfTribute && (
+            <>
+              <div className="wz-t">Nome de quem vai receber</div>
+              <div className="wz-s">
+                A <b>pessoa homenageada</b>: o nome ou apelido dela aparece na letra <b>exatamente como você escrever</b>.
+              </div>
 
-          <div data-missing={isHonoreeMissing ? "true" : undefined} style={{ marginBottom: '14px' }}>
-            <input
-              className={`wz-inp ${isHonoreeMissing ? 'erro' : ''}`}
-              value={data.honoreeName || ''}
-              readOnly={isSelfTribute}
-              onChange={e => updateField('honoreeName', e.target.value)}
-              placeholder={isSelfTribute ? 'Seu próprio nome' : 'Digite o nome... (Ex: Helena)'}
-              autoComplete="off"
-              maxLength={100}
-            />
-            {isHonoreeMissing && (
-              <span style={{ fontSize: '0.72rem', color: '#dc2626', fontWeight: 700, marginTop: '4px', display: 'block' }}>
-                ● Digite o nome de quem vai receber
-              </span>
-            )}
-          </div>
+              <div data-missing={isHonoreeMissing ? "true" : undefined} style={{ marginBottom: '14px' }}>
+                <label htmlFor="wz-nome-homenageado" style={{ display: 'block', fontSize: '0.88rem', fontWeight: 700, color: '#1E1418', marginBottom: '6px' }}>
+                  Nome de quem recebe o presente *
+                </label>
+                <input
+                  id="wz-nome-homenageado"
+                  className={`wz-inp ${isHonoreeMissing ? 'erro' : ''}`}
+                  value={data.honoreeName || ''}
+                  onChange={e => updateField('honoreeName', e.target.value)}
+                  placeholder="Ex: Helena"
+                  autoComplete="off"
+                  maxLength={100}
+                />
+                {isHonoreeMissing && (
+                  <span style={{ fontSize: '0.72rem', color: '#dc2626', fontWeight: 700, marginTop: '4px', display: 'block' }}>
+                    ● Digite o nome de quem vai receber
+                  </span>
+                )}
+              </div>
+            </>
+          )}
+
+          {isSelfTribute && (
+            <>
+              <div className="wz-t">Seu nome</div>
+              <div className="wz-s">A música é sua: o nome que você digitar aparece na letra <b>exatamente como escrever</b>.</div>
+            </>
+          )}
 
           <div data-missing={isCustomerMissing ? "true" : undefined} style={{ marginBottom: '16px' }}>
-            <label style={{ display: 'block', fontSize: '0.88rem', fontWeight: 700, color: '#1E1418', marginBottom: '6px' }}>
-              Seu primeiro nome (quem está dedicando) *
+            <label htmlFor="wz-nome-cliente" style={{ display: 'block', fontSize: '0.88rem', fontWeight: 700, color: '#1E1418', marginBottom: '6px' }}>
+              {isSelfTribute ? 'Seu primeiro nome *' : 'Seu primeiro nome (você, que está dando o presente) *'}
             </label>
             <input
+              id="wz-nome-cliente"
               className={`wz-inp ${isCustomerMissing ? 'erro' : ''}`}
               value={data.customerName || ''}
               onChange={e => {
@@ -332,6 +356,11 @@ export default function CreationSteps({
               <span style={{ fontSize: '0.72rem', color: '#dc2626', fontWeight: 700, marginTop: '4px', display: 'block' }}>
                 ● Digite o seu primeiro nome
               </span>
+            )}
+            {!isSelfTribute && namesLookSwapped && (
+              <div role="alert" style={{ marginTop: '8px', padding: '10px 12px', borderRadius: '10px', background: '#fffbeb', border: '1px solid #f59e0b', color: '#92400e', fontSize: '0.84rem', lineHeight: 1.4 }}>
+                Os dois nomes estão iguais. O campo de cima é de <b>quem vai receber</b> o presente; este é o <b>seu</b> nome. Confira antes de continuar.
+              </div>
             )}
           </div>
         </div>
