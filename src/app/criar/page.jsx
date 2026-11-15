@@ -27,6 +27,7 @@ import { getPriceForSku } from '@/lib/pricing';
 import PackageCard from '@/components/delivery/PackageCard';
 import InlinePayButton from '@/components/delivery/InlinePayButton';
 import { deliveryPackages, formatBrl } from '@/lib/deliveryPackages';
+import { Zap, Copy, CheckCircle2, CreditCard, Loader2 } from 'lucide-react';
 
 // Tempo na tela de produção depois do qual o cliente sempre ganha uma saída (conferir de novo,
 // recomeçar ou chamar no WhatsApp). Maior que o corte de 6 min do polling de propósito: só entra
@@ -2543,30 +2544,15 @@ export default function CriarMusica() {
             </div>
 
             {/* Box de Pagamento PIX e Cartão */}
-            <div id="criar-pagamento-box" style={{ backgroundColor: '#121626', borderRadius: '22px', border: '1.5px solid rgba(139, 92, 246, 0.3)', padding: '24px 22px', boxShadow: '0 8px 28px rgba(0,0,0,0.25)', maxWidth: '760px', margin: '0 auto', scrollMarginTop: '80px' }}>
+            <div id="criar-pagamento-box" style={{ backgroundColor: '#ffffff', borderRadius: '16px', border: '1.5px solid #e7e0e8', padding: '24px 20px', maxWidth: '760px', margin: '0 auto', scrollMarginTop: '80px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-                <div
-                  style={{
-                    width: '40px',
-                    height: '40px',
-                    borderRadius: '12px',
-                    backgroundColor: 'rgba(52, 211, 153, 0.16)',
-                    border: '1px solid rgba(52, 211, 153, 0.4)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '1.2rem',
-                    flexShrink: 0,
-                  }}
-                >
-                  ⚡
-                </div>
+                <Zap size={26} color="#059669" aria-hidden="true" style={{ flexShrink: 0 }} />
                 <div>
-                  <h3 style={{ fontSize: '1.2rem', color: '#ffffff', fontWeight: '800', margin: 0 }}>
+                  <h3 style={{ fontSize: '1.2rem', color: '#29232d', fontWeight: '800', margin: 0 }}>
                     Pagamento Seguro & Liberação Imediata
                   </h3>
-                  <span style={{ fontSize: '0.78rem', color: '#34d399', fontWeight: '700' }}>
-                    ✓ Liberação automática das suas músicas em MP3 HD em segundos
+                  <span style={{ fontSize: '0.84rem', color: '#047857', fontWeight: '700' }}>
+                    Liberação automática das suas músicas em MP3 HD em segundos
                   </span>
                 </div>
               </div>
@@ -2578,17 +2564,17 @@ export default function CriarMusica() {
                         {(() => {
                           const currentPack = deliveryPackages().find(p => p.sku === selectedPackageSku) || deliveryPackages()[2];
                           return (
-                            <div style={{ padding: '14px 18px', borderRadius: '14px', background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap', gap: '8px' }}>
+                            <div style={{ padding: '14px 18px', borderRadius: '14px', background: '#faf8f5', border: '1px solid #e7e0e8', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap', gap: '8px' }}>
                               <div>
-                                <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#c084fc', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block' }}>
-                                  PACOTE SELECIONADO
+                                <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#67408b', display: 'block' }}>
+                                  Seu pacote
                                 </span>
-                                <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#ffffff' }}>
+                                <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#29232d' }}>
                                   {currentPack.label}
                                 </div>
                               </div>
-                              <div style={{ fontSize: '1.35rem', fontWeight: 900, color: '#34d399' }}>
-                                R$ {getTotalPrice().toFixed(2).replace('.', ',')}
+                              <div style={{ fontSize: '1.35rem', fontWeight: 900, color: '#29232d', fontVariantNumeric: 'tabular-nums' }}>
+                                {formatBrl(getTotalPrice())}
                               </div>
                             </div>
                           );
@@ -2606,11 +2592,10 @@ export default function CriarMusica() {
                           fontSize: '1.05rem',
                           fontWeight: '800',
                           borderRadius: '14px',
-                          background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                          background: '#059669',
                           color: '#ffffff',
                           border: 'none',
                           cursor: (isGeneratingPix || isPayingCard) ? 'default' : 'pointer',
-                          boxShadow: '0 4px 16px rgba(5, 150, 105, 0.35)',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
@@ -2619,7 +2604,7 @@ export default function CriarMusica() {
                           transition: 'all 0.15s ease',
                         }}
                       >
-                        {isGeneratingPix ? '⏳ Preparando seu PIX...' : `⚡ Pagar com PIX (${formatBrl(getTotalPrice())})`}
+                        {isGeneratingPix ? (<><Loader2 size={18} aria-hidden="true" /><span>Preparando seu PIX…</span></>) : (<><Zap size={18} aria-hidden="true" /><span>Pagar com PIX ({formatBrl(getTotalPrice())})</span></>)}
                       </button>
 
                       <button
@@ -2634,11 +2619,10 @@ export default function CriarMusica() {
                           fontSize: '0.96rem',
                           fontWeight: '700',
                           borderRadius: '14px',
-                          background: 'rgba(255, 255, 255, 0.08)',
-                          color: '#ffffff',
-                          border: '1.5px solid rgba(255, 255, 255, 0.15)',
+                          background: '#ffffff',
+                          color: '#29232d',
+                          border: '1.5px solid #cfc6d1',
                           cursor: (isGeneratingPix || isPayingCard) ? 'default' : 'pointer',
-                          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
@@ -2647,13 +2631,13 @@ export default function CriarMusica() {
                           transition: 'all 0.15s ease',
                         }}
                       >
-                        {isPayingCard ? '⏳ Abrindo Checkout Seguro...' : '💳 Pagar com Cartão de Crédito'}
+                        {isPayingCard ? (<><Loader2 size={18} aria-hidden="true" /><span>Abrindo checkout seguro…</span></>) : (<><CreditCard size={18} aria-hidden="true" /><span>Pagar com Cartão de Crédito</span></>)}
                       </button>
                     </div>
                   ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', background: '#f8fafc', padding: '24px 20px', borderRadius: '20px', border: '1.5px solid #e2e8f0', maxWidth: '100%' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', padding: '4px 0 0', maxWidth: '100%' }}>
                         <span style={{ fontSize: '0.88rem', color: '#059669', fontWeight: '800', backgroundColor: '#ecfdf5', padding: '4px 14px', borderRadius: '999px', border: '1px solid #a7f3d0' }}>
-                          ✅ QR Code PIX Gerado com Sucesso!
+                          <CheckCircle2 size={15} aria-hidden="true" style={{ verticalAlign: '-2px', marginRight: '6px' }} />QR Code PIX gerado
                         </span>
 
                         {pixPollingTimedOut && (
@@ -2717,14 +2701,12 @@ export default function CriarMusica() {
                           return (
                             <>
                               <div style={{ width: '100%' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                                  <label htmlFor="pix-copia-cola-criar" style={{ fontSize: '0.82rem', color: '#475569', fontWeight: '600', cursor: 'pointer' }}>
-                                    Ou use o código PIX Copia e Cola:
-                                  </label>
-                                  <span style={{ fontSize: '0.72rem', color: pixCopied ? '#059669' : '#64748b', fontWeight: '600' }}>
-                                    {pixCopied ? '✅ Copiado!' : '👆 Clique na caixa para copiar'}
-                                  </span>
-                                </div>
+                                <label htmlFor="pix-copia-cola-criar" style={{ display: 'block', fontSize: '0.9rem', color: '#29232d', fontWeight: 700, marginBottom: '2px' }}>
+                                  Ou use o PIX Copia e Cola
+                                </label>
+                                <p style={{ margin: '0 0 8px', fontSize: '0.82rem', color: pixCopied ? '#047857' : '#6c636f', fontWeight: 600 }}>
+                                  {pixCopied ? 'Código copiado! Cole no app do seu banco.' : 'Toque na caixa abaixo para copiar o código.'}
+                                </p>
                                 <textarea
                                   id="pix-copia-cola-criar"
                                   readOnly
@@ -2757,15 +2739,15 @@ export default function CriarMusica() {
                                   padding: '14px',
                                   borderRadius: '12px',
                                   border: 'none',
-                                  background: pixCopied ? '#059669' : 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                                  background: '#059669',
                                   color: '#FFFFFF',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
                                   fontWeight: '800',
                                   fontSize: '1rem',
                                   cursor: 'pointer',
-                                  boxShadow: '0 4px 14px rgba(5, 150, 105, 0.25)'
                                 }}
                               >
-                                {pixCopied ? '✅ Código PIX Copiado!' : '📋 Copiar Código PIX'}
+                                {pixCopied ? (<><CheckCircle2 size={20} aria-hidden="true" /><span>Código PIX copiado!</span></>) : (<><Copy size={20} aria-hidden="true" /><span>Copiar código PIX</span></>)}
                               </button>
                             </>
                           );
@@ -2807,23 +2789,22 @@ export default function CriarMusica() {
                           }}
                           style={{
                             width: '100%',
-                            padding: '14px',
+                            padding: '12px',
                             borderRadius: '12px',
-                            border: 'none',
-                            background: 'linear-gradient(135deg, #7c3aed 0%, #4c1d95 100%)',
-                            color: '#FFFFFF',
-                            fontWeight: '800',
-                            fontSize: '1rem',
+                            border: '1.5px solid #cfc6d1',
+                            background: '#ffffff',
+                            color: '#29232d',
+                            fontWeight: '700',
+                            fontSize: '0.94rem',
                             cursor: 'pointer',
                             marginTop: '4px',
-                            boxShadow: '0 4px 14px rgba(124, 58, 237, 0.3)'
                           }}
                         >
-                          ⚡ Já Fiz o Pagamento / Validar Agora
+                          Já paguei, verificar agora
                         </button>
 
                         <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #e2e8f0', width: '100%', textAlign: 'center' }}>
-                          <span style={{ fontSize: '0.84rem', color: '#64748b' }}>Prefere pagar no Cartão de Crédito? </span>
+                          <span style={{ fontSize: '0.84rem', color: '#64748b' }}>Prefere o cartão? </span>
                           <button
                             type="button"
                             onClick={handlePayWithCard}
@@ -2839,7 +2820,7 @@ export default function CriarMusica() {
                               padding: '2px 4px',
                             }}
                           >
-                            {isPayingCard ? 'Abrindo Cartão...' : 'Clique aqui para pagar no Cartão 💳'}
+                            {isPayingCard ? 'Abrindo Cartão...' : 'Prefere pagar no cartão de crédito?'}
                           </button>
                         </div>
 
