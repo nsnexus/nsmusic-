@@ -5,13 +5,13 @@ vi.mock('@/lib/supabase-edge', () => ({ getSupabaseEdge: () => mock }));
 
 import { resetCustomerVoice } from '@/lib/customerVoices';
 
-function criarMock({ voices = [], config = [], erroUpdate = null }) {
-  const db = { customer_voices: voices, config };
+function criarMock({ voices = [], config = [], orders = [], erroUpdate = null }) {
+  const db = { customer_voices: voices, config, orders };
   return {
     db,
     from(tabela) {
       const q = { tabela, filtros: [], acao: 'select', patch: null };
-      const linhas = () => db[tabela].filter((r) => q.filtros.every(([c, vals]) => vals.includes(r[c])));
+      const linhas = () => db[tabela].filter((r) => q.filtros.every((f) => (typeof f === 'function' ? f(r) : f[1].includes(r[f[0]]))));
       const exec = () => {
         if (q.acao === 'update') {
           if (erroUpdate && tabela === 'customer_voices') return { data: null, error: { message: erroUpdate } };
@@ -26,6 +26,10 @@ function criarMock({ voices = [], config = [], erroUpdate = null }) {
         select() { return api; },
         in(c, vals) { q.filtros.push([c, vals]); return api; },
         eq(c, v) { q.filtros.push([c, [v]]); return api; },
+        like(c, p) { const fim = p.replace(/^%/, ''); q.filtros.push((r) => String(r[c] || '').endsWith(fim)); return api; },
+        is(c, v) { q.filtros.push((r) => (v === null ? r[c] == null : r[c] === v)); return api; },
+        limit() { return api; },
+        maybeSingle() { return Promise.resolve(exec()).then((r) => ({ data: r.data?.[0] || null, error: r.error })); },
         update(patch) { q.acao = 'update'; q.patch = patch; return Promise.resolve(exec()); },
         then(res, rej) { return Promise.resolve(exec()).then(res, rej); },
       };
@@ -69,5 +73,24 @@ describe('resetCustomerVoice', () => {
     const res = await resetCustomerVoice('5511999998888');
     expect(res.ok).toBe(true);
     expect(mock.db.config[0].valor).toMatchObject({ status: 'redefinido', voiceId: '' });
+  });
+
+  it('tira a voz clonada dos pedidos do cliente para ele poder regravar', async () => {
+    mock = criarMock({
+      voices: [{ phone: '5511999998888', status: 'ativo', voice_id: 'v1' }],
+      orders: [
+        { id: 'a', customer_phone: '(11) 99999-8888', voice_type: 'minha_voz', extras: { isCustomVoice: true, customVoiceId: 'v1', outro: 1 } },
+        { id: 'b', customer_phone: '11999998888', voice_type: 'masculina', extras: {} },
+        { id: 'c', customer_phone: '21999998888', voice_type: 'minha_voz', extras: { isCustomVoice: true } },
+      ],
+    });
+    const res = await resetCustomerVoice('5511999998888');
+    expect(res.ok).toBe(true);
+    expect(res.pedidosDesvinculados).toBe(1);
+    const [a, b, c] = mock.db.orders;
+    expect(a.voice_type).toBe('feminina');
+    expect(a.extras).toMatchObject({ isCustomVoice: false, customVoiceId: null, outro: 1 });
+    expect(b.voice_type).toBe('masculina');
+    expect(c.extras.isCustomVoice).toBe(true);
   });
 });

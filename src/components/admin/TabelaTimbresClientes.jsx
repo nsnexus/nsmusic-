@@ -244,7 +244,7 @@ export default function TabelaTimbresClientes() {
       });
       const data = await res.json();
       if (res.ok && data.ok) {
-        setMsgSucesso(`Timbre de ${nome} foi redefinido com sucesso!`);
+        setMsgSucesso(data.aviso || `Timbre de ${nome} redefinido. ${data.pedidosDesvinculados ? `${data.pedidosDesvinculados} pedido(s) liberado(s) para regravar.` : 'Nenhum pedido com voz clonada encontrado.'}`);
         await carregarClientes();
       } else {
         setMsgErro(data.error || 'Erro ao redefinir timbre.');
