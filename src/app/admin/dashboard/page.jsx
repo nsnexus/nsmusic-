@@ -13,6 +13,7 @@ import KieCreditsBadge from '@/components/admin/KieCreditsBadge';
 import UnificallyCreditsBadge from '@/components/admin/UnificallyCreditsBadge';
 import WhatsAppUsageBadge from '@/components/admin/WhatsAppUsageBadge';
 import { hasMusicaGerada } from '@/lib/stats';
+import { Package, BarChart3, Megaphone, Mail, LogOut } from 'lucide-react';
 
 // Componentes pesados carregados sob demanda (code-splitting) para reduzir First Load JS
 // e não bloquear a renderização inicial do dashboard.
@@ -149,62 +150,38 @@ export default function AdminDashboard() {
       <header style={styles.header}>
         <div style={styles.headerContainer}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-            <Link href="/admin" style={{ display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none' }}>
-              <Image src="/logo.png" alt="NSMusic" width={36} height={36} style={{ height: '36px', width: 'auto' }} priority />
-              <span style={{ fontSize: '0.9rem', color: '#0f172a', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Painel Admin</span>
+            <Link href="/admin" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none' }}>
+              <Image src="/logo.png" alt="NSMusic" width={32} height={32} style={{ height: '32px', width: 'auto' }} priority />
+              <span style={{ fontSize: '1rem', color: '#0f172a', fontWeight: '800', letterSpacing: '-0.02em' }}>NS Music</span>
+              <span style={{ fontSize: '0.68rem', fontWeight: '800', color: '#475569', background: '#f1f5f9', border: '1px solid #e2e8f0', padding: '2px 8px', borderRadius: '6px' }}>Admin</span>
             </Link>
-            {/* Navegação Mobile (Caixa suspensa / Select) */}
-            <div className="admin-mobile-only" style={{ width: '100%', marginTop: '6px' }}>
-              <select
-                value="DASHBOARD"
-                onChange={(e) => {
-                  const val = e.target.value;
-                  if (val === 'ORDERS') {
-                    router.push('/admin');
-                  } else if (val === 'ANUNCIOS') {
-                    router.push('/admin/anuncios');
-                  } else if (val === 'CARTAS') {
-                    router.push('/admin/cartas');
-                  }
-                }}
-                style={{
-                  width: '100%',
-                  padding: '9px 12px',
-                  borderRadius: '8px',
-                  border: '1.5px solid #7c3aed',
-                  backgroundColor: '#ffffff',
-                  color: '#0f172a',
-                  fontWeight: '700',
-                  fontSize: '0.88rem',
-                  outline: 'none',
-                }}
-              >
-                <option value="DASHBOARD">📊 Dashboard</option>
-                <option value="ORDERS">📦 Pedidos ➔</option>
-                <option value="ANUNCIOS">🎯 Anúncios (ROI/CPA) ➔</option>
-                <option value="CARTAS">💌 Temas da Carta ➔</option>
-              </select>
-            </div>
-
-            {/* Abas no Desktop */}
-            <div className="admin-desktop-only" style={{ gap: '8px', flexWrap: 'wrap' }}>
-              <Link href="/admin" style={{ ...styles.tabBtn, backgroundColor: '#e2e8f0', color: '#334155', textDecoration: 'none', display: 'inline-block' }}>
-                📦 Pedidos
-              </Link>
-              <span style={{ ...styles.tabBtn, backgroundColor: '#7c3aed', color: '#ffffff' }}>
-                📊 Dashboard
-              </span>
-              <Link href="/admin/anuncios" style={{ ...styles.tabBtn, backgroundColor: '#1e293b', color: '#60a5fa', textDecoration: 'none', display: 'inline-block', fontWeight: '700' }}>
-                🎯 Anúncios (ROI/CPA)
-              </Link>
-            </div>
+            <nav aria-label="Seções do painel" style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+              {[
+                { href: '/admin', label: 'Pedidos', Icon: Package },
+                { href: '/admin/dashboard', label: 'Dashboard', Icon: BarChart3, active: true },
+                { href: '/admin/anuncios', label: 'Anúncios', Icon: Megaphone },
+                { href: '/admin/cartas', label: 'Cartas', Icon: Mail },
+              ].map(({ href, label, Icon, active }) => (
+                <Link
+                  key={href}
+                  href={href}
+                  aria-current={active ? 'page' : undefined}
+                  style={{ padding: '7px 13px', borderRadius: '8px', fontSize: '0.82rem', fontWeight: active ? 700 : 600, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px', color: active ? '#ffffff' : '#475569', backgroundColor: active ? '#0f172a' : 'transparent' }}
+                >
+                  <Icon size={15} aria-hidden="true" />
+                  <span>{label}</span>
+                </Link>
+              ))}
+            </nav>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
             <UnificallyCreditsBadge />
             <KieCreditsBadge />
             <WhatsAppUsageBadge />
-            <span style={{ fontSize: '0.9rem', color: '#334155', fontWeight: '600' }}>{user?.email}</span>
-            <button onClick={handleLogout} style={styles.logoutBtn}>Sair ➔</button>
+            <span style={{ fontSize: '0.84rem', color: '#475569', fontWeight: '600' }}>{user?.email}</span>
+            <button type="button" onClick={handleLogout} style={{ ...styles.logoutBtn, display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+              <LogOut size={14} aria-hidden="true" /> Sair
+            </button>
           </div>
         </div>
       </header>
@@ -212,7 +189,7 @@ export default function AdminDashboard() {
       <main style={{ flex: 1, padding: '32px 0' }}>
         <div className="container" style={{ maxWidth: '1280px', margin: '0 auto', padding: '0 20px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '24px' }}>
-            <h1 style={{ fontSize: '1.6rem', fontWeight: '800', color: '#0f172a', margin: 0 }}>Dashboard de Conversão</h1>
+            <h1 style={{ fontSize: '1.6rem', fontWeight: '800', color: '#0f172a', margin: 0 }}>Dashboard do mês</h1>
             <div>
               <label htmlFor="dashboard-month" style={{ display: 'block', fontSize: '0.78rem', color: '#64748b', marginBottom: '4px' }}>Mês</label>
               <input
@@ -223,6 +200,20 @@ export default function AdminDashboard() {
                 style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.9rem', color: '#0f172a' }}
               />
             </div>
+          </div>
+
+          {/* Resumo do mês: os três números que respondem 'como estamos' antes dos detalhes */}
+          <div style={{ ...styles.metricsGrid, marginBottom: '24px' }}>
+            {[
+              { label: 'Músicas geradas no mês', valor: monthlySeries.totalFeito },
+              { label: 'Convertidas em venda', valor: monthlySeries.totalConvertido },
+              { label: 'Taxa de conversão', valor: `${String(overallPercent).replace('.', ',')}%` },
+            ].map(item => (
+              <div key={item.label} style={styles.metricCard}>
+                <div style={styles.metricLabel}>{item.label}</div>
+                <div style={{ ...styles.metricValue, fontVariantNumeric: 'tabular-nums' }}>{loadingOrders && orders.length === 0 ? '…' : item.valor}</div>
+              </div>
+            ))}
           </div>
 
           {/* Ritmo de Ganho Intradiário em Tempo Real (Hoje vs Média Líquida dos Últimos 7 Dias) */}
@@ -414,8 +405,7 @@ const styles = {
     borderRadius: '16px',
     border: '1px solid #e2e8f0',
     padding: '20px',
-    boxShadow: '0 4px 12px rgba(0,0,0,0.03)',
-  },
+      },
   metricLabel: { fontSize: '0.82rem', color: '#64748b', fontWeight: '600' },
   metricValue: { fontSize: '1.8rem', fontWeight: '800', color: '#0f172a', margin: '8px 0 0' },
 };
