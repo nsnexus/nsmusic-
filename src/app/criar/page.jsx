@@ -2094,29 +2094,6 @@ export default function CriarMusica() {
                 </p>
 
                 <div style={{ marginTop: '24px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPastedLyricsText(formData.lyrics || '');
-                      setCustomLyricsMode(true);
-                    }}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      padding: '10px 18px',
-                      borderRadius: '100px',
-                      border: '1.5px dashed #6366f1',
-                      backgroundColor: '#eef2ff',
-                      color: '#4f46e5',
-                      fontSize: '0.86rem',
-                      fontWeight: '700',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    <span>✍️</span>
-                    <span>Já tenho minha letra pronta (Quero colar a minha)</span>
-                  </button>
                 </div>
               </div>
             ) : formData.lyricsStatus === 'error' ? (
@@ -2150,9 +2127,9 @@ export default function CriarMusica() {
               </div>
             ) : (
               <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px', marginBottom: '14px' }}>
+                <div style={{ marginBottom: '14px' }}>
                   <div>
-                    <h1 className="wz-t" style={{ margin: 0 }}>Sua Letra Exclusiva ✨</h1>
+                    <h1 className="wz-t" style={{ margin: 0 }}>Sua letra exclusiva ✨</h1>
                     <p className="wz-s" style={{ margin: '4px 0 0' }}>
                       Composta com amor para {formData.honoreeName || 'alguém especial'}. Se gostar, aprove para gravar!
                     </p>
@@ -2195,8 +2172,9 @@ export default function CriarMusica() {
                 {/* Card da Letra */}
                 <div style={{ backgroundColor: '#ffffff', borderRadius: '20px', border: '1.5px solid #e2e8f0', padding: '20px', boxShadow: '0 4px 18px rgba(0,0,0,0.03)', marginBottom: '14px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#4f46e5', letterSpacing: '0.05em' }}>
-                      LETRA DA MÚSICA · VERSÃO {formData.lyricsVersion || 1}
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', fontWeight: 800, color: '#4f46e5', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>
+                      LETRA
+                      <span style={{ padding: '2px 8px', borderRadius: '100px', background: '#eef2ff', fontSize: '0.7rem' }}>v{formData.lyricsVersion || 1}</span>
                     </span>
                     <button
                       type="button"
@@ -2218,9 +2196,11 @@ export default function CriarMusica() {
                         fontSize: '0.78rem',
                         fontWeight: '700',
                         cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                        flexShrink: 0,
                       }}
                     >
-                      {isEditingLyricsDirectly ? '✕ Cancelar' : '✏️ Editar Letra'}
+                      {isEditingLyricsDirectly ? '✕ Cancelar' : '✏️ Editar letra'}
                     </button>
                   </div>
 
@@ -2259,8 +2239,14 @@ export default function CriarMusica() {
                       </div>
                     </div>
                   ) : (
-                    <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.75, color: '#1E1418', fontSize: '0.94rem', fontFamily: 'inherit' }}>
-                      {formData.lyrics}
+                    <div style={{ lineHeight: 1.75, color: '#1E1418', fontSize: '0.94rem', fontFamily: 'inherit' }}>
+                      {String(formData.lyrics || '').split('\n').map((linha, i) => {
+                        const t = linha.trim();
+                        if (/^\[[^\]]+\]$/.test(t)) {
+                          return <div key={i} style={{ marginTop: i === 0 ? 0 : '18px', marginBottom: '4px', fontSize: '0.72rem', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6366f1' }}>{t.slice(1, -1)}</div>;
+                        }
+                        return t ? <div key={i}>{linha}</div> : null;
+                      })}
                     </div>
                   )}
                 </div>
@@ -2288,6 +2274,19 @@ export default function CriarMusica() {
                     style={{ width: '100%', justifyContent: 'center' }}
                   >
                     Solicitar Ajuste Gratuito à IA
+                  </button>
+                </div>
+
+                <div style={{ marginTop: '14px', textAlign: 'center' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPastedLyricsText(formData.lyrics || '');
+                      setCustomLyricsMode(true);
+                    }}
+                    style={{ background: 'none', border: 'none', color: '#4f46e5', fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer', textDecoration: 'underline', padding: '6px' }}
+                  >
+                    ✍️ Prefiro colar minha própria letra
                   </button>
                 </div>
 
