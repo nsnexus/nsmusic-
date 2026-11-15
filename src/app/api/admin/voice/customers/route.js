@@ -38,7 +38,7 @@ export async function POST(req) {
 
     if (action === 'reset') {
       const res = await resetCustomerVoice(phone, env);
-      return NextResponse.json(res);
+      return NextResponse.json(res, { status: res.ok ? 200 : 500 });
     }
 
     if (action === 'save') {

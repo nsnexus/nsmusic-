@@ -155,30 +155,51 @@ export async function resetCustomerVoice(phone, env = {}) {
   if (!supabase) return { ok: false, error: 'Banco indisponível' };
 
   const nowIso = new Date().toISOString();
+  // O telefone pode estar gravado como veio do painel (sem passar pelo sanitizePhone).
+  const variantes = Array.from(new Set([cleanPhone, String(phone).trim(), String(phone).replace(/\D/g, '')].filter(Boolean)));
+  const falhas = [];
+  let afetados = 0;
 
+  // supabase-js não lança exceção em erro de banco: devolve { error }. Antes isso era engolido e a
+  // tela mostrava "redefinido" sem nada ter mudado.
   try {
-    await supabase
+    const { data, error } = await supabase
       .from('customer_voices')
-      .update({
-        status: 'redefinido',
-        voice_id: '',
-        voice_recording_id: null,
-        updated_at: nowIso
-      })
-      .eq('phone', cleanPhone);
-  } catch (e) {}
+      .update({ status: 'redefinido', voice_id: '', voice_recording_id: null, updated_at: nowIso })
+      .in('phone', variantes)
+      .select('phone');
+    if (error) falhas.push(`customer_voices: ${error.message || error.code || 'erro'}`);
+    else afetados += (data || []).length;
+  } catch (e) {
+    falhas.push(`customer_voices: ${e?.message || 'erro'}`);
+  }
 
   try {
-    const cfgRes = await supabase.from('config').select('*').eq('chave', `voice_${cleanPhone}`).limit(1);
-    if (cfgRes?.data?.[0]) {
-      const val = cfgRes.data[0].valor || {};
-      await supabase.from('config').update({
+    const chaves = variantes.map((v) => `voice_${v}`);
+    const { data: cfgRows, error: cfgErr } = await supabase.from('config').select('chave, valor').in('chave', chaves);
+    if (cfgErr) falhas.push(`config: ${cfgErr.message || cfgErr.code || 'erro'}`);
+    for (const row of cfgRows || []) {
+      const val = row.valor || {};
+      const { error: upErr } = await supabase.from('config').update({
         valor: { ...val, status: 'redefinido', voiceId: '', voice_id: '' },
-        updated_at: nowIso
-      }).eq('chave', `voice_${cleanPhone}`);
+        updated_at: nowIso,
+      }).eq('chave', row.chave);
+      if (upErr) falhas.push(`config: ${upErr.message || upErr.code || 'erro'}`);
+      else afetados += 1;
     }
-  } catch (e) {}
+  } catch (e) {
+    falhas.push(`config: ${e?.message || 'erro'}`);
+  }
 
+  if (afetados === 0) {
+    return {
+      ok: false,
+      error: falhas.length
+        ? `Não foi possível redefinir o timbre (${falhas.join('; ')}).`
+        : 'Nenhum timbre encontrado para esse telefone.',
+    };
+  }
+  if (falhas.length) console.warn('[customerVoices] reset parcial:', falhas.join('; '));
   return { ok: true, phone: cleanPhone, status: 'redefinido' };
 }
 
