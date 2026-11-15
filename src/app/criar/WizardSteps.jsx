@@ -37,7 +37,7 @@ export default function WizardSteps({
             Escolha a ocasião e os nomes de quem está dedicando e recebendo a música.
           </p>
           <p style={{ textAlign: 'center', margin: '-6px 0 18px', fontSize: '0.92rem', color: '#475569', fontWeight: 600 }}>
-            Você ouve a prévia grátis antes de pagar. A música completa sai a partir de {formatBrl(getPriceForSku('audio_only'))}, só se gostar.
+            Você ouve a prévia grátis antes de pagar. A música completa sai a partir de {formatBrl(getPriceForSku('audio_only'))}, só se gostar. A prévia fica pronta em cerca de 2 a 3 minutos e, depois do PIX, a liberação é automática.
           </p>
 
           <div
@@ -194,20 +194,21 @@ export default function WizardSteps({
                     style={{
                       display: 'inline-flex',
                       alignItems: 'center',
-                      gap: '6px',
-                      padding: '4px 12px',
+                      gap: '8px',
+                      padding: '9px 16px',
+                      minHeight: '40px',
                       borderRadius: '999px',
-                      fontSize: '0.78rem',
+                      fontSize: '0.92rem',
                       fontWeight: '700',
                       cursor: 'pointer',
                       border: isSelfTribute ? '1.5px solid var(--primary)' : '1px solid #cbd5e1',
-                      backgroundColor: isSelfTribute ? 'var(--primary-light)' : '#f8fafc',
-                      color: isSelfTribute ? 'var(--primary)' : '#64748b',
+                      backgroundColor: isSelfTribute ? 'var(--primary-light)' : '#ffffff',
+                      color: isSelfTribute ? 'var(--primary)' : '#29232d',
                       transition: 'all 0.2s ease',
                     }}
                   >
                     <span style={{ fontSize: '0.9rem' }}>{isSelfTribute ? '✓' : '○'}</span>
-                    <span>Dedicar para mim mesmo(a)</span>
+                    <span>{isSelfTribute ? 'É para mim (toque para desfazer)' : 'É para mim mesmo(a)'}</span>
                   </button>
                 </div>
 
