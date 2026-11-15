@@ -5,6 +5,10 @@
   --nx-muted: #4e4653;
   --nx-purple: #67408b;
   --nx-line: #e7e0e8;
+  --nx-display: Georgia, 'Times New Roman', serif;
+  --nx-pay: #059669;
+  --nx-pay-hover: #047857;
+  --nx-soft: #6c636f;
   --primary: #67408b;
   --primary-hover: #54316f;
   --primary-light: #f2eaf8;
@@ -366,7 +370,7 @@
 }
 
 .nx-editorial .nx-editorial-title {
-  font: 1.9rem/1.16 Georgia, serif;
+  font: 1.9rem/1.16 var(--nx-display);
   color: #493b40;
   letter-spacing: -.025em;
   margin-bottom: 14px;
@@ -595,7 +599,7 @@
 }
 
 .nx-song-top h2 {
-  font: 1.8rem/1.16 Georgia, serif;
+  font: 1.8rem/1.16 var(--nx-display);
 }
 
 .nx-song-top p {
@@ -684,7 +688,7 @@
 }
 
 .nx-benefits h2 {
-  font: 2rem/1.16 Georgia, serif;
+  font: 2rem/1.16 var(--nx-display);
 }
 
 .nx-checklist {
@@ -961,7 +965,7 @@
 }
 
 .nx-second-offer h2 {
-  font: 1.9rem/1.15 Georgia, serif;
+  font: 1.9rem/1.15 var(--nx-display);
   max-width: 440px;
   text-wrap: balance;
 }
@@ -1467,7 +1471,7 @@
 
 .nx-video-preview h2 {
   color: white;
-  font: 2.1rem/1.15 Georgia, serif;
+  font: 2.1rem/1.15 var(--nx-display);
   margin-block: 12px;
 }
 
@@ -1659,7 +1663,7 @@
 
 .nx-letter-excerpt {
   color: #66555f;
-  font: 1.05rem/1.85 Georgia, serif;
+  font: 1.05rem/1.85 var(--nx-display);
   margin: 0 0 22px;
   padding: 0 0 0 18px;
   border-left: 2px solid #d7c6d5;
@@ -1816,7 +1820,7 @@
 }
 
 .nx-retro-preview h2 {
-  font: 1.8rem/1.2 Georgia, serif;
+  font: 1.8rem/1.2 var(--nx-display);
 }
 
 .nx-retro-preview p {
@@ -1830,7 +1834,7 @@
   display: grid;
   place-items: center;
   color: var(--nx-muted);
-  font: 1.1rem Georgia, serif;
+  font: 1.1rem var(--nx-display);
 }
 
 .nx-save-bar {
@@ -1864,7 +1868,7 @@
 }
 
 .nx-addon-editorial h2 {
-  font: 1.8rem/1.2 Georgia, serif;
+  font: 1.8rem/1.2 var(--nx-display);
 }
 
 .nx-addon-editorial p {

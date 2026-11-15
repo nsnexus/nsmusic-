@@ -195,7 +195,7 @@ export default function SecondSongOffer({ orderId, order }) {
         >
           Pacote 4 Músicas · 2ª Geração Liberada
         </span>
-        <h3 style={{ font: '1.8rem/1.25 Georgia, serif', color: '#14532d', margin: '0 0 10px' }}>
+        <h3 style={{ font: '1.8rem/1.25 var(--nx-display, Georgia, serif)', color: '#14532d', margin: '0 0 10px' }}>
           Você tem mais 2 músicas para liberar! 🎉
         </h3>
         <p style={{ color: '#166534', fontSize: '0.95rem', maxWidth: '540px', margin: '0 auto 22px', lineHeight: 1.6 }}>
@@ -213,7 +213,7 @@ export default function SecondSongOffer({ orderId, order }) {
               padding: '14px 28px',
               fontSize: '1rem',
               fontWeight: 'bold',
-              background: '#059669',
+              background: 'var(--nx-pay, #059669)',
               borderColor: '#059669',
               color: '#ffffff',
               borderRadius: '12px',
@@ -271,7 +271,7 @@ export default function SecondSongOffer({ orderId, order }) {
         >
           Crédito Promocional Garantido
         </span>
-        <h3 style={{ font: '1.8rem/1.25 Georgia, serif', color: '#14532d', margin: '0 0 10px' }}>
+        <h3 style={{ font: '1.8rem/1.25 var(--nx-display, Georgia, serif)', color: '#14532d', margin: '0 0 10px' }}>
           Sua Próxima Música já está Desbloqueada!
         </h3>
         <p style={{ color: '#166534', fontSize: '0.95rem', maxWidth: '540px', margin: '0 auto 22px', lineHeight: 1.6 }}>
@@ -285,7 +285,7 @@ export default function SecondSongOffer({ orderId, order }) {
               padding: '14px 28px',
               fontSize: '1rem',
               fontWeight: 'bold',
-              background: '#059669',
+              background: 'var(--nx-pay, #059669)',
               borderColor: '#059669',
               color: '#ffffff',
               borderRadius: '12px',
@@ -337,8 +337,8 @@ export default function SecondSongOffer({ orderId, order }) {
 
           <h2
             style={{
-              font: '1.85rem/1.25 Georgia, serif',
-              color: '#29232d',
+              font: '1.85rem/1.25 var(--nx-display, Georgia, serif)',
+              color: 'var(--nx-ink, #29232d)',
               margin: '12px 0 8px',
               letterSpacing: '-0.02em',
             }}
@@ -348,7 +348,7 @@ export default function SecondSongOffer({ orderId, order }) {
 
           <p
             style={{
-              color: '#6c636f',
+              color: 'var(--nx-soft, #6c636f)',
               fontSize: '0.96rem',
               lineHeight: 1.6,
               margin: '0 0 12px',
@@ -419,7 +419,7 @@ export default function SecondSongOffer({ orderId, order }) {
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: '8px', flexWrap: 'wrap' }}>
-              <h3 style={{ fontSize: '1.05rem', fontWeight: '800', color: '#29232d', margin: 0 }}>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: '800', color: 'var(--nx-ink, #29232d)', margin: 0 }}>
                 PIX da Oferta Promocional · R$ 4,99
               </h3>
               <span style={{ fontSize: '0.78rem', color: '#059669', fontWeight: '700', background: '#dcfce7', padding: '2px 8px', borderRadius: '6px' }}>
@@ -427,7 +427,7 @@ export default function SecondSongOffer({ orderId, order }) {
               </span>
             </div>
 
-            <p style={{ fontSize: '0.86rem', color: '#6c636f', marginBottom: '14px', lineHeight: 1.5 }}>
+            <p style={{ fontSize: '0.86rem', color: 'var(--nx-soft, #6c636f)', marginBottom: '14px', lineHeight: 1.5 }}>
               Copie o código abaixo e pague no app do seu banco pelo <strong>PIX Copia e Cola</strong>. Assim que pagar, o crédito é liberado automaticamente:
             </p>
 
@@ -460,7 +460,7 @@ export default function SecondSongOffer({ orderId, order }) {
                   borderRadius: '10px',
                   background: '#ffffff',
                   border: '1px solid #cbd5e1',
-                  color: '#29232d',
+                  color: 'var(--nx-ink, #29232d)',
                   cursor: checking ? 'default' : 'pointer',
                 }}
               >
@@ -487,7 +487,7 @@ export default function SecondSongOffer({ orderId, order }) {
                 borderRadius: '10px',
                 cursor: 'pointer',
                 backgroundColor: '#ffffff',
-                color: '#29232d',
+                color: 'var(--nx-ink, #29232d)',
                 border: '1.5px solid #cbd5e1',
                 resize: 'none',
               }}

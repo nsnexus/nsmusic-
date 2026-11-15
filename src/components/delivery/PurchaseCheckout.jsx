@@ -167,10 +167,10 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
   return (
     <section id="pagamento" aria-label="Escolher e comprar seu presente" style={{ marginTop: '32px' }}>
       <div className="nx-section-heading" style={{ marginBottom: '22px' }}>
-        <h2 style={{ font: '1.9rem/1.2 Georgia, serif', color: '#29232d', margin: '0 0 8px' }}>
+        <h2 style={{ font: '1.9rem/1.2 var(--nx-display, Georgia, serif)', color: 'var(--nx-ink, #29232d)', margin: '0 0 8px' }}>
           Como você quer emocionar?
         </h2>
-        <p style={{ color: '#6c636f', fontSize: '0.96rem', margin: 0 }}>
+        <p style={{ color: 'var(--nx-soft, #6c636f)', fontSize: '0.96rem', margin: 0 }}>
           {PROMESSA.checkout} Pagamento único via PIX, sem assinatura.
         </p>
       </div>
@@ -324,7 +324,7 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
           >
             Pagamento do seu presente
           </span>
-          <h2 style={{ font: '1.8rem/1.25 Georgia, serif', color: '#29232d', margin: '4px 0 12px' }}>
+          <h2 style={{ font: '1.8rem/1.25 var(--nx-display, Georgia, serif)', color: 'var(--nx-ink, #29232d)', margin: '4px 0 12px' }}>
             {pack.label}
           </h2>
 
@@ -457,7 +457,7 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
               </div>
 
               <label className="nx-field" style={{ margin: '10px 0' }}>
-                <span style={{ fontSize: '0.82rem', fontWeight: '700', color: '#29232d' }}>Código PIX Copia e Cola</span>
+                <span style={{ fontSize: '0.82rem', fontWeight: '700', color: 'var(--nx-ink, #29232d)' }}>Código PIX Copia e Cola</span>
                 <textarea
                   className="nx-pix-code"
                   readOnly
@@ -470,7 +470,7 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
                     } catch (_) {}
                   }}
                   title="Clique para selecionar e copiar"
-                  style={{ width: '100%', height: '70px', fontSize: '0.78rem', fontFamily: 'monospace', padding: '10px 12px', borderRadius: '10px', cursor: 'pointer', backgroundColor: '#ffffff', color: '#29232d', border: '1.5px solid #cbd5e1', resize: 'none' }}
+                  style={{ width: '100%', height: '70px', fontSize: '0.78rem', fontFamily: 'monospace', padding: '10px 12px', borderRadius: '10px', cursor: 'pointer', backgroundColor: '#ffffff', color: 'var(--nx-ink, #29232d)', border: '1.5px solid #cbd5e1', resize: 'none' }}
                 />
               </label>
 
@@ -484,7 +484,7 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
               </details>
 
               <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px solid #e7d5df', textAlign: 'center' }}>
-                <span style={{ fontSize: '0.84rem', color: '#6c636f' }}>Prefere pagar com Cartão de Crédito? </span>
+                <span style={{ fontSize: '0.84rem', color: 'var(--nx-soft, #6c636f)' }}>Prefere pagar com Cartão de Crédito? </span>
                 <button
                   type="button"
                   onClick={payWithCard}
