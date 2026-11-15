@@ -239,7 +239,7 @@ export default function CustomAudioPreview({
               }}
             >
               <span>🔒</span>
-              <span>Prévia de 60s finalizada. Avance para liberar as 2 versões completas em MP3 HD!</span>
+              <span>Prévia de 60s finalizada. Avance para liberar as 2 músicas completas em MP3 HD!</span>
             </div>
           )}
         </div>

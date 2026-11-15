@@ -1853,7 +1853,7 @@ export default function CriarMusica() {
     if (percent < 38) return 'Gravando instrumentos, violões, piano e ritmo no estúdio...';
     if (percent < 65) return 'Ajustando a interpretação vocal com a emoção perfeita...';
     if (percent < 85) return 'Masterizando a faixa e aplicando efeitos de estúdio...';
-    if (percent < 98) return 'Finalizando suas 2 versões exclusivas completas...';
+    if (percent < 98) return 'Finalizando suas 2 músicas exclusivas completas...';
     return 'Músicas prontas! Carregando suas prévias exclusivas...';
   };
 
@@ -2316,7 +2316,7 @@ export default function CriarMusica() {
               <div className="suno-retention-box">
                 <StudioAudioAnimation />
                 <h2 className="wz-t" style={{ fontSize: '1.18rem', marginTop: '10px' }}>
-                  Gravando suas 2 versões... 🎙️
+                  Gravando suas 2 músicas... 🎙️
                 </h2>
 
                 <div className="suno-percent-badge">

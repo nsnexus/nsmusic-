@@ -64,7 +64,7 @@ function AvisoPrevia60s() {
     >
       <Lock size={15} color="#92400e" aria-hidden="true" style={{ flexShrink: 0 }} />
       <p style={{ margin: 0, fontSize: '0.79rem', color: '#92400e', fontWeight: '700', lineHeight: 1.4 }}>
-        Prévia de 60 segundos. O pagamento libera as 2 versões completas em MP3 HD.
+        Prévia de 60 segundos. O pagamento libera as 2 músicas completas em MP3 HD.
       </p>
     </div>
   );
@@ -592,11 +592,11 @@ function EntregaContent() {
       : selectedPackage;
   const precoDoPacoteAtual = getPriceForSku(skuDoPacoteAtual) || getPriceForSku('audio_only');
   const DESCRICOES_DE_PACOTE = {
-    audio_only: 'para liberar o download das 2 versões completas sem corte e a página especial de presente!',
-    combo: 'para liberar as 2 versões completas e o Vídeo Homenagem com as suas fotos!',
-    combo_carta: 'para liberar as 2 versões completas e a Carta Virtual!',
-    combo_retrospectiva: 'para liberar as 2 versões completas e a Retrospectiva!',
-    combo_voz: 'para liberar as 2 versões completas e clonar o seu timbre de voz personalizado!',
+    audio_only: 'para liberar o download das 2 músicas completas sem corte e a página especial de presente!',
+    combo: 'para liberar as 2 músicas completas e o Vídeo Homenagem com as suas fotos!',
+    combo_carta: 'para liberar as 2 músicas completas e a Carta Virtual!',
+    combo_retrospectiva: 'para liberar as 2 músicas completas e a Retrospectiva!',
+    combo_voz: 'para liberar as 2 músicas completas e clonar o seu timbre de voz personalizado!',
   };
   const descricaoDoPacoteAtual = DESCRICOES_DE_PACOTE[skuDoPacoteAtual] || DESCRICOES_DE_PACOTE.audio_only;
 
@@ -2394,7 +2394,7 @@ function EntregaContent() {
                       }}
                     >
                       Você está ouvindo uma prévia de <strong style={{ color: '#1e293b' }}>60</strong> segundos.
-                      {' '}Desbloqueie as <strong style={{ color: '#1e293b' }}>2 versões completas</strong> em MP3 HD
+                      {' '}Desbloqueie as <strong style={{ color: '#1e293b' }}>2 músicas completas</strong> em MP3 HD
                       {' '}e escolha os <strong style={{ color: '#1e293b' }}>extras</strong> que quiser.
                     </p>
 
@@ -3027,7 +3027,7 @@ function EntregaContent() {
                         Escolha o plano de pagamento abaixo
                       </div>
                       <div style={{ fontSize: '0.8rem', color: '#6d28d9', fontWeight: '500', lineHeight: 1.4 }}>
-                        e libere as 2 versões completas em MP3 HD com os extras que preferir.
+                        e libere as 2 músicas completas em MP3 HD com os extras que preferir.
                       </div>
                     </div>
 
