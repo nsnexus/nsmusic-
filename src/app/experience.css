@@ -720,6 +720,19 @@
   width: 100%;
 }
 
+/* Botão de pagar logo abaixo do pacote escolhido (ver InlinePayButton.jsx). Ocupa a linha inteira da
+   grade e só aparece no celular; em telas maiores o resumo com o botão já está visível. */
+.nx-inline-pay {
+  grid-column: 1 / -1;
+  margin-top: -4px;
+}
+
+@media (min-width: 641px) {
+  .nx-inline-pay {
+    display: none;
+  }
+}
+
 .nx-dark-package-card:hover {
   transform: translateY(-3px) !important;
   border-color: rgba(255, 255, 255, 0.22) !important;
