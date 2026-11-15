@@ -146,6 +146,27 @@ export default function SongCard({
                   }
                 }}
               />
+              {onCoverChange && (
+                <>
+                  <label
+                    style={{ position: 'absolute', top: '6px', left: '6px', zIndex: 3, display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '3px 8px', borderRadius: '999px', background: 'rgba(15, 23, 42, 0.82)', color: '#ffffff', fontSize: '0.64rem', fontWeight: 800, cursor: uploadingCover ? 'wait' : 'pointer', whiteSpace: 'nowrap' }}
+                  >
+                    {uploadingCover ? 'Enviando…' : '✏️ Trocar'}
+                    <input type="file" accept="image/*" onChange={onCoverChange} disabled={uploadingCover} aria-label="Trocar foto de capa" style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }} />
+                  </label>
+                  {onReframeCover && order?.coverUrl && (
+                    <button
+                      type="button"
+                      onClick={onReframeCover}
+                      disabled={uploadingCover}
+                      aria-label="Reenquadrar foto da capa"
+                      style={{ position: 'absolute', top: '6px', right: '6px', zIndex: 3, width: '24px', height: '24px', borderRadius: '50%', border: 'none', background: 'rgba(15, 23, 42, 0.82)', color: '#ffffff', fontSize: '0.7rem', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                    >
+                      ✂️
+                    </button>
+                  )}
+                </>
+              )}
               {isAudioPlaying && (
                 <div
                   style={{
@@ -361,42 +382,15 @@ export default function SongCard({
         </div>
       </details>
 
-      <details className="nx-details">
-        <summary style={{ minHeight: '44px', display: 'flex', alignItems: 'center' }}>
-          Personalizar meu presente
-        </summary>
-        <label className="nx-field">
-          <span>Trocar foto de capa</span>
-          <input type="file" accept="image/*" onChange={onCoverChange} disabled={uploadingCover} />
-        </label>
-        {onReframeCover && order?.coverUrl && (
-          <button
-            type="button"
-            onClick={onReframeCover}
-            disabled={uploadingCover}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '7px 12px',
-              fontSize: '0.8rem',
-              fontWeight: 600,
-              borderRadius: '8px',
-              border: '1px solid #e2e8f0',
-              backgroundColor: '#f8fafc',
-              color: '#334155',
-              cursor: 'pointer',
-              marginBottom: '10px',
-            }}
-          >
-            ✂️ Reenquadrar foto atual
-          </button>
-        )}
-        {uploadingCover && <p className="nx-helper" role="status">Enviando sua foto…</p>}
-        {coverError && <p className="nx-message nx-error" role="alert">{coverError}</p>}
-        {paid && available.length > 1 && onChooseGiftTrack && (
+      {coverError && <p className="nx-message nx-error" role="alert">{coverError}</p>}
+
+      {paid && available.length > 1 && onChooseGiftTrack && (
+        <details className="nx-details">
+          <summary style={{ minHeight: '44px', display: 'flex', alignItems: 'center' }}>
+            Versão que toca na página de presente
+          </summary>
           <label className="nx-field">
-            <span>Versão que toca na página de presente</span>
+            <span>Escolha a versão</span>
             <select
               value={order?.homenagemMusicaUrl === order?.audioFiles?.[1] ? '1' : '0'}
               onChange={event => onChooseGiftTrack(order?.audioFiles?.[Number(event.target.value)] || order?.audioUrl, Number(event.target.value))}
@@ -405,8 +399,8 @@ export default function SongCard({
               <option value="1">Música {2 + trackOffset}</option>
             </select>
           </label>
-        )}
-      </details>
+        </details>
+      )}
     </article>
   );
 }
