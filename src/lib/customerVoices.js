@@ -160,14 +160,13 @@ export async function resetCustomerVoice(phone, env = {}) {
   const falhas = [];
   let afetados = 0;
 
-  // supabase-js não lança exceção em erro de banco: devolve { error }. Antes isso era engolido e a
+  // O cliente supabase-edge não lança exceção em erro de banco: devolve { error }. Antes isso era engolido e a
   // tela mostrava "redefinido" sem nada ter mudado.
   try {
     const { data, error } = await supabase
       .from('customer_voices')
-      .update({ status: 'redefinido', voice_id: '', voice_recording_id: null, updated_at: nowIso })
       .in('phone', variantes)
-      .select('phone');
+      .update({ status: 'redefinido', voice_id: '', voice_recording_id: null, updated_at: nowIso });
     if (error) falhas.push(`customer_voices: ${error.message || error.code || 'erro'}`);
     else afetados += (data || []).length;
   } catch (e) {
@@ -180,10 +179,11 @@ export async function resetCustomerVoice(phone, env = {}) {
     if (cfgErr) falhas.push(`config: ${cfgErr.message || cfgErr.code || 'erro'}`);
     for (const row of cfgRows || []) {
       const val = row.valor || {};
-      const { error: upErr } = await supabase.from('config').update({
+      // Neste cliente (supabase-edge) os filtros vêm ANTES do update, que é o passo final.
+      const { error: upErr } = await supabase.from('config').eq('chave', row.chave).update({
         valor: { ...val, status: 'redefinido', voiceId: '', voice_id: '' },
         updated_at: nowIso,
-      }).eq('chave', row.chave);
+      });
       if (upErr) falhas.push(`config: ${upErr.message || upErr.code || 'erro'}`);
       else afetados += 1;
     }
