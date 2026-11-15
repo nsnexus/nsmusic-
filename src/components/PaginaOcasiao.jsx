@@ -89,7 +89,7 @@ export default function PaginaOcasiao({ ocasiao }) {
             Criar minha música por R$ {preco('audio_only')}
           </Link>
           <p style={s.microcopy}>
-            Ouça a prévia antes de pagar · 2 versões em MP3 HD · pronta em ~3 min · Pix · sem cadastro
+            Ouça a prévia antes de pagar · 2 músicas em MP3 HD · pronta em ~3 min · Pix · sem cadastro
           </p>
         </section>
 
@@ -138,7 +138,7 @@ export default function PaginaOcasiao({ ocasiao }) {
           <h2 style={s.h2}>Preços</h2>
           <ul style={s.lista}>
             <li style={s.listaItem}>
-              <strong>Música personalizada, R$ {preco('audio_only')}:</strong> 2 versões completas
+              <strong>Música personalizada, R$ {preco('audio_only')}:</strong> 2 músicas completas
               em MP3 HD, com letra exclusiva.
             </li>
             <li style={s.listaItem}>

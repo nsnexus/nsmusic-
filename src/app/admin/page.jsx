@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { auth, onAuthStateChanged, signOut } from '@/lib/authClient';
 import { lerConfigSite, normalizarNumeroWhatsapp, WHATSAPP_SUPORTE_PADRAO } from '@/lib/configSite';
 import { getPriceForSku } from '@/lib/pricing';
+import { formatBrl } from '@/lib/deliveryPackages';
 import { buildSunoPayload } from '@/lib/sunoPayload';
 import FaturamentoCards from '@/components/FaturamentoCards';
 import LimitesCota from '@/components/admin/LimitesCota';
@@ -26,7 +27,7 @@ import FunilStatusCards from '@/components/admin/FunilStatusCards';
 import { hasOrderGeneratedPix } from '@/lib/pixCheckout';
 import { isStripePayment, calculateStripeFee, calculateStripeNet, getPayoutStatus } from '@/lib/paymentFees';
 import { isUSOrder } from '@/lib/country';
-import { Search, RefreshCw, LogOut, Trash2 } from 'lucide-react';
+import { Search, RefreshCw, LogOut, Trash2, Package, Wallet, MessageCircle, BarChart3, Megaphone, UserRound, SearchCheck, Mic, SlidersHorizontal, Mail, Gauge, Settings, MoreHorizontal } from 'lucide-react';
 
 const getSavedAdminFilter = (key, fallback) => {
   if (typeof window === 'undefined') return fallback;
@@ -147,6 +148,8 @@ export default function AdminDashboard() {
   });
 
   // Controle de auto-atualização em tempo real e renovação de token
+  const [maisFiltros, setMaisFiltros] = useState(false);
+  const [maisAberto, setMaisAberto] = useState(false);
   const [reloadTrigger, setReloadTrigger] = useState(0);
   const [lastRefreshedAt, setLastRefreshedAt] = useState(() => new Date());
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -737,7 +740,7 @@ export default function AdminDashboard() {
         items.push({ label: '🎬 Vídeo (combo)', amount: musicAmount - AUDIO_PRICE });
       } else {
         items.push({
-          label: videoIncludedNoCharge ? '🎵 Música + 🎬 Vídeo (combo)' : '🎵 Música',
+          label: videoIncludedNoCharge ? '🎵 Música + 🎬 Vídeo (combo)' : 'Música',
           amount: musicAmount,
         });
       }
@@ -1117,6 +1120,44 @@ export default function AdminDashboard() {
 
   const filteredOrders = getFilteredOrders();
 
+  const ABAS_PRINCIPAIS = [
+    { id: 'ORDERS', label: `Pedidos (${activeOrdersCount})`, Icon: Package },
+    { id: 'FINANCEIRO', label: 'Financeiro', Icon: Wallet },
+    { id: 'RECUPERACAO', label: 'Recuperação PIX', Icon: MessageCircle },
+    { id: 'DASHBOARD', label: 'Dashboard', Icon: BarChart3, isLink: true, href: '/admin/dashboard' },
+    { id: 'ANUNCIOS', label: 'Anúncios', Icon: Megaphone, isLink: true, href: '/admin/anuncios' },
+  ];
+  const ABAS_MAIS = [
+    { id: 'CONTAS', label: 'Contas', Icon: UserRound },
+    { id: 'STUCK', label: 'Conferir pagamentos', Icon: SearchCheck },
+    { id: 'TIMBRES', label: 'Timbres', Icon: Mic },
+    { id: 'REMIX', label: 'Remix', Icon: SlidersHorizontal },
+    { id: 'CARTAS', label: 'Cartas', Icon: Mail, isLink: true, href: '/admin/cartas' },
+    { id: 'LIMITES', label: 'Limites', Icon: Gauge },
+    { id: 'AJUSTES', label: 'Ajustes', Icon: Settings },
+  ];
+  const abaMaisAtiva = ABAS_MAIS.find(t => t.id === activeTab && !t.isLink);
+  const abaBase = { padding: '7px 13px', borderRadius: '8px', fontSize: '0.82rem', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: '6px', textDecoration: 'none', transition: 'background-color 0.15s ease' };
+  const renderAba = (tab, noMenu = false) => {
+    const isActive = activeTab === tab.id;
+    const estilo = {
+      ...abaBase,
+      width: noMenu ? '100%' : undefined,
+      fontWeight: isActive ? 700 : 600,
+      color: isActive ? '#ffffff' : '#475569',
+      backgroundColor: isActive ? '#0f172a' : 'transparent',
+    };
+    const conteudo = (<><tab.Icon size={15} aria-hidden="true" /><span>{tab.label}</span></>);
+    if (tab.isLink) {
+      return <Link key={tab.id} href={tab.href} role={noMenu ? 'menuitem' : undefined} style={{ ...estilo, color: '#475569', backgroundColor: 'transparent' }}>{conteudo}</Link>;
+    }
+    return (
+      <button key={tab.id} type="button" role={noMenu ? 'menuitem' : undefined} onClick={() => { setActiveTab(tab.id); setMaisAberto(false); }} style={estilo}>
+        {conteudo}
+      </button>
+    );
+  };
+
   return (
     <div style={styles.wrapper}>
       {/* Header Clean & Moderno — Taste Skill v2 / Impeccable */}
@@ -1222,69 +1263,29 @@ export default function AdminDashboard() {
             WebkitOverflowScrolling: 'touch',
             paddingBottom: '2px',
           }}>
-            {[
-              { id: 'ORDERS', label: `📦 Pedidos (${activeOrdersCount})` },
-              { id: 'DASHBOARD', label: '📊 Dashboard', isLink: true, href: '/admin/dashboard' },
-              { id: 'ANUNCIOS', label: '🎯 Anúncios', isLink: true, href: '/admin/anuncios' },
-              { id: 'RECUPERACAO', label: '💬 Recuperação PIX' },
-              { id: 'CONTAS', label: '👤 Contas' },
-              { id: 'FINANCEIRO', label: '💰 Financeiro' },
-              { id: 'STUCK', label: '🔍 Conferir Pagamentos' },
-              { id: 'TIMBRES', label: '🎤 Timbres' },
-              { id: 'REMIX', label: '🎛️ Remix' },
-              { id: 'CARTAS', label: '💌 Cartas', isLink: true, href: '/admin/cartas' },
-              { id: 'LIMITES', label: '🚦 Limites' },
-              { id: 'AJUSTES', label: '⚙️ Ajustes' },
-            ].map(tab => {
-              const isActive = activeTab === tab.id;
-              if (tab.isLink) {
-                return (
-                  <Link
-                    key={tab.id}
-                    href={tab.href}
-                    style={{
-                      padding: '7px 13px',
-                      borderRadius: '8px',
-                      fontSize: '0.82rem',
-                      fontWeight: '600',
-                      textDecoration: 'none',
-                      whiteSpace: 'nowrap',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                      color: '#475569',
-                      backgroundColor: 'transparent',
-                      transition: 'all 0.15s ease',
-                    }}
-                  >
-                    <span>{tab.label}</span>
-                    <span style={{ fontSize: '0.7rem', opacity: 0.6 }}>↗</span>
-                  </Link>
-                );
-              }
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setActiveTab(tab.id)}
-                  style={{
-                    padding: '7px 13px',
-                    borderRadius: '8px',
-                    fontSize: '0.82rem',
-                    fontWeight: isActive ? '700' : '600',
-                    border: 'none',
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap',
-                    color: isActive ? '#ffffff' : '#475569',
-                    backgroundColor: isActive ? '#0f172a' : 'transparent',
-                    boxShadow: isActive ? '0 1px 3px rgba(15, 23, 42, 0.2)' : 'none',
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  {tab.label}
-                </button>
-              );
-            })}
+            {ABAS_PRINCIPAIS.map(tab => renderAba(tab))}
+            <div style={{ position: 'relative' }}>
+              <button
+                type="button"
+                onClick={() => setMaisAberto(v => !v)}
+                aria-expanded={maisAberto}
+                aria-haspopup="menu"
+                style={{
+                  ...abaBase,
+                  fontWeight: abaMaisAtiva ? 700 : 600,
+                  color: abaMaisAtiva ? '#ffffff' : '#475569',
+                  backgroundColor: abaMaisAtiva ? '#0f172a' : 'transparent',
+                }}
+              >
+                <MoreHorizontal size={15} aria-hidden="true" />
+                <span>{abaMaisAtiva ? abaMaisAtiva.label : 'Mais'}</span>
+              </button>
+              {maisAberto && (
+                <div role="menu" style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 60, minWidth: '200px', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '6px', boxShadow: '0 8px 24px rgba(15, 23, 42, 0.12)', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  {ABAS_MAIS.map(tab => renderAba(tab, true))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </header>
@@ -1934,11 +1935,11 @@ export default function AdminDashboard() {
                       </span>
                       {[
                         { id: 'ALL', label: 'Todas' },
-                        { id: 'MUSIC', label: '🎵 Música' },
-                        { id: 'VIDEO', label: '🎬 Vídeo' },
-                        { id: 'CARD', label: '💳 Cartão' },
-                        { id: 'PIX', label: '⚡ PIX' },
-                        { id: 'PIX_COPIADO', label: '📋 PIX Não Pago' },
+                        { id: 'MUSIC', label: 'Música' },
+                        { id: 'VIDEO', label: 'Vídeo' },
+                        { id: 'CARD', label: 'Cartão' },
+                        { id: 'PIX', label: 'PIX' },
+                        { id: 'PIX_COPIADO', label: 'PIX não pago' },
                       ].map(item => {
                         const isCurrent = purchaseTypeTab === item.id;
                         return (
@@ -1964,8 +1965,18 @@ export default function AdminDashboard() {
                       })}
                     </div>
 
+                    <button
+                      type="button"
+                      onClick={() => setMaisFiltros(v => !v)}
+                      aria-expanded={maisFiltros}
+                      style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '5px 12px', fontSize: '0.78rem', fontWeight: 700, color: '#475569', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                    >
+                      <SlidersHorizontal size={14} aria-hidden="true" />
+                      {maisFiltros ? 'Menos filtros' : 'Mais filtros'}
+                    </button>
+
                     {/* Filtros em Dropdowns Alinhados */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <div style={{ display: maisFiltros ? 'flex' : 'none', width: '100%', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                       {/* Datas & Atalhos Rápidos */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
                         <div style={{ display: 'inline-flex', gap: '3px', background: '#f1f5f9', padding: '2px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
@@ -2259,7 +2270,6 @@ export default function AdminDashboard() {
                               style={{
                                 ...styles.tr,
                                 backgroundColor: isSelected ? '#f1f5f9' : isPaid ? '#f0fdf4' : '#ffffff',
-                                borderLeft: isPaid ? '4px solid #22c55e' : '4px solid transparent'
                               }}
                             >
                               <td style={styles.td}>
@@ -2494,9 +2504,9 @@ export default function AdminDashboard() {
                                   const fee = isUs ? (total * 0.029 + 0.30) : (isCard ? calculateStripeFee(total) : 0);
                                   const net = isUs ? Math.max(0, total - fee) : (isCard ? calculateStripeNet(total) : total);
                                   const payout = isCard ? getPayoutStatus(o.paidAt || o.videoPaidAt || o.createdAt) : null;
-                                  const formattedValue = isUs ? `$ ${total.toFixed(2)} USD` : `R$ ${total.toFixed(2).replace('.', ',')}`;
-                                  const formattedNet = isUs ? `$ ${net.toFixed(2)} USD` : `R$ ${net.toFixed(2).replace('.', ',')}`;
-                                  const formattedFee = isUs ? `$ ${fee.toFixed(2)}` : `R$ ${fee.toFixed(2).replace('.', ',')}`;
+                                  const formattedValue = isUs ? `$ ${total.toFixed(2)} USD` : formatBrl(total);
+                                  const formattedNet = isUs ? `$ ${net.toFixed(2)} USD` : formatBrl(net);
+                                  const formattedFee = isUs ? `$ ${fee.toFixed(2)}` : formatBrl(fee);
                                   return (
                                     <div>
                                       <button
@@ -2530,7 +2540,7 @@ export default function AdminDashboard() {
                                         <div style={{ marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
                                           {items.map((item) => (
                                             <span key={item.label} style={{ fontSize: '0.7rem', fontWeight: '600', color: '#334155', whiteSpace: 'nowrap' }}>
-                                              {item.label}: {isUs ? `$ ${item.amount.toFixed(2)}` : `R$ ${item.amount.toFixed(2).replace('.', ',')}`}
+                                              {item.label}: {isUs ? `$ ${item.amount.toFixed(2)}` : formatBrl(item.amount)}
                                             </span>
                                           ))}
                                         </div>
@@ -2693,7 +2703,7 @@ export default function AdminDashboard() {
                       <strong>
                         {auditResult.verificados} cobrança(s) conferida(s) em {auditResult.dias} dia(s) —{' '}
                         {auditResult.pagosNaoLiberados} paga(s) e não liberada(s)
-                        {auditResult.pagosNaoLiberados > 0 ? ` (R$ ${auditResult.valorTotal.toFixed(2).replace('.', ',')})` : ''}.
+                        {auditResult.pagosNaoLiberados > 0 ? ` (${formatBrl(auditResult.valorTotal)})` : ''}.
                       </strong>
                       {auditResult.naoVerificados > 0 && (
                         <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px dashed #cbd5e1' }}>
@@ -2728,7 +2738,7 @@ export default function AdminDashboard() {
                             <div key={it.txid} style={{ padding: '8px 10px', background: '#ffffff', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem', color: '#0f172a' }}>
                               <strong>{it.orderNumber || it.orderId}</strong> · {it.customerName || 'Cliente'} · {it.customerPhone || 'sem telefone'}
                               <br />
-                              {it.tipo === 'addon' ? `Add-on (${it.sku})` : 'Música'} · R$ {Number(it.valor || 0).toFixed(2).replace('.', ',')} · pago em {it.pagoEm ? new Date(it.pagoEm).toLocaleString('pt-BR') : '—'}
+                              {it.tipo === 'addon' ? `Add-on (${it.sku})` : 'Música'} · {formatBrl(Number(it.valor || 0))} · pago em {it.pagoEm ? new Date(it.pagoEm).toLocaleString('pt-BR') : '—'}
                               {it.aprovado && <span style={{ color: '#059669', fontWeight: '700' }}> · ✅ liberado agora</span>}
                               {it.erroAprovacao && <span style={{ color: '#b91c1c', fontWeight: '700' }}> · ❌ falhou ao liberar</span>}
                             </div>

@@ -2,60 +2,25 @@
 
 import { Fragment, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Music, Mail, Film, Sparkles, Mic, Crown, ArrowRight, ShieldCheck, Check } from 'lucide-react';
+import { ArrowRight, Zap, CreditCard, Loader2, Copy, CheckCircle2, Landmark } from 'lucide-react';
 import PixQrCode from '@/components/PixQrCode';
 import PackageCard from './PackageCard';
 import InlinePayButton from './InlinePayButton';
 import { auth } from '@/lib/authClient';
 import { requestPixCharge } from '@/lib/pixCheckout';
-import { deliveryPackages, formatBrl } from '@/lib/deliveryPackages';
+import { deliveryPackages, formatBrl, PROMESSA } from '@/lib/deliveryPackages';
 import { getPriceForSku } from '@/lib/pricing';
 
+const PRINCIPAIS = ['audio_only', 'combo'];
 const MAX_AGE = 55 * 60 * 1000;
-
-const PACKAGE_METADATA = {
-  audio_only: {
-    icon: Music,
-    tagline: 'Essencial em MP3 HD',
-    tagColor: '#059669',
-    tagBg: '#dcfce7',
-  },
-  combo_carta: {
-    icon: Mail,
-    tagline: 'Com Carta Virtual',
-    tagColor: '#be185d',
-    tagBg: '#fce7f3',
-  },
-  combo: {
-    icon: Film,
-    tagline: 'Economize R$ 6,90 no vídeo',
-    tagColor: '#15803d',
-    tagBg: '#dcfce7',
-    badge: 'MAIS COMPRADO',
-    badgeIcon: Crown,
-    featured: true,
-  },
-  combo_retrospectiva: {
-    icon: Sparkles,
-    tagline: 'Vídeo + Carta + Linha do Tempo',
-    tagColor: '#b45309',
-    tagBg: '#fef3c7',
-  },
-  combo_voz: {
-    icon: Mic,
-    tagline: 'Voz Clonada por IA',
-    tagColor: '#4338ca',
-    tagBg: '#e0e7ff',
-    badge: 'NOVO',
-    badgeIcon: Sparkles,
-  },
-};
 
 export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStatus, onReceipt, onApproved }) {
   const catalog = deliveryPackages();
   // Pré-seleciona por padrão o pacote 'combo' (R$ 16,89 / R$ 16,90 — Música + Vídeo)
   const [selected, setSelected] = useState('combo');
+  const upgradeDiff = Number(getPriceForSku('combo')) - Number(getPriceForSku('audio_only'));
   const [review, setReview] = useState(false);
+  const [showMore, setShowMore] = useState(false);
   const [pix, setPix] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -69,7 +34,7 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
   const attempts = useRef(0);
   const recovery = promo === '24h' || promo === '48h';
   const pack = recovery
-    ? { sku: `recovery_combo_${promo}`, label: 'Sua oferta especial', price: getPriceForSku(`recovery_combo_${promo}`), includes: ['2 versões completas em MP3', 'Vídeo homenagem com fotos'] }
+    ? { sku: `recovery_combo_${promo}`, label: 'Sua oferta especial', price: getPriceForSku(`recovery_combo_${promo}`), includes: ['2 músicas completas em MP3 HD', 'Vídeo homenagem com fotos'] }
     : catalog.find(item => item.sku === selected) || catalog.find(item => item.sku === 'combo') || catalog[0];
 
   useEffect(() => {
@@ -206,13 +171,19 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
           Como você quer emocionar?
         </h2>
         <p style={{ color: 'var(--nx-soft, #6c636f)', fontSize: '0.96rem', margin: 0 }}>
-          Todas as opções incluem as duas versões completas em áudio MP3 HD. Pagamento único via PIX, sem assinatura.
+          {PROMESSA.checkout} Pagamento único via PIX, sem assinatura.
         </p>
       </div>
 
+      {!recovery && upgradeDiff > 0.005 && (
+        <p style={{ margin: '0 0 14px', color: '#29232d', fontSize: '0.96rem', fontWeight: 700 }}>
+          Por só {formatBrl(upgradeDiff)} a mais que a música sozinha, você leva o Vídeo Homenagem com as fotos.
+        </p>
+      )}
+
       {!recovery && (
         <div className="nx-package-grid" role="group" aria-label="Pacotes de Homenagem">
-          {catalog.map(item => (
+          {catalog.filter(item => PRINCIPAIS.includes(item.sku) || showMore || selected === item.sku).map(item => (
             <Fragment key={item.sku}>
               {PackageCard({
                 pack: item,
@@ -228,6 +199,16 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
         </div>
       )}
 
+      {!recovery && !showMore && catalog.some(item => !PRINCIPAIS.includes(item.sku) && item.sku !== selected) && (
+        <button
+          type="button"
+          onClick={() => setShowMore(true)}
+          style={{ display: 'block', margin: '14px auto 0', background: 'none', border: 'none', color: '#6c636f', fontSize: '0.92rem', textDecoration: 'underline', cursor: 'pointer', padding: '8px' }}
+        >
+          Ver mais presentes: Carta, Retrospectiva, Minha Voz
+        </button>
+      )}
+
       {/* Barra de Resumo e Ação de Compra */}
       <div
         className="nx-card nx-checkout-summary"
@@ -236,12 +217,11 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
           display: 'flex',
           flexDirection: 'column',
           gap: '16px',
-          background: '#121626',
-          border: '1.5px solid rgba(139, 92, 246, 0.35)',
-          borderRadius: '20px',
+          background: '#ffffff',
+          border: '1.5px solid var(--nx-line, #e7e0e8)',
+          borderRadius: '16px',
           padding: '22px 20px',
           margin: '24px 0 16px',
-          boxShadow: '0 8px 28px rgba(0, 0, 0, 0.25)',
           boxSizing: 'border-box',
           width: '100%',
           maxWidth: '100%',
@@ -250,17 +230,17 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
           <div>
-            <span style={{ fontSize: '0.72rem', fontWeight: '800', letterSpacing: '0.06em', textTransform: 'uppercase', color: '#c084fc' }}>
-              Pacote Selecionado
+            <span style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--nx-purple, #67408b)' }}>
+              Seu pacote
             </span>
-            <div style={{ fontSize: '1.25rem', color: '#ffffff', margin: '4px 0 4px', fontWeight: '800' }}>
+            <div style={{ fontSize: '1.25rem', color: 'var(--nx-ink, #29232d)', margin: '4px 0 4px', fontWeight: '800' }}>
               <strong>{pack.label}</strong>
             </div>
-            <p style={{ margin: 0, fontSize: '0.84rem', color: '#94a3b8' }}>
+            <p style={{ margin: 0, fontSize: '0.84rem', color: 'var(--nx-muted, #4e4653)' }}>
               {pack.includes.join(' · ')}
             </p>
           </div>
-          <div style={{ fontSize: '1.55rem', fontWeight: '900', color: '#34d399', whiteSpace: 'nowrap' }}>
+          <div style={{ fontSize: '1.55rem', fontWeight: '900', color: 'var(--nx-ink, #29232d)', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
             {formatBrl(pack.price)}
           </div>
         </div>
@@ -279,11 +259,10 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
               fontSize: '1.05rem',
               fontWeight: '800',
               borderRadius: '14px',
-              background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+              background: 'var(--nx-pay, #059669)',
               color: '#ffffff',
               border: 'none',
               cursor: (busy || payingCard) ? 'default' : 'pointer',
-              boxShadow: '0 4px 16px rgba(5, 150, 105, 0.35)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -292,7 +271,7 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
               minHeight: '52px',
             }}
           >
-            {busy ? '⏳ Preparando seu PIX…' : (<><span>⚡ Pagar Agora com PIX ({formatBrl(pack.price)})</span><ArrowRight size={18} aria-hidden="true" /></>)}
+            {busy ? (<><Loader2 size={18} aria-hidden="true" /><span>Preparando seu PIX…</span></>) : (<><Zap size={18} aria-hidden="true" /><span>Pagar Agora com PIX ({formatBrl(pack.price)})</span><ArrowRight size={18} aria-hidden="true" /></>)}
           </button>
 
           <button
@@ -308,11 +287,10 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
               fontSize: '0.96rem',
               fontWeight: '700',
               borderRadius: '14px',
-              background: 'rgba(255, 255, 255, 0.08)',
-              color: '#ffffff',
-              border: '1.5px solid rgba(255, 255, 255, 0.15)',
+              background: '#ffffff',
+              color: 'var(--nx-ink, #29232d)',
+              border: '1.5px solid var(--nx-line, #cfc6d1)',
               cursor: (busy || payingCard) ? 'default' : 'pointer',
-              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -321,7 +299,7 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
               minHeight: '46px',
             }}
           >
-            {payingCard ? '⏳ Abrindo Checkout Seguro...' : '💳 Pagar com Cartão de Crédito'}
+            {payingCard ? (<><Loader2 size={18} aria-hidden="true" /><span>Abrindo checkout seguro…</span></>) : (<><CreditCard size={18} aria-hidden="true" /><span>Pagar com Cartão de Crédito</span></>)}
           </button>
         </div>
       </div>
@@ -342,16 +320,7 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
           }}
         >
           <span
-            className="nx-eyebrow"
-            style={{
-              display: 'inline-block',
-              fontSize: '0.72rem',
-              fontWeight: '800',
-              letterSpacing: '0.06em',
-              textTransform: 'uppercase',
-              color: '#67408b',
-              marginBottom: '6px',
-            }}
+            style={{ display: 'inline-block', fontSize: '0.86rem', fontWeight: 700, color: 'var(--nx-purple, #67408b)', marginBottom: '6px' }}
           >
             Pagamento do seu presente
           </span>
@@ -415,9 +384,7 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
                     fontSize: '1.05rem',
                     fontWeight: '800',
                     borderRadius: '12px',
-                    background: pixCopied
-                      ? 'linear-gradient(135deg, #059669 0%, #047857 100%)'
-                      : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                    background: 'var(--nx-pay, #059669)',
                     color: '#ffffff',
                     border: 'none',
                     cursor: 'pointer',
@@ -428,12 +395,10 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
                     boxShadow: pixCopied
                       ? '0 4px 16px rgba(5, 150, 105, 0.4)'
                       : '0 4px 18px rgba(16, 185, 129, 0.45)',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.02em',
-                    transition: 'all 0.2s ease',
+                                        transition: 'all 0.2s ease',
                   }}
                 >
-                  {pixCopied ? '✅ Código PIX copiado!' : '📋 Copiar código PIX'}
+                  {pixCopied ? (<><CheckCircle2 size={20} aria-hidden="true" /><span>Código PIX copiado!</span></>) : (<><Copy size={20} aria-hidden="true" /><span>Copiar código PIX</span></>)}
                 </button>
               </div>
 
@@ -448,17 +413,17 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
                 }}
               >
                 <div style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '10px 4px' }}>
-                  <div style={{ fontSize: '1.15rem', marginBottom: '2px' }}>📋</div>
+                  <div style={{ marginBottom: '4px', color: 'var(--nx-purple, #67408b)' }}><Copy size={18} aria-hidden="true" /></div>
                   <strong style={{ fontSize: '0.72rem', color: '#1e293b', display: 'block', lineHeight: 1.2 }}>1. Copie o Código</strong>
                   <span style={{ fontSize: '0.64rem', color: '#64748b' }}>No botão acima</span>
                 </div>
                 <div style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '10px 4px' }}>
-                  <div style={{ fontSize: '1.15rem', marginBottom: '2px' }}>🏦</div>
+                  <div style={{ marginBottom: '4px', color: 'var(--nx-purple, #67408b)' }}><Landmark size={18} aria-hidden="true" /></div>
                   <strong style={{ fontSize: '0.72rem', color: '#1e293b', display: 'block', lineHeight: 1.2 }}>2. Cole no Banco</strong>
                   <span style={{ fontSize: '0.64rem', color: '#64748b' }}>Pix Copia e Cola</span>
                 </div>
                 <div style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '10px 4px' }}>
-                  <div style={{ fontSize: '1.15rem', marginBottom: '2px' }}>⚡</div>
+                  <div style={{ marginBottom: '4px', color: 'var(--nx-purple, #67408b)' }}><Zap size={18} aria-hidden="true" /></div>
                   <strong style={{ fontSize: '0.72rem', color: '#1e293b', display: 'block', lineHeight: 1.2 }}>3. Volte e Baixe</strong>
                   <span style={{ fontSize: '0.64rem', color: '#64748b' }}>Liberação imediata</span>
                 </div>
@@ -535,7 +500,7 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
                     padding: '2px 4px',
                   }}
                 >
-                  {payingCard ? 'Abrindo Cartão…' : 'Clique aqui para pagar no Cartão 💳'}
+                  {payingCard ? 'Abrindo Cartão…' : 'Prefere pagar no cartão de crédito?'}
                 </button>
               </div>
 

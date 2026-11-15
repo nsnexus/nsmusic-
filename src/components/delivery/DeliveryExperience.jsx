@@ -307,12 +307,6 @@ export default function DeliveryExperience({
               {primarySongCard}
             </div>
 
-            {/* Comparativo de Valor Mobile: Prévia vs Oficial */}
-            <MobileValueComparison honoreeName={order?.honoreeName} />
-
-            {/* Badges de Confiança e Garantia de Emoção */}
-            <MobileTrustBadges />
-
             <PurchaseCheckout
               orderId={orderId}
               promo={promo}
@@ -321,6 +315,12 @@ export default function DeliveryExperience({
               onReceipt={onReceipt}
               onApproved={onApproved}
             />
+
+            {/* Comparativo de Valor Mobile: Prévia vs Oficial */}
+            <MobileValueComparison honoreeName={order?.honoreeName} />
+
+            {/* Badges de Confiança e Garantia de Emoção */}
+            <MobileTrustBadges />
 
             {/* Barra Fixa Flutuante para Celular */}
             <MobileStickyBar onScrollToCheckout={irParaPagamento} />
@@ -360,7 +360,7 @@ export default function DeliveryExperience({
                     marginBottom: '6px'
                   }}
                 >
-                  🎁 Pacote de 4 Músicas Liberado
+                  Pacote de 4 Músicas liberado
                 </span>
                 <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1e1b4b', margin: '0 0 6px' }}>
                   Suas 4 Músicas Personalizadas

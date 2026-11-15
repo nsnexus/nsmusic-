@@ -126,7 +126,7 @@ export default function PreviaProntaModal({
           margin: '0 0 20px 0',
           lineHeight: '1.5',
         }}>
-          Preparamos <strong>2 versões exclusivas em estúdio</strong>. Recomendamos colocar <strong>fones de ouvido</strong> para sentir toda a qualidade dos arranjos e a emoção da letra.
+          Preparamos <strong>2 músicas exclusivas em estúdio</strong>. Recomendamos colocar <strong>fones de ouvido</strong> para sentir toda a qualidade dos arranjos e a emoção da letra.
         </p>
 
         {/* Bloco Dourado de Destaque: Cantar com a Própria Voz (Upsell) */}
@@ -211,7 +211,7 @@ export default function PreviaProntaModal({
         </button>
 
         <span style={{ fontSize: '0.74rem', color: '#64748b', display: 'block' }}>
-          🔒 Prévia gratuita de 60 segundos com as 2 versões completas disponíveis.
+          🔒 Prévia gratuita de 60 segundos com as 2 músicas completas disponíveis.
         </span>
       </div>
     </div>

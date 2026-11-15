@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { ArrowUpRight, Zap } from 'lucide-react';
+import { formatBrl } from '@/lib/deliveryPackages';
+import { getPriceForSku } from '@/lib/pricing';
 
 export default function MobileStickyBar({ onScrollToCheckout }) {
   const [isVisible, setIsVisible] = useState(false);
@@ -49,9 +51,7 @@ export default function MobileStickyBar({ onScrollToCheckout }) {
           left: 0,
           right: 0,
           zIndex: 90,
-          backgroundColor: 'rgba(255, 255, 255, 0.96)',
-          backdropFilter: 'blur(14px)',
-          WebkitBackdropFilter: 'blur(14px)',
+          backgroundColor: '#ffffff',
           borderTop: '1px solid rgba(139, 92, 246, 0.2)',
           padding: '10px 16px',
           paddingBottom: 'calc(10px + env(safe-area-inset-bottom, 0px))',
@@ -84,7 +84,7 @@ export default function MobileStickyBar({ onScrollToCheckout }) {
           }}
         >
           <Zap size={18} fill="#ffffff" />
-          <span>Liberar Minha Homenagem Completa</span>
+          <span>Liberar música completa · {formatBrl(getPriceForSku('audio_only'))}</span>
           <ArrowUpRight size={18} />
         </button>
       </div>

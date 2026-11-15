@@ -1,5 +1,6 @@
 'use client';
 
+import PedidoNaoEncontrado from '@/components/PedidoNaoEncontrado';
 import React, { useState, useEffect, useRef, Suspense } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -64,7 +65,7 @@ function AvisoPrevia60s() {
     >
       <Lock size={15} color="#92400e" aria-hidden="true" style={{ flexShrink: 0 }} />
       <p style={{ margin: 0, fontSize: '0.79rem', color: '#92400e', fontWeight: '700', lineHeight: 1.4 }}>
-        Prévia de 60 segundos. O pagamento libera as 2 versões completas em MP3 HD.
+        Prévia de 60 segundos. O pagamento libera as 2 músicas completas em MP3 HD.
       </p>
     </div>
   );
@@ -83,6 +84,7 @@ function EntregaContent() {
   const infinitePayTransactionNsu = searchParams.get('transaction_nsu');
   const infinitePayOrderNsu = searchParams.get('order_nsu');
   const [isPayingCard, setIsPayingCard] = useState(false);
+  const [cardError, setCardError] = useState('');
 
   const [loading, setLoading] = useState(true);
   const [order, setOrder] = useState(null);
@@ -592,11 +594,11 @@ function EntregaContent() {
       : selectedPackage;
   const precoDoPacoteAtual = getPriceForSku(skuDoPacoteAtual) || getPriceForSku('audio_only');
   const DESCRICOES_DE_PACOTE = {
-    audio_only: 'para liberar o download das 2 versões completas sem corte e a página especial de presente!',
-    combo: 'para liberar as 2 versões completas e o Vídeo Homenagem com as suas fotos!',
-    combo_carta: 'para liberar as 2 versões completas e a Carta Virtual!',
-    combo_retrospectiva: 'para liberar as 2 versões completas e a Retrospectiva!',
-    combo_voz: 'para liberar as 2 versões completas e clonar o seu timbre de voz personalizado!',
+    audio_only: 'para liberar o download das 2 músicas completas sem corte e a página especial de presente!',
+    combo: 'para liberar as 2 músicas completas e o Vídeo Homenagem com as suas fotos!',
+    combo_carta: 'para liberar as 2 músicas completas e a Carta Virtual!',
+    combo_retrospectiva: 'para liberar as 2 músicas completas e a Retrospectiva!',
+    combo_voz: 'para liberar as 2 músicas completas e clonar o seu timbre de voz personalizado!',
   };
   const descricaoDoPacoteAtual = DESCRICOES_DE_PACOTE[skuDoPacoteAtual] || DESCRICOES_DE_PACOTE.audio_only;
 
@@ -1013,6 +1015,7 @@ function EntregaContent() {
   // (promoção de recuperação, ou audio_only).
     const handlePayWithCard = async () => {
     if (!orderId) return;
+    setCardError('');
     setIsPayingCard(true);
     try {
       const sku = selectedPackage || 'combo';
@@ -1036,7 +1039,7 @@ function EntregaContent() {
       window.location.href = data.checkoutUrl;
     } catch (err) {
       console.error('[entrega] Erro ao pagar com cartão:', err);
-      alert(err?.message || 'Falha ao conectar com o serviço de cartão. Tente novamente.');
+      setCardError('Não foi possível abrir o pagamento com cartão agora. Tente de novo ou pague com PIX.');
       setIsPayingCard(false);
     }
   };
@@ -1551,7 +1554,7 @@ function EntregaContent() {
 
   if (loading) {
     return (
-      <div style={styles.wrapper} className="flex-center">
+      <div style={{ ...styles.wrapper, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
         <div style={styles.spinner} />
         <p style={{ marginTop: '20px', color: 'var(--text-secondary)' }}>Carregando sua página de entrega...</p>
       </div>
@@ -1559,13 +1562,7 @@ function EntregaContent() {
   }
 
   if (!order) {
-    return (
-      <div style={{ ...styles.wrapper, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '80vh', gap: '16px', textAlign: 'center' }}>
-        <h2 style={{ fontSize: '1.8rem', color: 'var(--text-primary)' }}>Pedido não encontrado</h2>
-        <p style={{ color: 'var(--text-secondary)' }}>Verifique o link ou entre em contato com o suporte do estúdio.</p>
-        <Link href="/" className="btn btn-primary">Voltar ao início</Link>
-      </div>
-    );
+    return <PedidoNaoEncontrado />;
   }
 
   // Safe client-side URLs
@@ -2394,7 +2391,7 @@ function EntregaContent() {
                       }}
                     >
                       Você está ouvindo uma prévia de <strong style={{ color: '#1e293b' }}>60</strong> segundos.
-                      {' '}Desbloqueie as <strong style={{ color: '#1e293b' }}>2 versões completas</strong> em MP3 HD
+                      {' '}Desbloqueie as <strong style={{ color: '#1e293b' }}>2 músicas completas</strong> em MP3 HD
                       {' '}e escolha os <strong style={{ color: '#1e293b' }}>extras</strong> que quiser.
                     </p>
 
@@ -3027,7 +3024,7 @@ function EntregaContent() {
                         Escolha o plano de pagamento abaixo
                       </div>
                       <div style={{ fontSize: '0.8rem', color: '#6d28d9', fontWeight: '500', lineHeight: 1.4 }}>
-                        e libere as 2 versões completas em MP3 HD com os extras que preferir.
+                        e libere as 2 músicas completas em MP3 HD com os extras que preferir.
                       </div>
                     </div>
 
@@ -3461,6 +3458,7 @@ function EntregaContent() {
                             >
                               {isPayingCard ? '⏳ Abrindo Checkout Seguro...' : `💳 Pagar com Cartão de Crédito (R$ ${valorCobrado.toFixed(2).replace('.', ',')})`}
                             </button>
+{cardError && <p role="alert" style={{ margin: '10px 0 0', padding: '10px 12px', borderRadius: '10px', background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b', fontSize: '0.9rem', lineHeight: 1.4 }}>{cardError}</p>}
                           </div>
                             </div>
                           ) : (
@@ -3515,6 +3513,7 @@ function EntregaContent() {
                               >
                                 {isPayingCard ? '⏳ Abrindo Checkout Seguro...' : `💳 Pagar com Cartão de Crédito (R$ ${valorCobrado.toFixed(2).replace('.', ',')})`}
                               </button>
+{cardError && <p role="alert" style={{ margin: '10px 0 0', padding: '10px 12px', borderRadius: '10px', background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b', fontSize: '0.9rem', lineHeight: 1.4 }}>{cardError}</p>}
                             </div>
                           ) : (
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', background: '#f8fafc', padding: '24px 20px', borderRadius: '20px', border: '1.5px solid #e2e8f0', maxWidth: '100%', width: '100%', boxSizing: 'border-box' }}>
@@ -3978,7 +3977,7 @@ function EntregaContent() {
 export default function EntregaPedido() {
   return (
     <Suspense fallback={
-      <div style={styles.wrapper} className="flex-center">
+      <div style={{ ...styles.wrapper, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
         <div style={styles.spinner} />
         <p style={{ marginTop: '20px', color: 'var(--text-secondary)' }}>Carregando sua página de entrega...</p>
       </div>

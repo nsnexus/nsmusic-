@@ -38,7 +38,7 @@ export default function PreviaEncerradaModal({
   const nome = honoreeName?.trim();
 
   const beneficios = [
-    { id: 'versoes', Icon: Music, color: '#f472b6', texto: <>As <strong>2 versões completas</strong>, do começo ao fim</> },
+    { id: 'versoes', Icon: Music, color: '#f472b6', texto: <>As <strong>2 músicas completas</strong>, do começo ao fim</> },
     { id: 'download', Icon: Download, color: '#c084fc', texto: <>Download em <strong>MP3 HD</strong>, para sempre</> },
     { id: 'presente', Icon: Gift, color: '#ec4899', texto: <>Página de presente para <strong>enviar no WhatsApp</strong></> },
   ];
