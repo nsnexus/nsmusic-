@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Mic, Sparkles } from 'lucide-react';
 import { recipients, stylesList, moods } from '@/app/criar/wizardOptions';
+import Icone3D from './Icone3D';
 
 const RECIPIENT_CARDS = [
   { id: 'namorado', label: 'Namorada / Namorado', icon: '💗', sub: 'Amor & paixão', relations: ['Namorada', 'Namorado'] },
@@ -228,7 +229,7 @@ export default function CreationSteps({
                   onClick={() => handleCardClick(card)}
                   className={`card2 ${isSelected ? 'on' : ''}`}
                 >
-                  <span className="c2-ic">{card.icon}</span>
+                  <Icone3D emoji={card.icon} prioridade />
                   <span className="c2-lb">{card.label}</span>
                   {card.sub && <span className="c2-sub">{card.sub}</span>}
                 </button>
@@ -399,7 +400,7 @@ export default function CreationSteps({
                   }}
                   className={`card2 ${isSelected ? 'on' : ''}`}
                 >
-                  <span className="c2-ic">{occ.icon}</span>
+                  <Icone3D emoji={occ.icon} />
                   <span className="c2-lb">{occ.label}</span>
                 </button>
               );
@@ -565,7 +566,7 @@ export default function CreationSteps({
                   className={`card2 ${isSelected ? 'on' : ''}`}
                 >
                   {g.destaque && !isSelected && <span className="c2-selo">⭐ Mais pedido</span>}
-                  <span className="c2-ic">{g.icon}</span>
+                  <Icone3D emoji={g.icon} />
                   <span className="c2-lb">{g.label}</span>
                   <span className="c2-sub">{g.sub}</span>
                 </button>
@@ -596,7 +597,7 @@ export default function CreationSteps({
                       onClick={() => updateField('musicStyle', s.id)}
                       className={`card2 ${isSelected ? 'on' : ''}`}
                     >
-                      <span className="c2-ic">{s.icon || '🎵'}</span>
+                      <Icone3D emoji={s.icon || '🎵'} />
                       <span className="c2-lb">{s.label}</span>
                       <span className="c2-sub">{s.desc}</span>
                     </button>
@@ -629,7 +630,7 @@ export default function CreationSteps({
                   onClick={() => updateField('musicMood', c.id)}
                   className={`card2 ${isSelected ? 'on' : ''}`}
                 >
-                  <span className="c2-ic">{c.icon}</span>
+                  <Icone3D emoji={c.icon} />
                   <span className="c2-lb">{c.label}</span>
                   <span className="c2-sub">{c.sub}</span>
                 </button>
@@ -669,7 +670,7 @@ export default function CreationSteps({
                   className={`card2 ${isSelected ? 'on' : ''}`}
                   style={{ minHeight: '5.2rem' }}
                 >
-                  <span className="c2-ic">{v.icon}</span>
+                  <Icone3D emoji={v.icon} />
                   <span className="c2-lb">{v.label}</span>
                   <span className="c2-sub">{v.sub}</span>
                 </button>
