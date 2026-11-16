@@ -68,9 +68,23 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
       const hasIntentId = Boolean(orderData.paymentIntentId);
       const isCurrentIntent = !hasIntentId || String(orderData.paymentIntentId) === String(paymentId);
 
+      // Quando o id recebido não é um txid registrado (ex.: e2eId lido de comprovante), procura entre
+      // as cobranças DESTE pedido a que tem exatamente o valor pago. Antes caía direto em 'audio_only'
+      // e um combo de 16,90 aprovava só a música, sem vídeo e carta.
+      const amountByTxid = orderData.paymentIntentAmountByTxid || {};
+      const valorRecebido = Number(payment.transaction_amount);
+      const skusPeloValor = Number.isFinite(valorRecebido)
+        ? Array.from(new Set(Object.entries(amountByTxid)
+          .filter(([, valor]) => Math.abs(Number(valor) - valorRecebido) < 0.01)
+          .map(([txid]) => skuByTxid[txid])
+          .filter(Boolean)))
+        : [];
+      const skuPeloValor = skusPeloValor.length === 1 ? skusPeloValor[0] : null;
+
       const sku = skuForThisTxid
         || (isCurrentIntent ? orderData.paymentIntentSku : null)
-        || (Math.abs(Number(payment.transaction_amount) - 6.90) < 0.01 ? 'video_addon' : 'audio_only');
+        || skuPeloValor
+        || (Math.abs(valorRecebido - 6.90) < 0.01 ? 'video_addon' : 'audio_only');
 
       if (!skuForThisTxid && !isCurrentIntent) {
         console.warn(`[payments] txid sem SKU registrado e diferente do intent atual — SKU inferido por valor: ${sku}`);
