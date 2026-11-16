@@ -68,6 +68,29 @@ export async function carregarFotoCarta(url) {
   }
 }
 
+// QR vetorial (nítido em qualquer impressão), discreto: cinza-escuro sobre fundo branco.
+async function desenharQr(doc, url, x, y, lado) {
+  try {
+    const QR = await import('qrcode');
+    const qr = (QR.default || QR).create(url, { errorCorrectionLevel: 'M' });
+    const n = qr.modules.size;
+    const cel = lado / n;
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(x - 1.6, y - 1.6, lado + 3.2, lado + 3.2, 1.5, 1.5, 'F');
+    doc.setFillColor(72, 60, 66);
+    for (let r = 0; r < n; r += 1) {
+      for (let c = 0; c < n; c += 1) {
+        if (qr.modules.get(r, c)) doc.rect(x + c * cel, y + r * cel, cel + 0.02, cel + 0.02, 'F');
+      }
+    }
+    doc.link(x, y, lado, lado, { url });
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(5.5); doc.setTextColor(...COR.suave);
+    doc.text('aponte a câmera', x + lado / 2, y + lado + 3.6, { align: 'center' });
+  } catch (e) {
+    console.warn('[carta-pdf] QR ignorado:', e?.message);
+  }
+}
+
 const COR = {
   papel: [255, 251, 246],
   tinta: [58, 48, 52],
@@ -142,7 +165,7 @@ export async function gerarCartaPdf({ texto, honoree, remetente, url, fontes = n
     doc.setDrawColor(...COR.ouro); doc.setLineWidth(0.5); doc.roundedRect(11, 11, W - 22, H - 22, 4, 4, 'S');
     doc.setLineWidth(0.2); doc.roundedRect(14, 14, W - 28, H - 28, 3, 3, 'S');
     raminho(doc, 16, 16, 1, 1);
-    raminho(doc, W - 16, H - 16, -1, -1);
+    raminho(doc, 16, H - 16, 1, -1);
     if (!primeira) {
       doc.setFillColor(...COR.rosa);
       comOpacidade(doc, 0.5, () => coracao(doc, W / 2, 24, 4));
@@ -244,8 +267,7 @@ export async function gerarCartaPdf({ texto, honoree, remetente, url, fontes = n
       doc.setFillColor(...COR.rosa); coracao(doc, W / 2 - wRot / 2 + 5, yR - 1.3, 3);
       doc.setTextColor(...COR.rosa);
       doc.textWithLink(rotulo, W / 2 + 2.5, yR, { align: 'center', url });
-      doc.setFontSize(7.5); doc.setTextColor(...COR.suave);
-      doc.textWithLink(url, W / 2, yR + 6, { align: 'center', url });
+      await desenharQr(doc, url, W - 19 - 17, H - 19 - 17 - 4, 17);
     } else {
       doc.setFont(fSerifIt, estiloIt); doc.setFontSize(8.5); doc.setTextColor(...COR.suave);
       doc.text('NS Music · nsmusic.ia.br', W / 2, yR + 4, { align: 'center' });
