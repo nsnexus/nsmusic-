@@ -144,9 +144,18 @@ export async function listarMidias(token, igUserId, limit = 25) {
  * Vários anúncios podem apontar para a mesma mídia (mesmo criativo em conjuntos diferentes) — a
  * lista sai deduplicada por mídia, guardando o nome do primeiro anúncio e da campanha.
  */
-export async function listarMidiasDeAnuncios(token, adAccountId, limit = 60) {
-  const conta = String(adAccountId || '').replace(/^act_/, '');
-  if (!isGraphId(conta)) return [];
+/** Separa "act_1, act_2" (o painel de Anúncios guarda várias contas assim) em IDs numéricos válidos. */
+export function separarContasDeAnuncio(valor) {
+  const lista = Array.isArray(valor) ? valor : String(valor || '').split(',');
+  const vistos = new Set();
+  for (const item of lista) {
+    const conta = String(item || '').trim().replace(/^act_/, '');
+    if (isGraphId(conta)) vistos.add(conta);
+  }
+  return [...vistos];
+}
+
+async function listarAnunciosDeUmaConta(token, conta, limit) {
   const json = await graphFetch(`act_${conta}/ads`, {
     token,
     params: {
@@ -155,9 +164,37 @@ export async function listarMidiasDeAnuncios(token, adAccountId, limit = 60) {
       limit: Math.max(1, Math.min(100, limit)),
     },
   });
+  return json.data || [];
+}
+
+/**
+ * Mídias do Instagram dos anúncios ativos. Aceita várias contas ("act_1,act_2") e vários tokens:
+ * cada conta é lida com o primeiro token que tiver acesso a ela (o painel de Anúncios usa um token
+ * por conta). Só lança erro se nenhuma conta puder ser lida.
+ */
+export async function listarMidiasDeAnuncios(tokens, contasDeAnuncio, limit = 60) {
+  const listaTokens = [...new Set((Array.isArray(tokens) ? tokens : [tokens]).map((t) => String(t || '').trim()).filter(Boolean))];
+  const contas = separarContasDeAnuncio(contasDeAnuncio);
+  if (contas.length === 0 || listaTokens.length === 0) return [];
+
+  let primeiroErro = null;
+  let algumaLida = false;
+  const anuncios = [];
+  await Promise.all(contas.map(async (conta) => {
+    for (const token of listaTokens) {
+      try {
+        anuncios.push(...(await listarAnunciosDeUmaConta(token, conta, limit)));
+        algumaLida = true;
+        return;
+      } catch (err) {
+        primeiroErro = primeiroErro || err;
+      }
+    }
+  }));
+  if (!algumaLida && primeiroErro) throw primeiroErro;
 
   const porMidia = new Map();
-  for (const ad of json.data || []) {
+  for (const ad of anuncios) {
     const mediaId = ad.creative?.effective_instagram_media_id;
     if (!isGraphId(mediaId) || porMidia.has(String(mediaId))) continue;
     porMidia.set(String(mediaId), {

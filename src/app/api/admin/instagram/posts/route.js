@@ -42,7 +42,7 @@ export async function GET(req) {
     if (ctx.adAccountId) {
       try {
         const idsDePosts = new Set(posts.map((p) => p.id));
-        anuncios = (await listarMidiasDeAnuncios(ctx.token, ctx.adAccountId)).filter((a) => !idsDePosts.has(a.id));
+        anuncios = (await listarMidiasDeAnuncios(ctx.tokensAnuncios, ctx.adAccountId)).filter((a) => !idsDePosts.has(a.id));
       } catch (err) {
         console.warn('[admin/instagram/posts] Falha ao listar anúncios:', err.code || err.name);
         avisoAnuncios = explicarErroMeta(err);

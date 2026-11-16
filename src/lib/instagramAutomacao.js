@@ -88,7 +88,7 @@ async function gravarChave(supabase, chave, valor) {
  */
 export async function carregarContexto(env = {}) {
   const supabase = getSupabaseEdge(env);
-  if (!supabase) return { supabase: null, config: configPadrao(), token: '', adAccountId: '', tokenProprio: false };
+  if (!supabase) return { supabase: null, config: configPadrao(), token: '', adAccountId: '', tokensAnuncios: [], tokenProprio: false };
 
   const config = normalizarConfig(await lerChave(supabase, CHAVE_CONFIG));
   let metaAds = null;
@@ -103,7 +103,17 @@ export async function carregarContexto(env = {}) {
     || readEnvValue(env, 'META_MARKETING_ACCESS_TOKEN');
   const adAccountId = String(metaAds?.META_AD_ACCOUNT_ID || '').trim() || readEnvValue(env, 'META_AD_ACCOUNT_ID');
 
-  return { supabase, config, token, adAccountId, tokenProprio: Boolean(config.accessToken) };
+  // Para listar anúncios vale qualquer token com acesso à conta: o da automação e os dois do painel
+  // de Anúncios (cada conta de anúncio pode estar ligada a um token diferente).
+  const tokensAnuncios = [
+    token,
+    String(metaAds?.META_MARKETING_ACCESS_TOKEN || '').trim(),
+    String(metaAds?.META_MARKETING_ACCESS_TOKEN_2 || '').trim(),
+    readEnvValue(env, 'META_MARKETING_ACCESS_TOKEN'),
+    readEnvValue(env, 'META_MARKETING_ACCESS_TOKEN_2'),
+  ].filter(Boolean);
+
+  return { supabase, config, token, adAccountId, tokensAnuncios: [...new Set(tokensAnuncios)], tokenProprio: Boolean(config.accessToken) };
 }
 
 export async function salvarConfig(supabase, config) {
@@ -275,7 +285,7 @@ export async function executarAutomacao({ env = {}, simular = false, prazoMs = 4
   let avisoAnuncios = null;
   if (config.incluirAnuncios && ctx.adAccountId) {
     try {
-      const anuncios = await listarMidiasDeAnuncios(ctx.token, ctx.adAccountId);
+      const anuncios = await listarMidiasDeAnuncios(ctx.tokensAnuncios, ctx.adAccountId);
       const jaListadas = new Set(midias.map((m) => m.id));
       midias.push(...anuncios.filter((a) => !jaListadas.has(a.id)).slice(0, MAX_ANUNCIOS_POR_EXECUCAO));
     } catch (err) {
