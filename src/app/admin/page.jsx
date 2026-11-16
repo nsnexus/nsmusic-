@@ -27,7 +27,7 @@ import FunilStatusCards from '@/components/admin/FunilStatusCards';
 import { hasOrderGeneratedPix } from '@/lib/pixCheckout';
 import { isStripePayment, calculateStripeFee, calculateStripeNet, getPayoutStatus } from '@/lib/paymentFees';
 import { isUSOrder } from '@/lib/country';
-import { Search, RefreshCw, LogOut, Trash2, Package, Wallet, MessageCircle, BarChart3, Megaphone, UserRound, SearchCheck, Mic, SlidersHorizontal, Mail, Gauge, Settings, MoreHorizontal } from 'lucide-react';
+import { Search, RefreshCw, LogOut, Trash2, Package, Wallet, MessageCircle, BarChart3, Megaphone, Bot, UserRound, SearchCheck, Mic, SlidersHorizontal, Mail, Gauge, Settings, MoreHorizontal } from 'lucide-react';
 
 const getSavedAdminFilter = (key, fallback) => {
   if (typeof window === 'undefined') return fallback;
@@ -1126,6 +1126,7 @@ export default function AdminDashboard() {
     { id: 'RECUPERACAO', label: 'Recuperação PIX', Icon: MessageCircle },
     { id: 'DASHBOARD', label: 'Dashboard', Icon: BarChart3, isLink: true, href: '/admin/dashboard' },
     { id: 'ANUNCIOS', label: 'Anúncios', Icon: Megaphone, isLink: true, href: '/admin/anuncios' },
+    { id: 'AUTOMACAO', label: 'Automação', Icon: Bot, isLink: true, href: '/admin/automacao' },
   ];
   const ABAS_MAIS = [
     { id: 'CONTAS', label: 'Contas', Icon: UserRound },

@@ -3,6 +3,7 @@ import { getRequestContext } from '@cloudflare/next-on-pages';
 import { getSupabaseEdge } from '@/lib/supabase-edge';
 import { requireAdmin } from '@/lib/auth';
 import { runAbandonedPixRecovery } from '@/lib/abandonedPixRecovery';
+import { executarAutomacao } from '@/lib/instagramAutomacao';
 
 export const runtime = 'edge';
 
@@ -51,10 +52,22 @@ async function handleRecover(req) {
     // Executa a régua de recuperação de PIX abandonado via Meta Cloud API Oficial
     const recoveryResult = await runAbandonedPixRecovery({ env });
 
+    // Automação de comentários do Instagram, de carona neste agendamento (a cada 15 min) porque o
+    // Cloudflare Pages não tem cron próprio. Roda por último e isolada: uma falha aqui nunca pode
+    // atrapalhar a recuperação de PIX acima. Com a automação desligada no painel, sai na hora.
+    let instagram = null;
+    try {
+      const r = await executarAutomacao({ env, prazoMs: 20000 });
+      instagram = { ok: r.ok, motivo: r.motivo || null, resumo: r.resumo || null };
+    } catch (e) {
+      console.warn('[cron/recover] Erro na automação do Instagram:', e.message);
+    }
+
     return NextResponse.json({
       success: true,
       referralRewardsReconciled,
       recovery: recoveryResult,
+      instagram,
     });
   } catch (err) {
     console.error('[cron/recover] Erro inesperado:', err);
