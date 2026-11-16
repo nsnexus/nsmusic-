@@ -7,10 +7,12 @@ import { auth, onAuthStateChanged } from '@/lib/authClient';
 import AbaComentarios from '@/components/admin/automacao/AbaComentarios';
 import AbaAutomacao from '@/components/admin/automacao/AbaAutomacao';
 import AbaConexao from '@/components/admin/automacao/AbaConexao';
+import AbaPublicacoes from '@/components/admin/automacao/AbaPublicacoes';
 
 const ABAS = [
   { id: 'comentarios', rotulo: 'Posts e comentários' },
   { id: 'automacao', rotulo: 'Automação com IA' },
+  { id: 'publicacoes', rotulo: 'Publicações' },
   { id: 'conexao', rotulo: 'Conexão' },
 ];
 
@@ -63,7 +65,7 @@ export default function AdminAutomacaoPage() {
         </div>
         <h1 style={{ fontSize: '22px', fontWeight: 800, margin: 0, letterSpacing: '-0.5px' }}>Automação do Instagram</h1>
         <p style={{ fontSize: '13px', color: '#94a3b8', margin: '4px 0 16px 0' }}>
-          Veja os comentários dos posts e dos anúncios, responda por aqui e deixe a IA responder os novos.
+          Comentários dos posts e dos anúncios, respostas com IA e publicação diária a partir do Google Drive.
         </p>
 
         <div role="tablist" aria-label="Seções" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '12px', marginBottom: '16px' }}>
@@ -92,6 +94,7 @@ export default function AdminAutomacaoPage() {
 
         {aba === 'comentarios' && <AbaComentarios />}
         {aba === 'automacao' && <AbaAutomacao />}
+        {aba === 'publicacoes' && <AbaPublicacoes />}
         {aba === 'conexao' && <AbaConexao />}
       </div>
     </div>
