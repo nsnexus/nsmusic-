@@ -2889,14 +2889,15 @@ export default function CriarMusica() {
       </div></header>
 
       {/* Main content container */}
+      <div className="criar-ambiente" aria-hidden="true"><span /></div>
       <main className="criar-main" style={{ flex: 1, position: 'relative', zIndex: 1 }}>
         <div className="container criar-container" style={{ maxWidth: '1120px' }}>
           
           {/* Wizard step indicators */}
           {step <= TOTAL_JOURNEY_STEPS && (
             <div className="wz-top" style={{ maxWidth: '34rem', margin: '0 auto 0.85rem', padding: '0 4px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div className="wz-track" style={{ flex: 1, height: '5px', background: '#e2e8f0', borderRadius: '999px', overflow: 'hidden' }}>
-                <div className="wz-fill" style={{ width: `${(step / TOTAL_JOURNEY_STEPS) * 100}%`, height: '100%', background: 'linear-gradient(90deg, #4f46e5 0%, #7c3aed 100%)', borderRadius: '999px', transition: 'width 0.35s ease' }} />
+              <div className="wz-track" style={{ flex: 1, height: '6px', background: 'rgba(30, 27, 75, 0.08)', borderRadius: '999px', overflow: 'hidden' }}>
+                <div className="wz-fill" style={{ width: `${(step / TOTAL_JOURNEY_STEPS) * 100}%`, height: '100%', background: 'linear-gradient(90deg, #8b7cf6 0%, #5a46e0 100%)', borderRadius: '999px', transition: 'width 0.5s cubic-bezier(0.22, 1, 0.36, 1)', boxShadow: '0 0 10px rgba(90, 70, 224, 0.45)' }} />
               </div>
               <span className="wz-count" style={{ fontSize: '0.76rem', fontWeight: 800, color: '#64748b', whiteSpace: 'nowrap' }}>
                 {step}/{TOTAL_JOURNEY_STEPS}
@@ -2906,7 +2907,7 @@ export default function CriarMusica() {
 
           {/* Form step renderers */}
           {creationError && <div className="nx-message nx-error" role="alert">{creationError}<br /><button type="button" className="nx-text-button" onClick={() => setCreationError('')}>Entendi</button></div>}
-          <div style={{ marginTop: '8px' }} className="criar-step-content">
+          <div key={`etapa-${step}`} style={{ marginTop: '8px' }} className="criar-step-content">
             {step <= TOTAL_FORM_STEPS ? renderWizardStep() : renderWorkflowStep()}
           </div>
 
@@ -2920,10 +2921,10 @@ export default function CriarMusica() {
                 left: 0,
                 right: 0,
                 zIndex: 200,
-                backgroundColor: 'rgba(255, 255, 255, 0.97)',
+                backgroundColor: 'rgba(255, 255, 255, 0.82)',
                 backdropFilter: 'blur(12px)',
                 WebkitBackdropFilter: 'blur(12px)',
-                borderTop: '1.5px solid #e2e8f0',
+                borderTop: '1px solid rgba(30, 27, 75, 0.08)',
                 boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.06)',
                 padding: '10px 16px calc(10px + env(safe-area-inset-bottom, 0px)) 16px'
               }}
