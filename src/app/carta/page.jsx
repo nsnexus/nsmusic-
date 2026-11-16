@@ -1,5 +1,6 @@
 'use client';
 
+import CartaPdfBotoes from '@/components/delivery/CartaPdfBotoes';
 import { Suspense, useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { buildAudioProxySrc } from '@/lib/audioProxy';
@@ -160,6 +161,10 @@ export function CartaView({ orderId: propOrderId }) {
               </button>
             </div>
           )}
+
+          <div style={{ marginTop: '18px' }}>
+            <CartaPdfBotoes texto={texto} honoree={honoree} remetente={remetente} fotoUrl={order?.coverUrl || ''} url={typeof window !== 'undefined' ? window.location.href : ''} />
+          </div>
 
           <p style={{ textAlign: 'center', marginTop: '24px', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
             Feito com 💜 no <a href="/" style={{ color: '#9d174d', fontWeight: '600' }}>NS Music</a>
