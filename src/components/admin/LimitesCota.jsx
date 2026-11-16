@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { getAdminAuthToken } from '@/lib/authClient';
+import BuscaPorTelefone from './BuscaPorTelefone';
 
 export default function LimitesCota() {
   const [dados, setDados] = useState(null);
@@ -104,7 +105,9 @@ export default function LimitesCota() {
     }
   };
 
-  if (carregando) return <p style={{ color: '#64748b', fontSize: '0.9rem' }}>Carregando limites e bloqueios...</p>;
+  // Só troca a tela pelo aviso na primeira carga: nas recargas (depois de bloquear/liberar) a aba
+  // continua montada, senão a busca por telefone perderia o resultado que está na tela.
+  if (carregando && !dados) return <p style={{ color: '#64748b', fontSize: '0.9rem' }}>Carregando limites e bloqueios...</p>;
   if (erro) return <p style={{ color: '#dc2626', fontSize: '0.9rem' }}>{erro}</p>;
 
   const topGeradores = dados?.topGeradores || [];
@@ -158,6 +161,8 @@ export default function LimitesCota() {
           </button>
         </div>
       </div>
+
+      <BuscaPorTelefone chamar={chamar} onBloquear={bloquearContato} processando={processando} />
 
       {/* Card: Adicionar Bloqueio Manual */}
       <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '12px', padding: '16px', marginBottom: '20px' }}>
