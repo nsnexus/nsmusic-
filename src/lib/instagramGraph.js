@@ -24,6 +24,7 @@ export const PERMISSOES_COMENTARIOS = [
   'pages_read_engagement',
 ];
 export const PERMISSAO_ANUNCIOS = 'ads_read';
+export const PERMISSAO_PUBLICAR = 'instagram_content_publish';
 
 /** IDs da Graph API são sempre numéricos — valida antes de montar qualquer URL com eles. */
 export function isGraphId(valor) {
@@ -31,18 +32,20 @@ export function isGraphId(valor) {
 }
 
 export class MetaApiError extends Error {
-  constructor(mensagem, { status = 0, code = null, type = null } = {}) {
+  constructor(mensagem, { status = 0, code = null, type = null, subcode = null } = {}) {
     super(mensagem);
     this.name = 'MetaApiError';
     this.status = status;
     this.code = code;
     this.type = type;
+    this.subcode = subcode;
   }
 }
 
 /** Texto em português para mostrar no painel, sem repassar a mensagem crua da Meta. */
 export function explicarErroMeta(err) {
   const code = Number(err?.code);
+  if (Number(err?.subcode) === 2207005) return 'O Instagram só aceita imagem em JPG. Salve a imagem como .jpg na pasta.';
   if (code === 190) return 'O token da Meta expirou ou foi revogado. Gere um novo na aba Conexão.';
   if (code === 10 || code === 200 || code === 3) {
     return 'O token não tem permissão para isso. Confira as permissões na aba Conexão.';
@@ -76,7 +79,7 @@ async function graphFetch(path, { token, method = 'GET', params = {} } = {}) {
   const json = await res.json().catch(() => null);
   if (!res.ok || json?.error) {
     const e = json?.error || {};
-    throw new MetaApiError(e.message || `HTTP ${res.status}`, { status: res.status, code: e.code ?? null, type: e.type ?? null });
+    throw new MetaApiError(e.message || `HTTP ${res.status}`, { status: res.status, code: e.code ?? null, type: e.type ?? null, subcode: e.error_subcode ?? null });
   }
   return json || {};
 }
@@ -86,7 +89,12 @@ export async function verificarPermissoes(token) {
   const json = await graphFetch('me/permissions', { token });
   const concedidas = (json.data || []).filter((p) => p.status === 'granted').map((p) => p.permission);
   const faltando = PERMISSOES_COMENTARIOS.filter((p) => !concedidas.includes(p));
-  return { concedidas, faltando, temAnuncios: concedidas.includes(PERMISSAO_ANUNCIOS) };
+  return {
+    concedidas,
+    faltando,
+    temAnuncios: concedidas.includes(PERMISSAO_ANUNCIOS),
+    temPublicar: concedidas.includes(PERMISSAO_PUBLICAR),
+  };
 }
 
 /** Contas profissionais do Instagram ligadas às Páginas que o token enxerga. */
@@ -215,4 +223,55 @@ export async function apagarComentario(token, commentId) {
   if (!isGraphId(commentId)) throw new MetaApiError('ID do comentário inválido.', { code: 100 });
   await graphFetch(`${commentId}`, { token, method: 'DELETE' });
   return { ok: true };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Publicação (exige a permissão instagram_content_publish).
+//
+// O Instagram publica em duas etapas: cria um "container" apontando para a imagem numa URL
+// pública (é a Meta quem baixa o arquivo) e depois publica o container. Só aceita JPEG.
+// ---------------------------------------------------------------------------------------------
+
+/** Container de uma imagem. `legenda` só no post de imagem única; item de carrossel não leva. */
+export async function criarContainerImagem(token, igUserId, { imageUrl, legenda, itemDeCarrossel = false }) {
+  if (!isGraphId(igUserId)) throw new MetaApiError('ID da conta do Instagram inválido.', { code: 100 });
+  const json = await graphFetch(`${igUserId}/media`, {
+    token,
+    method: 'POST',
+    params: {
+      image_url: imageUrl,
+      caption: itemDeCarrossel ? undefined : legenda,
+      is_carousel_item: itemDeCarrossel ? 'true' : undefined,
+    },
+  });
+  return String(json.id);
+}
+
+export async function criarContainerCarrossel(token, igUserId, { filhos, legenda }) {
+  if (!isGraphId(igUserId)) throw new MetaApiError('ID da conta do Instagram inválido.', { code: 100 });
+  const json = await graphFetch(`${igUserId}/media`, {
+    token,
+    method: 'POST',
+    params: { media_type: 'CAROUSEL', children: filhos.join(','), caption: legenda },
+  });
+  return String(json.id);
+}
+
+/** FINISHED quando o container está pronto para publicar; ERROR/EXPIRED quando não vai ficar. */
+export async function statusDoContainer(token, containerId) {
+  if (!isGraphId(containerId)) throw new MetaApiError('ID do container inválido.', { code: 100 });
+  const json = await graphFetch(`${containerId}`, { token, params: { fields: 'status_code' } });
+  return String(json.status_code || '');
+}
+
+export async function publicarContainer(token, igUserId, containerId) {
+  if (!isGraphId(igUserId) || !isGraphId(containerId)) throw new MetaApiError('ID inválido.', { code: 100 });
+  const json = await graphFetch(`${igUserId}/media_publish`, { token, method: 'POST', params: { creation_id: containerId } });
+  return String(json.id);
+}
+
+export async function buscarLinkDaMidia(token, mediaId) {
+  if (!isGraphId(mediaId)) return '';
+  const json = await graphFetch(`${mediaId}`, { token, params: { fields: 'permalink' } });
+  return String(json.permalink || '');
 }

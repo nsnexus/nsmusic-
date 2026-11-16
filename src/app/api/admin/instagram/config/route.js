@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { abrirRotaAdmin } from '@/lib/adminRoute';
 import { carregarContexto, salvarConfig, lerEstado, normalizarConfig } from '@/lib/instagramAutomacao';
-import { verificarPermissoes, listarContasInstagram, explicarErroMeta, PERMISSOES_COMENTARIOS, PERMISSAO_ANUNCIOS } from '@/lib/instagramGraph';
+import { verificarPermissoes, listarContasInstagram, explicarErroMeta, PERMISSOES_COMENTARIOS, PERMISSAO_ANUNCIOS, PERMISSAO_PUBLICAR } from '@/lib/instagramGraph';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
@@ -28,6 +28,7 @@ async function diagnosticar(ctx) {
       ok: perms.faltando.length === 0 && contas.length > 0,
       faltando: perms.faltando,
       temAnuncios: perms.temAnuncios,
+      temPublicar: perms.temPublicar,
       contas,
       motivo: perms.faltando.length > 0 ? 'permissoes' : contas.length === 0 ? 'sem_conta_instagram' : null,
     };
@@ -55,7 +56,7 @@ export async function GET(req) {
       ok: true,
       config: configPublica(ctx),
       diagnostico,
-      permissoesNecessarias: [...PERMISSOES_COMENTARIOS, PERMISSAO_ANUNCIOS],
+      permissoesNecessarias: [...PERMISSOES_COMENTARIOS, PERMISSAO_ANUNCIOS, PERMISSAO_PUBLICAR],
       historico: estado.historico,
       ultimaExecucao: estado.ultimaExecucao,
     });

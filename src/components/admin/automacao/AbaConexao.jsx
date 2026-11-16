@@ -77,11 +77,14 @@ export default function AbaConexao() {
         <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '13px', lineHeight: 1.7 }}>
           {permissoesNecessarias.map((p) => {
             const eAnuncio = p === 'ads_read';
-            const ok = config.temToken && diagnostico?.motivo !== 'meta_erro' && (eAnuncio ? diagnostico?.temAnuncios : !faltando.includes(p));
+            const ePublicar = p === 'instagram_content_publish';
+            const concedida = eAnuncio ? diagnostico?.temAnuncios : ePublicar ? diagnostico?.temPublicar : !faltando.includes(p);
+            const ok = config.temToken && diagnostico?.motivo !== 'meta_erro' && concedida;
             return (
               <li key={p} style={{ color: ok ? '#6ee7b7' : '#fcd34d' }}>
                 <code>{p}</code> — {ok ? 'concedida' : 'faltando'}
                 {eAnuncio && <span style={{ color: '#94a3b8' }}> (só para comentários de anúncios)</span>}
+                {ePublicar && <span style={{ color: '#94a3b8' }}> (só para publicar posts)</span>}
               </li>
             );
           })}
