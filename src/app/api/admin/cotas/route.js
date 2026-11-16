@@ -5,6 +5,7 @@ import { calcularCota } from '@/lib/cotaGeracoes';
 import { registrarResetDeCota, normalizarTelefone, idDoReset, lerTodosOsResets } from '@/lib/cotaReset';
 import { getSupabaseEdge } from '@/lib/supabase-edge';
 import { getBlocklist, addBlockContact, removeBlockContact, obterVariacoesTelefone } from '@/lib/blocklist';
+import { buscarPessoaPorTelefone } from '@/lib/buscaPorTelefone';
 
 export const runtime = 'edge';
 
@@ -139,6 +140,20 @@ export async function POST(req) {
   try {
     const body = await req.json().catch(() => ({}));
     const action = body?.action || 'reset';
+
+    // Ação: Buscar uma pessoa pelo telefone (IPs usados e localização aproximada).
+    // Vai no corpo de um POST de propósito: telefone não pode ir em query string.
+    if (action === 'buscar') {
+      const resultado = await buscarPessoaPorTelefone(body?.telefone, env);
+      if (!resultado.ok) {
+        const invalido = resultado.motivo === 'telefone_invalido';
+        return NextResponse.json(
+          { error: invalido ? 'Digite o telefone com DDD.' : 'Não foi possível fazer a busca agora.' },
+          { status: invalido ? 400 : 500 },
+        );
+      }
+      return NextResponse.json(resultado);
+    }
 
     // Ação: Bloquear pessoa manualmente
     if (action === 'block') {
