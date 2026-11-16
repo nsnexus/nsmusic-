@@ -2,6 +2,7 @@
 
 import CartaCartao from '@/components/CartaCartao';
 import { EditorSection, ShareLinks, TrackPicker } from './EditorParts';
+import CartaPdfBotoes from './CartaPdfBotoes';
 
 export default function CartaEditor({ order, texto, remetente, honoree, editando, rascunho, setRascunho, onEdit, onCancel, onSave, onGenerate, salvando, gerando, error, themes, theme, onTheme, savingTheme, tracks, track, onTrack, savingTrack, url }) {
   if (!texto) return <section className="nx-card nx-editor-empty"><span className="nx-eyebrow">Carta liberada</span><h2>Vamos colocar esse carinho em palavras?</h2><p>A carta parte da história da sua música. Depois você pode revisar e mudar cada palavra.</p>{error && <p className="nx-message nx-error" role="alert">{error}</p>}<button id="btn-escrever-carta" type="button" className="nx-button nx-primary" onClick={onGenerate} disabled={gerando}>{gerando ? 'Escrevendo sua carta…' : 'Escrever minha carta'}</button></section>;
@@ -13,6 +14,6 @@ export default function CartaEditor({ order, texto, remetente, honoree, editando
       {themes === null ? <p role="status" className="nx-helper">Carregando os temas…</p> : themes?.some(item => item.imagemUrl) ? <div className="nx-theme-grid">{themes.filter(item => item.imagemUrl).map(item => <button type="button" key={item.id} className="nx-theme-choice" aria-pressed={theme === item.id} disabled={savingTheme} onClick={() => onTheme(item.id)}><span style={{ backgroundImage: `url(${item.imagemUrl})` }} aria-hidden="true" /><span>{item.label}</span></button>)}</div> : <p className="nx-helper">Sua carta usa o papel clássico. Temas personalizados aparecem aqui quando disponíveis.</p>}{savingTheme && <p role="status" className="nx-helper">Salvando o tema…</p>}
       {tracks.length > 1 && <TrackPicker tracks={tracks} value={track} onChange={onTrack} busy={savingTrack} name="carta-musica" />}
     </EditorSection>
-    <EditorSection number="03" title="Prepare a surpresa" description="Confira o resultado e envie a página do presente, não a página de edição."><ShareLinks url={url} label="presente com uma carta" disabled={salvando || gerando || editando || savingTheme || savingTrack} /></EditorSection>
+    <EditorSection number="03" title="Prepare a surpresa" description="Confira o resultado e envie a página do presente, não a página de edição."><ShareLinks url={url} label="presente com uma carta" disabled={salvando || gerando || editando || savingTheme || savingTrack} /><div style={{ marginTop: '12px' }}><CartaPdfBotoes texto={texto} honoree={honoree} remetente={remetente} url={url} disabled={salvando || gerando || editando} /></div></EditorSection>
   </div><aside className="nx-editor-preview"><span className="nx-eyebrow">Prévia da sua carta</span><div className="nx-letter-preview"><CartaCartao order={{ ...order, cartaTemaEscolhido: theme }} texto={editando ? rascunho : texto} remetente={remetente} honoree={honoree} /></div><p className="nx-helper">{editando ? 'Prévia do rascunho. Salve para atualizar o presente.' : 'O presente mantém a carta e a música escolhida.'}</p></aside></div>;
 }
