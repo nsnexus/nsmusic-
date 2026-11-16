@@ -163,7 +163,7 @@ export function CartaView({ orderId: propOrderId }) {
           )}
 
           <div style={{ marginTop: '18px' }}>
-            <CartaPdfBotoes texto={texto} honoree={honoree} remetente={remetente} url={typeof window !== 'undefined' ? window.location.href : ''} />
+            <CartaPdfBotoes texto={texto} honoree={honoree} remetente={remetente} fotoUrl={order?.coverUrl || ''} url={typeof window !== 'undefined' ? window.location.href : ''} />
           </div>
 
           <p style={{ textAlign: 'center', marginTop: '24px', fontSize: '0.78rem', color: 'var(--text-muted)' }}>

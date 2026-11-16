@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { FileDown, Send } from 'lucide-react';
-import { gerarCartaPdf, nomeArquivoCarta } from '@/lib/cartaPdf';
+import { gerarCartaPdf, nomeArquivoCarta, carregarFontesCarta, carregarFotoCarta } from '@/lib/cartaPdf';
 
 function baixar(blob, nome) {
   const href = URL.createObjectURL(blob);
@@ -11,14 +11,15 @@ function baixar(blob, nome) {
   setTimeout(() => URL.revokeObjectURL(href), 4000);
 }
 
-export default function CartaPdfBotoes({ texto, honoree, remetente, url, disabled = false }) {
+export default function CartaPdfBotoes({ texto, honoree, remetente, url, fotoUrl = '', disabled = false }) {
   const [estado, setEstado] = useState('');
   const [erro, setErro] = useState('');
 
   const executar = async (modo) => {
     setErro(''); setEstado(modo);
     try {
-      const blob = await gerarCartaPdf({ texto, honoree, remetente, url });
+      const [fontes, foto] = await Promise.all([carregarFontesCarta(), carregarFotoCarta(fotoUrl)]);
+      const blob = await gerarCartaPdf({ texto, honoree, remetente, url, fontes, foto });
       const nome = nomeArquivoCarta(honoree);
       if (modo === 'enviar') {
         const arquivo = new File([blob], nome, { type: 'application/pdf' });
