@@ -1575,11 +1575,28 @@
   color: var(--nx-muted);
 }
 
+/* O seletor nativo ("Escolher arquivos / Nenhum arquivo escolhido") fica escondido: ele sempre
+   mostrava "Nenhum arquivo escolhido" mesmo depois de a pessoa escolher as fotos, e parecia que
+   nada tinha sido selecionado. A área inteira é o botão. */
+.nx-upload-zone {
+  position: relative;
+}
+
 .nx-upload-zone input {
+  position: absolute;
+  inset: 0;
   width: 100%;
-  padding: 9px 0;
-  font-size: .8rem;
-  color: var(--nx-muted);
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.nx-upload-zone strong {
+  justify-self: center;
+  padding: 12px 22px;
+  border-radius: 999px;
+  background: var(--nx-purple);
+  color: #fff;
 }
 
 .nx-track-picker,
