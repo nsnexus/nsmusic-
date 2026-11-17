@@ -16,6 +16,7 @@ import { getSupabaseEdge } from './supabase-edge.js';
 import { getEvolutionConfig } from './whatsapp.js';
 import { resolveCriarUrl } from './whatsappTemplates.js';
 import { findOrdersByPhone } from './orderLookup.js';
+import { isBonusOrder } from './trafficSource.js';
 import { DOMINIO_CANONICO } from './siteUrl.js';
 
 export const CHAVE_ADM = 'whatsapp_adm';
@@ -25,6 +26,21 @@ const MAX_LISTA = 9;
 const VALIDADE_ESCOLHA_MS = 30 * 60 * 1000;
 const INTERVALO_REENVIO_MS = 5 * 60 * 1000;
 const STATUS_PAGO = new Set(['PAGAMENTO_APROVADO', 'PAGO']);
+
+/**
+ * O pedido pode ser entregue? Pago, ou MÚSICA BÔNUS cujo pedido principal está pago — mesma regra
+ * da página de entrega. A bônus é um pedido separado e, se foi gerada antes de o principal ser pago
+ * (ex.: PIX liberado à mão depois), fica com status "aguardando pagamento" para sempre.
+ */
+export function pedidoLiberado(p, todos = []) {
+  if (!p) return false;
+  if (STATUS_PAGO.has(String(p.paymentStatus || ''))) return true;
+  if (!isBonusOrder(p)) return false;
+  const paiId = p.parentOrderId || p.orderRef || p.extras?.parentOrderId || p.extras?.orderRef;
+  const pai = (todos || []).find((o) => o && paiId && (o.id === paiId || o.orderNumber === paiId))
+    || (todos || []).find((o) => o && (o.secondGenerationOrderId === p.id || o.segundaGeracaoOrderId === p.id));
+  return Boolean(pai && STATUS_PAGO.has(String(pai.paymentStatus || '')));
+}
 
 export function normalizarConfigAdm(valor) {
   const v = valor && typeof valor === 'object' ? valor : {};
@@ -95,21 +111,50 @@ export function dataHoraBr(valor) {
 
 /** Pedidos pagos que têm áudio, do mais novo para o mais antigo (como vêm da busca). */
 export function pedidosPagosComAudio(pedidos) {
-  return (pedidos || []).filter((p) => p?.id && STATUS_PAGO.has(String(p.paymentStatus || ''))
+  return (pedidos || []).filter((p) => p?.id && pedidoLiberado(p, pedidos)
     && ((Array.isArray(p.audioFiles) && p.audioFiles.some(Boolean)) || p.audioUrl));
 }
 
-function descreverPedido(p) {
+function descreverPedido(p, comBonus = false) {
   const codigo = p.orderNumber || String(p.id).slice(0, 8);
-  const para = p.honoreeName ? ` — para ${p.honoreeName}` : '';
+  const bonus = isBonusOrder(p) ? ' (🎁 música bônus)' : (comBonus ? ' (+ 🎁 música bônus)' : '');
+  const para = `${p.honoreeName ? ` — para ${p.honoreeName}` : ''}${bonus}`;
   const quando = dataHoraBr(p.createdAt);
   return `*${codigo}*${para}${quando ? `\n   criado em ${quando}` : ''}`;
 }
 
-export function textoListaPedidos(pedidos) {
-  const linhas = pedidos.map((p, i) => `${i + 1}️⃣ ${descreverPedido(p)}`);
-  return `Encontrei ${pedidos.length} músicas pagas no seu número 🎵\n\n${linhas.join('\n\n')}\n\n`
-    + `Responda com o *número* da música que você quer receber, ou *TODAS* para receber todas.`;
+const descreverGrupo = (g) => descreverPedido(g.principal, g.pedidos.length > 1);
+
+/**
+ * Junta cada música bônus ao pedido principal dela: na lista aparecem como UM pedido e são
+ * enviadas juntas. Bônus sem o principal na lista vira um item próprio. Mais novos primeiro.
+ * @returns {{ principal: Object, pedidos: Object[] }[]}
+ */
+export function agruparComBonus(pagos) {
+  const grupos = [];
+  const porPai = new Map();
+  for (const p of pagos || []) {
+    if (isBonusOrder(p)) continue;
+    const g = { principal: p, pedidos: [p] };
+    grupos.push(g);
+    porPai.set(p.id, g);
+    if (p.orderNumber) porPai.set(p.orderNumber, g);
+  }
+  for (const p of pagos || []) {
+    if (!isBonusOrder(p)) continue;
+    const paiId = p.parentOrderId || p.orderRef || p.extras?.parentOrderId || p.extras?.orderRef;
+    const g = porPai.get(paiId)
+      || grupos.find((x) => x.principal.secondGenerationOrderId === p.id || x.principal.segundaGeracaoOrderId === p.id);
+    if (g) g.pedidos.push(p);
+    else grupos.push({ principal: p, pedidos: [p] });
+  }
+  return grupos.sort((a, b) => String(b.principal.createdAt || '').localeCompare(String(a.principal.createdAt || '')));
+}
+
+export function textoListaPedidos(grupos) {
+  const linhas = grupos.map((g, i) => `${i + 1}️⃣ ${descreverGrupo(g)}`);
+  return `Encontrei ${grupos.length} pedidos pagos no seu número 🎵\n\n${linhas.join('\n\n')}\n\n`
+    + `Responda com o *número* do pedido que você quer receber, ou *TODAS* para receber todas as músicas.`;
 }
 
 export const TEXTO_AJUSTE = 'Claro, vamos deixar sua música do jeitinho que você quer! 🎶\n\n'
@@ -155,10 +200,10 @@ function nomeDeArquivo(texto) {
 }
 
 /** Dos pedidos do telefone, os arquivos que podem ser enviados: só pedido PAGO e com áudio. */
-export function selecionarMusicasPagas(pedidos, max = MAX_ARQUIVOS) {
+export function selecionarMusicasPagas(pedidos, max = MAX_ARQUIVOS, todos = pedidos) {
   const arquivos = [];
   for (const p of pedidos || []) {
-    if (!p?.id || !STATUS_PAGO.has(String(p.paymentStatus || ''))) continue;
+    if (!p?.id || !pedidoLiberado(p, todos)) continue;
     const faixas = Array.isArray(p.audioFiles) ? p.audioFiles.filter(Boolean) : [];
     const total = faixas.length || (p.audioUrl ? 1 : 0);
     const base = nomeDeArquivo(p.honoreeName) || 'NS-Music';
@@ -257,8 +302,8 @@ async function gravarEscolha(supabase, telefone, ids) {
 }
 
 // Manda os MP3 de um ou mais pedidos, com a mensagem de abertura. Devolve { enviados, total }.
-async function enviarPedidos(ctx, destino, pedidos, abertura) {
-  const arquivos = selecionarMusicasPagas(pedidos);
+async function enviarPedidos(ctx, destino, pedidos, abertura, todos = pedidos) {
+  const arquivos = selecionarMusicasPagas(pedidos, MAX_ARQUIVOS, todos);
   await enviarTextoAdm(ctx.evolution, destino, abertura);
   let enviados = 0;
   let audios = 0;
@@ -322,18 +367,19 @@ export async function tratarMensagemAdm(body, env = {}, ctxPronto = null) {
 
     if (escolha) {
       const pagos = pedidosPagosComAudio(await findOrdersByPhone(msg.telefone, env, 20));
-      const porId = new Map(pagos.map((p) => [p.id, p]));
-      const lista = pendente.map((id) => porId.get(id)).filter(Boolean);
-      const escolhidos = escolha === 'todas' ? lista : [lista[escolha - 1]].filter(Boolean);
+      const porPrincipal = new Map(agruparComBonus(pagos).map((g) => [g.principal.id, g]));
+      const lista = pendente.map((id) => porPrincipal.get(id)).filter(Boolean);
+      const grupos = escolha === 'todas' ? lista : [lista[escolha - 1]].filter(Boolean);
+      const escolhidos = grupos.flatMap((g) => g.pedidos);
       await gravarEscolha(ctx.supabase, msg.telefone, null);
       if (escolhidos.length === 0) {
         await registrarAcao(ctx, { opcao: '3', final: final4, resultado: 'Escolha não encontrada — responda manualmente' });
         return { acao: 'sem_pedido_pago' };
       }
-      const abertura = escolhidos.length === 1
-        ? `Perfeito! Aqui está a música do pedido ${descreverPedido(escolhidos[0])}, em arquivo MP3 e em áudio 🎵`
-        : `Perfeito! Estou te enviando as músicas dos seus ${escolhidos.length} pedidos aqui mesmo, em arquivo MP3 e em áudio 🎵`;
-      const r = await enviarPedidos(ctx, destino, escolhidos, abertura);
+      const abertura = grupos.length === 1
+        ? `Perfeito! Aqui está a música do pedido ${descreverGrupo(grupos[0])}, em arquivo MP3 e em áudio 🎵`
+        : `Perfeito! Estou te enviando as músicas dos seus ${grupos.length} pedidos aqui mesmo, em arquivo MP3 e em áudio 🎵`;
+      const r = await enviarPedidos(ctx, destino, escolhidos, abertura, pagos);
       const qual = escolha === 'todas' ? 'todas' : `nº ${escolha}`;
       await registrarAcao(ctx, { opcao: '3', final: final4, resultado: `Escolheu ${qual}: ${r.enviados} de ${r.total} arquivo(s) e ${r.audios} áudio(s) enviados` });
       return { acao: r.enviados > 0 ? 'musicas' : 'falha', ...r };
@@ -369,15 +415,18 @@ export async function tratarMensagemAdm(body, env = {}, ctxPronto = null) {
       return { acao: 'aguardando' };
     }
 
-    if (pagos.length > 1) {
-      const lista = pagos.slice(0, MAX_LISTA);
+    // Música bônus vai junto com o pedido principal dela (ver agruparComBonus).
+    const grupos = agruparComBonus(pagos);
+    if (grupos.length > 1) {
+      const lista = grupos.slice(0, MAX_LISTA);
       const ok = await enviarTextoAdm(ctx.evolution, destino, textoListaPedidos(lista));
-      if (ok) await gravarEscolha(ctx.supabase, msg.telefone, lista.map((p) => p.id));
+      if (ok) await gravarEscolha(ctx.supabase, msg.telefone, lista.map((g) => g.principal.id));
       await registrarAcao(ctx, { opcao: rotulo, final: final4, resultado: ok ? `Lista com ${lista.length} pedidos enviada — aguardando a escolha` : 'Falha ao enviar a lista' });
       return { acao: ok ? 'lista' : 'falha', total: lista.length };
     }
 
-    const r = await enviarPedidos(ctx, destino, pagos, `Encontrei o seu pedido ${descreverPedido(pagos[0])} 🎵\n\nEstou te enviando a música aqui mesmo, em arquivo MP3 e em áudio:`);
+    const unico = grupos[0];
+    const r = await enviarPedidos(ctx, destino, unico.pedidos, `Encontrei o seu pedido ${descreverGrupo(unico)} 🎵\n\nEstou te enviando ${unico.pedidos.length > 1 ? 'as músicas (principal e bônus)' : 'a música'} aqui mesmo, em arquivo MP3 e em áudio:`, pagos);
     await registrarAcao(ctx, { opcao: rotulo, final: final4, resultado: `${r.enviados} de ${r.total} arquivo(s) e ${r.audios} áudio(s) enviados` });
     return { acao: r.enviados > 0 ? 'musicas' : 'falha', ...r };
   } catch (err) {
