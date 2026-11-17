@@ -71,7 +71,7 @@ export default function AbaWhatsappAdm() {
       <div style={estilos.cartao}>
         <h2 style={{ margin: '0 0 6px', fontSize: '16px' }}>Respostas automáticas no número ADM</h2>
         <p style={{ ...estilos.mudo, margin: '0 0 12px' }}>
-          Quando o cliente responder o menu só com o número: <strong style={{ color: '#f8fafc' }}>3</strong> envia as músicas pagas dele como arquivo, na conversa; <strong style={{ color: '#f8fafc' }}>4</strong> envia o link para criar uma música. Qualquer outra mensagem fica para você responder.
+          Quando o cliente responder o menu só com o número: <strong style={{ color: '#f8fafc' }}>1</strong> pergunta o que ele quer ajustar (letra, ritmo, voz…); <strong style={{ color: '#f8fafc' }}>3</strong> com 1 pedido pago diz o código e a data e manda os arquivos, com vários lista os pedidos para ele escolher um ou TODAS; <strong style={{ color: '#f8fafc' }}>4</strong> envia o link para criar uma música. Qualquer outra mensagem fica para você responder.
         </p>
         <div style={estilos[estado.estilo]}>{estado.texto}</div>
 

@@ -1,8 +1,9 @@
 // Automação do número ADM (o WhatsApp de atendimento, separado do número que dispara as mensagens
-// automáticas). Ele já tem um menu de boas-vindas do próprio WhatsApp Business; aqui tratamos só
-// duas respostas:
-//   "3" (não consigo baixar)  → manda os MP3 pagos daquele telefone como arquivo, na conversa;
-//   "4" (quero criar)         → manda o link da plataforma.
+// automáticas). Ele já tem um menu de boas-vindas do próprio WhatsApp Business; aqui tratamos:
+//   "1" (ajustar minha música) → pergunta o que o cliente quer ajustar (letra, ritmo, voz...);
+//   "3" (não consigo baixar)   → 1 pedido pago: diz qual é (código, data) e manda os MP3;
+//                                vários: lista os pedidos numerados e o cliente escolhe um ou "TODAS";
+//   "4" (quero criar)          → manda o link da plataforma.
 // Qualquer outra mensagem fica em silêncio: é o dono quem responde.
 //
 // O número ADM é uma SEGUNDA instância na mesma Evolution API. A configuração mora na tabela
@@ -16,7 +17,9 @@ import { DOMINIO_CANONICO } from './siteUrl.js';
 
 export const CHAVE_ADM = 'whatsapp_adm';
 export const INSTANCIA_PADRAO = 'nsmusic-adm';
-const MAX_ARQUIVOS = 6;
+const MAX_ARQUIVOS = 10;
+const MAX_LISTA = 9;
+const VALIDADE_ESCOLHA_MS = 30 * 60 * 1000;
 const INTERVALO_REENVIO_MS = 5 * 60 * 1000;
 const STATUS_PAGO = new Set(['PAGAMENTO_APROVADO', 'PAGO']);
 
@@ -56,11 +59,63 @@ export async function salvarAdm(supabase, config) {
   if (error) throw new Error('Falha ao salvar a configuração do WhatsApp ADM.');
 }
 
-/** "3", " 3 ", "3.", "3️⃣" → '3'. Qualquer coisa além de um 3 ou 4 sozinho → null. */
-export function interpretarOpcao(texto) {
-  const limpo = String(texto || '').replace(/[️⃣]/g, '').trim().replace(/[.)!\s]+$/, '');
-  return limpo === '3' || limpo === '4' ? limpo : null;
+function limparNumero(texto) {
+  return String(texto || '').replace(/[️⃣]/g, '').trim().replace(/[.)!\s]+$/, '');
 }
+
+/** "3", " 3 ", "3.", "3️⃣" → '3'. Qualquer coisa além de um 1, 3 ou 4 sozinho → null. */
+export function interpretarOpcao(texto) {
+  const limpo = limparNumero(texto);
+  return limpo === '1' || limpo === '3' || limpo === '4' ? limpo : null;
+}
+
+/** Resposta à lista de pedidos: número da lista (1..total) ou 'todas'. Qualquer outra coisa → null. */
+export function interpretarEscolha(texto, total) {
+  const limpo = limparNumero(texto).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (/^(todas?|todos?)( as musicas| os pedidos)?$/.test(limpo)) return 'todas';
+  if (/^\d{1,2}$/.test(limpo)) {
+    const n = Number(limpo);
+    if (n >= 1 && n <= total) return n;
+  }
+  return null;
+}
+
+/** "16/11/2026 às 17:13", no horário de Brasília. */
+export function dataHoraBr(valor) {
+  const d = valor?.toDate ? valor.toDate() : new Date(valor);
+  if (!valor || Number.isNaN(d.getTime())) return '';
+  const partes = Object.fromEntries(new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(d).map((p) => [p.type, p.value]));
+  return `${partes.day}/${partes.month}/${partes.year} às ${partes.hour}:${partes.minute}`;
+}
+
+/** Pedidos pagos que têm áudio, do mais novo para o mais antigo (como vêm da busca). */
+export function pedidosPagosComAudio(pedidos) {
+  return (pedidos || []).filter((p) => p?.id && STATUS_PAGO.has(String(p.paymentStatus || ''))
+    && ((Array.isArray(p.audioFiles) && p.audioFiles.some(Boolean)) || p.audioUrl));
+}
+
+function descreverPedido(p) {
+  const codigo = p.orderNumber || String(p.id).slice(0, 8);
+  const para = p.honoreeName ? ` — para ${p.honoreeName}` : '';
+  const quando = dataHoraBr(p.createdAt);
+  return `*${codigo}*${para}${quando ? `\n   criado em ${quando}` : ''}`;
+}
+
+export function textoListaPedidos(pedidos) {
+  const linhas = pedidos.map((p, i) => `${i + 1}️⃣ ${descreverPedido(p)}`);
+  return `Encontrei ${pedidos.length} músicas pagas no seu número 🎵\n\n${linhas.join('\n\n')}\n\n`
+    + `Responda com o *número* da música que você quer receber, ou *TODAS* para receber todas.`;
+}
+
+export const TEXTO_AJUSTE = 'Claro, vamos deixar sua música do jeitinho que você quer! 🎶\n\n'
+  + 'Me conta o que você gostaria de ajustar:\n\n'
+  + '✍️ *Letra* — alguma palavra, nome ou trecho\n'
+  + '🥁 *Ritmo / estilo* — mais animada, mais lenta, outro gênero\n'
+  + '🎤 *Voz* — masculina, feminina, outro tom\n'
+  + '💬 *Outra coisa*\n\n'
+  + 'Pode escrever com detalhes (ou mandar um áudio) e, se tiver mais de um pedido, diga também qual é. Nossa equipe já vai te responder! 💜';
 
 /** Extrai o essencial de um evento messages.upsert da Evolution. Devolve null se não for conversa de cliente. */
 export function lerMensagemEvolution(body) {
@@ -143,6 +198,48 @@ async function jaMarcado(supabase, chave, janelaMs) {
   return false;
 }
 
+const chaveEscolha = (telefone) => `adm_escolha_${telefone}`;
+
+async function lerEscolha(supabase, telefone) {
+  try {
+    const { data } = await supabase.from('config').select('valor').eq('chave', chaveEscolha(telefone)).maybeSingle();
+    const v = data?.valor;
+    const em = v?.at ? Date.parse(v.at) : NaN;
+    if (Number.isNaN(em) || Date.now() - em > VALIDADE_ESCOLHA_MS || !Array.isArray(v.pedidos) || v.pedidos.length === 0) return null;
+    return v.pedidos;
+  } catch (err) {
+    console.warn('[whatsapp-adm] Falha ao ler a escolha pendente:', err?.name);
+    return null;
+  }
+}
+
+async function gravarEscolha(supabase, telefone, ids) {
+  try {
+    await supabase.from('config').upsert({ chave: chaveEscolha(telefone), valor: ids ? { at: new Date().toISOString(), pedidos: ids } : { at: null, pedidos: [] }, updated_at: new Date().toISOString() });
+  } catch (err) {
+    console.warn('[whatsapp-adm] Falha ao gravar a escolha pendente:', err?.name);
+  }
+}
+
+// Manda os MP3 de um ou mais pedidos, com a mensagem de abertura. Devolve { enviados, total }.
+async function enviarPedidos(ctx, destino, pedidos, abertura) {
+  const arquivos = selecionarMusicasPagas(pedidos);
+  await enviarTextoAdm(ctx.evolution, destino, abertura);
+  let enviados = 0;
+  for (const arquivo of arquivos) {
+    try {
+      if (await enviarArquivoAdm(ctx.evolution, destino, arquivo)) enviados++;
+    } catch (err) {
+      console.warn('[whatsapp-adm] Falha ao enviar um arquivo:', err?.name);
+    }
+  }
+  const faixas = pedidos.reduce((n, p) => n + ((Array.isArray(p.audioFiles) ? p.audioFiles.filter(Boolean).length : 0) || (p.audioUrl ? 1 : 0)), 0);
+  if (faixas > arquivos.length) {
+    await enviarTextoAdm(ctx.evolution, destino, `Mandei os ${arquivos.length} primeiros arquivos. Para receber os outros, mande *3* de novo daqui a alguns minutos e escolha o pedido pelo número. 😉`);
+  }
+  return { enviados, total: arquivos.length };
+}
+
 async function registrarAcao(ctx, acao) {
   try {
     const ultimasAcoes = [{ em: new Date().toISOString(), ...acao }, ...ctx.config.ultimasAcoes].slice(0, 30);
@@ -155,7 +252,7 @@ async function registrarAcao(ctx, acao) {
 
 /**
  * Trata um evento recebido do número ADM. Nunca lança. Devolve { acao } só para log/teste:
- * 'ignorada' | 'duplicada' | 'link' | 'musicas' | 'sem_pedido_pago' | 'aguardando' | 'falha'.
+ * 'ignorada' | 'duplicada' | 'ajuste' | 'link' | 'lista' | 'musicas' | 'sem_pedido_pago' | 'aguardando' | 'falha'.
  */
 export async function tratarMensagemAdm(body, env = {}, ctxPronto = null) {
   try {
@@ -163,8 +260,13 @@ export async function tratarMensagemAdm(body, env = {}, ctxPronto = null) {
     if (!ctx.supabase || !ctx.evolution || !ctx.config.ligada) return { acao: 'ignorada' };
 
     const msg = lerMensagemEvolution(body);
-    const opcao = msg ? interpretarOpcao(msg.texto) : null;
-    if (!opcao) return { acao: 'ignorada' };
+    if (!msg) return { acao: 'ignorada' };
+
+    // Cliente respondendo à lista de pedidos (vale por 30 minutos)? Tem prioridade sobre o menu.
+    const pendente = msg.telefone ? await lerEscolha(ctx.supabase, msg.telefone) : null;
+    const escolha = pendente ? interpretarEscolha(msg.texto, pendente.length) : null;
+    const opcao = escolha ? null : interpretarOpcao(msg.texto);
+    if (!escolha && !opcao) return { acao: 'ignorada' };
 
     if (msg.id && await jaMarcado(ctx.supabase, `dedup_msg_adm_${msg.id.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 120)}`, 10 * 60 * 1000)) {
       return { acao: 'duplicada' };
@@ -172,6 +274,32 @@ export async function tratarMensagemAdm(body, env = {}, ctxPronto = null) {
 
     const destino = msg.telefone || msg.jid;
     const final4 = msg.telefone ? msg.telefone.slice(-4) : 'lid';
+
+    if (escolha) {
+      const pagos = pedidosPagosComAudio(await findOrdersByPhone(msg.telefone, env, 20));
+      const porId = new Map(pagos.map((p) => [p.id, p]));
+      const lista = pendente.map((id) => porId.get(id)).filter(Boolean);
+      const escolhidos = escolha === 'todas' ? lista : [lista[escolha - 1]].filter(Boolean);
+      await gravarEscolha(ctx.supabase, msg.telefone, null);
+      if (escolhidos.length === 0) {
+        await registrarAcao(ctx, { opcao: '3', final: final4, resultado: 'Escolha não encontrada — responda manualmente' });
+        return { acao: 'sem_pedido_pago' };
+      }
+      const abertura = escolhidos.length === 1
+        ? `Perfeito! Aqui está a música do pedido ${descreverPedido(escolhidos[0])} 🎵`
+        : `Perfeito! Estou te enviando as músicas dos seus ${escolhidos.length} pedidos aqui mesmo, como arquivo 🎵`;
+      const r = await enviarPedidos(ctx, destino, escolhidos, abertura);
+      const qual = escolha === 'todas' ? 'todas' : `nº ${escolha}`;
+      await registrarAcao(ctx, { opcao: '3', final: final4, resultado: `Escolheu ${qual}: ${r.enviados} de ${r.total} arquivo(s) enviados` });
+      return { acao: r.enviados > 0 ? 'musicas' : 'falha', ...r };
+    }
+
+    if (opcao === '1') {
+      if (msg.telefone && await jaMarcado(ctx.supabase, `adm_ajuste_${msg.telefone}`, 10 * 60 * 1000)) return { acao: 'aguardando' };
+      const ok = await enviarTextoAdm(ctx.evolution, destino, TEXTO_AJUSTE);
+      await registrarAcao(ctx, { opcao: '1', final: final4, resultado: ok ? 'Perguntou o que ajustar — responda a conversa' : 'Falha ao enviar a pergunta' });
+      return { acao: ok ? 'ajuste' : 'falha' };
+    }
 
     if (opcao === '4') {
       const ok = await enviarTextoAdm(ctx.evolution, destino, `Que bom! 🎵 Para criar a sua música é só acessar o link abaixo e contar a história:\n\n${resolveCriarUrl()}`);
@@ -184,8 +312,8 @@ export async function tratarMensagemAdm(body, env = {}, ctxPronto = null) {
       await registrarAcao(ctx, { opcao: '3', final: final4, resultado: 'Telefone não identificado — responda manualmente' });
       return { acao: 'sem_pedido_pago' };
     }
-    const arquivos = selecionarMusicasPagas(await findOrdersByPhone(msg.telefone, env, 10));
-    if (arquivos.length === 0) {
+    const pagos = pedidosPagosComAudio(await findOrdersByPhone(msg.telefone, env, 20));
+    if (pagos.length === 0) {
       await registrarAcao(ctx, { opcao: '3', final: final4, resultado: 'Nenhum pedido pago neste telefone — responda manualmente' });
       return { acao: 'sem_pedido_pago' };
     }
@@ -193,17 +321,17 @@ export async function tratarMensagemAdm(body, env = {}, ctxPronto = null) {
       return { acao: 'aguardando' };
     }
 
-    await enviarTextoAdm(ctx.evolution, destino, `Sem problema! Estou te enviando ${arquivos.length === 1 ? 'a sua música' : `as suas ${arquivos.length} músicas`} aqui mesmo, como arquivo. 🎵`);
-    let enviados = 0;
-    for (const arquivo of arquivos) {
-      try {
-        if (await enviarArquivoAdm(ctx.evolution, destino, arquivo)) enviados++;
-      } catch (err) {
-        console.warn('[whatsapp-adm] Falha ao enviar um arquivo:', err?.name);
-      }
+    if (pagos.length > 1) {
+      const lista = pagos.slice(0, MAX_LISTA);
+      const ok = await enviarTextoAdm(ctx.evolution, destino, textoListaPedidos(lista));
+      if (ok) await gravarEscolha(ctx.supabase, msg.telefone, lista.map((p) => p.id));
+      await registrarAcao(ctx, { opcao: '3', final: final4, resultado: ok ? `Lista com ${lista.length} pedidos enviada — aguardando a escolha` : 'Falha ao enviar a lista' });
+      return { acao: ok ? 'lista' : 'falha', total: lista.length };
     }
-    await registrarAcao(ctx, { opcao: '3', final: final4, resultado: `${enviados} de ${arquivos.length} arquivo(s) enviados` });
-    return { acao: enviados > 0 ? 'musicas' : 'falha', enviados, total: arquivos.length };
+
+    const r = await enviarPedidos(ctx, destino, pagos, `Encontrei o seu pedido ${descreverPedido(pagos[0])} 🎵\n\nEstou te enviando a música aqui mesmo, como arquivo:`);
+    await registrarAcao(ctx, { opcao: '3', final: final4, resultado: `${r.enviados} de ${r.total} arquivo(s) enviados` });
+    return { acao: r.enviados > 0 ? 'musicas' : 'falha', ...r };
   } catch (err) {
     console.warn('[whatsapp-adm] Erro ao tratar mensagem:', err?.name);
     return { acao: 'falha' };
