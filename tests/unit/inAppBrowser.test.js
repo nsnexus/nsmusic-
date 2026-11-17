@@ -48,3 +48,22 @@ describe('getChromeIntentUrl', () => {
     expect(intent).toContain('S.browser_fallback_url=https%3A%2F%2Fnsmusic.ia.br%2Fentrega%3ForderId%3D123');
   });
 });
+
+// Achado 16/11/2026: no Android o WhatsApp abre o link numa aba do Chrome com User-Agent normal;
+// o único sinal é o referrer "android-app://com.whatsapp/".
+describe('aba aberta por um app (Chrome Custom Tab)', () => {
+  it('reconhece WhatsApp e Instagram pelo referrer', async () => {
+    const { appQueAbriuAPagina, isAbaAbertaPorApp } = await import('@/lib/inAppBrowser');
+    expect(appQueAbriuAPagina('android-app://com.whatsapp/')).toBe('com.whatsapp');
+    expect(appQueAbriuAPagina('android-app://com.instagram.android/')).toBe('com.instagram.android');
+    expect(isAbaAbertaPorApp('android-app://com.whatsapp.w4b/')).toBe(true);
+  });
+
+  it('não confunde com o próprio navegador, a busca do Google ou um site comum', async () => {
+    const { appQueAbriuAPagina, isAbaAbertaPorApp } = await import('@/lib/inAppBrowser');
+    expect(appQueAbriuAPagina('android-app://com.android.chrome/')).toBe('');
+    expect(appQueAbriuAPagina('android-app://com.google.android.googlequicksearchbox/')).toBe('');
+    expect(isAbaAbertaPorApp('https://www.google.com/')).toBe(false);
+    expect(isAbaAbertaPorApp('')).toBe(false);
+  });
+});

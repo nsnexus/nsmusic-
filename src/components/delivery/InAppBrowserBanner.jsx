@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { isInAppBrowser, isIOS, isAndroid, getChromeIntentUrl } from '@/lib/inAppBrowser';
+import PopupAbrirNoNavegador from './PopupAbrirNoNavegador';
 
 export default function InAppBrowserBanner() {
   const [inApp, setInApp] = useState(false);
@@ -48,6 +49,8 @@ export default function InAppBrowserBanner() {
   };
 
   return (
+    <>
+    <PopupAbrirNoNavegador ios={ios} chromeIntentUrl={chromeIntentUrl} onCopiar={handleCopyLink} copiado={copied} />
     <aside
       role="alert"
       aria-live="polite"
@@ -89,7 +92,7 @@ export default function InAppBrowserBanner() {
               ⚠️ {ios ? 'IPHONE / WHATSAPP' : 'WHATSAPP DETECTADO'}
             </span>
             <span style={{ fontWeight: 700, color: '#f3e8ff', fontSize: '0.92rem' }}>
-              Para baixar sem erro no celular:
+              Para enviar fotos e baixar sem erro:
             </span>
           </div>
 
@@ -119,11 +122,11 @@ export default function InAppBrowserBanner() {
         <p style={{ margin: 0, color: '#e2e8f0', fontSize: '0.85rem' }}>
           {ios ? (
             <>
-              O navegador interno do WhatsApp no iPhone bloqueia o download direto de MP3. Para salvar na sua pasta <strong>Arquivos</strong>, toque no ícone do <strong>Safari (🧭)</strong> ou no botão <strong>Compartilhar</strong> no rodapé da tela e escolha <strong>&quot;Abrir no Safari&quot;</strong>.
+              O navegador interno do WhatsApp no iPhone bloqueia o download de MP3 e pode falhar no envio de fotos. Toque no ícone do <strong>Safari (🧭)</strong> ou no botão <strong>Compartilhar</strong> no rodapé da tela e escolha <strong>&quot;Abrir no Safari&quot;</strong>.
             </>
           ) : (
             <>
-              O navegador interno do WhatsApp bloqueia downloads de arquivos. Toque no botão verde abaixo para <strong>abrir no Google Chrome</strong> e salvar seus MP3s direto na pasta Downloads:
+              Aqui dentro do WhatsApp o envio de fotos e o download podem falhar. Toque nos <strong>três pontinhos (⋮)</strong> no canto de cima e em <strong>&quot;Abrir no Chrome&quot;</strong>, ou use o botão verde abaixo:
             </>
           )}
         </p>
@@ -151,7 +154,7 @@ export default function InAppBrowserBanner() {
                 textAlign: 'center',
               }}
             >
-              🌐 Abrir no Google Chrome para Baixar
+              🌐 Abrir no Google Chrome
             </a>
           )}
 
@@ -180,5 +183,6 @@ export default function InAppBrowserBanner() {
         </div>
       </div>
     </aside>
+    </>
   );
 }
