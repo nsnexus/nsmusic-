@@ -118,11 +118,15 @@ describe('resumo do dia (mesmas contas do Dashboard)', () => {
 
   it('validade: hoje 5 min; dia aberto 1 h; fechado (2 dias depois) para sempre', () => {
     const hoje = '2026-11-17';
-    expect(linhaValida({ dia: hoje, calculado_em: '2026-11-17T14:57:00Z' }, hoje, AGORA)).toBe(true);
-    expect(linhaValida({ dia: hoje, calculado_em: '2026-11-17T14:50:00Z' }, hoje, AGORA)).toBe(false);
-    expect(linhaValida({ dia: '2026-11-16', calculado_em: '2026-11-17T14:30:00Z' }, hoje, AGORA)).toBe(true);
-    expect(linhaValida({ dia: '2026-11-16', calculado_em: '2026-11-17T13:00:00Z' }, hoje, AGORA)).toBe(false);
-    expect(linhaValida({ dia: '2026-11-10', calculado_em: '2026-11-12T04:00:00Z' }, hoje, AGORA)).toBe(true);
+    expect(linhaValida({ dia: hoje, calculado_em: '2026-11-17T14:57:00Z', detalhes: { v: 1 } }, hoje, AGORA)).toBe(true);
+    expect(linhaValida({ dia: hoje, calculado_em: '2026-11-17T14:50:00Z', detalhes: { v: 1 } }, hoje, AGORA)).toBe(false);
+    expect(linhaValida({ dia: '2026-11-16', calculado_em: '2026-11-17T14:30:00Z', detalhes: { v: 1 } }, hoje, AGORA)).toBe(true);
+    expect(linhaValida({ dia: '2026-11-16', calculado_em: '2026-11-17T13:00:00Z', detalhes: { v: 1 } }, hoje, AGORA)).toBe(false);
+    expect(linhaValida({ dia: '2026-11-10', calculado_em: '2026-11-12T04:00:00Z', detalhes: { v: 1 } }, hoje, AGORA)).toBe(true);
+  });
+
+  it('linha antiga sem os detalhes do Dashboard é recalculada', () => {
+    expect(linhaValida({ dia: '2026-11-10', calculado_em: '2026-11-12T04:00:00Z' }, '2026-11-17', AGORA)).toBe(false);
   });
 
   it('gasto manual substitui o da API naquele dia', () => {

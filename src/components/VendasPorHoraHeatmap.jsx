@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { usePedidosDoMes, paraData } from '@/lib/usePedidosDoMes';
+import { usePedidosDoMes } from '@/lib/usePedidosDoMes';
+import { calcularVendasPorHora } from '@/lib/dashboardAgregados';
 import { sequentialBlue, textoSobreSequencial } from '@/lib/sequentialColor';
 
 // Mapa de calor "vendas por horário do dia" (pedido 12/09/2026) — em qual hora do dia as vendas
@@ -20,6 +21,7 @@ export default function VendasPorHoraHeatmap({
   mes: mesProp = null,
   loading: loadingProp = null,
   erro: erroProp = null,
+  resumo = null,
 }) {
   const [internalMes, setInternalMes] = useState(mesAtualStr);
   const mes = mesProp || internalMes;
@@ -31,27 +33,10 @@ export default function VendasPorHoraHeatmap({
   const erro = erroProp !== null ? erroProp : erroHook;
   const [hover, setHover] = useState(null); // { hora, total }
 
-  const porHora = useMemo(() => {
-    const [ano, mesNum] = mes.split('-').map(Number);
-    const horas = Array.from({ length: 24 }, () => 0);
-
-    const somar = (dataVal) => {
-      const d = paraData(dataVal);
-      if (!d) return;
-      if (d.getFullYear() !== ano || d.getMonth() !== mesNum - 1) return;
-      horas[d.getHours()] += 1;
-    };
-
-    for (const o of pedidos) {
-      const musicaPaga = o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'PAGO';
-      if (musicaPaga) somar(o.paidAt || o.createdAt);
-      if (o.hasVideoAccess || o.videoAddonPaid) somar(o.videoPaidAt);
-      if (o.hasPlaybackAccess || o.playbackAddonPaid) somar(o.playbackPaidAt);
-      if (o.hasCartaAccess || o.cartaAddonPaid) somar(o.cartaPaidAt);
-      if (o.hasRetrospectivaAccess || o.retrospectivaAddonPaid) somar(o.retrospectivaPaidAt);
-    }
-    return horas;
-  }, [pedidos, mes]);
+  const porHora = useMemo(() => (
+    // Resumo pronto do servidor (metricas_diarias) ou, sem ele, a mesma conta a partir dos pedidos.
+    (resumo && resumo.mes === mes && Array.isArray(resumo.horas)) ? resumo.horas : calcularVendasPorHora(pedidos, mes)
+  ), [pedidos, resumo, mes]);
 
   const pico = Math.max(1, ...porHora);
   const totalVendas = porHora.reduce((a, b) => a + b, 0);

@@ -54,6 +54,8 @@ export function usePedidosRecentes(dias = 8) {
   const [erro, setErro] = useState('');
 
   useEffect(() => {
+    // dias = null/0: quem chama já tem os dados (ex.: ritmo vindo pronto do servidor) — não busca.
+    if (!dias) { setLoading(false); return undefined; }
     let ativo = true;
     (async () => {
       setLoading(true);

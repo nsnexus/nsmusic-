@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { usePedidosDoMes } from '@/lib/usePedidosDoMes';
+import { calcularVendasPorEstado } from '@/lib/dashboardAgregados';
 import { ufFromPhone, UF_NOME } from '@/lib/dddToUf';
 import { BR_UF_SHAPES, BR_VIEWBOX } from '@/lib/brUfShapes';
 import { sequentialBlue } from '@/lib/sequentialColor';
@@ -17,17 +18,13 @@ function mesAtualStr() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-const pagouAlgumProduto = (o) => Boolean(
-  o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'PAGO' ||
-  o.videoAddonPaid || o.hasPlaybackAccess || o.playbackAddonPaid ||
-  o.hasCartaAccess || o.cartaAddonPaid || o.hasRetrospectivaAccess || o.retrospectivaAddonPaid
-);
 
 export default function VendasPorEstadoMapa({
   pedidos: pedidosProp = null,
   mes: mesProp = null,
   loading: loadingProp = null,
   erro: erroProp = null,
+  resumo = null,
 }) {
   const [internalMes, setInternalMes] = useState(mesAtualStr);
   const mes = mesProp || internalMes;
@@ -39,19 +36,10 @@ export default function VendasPorEstadoMapa({
   const erro = erroProp !== null ? erroProp : erroHook;
   const [hover, setHover] = useState(null); // uf
 
-  const { porEstado, semEstado, totalVendas } = useMemo(() => {
-    const contagem = {};
-    let semUf = 0;
-    let total = 0;
-    for (const o of pedidos) {
-      if (!pagouAlgumProduto(o)) continue;
-      total += 1;
-      const uf = ufFromPhone(o.customerPhone);
-      if (!uf) { semUf += 1; continue; }
-      contagem[uf] = (contagem[uf] || 0) + 1;
-    }
-    return { porEstado: contagem, semEstado: semUf, totalVendas: total };
-  }, [pedidos]);
+  const { porEstado, semEstado, totalVendas } = useMemo(() => (
+    // Resumo pronto do servidor (metricas_diarias) ou, sem ele, a mesma conta a partir dos pedidos.
+    (resumo && resumo.mes === mes && resumo.estados) ? resumo.estados : calcularVendasPorEstado(pedidos)
+  ), [pedidos, resumo, mes]);
 
   const pico = Math.max(1, ...Object.values(porEstado));
   const ranking = Object.entries(porEstado).sort((a, b) => b[1] - a[1]).slice(0, 5);

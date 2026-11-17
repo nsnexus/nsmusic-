@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { usePedidosDoMes } from '@/lib/usePedidosDoMes';
 import { calcularMetricasPorPlataforma } from '@/lib/trafficSource';
+import { somarPlataformas } from '@/lib/dashboardAgregados';
 import { useAdsSpend } from '@/lib/useAdsSpend';
 import TikTokAdsDailyModal from '@/components/admin/TikTokAdsDailyModal';
 import PlatformIcon from '@/components/admin/PlatformIcon';
@@ -21,7 +22,7 @@ function mesAtualPadrao() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-export default function VendasPorPlataformaCard({ monthValue, pedidos: pedidosProp = null, loading: loadingProp = null }) {
+export default function VendasPorPlataformaCard({ monthValue, pedidos: pedidosProp = null, loading: loadingProp = null, resumo = null }) {
   const mesAtivo = monthValue || mesAtualPadrao();
 
   const [ano, mesNum] = useMemo(() => {
@@ -83,8 +84,16 @@ export default function VendasPorPlataformaCard({ monthValue, pedidos: pedidosPr
   const { adsSpend, loadingAds, saveManualSpend } = useAdsSpend(mesAtivo);
 
   const { plataformas, totais } = useMemo(() => {
+    // Resumo pronto do servidor (metricas_diarias): um dia = as métricas guardadas daquele dia;
+    // o mês = a soma dos dias. Sem resumo, a conta de sempre a partir dos pedidos.
+    if (resumo && resumo.mes === mesAtivo && resumo.plataformasPorDia) {
+      const dias = diaSelecionado && diaSelecionado !== 'todos'
+        ? [resumo.plataformasPorDia[Number(diaSelecionado)] || []]
+        : Object.values(resumo.plataformasPorDia);
+      return somarPlataformas(dias);
+    }
     return calcularMetricasPorPlataforma(pedidos, diaSelecionado, mesAtivo);
-  }, [pedidos, diaSelecionado, mesAtivo]);
+  }, [pedidos, resumo, diaSelecionado, mesAtivo]);
 
   const dataFiltroStr = useMemo(() => {
     if (!diaSelecionado) return null;

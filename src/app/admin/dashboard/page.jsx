@@ -6,7 +6,7 @@ import { auth, onAuthStateChanged, signOut } from '@/lib/authClient';
 import Link from 'next/link';
 import Image from 'next/image';
 import dynamic from 'next/dynamic';
-import { usePedidosDoMes } from '@/lib/usePedidosDoMes';
+import { useResumoMes } from '@/lib/useResumoMes';
 import RitmoVendasCard from '@/components/RitmoVendasCard';
 import VendasPorPlataformaCard from '@/components/VendasPorPlataformaCard';
 import KieCreditsBadge from '@/components/admin/KieCreditsBadge';
@@ -39,6 +39,9 @@ function toISOStr(value) {
   return null;
 }
 
+// Lista vazia estável (os cards recebem o resumo pronto; não há pedidos no navegador).
+const EMPTY_ORDERS = [];
+
 function daysInMonth(year, month) {
   // month é 1-indexado aqui (1=Janeiro) — Date(year, month, 0) devolve o último dia do mês anterior.
   return new Date(year, month, 0).getDate();
@@ -52,8 +55,11 @@ export default function AdminDashboard() {
   const defaultMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const [monthValue, setMonthValue] = useState(defaultMonth);
 
-  // Consulta do mês (rápida via Supabase com fallback seguro no Firestore)
-  const { pedidos: orders, loading: loadingOrders } = usePedidosDoMes(monthValue);
+  // Resumo do mês já calculado no servidor (tabela metricas_diarias): o navegador não baixa mais
+  // os pedidos do mês — dias fechados vêm guardados e só os dias abertos são recalculados.
+  const { resumo, loading: loadingResumo, erro: erroResumo, montando } = useResumoMes(monthValue);
+  const orders = EMPTY_ORDERS;
+  const loadingOrders = loadingResumo && !resumo;
 
   const router = useRouter();
 
@@ -99,28 +105,10 @@ export default function AdminDashboard() {
     const month = Number(monthStr); // 1-indexado
     const totalDays = daysInMonth(year, month);
 
-    const feito = new Array(totalDays).fill(0);
-    const convertido = new Array(totalDays).fill(0);
-
-    for (const o of orders) {
-      const createdIso = toISOStr(o.createdAt);
-      if (createdIso) {
-        const d = new Date(createdIso);
-        if (d.getFullYear() === year && d.getMonth() + 1 === month) {
-          if (hasMusicaGerada(o)) {
-            feito[d.getDate() - 1]++;
-          }
-        }
-      }
-      const paidIso = toISOStr(o.paidAt);
-      if (paidIso) {
-        const d = new Date(paidIso);
-        if (d.getFullYear() === year && d.getMonth() + 1 === month) {
-          convertido[d.getDate() - 1]++;
-        }
-      }
-    }
-
+    const vazio = new Array(totalDays).fill(0);
+    const serie = (resumo && resumo.mes === monthValue && resumo.serie) ? resumo.serie : null;
+    const feito = serie ? serie.feito.slice(0, totalDays) : vazio;
+    const convertido = serie ? serie.convertido.slice(0, totalDays) : vazio.slice();
     const percent = feito.map((f, i) => (f > 0 ? Math.round((convertido[i] / f) * 1000) / 10 : 0));
 
     return {
@@ -131,7 +119,7 @@ export default function AdminDashboard() {
       totalFeito: feito.reduce((a, b) => a + b, 0),
       totalConvertido: convertido.reduce((a, b) => a + b, 0),
     };
-  }, [orders, monthValue]);
+  }, [resumo, monthValue]);
 
   const overallPercent = monthlySeries.totalFeito > 0
     ? Math.round((monthlySeries.totalConvertido / monthlySeries.totalFeito) * 1000) / 10
@@ -217,15 +205,21 @@ export default function AdminDashboard() {
           </div>
 
           {/* Ritmo de Ganho Intradiário em Tempo Real (Hoje vs Média Líquida dos Últimos 7 Dias) */}
-          <RitmoVendasCard />
+          {(erroResumo || montando) && (
+            <div style={{ marginBottom: '16px', padding: '10px 14px', borderRadius: '10px', fontSize: '0.85rem', background: erroResumo ? '#fef2f2' : '#eff6ff', color: erroResumo ? '#b91c1c' : '#1d4ed8', border: `1px solid ${erroResumo ? '#fecaca' : '#bfdbfe'}` }}>
+              {erroResumo || 'Montando os dias do mês pela primeira vez… os números vão completando sozinhos.'}
+            </div>
+          )}
+
+          <RitmoVendasCard pedidos={EMPTY_ORDERS} pace={resumo?.ritmo || null} loading={loadingOrders} />
 
           {/* Faturamento e conversões por plataforma (Facebook Ads, TikTok Ads, Orgânico, Direto) */}
-          <VendasPorPlataformaCard monthValue={monthValue} pedidos={orders} loading={loadingOrders} />
+          <VendasPorPlataformaCard monthValue={monthValue} pedidos={orders} loading={loadingOrders} resumo={resumo} />
 
           {/* Vendas por dia (+ faturamento líquido, gerações e conversão), mapa de calor por horário e mapa por estado */}
-          <VendasPorDiaTable mes={monthValue} pedidos={orders} loading={loadingOrders} />
-          <VendasPorHoraHeatmap mes={monthValue} pedidos={orders} loading={loadingOrders} />
-          <VendasPorEstadoMapa mes={monthValue} pedidos={orders} loading={loadingOrders} />
+          <VendasPorDiaTable mes={monthValue} pedidos={orders} loading={loadingOrders} resumo={resumo} />
+          <VendasPorHoraHeatmap mes={monthValue} pedidos={orders} loading={loadingOrders} resumo={resumo} />
+          <VendasPorEstadoMapa mes={monthValue} pedidos={orders} loading={loadingOrders} resumo={resumo} />
 
           {/* Solicitações x Conversões por dia com rótulos de dados (no final da página) */}
           <div className="glass-card admin-card-responsive" style={{ marginTop: '32px', padding: '24px', borderRadius: '16px', backgroundColor: '#ffffff', border: '1px solid #e2e8f0' }}>

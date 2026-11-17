@@ -1,11 +1,8 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { usePedidosDoMes, paraData } from '@/lib/usePedidosDoMes';
-import { getPriceForSku } from '@/lib/pricing';
-import { isBonusOrder } from '@/lib/trafficSource';
-import { isStripePayment, calculateStripeFee } from '@/lib/paymentFees';
-import { hasMusicaGerada } from '@/lib/stats';
+import { usePedidosDoMes } from '@/lib/usePedidosDoMes';
+import { calcularVendasPorDia, PRODUTOS_VENDAS } from '@/lib/dashboardAgregados';
 
 // Tabela "vendas por dia" do dashboard admin (pedido 04/09/2026) — quantidade vendida por produto,
 // por dia do mês, com total no fim.
@@ -19,19 +16,14 @@ function mesAtualStr() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-const PRODUTOS = [
-  { chave: 'musicas', label: '🎵 Músicas', sku: 'audio_only' },
-  { chave: 'videos', label: '🎬 Vídeos', sku: 'video_addon' },
-  { chave: 'playbacks', label: '🎧 Playback', sku: 'playback_addon' },
-  { chave: 'cartas', label: '💌 Cartas', sku: 'carta_addon' },
-  { chave: 'retrospectivas', label: '📖 Retrospectivas', sku: 'retrospectiva_addon' },
-];
+const PRODUTOS = PRODUTOS_VENDAS;
 
 export default function VendasPorDiaTable({
   pedidos: pedidosProp = null,
   mes: mesProp = null,
   loading: loadingProp = null,
   erro: erroProp = null,
+  resumo = null,
 }) {
   const [internalMes, setInternalMes] = useState(mesAtualStr);
   const mes = mesProp || internalMes;
@@ -45,130 +37,12 @@ export default function VendasPorDiaTable({
   const erro = erroProp !== null ? erroProp : erroHook;
 
   const [ano, mesNum] = useMemo(() => mes.split('-').map(Number), [mes]);
-  const diasNoMes = useMemo(() => new Date(ano, mesNum, 0).getDate(), [ano, mesNum]);
 
   const { porDia, totais, linhasVisiveis } = useMemo(() => {
-    // Uma linha por dia do mês, zerada — preenchida abaixo em passada linear única O(N)
-    const porDiaList = Array.from({ length: diasNoMes }, (_, i) => ({
-      dia: i + 1,
-      musicas: 0, videos: 0, playbacks: 0, cartas: 0, retrospectivas: 0,
-      geracoes: 0, pedidosCriados: 0, pedidosComMusica: 0, pedidosPagos: 0,
-      faturamento: 0,
-    }));
-
-    const somar = (campo, dataVal) => {
-      const d = paraData(dataVal);
-      if (!d) return;
-      if (d.getFullYear() !== ano || d.getMonth() !== mesNum - 1) return; // pago em outro mês, não conta aqui
-      const linha = porDiaList[d.getDate() - 1];
-      if (linha) linha[campo] += 1;
-    };
-
-    const somarFaturamento = (dataVal, valor) => {
-      if (!dataVal || !valor || valor <= 0) return;
-      const d = paraData(dataVal);
-      if (!d) return;
-      if (d.getFullYear() !== ano || d.getMonth() !== mesNum - 1) return;
-      const linha = porDiaList[d.getDate() - 1];
-      if (linha) linha.faturamento += valor;
-    };
-
-    const precoMusicaPadrao = getPriceForSku('audio_only') || 9.99;
-    const precoVideoPadrao = getPriceForSku('video_addon') || 6.90;
-    const precoPlaybackPadrao = getPriceForSku('playback_addon') || 4.99;
-    const precoCartaPadrao = getPriceForSku('carta_addon') || 4.99;
-    const precoRetroPadrao = getPriceForSku('retrospectiva_addon') || 14.90;
-
-    for (const o of pedidos) {
-      if (!o) continue;
-      const bonus = isBonusOrder(o);
-      const musicaPaga = (o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'PAGO') && !bonus;
-
-      // 1. Contagem e Faturamento de Música
-      if (musicaPaga) {
-        somar('musicas', o.paidAt || o.createdAt);
-        let valorMusica = precoMusicaPadrao;
-        if (o.paidAmount !== null && o.paidAmount !== undefined && o.paidAmount !== '') {
-          const v = Number(o.paidAmount);
-          if (Number.isFinite(v) && v >= 0) valorMusica = v;
-        } else {
-          const porSku = getPriceForSku(o.paymentIntentSku);
-          if (porSku !== null && o.paymentIntentSku !== 'impacto') valorMusica = porSku;
-        }
-        if (isStripePayment(o)) {
-          valorMusica = Math.max(0, valorMusica - calculateStripeFee(valorMusica));
-        }
-        somarFaturamento(o.paidAt || o.createdAt, valorMusica);
-      }
-
-      // 2. Contagem e Faturamento de Add-ons
-      if (o.hasVideoAccess || o.videoAddonPaid) {
-        somar('videos', o.videoPaidAt);
-        if (o.videoPaymentId) {
-          const v = Number(o.videoPaidAmount);
-          let valor = (Number.isFinite(v) && v > 0) ? v : precoVideoPadrao;
-          if (isStripePayment(o.videoPaymentId)) valor = Math.max(0, valor - calculateStripeFee(valor));
-          somarFaturamento(o.videoPaidAt || o.paidAt || o.createdAt, valor);
-        }
-      }
-
-      if (o.hasPlaybackAccess || o.playbackAddonPaid) {
-        somar('playbacks', o.playbackPaidAt);
-        if (o.playbackPaymentId) {
-          const v = Number(o.playbackPaidAmount);
-          let valor = (Number.isFinite(v) && v > 0) ? v : precoPlaybackPadrao;
-          if (isStripePayment(o.playbackPaymentId)) valor = Math.max(0, valor - calculateStripeFee(valor));
-          somarFaturamento(o.playbackPaidAt || o.paidAt || o.createdAt, valor);
-        }
-      }
-
-      if (o.hasCartaAccess || o.cartaAddonPaid) {
-        somar('cartas', o.cartaPaidAt);
-        if (o.cartaPaymentId) {
-          const v = Number(o.cartaPaidAmount);
-          let valor = (Number.isFinite(v) && v > 0) ? v : precoCartaPadrao;
-          if (isStripePayment(o.cartaPaymentId)) valor = Math.max(0, valor - calculateStripeFee(valor));
-          somarFaturamento(o.cartaPaidAt || o.paidAt || o.createdAt, valor);
-        }
-      }
-
-      if (o.hasRetrospectivaAccess || o.retrospectivaAddonPaid) {
-        somar('retrospectivas', o.retrospectivaPaidAt);
-        if (o.retrospectivaPaymentId) {
-          const v = Number(o.retrospectivaPaidAmount);
-          let valor = (Number.isFinite(v) && v > 0) ? v : precoRetroPadrao;
-          if (isStripePayment(o.retrospectivaPaymentId)) valor = Math.max(0, valor - calculateStripeFee(valor));
-          somarFaturamento(o.retrospectivaPaidAt || o.paidAt || o.createdAt, valor);
-        }
-      }
-
-      // 3. Gerações e conversão por data de CRIAÇÃO do pedido
-      const dCriacao = paraData(o.createdAt);
-      if (dCriacao && dCriacao.getFullYear() === ano && dCriacao.getMonth() === mesNum - 1) {
-        const linha = porDiaList[dCriacao.getDate() - 1];
-        if (linha) {
-          const count = Number(o.sunoGenerationCount) || (o.sunoRequestedAt ? 1 : 0);
-          linha.geracoes += count;
-          if (o.sunoProvider === 'suno_local') {
-            linha.geracoesBot = (linha.geracoesBot || 0) + count;
-          } else {
-            linha.geracoesKie = (linha.geracoesKie || 0) + count;
-          }
-          if (!bonus) {
-            linha.pedidosCriados += 1;
-            if (hasMusicaGerada(o)) linha.pedidosComMusica += 1;
-            if (musicaPaga || o.videoAddonPaid) linha.pedidosPagos += 1;
-          } else if (o.videoAddonPaid) {
-            linha.pedidosPagos += 1;
-          }
-        }
-      }
-    }
-
-    // Arredonda faturamento por dia para 2 casas
-    for (let i = 0; i < diasNoMes; i++) {
-      porDiaList[i].faturamento = Math.round(porDiaList[i].faturamento * 100) / 100;
-    }
+    // Resumo pronto do servidor (metricas_diarias) ou, sem ele, a mesma conta a partir dos pedidos.
+    const porDiaList = (resumo && resumo.mes === mes && Array.isArray(resumo.vendasPorDia))
+      ? resumo.vendasPorDia.map((l) => ({ ...l }))
+      : calcularVendasPorDia(pedidos, ano, mesNum);
 
     const KIE_COST_PER_GENERATION = 0.30;
     const totaisCalc = porDiaList.reduce((acc, linha) => {
@@ -192,7 +66,7 @@ export default function VendasPorDiaTable({
     const linhasVisiveisCalc = (ehMesAtual ? porDiaList.filter((l) => l.dia <= hoje.getDate()) : porDiaList).slice().reverse();
 
     return { porDia: porDiaList, totais: totaisCalc, linhasVisiveis: linhasVisiveisCalc };
-  }, [pedidos, diasNoMes, ano, mesNum]);
+  }, [pedidos, resumo, mes, ano, mesNum]);
 
   const faturamentoDia = (linha) => linha.faturamento;
   const conversaoDia = (linha) => {

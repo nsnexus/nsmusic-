@@ -7,6 +7,7 @@
 import { COLUNAS_LEVES_RELATORIO, mapearPedidoRelatorio, remontarExtras } from './pedidosRelatorio';
 import { calcularMetricasPorPlataforma } from './trafficSource';
 import { agregarRitmoPorDia } from './ritmoVendas';
+import { montarDetalhesDia, VERSAO_DETALHES } from './dashboardAgregados';
 import { paraRelogioSp } from './relogioSp';
 
 export const VALIDADE_HOJE_MS = 5 * 60 * 1000;
@@ -65,7 +66,7 @@ export async function calcularDia(supabase, dia, agora = new Date()) {
   const mes = dia.slice(0, 7);
   // Totais do Dashboard: ele carrega os pedidos CRIADOS no mês e filtra o dia.
   const doMes = pedidos.filter((p) => String(p.createdAt || '').slice(0, 7) >= mes);
-  const { totais } = calcularMetricasPorPlataforma(doMes, String(Number(dia.slice(8, 10))), mes);
+  const { totais, plataformas } = calcularMetricasPorPlataforma(doMes, String(Number(dia.slice(8, 10))), mes);
   const ritmo = agregarRitmoPorDia(pedidos)[dia] || { receita: Array(24).fill(0), criados: Array(24).fill(0), pagos: Array(24).fill(0), temReceita: false, temCoorte: false };
   return {
     dia,
@@ -80,6 +81,8 @@ export async function calcularDia(supabase, dia, agora = new Date()) {
     pagos_hora: ritmo.pagos,
     tem_receita: ritmo.temReceita,
     tem_coorte: ritmo.temCoorte,
+    // Tudo o que os cards do Dashboard precisam deste dia (ver dashboardAgregados.js)
+    detalhes: montarDetalhesDia(doMes, dia, plataformas),
     calculado_em: agora.toISOString(),
   };
 }
@@ -87,6 +90,7 @@ export async function calcularDia(supabase, dia, agora = new Date()) {
 /** A linha guardada ainda serve? */
 export function linhaValida(linha, hoje, agora = new Date()) {
   if (!linha?.calculado_em) return false;
+  if (linha.detalhes?.v !== VERSAO_DETALHES) return false; // linha antiga, sem os detalhes do Dashboard
   const calc = Date.parse(linha.calculado_em);
   if (Number.isNaN(calc)) return false;
   const idade = agora.getTime() - calc;
@@ -99,7 +103,7 @@ export function linhaValida(linha, hoje, agora = new Date()) {
  * Linhas de `dias` (AAAA-MM-DD), lendo de metricas_diarias e recalculando só as vencidas.
  * @returns {Promise<Object<string, Object>>} { dia: linha }
  */
-export async function obterMetricasDias(supabase, dias, hoje, agora = new Date()) {
+export async function obterMetricasDias(supabase, dias, hoje, agora = new Date(), opcoes = {}) {
   let guardadas = {};
   let tabelaOk = true;
   try {
@@ -113,7 +117,13 @@ export async function obterMetricasDias(supabase, dias, hoje, agora = new Date()
   }
 
   // No máximo 2 dias ao mesmo tempo, para não sobrecarregar o banco na primeira montagem.
-  const vencidos = dias.filter((d) => !linhaValida(guardadas[d], hoje, agora));
+  // Mais recentes primeiro; com opcoes.maxRecalculos, o resto fica em opcoes.pendentes (o chamador
+  // pede de novo depois), para uma chamada não passar do tempo limite.
+  let vencidos = dias.filter((d) => !linhaValida(guardadas[d], hoje, agora)).sort().reverse();
+  if (opcoes.maxRecalculos && vencidos.length > opcoes.maxRecalculos) {
+    if (Array.isArray(opcoes.pendentes)) opcoes.pendentes.push(...vencidos.slice(opcoes.maxRecalculos));
+    vencidos = vencidos.slice(0, opcoes.maxRecalculos);
+  }
   const novas = [];
   for (let i = 0; i < vencidos.length; i += 2) {
     novas.push(...await Promise.all(vencidos.slice(i, i + 2).map((d) => calcularDia(supabase, d, agora))));
@@ -122,7 +132,11 @@ export async function obterMetricasDias(supabase, dias, hoje, agora = new Date()
 
   if (tabelaOk && novas.length) {
     try {
-      const { error } = await supabase.from('metricas_diarias').upsert(novas, { onConflict: 'dia' });
+      let { error } = await supabase.from('metricas_diarias').upsert(novas, { onConflict: 'dia' });
+      if (error && /detalhes/i.test(error.message || '')) {
+        // Coluna detalhes ainda não criada (migração 20261117b): guarda o resto.
+        ({ error } = await supabase.from('metricas_diarias').upsert(novas.map(({ detalhes, ...resto }) => resto), { onConflict: 'dia' }));
+      }
       if (error) throw new Error(error.message);
     } catch (e) {
       console.warn('[metricasDiarias] Falha ao gravar:', e?.message);
