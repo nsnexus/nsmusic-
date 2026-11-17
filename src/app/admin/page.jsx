@@ -2647,6 +2647,7 @@ export default function AdminDashboard() {
                         }}
                         onDelete={() => handleDeleteSingleOrder(o.id, o.orderNumber)}
                         onFilterPhone={() => filtrarPorTelefone(o.customerPhone)}
+                        pixCopiado={o.pixCopiedAt || o.extras?.pixCopiedAt || (hasOrderGeneratedPix(o) ? (o.pixGeneratedAt || o.extras?.pixGeneratedAt || true) : null)}
                       />
                     ))}
                   </div>
