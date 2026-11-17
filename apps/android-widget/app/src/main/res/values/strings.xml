@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">NS Music</string>
+    <string name="widget_name">NS Music · Hoje</string>
+    <string name="widget_desc">Faturamento, lucro, vendas e ritmo do dia</string>
+</resources>
