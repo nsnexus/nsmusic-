@@ -2,7 +2,7 @@
 // contas do Dashboard (ver calcularResumoDia). Tudo no fuso de Brasília.
 import { getSupabaseEdge } from './supabase-edge';
 import { getConsolidatedAdsSpend } from './adsSpend';
-import { buscarPedidosDoPeriodo, buscarPedidosRecentes } from './pedidosRelatorio';
+import { buscarPedidosDoDia, buscarPedidosRecentes } from './pedidosRelatorio';
 import { calcularMetricasPorPlataforma } from './trafficSource';
 import { calculateIntradayPace } from './ritmoVendas';
 
@@ -103,11 +103,11 @@ export async function calcularResumoDia(envOriginal = {}, agora = new Date()) {
 
   const dia = diaSp(agora);
   const mes = dia.slice(0, 7);
-  const [ano, mesNum] = mes.split('-').map(Number);
-  const proxMes = mesNum === 12 ? `${ano + 1}-01` : `${ano}-${String(mesNum + 1).padStart(2, '0')}`;
+  const inicioDiaUtc = new Date(`${dia}T00:00:00-03:00`).toISOString();
 
+  // Só os pedidos que mexeram no dia (criados ou pagos hoje), não o mês inteiro — ver buscarPedidosDoDia.
   const [pedidosMes, pedidosRecentes, ads] = await Promise.all([
-    buscarPedidosDoPeriodo(supabase, `${mes}-01T00:00:00-03:00`, `${proxMes}-01T00:00:00-03:00`),
+    buscarPedidosDoDia(supabase, inicioDiaUtc, `${mes}-01T00:00:00-03:00`),
     buscarPedidosRecentes(supabase, 8),
     gastoAnunciosComManual(env, supabase, dia, dia).catch((e) => { console.warn('[resumoDia] Anúncios indisponíveis:', e?.message); return null; }),
   ]);
@@ -145,4 +145,32 @@ export async function calcularResumoDia(envOriginal = {}, agora = new Date()) {
       diasNaMedia: pace.daysAveragedCount || 0,
     },
   };
+}
+
+// Guarda o último resumo na tabela config: o widget pede a cada 30 min (e no ⟳), e o cálculo
+// lê centenas/milhares de pedidos. Dentro da validade, responde direto do que está guardado.
+export const CHAVE_CACHE_RESUMO = 'widget_resumo_cache';
+export const VALIDADE_CACHE_MS = 5 * 60 * 1000;
+
+export async function resumoDiaComCache(env = {}, agora = new Date()) {
+  const supabase = getSupabaseEdge(env);
+  if (supabase) {
+    try {
+      const { data } = await supabase.from('config').select('valor').eq('chave', CHAVE_CACHE_RESUMO).maybeSingle();
+      const c = data?.valor;
+      const idade = c?.atualizadoEm ? agora.getTime() - Date.parse(c.atualizadoEm) : Infinity;
+      if (c?.ok && c.dia === diaSp(agora) && idade >= 0 && idade < VALIDADE_CACHE_MS) return { ...c, doCache: true };
+    } catch (e) {
+      console.warn('[resumoDia] Falha ao ler o cache:', e?.message);
+    }
+  }
+  const resumo = await calcularResumoDia(env, agora);
+  if (supabase) {
+    try {
+      await supabase.from('config').upsert({ chave: CHAVE_CACHE_RESUMO, valor: resumo, updated_at: agora.toISOString() });
+    } catch (e) {
+      console.warn('[resumoDia] Falha ao gravar o cache:', e?.message);
+    }
+  }
+  return resumo;
 }

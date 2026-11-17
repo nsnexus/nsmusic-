@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
-import { calcularResumoDia } from '@/lib/resumoDia';
+import { resumoDiaComCache } from '@/lib/resumoDia';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
@@ -33,7 +33,7 @@ export async function GET(req) {
   }
 
   try {
-    const resumo = await calcularResumoDia(env);
+    const resumo = await resumoDiaComCache(env);
     return NextResponse.json(resumo, { headers: { 'Cache-Control': 'no-store' } });
   } catch (e) {
     console.warn('[widget/resumo] Falha ao calcular:', e?.name);

@@ -44,7 +44,7 @@ final class Resumo {
         try {
             con = (HttpURLConnection) new URL(URL_RESUMO).openConnection();
             con.setConnectTimeout(15000);
-            con.setReadTimeout(30000);
+            con.setReadTimeout(55000); // recálculo sem cache leva até ~40 s
             con.setRequestProperty("Authorization", "Bearer " + chave);
             con.setRequestProperty("Accept", "application/json");
             int status = con.getResponseCode();
