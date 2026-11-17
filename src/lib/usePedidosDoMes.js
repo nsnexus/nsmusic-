@@ -3,12 +3,8 @@
 import { useState, useEffect } from 'react';
 import { getAdminAuthToken } from '@/lib/authClient';
 
-export function paraData(valor) {
-  if (!valor) return null;
-  if (typeof valor?.toDate === 'function') return valor.toDate();
-  const d = new Date(valor);
-  return Number.isNaN(d.getTime()) ? null : d;
-}
+// paraData mora em ./paraData.js (sem 'use client') para o servidor também usar — ver resumoDia.js.
+export { paraData } from './paraData';
 
 // Cache em memória e sessionStorage para carregamento instantâneo no celular e desktop.
 // Evita requisições pesadas duplicadas quando múltiplos cards (VendasPorPlataformaCard,

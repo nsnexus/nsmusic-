@@ -1,4 +1,4 @@
-import { paraData } from '@/lib/usePedidosDoMes';
+import { paraData } from '@/lib/paraData';
 import { getPriceForSku } from '@/lib/pricing';
 import { hasMusicaGerada } from '@/lib/stats';
 import { isStripePayment, calculateStripeFee } from '@/lib/paymentFees';
