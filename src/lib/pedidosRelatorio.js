@@ -210,32 +210,3 @@ export async function buscarPedidosRecentes(supabase, dias = 8) {
 
   return todosPedidos;
 }
-
-// Datas de pagamento de add-on gravadas no extras (pagas depois da música).
-const PAGAMENTOS_EXTRAS = ['videoPaidAt', 'cartaPaidAt', 'playbackPaidAt', 'retrospectivaPaidAt', 'karaokePaidAt'];
-
-/**
- * Pedidos que movimentaram o dia: criados a partir de `inicioPeriodoIso` (início do mês, como o
- * Dashboard) E (criados hoje OU com qualquer pagamento hoje — música ou add-on). Bem mais leve
- * que o mês inteiro e dá o mesmo resultado para as contas de "hoje" do Dashboard.
- * `inicioDiaUtc` precisa estar em UTC com Z (as datas do extras são gravadas assim).
- */
-export async function buscarPedidosDoDia(supabase, inicioDiaUtc, inicioPeriodoIso) {
-  const v = `"${inicioDiaUtc}"`;
-  const condicoes = [`created_at.gte.${v}`, `paid_at.gte.${v}`, ...PAGAMENTOS_EXTRAS.map((c) => `extras->>${c}.gte.${v}`)].join(',');
-  const pedidos = [];
-  let lastCreatedAt = null;
-  const pageSize = 1000;
-  while (true) {
-    let q = supabase.from('orders').select(COLUNAS_PEDIDO_RELATORIO);
-    q = lastCreatedAt ? q.gt('created_at', lastCreatedAt) : q.gte('created_at', inicioPeriodoIso);
-    q = q.or(condicoes).is('deleted_at', null).order('created_at', { ascending: true }).limit(pageSize);
-    const { data, error } = await q;
-    if (error) throw new Error(error.message);
-    if (!data || data.length === 0) break;
-    for (const row of data) pedidos.push(mapearPedidoRelatorio(row));
-    if (data.length < pageSize) break;
-    lastCreatedAt = data[data.length - 1].created_at;
-  }
-  return pedidos;
-}

@@ -20,35 +20,23 @@ export const PRODUTOS_RITMO = [
  * @param {Date} [options.referenceDate] - Data de referência (padrão: new Date())
  * @param {number} [options.daysLimit] - Limite de dias anteriores a incluir na média (padrão: 30)
  */
-export function calculateIntradayPace(pedidos = [], options = {}) {
-  const ref = options.referenceDate ? new Date(options.referenceDate) : new Date();
-  const currentHour = ref.getHours();
-
-  // Chave única para "Hoje" no fuso local da data de referência
-  const todayKey = `${ref.getFullYear()}-${String(ref.getMonth() + 1).padStart(2, '0')}-${String(ref.getDate()).padStart(2, '0')}`;
-
-  // Janela dos últimos N dias anteriores (padrão: 7 dias / última semana)
-  const daysLimit = Number(options.daysLimit) || 7;
-  const targetPastDays = [];
-  for (let i = 1; i <= daysLimit; i++) {
-    const d = new Date(ref);
-    d.setDate(d.getDate() - i);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    targetPastDays.push(key);
-  }
-  const targetPastDaysSet = new Set(targetPastDays);
-
-  const todayHourlyRevenue = Array(24).fill(0);
-  const pastDaysHourlyRevenue = {}; // { 'YYYY-MM-DD': number[24] }
-
-  const todayHourlyCreated = Array(24).fill(0);
-  const todayHourlyPaid = Array(24).fill(0);
-  const pastDaysCreated = {};
-  const pastDaysPaid = {};
+/**
+ * Etapa 1 do ritmo: agrega os pedidos por DIA (fuso local) e HORA — receita líquida pela hora do
+ * pagamento (música e add-ons) e coorte de conversão pela hora de criação (músicas geradas e pagas).
+ * O resultado é o que fica guardado em metricas_diarias (ver src/lib/metricasDiarias.js), para o
+ * ritmo não precisar baixar os pedidos de 8 dias toda vez.
+ * @returns {{ [dia: string]: { receita: number[], criados: number[], pagos: number[], temReceita: boolean, temCoorte: boolean } }}
+ */
+export function agregarRitmoPorDia(pedidos = []) {
+  const porDia = {};
+  const diaDe = (k) => porDia[k] || (porDia[k] = {
+    receita: Array(24).fill(0), criados: Array(24).fill(0), pagos: Array(24).fill(0), temReceita: false, temCoorte: false,
+  });
 
   const precoPorSku = Object.fromEntries(
     PRODUTOS_RITMO.map(p => [p.sku, getPriceForSku(p.sku)])
   );
+
 
   for (const o of pedidos) {
     if (!o) continue;
@@ -70,16 +58,9 @@ export function calculateIntradayPace(pedidos = [], options = {}) {
       if (!d) return;
 
       const dayKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      const hour = d.getHours();
-
-      if (dayKey === todayKey) {
-        todayHourlyRevenue[hour] += valor;
-      } else if (targetPastDaysSet.has(dayKey)) {
-        if (!pastDaysHourlyRevenue[dayKey]) {
-          pastDaysHourlyRevenue[dayKey] = Array(24).fill(0);
-        }
-        pastDaysHourlyRevenue[dayKey][hour] += valor;
-      }
+      const x = diaDe(dayKey);
+      x.receita[d.getHours()] += valor;
+      x.temReceita = true;
     };
 
     const musicaPaga = (o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'PAGO') && !isBonusOrder;
@@ -145,31 +126,66 @@ export function calculateIntradayPace(pedidos = [], options = {}) {
       if (!isBonusOrder) {
         const comMusica = hasMusicaGerada(o);
         const isPaid = (o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'PAGO') || Boolean(o.videoAddonPaid);
-
-        if (dayKey === todayKey) {
-          if (comMusica) todayHourlyCreated[hour] += 1;
-          if (isPaid) todayHourlyPaid[hour] += 1;
-        } else if (targetPastDaysSet.has(dayKey)) {
-          if (!pastDaysCreated[dayKey]) {
-            pastDaysCreated[dayKey] = Array(24).fill(0);
-            pastDaysPaid[dayKey] = Array(24).fill(0);
-          }
-          if (comMusica) pastDaysCreated[dayKey][hour] += 1;
-          if (isPaid) pastDaysPaid[dayKey][hour] += 1;
-        }
+        const x = diaDe(dayKey);
+        x.temCoorte = true;
+        if (comMusica) x.criados[hour] += 1;
+        if (isPaid) x.pagos[hour] += 1;
       } else if (o.videoAddonPaid) {
-        if (dayKey === todayKey) {
-          todayHourlyPaid[hour] += 1;
-        } else if (targetPastDaysSet.has(dayKey)) {
-          if (!pastDaysPaid[dayKey]) {
-            pastDaysCreated[dayKey] = Array(24).fill(0);
-            pastDaysPaid[dayKey] = Array(24).fill(0);
-          }
-          pastDaysPaid[dayKey][hour] += 1;
-        }
+        const x = diaDe(dayKey);
+        x.temCoorte = true;
+        x.pagos[hour] += 1;
       }
     }
   }
+
+
+  return porDia;
+}
+
+/** Ritmo a partir dos pedidos (usado pelo card Ritmo de vendas do Dashboard). */
+export function calculateIntradayPace(pedidos = [], options = {}) {
+  return calcularRitmoDeAgregados(agregarRitmoPorDia(pedidos), options);
+}
+
+/**
+ * Etapa 2 do ritmo: hoje × média dos `daysLimit` dias anteriores, a partir dos agregados por dia.
+ * @param {Object} porDia - saída de agregarRitmoPorDia (ou as linhas guardadas em metricas_diarias)
+ */
+export function calcularRitmoDeAgregados(porDia = {}, options = {}) {
+  const ref = options.referenceDate ? new Date(options.referenceDate) : new Date();
+  const currentHour = ref.getHours();
+
+  // Chave única para "Hoje" no fuso local da data de referência
+  const todayKey = `${ref.getFullYear()}-${String(ref.getMonth() + 1).padStart(2, '0')}-${String(ref.getDate()).padStart(2, '0')}`;
+
+  // Janela dos últimos N dias anteriores (padrão: 7 dias / última semana)
+  const daysLimit = Number(options.daysLimit) || 7;
+  const targetPastDays = [];
+  for (let i = 1; i <= daysLimit; i++) {
+    const d = new Date(ref);
+    d.setDate(d.getDate() - i);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    targetPastDays.push(key);
+  }
+
+  const hoje = porDia[todayKey];
+  const todayHourlyRevenue = hoje ? [...hoje.receita] : Array(24).fill(0);
+  const todayHourlyCreated = hoje ? [...hoje.criados] : Array(24).fill(0);
+  const todayHourlyPaid = hoje ? [...hoje.pagos] : Array(24).fill(0);
+
+  const pastDaysHourlyRevenue = {}; // { 'YYYY-MM-DD': number[24] }
+  const pastDaysCreated = {};
+  const pastDaysPaid = {};
+  for (const k of targetPastDays) {
+    const x = porDia[k];
+    if (!x) continue;
+    if (x.temReceita) pastDaysHourlyRevenue[k] = [...x.receita];
+    if (x.temCoorte) {
+      pastDaysCreated[k] = [...x.criados];
+      pastDaysPaid[k] = [...x.pagos];
+    }
+  }
+
 
   // 3. Monta curvas acumuladas de faturamento (Hora a Hora)
   const todayCumulativeRevenue = Array(24).fill(null);
