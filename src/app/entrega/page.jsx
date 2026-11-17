@@ -19,6 +19,7 @@ import BannerLinkPresente from '@/components/BannerLinkPresente';
 import { requestPixCharge } from '@/lib/pixCheckout';
 import { compressImage } from '@/lib/imageCompress';
 import { aplicarPatchNoPedido } from '@/lib/pedidoIrmao';
+import { enviarFotosEmSerie, enviarUmaFoto } from '@/lib/envioFotos';
 import { getPriceForSku, faixasDeImpacto } from '@/lib/pricing';
 import { markPreviewListened } from '@/lib/previewTracking';
 import { isInAppBrowser, isIOS, isAndroid, getChromeIntentUrl } from '@/lib/inAppBrowser';
@@ -1816,7 +1817,11 @@ function EntregaContent() {
     const incoming = Array.from(event.target.files || []);
     event.target.value = '';
     const targetOrderId = activeOrder?.id || activeOrderId || order?.id || orderId;
-    if (isUploadingPhotos || !incoming.length || !targetOrderId) return;
+    if (isUploadingPhotos || !incoming.length) return;
+    if (!targetOrderId) {
+      setPhotoError('Não conseguimos identificar o seu pedido. Recarregue a página e tente de novo.');
+      return;
+    }
 
     const maxPhotos = 20;
     const currentCount = existingPhotos.length;
@@ -1840,48 +1845,37 @@ function EntregaContent() {
     setIsUploadingPhotos(true);
     setUploadProgressMsg(`Preparando ${toAdd.length} foto(s)...`);
 
+    // Cada foto aparece na tela e é gravada no pedido assim que sobe: se a conexão cair ou o
+    // navegador do WhatsApp recarregar a página no meio, o que já foi enviado não se perde.
+    let atuais = [...existingPhotos];
+    const salvarNoPedido = () => fetch('/api/orders/client-update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orderId: targetOrderId, slideshowImages: atuais })
+    }).catch(e => console.warn('[Video] Falha ao sincronizar fotos no banco:', e?.message));
+
     try {
-      const uploadedUrls = [];
-      for (let i = 0; i < toAdd.length; i++) {
-        const file = toAdd[i];
-        setUploadProgressMsg(`Enviando foto ${i + 1} de ${toAdd.length}...`);
-        const arquivo = await compressImage(file);
-        const uploadData = new FormData();
-        const safeExt = file.name?.match(/\.(png|webp|gif|heic|heif)$/i) ? file.name.split('.').pop().toLowerCase() : 'jpg';
-        uploadData.append('file', arquivo, `photo_${Date.now()}_${i}.${safeExt}`);
-
-        const uploadRes = await fetch(`/api/media/upload?folder=slideshow&orderId=${encodeURIComponent(targetOrderId)}`, {
-          method: 'POST',
-          body: uploadData
-        });
-
-        if (!uploadRes.ok) {
-          const errData = await uploadRes.json().catch(() => ({}));
-          throw new Error(errData.error || `Falha no upload da foto ${i + 1}`);
-        }
-
-        const resJson = await uploadRes.json();
-        if (!resJson?.url) {
-          throw new Error(`URL da foto ${i + 1} não retornada`);
-        }
-        uploadedUrls.push(resJson.url);
-      }
-
-      const updatedPhotos = [...existingPhotos, ...uploadedUrls];
-      setExistingPhotos(updatedPhotos);
+      const { urls, falhas } = await enviarFotosEmSerie(
+        toAdd,
+        (file, i) => enviarUmaFoto(file, { orderId: targetOrderId, indice: i }),
+        {
+          aoProgresso: (n, total) => setUploadProgressMsg(`Enviando foto ${n} de ${total}...`),
+          aoSucesso: async (url) => {
+            atuais = [...atuais, url];
+            setExistingPhotos(atuais);
+            await salvarNoPedido();
+          },
+        },
+      );
       setNewPhotoFiles([]);
-
-      // Salva imediatamente no banco para persistir
-      await fetch('/api/orders/client-update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId: targetOrderId, slideshowImages: updatedPhotos })
-      }).catch(e => console.warn('[Video] Falha ao sincronizar fotos no banco:', e));
-
-      setUploadProgressMsg('');
+      if (falhas.length > 0) {
+        setPhotoError(urls.length > 0
+          ? `${urls.length} foto(s) enviada(s), mas ${falhas.length} não subiram: ${falhas[0].motivo} Toque em "Adicionar mais fotos" para tentar essas de novo.`
+          : `Não foi possível enviar as fotos: ${falhas[0].motivo} Confira a internet e tente de novo. Se continuar, abra esta página no Chrome ou no Safari.`);
+      }
     } catch (err) {
-      console.error('[Video] Erro no envio de fotos:', err);
-      setPhotoError(err.message || 'Erro ao enviar fotos. Tente novamente.');
+      console.error('[Video] Erro no envio de fotos:', err?.message);
+      setPhotoError('Erro ao enviar fotos. Tente novamente.');
     } finally {
       setIsUploadingPhotos(false);
       setUploadProgressMsg('');
