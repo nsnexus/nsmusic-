@@ -33,6 +33,7 @@ export function formatarData(iso) {
 export const estilos = {
   cartao: {
     background: '#0f1623',
+    color: '#e2e8f0',
     border: '1px solid rgba(255, 255, 255, 0.08)',
     borderRadius: '12px',
     padding: '16px',

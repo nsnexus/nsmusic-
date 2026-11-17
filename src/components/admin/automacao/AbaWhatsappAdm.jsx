@@ -75,9 +75,12 @@ export default function AbaWhatsappAdm() {
         </p>
         <div style={estilos[estado.estilo]}>{estado.texto}</div>
 
-        <label style={{ display: 'flex', gap: '10px', alignItems: 'center', marginTop: '14px', fontSize: '14px', fontWeight: 600 }}>
-          <input type="checkbox" checked={dados.ligada} disabled={ocupado} onChange={(e) => alternar(e.target.checked)} />
+        <label style={{ display: 'flex', gap: '10px', alignItems: 'center', marginTop: '14px', fontSize: '15px', fontWeight: 700, color: '#f8fafc', cursor: 'pointer' }}>
+          <input type="checkbox" checked={dados.ligada} disabled={ocupado} onChange={(e) => alternar(e.target.checked)} style={{ width: '20px', height: '20px', accentColor: '#22c55e' }} />
           Automação ligada
+          <span style={{ fontSize: '12px', fontWeight: 800, padding: '2px 8px', borderRadius: '999px', background: dados.ligada ? 'rgba(34,197,94,0.18)' : 'rgba(239,68,68,0.18)', color: dados.ligada ? '#4ade80' : '#f87171' }}>
+            {dados.ligada ? 'LIGADA' : 'DESLIGADA — marque para o robô responder'}
+          </span>
         </label>
         {dados.ligada && dados.estado !== 'open' && (
           <p style={{ ...estilos.mudo, margin: '8px 0 0' }}>Ligada, mas só começa a responder depois que o número estiver conectado.</p>
