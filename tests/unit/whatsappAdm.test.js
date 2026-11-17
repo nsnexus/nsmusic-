@@ -21,7 +21,7 @@ vi.mock('../../src/lib/whatsapp.js', () => ({
 let pedidos = [];
 vi.mock('../../src/lib/orderLookup.js', () => ({ findOrdersByPhone: async () => pedidos }));
 
-import { interpretarOpcao, lerMensagemEvolution, selecionarMusicasPagas, tratarMensagemAdm, CHAVE_ADM } from '../../src/lib/whatsappAdm.js';
+import { interpretarOpcao, interpretarEscolha, dataHoraBr, lerMensagemEvolution, selecionarMusicasPagas, tratarMensagemAdm, CHAVE_ADM } from '../../src/lib/whatsappAdm.js';
 
 function evento(texto, extra = {}) {
   return { event: 'messages.upsert', data: { key: { id: `m${Math.random()}`, fromMe: false, remoteJid: '5511999990000@s.whatsapp.net', ...extra }, message: { conversation: texto } } };
@@ -41,11 +41,12 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('interpretarOpcao', () => {
-  it('só aceita 3 ou 4 sozinhos', () => {
+  it('só aceita 1, 3 ou 4 sozinhos', () => {
     expect(interpretarOpcao(' 3 ')).toBe('3');
     expect(interpretarOpcao('4.')).toBe('4');
     expect(interpretarOpcao('3️⃣')).toBe('3');
-    expect(interpretarOpcao('1')).toBeNull();
+    expect(interpretarOpcao('1')).toBe('1');
+    expect(interpretarOpcao('2')).toBeNull();
     expect(interpretarOpcao('34')).toBeNull();
     expect(interpretarOpcao('quero a 3')).toBeNull();
   });
@@ -115,5 +116,86 @@ describe('tratarMensagemAdm', () => {
     store[CHAVE_ADM].ligada = false;
     expect((await tratarMensagemAdm(evento('4'))).acao).toBe('ignorada');
     expect(chamadas).toHaveLength(0);
+  });
+});
+
+describe('escolha de pedido', () => {
+  it('interpreta número da lista e TODAS', () => {
+    expect(interpretarEscolha('2', 3)).toBe(2);
+    expect(interpretarEscolha('2️⃣', 3)).toBe(2);
+    expect(interpretarEscolha('4', 3)).toBeNull();
+    expect(interpretarEscolha('Todas', 3)).toBe('todas');
+    expect(interpretarEscolha('todos os pedidos', 3)).toBe('todas');
+    expect(interpretarEscolha('quero a 2', 3)).toBeNull();
+  });
+
+  it('data no horário de Brasília', () => {
+    expect(dataHoraBr('2026-11-16T20:13:00Z')).toBe('16/11/2026 às 17:13');
+  });
+});
+
+describe('fluxo novo do robô', () => {
+  const pago = (id, criado, extra = {}) => ({ id, orderNumber: `NS-${id}`, honoreeName: 'Ana', paymentStatus: 'PAGO', audioFiles: ['a', 'b'], createdAt: criado, ...extra });
+  const textos = () => chamadas.filter((c) => c.url.includes('/sendText/')).map((c) => c.body.text);
+  const midias = () => chamadas.filter((c) => c.url.includes('/sendMedia/'));
+
+  it('opção 1 pergunta o que ajustar', async () => {
+    const r = await tratarMensagemAdm(evento('1'));
+    expect(r.acao).toBe('ajuste');
+    expect(textos()[0]).toMatch(/Letra/);
+    expect(textos()[0]).toMatch(/Ritmo/);
+  });
+
+  it('um pedido pago: diz código e data, depois manda os arquivos', async () => {
+    pedidos = [pago('A1', '2026-11-16T20:13:00Z')];
+    const r = await tratarMensagemAdm(evento('3'));
+    expect(r).toMatchObject({ acao: 'musicas', enviados: 2 });
+    expect(textos()[0]).toContain('NS-A1');
+    expect(textos()[0]).toContain('16/11/2026 às 17:13');
+    expect(midias()).toHaveLength(2);
+  });
+
+  it('vários pedidos: manda a lista e não manda arquivo', async () => {
+    pedidos = [pago('A1', '2026-11-16T20:13:00Z'), pago('B2', '2026-11-10T12:00:00Z'), { id: 'X', paymentStatus: 'AGUARDANDO_PAGAMENTO', audioFiles: ['a'] }];
+    const r = await tratarMensagemAdm(evento('3'));
+    expect(r).toMatchObject({ acao: 'lista', total: 2 });
+    expect(textos()[0]).toMatch(/1️⃣ \*NS-A1\*/);
+    expect(textos()[0]).toMatch(/2️⃣ \*NS-B2\*/);
+    expect(textos()[0]).toContain('TODAS');
+    expect(midias()).toHaveLength(0);
+  });
+
+  it('depois da lista, "2" manda só o segundo pedido (e não vira opção do menu)', async () => {
+    pedidos = [pago('A1', '2026-11-16T20:13:00Z'), pago('B2', '2026-11-10T12:00:00Z', { audioFiles: ['x'] })];
+    await tratarMensagemAdm(evento('3'));
+    chamadas.length = 0;
+    const r = await tratarMensagemAdm(evento('2'));
+    expect(r).toMatchObject({ acao: 'musicas', enviados: 1 });
+    expect(midias()[0].body.media).toContain('orderId=B2');
+  });
+
+  it('"3" na lista escolhe o pedido 3, não reabre o menu', async () => {
+    pedidos = [pago('A1', '2026-11-16T20:13:00Z'), pago('B2', '2026-11-10T12:00:00Z'), pago('C3', '2026-11-01T12:00:00Z', { audioFiles: ['z'] })];
+    await tratarMensagemAdm(evento('3'));
+    chamadas.length = 0;
+    const r = await tratarMensagemAdm(evento('3'));
+    expect(r).toMatchObject({ acao: 'musicas', enviados: 1 });
+    expect(midias()[0].body.media).toContain('orderId=C3');
+  });
+
+  it('"TODAS" manda os arquivos de todos os pedidos da lista', async () => {
+    pedidos = [pago('A1', '2026-11-16T20:13:00Z'), pago('B2', '2026-11-10T12:00:00Z')];
+    await tratarMensagemAdm(evento('3'));
+    chamadas.length = 0;
+    const r = await tratarMensagemAdm(evento('todas'));
+    expect(r).toMatchObject({ acao: 'musicas', enviados: 4 });
+  });
+
+  it('escolha vale uma vez: depois volta ao normal', async () => {
+    pedidos = [pago('A1', '2026-11-16T20:13:00Z'), pago('B2', '2026-11-10T12:00:00Z')];
+    await tratarMensagemAdm(evento('3'));
+    await tratarMensagemAdm(evento('1'));
+    chamadas.length = 0;
+    expect((await tratarMensagemAdm(evento('2'))).acao).toBe('ignorada');
   });
 });
