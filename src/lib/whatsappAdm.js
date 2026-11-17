@@ -5,6 +5,8 @@
 //                                vários: lista os pedidos numerados e o cliente escolhe um ou "TODAS";
 //   "4" (quero criar)          → manda o link da plataforma;
 //   "5" (outros assuntos)      → pergunta o motivo do contato e deixa a conversa para o dono.
+// E o comando do DONO "/musicas", digitado por ele na conversa: apaga o comando e faz o mesmo que o
+// "3" na hora (sem esperar o intervalo de reenvio). As músicas vão em MP3 (documento) e em áudio.
 // Qualquer outra mensagem fica em silêncio: é o dono quem responde.
 //
 // O número ADM é uma SEGUNDA instância na mesma Evolution API. A configuração mora na tabela
@@ -124,10 +126,17 @@ export const TEXTO_OUTROS = 'Claro, estamos aqui para te ajudar! 😊\n\n'
   + 'Nossa equipe já vai te responder! 💜';
 
 /** Extrai o essencial de um evento messages.upsert da Evolution. Devolve null se não for conversa de cliente. */
+// Comando do DONO, digitado na conversa com o cliente: "/musicas" (ou #musicas, /música...).
+const COMANDO_MUSICAS = /^\s*[/#!]\s*m[uú]sicas?\s*$/i;
+
 export function lerMensagemEvolution(body) {
   const dados = Array.isArray(body?.data) ? body.data[0] : body?.data;
   const chave = dados?.key;
-  if (!chave || chave.fromMe === true) return null;
+  if (!chave) return null;
+  const textoBruto = dados?.message?.conversation || dados?.message?.extendedTextMessage?.text || '';
+  // Mensagem nossa (do celular do ADM ou do próprio robô): só interessa se for o comando do dono.
+  const comandoDono = chave.fromMe === true && COMANDO_MUSICAS.test(String(textoBruto));
+  if (chave.fromMe === true && !comandoDono) return null;
   const evento = String(body?.event || '').toLowerCase().replace(/_/g, '.');
   if (evento && evento !== 'messages.upsert') return null;
 
@@ -138,7 +147,7 @@ export function lerMensagemEvolution(body) {
   const comTelefone = [chave.remoteJidAlt, chave.senderPn, jid].find((j) => /@s\.whatsapp\.net$/.test(String(j || '')));
   const telefone = comTelefone ? String(comTelefone).split('@')[0].replace(/\D/g, '') : '';
   const texto = dados.message?.conversation || dados.message?.extendedTextMessage?.text || '';
-  return { id: String(chave.id || ''), jid, telefone, texto: String(texto) };
+  return { id: String(chave.id || ''), jid, telefone, texto: String(texto), ...(comandoDono ? { comandoDono: true } : {}) };
 }
 
 function nomeDeArquivo(texto) {
@@ -191,6 +200,26 @@ export async function enviarArquivoAdm(evolution, numero, arquivo) {
   return r.ok;
 }
 
+/** A mesma música como áudio tocável na conversa (além do MP3 em documento). */
+export async function enviarAudioAdm(evolution, numero, arquivo) {
+  const r = await chamarEvolution(evolution, `/message/sendWhatsAppAudio/${evolution.instanceName}`, {
+    body: { number: numero, audio: arquivo.url },
+    timeoutMs: 45000,
+  });
+  return r.ok;
+}
+
+/** Apaga para todos a mensagem do comando do dono, para o cliente não ver "/musicas". */
+async function apagarComando(evolution, msg) {
+  try {
+    await chamarEvolution(evolution, `/chat/deleteMessageForEveryone/${evolution.instanceName}`, {
+      method: 'DELETE', body: { id: msg.id, remoteJid: msg.jid, fromMe: true }, timeoutMs: 10000,
+    });
+  } catch (err) {
+    console.warn('[whatsapp-adm] Não consegui apagar o comando:', err?.name);
+  }
+}
+
 // Marca "já tratei" numa chave da tabela config. Devolve true se já havia marca dentro da janela.
 async function jaMarcado(supabase, chave, janelaMs) {
   try {
@@ -232,18 +261,25 @@ async function enviarPedidos(ctx, destino, pedidos, abertura) {
   const arquivos = selecionarMusicasPagas(pedidos);
   await enviarTextoAdm(ctx.evolution, destino, abertura);
   let enviados = 0;
+  let audios = 0;
   for (const arquivo of arquivos) {
     try {
       if (await enviarArquivoAdm(ctx.evolution, destino, arquivo)) enviados++;
     } catch (err) {
       console.warn('[whatsapp-adm] Falha ao enviar um arquivo:', err?.name);
     }
+    // Também como áudio, para ouvir direto na conversa.
+    try {
+      if (await enviarAudioAdm(ctx.evolution, destino, arquivo)) audios++;
+    } catch (err) {
+      console.warn('[whatsapp-adm] Falha ao enviar um áudio:', err?.name);
+    }
   }
   const faixas = pedidos.reduce((n, p) => n + ((Array.isArray(p.audioFiles) ? p.audioFiles.filter(Boolean).length : 0) || (p.audioUrl ? 1 : 0)), 0);
   if (faixas > arquivos.length) {
     await enviarTextoAdm(ctx.evolution, destino, `Mandei os ${arquivos.length} primeiros arquivos. Para receber os outros, mande *3* de novo daqui a alguns minutos e escolha o pedido pelo número. 😉`);
   }
-  return { enviados, total: arquivos.length };
+  return { enviados, audios, total: arquivos.length };
 }
 
 async function registrarAcao(ctx, acao) {
@@ -267,11 +303,12 @@ export async function tratarMensagemAdm(body, env = {}, ctxPronto = null) {
 
     const msg = lerMensagemEvolution(body);
     if (!msg) return { acao: 'ignorada' };
+    const dono = Boolean(msg.comandoDono);
 
     // Cliente respondendo à lista de pedidos (vale por 30 minutos)? Tem prioridade sobre o menu.
-    const pendente = msg.telefone ? await lerEscolha(ctx.supabase, msg.telefone) : null;
+    const pendente = !dono && msg.telefone ? await lerEscolha(ctx.supabase, msg.telefone) : null;
     const escolha = pendente ? interpretarEscolha(msg.texto, pendente.length) : null;
-    const opcao = escolha ? null : interpretarOpcao(msg.texto);
+    const opcao = dono ? '3' : (escolha ? null : interpretarOpcao(msg.texto));
     if (!escolha && !opcao) return { acao: 'ignorada' };
 
     if (msg.id && await jaMarcado(ctx.supabase, `dedup_msg_adm_${msg.id.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 120)}`, 10 * 60 * 1000)) {
@@ -280,6 +317,8 @@ export async function tratarMensagemAdm(body, env = {}, ctxPronto = null) {
 
     const destino = msg.telefone || msg.jid;
     const final4 = msg.telefone ? msg.telefone.slice(-4) : 'lid';
+    const rotulo = dono ? '/musicas' : '3';
+    if (dono) await apagarComando(ctx.evolution, msg);
 
     if (escolha) {
       const pagos = pedidosPagosComAudio(await findOrdersByPhone(msg.telefone, env, 20));
@@ -292,11 +331,11 @@ export async function tratarMensagemAdm(body, env = {}, ctxPronto = null) {
         return { acao: 'sem_pedido_pago' };
       }
       const abertura = escolhidos.length === 1
-        ? `Perfeito! Aqui está a música do pedido ${descreverPedido(escolhidos[0])} 🎵`
-        : `Perfeito! Estou te enviando as músicas dos seus ${escolhidos.length} pedidos aqui mesmo, como arquivo 🎵`;
+        ? `Perfeito! Aqui está a música do pedido ${descreverPedido(escolhidos[0])}, em arquivo MP3 e em áudio 🎵`
+        : `Perfeito! Estou te enviando as músicas dos seus ${escolhidos.length} pedidos aqui mesmo, em arquivo MP3 e em áudio 🎵`;
       const r = await enviarPedidos(ctx, destino, escolhidos, abertura);
       const qual = escolha === 'todas' ? 'todas' : `nº ${escolha}`;
-      await registrarAcao(ctx, { opcao: '3', final: final4, resultado: `Escolheu ${qual}: ${r.enviados} de ${r.total} arquivo(s) enviados` });
+      await registrarAcao(ctx, { opcao: '3', final: final4, resultado: `Escolheu ${qual}: ${r.enviados} de ${r.total} arquivo(s) e ${r.audios} áudio(s) enviados` });
       return { acao: r.enviados > 0 ? 'musicas' : 'falha', ...r };
     }
 
@@ -317,15 +356,16 @@ export async function tratarMensagemAdm(body, env = {}, ctxPronto = null) {
 
     // Opção 3: só dá para achar os pedidos com o telefone real em mãos.
     if (!msg.telefone) {
-      await registrarAcao(ctx, { opcao: '3', final: final4, resultado: 'Telefone não identificado — responda manualmente' });
+      await registrarAcao(ctx, { opcao: rotulo, final: final4, resultado: 'Telefone não identificado — responda manualmente' });
       return { acao: 'sem_pedido_pago' };
     }
     const pagos = pedidosPagosComAudio(await findOrdersByPhone(msg.telefone, env, 20));
     if (pagos.length === 0) {
-      await registrarAcao(ctx, { opcao: '3', final: final4, resultado: 'Nenhum pedido pago neste telefone — responda manualmente' });
+      await registrarAcao(ctx, { opcao: rotulo, final: final4, resultado: dono ? 'Comando /musicas: nenhum pedido PAGO neste telefone — confirme o pagamento no painel e mande de novo' : 'Nenhum pedido pago neste telefone — responda manualmente' });
       return { acao: 'sem_pedido_pago' };
     }
-    if (await jaMarcado(ctx.supabase, `adm_envio_${msg.telefone}`, INTERVALO_REENVIO_MS)) {
+    // O comando do dono não espera o intervalo de reenvio.
+    if (!dono && await jaMarcado(ctx.supabase, `adm_envio_${msg.telefone}`, INTERVALO_REENVIO_MS)) {
       return { acao: 'aguardando' };
     }
 
@@ -333,12 +373,12 @@ export async function tratarMensagemAdm(body, env = {}, ctxPronto = null) {
       const lista = pagos.slice(0, MAX_LISTA);
       const ok = await enviarTextoAdm(ctx.evolution, destino, textoListaPedidos(lista));
       if (ok) await gravarEscolha(ctx.supabase, msg.telefone, lista.map((p) => p.id));
-      await registrarAcao(ctx, { opcao: '3', final: final4, resultado: ok ? `Lista com ${lista.length} pedidos enviada — aguardando a escolha` : 'Falha ao enviar a lista' });
+      await registrarAcao(ctx, { opcao: rotulo, final: final4, resultado: ok ? `Lista com ${lista.length} pedidos enviada — aguardando a escolha` : 'Falha ao enviar a lista' });
       return { acao: ok ? 'lista' : 'falha', total: lista.length };
     }
 
-    const r = await enviarPedidos(ctx, destino, pagos, `Encontrei o seu pedido ${descreverPedido(pagos[0])} 🎵\n\nEstou te enviando a música aqui mesmo, como arquivo:`);
-    await registrarAcao(ctx, { opcao: '3', final: final4, resultado: `${r.enviados} de ${r.total} arquivo(s) enviados` });
+    const r = await enviarPedidos(ctx, destino, pagos, `Encontrei o seu pedido ${descreverPedido(pagos[0])} 🎵\n\nEstou te enviando a música aqui mesmo, em arquivo MP3 e em áudio:`);
+    await registrarAcao(ctx, { opcao: rotulo, final: final4, resultado: `${r.enviados} de ${r.total} arquivo(s) e ${r.audios} áudio(s) enviados` });
     return { acao: r.enviados > 0 ? 'musicas' : 'falha', ...r };
   } catch (err) {
     console.warn('[whatsapp-adm] Erro ao tratar mensagem:', err?.name);

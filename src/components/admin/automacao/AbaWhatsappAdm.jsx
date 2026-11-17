@@ -71,7 +71,7 @@ export default function AbaWhatsappAdm() {
       <div style={estilos.cartao}>
         <h2 style={{ margin: '0 0 6px', fontSize: '16px' }}>Respostas automáticas no número ADM</h2>
         <p style={{ ...estilos.mudo, margin: '0 0 12px' }}>
-          Quando o cliente responder o menu só com o número: <strong style={{ color: '#f8fafc' }}>1</strong> pergunta o que ele quer ajustar (letra, ritmo, voz…); <strong style={{ color: '#f8fafc' }}>3</strong> com 1 pedido pago diz o código e a data e manda os arquivos, com vários lista os pedidos para ele escolher um ou TODAS; <strong style={{ color: '#f8fafc' }}>4</strong> envia o link para criar uma música; <strong style={{ color: '#f8fafc' }}>5</strong> pergunta o motivo do contato. Qualquer outra mensagem fica para você responder.
+          Quando o cliente responder o menu só com o número: <strong style={{ color: '#f8fafc' }}>1</strong> pergunta o que ele quer ajustar (letra, ritmo, voz…); <strong style={{ color: '#f8fafc' }}>3</strong> com 1 pedido pago diz o código e a data e manda os arquivos, com vários lista os pedidos para ele escolher um ou TODAS; <strong style={{ color: '#f8fafc' }}>4</strong> envia o link para criar uma música; <strong style={{ color: '#f8fafc' }}>5</strong> pergunta o motivo do contato. Qualquer outra mensagem fica para você responder. As músicas vão em arquivo MP3 e em áudio. <strong style={{ color: '#f8fafc' }}>Atalho seu:</strong> escreva <strong style={{ color: '#f8fafc' }}>/musicas</strong> na conversa com o cliente e o robô apaga o comando e manda as músicas pagas dele na hora.
         </p>
         <div style={estilos[estado.estilo]}>{estado.texto}</div>
 
