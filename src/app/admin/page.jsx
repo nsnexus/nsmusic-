@@ -2239,17 +2239,16 @@ export default function AdminDashboard() {
                     <p style={{ color: '#64748b', fontSize: '0.9rem', marginTop: '4px' }}>Nenhum registro se enquadra no filtro selecionado.</p>
                   </div>
                 ) : (
-                  <div style={styles.tableCard}>
-                    <table style={styles.table}>
+                  <div style={styles.tableCard} className="admin-orders-card">
+                    <table style={styles.table} className="admin-orders-table">
                       <thead>
                         <tr style={styles.thRow}>
-                          <th style={styles.th}>Cliente / Zap</th>
-                          <th style={styles.th}>Código</th>
-                          <th style={styles.th}>Valor Pago</th>
-                          <th style={styles.th}>Status Produção</th>
-                          <th style={styles.th}>Data & Hora</th>
+                          <th style={styles.th}>Cliente</th>
+                          <th style={styles.th}>Pedido</th>
+                          <th style={styles.th}>Valor</th>
+                          <th style={styles.th}>Produção</th>
                           <th style={styles.th}>Pago em</th>
-                          <th style={{ ...styles.th, width: '60px', textAlign: 'center' }}>Excluir</th>
+                          <th style={{ ...styles.th, width: '44px', textAlign: 'center' }} aria-label="Excluir" />
                         </tr>
                       </thead>
                       <tbody>
@@ -2272,7 +2271,7 @@ export default function AdminDashboard() {
                                 backgroundColor: isSelected ? '#f1f5f9' : isPaid ? '#f0fdf4' : '#ffffff',
                               }}
                             >
-                              <td style={styles.td}>
+                              <td style={styles.td} className="col-cliente">
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                   {/* Indicadores na ordem: Pago ou não -> Origem -> Copiou Pix -> Ouviu prévia */}
                                   <div
@@ -2396,7 +2395,7 @@ export default function AdminDashboard() {
 
                                   {/* Contato do cliente */}
                                   <div style={{ minWidth: 0 }}>
-                                    <div style={{ fontWeight: '600', color: '#0f172a', whiteSpace: 'nowrap' }}>
+                                    <div style={{ fontWeight: '700', color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '220px' }}>
                                       {o.customerName || 'Cliente'}
                                     </div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
@@ -2430,7 +2429,7 @@ export default function AdminDashboard() {
                                   </div>
                                 </div>
                               </td>
-                              <td style={{ ...styles.td, fontWeight: '700', color: '#0f172a' }}>
+                              <td style={{ ...styles.td, fontWeight: '700', color: '#0f172a' }} className="col-codigo">
                                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}>
                                   {isUSOrder(o) ? (
                                     <span
@@ -2493,11 +2492,14 @@ export default function AdminDashboard() {
                                     </span>
                                   )}
                                 </div>
+                                <div className="col-data" style={{ fontSize: '0.74rem', color: '#64748b', fontWeight: '500', marginTop: '3px', whiteSpace: 'nowrap' }}>
+                                  🕒 {formatDateWithTime(o.createdAt)}
+                                </div>
                               </td>
-                              <td style={{ ...styles.td, fontWeight: '700' }}>
+                              <td style={{ ...styles.td, fontWeight: '700' }} className="col-valor">
                                 {(() => {
                                   const { items, total, isUS } = getOrderProductBreakdown(o);
-                                  if (items.length === 0) return <span style={{ color: '#94a3b8', fontWeight: '500' }}>Não pago</span>;
+                                  if (items.length === 0) return <span style={{ color: '#94a3b8', fontWeight: '500', fontSize: '0.78rem', whiteSpace: 'nowrap' }}>Não pago</span>;
                                   const isExpanded = expandedValueRows.has(o.id);
                                   const isCard = isStripePayment(o) || isUS;
                                   const isUs = Boolean(isUS || isUSOrder(o));
@@ -2549,8 +2551,8 @@ export default function AdminDashboard() {
                                   );
                                 })()}
                               </td>
-                              <td style={styles.td}>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
+                              <td style={styles.td} className="col-status">
+                                <div className="col-status-chips" style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
                                   <span style={{ ...styles.statusBadge, border: `1px solid ${getStatusBadgeColor(o.productionStatus)}44`, color: getStatusBadgeColor(o.productionStatus), backgroundColor: `${getStatusBadgeColor(o.productionStatus)}10` }}>
                                     {o.productionStatus || 'PENDENTE'}
                                   </span>
@@ -2588,13 +2590,10 @@ export default function AdminDashboard() {
                                   )}
                                 </div>
                               </td>
-                              <td style={{ ...styles.td, fontSize: '0.85rem', color: '#0f172a', fontWeight: '600', whiteSpace: 'nowrap' }}>
-                                🕒 {formatDateWithTime(o.createdAt)}
-                              </td>
-                              <td style={{ ...styles.td, fontSize: '0.85rem', color: o.paidAt ? '#059669' : '#94a3b8', fontWeight: '600', whiteSpace: 'nowrap' }}>
+                              <td style={{ ...styles.td, fontSize: '0.78rem', color: o.paidAt ? '#059669' : '#94a3b8', fontWeight: '600', whiteSpace: 'nowrap' }} className={`col-pago${o.paidAt ? '' : ' col-vazio'}`}>
                                 {o.paidAt ? `💰 ${formatDateWithTime(o.paidAt)}` : '—'}
                               </td>
-                              <td style={{ ...styles.td, textAlign: 'center', width: '60px' }}>
+                              <td style={{ ...styles.td, textAlign: 'center', width: '44px' }} className="col-acao">
                                 <button
                                   type="button"
                                   onClick={(e) => {
@@ -2921,8 +2920,9 @@ const styles = {
     borderBottom: '2px solid #e2e8f0',
   },
   th: {
-    padding: '16px 20px',
-    fontSize: '0.82rem',
+    padding: '10px 12px',
+    fontSize: '0.68rem',
+    whiteSpace: 'nowrap',
     fontWeight: '800',
     color: '#475569',
     textTransform: 'uppercase',
@@ -2933,16 +2933,16 @@ const styles = {
     transition: 'background-color 0.15s',
   },
   td: {
-    padding: '16px 20px',
-    fontSize: '0.92rem',
+    padding: '9px 12px',
+    fontSize: '0.86rem',
     verticalAlign: 'middle',
     color: '#1e293b',
   },
   statusBadge: {
     display: 'inline-block',
-    padding: '4px 10px',
+    padding: '2px 8px',
     borderRadius: '100px',
-    fontSize: '0.75rem',
+    fontSize: '0.68rem',
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: '0.03em',
@@ -2983,8 +2983,8 @@ const styles = {
     display: 'inline-block'
   },
   deleteSingleBtn: {
-    padding: '6px 10px',
-    fontSize: '0.8rem',
+    padding: '4px 7px',
+    fontSize: '0.75rem',
     backgroundColor: '#fef2f2',
     color: '#dc2626',
     border: '1px solid #fca5a5',

@@ -1463,3 +1463,33 @@ label {
   .adm-hd-badges { order: 3; display: flex; width: 100%; gap: 6px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
   .adm-hd-badges > * { flex: 0 0 auto; font-size: 0.72rem !important; padding: 4px 8px !important; white-space: nowrap; }
 }
+
+/* Tabela de pedidos do /admin — compacta no PC, cartões no celular */
+.admin-orders-table .col-status-chips > span { white-space: nowrap; }
+
+@media (max-width: 768px) {
+  .admin-orders-card { overflow-x: visible !important; border-radius: 12px !important; }
+  .admin-orders-table, .admin-orders-table tbody { display: block; width: 100%; }
+  .admin-orders-table thead { display: none; }
+  .admin-orders-table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "cliente acao"
+      "codigo valor"
+      "status pago";
+    gap: 8px 10px;
+    padding: 12px;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  .admin-orders-table td { padding: 0 !important; border: none !important; min-width: 0; }
+  .admin-orders-table .col-cliente { grid-area: cliente; }
+  .admin-orders-table .col-acao { grid-area: acao; width: auto !important; align-self: start; }
+  .admin-orders-table .col-codigo { grid-area: codigo; font-size: 0.8rem !important; }
+  .admin-orders-table .col-valor { grid-area: valor; text-align: right; align-self: start; font-size: 0.85rem !important; }
+  .admin-orders-table .col-status { grid-area: status; }
+  .admin-orders-table .col-status-chips { flex-direction: row !important; flex-wrap: wrap; }
+  .admin-orders-table .col-pago { grid-area: pago; text-align: right; align-self: end; font-size: 0.72rem !important; }
+  .admin-orders-table .col-pago.col-vazio { visibility: hidden; }
+  .admin-orders-table .col-cliente > div { flex-direction: column; align-items: flex-start !important; gap: 6px !important; }
+}
