@@ -3,7 +3,8 @@
 //   "1" (ajustar minha música) → pergunta o que o cliente quer ajustar (letra, ritmo, voz...);
 //   "3" (não consigo baixar)   → 1 pedido pago: diz qual é (código, data) e manda os MP3;
 //                                vários: lista os pedidos numerados e o cliente escolhe um ou "TODAS";
-//   "4" (quero criar)          → manda o link da plataforma.
+//   "4" (quero criar)          → manda o link da plataforma;
+//   "5" (outros assuntos)      → pergunta o motivo do contato e deixa a conversa para o dono.
 // Qualquer outra mensagem fica em silêncio: é o dono quem responde.
 //
 // O número ADM é uma SEGUNDA instância na mesma Evolution API. A configuração mora na tabela
@@ -63,10 +64,10 @@ function limparNumero(texto) {
   return String(texto || '').replace(/[️⃣]/g, '').trim().replace(/[.)!\s]+$/, '');
 }
 
-/** "3", " 3 ", "3.", "3️⃣" → '3'. Qualquer coisa além de um 1, 3 ou 4 sozinho → null. */
+/** "3", " 3 ", "3.", "3️⃣" → '3'. Qualquer coisa além de um 1, 3, 4 ou 5 sozinho → null. */
 export function interpretarOpcao(texto) {
   const limpo = limparNumero(texto);
-  return limpo === '1' || limpo === '3' || limpo === '4' ? limpo : null;
+  return ['1', '3', '4', '5'].includes(limpo) ? limpo : null;
 }
 
 /** Resposta à lista de pedidos: número da lista (1..total) ou 'todas'. Qualquer outra coisa → null. */
@@ -116,6 +117,11 @@ export const TEXTO_AJUSTE = 'Claro, vamos deixar sua música do jeitinho que voc
   + '🎤 *Voz* — masculina, feminina, outro tom\n'
   + '💬 *Outra coisa*\n\n'
   + 'Pode escrever com detalhes (ou mandar um áudio) e, se tiver mais de um pedido, diga também qual é. Nossa equipe já vai te responder! 💜';
+
+export const TEXTO_OUTROS = 'Claro, estamos aqui para te ajudar! 😊\n\n'
+  + 'Me conta qual é o motivo do seu contato? Pode escrever com detalhes ou mandar um áudio.\n\n'
+  + 'Se for sobre um pedido que você já fez, mande também o código do pedido (começa com *NS-*) ou o nome de quem recebeu a música.\n\n'
+  + 'Nossa equipe já vai te responder! 💜';
 
 /** Extrai o essencial de um evento messages.upsert da Evolution. Devolve null se não for conversa de cliente. */
 export function lerMensagemEvolution(body) {
@@ -252,7 +258,7 @@ async function registrarAcao(ctx, acao) {
 
 /**
  * Trata um evento recebido do número ADM. Nunca lança. Devolve { acao } só para log/teste:
- * 'ignorada' | 'duplicada' | 'ajuste' | 'link' | 'lista' | 'musicas' | 'sem_pedido_pago' | 'aguardando' | 'falha'.
+ * 'ignorada' | 'duplicada' | 'ajuste' | 'outros' | 'link' | 'lista' | 'musicas' | 'sem_pedido_pago' | 'aguardando' | 'falha'.
  */
 export async function tratarMensagemAdm(body, env = {}, ctxPronto = null) {
   try {
@@ -294,11 +300,13 @@ export async function tratarMensagemAdm(body, env = {}, ctxPronto = null) {
       return { acao: r.enviados > 0 ? 'musicas' : 'falha', ...r };
     }
 
-    if (opcao === '1') {
-      if (msg.telefone && await jaMarcado(ctx.supabase, `adm_ajuste_${msg.telefone}`, 10 * 60 * 1000)) return { acao: 'aguardando' };
-      const ok = await enviarTextoAdm(ctx.evolution, destino, TEXTO_AJUSTE);
-      await registrarAcao(ctx, { opcao: '1', final: final4, resultado: ok ? 'Perguntou o que ajustar — responda a conversa' : 'Falha ao enviar a pergunta' });
-      return { acao: ok ? 'ajuste' : 'falha' };
+    if (opcao === '1' || opcao === '5') {
+      const ajuste = opcao === '1';
+      if (msg.telefone && await jaMarcado(ctx.supabase, `adm_${ajuste ? 'ajuste' : 'outros'}_${msg.telefone}`, 10 * 60 * 1000)) return { acao: 'aguardando' };
+      const ok = await enviarTextoAdm(ctx.evolution, destino, ajuste ? TEXTO_AJUSTE : TEXTO_OUTROS);
+      const feito = ajuste ? 'Perguntou o que ajustar — responda a conversa' : 'Perguntou o motivo do contato — responda a conversa';
+      await registrarAcao(ctx, { opcao, final: final4, resultado: ok ? feito : 'Falha ao enviar a pergunta' });
+      return { acao: ok ? (ajuste ? 'ajuste' : 'outros') : 'falha' };
     }
 
     if (opcao === '4') {

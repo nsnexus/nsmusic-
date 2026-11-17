@@ -19,8 +19,8 @@ function dataHora(v) {
   return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} às ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
-const chip = { display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '0.78rem', fontWeight: 700, padding: '4px 9px', borderRadius: '9px', border: '1px solid', lineHeight: 1.2, whiteSpace: 'nowrap' };
-const linha = { display: 'flex', alignItems: 'center', gap: '8px', color: '#475569', fontSize: '0.86rem', minWidth: 0 };
+const chip = { display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.68rem', fontWeight: 700, padding: '3px 7px', borderRadius: '8px', border: '1px solid', lineHeight: 1.2, whiteSpace: 'nowrap' };
+const linha = { display: 'flex', alignItems: 'center', gap: '6px', color: '#475569', fontSize: '0.76rem', minWidth: 0 };
 
 function segundaMusica(o, pago) {
   if (o.secondGeneration?.hasAudio || (o.secondOrderCreated && !o.secondOrderDraft)) return { t: '2ª Música: Gerada', c: '#15803d', b: '#f0fdf4', bd: '#bbf7d0' };
@@ -36,7 +36,7 @@ const PROVEDOR = {
   unifically: { t: 'Unifically', c: '#0f766e', b: '#f0fdfa', bd: '#99f6e4', dot: '#0d9488' },
 };
 
-export default function PedidoCardMobile({ order: o, breakdown, statusColor, clientCount = 0, selected = false, onOpen, onDelete }) {
+export default function PedidoCardMobile({ order: o, breakdown, statusColor, clientCount = 0, selected = false, onOpen, onDelete, onFilterPhone }) {
   const [menu, setMenu] = useState(false);
   const pago = o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'PAGO';
   const us = isUSOrder(o);
@@ -59,40 +59,40 @@ export default function PedidoCardMobile({ order: o, breakdown, statusColor, cli
         position: 'relative',
         background: selected ? '#f1f5f9' : pago ? 'linear-gradient(180deg, #f0fdf4 0%, #f7fef9 100%)' : '#ffffff',
         border: `1px solid ${pago ? '#bbf7d0' : '#e2e8f0'}`,
-        borderRadius: '18px',
-        padding: '16px',
+        borderRadius: '14px',
+        padding: '11px 12px',
         boxShadow: '0 2px 10px rgba(15, 23, 42, 0.05)',
         cursor: 'pointer',
         minWidth: 0,
         display: 'grid',
-        gap: '10px',
+        gap: '6px',
       }}
     >
       {/* Topo: nome/telefone + selo de pagamento + menu */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <div style={{ fontSize: '0.98rem', fontWeight: 800, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {o.customerName || 'Cliente'}
           </div>
         </div>
 
         {pago ? (
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: '#dcfce7', borderRadius: '999px', padding: '6px 12px', flexShrink: 0 }}>
-            <CheckCircle2 size={18} color="#fff" fill="#16a34a" />
-            <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#166534' }}>Pago</span>
-            {valor && <span style={{ borderLeft: '1px solid #86efac', paddingLeft: '8px', fontSize: '1rem', fontWeight: 800, color: '#15803d' }}>{valor}</span>}
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#dcfce7', borderRadius: '999px', padding: '3px 9px', flexShrink: 0 }}>
+            <CheckCircle2 size={14} color="#fff" fill="#16a34a" />
+            <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#166534' }}>Pago</span>
+            {valor && <span style={{ borderLeft: '1px solid #86efac', paddingLeft: '6px', fontSize: '0.82rem', fontWeight: 800, color: '#15803d' }}>{valor}</span>}
           </span>
         ) : (
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#fee2e2', borderRadius: '999px', padding: '6px 12px', flexShrink: 0 }}>
-            <XCircle size={18} color="#fff" fill="#dc2626" />
-            <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#b91c1c' }}>Não pago</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: '#fee2e2', borderRadius: '999px', padding: '3px 9px', flexShrink: 0 }}>
+            <XCircle size={14} color="#fff" fill="#dc2626" />
+            <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#b91c1c' }}>Não pago</span>
           </span>
         )}
 
         <div style={{ position: 'relative', flexShrink: 0 }} onClick={parar}>
           <button type="button" aria-label="Mais ações" aria-expanded={menu} onClick={() => setMenu((m) => !m)}
-            style={{ background: 'none', border: 'none', padding: '6px 2px', cursor: 'pointer', color: '#334155' }}>
-            <MoreVertical size={20} />
+            style={{ background: 'none', border: 'none', padding: '2px', cursor: 'pointer', color: '#334155' }}>
+            <MoreVertical size={18} />
           </button>
           {menu && (
             <div role="menu" style={{ position: 'absolute', right: 0, top: '32px', zIndex: 20, background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', boxShadow: '0 10px 30px rgba(15,23,42,0.15)', padding: '6px', minWidth: '180px' }}>
@@ -108,26 +108,27 @@ export default function PedidoCardMobile({ order: o, breakdown, statusColor, cli
         </div>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginTop: '-4px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginTop: '-3px' }}>
         {o.customerPhone ? (
           <a href={`https://wa.me/${formatToWhatsAppNumber(o.customerPhone)}`} target="_blank" rel="noopener noreferrer" onClick={parar}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: '#16a34a', fontWeight: 600, fontSize: '0.95rem', textDecoration: 'none', whiteSpace: 'nowrap' }}>
-            <Phone size={16} fill="#16a34a" strokeWidth={0} /> {o.customerPhone}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', color: '#16a34a', fontWeight: 600, fontSize: '0.8rem', textDecoration: 'none', whiteSpace: 'nowrap' }}>
+            <Phone size={13} fill="#16a34a" strokeWidth={0} /> {o.customerPhone}
           </a>
         ) : <span style={{ color: '#94a3b8', fontSize: '0.85rem' }}>Sem telefone</span>}
         {clientCount > 1 && (
-          <span style={{ ...chip, color: '#7c3aed', background: '#f3e8ff', borderColor: '#f3e8ff', borderRadius: '999px' }}>
-            <Users size={13} /> {clientCount}x cliente
-          </span>
+          <button type="button" onClick={(e) => { parar(e); onFilterPhone?.(); }} title="Ver só os pedidos deste telefone"
+            style={{ ...chip, color: '#7c3aed', background: '#f3e8ff', borderColor: '#e9d5ff', borderRadius: '999px', cursor: 'pointer', fontFamily: 'inherit' }}>
+            <Users size={11} /> {clientCount}x cliente ›
+          </button>
         )}
       </div>
 
       {/* Chips: país, origem, forma de pagamento, bônus */}
-      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', alignItems: 'center' }}>
         {us
           ? <span style={{ ...chip, color: '#1d4ed8', background: '#eff6ff', borderColor: '#bfdbfe' }}>🇺🇸 EUA</span>
           : <span style={{ ...chip, color: '#166534', background: '#f0fdf4', borderColor: '#bbf7d0' }}>🇧🇷 BR</span>}
-        <span style={{ ...chip, background: '#eff6ff', borderColor: '#dbeafe', padding: '3px 7px' }}><PlatformIcon order={o} size={16} /></span>
+        <span style={{ ...chip, background: '#eff6ff', borderColor: '#dbeafe', padding: '2px 6px' }}><PlatformIcon order={o} size={13} /></span>
         {(pago || o.paidAt) && (cartao
           ? <span style={{ ...chip, color: '#7c3aed', background: '#faf5ff', borderColor: '#e9d5ff' }}>💳 Cartão</span>
           : <span style={{ ...chip, color: '#0f766e', background: '#f8fafc', borderColor: '#e2e8f0' }}><span style={{ color: '#14b8a6' }}>❖</span> PIX</span>)}
@@ -135,17 +136,17 @@ export default function PedidoCardMobile({ order: o, breakdown, statusColor, cli
       </div>
 
       {/* Código e datas */}
-      <div style={{ ...linha, color: '#0f172a', fontWeight: 700, fontSize: '0.95rem' }}>
-        <FileText size={18} color="#94a3b8" style={{ flexShrink: 0 }} />
+      <div style={{ ...linha, color: '#0f172a', fontWeight: 700, fontSize: '0.8rem' }}>
+        <FileText size={14} color="#94a3b8" style={{ flexShrink: 0 }} />
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.orderNumber || String(o.id).slice(0, 8)}</span>
       </div>
-      <div style={{ ...linha, flexWrap: 'wrap', fontSize: '0.8rem', gap: '6px', rowGap: '4px' }}>
+      <div style={{ ...linha, flexWrap: 'wrap', fontSize: '0.72rem', gap: '5px', rowGap: '3px' }}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }} title="Criou a música">
-          <Clock size={16} color="#64748b" /> {dataHora(o.createdAt) || '—'}
+          <Clock size={13} color="#64748b" /> {dataHora(o.createdAt) || '—'}
         </span>
         {o.paidAt && (
           <>
-            <span style={{ width: '1px', height: '18px', background: '#cbd5e1' }} aria-hidden="true" />
+            <span style={{ width: '1px', height: '13px', background: '#cbd5e1' }} aria-hidden="true" />
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', color: '#15803d', whiteSpace: 'nowrap' }} title="Pagou">
               <span aria-hidden="true">💰</span> {dataHora(o.paidAt)}
             </span>
@@ -154,14 +155,14 @@ export default function PedidoCardMobile({ order: o, breakdown, statusColor, cli
       </div>
 
       {/* Produção */}
-      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
         <span style={{ ...chip, color: statusColor || '#475569', background: '#f8fafc', borderColor: '#e2e8f0' }}>
-          <Headphones size={15} /> {status}
+          <Headphones size={12} /> {status}
         </span>
-        {segunda && <span style={{ ...chip, color: segunda.c, background: segunda.b, borderColor: segunda.bd }}><Music size={14} /> {segunda.t}</span>}
+        {segunda && <span style={{ ...chip, color: segunda.c, background: segunda.b, borderColor: segunda.bd }}><Music size={11} /> {segunda.t}</span>}
         {prov && (
           <span style={{ ...chip, color: prov.c, background: prov.b, borderColor: prov.bd }}>
-            <span style={{ width: '12px', height: '12px', borderRadius: '50%', background: prov.dot }} aria-hidden="true" /> {prov.t}
+            <span style={{ width: '9px', height: '9px', borderRadius: '50%', background: prov.dot }} aria-hidden="true" /> {prov.t}
           </span>
         )}
       </div>

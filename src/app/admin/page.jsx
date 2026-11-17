@@ -659,6 +659,18 @@ export default function AdminDashboard() {
     return counts;
   }, [orders]);
 
+  // "2x cliente": mostra só os pedidos daquele telefone (em todo o período) e sobe até a busca.
+  const filtrarPorTelefone = (telefone) => {
+    const digitos = String(telefone || '').replace(/\D/g, '');
+    if (!digitos) return;
+    setSearchQuery(digitos.length > 11 && digitos.startsWith('55') ? digitos.slice(2) : digitos);
+    setDateFrom('');
+    setDateTo('');
+    if (typeof document !== 'undefined') {
+      document.getElementById('admin-search')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  };
+
   // Pedidos filtrados pelo país/mercado para abas e contadores de status
   const countryFilteredOrders = useMemo(() => {
     if (countryFilter === 'BR') return orders.filter(o => !isUSOrder(o));
@@ -2418,12 +2430,14 @@ export default function AdminDashboard() {
                                         const digits = String(o.customerPhone || '').replace(/\D/g, '');
                                         const count = digits ? phoneOrderCounts[digits] : 0;
                                         return count > 1 ? (
-                                          <span
-                                            title="Total de pedidos carregados com este telefone"
-                                            style={{ fontSize: '0.68rem', fontWeight: '700', color: '#7c3aed', backgroundColor: '#f3e8ff', padding: '1px 6px', borderRadius: '999px', whiteSpace: 'nowrap' }}
+                                          <button
+                                            type="button"
+                                            onClick={(e) => { e.stopPropagation(); filtrarPorTelefone(o.customerPhone); }}
+                                            title="Ver só os pedidos deste telefone"
+                                            style={{ fontSize: '0.68rem', fontWeight: '700', color: '#7c3aed', backgroundColor: '#f3e8ff', padding: '1px 6px', borderRadius: '999px', whiteSpace: 'nowrap', border: '1px solid #e9d5ff', cursor: 'pointer', fontFamily: 'inherit' }}
                                           >
-                                            {count}x cliente
-                                          </span>
+                                            {count}x cliente ›
+                                          </button>
                                         ) : null;
                                       })()}
                                     </div>
@@ -2632,6 +2646,7 @@ export default function AdminDashboard() {
                           router.push(`/admin/pedidos/${o.id}`);
                         }}
                         onDelete={() => handleDeleteSingleOrder(o.id, o.orderNumber)}
+                        onFilterPhone={() => filtrarPorTelefone(o.customerPhone)}
                       />
                     ))}
                   </div>
