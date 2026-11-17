@@ -36,7 +36,7 @@ const PROVEDOR = {
   unifically: { t: 'Unifically', c: '#0f766e', b: '#f0fdfa', bd: '#99f6e4', dot: '#0d9488' },
 };
 
-export default function PedidoCardMobile({ order: o, breakdown, statusColor, clientCount = 0, selected = false, onOpen, onDelete, onFilterPhone }) {
+export default function PedidoCardMobile({ order: o, breakdown, statusColor, clientCount = 0, selected = false, pixCopiado = null, onOpen, onDelete, onFilterPhone }) {
   const [menu, setMenu] = useState(false);
   const pago = o.paymentStatus === 'PAGAMENTO_APROVADO' || o.paymentStatus === 'PAGO';
   const us = isUSOrder(o);
@@ -137,6 +137,21 @@ export default function PedidoCardMobile({ order: o, breakdown, statusColor, cli
           ? <span style={{ ...chip, color: '#7c3aed', background: '#faf5ff', borderColor: '#e9d5ff' }}>💳 Cartão</span>
           : <span style={{ ...chip, color: '#0f766e', background: '#f8fafc', borderColor: '#e2e8f0' }}><span style={{ color: '#14b8a6' }}>❖</span> PIX</span>)}
         {isBonusOrder(o) && <span style={{ ...chip, color: '#7c3aed', background: '#f5f3ff', borderColor: '#ddd6fe' }}>🎁 Bônus</span>}
+        {/* Funil: ouviu a prévia? copiou/gerou o Pix? (o Pix só importa enquanto não pagou) */}
+        <span title={o.previewListenedAt ? `Ouviu a prévia em ${dataHora(o.previewListenedAt)}` : 'Ainda não deu play na prévia'}
+          style={o.previewListenedAt
+            ? { ...chip, color: '#0369a1', background: '#e0f2fe', borderColor: '#bae6fd' }
+            : { ...chip, color: '#94a3b8', background: '#f8fafc', borderColor: '#e2e8f0', borderStyle: 'dashed' }}>
+          🎧 {o.previewListenedAt ? 'Ouviu' : 'Não ouviu'}
+        </span>
+        {!pago && (
+          <span title={typeof pixCopiado === 'string' ? `Copiou o código Pix em ${dataHora(pixCopiado)}` : pixCopiado ? 'Copiou/gerou o código Pix' : 'Ainda não copiou o Pix'}
+            style={pixCopiado
+              ? { ...chip, color: '#b45309', background: '#fef3c7', borderColor: '#fde68a' }
+              : { ...chip, color: '#94a3b8', background: '#f8fafc', borderColor: '#e2e8f0', borderStyle: 'dashed' }}>
+            📋 {pixCopiado ? 'Copiou Pix' : 'Sem Pix'}
+          </span>
+        )}
       </div>
 
       {/* Código e datas */}
