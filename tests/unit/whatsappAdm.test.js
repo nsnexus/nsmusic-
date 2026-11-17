@@ -206,3 +206,36 @@ describe('fluxo novo do robô', () => {
     expect((await tratarMensagemAdm(evento('2'))).acao).toBe('ignorada');
   });
 });
+
+describe('comando do dono e envio em áudio', () => {
+  const pago = (id, extra = {}) => ({ id, orderNumber: `NS-${id}`, honoreeName: 'Ana', paymentStatus: 'PAGO', audioFiles: ['a', 'b'], createdAt: '2026-11-16T20:13:00Z', ...extra });
+  const doDono = (texto) => evento(texto, { fromMe: true });
+
+  it('reconhece só o comando /musicas vindo do dono', () => {
+    expect(lerMensagemEvolution(doDono('/musicas')).comandoDono).toBe(true);
+    expect(lerMensagemEvolution(doDono('#Músicas')).comandoDono).toBe(true);
+    expect(lerMensagemEvolution(doDono('Vou liberar e mandar suas músicas aqui'))).toBeNull();
+    expect(lerMensagemEvolution(doDono('3'))).toBeNull();
+    expect(lerMensagemEvolution(evento('/musicas')).comandoDono).toBeUndefined(); // cliente digitando não vale
+  });
+
+  it('/musicas: apaga o comando e manda MP3 + áudio, sem esperar o intervalo', async () => {
+    pedidos = [pago('A1')];
+    await tratarMensagemAdm(evento('3')); // cliente já pediu agora há pouco
+    chamadas.length = 0;
+    const r = await tratarMensagemAdm(doDono('/musicas'));
+    expect(r).toMatchObject({ acao: 'musicas', enviados: 2, audios: 2 });
+    expect(chamadas.some((c) => c.url.includes('/chat/deleteMessageForEveryone/'))).toBe(true);
+    expect(chamadas.filter((c) => c.url.includes('/message/sendMedia/'))).toHaveLength(2);
+    const audios = chamadas.filter((c) => c.url.includes('/message/sendWhatsAppAudio/'));
+    expect(audios).toHaveLength(2);
+    expect(audios[0].body.audio).toContain('/api/audio/proxy?orderId=A1');
+  });
+
+  it('/musicas sem pedido pago não manda nada ao cliente', async () => {
+    pedidos = [{ id: 'x', paymentStatus: 'AGUARDANDO_PAGAMENTO', audioFiles: ['a'] }];
+    const r = await tratarMensagemAdm(doDono('/musicas'));
+    expect(r.acao).toBe('sem_pedido_pago');
+    expect(chamadas.filter((c) => c.url.includes('/message/'))).toHaveLength(0);
+  });
+});
