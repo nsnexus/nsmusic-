@@ -1471,5 +1471,5 @@ label {
 .admin-orders-mobile { display: none; }
 @media (max-width: 768px) {
   .admin-orders-card { display: none !important; }
-  .admin-orders-mobile { display: grid; gap: 12px; }
+  .admin-orders-mobile { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
 }
