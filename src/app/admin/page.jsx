@@ -12,6 +12,7 @@ import LimitesCota from '@/components/admin/LimitesCota';
 import KieCreditsBadge from '@/components/admin/KieCreditsBadge';
 import UnificallyCreditsBadge from '@/components/admin/UnificallyCreditsBadge';
 import WhatsAppUsageBadge from '@/components/admin/WhatsAppUsageBadge';
+import PedidoCardMobile from '@/components/admin/PedidoCardMobile';
 import PlatformIcon from '@/components/admin/PlatformIcon';
 import { getOrderPlatform, PLATFORMS, isBonusOrder } from '@/lib/trafficSource';
 import { formatToWhatsAppNumber } from '@/lib/whatsappTemplates';
@@ -2611,6 +2612,28 @@ export default function AdminDashboard() {
                         })}
                       </tbody>
                     </table>
+                  </div>
+                )}
+
+                {!loadingOrders && filteredOrders.length > 0 && (
+                  <div className="admin-orders-mobile">
+                    {filteredOrders.map((o) => (
+                      <PedidoCardMobile
+                        key={o.id}
+                        order={o}
+                        breakdown={getOrderProductBreakdown(o)}
+                        statusColor={getStatusBadgeColor(o.productionStatus)}
+                        clientCount={(() => { const d = String(o.customerPhone || '').replace(/\D/g, ''); return d ? phoneOrderCounts[d] || 0 : 0; })()}
+                        selected={selectedOrderIds.includes(o.id)}
+                        onOpen={() => {
+                          if (typeof window !== 'undefined') {
+                            sessionStorage.setItem('ns_admin_scroll_pos', String(window.scrollY || window.pageYOffset || 0));
+                          }
+                          router.push(`/admin/pedidos/${o.id}`);
+                        }}
+                        onDelete={() => handleDeleteSingleOrder(o.id, o.orderNumber)}
+                      />
+                    ))}
                   </div>
                 )}
 
