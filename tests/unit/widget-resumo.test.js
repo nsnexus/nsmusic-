@@ -5,16 +5,27 @@ process.env.TZ = 'UTC'; // como na Cloudflare
 let pedidosMes = [];
 let pedidosRecentes = [];
 let manual = null;
+let cacheGuardado = null;
+let gravacoesCache = 0;
 vi.mock('../../src/lib/supabase-edge', () => ({
   getSupabaseEdge: () => ({
     from: () => {
-      const q = { select: () => q, eq: () => q, maybeSingle: async () => ({ data: manual ? { valor: manual } : null, error: null }) };
+      let chave = null;
+      const q = {
+        select: () => q,
+        eq: (_c, v) => { chave = v; return q; },
+        maybeSingle: async () => {
+          if (chave === 'widget_resumo_cache') return { data: cacheGuardado ? { valor: cacheGuardado } : null, error: null };
+          return { data: manual ? { valor: manual } : null, error: null };
+        },
+        upsert: async (row) => { if (row.chave === 'widget_resumo_cache') { cacheGuardado = row.valor; gravacoesCache++; } return { error: null }; },
+      };
       return q;
     },
   }),
 }));
 vi.mock('../../src/lib/pedidosRelatorio', () => ({
-  buscarPedidosDoPeriodo: async () => pedidosMes,
+  buscarPedidosDoDia: async () => pedidosMes,
   buscarPedidosRecentes: async () => pedidosRecentes,
 }));
 vi.mock('../../src/lib/adsSpend', () => ({
@@ -25,13 +36,13 @@ vi.mock('../../src/lib/adsSpend', () => ({
   }),
 }));
 
-const { calcularResumoDia, aplicarGastosManuais, paraRelogioSp } = await import('../../src/lib/resumoDia.js');
+const { calcularResumoDia, resumoDiaComCache, aplicarGastosManuais, paraRelogioSp } = await import('../../src/lib/resumoDia.js');
 const { GET } = await import('../../src/app/api/widget/resumo/route.js');
 
 const pago = (criado, pago, extra = {}) => ({ id: criado, paymentStatus: 'PAGO', createdAt: criado, paidAt: pago, paidAmount: 9.99, sunoGenerationCount: 1, sunoProvider: 'kie', productionStatus: 'AUDIO_GERADO', ...extra });
 
 beforeEach(() => {
-  pedidosMes = []; pedidosRecentes = []; manual = null;
+  pedidosMes = []; pedidosRecentes = []; manual = null; cacheGuardado = null; gravacoesCache = 0;
   process.env.WIDGET_TOKEN = 'w'.repeat(40);
 });
 
@@ -75,6 +86,30 @@ describe('resumo do dia (mesmas contas do Dashboard)', () => {
 
   it('desloca só strings de data', () => {
     expect(paraRelogioSp({ a: '2026-11-17T03:00:00Z', b: 'texto', c: 5 })).toEqual({ a: '2026-11-17T00:00:00.000Z', b: 'texto', c: 5 });
+  });
+});
+
+describe('cache do resumo', () => {
+  it('dentro de 5 min responde do cache sem recalcular', async () => {
+    pedidosMes = [pago('2026-11-17T13:00:00Z', '2026-11-17T13:10:00Z')];
+    const t0 = new Date('2026-11-17T15:00:00Z');
+    const a = await resumoDiaComCache({}, t0);
+    expect(a.vendas).toBe(1);
+    pedidosMes = []; // se recalculasse, daria 0
+    const b = await resumoDiaComCache({}, new Date(t0.getTime() + 4 * 60 * 1000));
+    expect(b.vendas).toBe(1);
+    expect(b.doCache).toBe(true);
+    expect(gravacoesCache).toBe(1);
+  });
+
+  it('depois de 5 min (ou em outro dia) recalcula', async () => {
+    pedidosMes = [pago('2026-11-17T13:00:00Z', '2026-11-17T13:10:00Z')];
+    const t0 = new Date('2026-11-17T15:00:00Z');
+    await resumoDiaComCache({}, t0);
+    pedidosMes = [];
+    const b = await resumoDiaComCache({}, new Date(t0.getTime() + 6 * 60 * 1000));
+    expect(b.vendas).toBe(0);
+    expect(b.doCache).toBeUndefined();
   });
 });
 

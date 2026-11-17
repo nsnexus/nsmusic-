@@ -3,107 +3,108 @@
 // MESMA leitura — assim o widget mostra exatamente o que o Dashboard mostra.
 
 /** Pedidos criados no intervalo [inicio, fim) — mesma projeção do relatório pedidos_mes. */
-export async function buscarPedidosDoPeriodo(supabase, inicio, fim) {
-  // Projeção otimizada: seleciona apenas as colunas necessárias e o JSONB extras direto.
-  // Omite colunas pesadas como lyrics, story, suno_prompt, audio_files, slideshow_images
-  // que inflavam o payload, mantendo a consulta rápida e 100% compatível com PostgREST.
-  const selectColumns = [
-    'id', 'order_number', 'customer_phone', 'payment_status', 'paid_at', 'created_at',
-    'has_video_access', 'has_carta_access', 'has_playback_access', 'has_retrospectiva_access',
-    'has_karaoke_access', 'suno_generation_count', 'suno_requested_at', 'suno_provider',
-    'ready_template_sent', 'payment_whatsapp_sent', 'whatsapp_sent', 'extras',
-    // Usadas por mapearPedido -> hasMusicaGerada. Sem elas, "Músicas Geradas" só contava
-    // pedidos pagos ou com status/áudio duplicado no extras, subestimando gerações e conversão.
-    'production_status', 'audio_url'
-  ].join(',');
+// Projeção otimizada: seleciona apenas as colunas necessárias e o JSONB extras direto.
+// Omite colunas pesadas como lyrics, story, suno_prompt, audio_files, slideshow_images
+// que inflavam o payload, mantendo a consulta rápida e 100% compatível com PostgREST.
+export const COLUNAS_PEDIDO_RELATORIO = [
+  'id', 'order_number', 'customer_phone', 'payment_status', 'paid_at', 'created_at',
+  'has_video_access', 'has_carta_access', 'has_playback_access', 'has_retrospectiva_access',
+  'has_karaoke_access', 'suno_generation_count', 'suno_requested_at', 'suno_provider',
+  'ready_template_sent', 'payment_whatsapp_sent', 'whatsapp_sent', 'extras',
+  // Usadas por mapearPedido -> hasMusicaGerada. Sem elas, "Músicas Geradas" só contava
+  // pedidos pagos ou com status/áudio duplicado no extras, subestimando gerações e conversão.
+  'production_status', 'audio_url'
+].join(',');
 
-  const mapearPedido = (row) => {
-    const isPago = row.payment_status === 'PAGO' || row.payment_status === 'PAGAMENTO_APROVADO';
-    const extras = row.extras || {};
-    const hasVid = Boolean(row.has_video_access || extras.videoAddonPaid);
-    const hasCarta = Boolean(row.has_carta_access || extras.cartaAddonPaid);
-    const hasPlay = Boolean(row.has_playback_access || extras.playbackAddonPaid);
-    const hasRetro = Boolean(row.has_retrospectiva_access || extras.retrospectivaAddonPaid);
-    const hasKara = Boolean(row.has_karaoke_access || extras.hasKaraokeAccess || extras.karaokeAddonPaid);
+export const mapearPedidoRelatorio = (row) => {
+  const isPago = row.payment_status === 'PAGO' || row.payment_status === 'PAGAMENTO_APROVADO';
+  const extras = row.extras || {};
+  const hasVid = Boolean(row.has_video_access || extras.videoAddonPaid);
+  const hasCarta = Boolean(row.has_carta_access || extras.cartaAddonPaid);
+  const hasPlay = Boolean(row.has_playback_access || extras.playbackAddonPaid);
+  const hasRetro = Boolean(row.has_retrospectiva_access || extras.retrospectivaAddonPaid);
+  const hasKara = Boolean(row.has_karaoke_access || extras.hasKaraokeAccess || extras.karaokeAddonPaid);
 
-    return {
-      id: row.id,
-      orderNumber: row.order_number,
-      customerPhone: row.customer_phone,
-      paymentStatus: row.payment_status,
-      paidAt: row.paid_at,
-      createdAt: row.created_at,
-      hasVideoAccess: hasVid,
-      hasCartaAccess: hasCarta,
-      hasPlaybackAccess: hasPlay,
-      hasRetrospectivaAccess: hasRetro,
-      hasKaraokeAccess: hasKara,
-      sunoGenerationCount: row.suno_generation_count,
-      sunoRequestedAt: row.suno_requested_at,
-      sunoProvider: row.suno_provider || null,
-      readyTemplateSent: Boolean(row.ready_template_sent ?? extras.readyTemplateSent),
-      paymentWhatsappSent: Boolean(row.payment_whatsapp_sent ?? extras.paymentWhatsappSent),
-      whatsappSent: Boolean(row.whatsapp_sent ?? extras.whatsappSent),
-      videoAddonPaid: extras.videoAddonPaid ?? (hasVid && isPago),
-      videoPaidAt: extras.videoPaidAt ?? row.paid_at,
-      videoPaidAmount: extras.videoPaidAmount,
-      videoPaymentId: extras.videoPaymentId,
-      playbackAddonPaid: extras.playbackAddonPaid ?? (hasPlay && isPago),
-      playbackPaidAt: extras.playbackPaidAt ?? row.paid_at,
-      playbackPaidAmount: extras.playbackPaidAmount,
-      playbackPaymentId: extras.playbackPaymentId,
-      cartaAddonPaid: extras.cartaAddonPaid ?? (hasCarta && isPago),
-      cartaPaidAt: extras.cartaPaidAt ?? row.paid_at,
-      cartaPaidAmount: extras.cartaPaidAmount,
-      cartaPaymentId: extras.cartaPaymentId,
-      retrospectivaAddonPaid: extras.retrospectivaAddonPaid ?? (hasRetro && isPago),
-      retrospectivaPaidAt: extras.retrospectivaPaidAt ?? row.paid_at,
-      retrospectivaPaidAmount: extras.retrospectivaPaidAmount,
-      retrospectivaPaymentId: extras.retrospectivaPaymentId,
-      karaokeAddonPaid: extras.karaokeAddonPaid ?? (hasKara && isPago),
-      karaokePaidAt: extras.karaokePaidAt ?? row.paid_at,
-      karaokePaidAmount: extras.karaokePaidAmount,
-      karaokePaymentId: extras.karaokePaymentId,
-      paidAmount: extras.paidAmount ?? null,
-      paymentIntentSku: extras.paymentIntentSku ?? null,
-      isSecondGeneration: Boolean(extras.isSecondGeneration),
-      origem: extras.origem ?? null,
-      paidSku: extras.paidSku ?? null,
-      parentOrderId: extras.parentOrderId ?? null,
-      trafficSource: extras.trafficSource ?? null,
-      platform: extras.platform ?? null,
-      utmSource: extras.utmSource ?? null,
-      utmMedium: extras.utmMedium ?? null,
-      utmCampaign: extras.utmCampaign ?? null,
-      utmContent: extras.utmContent ?? null,
-      utmTerm: extras.utmTerm ?? null,
-      fbclid: extras.fbclid ?? null,
-      ttclid: extras.ttclid ?? null,
-      gclid: extras.gclid ?? null,
-      referrer: extras.referrer ?? null,
-      userAgent: extras.userAgent ?? null,
-      productionStatus: row.production_status || extras.productionStatus || null,
-      audioUrl: row.audio_url || extras.audioUrl || null,
-      hasAudio: Boolean(row.audio_url || extras.audioUrl),
-      extras: {
-        trafficSource: extras.trafficSource,
-        platform: extras.platform,
-        paidAmount: extras.paidAmount,
-        paymentIntentSku: extras.paymentIntentSku,
-        isSecondGeneration: extras.isSecondGeneration,
-        origem: extras.origem,
-        paidSku: extras.paidSku,
-        parentOrderId: extras.parentOrderId,
-        utmSource: extras.utmSource,
-        utmMedium: extras.utmMedium,
-        utmCampaign: extras.utmCampaign,
-        fbclid: extras.fbclid,
-        ttclid: extras.ttclid,
-        gclid: extras.gclid,
-      }
-    };
+  return {
+    id: row.id,
+    orderNumber: row.order_number,
+    customerPhone: row.customer_phone,
+    paymentStatus: row.payment_status,
+    paidAt: row.paid_at,
+    createdAt: row.created_at,
+    hasVideoAccess: hasVid,
+    hasCartaAccess: hasCarta,
+    hasPlaybackAccess: hasPlay,
+    hasRetrospectivaAccess: hasRetro,
+    hasKaraokeAccess: hasKara,
+    sunoGenerationCount: row.suno_generation_count,
+    sunoRequestedAt: row.suno_requested_at,
+    sunoProvider: row.suno_provider || null,
+    readyTemplateSent: Boolean(row.ready_template_sent ?? extras.readyTemplateSent),
+    paymentWhatsappSent: Boolean(row.payment_whatsapp_sent ?? extras.paymentWhatsappSent),
+    whatsappSent: Boolean(row.whatsapp_sent ?? extras.whatsappSent),
+    videoAddonPaid: extras.videoAddonPaid ?? (hasVid && isPago),
+    videoPaidAt: extras.videoPaidAt ?? row.paid_at,
+    videoPaidAmount: extras.videoPaidAmount,
+    videoPaymentId: extras.videoPaymentId,
+    playbackAddonPaid: extras.playbackAddonPaid ?? (hasPlay && isPago),
+    playbackPaidAt: extras.playbackPaidAt ?? row.paid_at,
+    playbackPaidAmount: extras.playbackPaidAmount,
+    playbackPaymentId: extras.playbackPaymentId,
+    cartaAddonPaid: extras.cartaAddonPaid ?? (hasCarta && isPago),
+    cartaPaidAt: extras.cartaPaidAt ?? row.paid_at,
+    cartaPaidAmount: extras.cartaPaidAmount,
+    cartaPaymentId: extras.cartaPaymentId,
+    retrospectivaAddonPaid: extras.retrospectivaAddonPaid ?? (hasRetro && isPago),
+    retrospectivaPaidAt: extras.retrospectivaPaidAt ?? row.paid_at,
+    retrospectivaPaidAmount: extras.retrospectivaPaidAmount,
+    retrospectivaPaymentId: extras.retrospectivaPaymentId,
+    karaokeAddonPaid: extras.karaokeAddonPaid ?? (hasKara && isPago),
+    karaokePaidAt: extras.karaokePaidAt ?? row.paid_at,
+    karaokePaidAmount: extras.karaokePaidAmount,
+    karaokePaymentId: extras.karaokePaymentId,
+    paidAmount: extras.paidAmount ?? null,
+    paymentIntentSku: extras.paymentIntentSku ?? null,
+    isSecondGeneration: Boolean(extras.isSecondGeneration),
+    origem: extras.origem ?? null,
+    paidSku: extras.paidSku ?? null,
+    parentOrderId: extras.parentOrderId ?? null,
+    trafficSource: extras.trafficSource ?? null,
+    platform: extras.platform ?? null,
+    utmSource: extras.utmSource ?? null,
+    utmMedium: extras.utmMedium ?? null,
+    utmCampaign: extras.utmCampaign ?? null,
+    utmContent: extras.utmContent ?? null,
+    utmTerm: extras.utmTerm ?? null,
+    fbclid: extras.fbclid ?? null,
+    ttclid: extras.ttclid ?? null,
+    gclid: extras.gclid ?? null,
+    referrer: extras.referrer ?? null,
+    userAgent: extras.userAgent ?? null,
+    productionStatus: row.production_status || extras.productionStatus || null,
+    audioUrl: row.audio_url || extras.audioUrl || null,
+    hasAudio: Boolean(row.audio_url || extras.audioUrl),
+    extras: {
+      trafficSource: extras.trafficSource,
+      platform: extras.platform,
+      paidAmount: extras.paidAmount,
+      paymentIntentSku: extras.paymentIntentSku,
+      isSecondGeneration: extras.isSecondGeneration,
+      origem: extras.origem,
+      paidSku: extras.paidSku,
+      parentOrderId: extras.parentOrderId,
+      utmSource: extras.utmSource,
+      utmMedium: extras.utmMedium,
+      utmCampaign: extras.utmCampaign,
+      fbclid: extras.fbclid,
+      ttclid: extras.ttclid,
+      gclid: extras.gclid,
+    }
   };
+};
 
+
+export async function buscarPedidosDoPeriodo(supabase, inicio, fim) {
   let todosPedidos = [];
   let lastCreatedAt = null;
   const pageSize = 1000;
@@ -111,7 +112,7 @@ export async function buscarPedidosDoPeriodo(supabase, inicio, fim) {
   while (true) {
     let q = supabase
       .from('orders')
-      .select(selectColumns);
+      .select(COLUNAS_PEDIDO_RELATORIO);
 
     if (lastCreatedAt) {
       q = q.gt('created_at', lastCreatedAt);
@@ -128,7 +129,7 @@ export async function buscarPedidosDoPeriodo(supabase, inicio, fim) {
     const { data, error } = await q;
     if (error) throw new Error(error.message);
     if (!data || data.length === 0) break;
-    todosPedidos = todosPedidos.concat(data.map(mapearPedido));
+    todosPedidos = todosPedidos.concat(data.map(mapearPedidoRelatorio));
     if (data.length < pageSize) break;
     lastCreatedAt = data[data.length - 1].created_at;
   }
@@ -208,4 +209,33 @@ export async function buscarPedidosRecentes(supabase, dias = 8) {
   }
 
   return todosPedidos;
+}
+
+// Datas de pagamento de add-on gravadas no extras (pagas depois da música).
+const PAGAMENTOS_EXTRAS = ['videoPaidAt', 'cartaPaidAt', 'playbackPaidAt', 'retrospectivaPaidAt', 'karaokePaidAt'];
+
+/**
+ * Pedidos que movimentaram o dia: criados a partir de `inicioPeriodoIso` (início do mês, como o
+ * Dashboard) E (criados hoje OU com qualquer pagamento hoje — música ou add-on). Bem mais leve
+ * que o mês inteiro e dá o mesmo resultado para as contas de "hoje" do Dashboard.
+ * `inicioDiaUtc` precisa estar em UTC com Z (as datas do extras são gravadas assim).
+ */
+export async function buscarPedidosDoDia(supabase, inicioDiaUtc, inicioPeriodoIso) {
+  const v = `"${inicioDiaUtc}"`;
+  const condicoes = [`created_at.gte.${v}`, `paid_at.gte.${v}`, ...PAGAMENTOS_EXTRAS.map((c) => `extras->>${c}.gte.${v}`)].join(',');
+  const pedidos = [];
+  let lastCreatedAt = null;
+  const pageSize = 1000;
+  while (true) {
+    let q = supabase.from('orders').select(COLUNAS_PEDIDO_RELATORIO);
+    q = lastCreatedAt ? q.gt('created_at', lastCreatedAt) : q.gte('created_at', inicioPeriodoIso);
+    q = q.or(condicoes).is('deleted_at', null).order('created_at', { ascending: true }).limit(pageSize);
+    const { data, error } = await q;
+    if (error) throw new Error(error.message);
+    if (!data || data.length === 0) break;
+    for (const row of data) pedidos.push(mapearPedidoRelatorio(row));
+    if (data.length < pageSize) break;
+    lastCreatedAt = data[data.length - 1].created_at;
+  }
+  return pedidos;
 }
