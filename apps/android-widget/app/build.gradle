@@ -1,0 +1,49 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'br.ia.nsmusic.widget'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'br.ia.nsmusic.widget'
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName '1.0'
+    }
+
+    // Assinatura: a chave fica FORA do repositório. Para gerar a versão instalável, defina
+    // NSW_KEYSTORE, NSW_KEYSTORE_PASS e NSW_KEY_ALIAS (ver README.md). Sem elas, usa a chave de debug.
+    signingConfigs {
+        // Chave de DEBUG fixa no repositório (senha pública "android") para toda nova versão
+        // instalar por cima da anterior. Não é segredo; quem quiser chave própria usa NSW_KEYSTORE.
+        debug {
+            storeFile rootProject.file('debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+        release {
+            if (System.getenv('NSW_KEYSTORE')) {
+                storeFile file(System.getenv('NSW_KEYSTORE'))
+                storePassword System.getenv('NSW_KEYSTORE_PASS')
+                keyAlias System.getenv('NSW_KEY_ALIAS')
+                keyPassword System.getenv('NSW_KEYSTORE_PASS')
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig System.getenv('NSW_KEYSTORE') ? signingConfigs.release : signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
