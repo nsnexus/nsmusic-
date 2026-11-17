@@ -41,11 +41,12 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('interpretarOpcao', () => {
-  it('só aceita 1, 3 ou 4 sozinhos', () => {
+  it('só aceita 1, 3, 4 ou 5 sozinhos', () => {
     expect(interpretarOpcao(' 3 ')).toBe('3');
     expect(interpretarOpcao('4.')).toBe('4');
     expect(interpretarOpcao('3️⃣')).toBe('3');
     expect(interpretarOpcao('1')).toBe('1');
+    expect(interpretarOpcao('5')).toBe('5');
     expect(interpretarOpcao('2')).toBeNull();
     expect(interpretarOpcao('34')).toBeNull();
     expect(interpretarOpcao('quero a 3')).toBeNull();
@@ -144,6 +145,12 @@ describe('fluxo novo do robô', () => {
     expect(r.acao).toBe('ajuste');
     expect(textos()[0]).toMatch(/Letra/);
     expect(textos()[0]).toMatch(/Ritmo/);
+  });
+
+  it('opção 5 pergunta o motivo do contato', async () => {
+    const r = await tratarMensagemAdm(evento('5'));
+    expect(r.acao).toBe('outros');
+    expect(textos()[0]).toMatch(/motivo do seu contato/);
   });
 
   it('um pedido pago: diz código e data, depois manda os arquivos', async () => {
