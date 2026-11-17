@@ -21,10 +21,41 @@ const PADROES = [
   'Snapchat',
 ];
 
+// Aba aberta POR um app no Android (Chrome Custom Tab — a barra de cima mostra "WhatsApp").
+//
+// Achado 16/11/2026: é assim que o WhatsApp abre o link de entrega no Android, e o User-Agent é
+// idêntico ao do Chrome normal, então a lista acima não pega. O único sinal é o `document.referrer`,
+// que vem como "android-app://com.whatsapp/". Nessa aba o envio de fotos e o download falham; o
+// cliente que tocou em ⋮ → "Abrir no Chrome" conseguiu fazer tudo.
+//
+// O referrer só existe na primeira página aberta, então o resultado é guardado na sessão.
+const CHAVE_SESSAO = 'ns_aberto_por_app';
+
+export function appQueAbriuAPagina(referrer) {
+  const ref = referrer !== undefined ? referrer : (typeof document !== 'undefined' ? document.referrer : '');
+  const m = String(ref || '').match(/^android-app:\/\/([a-zA-Z0-9._]+)/);
+  if (!m) return '';
+  const pacote = m[1].toLowerCase();
+  // Aberto pelo próprio navegador ou pela busca do Google não é "dentro de um app".
+  if (/chrome|browser|firefox|opera|edge|googlequicksearchbox|brave|duckduckgo/.test(pacote)) return '';
+  return pacote;
+}
+
+export function isAbaAbertaPorApp(referrer) {
+  if (appQueAbriuAPagina(referrer)) {
+    try { sessionStorage.setItem(CHAVE_SESSAO, '1'); } catch (e) { /* sessão indisponível: segue só com o referrer */ }
+    return true;
+  }
+  if (referrer !== undefined) return false;
+  try { return sessionStorage.getItem(CHAVE_SESSAO) === '1'; } catch (e) { return false; }
+}
+
 export function isInAppBrowser(userAgent) {
   const ua = userAgent || (typeof navigator !== 'undefined' ? navigator.userAgent : '');
-  if (!ua) return false;
-  return PADROES.some((p) => ua.includes(p));
+  if (ua && PADROES.some((p) => ua.includes(p))) return true;
+  // Só consulta o referrer quando está olhando o navegador atual (sem UA passado por parâmetro).
+  if (!userAgent && typeof document !== 'undefined') return isAbaAbertaPorApp();
+  return false;
 }
 
 // iOS é o caso mais grave: no Android o Chrome embutido ainda costuma salvar o arquivo, mas o

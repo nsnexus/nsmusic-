@@ -91,7 +91,7 @@ audio{width:100%;margin-bottom:12px}
 <script>
 (function(){try{
   var ua=navigator.userAgent||'';
-  var emApp=/FBAN|FBAV|Instagram|; wv\\)|WhatsApp/i.test(ua);
+  var emApp=/FBAN|FBAV|Instagram|; wv\\)|WhatsApp/i.test(ua)||/^android-app:\\/\\/(?!com\\.android\\.chrome)/.test(document.referrer||'');
   var a=document.getElementById('abrir-chrome');
   if(a&&emApp&&/Android/i.test(ua)){
     a.href='intent://'+location.host+location.pathname+location.search+'#Intent;scheme=https;package=com.android.chrome;end';
