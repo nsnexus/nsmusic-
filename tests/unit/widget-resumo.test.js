@@ -100,13 +100,13 @@ describe('resumo do dia (mesmas contas do Dashboard)', () => {
     await calcularResumoDia({}, AGORA);
     expect(Object.keys(tabela)).toHaveLength(8); // hoje + 7 dias
     const primeira = consultasPedidos;
-    expect(primeira).toBe(8);
+    expect(primeira).toBe(24); // 8 dias × 3 consultas (A, B, C)
 
     await calcularResumoDia({}, new Date(AGORA.getTime() + 4 * 60 * 1000));
     expect(consultasPedidos).toBe(primeira); // nada recalculado
 
     await calcularResumoDia({}, new Date(AGORA.getTime() + 6 * 60 * 1000));
-    expect(consultasPedidos).toBe(primeira + 1); // só hoje
+    expect(consultasPedidos).toBe(primeira + 3); // só hoje
   });
 
   it('sem a tabela, calcula assim mesmo', async () => {
@@ -150,5 +150,26 @@ describe('/api/widget/resumo', () => {
   it('falha clara sem WIDGET_TOKEN no servidor', async () => {
     delete process.env.WIDGET_TOKEN;
     expect((await GET(req('w'.repeat(40)))).status).toBe(500);
+  });
+});
+
+describe('busca do dia sem filtro no extras', () => {
+  it('não usa campos do extras no filtro do banco', async () => {
+    const { buscarPedidosQueTocaramODia } = await import('../../src/lib/metricasDiarias.js');
+    const filtros = [];
+    const supabase = {
+      from: () => {
+        const q = {
+          select: () => q, order: () => q, limit: () => q, is: () => q,
+          gte: (c) => { filtros.push(c); return q; }, gt: (c) => { filtros.push(c); return q; }, lt: (c) => { filtros.push(c); return q; },
+          or: (f) => { filtros.push(f); return q; },
+          then: (res) => res({ data: [{ id: 'x', created_at: '2026-11-17T12:00:00Z', payment_status: 'PAGO' }], error: null }),
+        };
+        return q;
+      },
+    };
+    const r = await buscarPedidosQueTocaramODia(supabase, '2026-11-17');
+    expect(r).toHaveLength(1); // deduplicado entre as 3 consultas
+    expect(filtros.join(' ')).not.toMatch(/extras/);
   });
 });
