@@ -27,7 +27,7 @@ import FunilStatusCards from '@/components/admin/FunilStatusCards';
 import { hasOrderGeneratedPix } from '@/lib/pixCheckout';
 import { isStripePayment, calculateStripeFee, calculateStripeNet, getPayoutStatus } from '@/lib/paymentFees';
 import { isUSOrder } from '@/lib/country';
-import { Search, RefreshCw, LogOut, Trash2, Package, Wallet, MessageCircle, BarChart3, Megaphone, Bot, UserRound, SearchCheck, Mic, SlidersHorizontal, Mail, Gauge, Settings, MoreHorizontal } from 'lucide-react';
+import { Search, RefreshCw, LogOut, Trash2, Package, Wallet, MessageCircle, BarChart3, Megaphone, Bot, UserRound, SearchCheck, Mic, SlidersHorizontal, Mail, Gauge, Settings, MoreHorizontal, Globe } from 'lucide-react';
 
 const getSavedAdminFilter = (key, fallback) => {
   if (typeof window === 'undefined') return fallback;
@@ -1134,6 +1134,7 @@ export default function AdminDashboard() {
     { id: 'TIMBRES', label: 'Timbres', Icon: Mic },
     { id: 'REMIX', label: 'Remix', Icon: SlidersHorizontal },
     { id: 'CARTAS', label: 'Cartas', Icon: Mail, isLink: true, href: '/admin/cartas' },
+    { id: 'PAISES_EUA', label: 'Países EUA', Icon: Globe, isLink: true, href: '/admin/paises-eua' },
     { id: 'LIMITES', label: 'Limites', Icon: Gauge },
     { id: 'AJUSTES', label: 'Ajustes', Icon: Settings },
   ];
