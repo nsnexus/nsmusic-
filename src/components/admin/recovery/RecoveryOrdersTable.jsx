@@ -98,7 +98,9 @@ export default function RecoveryOrdersTable({ recentRecovered = [], recentSent =
                   <th style={{ padding: '10px 12px' }}>Pedido</th>
                   <th style={{ padding: '10px 12px' }}>Cliente</th>
                   <th style={{ padding: '10px 12px' }}>Homenageado</th>
-                  <th style={{ padding: '10px 12px' }}>Enviado Em</th>
+                  <th style={{ padding: '10px 12px' }}>Criou a Música</th>
+                  <th style={{ padding: '10px 12px' }}>Criou a Música</th>
+                <th style={{ padding: '10px 12px' }}>Enviado Em</th>
                   <th style={{ padding: '10px 12px' }}>Pago Em</th>
                   <th style={{ padding: '10px 12px', textAlign: 'right' }}>Valor</th>
                 </tr>
@@ -120,7 +122,9 @@ export default function RecoveryOrdersTable({ recentRecovered = [], recentSent =
                       <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{item.customerPhone}</div>
                     </td>
                     <td style={{ padding: '12px', color: '#475569' }}>{item.honoreeName || '-'}</td>
-                    <td style={{ padding: '12px', color: '#64748b' }}>{formatarData(item.sentAt)}</td>
+                    <td style={{ padding: '12px', color: '#0f172a', fontWeight: '600', whiteSpace: 'nowrap' }}>🎵 {formatarData(item.createdAt)}</td>
+                    <td style={{ padding: '12px', color: '#0f172a', fontWeight: '600', whiteSpace: 'nowrap' }}>🎵 {formatarData(item.createdAt)}</td>
+                  <td style={{ padding: '12px', color: '#64748b' }}>{formatarData(item.sentAt)}</td>
                     <td style={{ padding: '12px' }}>
                       <span style={{ background: '#ecfdf5', color: '#059669', padding: '3px 8px', borderRadius: '4px', fontWeight: '600', fontSize: '0.76rem' }}>
                         ✅ {formatarData(item.paidAt)}
