@@ -4,20 +4,22 @@ import React, { useState, useMemo } from 'react';
 import { calculateIntradayPace } from '@/lib/ritmoVendas';
 import { usePedidosRecentes } from '@/lib/usePedidosRecentes';
 
-export default function RitmoVendasCard({ pedidos: pedidosProp = null }) {
+export default function RitmoVendasCard({ pedidos: pedidosProp = null, pace: paceProp = null, loading: loadingProp = null }) {
   // Modos de exibição do gráfico: 'sales' (Qtd de Vendas) | 'conversion' (Conversão %) | 'revenue' (Faturamento R$)
   const [metricMode, setMetricMode] = useState('sales');
   const [activeHour, setActiveHour] = useState(null);
   const [showTable, setShowTable] = useState(false);
 
   // Se pedidos não foi passado explicitamente (ex: no topo do dashboard), carrega os pedidos dos últimos 8 dias
-  const { pedidos: pedidosRecentes, loading: loadingRecentes } = usePedidosRecentes(8);
+  // Com o ritmo pronto do servidor (pace, de metricas_diarias) não busca pedidos.
+  const { pedidos: pedidosRecentes, loading: loadingRecentes } = usePedidosRecentes(paceProp || pedidosProp !== null ? null : 8);
   const pedidos = pedidosProp !== null ? pedidosProp : pedidosRecentes;
 
   // Calcula o ritmo hora a hora com base nos pedidos carregados e na janela dos últimos 7 dias
   const pace = useMemo(() => {
+    if (paceProp) return paceProp;
     return calculateIntradayPace(pedidos, { daysLimit: 7 });
-  }, [pedidos]);
+  }, [pedidos, paceProp]);
 
   const {
     currentHour,
@@ -181,7 +183,7 @@ export default function RitmoVendasCard({ pedidos: pedidosProp = null }) {
     ? Math.round(((inspectPaid - inspectAvgPaid) / inspectAvgPaid) * 100)
     : null;
 
-  if (pedidosProp === null && loadingRecentes && pedidos.length === 0) {
+  if (loadingProp === true || (loadingProp === null && pedidosProp === null && !paceProp && loadingRecentes && pedidos.length === 0)) {
     return (
       <div style={{
         marginTop: '24px',
