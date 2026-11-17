@@ -64,7 +64,11 @@ export default function PedidoCardMobile({ order: o, breakdown, statusColor, cli
         boxShadow: '0 2px 10px rgba(15, 23, 42, 0.05)',
         cursor: 'pointer',
         minWidth: 0,
+        maxWidth: '100%',
+        boxSizing: 'border-box',
+        overflow: 'hidden',
         display: 'grid',
+        gridTemplateColumns: 'minmax(0, 1fr)',
         gap: '6px',
       }}
     >
