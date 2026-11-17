@@ -4,7 +4,7 @@
 //  - dias passados: recalculados até ficarem "fechados" (2 dias depois, quando pagamentos atrasados
 //    de pedidos daquele dia já não mudam a coorte), no máximo 1x por hora; depois, só leitura.
 // Migração: supabase/migrations/20261117_metricas_diarias.sql. Sem a tabela, calcula sem guardar.
-import { COLUNAS_PEDIDO_RELATORIO, mapearPedidoRelatorio } from './pedidosRelatorio';
+import { COLUNAS_LEVES_RELATORIO, mapearPedidoRelatorio, remontarExtras } from './pedidosRelatorio';
 import { calcularMetricasPorPlataforma } from './trafficSource';
 import { agregarRitmoPorDia } from './ritmoVendas';
 import { paraRelogioSp } from './relogioSp';
@@ -14,29 +14,7 @@ const VALIDADE_DIA_ABERTO_MS = 60 * 60 * 1000;
 const DIA_MS = 24 * 3600 * 1000;
 const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
-// Campos do extras que mapearPedidoRelatorio usa — baixar só eles, não o JSON inteiro do pedido.
-const CAMPOS_EXTRAS = [
-  'audioUrl', 'cartaAddonPaid', 'cartaPaidAmount', 'cartaPaidAt', 'cartaPaymentId', 'fbclid', 'gclid',
-  'hasKaraokeAccess', 'isSecondGeneration', 'karaokeAddonPaid', 'karaokePaidAmount', 'karaokePaidAt',
-  'karaokePaymentId', 'origem', 'paidAmount', 'paidSku', 'parentOrderId', 'paymentIntentSku',
-  'paymentWhatsappSent', 'platform', 'playbackAddonPaid', 'playbackPaidAmount', 'playbackPaidAt',
-  'playbackPaymentId', 'productionStatus', 'readyTemplateSent', 'referrer', 'retrospectivaAddonPaid',
-  'retrospectivaPaidAmount', 'retrospectivaPaidAt', 'retrospectivaPaymentId', 'trafficSource', 'ttclid',
-  'userAgent', 'utmCampaign', 'utmContent', 'utmMedium', 'utmSource', 'utmTerm', 'videoAddonPaid',
-  'videoPaidAmount', 'videoPaidAt', 'videoPaymentId', 'whatsappSent',
-];
 const PAGAMENTOS_EXTRAS = ['videoPaidAt', 'cartaPaidAt', 'playbackPaidAt', 'retrospectivaPaidAt', 'karaokePaidAt'];
-const COLUNAS_LEVES = COLUNAS_PEDIDO_RELATORIO.split(',').filter((c) => c !== 'extras')
-  .concat(CAMPOS_EXTRAS.map((k) => `x_${k}:extras->${k}`)).join(',');
-
-function linhaParaPedido(row) {
-  const extras = {};
-  for (const k of CAMPOS_EXTRAS) {
-    const v = row[`x_${k}`];
-    if (v !== undefined && v !== null) extras[k] = v;
-  }
-  return mapearPedidoRelatorio({ ...row, extras });
-}
 
 export const inicioDiaUtc = (dia) => new Date(`${dia}T00:00:00-03:00`).toISOString();
 export function somarDias(dia, n) {
@@ -54,14 +32,14 @@ export async function buscarPedidosQueTocaramODia(supabase, dia) {
   const pedidos = [];
   let ultimo = null;
   while (true) {
-    let q = supabase.from('orders').select(COLUNAS_LEVES);
+    let q = supabase.from('orders').select(COLUNAS_LEVES_RELATORIO);
     q = ultimo ? q.gt('created_at', ultimo) : q.gte('created_at', criadoDesde);
     q = q.lt('created_at', inicioDiaUtc(somarDias(dia, 1))).or(condicoes).is('deleted_at', null)
       .order('created_at', { ascending: true }).limit(1000);
     const { data, error } = await q;
     if (error) throw new Error(error.message);
     if (!data || data.length === 0) break;
-    for (const row of data) pedidos.push(linhaParaPedido(row));
+    for (const row of data) pedidos.push(mapearPedidoRelatorio(remontarExtras(row)));
     if (data.length < 1000) break;
     ultimo = data[data.length - 1].created_at;
   }
