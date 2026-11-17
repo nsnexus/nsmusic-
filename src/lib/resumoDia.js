@@ -2,15 +2,13 @@
 // contas do Dashboard (ver calcularResumoDia). Tudo no fuso de Brasília.
 import { getSupabaseEdge } from './supabase-edge';
 import { getConsolidatedAdsSpend } from './adsSpend';
-import { buscarPedidosDoDia, buscarPedidosRecentes } from './pedidosRelatorio';
-import { calcularMetricasPorPlataforma } from './trafficSource';
-import { calculateIntradayPace } from './ritmoVendas';
+import { calcularRitmoDeAgregados } from './ritmoVendas';
+import { obterMetricasDias, linhasParaRitmo, somarDias } from './metricasDiarias';
+import { DESLOCAMENTO_SP_MS, diaSp, paraRelogioSp } from './relogioSp';
+
+export { diaSp, paraRelogioSp };
 
 const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
-
-export function diaSp(d = new Date()) {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
-}
 
 /** Credenciais da Meta salvas no Supabase (fallback quando não estão no env do Pages). */
 export async function carregarCredenciaisMeta(supabase, env) {
@@ -68,33 +66,12 @@ export async function gastoAnunciosComManual(env, supabase, since, until) {
   return spendData;
 }
 
-// O Dashboard roda no navegador e agrupa por dia/hora com getDate()/getHours() locais (Brasília).
-// No servidor (Cloudflare) o relógio é UTC: deslocamos todas as datas em -3 h para que essas
-// mesmas funções enxerguem o horário de Brasília (fuso fixo, sem horário de verão desde 2019).
-const DESLOCAMENTO_SP_MS = 3 * 3600 * 1000;
-const ISO = /^\d{4}-\d{2}-\d{2}T/;
-
-export function paraRelogioSp(valor) {
-  if (typeof valor === 'string' && ISO.test(valor)) {
-    const t = Date.parse(valor);
-    return Number.isNaN(t) ? valor : new Date(t - DESLOCAMENTO_SP_MS).toISOString();
-  }
-  if (Array.isArray(valor)) return valor.map(paraRelogioSp);
-  if (valor && typeof valor === 'object') {
-    const out = {};
-    for (const [k, v] of Object.entries(valor)) out[k] = paraRelogioSp(v);
-    return out;
-  }
-  return valor;
-}
-
 /**
- * Resumo do dia com as MESMAS contas do Dashboard:
- *  - faturamento, vendas, Kie e WhatsApp: calcularMetricasPorPlataforma (card "Faturamento e Lucro
- *    por Plataforma", filtrado em hoje);
+ * Resumo do dia com as MESMAS contas do Dashboard, lendo a tabela metricas_diarias:
+ *  - faturamento, vendas, Kie e WhatsApp: linha de hoje (card "Faturamento e Lucro por Plataforma");
  *  - anúncios: Meta (+13,8% de imposto sobre a parte em reais) + TikTok + Google, com ajustes manuais;
  *  - lucro = faturamento − anúncios − Kie − WhatsApp;
- *  - ritmo: calculateIntradayPace (card "Ritmo de vendas"), hoje × média dos últimos 7 dias.
+ *  - ritmo: card "Ritmo de vendas" — hoje × média dos 7 dias anteriores (curvas guardadas na tabela).
  */
 export async function calcularResumoDia(envOriginal = {}, agora = new Date()) {
   const env = { ...envOriginal };
@@ -102,27 +79,23 @@ export async function calcularResumoDia(envOriginal = {}, agora = new Date()) {
   if (!supabase) throw new Error('Supabase não configurado');
 
   const dia = diaSp(agora);
-  const mes = dia.slice(0, 7);
-  const inicioDiaUtc = new Date(`${dia}T00:00:00-03:00`).toISOString();
+  const dias = [dia, ...Array.from({ length: 7 }, (_, i) => somarDias(dia, -(i + 1)))];
 
-  // Só os pedidos que mexeram no dia (criados ou pagos hoje), não o mês inteiro — ver buscarPedidosDoDia.
-  const [pedidosMes, pedidosRecentes, ads] = await Promise.all([
-    buscarPedidosDoDia(supabase, inicioDiaUtc, `${mes}-01T00:00:00-03:00`),
-    buscarPedidosRecentes(supabase, 8),
+  const [linhas, ads] = await Promise.all([
+    obterMetricasDias(supabase, dias, dia, agora),
     gastoAnunciosComManual(env, supabase, dia, dia).catch((e) => { console.warn('[resumoDia] Anúncios indisponíveis:', e?.message); return null; }),
   ]);
-
-  const { totais } = calcularMetricasPorPlataforma(paraRelogioSp(pedidosMes), String(Number(dia.slice(8, 10))), mes);
+  const hoje = linhas[dia];
 
   const metaBase = Number(ads?.meta?.byDate?.[dia]) || 0;
   const metaImposto = r2((Number(ads?.meta?.byDateTaxable?.[dia]) || 0) * 0.138);
   const anuncios = r2(metaBase + metaImposto + (Number(ads?.tiktok?.byDate?.[dia]) || 0) + (Number(ads?.google?.byDate?.[dia]) || 0));
-  const kie = r2(totais.gastoKie);
-  const whatsapp = r2(totais.gastoWhatsApp);
-  const faturamento = r2(totais.faturamento);
+  const kie = r2(hoje.gasto_kie);
+  const whatsapp = r2(hoje.gasto_whatsapp);
+  const faturamento = r2(hoje.faturamento);
   const lucro = r2(faturamento - anuncios - kie - whatsapp);
 
-  const pace = calculateIntradayPace(paraRelogioSp(pedidosRecentes), {
+  const pace = calcularRitmoDeAgregados(linhasParaRitmo(linhas), {
     daysLimit: 7,
     referenceDate: new Date(agora.getTime() - DESLOCAMENTO_SP_MS),
   });
@@ -130,12 +103,12 @@ export async function calcularResumoDia(envOriginal = {}, agora = new Date()) {
   return {
     ok: true,
     dia,
-    atualizadoEm: agora.toISOString(),
+    atualizadoEm: hoje.calculado_em || agora.toISOString(),
     faturamento,
-    vendas: totais.pedidosPagos,
+    vendas: Number(hoje.vendas) || 0,
     lucro,
     despesas: { anuncios, kie, whatsapp, total: r2(anuncios + kie + whatsapp), anunciosOk: Boolean(ads) },
-    ticketMedio: r2(totais.ticketMedioGeral),
+    ticketMedio: hoje.vendas ? r2(faturamento / hoje.vendas) : 0,
     ritmo: {
       percentualVsMedia: Math.round(Number(pace.revenueDiffPercent) || 0),
       vendasVsMediaPercentual: Math.round(Number(pace.paidDiffPercent) || 0),
@@ -145,32 +118,4 @@ export async function calcularResumoDia(envOriginal = {}, agora = new Date()) {
       diasNaMedia: pace.daysAveragedCount || 0,
     },
   };
-}
-
-// Guarda o último resumo na tabela config: o widget pede a cada 30 min (e no ⟳), e o cálculo
-// lê centenas/milhares de pedidos. Dentro da validade, responde direto do que está guardado.
-export const CHAVE_CACHE_RESUMO = 'widget_resumo_cache';
-export const VALIDADE_CACHE_MS = 5 * 60 * 1000;
-
-export async function resumoDiaComCache(env = {}, agora = new Date()) {
-  const supabase = getSupabaseEdge(env);
-  if (supabase) {
-    try {
-      const { data } = await supabase.from('config').select('valor').eq('chave', CHAVE_CACHE_RESUMO).maybeSingle();
-      const c = data?.valor;
-      const idade = c?.atualizadoEm ? agora.getTime() - Date.parse(c.atualizadoEm) : Infinity;
-      if (c?.ok && c.dia === diaSp(agora) && idade >= 0 && idade < VALIDADE_CACHE_MS) return { ...c, doCache: true };
-    } catch (e) {
-      console.warn('[resumoDia] Falha ao ler o cache:', e?.message);
-    }
-  }
-  const resumo = await calcularResumoDia(env, agora);
-  if (supabase) {
-    try {
-      await supabase.from('config').upsert({ chave: CHAVE_CACHE_RESUMO, valor: resumo, updated_at: agora.toISOString() });
-    } catch (e) {
-      console.warn('[resumoDia] Falha ao gravar o cache:', e?.message);
-    }
-  }
-  return resumo;
 }

@@ -2,31 +2,32 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 process.env.TZ = 'UTC'; // como na Cloudflare
 
-let pedidosMes = [];
-let pedidosRecentes = [];
+let linhasPedidos = [];
 let manual = null;
-let cacheGuardado = null;
-let gravacoesCache = 0;
+let tabela = {};          // metricas_diarias guardada: { dia: linha }
+let tabelaQuebrada = false;
+let consultasPedidos = 0;
+
 vi.mock('../../src/lib/supabase-edge', () => ({
   getSupabaseEdge: () => ({
-    from: () => {
-      let chave = null;
+    from: (t) => {
       const q = {
-        select: () => q,
-        eq: (_c, v) => { chave = v; return q; },
-        maybeSingle: async () => {
-          if (chave === 'widget_resumo_cache') return { data: cacheGuardado ? { valor: cacheGuardado } : null, error: null };
-          return { data: manual ? { valor: manual } : null, error: null };
+        select: () => q, eq: () => q, is: () => q, gte: () => q, gt: () => q, lt: () => q, or: () => q, order: () => q, limit: () => q,
+        in: () => q,
+        maybeSingle: async () => ({ data: manual ? { valor: manual } : null, error: null }),
+        upsert: async (rows) => { for (const r of rows) tabela[r.dia] = r; return { error: null }; },
+        then: (res) => {
+          if (t === 'orders') { consultasPedidos++; return res({ data: linhasPedidos, error: null }); }
+          if (t === 'metricas_diarias') {
+            if (tabelaQuebrada) return res({ data: null, error: { message: 'relation "metricas_diarias" does not exist' } });
+            return res({ data: Object.values(tabela), error: null });
+          }
+          return res({ data: [], error: null });
         },
-        upsert: async (row) => { if (row.chave === 'widget_resumo_cache') { cacheGuardado = row.valor; gravacoesCache++; } return { error: null }; },
       };
       return q;
     },
   }),
-}));
-vi.mock('../../src/lib/pedidosRelatorio', () => ({
-  buscarPedidosDoDia: async () => pedidosMes,
-  buscarPedidosRecentes: async () => pedidosRecentes,
 }));
 vi.mock('../../src/lib/adsSpend', () => ({
   getConsolidatedAdsSpend: async () => ({
@@ -36,20 +37,28 @@ vi.mock('../../src/lib/adsSpend', () => ({
   }),
 }));
 
-const { calcularResumoDia, resumoDiaComCache, aplicarGastosManuais, paraRelogioSp } = await import('../../src/lib/resumoDia.js');
+const { calcularResumoDia, aplicarGastosManuais, paraRelogioSp } = await import('../../src/lib/resumoDia.js');
+const { linhaValida } = await import('../../src/lib/metricasDiarias.js');
+const { calculateIntradayPace } = await import('../../src/lib/ritmoVendas.js');
+const { mapearPedidoRelatorio } = await import('../../src/lib/pedidosRelatorio.js');
 const { GET } = await import('../../src/app/api/widget/resumo/route.js');
 
-const pago = (criado, pago, extra = {}) => ({ id: criado, paymentStatus: 'PAGO', createdAt: criado, paidAt: pago, paidAmount: 9.99, sunoGenerationCount: 1, sunoProvider: 'kie', productionStatus: 'AUDIO_GERADO', ...extra });
+// Linha do banco já no formato "leve" (extras em colunas x_*)
+const linha = (criado, pago, extra = {}) => ({
+  id: `${criado}-${Math.random()}`, created_at: criado, paid_at: pago, payment_status: pago ? 'PAGO' : 'AGUARDANDO_PAGAMENTO',
+  suno_generation_count: 1, suno_provider: 'kie', production_status: 'AUDIO_GERADO', audio_url: 'a.mp3', x_paidAmount: 9.99, ...extra,
+});
+const AGORA = new Date('2026-11-17T15:00:00Z'); // 12:00 em Brasília
 
 beforeEach(() => {
-  pedidosMes = []; pedidosRecentes = []; manual = null; cacheGuardado = null; gravacoesCache = 0;
+  linhasPedidos = []; manual = null; tabela = {}; tabelaQuebrada = false; consultasPedidos = 0;
   process.env.WIDGET_TOKEN = 'w'.repeat(40);
 });
 
 describe('resumo do dia (mesmas contas do Dashboard)', () => {
   it('lucro = faturamento − anúncios (com imposto Meta) − Kie − WhatsApp', async () => {
-    pedidosMes = [pago('2026-11-17T13:00:00Z', '2026-11-17T13:10:00Z'), pago('2026-11-17T14:00:00Z', '2026-11-17T14:20:00Z')];
-    const r = await calcularResumoDia({}, new Date('2026-11-17T15:00:00Z'));
+    linhasPedidos = [linha('2026-11-17T13:00:00Z', '2026-11-17T13:10:00Z'), linha('2026-11-17T14:00:00Z', '2026-11-17T14:20:00Z')];
+    const r = await calcularResumoDia({}, AGORA);
     expect(r.dia).toBe('2026-11-17');
     expect(r.vendas).toBe(2);
     expect(r.faturamento).toBeGreaterThan(0);
@@ -59,23 +68,61 @@ describe('resumo do dia (mesmas contas do Dashboard)', () => {
   });
 
   it('venda às 23:30 de Brasília conta em hoje, não amanhã', async () => {
-    pedidosMes = [pago('2026-11-18T02:00:00Z', '2026-11-18T02:30:00Z')]; // 17/11 23:00 e 23:30 em Brasília
+    linhasPedidos = [linha('2026-11-18T02:00:00Z', '2026-11-18T02:30:00Z')];
     const r = await calcularResumoDia({}, new Date('2026-11-18T02:45:00Z'));
     expect(r.dia).toBe('2026-11-17');
     expect(r.vendas).toBe(1);
   });
 
-  it('venda de ontem à noite não entra em hoje', async () => {
-    pedidosMes = [pago('2026-11-17T02:00:00Z', '2026-11-17T02:30:00Z')]; // 16/11 23:30 em Brasília
-    const r = await calcularResumoDia({}, new Date('2026-11-17T15:00:00Z'));
-    expect(r.vendas).toBe(0);
+  it('ritmo pela tabela = ritmo do card do Dashboard (mesmos pedidos)', async () => {
+    linhasPedidos = [];
+    for (let d = 9; d <= 17; d++) {
+      for (let h = 10; h < 22; h += 3) {
+        const c = `2026-11-${String(d).padStart(2, '0')}T${String(h).padStart(2, '0')}:05:00Z`;
+        const p = (d + h) % 2 ? `2026-11-${String(d).padStart(2, '0')}T${String(h).padStart(2, '0')}:40:00Z` : null;
+        linhasPedidos.push(linha(c, p, { x_paidAmount: 9.99 + (h % 3) }));
+      }
+    }
+    const r = await calcularResumoDia({}, AGORA);
+    const pedidosDashboard = paraRelogioSp(linhasPedidos.map((l) => {
+      const extras = { paidAmount: l.x_paidAmount };
+      return mapearPedidoRelatorio({ ...l, extras });
+    }));
+    const pace = calculateIntradayPace(pedidosDashboard, { daysLimit: 7, referenceDate: new Date(AGORA.getTime() - 3 * 3600 * 1000) });
+    expect(r.ritmo.percentualVsMedia).toBe(Math.round(pace.revenueDiffPercent));
+    expect(r.ritmo.projecaoFaturamento).toBeCloseTo(pace.projectedDayEndRevenue, 1);
+    expect(r.ritmo.projecaoVendas).toBe(Math.round(pace.projectedDayEndPaid));
+    expect(r.ritmo.diasNaMedia).toBe(pace.daysAveragedCount);
   });
 
-  it('ritmo devolve projeção do dia', async () => {
-    pedidosRecentes = [pago('2026-11-17T13:00:00Z', '2026-11-17T13:10:00Z'), pago('2026-11-16T13:00:00Z', '2026-11-16T13:10:00Z')];
-    const r = await calcularResumoDia({}, new Date('2026-11-17T15:00:00Z'));
-    expect(typeof r.ritmo.percentualVsMedia).toBe('number');
-    expect(r.ritmo.projecaoFaturamento).toBeGreaterThanOrEqual(0);
+  it('guarda na tabela: em 5 min não relê pedidos; dias fechados nunca mais', async () => {
+    linhasPedidos = [linha('2026-11-17T13:00:00Z', '2026-11-17T13:10:00Z')];
+    await calcularResumoDia({}, AGORA);
+    expect(Object.keys(tabela)).toHaveLength(8); // hoje + 7 dias
+    const primeira = consultasPedidos;
+    expect(primeira).toBe(8);
+
+    await calcularResumoDia({}, new Date(AGORA.getTime() + 4 * 60 * 1000));
+    expect(consultasPedidos).toBe(primeira); // nada recalculado
+
+    await calcularResumoDia({}, new Date(AGORA.getTime() + 6 * 60 * 1000));
+    expect(consultasPedidos).toBe(primeira + 1); // só hoje
+  });
+
+  it('sem a tabela, calcula assim mesmo', async () => {
+    tabelaQuebrada = true;
+    linhasPedidos = [linha('2026-11-17T13:00:00Z', '2026-11-17T13:10:00Z')];
+    const r = await calcularResumoDia({}, AGORA);
+    expect(r.vendas).toBe(1);
+  });
+
+  it('validade: hoje 5 min; dia aberto 1 h; fechado (2 dias depois) para sempre', () => {
+    const hoje = '2026-11-17';
+    expect(linhaValida({ dia: hoje, calculado_em: '2026-11-17T14:57:00Z' }, hoje, AGORA)).toBe(true);
+    expect(linhaValida({ dia: hoje, calculado_em: '2026-11-17T14:50:00Z' }, hoje, AGORA)).toBe(false);
+    expect(linhaValida({ dia: '2026-11-16', calculado_em: '2026-11-17T14:30:00Z' }, hoje, AGORA)).toBe(true);
+    expect(linhaValida({ dia: '2026-11-16', calculado_em: '2026-11-17T13:00:00Z' }, hoje, AGORA)).toBe(false);
+    expect(linhaValida({ dia: '2026-11-10', calculado_em: '2026-11-12T04:00:00Z' }, hoje, AGORA)).toBe(true);
   });
 
   it('gasto manual substitui o da API naquele dia', () => {
@@ -86,30 +133,6 @@ describe('resumo do dia (mesmas contas do Dashboard)', () => {
 
   it('desloca só strings de data', () => {
     expect(paraRelogioSp({ a: '2026-11-17T03:00:00Z', b: 'texto', c: 5 })).toEqual({ a: '2026-11-17T00:00:00.000Z', b: 'texto', c: 5 });
-  });
-});
-
-describe('cache do resumo', () => {
-  it('dentro de 5 min responde do cache sem recalcular', async () => {
-    pedidosMes = [pago('2026-11-17T13:00:00Z', '2026-11-17T13:10:00Z')];
-    const t0 = new Date('2026-11-17T15:00:00Z');
-    const a = await resumoDiaComCache({}, t0);
-    expect(a.vendas).toBe(1);
-    pedidosMes = []; // se recalculasse, daria 0
-    const b = await resumoDiaComCache({}, new Date(t0.getTime() + 4 * 60 * 1000));
-    expect(b.vendas).toBe(1);
-    expect(b.doCache).toBe(true);
-    expect(gravacoesCache).toBe(1);
-  });
-
-  it('depois de 5 min (ou em outro dia) recalcula', async () => {
-    pedidosMes = [pago('2026-11-17T13:00:00Z', '2026-11-17T13:10:00Z')];
-    const t0 = new Date('2026-11-17T15:00:00Z');
-    await resumoDiaComCache({}, t0);
-    pedidosMes = [];
-    const b = await resumoDiaComCache({}, new Date(t0.getTime() + 6 * 60 * 1000));
-    expect(b.vendas).toBe(0);
-    expect(b.doCache).toBeUndefined();
   });
 });
 

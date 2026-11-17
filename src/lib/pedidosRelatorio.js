@@ -2,7 +2,6 @@
 // e para o widget da tela inicial. Extraído de api/admin/reports para as duas pontas usarem a
 // MESMA leitura — assim o widget mostra exatamente o que o Dashboard mostra.
 
-/** Pedidos criados no intervalo [inicio, fim) — mesma projeção do relatório pedidos_mes. */
 // Projeção otimizada: seleciona apenas as colunas necessárias e o JSONB extras direto.
 // Omite colunas pesadas como lyrics, story, suno_prompt, audio_files, slideshow_images
 // que inflavam o payload, mantendo a consulta rápida e 100% compatível com PostgREST.
@@ -104,6 +103,39 @@ export const mapearPedidoRelatorio = (row) => {
 };
 
 
+// Campos do `extras` que os relatórios usam (mapearPedidoRelatorio e pedidos_recentes). As consultas
+// pedem SÓ esses campos ao banco (`x_campo:extras->campo`) em vez do JSON inteiro do pedido, que
+// carrega letra, história, faixas etc. e deixava o Dashboard pesado demais para carregar.
+export const CAMPOS_EXTRAS_RELATORIO = [
+  'audioUrl', 'cartaAddonPaid', 'cartaPaidAmount', 'cartaPaidAt', 'cartaPaymentId', 'fbclid', 'gclid',
+  'hasKaraokeAccess', 'isSecondGeneration', 'karaokeAddonPaid', 'karaokePaidAmount', 'karaokePaidAt',
+  'karaokePaymentId', 'origem', 'paidAmount', 'paidSku', 'parentOrderId', 'paymentIntentSku',
+  'paymentWhatsappSent', 'platform', 'playbackAddonPaid', 'playbackPaidAmount', 'playbackPaidAt',
+  'playbackPaymentId', 'productionStatus', 'readyTemplateSent', 'referrer', 'retrospectivaAddonPaid',
+  'retrospectivaPaidAmount', 'retrospectivaPaidAt', 'retrospectivaPaymentId', 'trafficSource', 'ttclid',
+  'userAgent', 'utmCampaign', 'utmContent', 'utmMedium', 'utmSource', 'utmTerm', 'videoAddonPaid',
+  'videoPaidAmount', 'videoPaidAt', 'videoPaymentId', 'whatsappSent',
+];
+const SELECAO_EXTRAS = CAMPOS_EXTRAS_RELATORIO.map((k) => `x_${k}:extras->${k}`).join(',');
+
+/** Colunas sem o `extras` inteiro, com só os campos usados (ver CAMPOS_EXTRAS_RELATORIO). */
+export function colunasLeves(colunas) {
+  return `${colunas.split(',').map((c) => c.trim()).filter((c) => c && c !== 'extras').join(',')},${SELECAO_EXTRAS}`;
+}
+export const COLUNAS_LEVES_RELATORIO = colunasLeves(COLUNAS_PEDIDO_RELATORIO);
+
+/** Remonta row.extras a partir dos campos x_* da consulta leve. */
+export function remontarExtras(row) {
+  // Se a linha veio com o extras inteiro (consulta antiga, testes), mantém e completa com os x_*.
+  const extras = (row.extras && typeof row.extras === 'object') ? { ...row.extras } : {};
+  for (const k of CAMPOS_EXTRAS_RELATORIO) {
+    const v = row[`x_${k}`];
+    if (v !== undefined && v !== null) extras[k] = v;
+  }
+  return { ...row, extras };
+}
+
+/** Pedidos criados no intervalo [inicio, fim) — mesma projeção do relatório pedidos_mes. */
 export async function buscarPedidosDoPeriodo(supabase, inicio, fim) {
   let todosPedidos = [];
   let lastCreatedAt = null;
@@ -112,7 +144,7 @@ export async function buscarPedidosDoPeriodo(supabase, inicio, fim) {
   while (true) {
     let q = supabase
       .from('orders')
-      .select(COLUNAS_PEDIDO_RELATORIO);
+      .select(COLUNAS_LEVES_RELATORIO);
 
     if (lastCreatedAt) {
       q = q.gt('created_at', lastCreatedAt);
@@ -129,7 +161,7 @@ export async function buscarPedidosDoPeriodo(supabase, inicio, fim) {
     const { data, error } = await q;
     if (error) throw new Error(error.message);
     if (!data || data.length === 0) break;
-    todosPedidos = todosPedidos.concat(data.map(mapearPedidoRelatorio));
+    todosPedidos = todosPedidos.concat(data.map((row) => mapearPedidoRelatorio(remontarExtras(row))));
     if (data.length < pageSize) break;
     lastCreatedAt = data[data.length - 1].created_at;
   }
@@ -151,7 +183,7 @@ export async function buscarPedidosRecentes(supabase, dias = 8) {
   while (true) {
     const { data, error } = await supabase
       .from('orders')
-      .select('id, order_number, customer_phone, payment_status, paid_at, created_at, production_status, audio_url, has_video_access, has_carta_access, has_playback_access, has_retrospectiva_access, has_karaoke_access, suno_generation_count, suno_requested_at, extras')
+      .select(colunasLeves('id, order_number, customer_phone, payment_status, paid_at, created_at, production_status, audio_url, has_video_access, has_carta_access, has_playback_access, has_retrospectiva_access, has_karaoke_access, suno_generation_count, suno_requested_at, extras'))
       .or(`created_at.gte.${inicio},paid_at.gte.${inicio}`)
       .is('deleted_at', null)
       .order('created_at', { ascending: true })
@@ -162,7 +194,7 @@ export async function buscarPedidosRecentes(supabase, dias = 8) {
     if (!data || data.length === 0) break;
 
     for (const row of data) {
-      const extras = row.extras || {};
+      const extras = remontarExtras(row).extras;
       todosPedidos.push({
         id: row.id,
         orderNumber: row.order_number,
@@ -209,33 +241,4 @@ export async function buscarPedidosRecentes(supabase, dias = 8) {
   }
 
   return todosPedidos;
-}
-
-// Datas de pagamento de add-on gravadas no extras (pagas depois da música).
-const PAGAMENTOS_EXTRAS = ['videoPaidAt', 'cartaPaidAt', 'playbackPaidAt', 'retrospectivaPaidAt', 'karaokePaidAt'];
-
-/**
- * Pedidos que movimentaram o dia: criados a partir de `inicioPeriodoIso` (início do mês, como o
- * Dashboard) E (criados hoje OU com qualquer pagamento hoje — música ou add-on). Bem mais leve
- * que o mês inteiro e dá o mesmo resultado para as contas de "hoje" do Dashboard.
- * `inicioDiaUtc` precisa estar em UTC com Z (as datas do extras são gravadas assim).
- */
-export async function buscarPedidosDoDia(supabase, inicioDiaUtc, inicioPeriodoIso) {
-  const v = `"${inicioDiaUtc}"`;
-  const condicoes = [`created_at.gte.${v}`, `paid_at.gte.${v}`, ...PAGAMENTOS_EXTRAS.map((c) => `extras->>${c}.gte.${v}`)].join(',');
-  const pedidos = [];
-  let lastCreatedAt = null;
-  const pageSize = 1000;
-  while (true) {
-    let q = supabase.from('orders').select(COLUNAS_PEDIDO_RELATORIO);
-    q = lastCreatedAt ? q.gt('created_at', lastCreatedAt) : q.gte('created_at', inicioPeriodoIso);
-    q = q.or(condicoes).is('deleted_at', null).order('created_at', { ascending: true }).limit(pageSize);
-    const { data, error } = await q;
-    if (error) throw new Error(error.message);
-    if (!data || data.length === 0) break;
-    for (const row of data) pedidos.push(mapearPedidoRelatorio(row));
-    if (data.length < pageSize) break;
-    lastCreatedAt = data[data.length - 1].created_at;
-  }
-  return pedidos;
 }
