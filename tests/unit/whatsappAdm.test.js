@@ -21,7 +21,7 @@ vi.mock('../../src/lib/whatsapp.js', () => ({
 let pedidos = [];
 vi.mock('../../src/lib/orderLookup.js', () => ({ findOrdersByPhone: async () => pedidos }));
 
-import { interpretarOpcao, interpretarEscolha, dataHoraBr, lerMensagemEvolution, selecionarMusicasPagas, tratarMensagemAdm, CHAVE_ADM } from '../../src/lib/whatsappAdm.js';
+import { interpretarOpcao, interpretarEscolha, dataHoraBr, lerMensagemEvolution, selecionarMusicasPagas, tratarMensagemAdm, pedidoLiberado, CHAVE_ADM } from '../../src/lib/whatsappAdm.js';
 
 function evento(texto, extra = {}) {
   return { event: 'messages.upsert', data: { key: { id: `m${Math.random()}`, fromMe: false, remoteJid: '5511999990000@s.whatsapp.net', ...extra }, message: { conversation: texto } } };
@@ -237,5 +237,37 @@ describe('comando do dono e envio em áudio', () => {
     const r = await tratarMensagemAdm(doDono('/musicas'));
     expect(r.acao).toBe('sem_pedido_pago');
     expect(chamadas.filter((c) => c.url.includes('/message/'))).toHaveLength(0);
+  });
+});
+
+describe('música bônus', () => {
+  const principal = { id: 'P1', orderNumber: 'NS-P1', honoreeName: 'Ana', paymentStatus: 'PAGO', audioFiles: ['a', 'b'], createdAt: '2026-11-17T18:00:00Z' };
+  // Bônus gerada antes de o principal ser pago: ficou "aguardando pagamento" no banco.
+  const bonus = { id: 'B1', orderNumber: 'NS-B1', honoreeName: 'Ana', paymentStatus: 'AGUARDANDO_PAGAMENTO', isSecondGeneration: true, parentOrderId: 'P1', paidAmount: 0, audioFiles: ['c', 'd'], createdAt: '2026-11-17T18:20:00Z' };
+
+  it('bônus vale quando o principal está pago (como na página de entrega)', () => {
+    expect(pedidoLiberado(bonus, [principal, bonus])).toBe(true);
+    expect(pedidoLiberado(bonus, [{ ...principal, paymentStatus: 'AGUARDANDO_PAGAMENTO' }, bonus])).toBe(false);
+    expect(pedidoLiberado(bonus, [bonus])).toBe(false);
+  });
+
+  it('principal + bônus: manda as 4 versões direto, sem lista', async () => {
+    pedidos = [principal, bonus];
+    const r = await tratarMensagemAdm(evento('3'));
+    expect(r).toMatchObject({ acao: 'musicas', enviados: 4, audios: 4 });
+    const midias = chamadas.filter((c) => c.url.includes('/message/sendMedia/')).map((c) => c.body.media);
+    expect(midias.some((m) => m.includes('orderId=P1'))).toBe(true);
+    expect(midias.some((m) => m.includes('orderId=B1'))).toBe(true);
+    expect(chamadas[0].body.text).toContain('+ 🎁 música bônus');
+  });
+
+  it('dois pedidos, um com bônus: a lista mostra 2 itens e o item com bônus manda os dois', async () => {
+    const outro = { id: 'P2', orderNumber: 'NS-P2', honoreeName: 'Bia', paymentStatus: 'PAGO', audioFiles: ['x'], createdAt: '2026-11-10T12:00:00Z' };
+    pedidos = [principal, bonus, outro];
+    const lista = await tratarMensagemAdm(evento('3'));
+    expect(lista).toMatchObject({ acao: 'lista', total: 2 });
+    chamadas.length = 0;
+    const r = await tratarMensagemAdm(evento('1')); // item 1 = NS-P1 (+ bônus), o mais novo
+    expect(r).toMatchObject({ acao: 'musicas', enviados: 4 });
   });
 });
