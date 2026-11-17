@@ -18,6 +18,7 @@ import VozClienteAddonCard from '@/components/VozClienteAddonCard';
 import BannerLinkPresente from '@/components/BannerLinkPresente';
 import { requestPixCharge } from '@/lib/pixCheckout';
 import { compressImage } from '@/lib/imageCompress';
+import { aplicarPatchNoPedido } from '@/lib/pedidoIrmao';
 import { getPriceForSku, faixasDeImpacto } from '@/lib/pricing';
 import { markPreviewListened } from '@/lib/previewTracking';
 import { isInAppBrowser, isIOS, isAndroid, getChromeIntentUrl } from '@/lib/inAppBrowser';
@@ -1583,6 +1584,11 @@ function EntregaContent() {
   // Default beautiful dynamic cover
   const coverUrl = order?.coverUrl || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=600&auto=format&fit=crop';
 
+  // A página carrega o pedido da URL e, quando existe, o pedido "irmão" (música principal ↔ música
+  // bônus) dentro de `relatedOrder`. Cada um tem o seu vídeo: a alteração precisa cair no pedido
+  // certo, e não sempre no da URL (achado 16/11/2026: o vídeo da bônus substituía o da principal).
+  const atualizarPedidoNaTela = (idAlvo, patch) => setOrder(prev => aplicarPatchNoPedido(prev, idAlvo, patch));
+
   const handleCreateVideo = async () => {
       const targetOrderId = activeOrder?.id || activeOrderId || orderId;
       const targetHasVideoAccess = Boolean(
@@ -1619,7 +1625,7 @@ function EntregaContent() {
             const arquivo = await compressImage(file);
             const uploadData = new FormData();
             uploadData.append('file', arquivo, `photo_${i}.jpg`);
-            const uploadRes = await fetch(`/api/media/upload?folder=slideshow&orderId=${encodeURIComponent(orderId)}`, {
+            const uploadRes = await fetch(`/api/media/upload?folder=slideshow&orderId=${encodeURIComponent(targetOrderId)}`, {
               method: 'POST',
               body: uploadData
             });
@@ -1640,13 +1646,13 @@ function EntregaContent() {
         await fetch('/api/orders/client-update', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ orderId, slideshowImages: finalUrls, videoStatus: 'GERANDO' })
+          body: JSON.stringify({ orderId: targetOrderId, slideshowImages: finalUrls, videoStatus: 'GERANDO' })
         }).catch(e => console.warn(e));
 
         setUploadProgressMsg('Iniciando geração do vídeo slideshow MP4 HD... 10%');
 
         // Define a faixa de áudio escolhida pelo usuário
-        const targetAudioUrl = selectedVideoTrack === 'v2' && secondAudioUrl ? secondAudioUrl : primaryAudioUrl;
+        const targetAudioUrl = selectedVideoTrack === 'v2' && activeTracks[1] ? activeTracks[1] : activeTracks[0];
 
         let generatedVideoUrl = null;
 
@@ -1657,7 +1663,7 @@ function EntregaContent() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              orderId,
+              orderId: targetOrderId,
               imageUrls: finalUrls,
               selectedVideoTrack,
             }),
@@ -1671,7 +1677,7 @@ function EntregaContent() {
             const startTime = Date.now();
             while (Date.now() - startTime < 120000) {
               await new Promise((resolve) => setTimeout(resolve, 3000));
-              const checkRes = await fetch(`/api/orders/${encodeURIComponent(orderId)}?t=${Date.now()}`, { cache: 'no-store' });
+              const checkRes = await fetch(`/api/orders/${encodeURIComponent(targetOrderId)}?t=${Date.now()}`, { cache: 'no-store' });
               if (checkRes.ok) {
                 const checkData = await checkRes.json().catch(() => ({}));
                 const updatedOrder = checkData?.order || checkData;
@@ -1683,7 +1689,7 @@ function EntregaContent() {
 
                 if (vStatus === 'CONCLUIDO' && vUrl) {
                   generatedVideoUrl = vUrl;
-                  setOrder(prev => prev ? { ...prev, videoUrl: vUrl, videoStatus: 'CONCLUIDO', slideshowImages: [] } : prev);
+                  atualizarPedidoNaTela(targetOrderId, { videoUrl: vUrl, videoStatus: 'CONCLUIDO', slideshowImages: [] });
                   setExistingPhotos([]);
                   break;
                 }
@@ -1702,15 +1708,15 @@ function EntregaContent() {
           setUploadProgressMsg('Gerando vídeo slideshow MP4 HD no aparelho... 10%');
           const { createSlideshowVideo } = await import('@/lib/videoGenerator');
           generatedVideoUrl = await createSlideshowVideo(
-            orderId,
+            targetOrderId,
             finalUrls,
             targetAudioUrl,
-            order,
+            activeOrder || order,
             (percent) => setUploadProgressMsg(`Renderizando vídeo MP4 HD... ${percent}%`)
           );
         }
 
-        setOrder(prev => prev ? { ...prev, videoUrl: generatedVideoUrl, videoStatus: 'CONCLUIDO', slideshowImages: [] } : prev);
+        atualizarPedidoNaTela(targetOrderId, { videoUrl: generatedVideoUrl, videoStatus: 'CONCLUIDO', slideshowImages: [] });
         setExistingPhotos([]);
 
         // Com o vídeo já gerado e salvo, as fotos originais não servem mais
@@ -1728,7 +1734,7 @@ function EntregaContent() {
           await fetch('/api/orders/client-update', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ orderId, slideshowImages: [] })
+            body: JSON.stringify({ orderId: targetOrderId, slideshowImages: [] })
           }).catch(e => console.warn(e));
         } catch (cleanupErr) {
           console.warn('Falha ao limpar fotos do slideshow:', cleanupErr?.message);
@@ -1738,11 +1744,11 @@ function EntregaContent() {
       } catch (err) {
         console.error("Erro no envio/geração do vídeo:", err);
         setPhotoError(err.message || "Erro ao gerar vídeo. Tente novamente.");
-        setOrder(prev => prev ? { ...prev, videoStatus: null } : prev);
+        atualizarPedidoNaTela(targetOrderId, { videoStatus: null });
         fetch('/api/orders/client-update', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ orderId, videoStatus: null })
+          body: JSON.stringify({ orderId: targetOrderId, videoStatus: null })
         }).catch(() => {});
       } finally {
         setIsUploadingPhotos(false);
@@ -1750,16 +1756,17 @@ function EntregaContent() {
   };
 
   const handleResetVideoStatus = async () => {
-    if (!orderId) return;
+    const targetOrderId = activeOrder?.id || activeOrderId || orderId;
+    if (!targetOrderId) return;
     try {
       setIsUploadingPhotos(false);
       setUploadProgressMsg('');
       setPhotoError('');
-      setOrder(prev => prev ? { ...prev, videoStatus: null } : prev);
+      atualizarPedidoNaTela(targetOrderId, { videoStatus: null });
       await fetch('/api/orders/client-update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId, videoStatus: null })
+        body: JSON.stringify({ orderId: targetOrderId, videoStatus: null })
       });
     } catch (e) {
       console.warn('Erro ao resetar status do vídeo:', e);
@@ -1767,7 +1774,7 @@ function EntregaContent() {
   };
 
   const handleDownloadVideo = () => {
-      const currentVideoUrl = activeOrder?.videoUrl || order?.videoUrl;
+      const currentVideoUrl = activeOrder ? activeOrder.videoUrl : order?.videoUrl;
       if (!currentVideoUrl) return;
       // A extensão precisa bater com o container real do arquivo (mp4 ou
       // webm, conforme o que o navegador conseguiu gravar — ver
