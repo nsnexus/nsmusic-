@@ -14,36 +14,49 @@ const VALIDADE_DIA_ABERTO_MS = 60 * 60 * 1000;
 const DIA_MS = 24 * 3600 * 1000;
 const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
-const PAGAMENTOS_EXTRAS = ['videoPaidAt', 'cartaPaidAt', 'playbackPaidAt', 'retrospectivaPaidAt', 'karaokePaidAt'];
-
 export const inicioDiaUtc = (dia) => new Date(`${dia}T00:00:00-03:00`).toISOString();
 export function somarDias(dia, n) {
   return new Date(new Date(`${dia}T12:00:00-03:00`).getTime() + n * DIA_MS).toISOString().slice(0, 10);
 }
 
-/** Pedidos que mexeram no dia: criados no dia OU com algum pagamento (música ou add-on) no dia. */
-export async function buscarPedidosQueTocaramODia(supabase, dia) {
-  const ini = `"${inicioDiaUtc(dia)}"`;
-  const fim = `"${inicioDiaUtc(somarDias(dia, 1))}"`;
-  const naJanela = (col) => `and(${col}.gte.${ini},${col}.lt.${fim})`;
-  const condicoes = ['created_at', 'paid_at', ...PAGAMENTOS_EXTRAS.map((c) => `extras->>${c}`)].map(naJanela).join(',');
-  // Pedidos com mais de 10 dias são apagados pela limpeza diária; 12 dias cobre com folga.
-  const criadoDesde = inicioDiaUtc(somarDias(dia, -12));
-  const pedidos = [];
+async function paginar(supabase, montar) {
+  const out = [];
   let ultimo = null;
   while (true) {
-    let q = supabase.from('orders').select(COLUNAS_LEVES_RELATORIO);
-    q = ultimo ? q.gt('created_at', ultimo) : q.gte('created_at', criadoDesde);
-    q = q.lt('created_at', inicioDiaUtc(somarDias(dia, 1))).or(condicoes).is('deleted_at', null)
-      .order('created_at', { ascending: true }).limit(1000);
+    let q = montar(supabase.from('orders').select(COLUNAS_LEVES_RELATORIO), ultimo);
+    q = q.is('deleted_at', null).order('created_at', { ascending: true }).limit(1000);
     const { data, error } = await q;
     if (error) throw new Error(error.message);
     if (!data || data.length === 0) break;
-    for (const row of data) pedidos.push(mapearPedidoRelatorio(remontarExtras(row)));
+    out.push(...data);
     if (data.length < 1000) break;
     ultimo = data[data.length - 1].created_at;
   }
-  return pedidos;
+  return out;
+}
+
+/**
+ * Pedidos que mexeram no dia, SEM filtrar por campos do extras no banco (sem índice; abrir o JSON
+ * de cada pedido estourava o limite de 10 s por consulta). Três consultas por colunas comuns:
+ *  A) criados no dia;  B) criados antes e pagos no dia;
+ *  C) criados antes com algum add-on — a data do add-on é conferida depois, nas contas.
+ * Pedidos com mais de 10 dias são apagados pela limpeza diária; 12 dias de janela cobre com folga.
+ */
+export async function buscarPedidosQueTocaramODia(supabase, dia) {
+  const ini = inicioDiaUtc(dia);
+  const fim = inicioDiaUtc(somarDias(dia, 1));
+  const desde = inicioDiaUtc(somarDias(dia, -12));
+  const desdeOu = (u, padrao) => (u ? ['gt', u] : ['gte', padrao]);
+  const faixa = (q, u, inicio, fimExcl) => { const [op, v] = desdeOu(u, inicio); return q[op]('created_at', v).lt('created_at', fimExcl); };
+
+  const [a, b, c] = await Promise.all([
+    paginar(supabase, (q, u) => faixa(q, u, ini, fim)),
+    paginar(supabase, (q, u) => faixa(q, u, desde, ini).gte('paid_at', ini).lt('paid_at', fim)),
+    paginar(supabase, (q, u) => faixa(q, u, desde, ini).or('has_video_access.is.true,has_carta_access.is.true,has_playback_access.is.true,has_retrospectiva_access.is.true,has_karaoke_access.is.true')),
+  ]);
+  const porId = new Map();
+  for (const row of [...a, ...b, ...c]) porId.set(row.id, row);
+  return [...porId.values()].map((row) => mapearPedidoRelatorio(remontarExtras(row)));
 }
 
 /** Calcula a linha de um dia a partir dos pedidos (sem gravar). */
@@ -99,8 +112,12 @@ export async function obterMetricasDias(supabase, dias, hoje, agora = new Date()
     console.warn('[metricasDiarias] Tabela indisponível, calculando sem guardar:', e?.message);
   }
 
+  // No máximo 2 dias ao mesmo tempo, para não sobrecarregar o banco na primeira montagem.
   const vencidos = dias.filter((d) => !linhaValida(guardadas[d], hoje, agora));
-  const novas = await Promise.all(vencidos.map((d) => calcularDia(supabase, d, agora)));
+  const novas = [];
+  for (let i = 0; i < vencidos.length; i += 2) {
+    novas.push(...await Promise.all(vencidos.slice(i, i + 2).map((d) => calcularDia(supabase, d, agora))));
+  }
   for (const l of novas) guardadas[l.dia] = l;
 
   if (tabelaOk && novas.length) {
