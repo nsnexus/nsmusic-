@@ -18,6 +18,7 @@ export async function POST(req) {
       if (ctx?.env) env = ctx.env;
     } catch (e) {}
 
+    let bonusVinculado = null;
     if (orderId) {
       try {
         const { findOrderByIdOrNumber } = await import('@/lib/orderLookup');
@@ -32,8 +33,25 @@ export async function POST(req) {
             return NextResponse.json({ error: 'Contato bloqueado para novas gerações na plataforma.' }, { status: 403 });
           }
 
-          const isPaid = order.paymentStatus === 'PAGO' || order.paymentStatus === 'PAGAMENTO_APROVADO';
-          const isBonus = Boolean(order.isSecondGeneration || order.origem === 'segunda_geracao' || order.origem === 'segunda_musica');
+          let isPaid = order.paymentStatus === 'PAGO' || order.paymentStatus === 'PAGAMENTO_APROVADO';
+          let isBonus = Boolean(order.isSecondGeneration || order.origem === 'segunda_geracao' || order.origem === 'segunda_musica');
+
+          // Bônus automático: pedido novo não pago de quem já pagou e ainda tem a 2ª geração sobrando
+          // vira esse bônus aqui, antes de gerar (ver src/lib/bonusAutomatico.js).
+          if (!isPaid && !isBonus && order.customerPhone) {
+            try {
+              const { encontrarBonusDisponivel, vincularPedidoAoBonus } = await import('@/lib/bonusAutomatico');
+              const parent = await encontrarBonusDisponivel(order.customerPhone, env, { orderIdAtual: order.id });
+              if (parent) {
+                bonusVinculado = await vincularPedidoAoBonus(order.id, parent, env);
+                isPaid = true;
+                isBonus = true;
+              }
+            } catch (bonusErr) {
+              console.warn('[suno/generate] Falha ao vincular bônus automático:', bonusErr?.message);
+            }
+          }
+
           if (!isPaid && !isBonus) {
             const freeLimitBlocked = (await isBlockedByFreeLimit(order.customerPhone, order.customerEmail, env))
               || (await isBlockedByIpLimit(ipDoCliente, env));
@@ -69,7 +87,11 @@ export async function POST(req) {
       return NextResponse.json({ error: result.error }, { status: result.status || 502 });
     }
 
-    return NextResponse.json({ taskId: result.taskId, status: 'PROCESSING' });
+    return NextResponse.json({
+      taskId: result.taskId,
+      status: 'PROCESSING',
+      ...(bonusVinculado ? { bonusAutomatico: true, parentOrderId: bonusVinculado.parentOrderId, parentOrderNumber: bonusVinculado.parentOrderNumber } : {}),
+    });
   } catch (error) {
     console.error('Erro fatal na rota /api/suno/generate:', error);
     return NextResponse.json({ error: 'Erro interno ao iniciar a geração da música.' }, { status: 500 });

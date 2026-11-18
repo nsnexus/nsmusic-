@@ -179,31 +179,28 @@ export async function POST(req) {
       }
     }
 
-    // Se o cliente tem telefone cadastrado e solicitou a 2ª geração sem orderRef na URL,
-    // busca pedido pai pago com 2ª geração disponível do mesmo cliente.
-    if (!isSecondGenApproved && formData.customerPhone && wantsSecondGen) {
+    // Bônus automático por telefone: se este cliente já pagou uma música e a 2ª geração dele ainda
+    // está sobrando, o pedido novo vira esse bônus — mesmo que ele não tenha vindo pelo link do
+    // bônus (muitos clientes criam pedido novo e o bônus ficava perdido no pedido pago).
+    // Ver src/lib/bonusAutomatico.js. O consumo só é marcado quando a música é gerada.
+    let bonusAutomatico = false;
+    let parentOrderNumber = null;
+    if (!isSecondGenApproved && formData.customerPhone) {
       try {
-        const { findOrdersByPhone } = await import('@/lib/orderLookup');
-        const { updateOrder } = await import('@/lib/supabaseDb');
-        const recentOrders = await findOrdersByPhone(formData.customerPhone, env, 10);
-        const eligibleParent = recentOrders.find(o =>
-          (o.paymentStatus === 'PAGO' || o.paymentStatus === 'PAGAMENTO_APROVADO') &&
-          !o.parentOrderId &&
-          !o.extras?.parentOrderId &&
-          !o.isSecondGeneration &&
-          !o.extras?.isSecondGeneration &&
-          !o.segundaGeracaoUsada &&
-          !o.extras?.segundaGeracaoUsada
-        );
+        const { encontrarBonusDisponivel, camposDoBonus } = await import('@/lib/bonusAutomatico');
+        const eligibleParent = await encontrarBonusDisponivel(formData.customerPhone, env);
         if (eligibleParent) {
+          const campos = camposDoBonus(eligibleParent, { automatico: !wantsSecondGen });
           resolvedParentOrderId = eligibleParent.id;
+          parentOrderNumber = eligibleParent.orderNumber || null;
           isSecondGenApproved = true;
+          bonusAutomatico = !wantsSecondGen;
           inheritedAddons = {
-            hasVideoAccess: Boolean(eligibleParent.hasVideoAccess || eligibleParent.videoAddonPaid),
-            hasCartaAccess: Boolean(eligibleParent.hasCartaAccess || eligibleParent.cartaAddonPaid),
-            hasRetrospectivaAccess: Boolean(eligibleParent.hasRetrospectivaAccess || eligibleParent.retrospectivaAddonPaid),
+            hasVideoAccess: campos.hasVideoAccess,
+            hasCartaAccess: campos.hasCartaAccess,
+            hasRetrospectivaAccess: campos.hasRetrospectivaAccess,
+            ...(bonusAutomatico ? { bonusVinculadoPorTelefone: true, bonusVinculadoEm: campos.bonusVinculadoEm } : {}),
           };
-          // O consumo da 2ª geração só é concluído quando a música for de fato gerada na IA.
         }
       } catch (phoneErr) {
         console.warn('[orders/create] Falha ao auto-vincular 2ª geração por telefone:', phoneErr?.message);
@@ -466,7 +463,9 @@ export async function POST(req) {
       orderNumber: created.orderNumber,
       isSecondGeneration: isSecondGenApproved,
       paymentStatus: isSecondGenApproved ? 'PAGAMENTO_APROVADO' : 'AGUARDANDO_PAGAMENTO',
-      parentOrderId: resolvedParentOrderId || null
+      parentOrderId: resolvedParentOrderId || null,
+      bonusAutomatico,
+      parentOrderNumber,
     }, { status: 200 });
     response.cookies.set(claimCookieName(created.id), claimToken, { httpOnly: true, secure: new URL(req.url).protocol === 'https:', sameSite: 'lax', path: '/', maxAge: 30 * 24 * 60 * 60 });
     return response;
