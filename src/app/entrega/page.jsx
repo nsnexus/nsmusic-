@@ -159,6 +159,7 @@ function EntregaContent() {
   const [selectedPhotos, setSelectedPhotos] = useState([]);
   const [existingPhotos, setExistingPhotos] = useState([]);
   const [newPhotoFiles, setNewPhotoFiles] = useState([]);
+  const ordemFotosSeq = useRef(0); // ver handleMoveVideoPhoto
   const [selectedVideoTrack, setSelectedVideoTrack] = useState('v1'); // 'v1' ou 'v2'
   const [photoError, setPhotoError] = useState('');
   const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
@@ -1881,6 +1882,27 @@ function EntregaContent() {
     } catch (error) { setExistingPhotos(previous); setPhotoError(error.message || 'Não foi possível remover a foto.'); }
   };
 
+  // Troca a posição de uma foto no vídeo. A ordem de `slideshowImages` é a ordem em que a VPS monta
+  // o slideshow, então cada troca é gravada no pedido na hora — se o cliente fechar a página, a ordem
+  // escolhida continua valendo. O contador evita que uma resposta antiga desfaça uma troca mais nova.
+  const handleMoveVideoPhoto = async (from, to) => {
+    if (isUploadingPhotos) return;
+    const previous = existingPhotos;
+    if (from === to || from < 0 || to < 0 || from >= previous.length || to >= previous.length) return;
+    const updated = [...previous];
+    const [foto] = updated.splice(from, 1);
+    updated.splice(to, 0, foto);
+    setExistingPhotos(updated); setPhotoError('');
+    const seq = ++ordemFotosSeq.current;
+    try {
+      const targetOrderId = activeOrder?.id || activeOrderId || order?.id || orderId;
+      const response = await fetch('/api/orders/client-update', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orderId: targetOrderId, slideshowImages: updated }) });
+      if (!response.ok) throw new Error('Não foi possível salvar a nova ordem. Tente novamente.');
+    } catch (error) {
+      if (seq === ordemFotosSeq.current) { setExistingPhotos(previous); setPhotoError(error.message || 'Não foi possível mudar a ordem das fotos.'); }
+    }
+  };
+
   if (isPaid && ['video', 'carta', 'retrospectiva', 'playback', 'karaoke', 'voz'].includes(abaProduto)) {
     return (
       <>
@@ -1958,6 +1980,7 @@ function EntregaContent() {
             error={photoError}
             onAddPhotos={handleAddVideoPhotos}
             onRemovePhoto={handleRemoveVideoPhoto}
+            onMovePhoto={handleMoveVideoPhoto}
             onRemoveFile={index => setNewPhotoFiles(items => items.filter((_, i) => i !== index))}
             tracks={activeTracks}
             selectedTrack={selectedVideoTrack}

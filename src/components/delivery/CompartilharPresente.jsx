@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { MessageCircle, Share2, Copy, Check } from 'lucide-react';
+import { MessageCircle, Share2, Copy, Check, QrCode } from 'lucide-react';
+import QrCodeHomenagem from '@/components/QrCodeHomenagem';
 import { buildGiftUrl, buildGiftMessage } from '@/lib/giftShare';
 
 const botao = {
@@ -36,7 +37,7 @@ export default function CompartilharPresente({ order, orderId }) {
     <section className="nx-card" aria-label="Compartilhar presente" style={{ padding: '16px' }}>
       <h2 style={{ fontSize: '1.05rem', margin: '0 0 4px' }}>Compartilhe esse presente</h2>
       <p className="nx-helper" style={{ margin: '0 0 12px' }}>Quem receber o link ouve a música direto no celular, sem cadastro.</p>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '8px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '8px' }}>
         <a href="#whatsapp" style={botao} onClick={(e) => { e.preventDefault(); window.open(whatsappHref(), '_blank', 'noopener,noreferrer'); }}>
           <MessageCircle size={22} aria-hidden="true" style={{ color: '#16a34a' }} />
           <span>Enviar no WhatsApp</span>
@@ -49,6 +50,10 @@ export default function CompartilharPresente({ order, orderId }) {
           {msg.startsWith('Link copiado') ? <Check size={22} aria-hidden="true" style={{ color: '#16a34a' }} /> : <Copy size={22} aria-hidden="true" style={{ color: '#475569' }} />}
           <span>Copiar link</span>
         </button>
+        <QrCodeHomenagem url={typeof window !== 'undefined' ? url() : ''} honoreeName={order?.honoreeName} tipo="musica" buttonStyle={botao}>
+          <QrCode size={22} aria-hidden="true" style={{ color: '#db2777' }} />
+          <span>Gerar QR Code</span>
+        </QrCodeHomenagem>
       </div>
       {msg && <p role="status" className="nx-helper" style={{ margin: '10px 0 0', fontWeight: 600 }}>{msg}</p>}
       <details style={{ marginTop: '12px' }}>

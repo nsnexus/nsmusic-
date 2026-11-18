@@ -1,7 +1,8 @@
 'use client';
 
 import React from 'react';
-import { Gift, Mail, BookOpen, Edit3, Share2, Copy, Check, Eye, Sparkles, Link2 } from 'lucide-react';
+import { Gift, Mail, BookOpen, Edit3, Share2, Copy, Check, Eye, Sparkles, Link2, QrCode } from 'lucide-react';
+import QrCodeHomenagem from '@/components/QrCodeHomenagem';
 
 /**
  * Banner superior de compartilhamento para o produto ativo (Música /h/, Carta /c/, Retrospectiva /r/).
@@ -90,7 +91,7 @@ export default function BannerLinkPresente({
   const subBadgeExibido = isPendenteCriacao ? 'Crie a carta antes de compartilhar ✨' : cfg.subBadge;
   const badgeGradientExibido = isPendenteCriacao ? 'linear-gradient(90deg, #f43f5e, #f59e0b)' : cfg.badgeGradient;
 
-  const urlFinal = linkUrl || (orderId ? `https://nsmusic.com.br/${tipo === 'carta' ? 'c' : tipo === 'retrospectiva' ? 'r' : 'h'}/${orderId}` : '');
+  const urlFinal = linkUrl || (orderId ? `${typeof window !== 'undefined' ? window.location.origin : 'https://nsmusic.ia.br'}/${tipo === 'carta' ? 'c' : tipo === 'retrospectiva' ? 'r' : 'h'}/${orderId}` : '');
 
   return (
     <div
@@ -295,6 +296,28 @@ export default function BannerLinkPresente({
                 <span>{copied ? '✅' : '📋'}</span>
                 {copied ? 'Link Copiado!' : cfg.copyLabel}
               </button>
+
+              <QrCodeHomenagem
+                url={urlFinal}
+                honoreeName={honoreeName}
+                tipo={tipo}
+                className="btn"
+                buttonStyle={{
+                  background: 'rgba(255, 255, 255, 0.12)',
+                  border: '1px solid rgba(255, 255, 255, 0.25)',
+                  color: '#ffffff',
+                  fontWeight: '700',
+                  fontSize: '0.92rem',
+                  padding: '11px 18px',
+                  borderRadius: '10px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  cursor: 'pointer',
+                }}
+              >
+                <QrCode size={16} aria-hidden="true" /> Gerar QR Code
+              </QrCodeHomenagem>
 
               {viewUrl && (
                 <a

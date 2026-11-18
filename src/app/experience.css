@@ -1535,6 +1535,86 @@
   font-size: .7rem;
 }
 
+.nx-photo-tile.nx-photo-first {
+  outline: 3px solid #7c3aed;
+  outline-offset: 2px;
+}
+
+.nx-photo-tile.nx-photo-dragging {
+  opacity: .45;
+}
+
+.nx-photo-order {
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  min-width: 28px;
+  padding: 3px 7px;
+  border-radius: 8px;
+  background: #342739eb;
+  color: #fff;
+  font-size: .78rem;
+  font-weight: 800;
+  text-align: center;
+  line-height: 1.2;
+}
+
+.nx-photo-first .nx-photo-order {
+  background: #7c3aed;
+}
+
+.nx-photo-tag {
+  position: absolute;
+  left: 50%;
+  bottom: 40px;
+  transform: translateX(-50%);
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #7c3aed;
+  color: #fff;
+  font-size: .64rem;
+  font-weight: 700;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.nx-photo-tag-end {
+  background: #342739df;
+}
+
+.nx-photo-move {
+  position: absolute;
+  left: 5px;
+  right: 5px;
+  bottom: 5px;
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.nx-photo-move button {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: #ffffffeb;
+  color: #342739;
+  font-size: 1.3rem !important;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .25);
+}
+
+.nx-photo-move button:disabled {
+  opacity: .3;
+  cursor: default;
+}
+
+.nx-photo-tile[draggable="true"] {
+  cursor: grab;
+}
+
 .nx-editor-count {
   display: flex;
   gap: 12px;
