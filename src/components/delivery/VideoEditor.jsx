@@ -10,7 +10,7 @@ function LocalPhoto({ file, index, onRemove }) {
   return <div className="nx-photo-tile">{url && <Image src={url} alt={`Nova foto ${index + 1}`} width={160} height={160} unoptimized />}<button type="button" className="nx-photo-remove" aria-label={`Remover nova foto ${index + 1}`} onClick={onRemove}>×</button></div>;
 }
 
-export default function VideoEditor({ order, orderId, access, existingPhotos, files, busy, progress, error, onAddPhotos, onRemovePhoto, onRemoveFile, tracks, selectedTrack, onTrack, onGenerate, onDownload, pix, pendingPix, pixError, timedOut, onBuy, onResetVideo }) {
+export default function VideoEditor({ order, orderId, access, existingPhotos, files, busy, progress, error, onAddPhotos, onRemovePhoto, onMovePhoto, onRemoveFile, tracks, selectedTrack, onTrack, onGenerate, onDownload, pix, pendingPix, pixError, timedOut, onBuy, onResetVideo }) {
   const minPhotos = 3;
   const total = (existingPhotos?.length || 0) + (files?.length || 0);
   const ready = total >= minPhotos && total <= 20 && Boolean(tracks[0]);
@@ -23,6 +23,8 @@ export default function VideoEditor({ order, orderId, access, existingPhotos, fi
   }
   const url = typeof window !== 'undefined' ? `${window.location.origin}/h/${orderId}?v=${chosenVersion}` : '';
   const [isGenerateVisible, setIsGenerateVisible] = useState(false);
+  const [arrastando, setArrastando] = useState(null); // índice da foto sendo arrastada (computador)
+  const podeOrdenar = Boolean(onMovePhoto) && existingPhotos.length > 1 && !busy;
   const prevFilesLength = useRef(total);
 
   // Auto-scroll suave após selecionar novas fotos para orientar o cliente
@@ -56,7 +58,7 @@ export default function VideoEditor({ order, orderId, access, existingPhotos, fi
   return (
     <div className="nx-editor-columns">
       <div className="nx-editor-stack">
-        <EditorSection id="video-secao-fotos" number="01" title="Escolha as suas melhores memórias" description="Separe de 10 a 20 fotos (mínimo de 3). Elas aparecem no vídeo na ordem mostrada abaixo.">
+        <EditorSection id="video-secao-fotos" number="01" title="Escolha as suas melhores memórias" description="Separe de 10 a 20 fotos (mínimo de 3). O vídeo segue a ordem abaixo: a foto nº 1 abre o vídeo e a última fecha.">
           <div className="nx-editor-count">
             <strong>{total} de 20 fotos</strong>
             <span>{total < 10 ? `Faltam ${10 - total} para começar` : 'Quantidade ideal para criar'}</span>
@@ -64,17 +66,44 @@ export default function VideoEditor({ order, orderId, access, existingPhotos, fi
 
           {total > 0 && (
             <div className="nx-photo-grid">
-              {existingPhotos.map((photo, index) => (
-                <div key={`${photo}-${index}`} className="nx-photo-tile">
-                  <Image src={photo} alt={`Foto ${index + 1} do vídeo`} width={160} height={160} unoptimized />
-                  <span className="nx-photo-number">{index + 1}</span>
-                  <button type="button" className="nx-photo-remove" aria-label={`Remover foto ${index + 1}`} disabled={busy} onClick={() => onRemovePhoto(index)}>×</button>
-                </div>
-              ))}
+              {existingPhotos.map((photo, index) => {
+                const primeira = index === 0;
+                const ultima = index === existingPhotos.length - 1;
+                return (
+                  <div
+                    key={`${photo}-${index}`}
+                    className={`nx-photo-tile${primeira ? ' nx-photo-first' : ''}${arrastando === index ? ' nx-photo-dragging' : ''}`}
+                    draggable={podeOrdenar}
+                    onDragStart={(e) => { setArrastando(index); e.dataTransfer.effectAllowed = 'move'; }}
+                    onDragOver={(e) => { if (arrastando !== null) e.preventDefault(); }}
+                    onDrop={(e) => { e.preventDefault(); if (arrastando !== null && arrastando !== index) onMovePhoto(arrastando, index); setArrastando(null); }}
+                    onDragEnd={() => setArrastando(null)}
+                  >
+                    <Image src={photo} alt={`Foto ${index + 1} do vídeo`} width={160} height={160} unoptimized draggable={false} />
+                    <span className="nx-photo-order" aria-hidden="true">{index + 1}º</span>
+                    {primeira && existingPhotos.length > 1 && <span className="nx-photo-tag">Abre o vídeo</span>}
+                    {ultima && existingPhotos.length > 1 && <span className="nx-photo-tag nx-photo-tag-end">Fecha o vídeo</span>}
+                    <button type="button" className="nx-photo-remove" aria-label={`Remover foto ${index + 1}`} disabled={busy} onClick={() => onRemovePhoto(index)}>×</button>
+                    {podeOrdenar && (
+                      <div className="nx-photo-move">
+                        <button type="button" aria-label={`Mover foto ${index + 1} para antes`} disabled={primeira} onClick={() => onMovePhoto(index, index - 1)}>‹</button>
+                        <button type="button" aria-label={`Mover foto ${index + 1} para depois`} disabled={ultima} onClick={() => onMovePhoto(index, index + 1)}>›</button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
               {files.map((file, index) => (
                 <LocalPhoto key={`${file.name}-${file.lastModified}-${index}`} file={file} index={index} onRemove={() => { if (!busy) onRemoveFile(index); }} />
               ))}
             </div>
+          )}
+
+          {podeOrdenar && (
+            <p className="nx-helper" style={{ margin: '-6px 0 14px' }}>
+              Quer mudar a sequência? Toque nas setas <strong>‹ ›</strong> de cada foto para trazer para antes ou levar para depois{' '}
+              (no computador, também dá para arrastar). A ordem fica salva na hora.
+            </p>
           )}
 
           {total < 20 && (
@@ -230,7 +259,7 @@ export default function VideoEditor({ order, orderId, access, existingPhotos, fi
             <p>{total ? `${total} memórias com a sua música.` : 'As suas fotos vão dar vida a este presente.'}</p>
           </div>
         </div>
-        <p className="nx-helper">Prévia ilustrativa. O vídeo final usa as fotos e a versão da música que você escolher.</p>
+        <p className="nx-helper">{existingPhotos[0] ? 'Esta é a foto nº 1, a que abre o vídeo. ' : ''}Prévia ilustrativa. O vídeo final usa as fotos, na ordem escolhida, e a versão da música que você escolher.</p>
       </aside>
 
       {/* Barra flutuante de instrução/rolagem fixa no rodapé quando as fotos estão prontas e o botão final não está visível */}
