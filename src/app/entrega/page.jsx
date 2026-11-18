@@ -794,9 +794,9 @@ function EntregaContent() {
         clearInterval(interval);
         return;
       }
-      if (attempts >= 60) {
+      if (attempts >= 200) {
         clearInterval(interval);
-        console.warn('[entrega] Polling de vídeo atingiu limite de 3 minutos.');
+        console.warn('[entrega] Polling de vídeo atingiu limite de 10 minutos.');
         return;
       }
 
@@ -1652,69 +1652,56 @@ function EntregaContent() {
 
         setUploadProgressMsg('Iniciando geração do vídeo slideshow MP4 HD... 10%');
 
-        // Define a faixa de áudio escolhida pelo usuário
-        const targetAudioUrl = selectedVideoTrack === 'v2' && activeTracks[1] ? activeTracks[1] : activeTracks[0];
-
         let generatedVideoUrl = null;
 
-        // 1. Tenta renderizar via VPS de alta velocidade (FFmpeg dedicado)
-        try {
-          setUploadProgressMsg('Conectando ao estúdio de renderização rápida... 15%');
-          const vpsRes = await fetch('/api/video/render', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              orderId: targetOrderId,
-              imageUrls: finalUrls,
-              selectedVideoTrack,
-            }),
-          });
-
-          const vpsData = await vpsRes.json().catch(() => ({}));
-          if (vpsRes.ok && vpsData?.vpsEnabled) {
-            setUploadProgressMsg('Renderizando seu vídeo com FFmpeg em alta definição... 25%');
-
-            // Polling a cada 3s aguardando conclusão na VPS (máx 120s)
-            const startTime = Date.now();
-            while (Date.now() - startTime < 120000) {
-              await new Promise((resolve) => setTimeout(resolve, 3000));
-              const checkRes = await fetch(`/api/orders/${encodeURIComponent(targetOrderId)}?t=${Date.now()}`, { cache: 'no-store' });
-              if (checkRes.ok) {
-                const checkData = await checkRes.json().catch(() => ({}));
-                const updatedOrder = checkData?.order || checkData;
-                const progress = updatedOrder?.videoProgress || updatedOrder?.video_progress || 35;
-                setUploadProgressMsg(`Renderizando com qualidade máxima... ${Math.min(95, progress)}%`);
-
-                const vStatus = updatedOrder?.videoStatus || updatedOrder?.video_status;
-                const vUrl = updatedOrder?.videoUrl || updatedOrder?.video_url;
-
-                if (vStatus === 'CONCLUIDO' && vUrl) {
-                  generatedVideoUrl = vUrl;
-                  atualizarPedidoNaTela(targetOrderId, { videoUrl: vUrl, videoStatus: 'CONCLUIDO', slideshowImages: [] });
-                  setExistingPhotos([]);
-                  break;
-                }
-                if (vStatus === 'ERRO') {
-                  throw new Error(updatedOrder?.videoError || updatedOrder?.video_error || 'Falha no processador de vídeo.');
-                }
-              }
-            }
-          }
-        } catch (vpsErr) {
-          console.warn('[Video] Falha na VPS, utilizando gerador local de segurança:', vpsErr?.message);
+        // O vídeo é feito SEMPRE na VPS (FFmpeg). Não existe mais gravação no navegador: o
+        // MediaRecorder do celular gerava MP4 fragmentado com áudio Opus, que o WhatsApp lia
+        // como se tivesse só ~6 segundos, e com tamanho imprevisível (achado 17/11/2026).
+        setUploadProgressMsg('Enviando para o nosso estúdio de vídeo... 15%');
+        const vpsRes = await fetch('/api/video/render', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            orderId: targetOrderId,
+            imageUrls: finalUrls,
+            selectedVideoTrack,
+          }),
+        });
+        const vpsData = await vpsRes.json().catch(() => ({}));
+        if (!vpsRes.ok || !vpsData?.vpsEnabled) {
+          throw new Error(vpsData?.error || 'Não conseguimos iniciar a criação do vídeo agora. Tente novamente em alguns minutos.');
         }
 
-        // 2. Fallback de segurança: se a VPS não estiver ativa ou falhar, roda no navegador
+        setUploadProgressMsg('Montando seu vídeo... 25%');
+
+        // Acompanha a VPS por até 10 minutos. Se passar disso, o vídeo continua sendo feito lá:
+        // a tela fica em "GERANDO" e o polling da página pega o resultado quando terminar.
+        const startTime = Date.now();
+        while (Date.now() - startTime < 10 * 60 * 1000) {
+          await new Promise((resolve) => setTimeout(resolve, 3000));
+          const checkRes = await fetch(`/api/orders/${encodeURIComponent(targetOrderId)}?t=${Date.now()}`, { cache: 'no-store' }).catch(() => null);
+          if (!checkRes?.ok) continue;
+          const checkData = await checkRes.json().catch(() => ({}));
+          const updatedOrder = checkData?.order || checkData;
+          const progress = updatedOrder?.videoProgress || updatedOrder?.video_progress || 35;
+          setUploadProgressMsg(`Montando seu vídeo... ${Math.min(95, progress)}%`);
+
+          const vStatus = updatedOrder?.videoStatus || updatedOrder?.video_status;
+          const vUrl = updatedOrder?.videoUrl || updatedOrder?.video_url;
+          if (vStatus === 'CONCLUIDO' && vUrl) {
+            generatedVideoUrl = vUrl;
+            break;
+          }
+          if (vStatus === 'ERRO') {
+            throw new Error(updatedOrder?.videoError || updatedOrder?.video_error || 'Falha ao criar o vídeo. Tente novamente.');
+          }
+        }
+
         if (!generatedVideoUrl) {
-          setUploadProgressMsg('Gerando vídeo slideshow MP4 HD no aparelho... 10%');
-          const { createSlideshowVideo } = await import('@/lib/videoGenerator');
-          generatedVideoUrl = await createSlideshowVideo(
-            targetOrderId,
-            finalUrls,
-            targetAudioUrl,
-            activeOrder || order,
-            (percent) => setUploadProgressMsg(`Renderizando vídeo MP4 HD... ${percent}%`)
-          );
+          // Ainda processando na VPS: não apaga as fotos e não reseta o status.
+          atualizarPedidoNaTela(targetOrderId, { videoStatus: 'GERANDO' });
+          setUploadProgressMsg('Seu vídeo ainda está sendo criado. Pode fechar a página e voltar daqui a pouco.');
+          return;
         }
 
         atualizarPedidoNaTela(targetOrderId, { videoUrl: generatedVideoUrl, videoStatus: 'CONCLUIDO', slideshowImages: [] });
