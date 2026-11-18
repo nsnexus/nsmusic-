@@ -9,8 +9,12 @@
 // "3" na hora (sem esperar o intervalo de reenvio). As músicas vão em MP3 (documento) e em áudio.
 // Qualquer outra mensagem fica em silêncio: é o dono quem responde.
 //
-// O número ADM é uma SEGUNDA instância na mesma Evolution API. A configuração mora na tabela
-// `config` (chave `whatsapp_adm`); endereço e chave da Evolution vêm da configuração principal.
+// O número ADM fala por um de dois canais (o campo `ctx.evolution` guarda o canal ativo; tem `tipo`):
+//   - OFICIAL (Cloud API da Meta), quando WHATSAPP_ADM_PHONE_NUMBER_ID está definida — ver
+//     whatsappAdmCloud.js. Não tem QR code nem risco de restrição por automação.
+//   - Evolution API (QR code), o padrão antigo: uma SEGUNDA instância na mesma Evolution.
+// A configuração mora na tabela `config` (chave `whatsapp_adm`); endereço e chave da Evolution vêm da
+// configuração principal.
 
 import { getSupabaseEdge } from './supabase-edge.js';
 import { getEvolutionConfig } from './whatsapp.js';
@@ -18,6 +22,7 @@ import { resolveCriarUrl } from './whatsappTemplates.js';
 import { findOrdersByPhone } from './orderLookup.js';
 import { isBonusOrder } from './trafficSource.js';
 import { DOMINIO_CANONICO } from './siteUrl.js';
+import { configCloudAdm, enviarTextoCloud, enviarAudioCloud, estadoCloud } from './whatsappAdmCloud.js';
 
 export const CHAVE_ADM = 'whatsapp_adm';
 export const INSTANCIA_PADRAO = 'nsmusic-adm';
@@ -66,6 +71,8 @@ export async function carregarAdm(env = {}) {
   const { data, error } = await supabase.from('config').select('valor').eq('chave', CHAVE_ADM).maybeSingle();
   if (error) throw new Error('Falha ao ler a configuração do WhatsApp ADM.');
   const config = normalizarConfigAdm(data?.valor);
+  const cloud = configCloudAdm(env);
+  if (cloud) return { supabase, config, evolution: cloud };
   const principal = await getEvolutionConfig(env);
   const evolution = principal?.baseUrl
     ? { baseUrl: principal.baseUrl, apiKey: config.apiKey || principal.token, chaveGlobal: principal.token, instanceName: config.instanceName }
@@ -233,11 +240,14 @@ async function chamarEvolution(evolution, caminho, { method = 'POST', body, chav
 }
 
 export async function enviarTextoAdm(evolution, numero, texto) {
+  if (evolution.tipo === 'cloud') return enviarTextoCloud(evolution, numero, texto);
   const r = await chamarEvolution(evolution, `/message/sendText/${evolution.instanceName}`, { body: { number: numero, text: texto } });
   return r.ok;
 }
 
 export async function enviarArquivoAdm(evolution, numero, arquivo) {
+  // No canal oficial a música só vai como áudio (a Meta não aceita MP3 como documento).
+  if (evolution.tipo === 'cloud') return enviarAudioCloud(evolution, numero, arquivo);
   const r = await chamarEvolution(evolution, `/message/sendMedia/${evolution.instanceName}`, {
     body: { number: numero, mediatype: 'document', mimetype: 'audio/mpeg', media: arquivo.url, fileName: arquivo.fileName },
     timeoutMs: 45000,
@@ -247,6 +257,7 @@ export async function enviarArquivoAdm(evolution, numero, arquivo) {
 
 /** A mesma música como áudio tocável na conversa (além do MP3 em documento). */
 export async function enviarAudioAdm(evolution, numero, arquivo) {
+  if (evolution.tipo === 'cloud') return enviarAudioCloud(evolution, numero, arquivo);
   const r = await chamarEvolution(evolution, `/message/sendWhatsAppAudio/${evolution.instanceName}`, {
     body: { number: numero, audio: arquivo.url },
     timeoutMs: 45000,
@@ -307,7 +318,26 @@ async function enviarPedidos(ctx, destino, pedidos, abertura, todos = pedidos) {
   await enviarTextoAdm(ctx.evolution, destino, abertura);
   let enviados = 0;
   let audios = 0;
-  for (const arquivo of arquivos) {
+  const oficial = ctx.evolution.tipo === 'cloud';
+  // O trabalho em segundo plano na Cloudflare dura ~30 s depois da resposta: para antes disso em vez
+  // de ser cortado no meio de uma música.
+  const limiteEm = Date.now() + 22000;
+  for (const [i, arquivo] of arquivos.entries()) {
+    if (oficial && Date.now() > limiteEm) break;
+    if (oficial) {
+      // Canal oficial: um áudio por música. Com mais de uma, um rótulo antes diz qual é qual (o áudio
+      // não mostra o nome do arquivo), e uma pausa curta mantém a ordem de chegada.
+      try {
+        if (arquivos.length > 1) {
+          await enviarTextoAdm(ctx.evolution, destino, `🎵 Música ${i + 1} de ${arquivos.length}`);
+        }
+        if (await enviarAudioAdm(ctx.evolution, destino, arquivo)) { enviados++; audios++; }
+      } catch (err) {
+        console.warn('[whatsapp-adm] Falha ao enviar um áudio:', err?.name);
+      }
+      await new Promise((r) => setTimeout(r, 500));
+      continue;
+    }
     try {
       if (await enviarArquivoAdm(ctx.evolution, destino, arquivo)) enviados++;
     } catch (err) {
@@ -319,6 +349,10 @@ async function enviarPedidos(ctx, destino, pedidos, abertura, todos = pedidos) {
     } catch (err) {
       console.warn('[whatsapp-adm] Falha ao enviar um áudio:', err?.name);
     }
+  }
+  if (oficial && enviados < arquivos.length) {
+    await enviarTextoAdm(ctx.evolution, destino, `Mandei ${enviados} de ${arquivos.length} músicas. Para receber as outras, mande *3* de novo daqui a alguns minutos. 😉`);
+    return { enviados, audios, total: arquivos.length };
   }
   const faixas = pedidos.reduce((n, p) => n + ((Array.isArray(p.audioFiles) ? p.audioFiles.filter(Boolean).length : 0) || (p.audioUrl ? 1 : 0)), 0);
   if (faixas > arquivos.length) {
@@ -346,7 +380,7 @@ export async function tratarMensagemAdm(body, env = {}, ctxPronto = null) {
     const ctx = ctxPronto || await carregarAdm(env);
     if (!ctx.supabase || !ctx.evolution || !ctx.config.ligada) return { acao: 'ignorada' };
 
-    const msg = lerMensagemEvolution(body);
+    const msg = body?.cloudMsg || lerMensagemEvolution(body);
     if (!msg) return { acao: 'ignorada' };
     const dono = Boolean(msg.comandoDono);
 
@@ -438,6 +472,7 @@ export async function tratarMensagemAdm(body, env = {}, ctxPronto = null) {
 // ---------- Conexão da instância (usado pelo painel) ----------
 
 export async function estadoDaConexao(evolution) {
+  if (evolution.tipo === 'cloud') return estadoCloud(evolution);
   try {
     const r = await chamarEvolution(evolution, `/instance/connectionState/${evolution.instanceName}`, { method: 'GET', timeoutMs: 10000 });
     if (r.status === 404) return 'inexistente';
@@ -451,6 +486,9 @@ export async function estadoDaConexao(evolution) {
 /** Cria a instância (se faltar), aponta o webhook para o site e devolve o QR code para escanear. */
 export async function conectarInstancia(ctx, webhookUrl) {
   const evo = ctx.evolution;
+  if (evo.tipo === 'cloud') {
+    return { ok: false, erro: 'O ADM está no canal oficial da Meta: não usa QR code. A conexão é feita no painel da Meta (WhatsApp Manager).' };
+  }
   let estado = await estadoDaConexao(evo);
   let qr = null;
 
