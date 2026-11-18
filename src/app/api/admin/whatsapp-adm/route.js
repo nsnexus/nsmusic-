@@ -15,6 +15,7 @@ function publico(ctx, estado) {
   return {
     ok: true,
     evolutionConfigurada: Boolean(ctx.evolution),
+    canal: ctx.evolution?.tipo === 'cloud' ? 'oficial' : 'evolution',
     ligada: ctx.config.ligada,
     instanceName: ctx.config.instanceName,
     estado,

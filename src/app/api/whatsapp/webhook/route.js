@@ -12,6 +12,7 @@ import {
 } from '@/lib/whatsappAgent';
 import { findRecentOrderByPhone, isNewSongIntent, findOrderByIdOrNumber, isShortAckMessage } from '@/lib/orderLookup';
 import { extractAudioFromWebhook, transcribeAudioWithFailover } from '@/lib/transcribeAudio';
+import { processarRequisicaoCloudAdm } from '@/lib/whatsappAdmCloud';
 
 export const runtime = 'edge';
 
@@ -460,11 +461,21 @@ async function isPhoneLocked(phone, env = {}) {
 
 export async function POST(req) {
   let envVars = process.env;
+  let waitUntilCf = null;
   try {
     if (getRequestContext()?.env) envVars = getRequestContext().env;
+    const cfCtx = getRequestContext()?.ctx;
+    if (cfCtx?.waitUntil) waitUntilCf = (p) => cfCtx.waitUntil(p);
   } catch (e) {}
 
   try {
+    // Mensagens do número ADM chegando pela API oficial da Meta (assinadas com X-Hub-Signature-256)
+    // têm tratamento próprio — ver src/lib/whatsappAdmCloud.js. Corpo de outro número segue o fluxo normal.
+    if (req.headers.get('x-hub-signature-256')) {
+      const adm = await processarRequisicaoCloudAdm(req.clone(), envVars, waitUntilCf);
+      if (adm) return NextResponse.json(adm.json, { status: adm.status });
+    }
+
     let rawBody = {};
     const contentType = req.headers.get('content-type') || '';
     if (contentType.includes('application/json')) {
