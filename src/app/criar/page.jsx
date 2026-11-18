@@ -1205,7 +1205,8 @@ export default function CriarMusica() {
                   origem: 'segunda_geracao',
                   paymentStatus: 'PAGAMENTO_APROVADO',
                   paidSku: 'segunda_geracao_bonus',
-                  orderRef: orderData.parentOrderId || effectiveOrderRef || prev.orderRef
+                  orderRef: orderData.parentOrderId || effectiveOrderRef || prev.orderRef,
+                  ...(orderData.bonusAutomatico ? { bonusAutoPedido: orderData.parentOrderNumber || 'pago' } : {})
                 }));
               }
               if (typeof window !== 'undefined') {
@@ -1433,7 +1434,8 @@ export default function CriarMusica() {
                   origem: 'segunda_geracao',
                   paymentStatus: 'PAGAMENTO_APROVADO',
                   paidSku: 'segunda_geracao_bonus',
-                  orderRef: createData.parentOrderId || effectiveOrderRef || prev.orderRef
+                  orderRef: createData.parentOrderId || effectiveOrderRef || prev.orderRef,
+                  ...(createData.bonusAutomatico ? { bonusAutoPedido: createData.parentOrderNumber || 'pago' } : {})
                 }));
               }
             }
@@ -1500,6 +1502,20 @@ export default function CriarMusica() {
       }
 
       setTaskId(data.taskId);
+
+      // O servidor reconheceu que este cliente tinha uma geração bônus sobrando de um pedido pago e
+      // vinculou este pedido a ela (src/lib/bonusAutomatico.js): avisa e trata como bônus.
+      if (data.bonusAutomatico) {
+        setFormData(prev => ({
+          ...prev,
+          isSecondGeneration: true,
+          origem: 'segunda_geracao',
+          paymentStatus: 'PAGAMENTO_APROVADO',
+          paidSku: 'segunda_geracao_bonus',
+          orderRef: data.parentOrderId || prev.orderRef,
+          bonusAutoPedido: data.parentOrderNumber || 'pago',
+        }));
+      }
 
       if (typeof window !== 'undefined' && window.fbq) {
         window.fbq('trackCustom', 'GenerateMusic');
@@ -1693,7 +1709,8 @@ export default function CriarMusica() {
                 origem: 'segunda_geracao',
                 paymentStatus: 'PAGAMENTO_APROVADO',
                 paidSku: 'segunda_geracao_bonus',
-                orderRef: effectiveOrderRef || prev.orderRef
+                orderRef: orderData.parentOrderId || effectiveOrderRef || prev.orderRef,
+                ...(orderData.bonusAutomatico ? { bonusAutoPedido: orderData.parentOrderNumber || 'pago' } : {})
               }));
             }
             if (typeof window !== 'undefined') {
@@ -2906,6 +2923,12 @@ export default function CriarMusica() {
           )}
 
           {/* Form step renderers */}
+          {formData.bonusAutoPedido && step >= 5 && (
+            <div className="nx-message" role="status" style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', color: '#065f46', borderRadius: '14px', padding: '12px 14px', marginBottom: '10px', lineHeight: 1.45 }}>
+              <strong style={{ display: 'block', marginBottom: '2px' }}>🎁 Esta música usa a sua geração bônus</strong>
+              Você já pagou {formData.bonusAutoPedido !== 'pago' ? `o pedido #${formData.bonusAutoPedido}` : 'uma música'} e tinha direito a mais uma geração grátis. Este pedido foi vinculado a ele: não precisa pagar de novo.
+            </div>
+          )}
           {creationError && <div className="nx-message nx-error" role="alert">{creationError}<br /><button type="button" className="nx-text-button" onClick={() => setCreationError('')}>Entendi</button></div>}
           <div key={`etapa-${step}`} style={{ marginTop: '8px' }} className="criar-step-content">
             {step <= TOTAL_FORM_STEPS ? renderWizardStep() : renderWorkflowStep()}
