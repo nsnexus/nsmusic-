@@ -1540,23 +1540,48 @@
   outline-offset: 2px;
 }
 
+/* Arrasta e solta (SortablePhotoGrid). touch-action manipulation mantém a rolagem da página
+   funcionando; o arraste só começa quando o dedo segura a foto por um instante. */
+.nx-photo-sortable {
+  cursor: grab;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.nx-photo-sortable img {
+  pointer-events: none;
+  -webkit-user-drag: none;
+}
+
 .nx-photo-tile.nx-photo-dragging {
-  opacity: .45;
+  opacity: .3;
+}
+
+.nx-photo-tile.nx-photo-overlay {
+  cursor: grabbing;
+  transform: scale(1.06);
+  box-shadow: 0 14px 34px rgba(52, 39, 57, .38);
+  outline: 3px solid #db2777;
+  outline-offset: 0;
 }
 
 .nx-photo-order {
   position: absolute;
-  top: 5px;
-  left: 5px;
-  min-width: 28px;
-  padding: 3px 7px;
-  border-radius: 8px;
-  background: #342739eb;
+  top: 6px;
+  left: 6px;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #342739d9;
   color: #fff;
-  font-size: .78rem;
+  font-size: .76rem;
   font-weight: 800;
+  line-height: 24px;
   text-align: center;
-  line-height: 1.2;
+  pointer-events: none;
 }
 
 .nx-photo-first .nx-photo-order {
@@ -1565,54 +1590,39 @@
 
 .nx-photo-tag {
   position: absolute;
-  left: 50%;
-  bottom: 40px;
-  transform: translateX(-50%);
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: #7c3aed;
+  left: 6px;
+  right: 6px;
+  bottom: 6px;
+  padding: 3px 4px;
+  border-radius: 8px;
+  background: #7c3aede6;
   color: #fff;
   font-size: .64rem;
   font-weight: 700;
+  text-align: center;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   pointer-events: none;
 }
 
 .nx-photo-tag-end {
-  background: #342739df;
+  background: #342739d9;
 }
 
-.nx-photo-move {
-  position: absolute;
-  left: 5px;
-  right: 5px;
-  bottom: 5px;
+.nx-photo-sortable .nx-photo-remove {
+  width: 26px;
+  height: 26px;
+  top: 6px;
+  right: 6px;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  padding: 0 !important;
   display: flex;
-  justify-content: space-between;
-  gap: 6px;
-}
-
-.nx-photo-move button {
-  width: 32px;
-  height: 32px;
-  border: 0;
-  border-radius: 50%;
-  background: #ffffffeb;
-  color: #342739;
-  font-size: 1.3rem !important;
-  font-weight: 800;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem !important;
   line-height: 1;
-  cursor: pointer;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, .25);
-}
-
-.nx-photo-move button:disabled {
-  opacity: .3;
-  cursor: default;
-}
-
-.nx-photo-tile[draggable="true"] {
-  cursor: grab;
 }
 
 .nx-editor-count {
