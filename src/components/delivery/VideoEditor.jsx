@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import Image from 'next/image';
+import SortablePhotoGrid from './SortablePhotoGrid';
 import { AddonCheckout, EditorSection, ShareLinks, TrackPicker } from './EditorParts';
 
 function LocalPhoto({ file, index, onRemove }) {
@@ -23,7 +24,6 @@ export default function VideoEditor({ order, orderId, access, existingPhotos, fi
   }
   const url = typeof window !== 'undefined' ? `${window.location.origin}/h/${orderId}?v=${chosenVersion}` : '';
   const [isGenerateVisible, setIsGenerateVisible] = useState(false);
-  const [arrastando, setArrastando] = useState(null); // índice da foto sendo arrastada (computador)
   const podeOrdenar = Boolean(onMovePhoto) && existingPhotos.length > 1 && !busy;
   const prevFilesLength = useRef(total);
 
@@ -64,47 +64,20 @@ export default function VideoEditor({ order, orderId, access, existingPhotos, fi
             <span>{total < 10 ? `Faltam ${10 - total} para começar` : 'Quantidade ideal para criar'}</span>
           </div>
 
+          {podeOrdenar && (
+            <p className="nx-helper" style={{ margin: '0 0 12px' }}>
+              <strong>Quer mudar a ordem?</strong> Segure a foto e arraste até a posição que quiser. A ordem fica salva na hora.
+            </p>
+          )}
+
           {total > 0 && (
-            <div className="nx-photo-grid">
-              {existingPhotos.map((photo, index) => {
-                const primeira = index === 0;
-                const ultima = index === existingPhotos.length - 1;
-                return (
-                  <div
-                    key={`${photo}-${index}`}
-                    className={`nx-photo-tile${primeira ? ' nx-photo-first' : ''}${arrastando === index ? ' nx-photo-dragging' : ''}`}
-                    draggable={podeOrdenar}
-                    onDragStart={(e) => { setArrastando(index); e.dataTransfer.effectAllowed = 'move'; }}
-                    onDragOver={(e) => { if (arrastando !== null) e.preventDefault(); }}
-                    onDrop={(e) => { e.preventDefault(); if (arrastando !== null && arrastando !== index) onMovePhoto(arrastando, index); setArrastando(null); }}
-                    onDragEnd={() => setArrastando(null)}
-                  >
-                    <Image src={photo} alt={`Foto ${index + 1} do vídeo`} width={160} height={160} unoptimized draggable={false} />
-                    <span className="nx-photo-order" aria-hidden="true">{index + 1}º</span>
-                    {primeira && existingPhotos.length > 1 && <span className="nx-photo-tag">Abre o vídeo</span>}
-                    {ultima && existingPhotos.length > 1 && <span className="nx-photo-tag nx-photo-tag-end">Fecha o vídeo</span>}
-                    <button type="button" className="nx-photo-remove" aria-label={`Remover foto ${index + 1}`} disabled={busy} onClick={() => onRemovePhoto(index)}>×</button>
-                    {podeOrdenar && (
-                      <div className="nx-photo-move">
-                        <button type="button" aria-label={`Mover foto ${index + 1} para antes`} disabled={primeira} onClick={() => onMovePhoto(index, index - 1)}>‹</button>
-                        <button type="button" aria-label={`Mover foto ${index + 1} para depois`} disabled={ultima} onClick={() => onMovePhoto(index, index + 1)}>›</button>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+            <SortablePhotoGrid photos={existingPhotos} busy={busy} onMove={onMovePhoto} onRemove={onRemovePhoto}>
               {files.map((file, index) => (
                 <LocalPhoto key={`${file.name}-${file.lastModified}-${index}`} file={file} index={index} onRemove={() => { if (!busy) onRemoveFile(index); }} />
               ))}
-            </div>
+            </SortablePhotoGrid>
           )}
 
-          {podeOrdenar && (
-            <p className="nx-helper" style={{ margin: '-6px 0 14px' }}>
-              Quer mudar a sequência? Toque nas setas <strong>‹ ›</strong> de cada foto para trazer para antes ou levar para depois{' '}
-              (no computador, também dá para arrastar). A ordem fica salva na hora.
-            </p>
-          )}
 
           {total < 20 && (
             <label className="nx-upload-zone" style={busy ? { opacity: 0.7, pointerEvents: 'none' } : {}}>
