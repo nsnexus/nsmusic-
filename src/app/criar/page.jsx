@@ -1761,14 +1761,25 @@ export default function CriarMusica() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  // Depois que a música foi pedida à Suno, voltar para a letra/história não gera outra música —
+  // só confundia o cliente (mexia na letra, avançava e achava que viria uma música nova). A partir
+  // daí o único caminho para mudar letra/história é "Fazer outra música do zero".
+  const musicaJaCriada = formData.sunoStatus === 'generated' || formData.sunoStatus === 'generating';
+
   const prevStep = () => {
     setCreationError('');
     setShowValidation(false);
     const target = Math.max(step - 1, 1);
+    if (musicaJaCriada && target <= 5) return;
     setStep(target);
     syncOrderProgress(target);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  // Mesma trava para qualquer outro caminho de volta (rascunho restaurado numa etapa antiga etc.).
+  useEffect(() => {
+    if (musicaJaCriada && step <= 5) setStep(6);
+  }, [musicaJaCriada, step]);
 
   // Grava lead na Etapa 1 caso o cliente preencha os dados e permaneça na etapa
   useEffect(() => {
@@ -2436,6 +2447,9 @@ export default function CriarMusica() {
                 </div>
 
                 <div style={{ marginTop: '14px', textAlign: 'center' }}>
+                  <p style={{ fontSize: '0.84rem', color: '#6b6276', lineHeight: 1.5, margin: '0 auto 4px', maxWidth: '26rem' }}>
+                    Sua música já foi criada com esta letra. Para mudar a letra ou a história, é preciso fazer uma música nova do zero.
+                  </p>
                   <button
                     type="button"
                     onClick={handleCreateNewSongFromScratch}
@@ -2953,7 +2967,7 @@ export default function CriarMusica() {
               }}
             >
               <div style={{ width: '100%', maxWidth: '34rem', margin: '0 auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                {step > 1 && (
+                {step > 1 && !(musicaJaCriada && step <= 6) && (
                   <button 
                     onClick={prevStep} 
                     type="button"
