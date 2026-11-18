@@ -17,6 +17,12 @@ export function normalizarSiteUrl(valor) {
   const url = String(valor || '').trim().replace(/\/+$/, '');
   if (!url) return '';
   if (url.includes('localhost') || url.includes('127.0.0.1')) return '';
+  // Domínio antigo: continua no ar só como redirecionador (docs/DOMINIO.md), mas não pode mais sair
+  // em link novo. Em 18/11/2026 vários clientes abriam o link da mensagem do WhatsApp (API oficial)
+  // e viam "Site indisponível": a variável NEXT_PUBLIC_SITE_URL do Cloudflare ainda apontava para
+  // ele, então todo link novo dava um salto a mais (antigo → 301 → novo) dentro do navegador do
+  // WhatsApp. Com isto, mesmo com a variável desatualizada, o link já sai no domínio oficial.
+  if (/(^|\/\/)nsmusic\.nsnexus\.com\.br(\/|:|$)/i.test(url)) return '';
   // Se for *.pages.dev mas NÃO for o domínio oficial nsmusic.pages.dev (ex: preview com hash de commit):
   if (url.includes('.pages.dev')) {
     try {

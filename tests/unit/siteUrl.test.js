@@ -30,6 +30,12 @@ describe('siteUrl', () => {
     expect(resolverSiteUrl('https://nsmusic.ia.br')).toBe('https://nsmusic.ia.br');
   });
 
+  it('nunca devolve o domínio antigo, mesmo com o env desatualizado', () => {
+    expect(resolverSiteUrl('https://nsmusic.nsnexus.com.br')).toBe(DOMINIO_CANONICO);
+    expect(resolverSiteUrl('https://nsmusic.nsnexus.com.br/')).toBe(DOMINIO_CANONICO);
+    expect(resolverSiteUrl('https://evolution.nsnexus.com.br')).toBe('https://evolution.nsnexus.com.br');
+  });
+
   it('o domínio canônico é https e sem barra final', () => {
     expect(DOMINIO_CANONICO).toMatch(/^https:\/\/[^/]+$/);
   });
