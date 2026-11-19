@@ -18,13 +18,26 @@ public class ResumoWidget extends AppWidgetProvider {
 
     @Override
     public void onUpdate(Context context, AppWidgetManager manager, int[] ids) {
+        // Redesenha NA HORA com o último resultado salvo, antes de ir à internet. Depois de instalar
+        // uma versão nova, o launcher ainda guarda o desenho da versão anterior (com ids de tela que
+        // mudaram) e mostra "Não é possível carregar o widget" até receber um desenho novo; sem isto,
+        // o desenho novo só chegava depois da busca na API (até ~1 min, ou nunca se ela falhasse).
+        mostrar(context, Resumo.ultimo(context), "Atualizando…");
         atualizarEmSegundoPlano(context);
+    }
+
+    @Override
+    public void onAppWidgetOptionsChanged(Context context, AppWidgetManager manager, int id, android.os.Bundle opcoes) {
+        mostrar(context, Resumo.ultimo(context), null);
     }
 
     @Override
     public void onReceive(Context context, Intent intent) {
         super.onReceive(context, intent);
-        if (ACAO_ATUALIZAR.equals(intent.getAction())) {
+        if (Intent.ACTION_MY_PACKAGE_REPLACED.equals(intent.getAction())) {
+            mostrar(context, Resumo.ultimo(context), "Atualizando…");
+            atualizarEmSegundoPlano(context);
+        } else if (ACAO_ATUALIZAR.equals(intent.getAction())) {
             mostrar(context, Resumo.ultimo(context), "Atualizando…");
             atualizarEmSegundoPlano(context);
         }
