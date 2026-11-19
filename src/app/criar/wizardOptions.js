@@ -44,6 +44,7 @@ export const occasions = [
 export const stylesList = [
   { id: 'Romântica', label: 'Romântica', icon: '💖', desc: 'Ritmo amoroso e cativante' },
   { id: 'Sertanejo Universitário', label: 'Sertanejo Universitário', icon: '🤠', desc: 'Moderno, jovem e acústico' },
+  { id: 'Natal', label: 'Natal', icon: '🎄', desc: 'Sinos, clima natalino e família reunida' },
   { id: 'Sertanejo Raiz', label: 'Sertanejo Raiz', icon: '🪕', desc: 'Modão tradicional com viola caipira' },
   { id: 'Pop', label: 'Pop', icon: '⚡', desc: 'Moderno, jovem e dançante' },
   { id: 'Flash Back', label: 'Flash Back', icon: '🪩', desc: 'Clássicos dos anos 70, 80 e 90, dançante e nostálgico' },
@@ -67,7 +68,6 @@ export const stylesList = [
   { id: 'Trap Acústico', label: 'Trap Acústico', icon: '🎸', desc: 'Violão intimista com batidas trap' },
   { id: 'Indie Pop', label: 'Indie Pop', icon: '🌸', desc: 'Leve, melódico e sonhador' },
   { id: 'R&B / Soul', label: 'R&B / Soul', icon: '🎹', desc: 'Suave, groove marcante e emocionante' },
-  { id: 'Natal', label: 'Natal', icon: '🎄', desc: 'Sinos, clima natalino e família reunida' },
 ];
 
 export const moods = [
