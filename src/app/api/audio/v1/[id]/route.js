@@ -1,52 +1,19 @@
-import { getRequestContext } from '@cloudflare/next-on-pages';
-import { getOrder } from '@/lib/supabaseDb';
-import { lerConfigSite, normalizarNumeroWhatsapp, WHATSAPP_SUPORTE_PADRAO } from '@/lib/configSite';
 import { DOMINIO_CANONICO } from '@/lib/siteUrl';
-import { idDePedidoValido, montarPaginaDownload } from '@/lib/paginaDownload';
+import { idDePedidoValido } from '@/lib/paginaDownload';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
-// Destino do botão "Baixar versão 1" da mensagem de WhatsApp. Abre uma página com player e botão
-// de download em vez de mandar direto para o arquivo — ver src/lib/paginaDownload.js.
-const FAIXA = 0;
-
+// Destino dos botões "Baixar Versão 1" e "Baixar Versão 2" da mensagem de pagamento confirmado no
+// WhatsApp (template confirmacao_pagamento_v2, URL fixa na Meta: /api/audio/v1/{{1}} e /v2/{{1}}).
+//
+// Pedido do dono em 19/11/2026: os dois botões abrem a PÁGINA DO PEDIDO. A página intermediária de
+// download (src/lib/paginaDownload.js) dava "página indisponível" para muitos clientes dentro do
+// navegador do WhatsApp; a página do pedido já tem player, download e o resto do que foi comprado.
 export async function GET(req, { params }) {
   const id = String(params?.id || '');
   if (!idDePedidoValido(id)) {
     return Response.redirect(DOMINIO_CANONICO, 302);
   }
-
-  let env = {};
-  try {
-    const ctx = getRequestContext();
-    if (ctx?.env) env = ctx.env;
-  } catch (e) {
-    // Fora do runtime da Cloudflare (dev local): segue com process.env.
-  }
-
-  let totalFaixas = 0;
-  let homenageado = '';
-  try {
-    const pedido = await getOrder(id, env);
-    const arquivos = Array.isArray(pedido?.audioFiles) ? pedido.audioFiles.filter(Boolean) : [];
-    totalFaixas = arquivos.length || (pedido?.audioUrl ? 1 : 0);
-    homenageado = String(pedido?.honoreeName || '').slice(0, 60);
-  } catch (err) {
-    console.warn('[audio/v1] Falha ao ler o pedido:', err?.name);
-  }
-
-  let suporte = WHATSAPP_SUPORTE_PADRAO;
-  try {
-    const cfg = await lerConfigSite(env);
-    suporte = normalizarNumeroWhatsapp(cfg?.whatsappSuporte) || WHATSAPP_SUPORTE_PADRAO;
-  } catch (err) {
-    console.warn('[audio/v1] Falha ao ler o contato de suporte:', err?.name);
-  }
-
-  const html = montarPaginaDownload({ orderId: id, faixa: FAIXA, totalFaixas, homenageado, suporte });
-  return new Response(html, {
-    status: 200,
-    headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' },
-  });
+  return Response.redirect(`${DOMINIO_CANONICO}/entrega?orderId=${encodeURIComponent(id)}`, 302);
 }
