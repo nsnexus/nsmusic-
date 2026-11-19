@@ -35,6 +35,12 @@ function button(tree, label) {
   if (!result) throw new Error(`Botão não encontrado: ${label}`);
   return result;
 }
+// A escolha do pacote fica na lista compacta (PacotesCompactos): o teste chama o onSelect dela.
+function pacotes(tree) {
+  const result = nodes(tree).find(node => node.type?.name === 'PacotesCompactos');
+  if (!result) throw new Error('Lista de pacotes não encontrada');
+  return result;
+}
 beforeEach(() => {
   state.slots = []; state.index = 0; state.request.mockReset(); props.onCharge.mockClear();
   state.request.mockResolvedValue({ ok: true, data: { paymentId: 'payment-test', qrCode: 'pix-test-code' } });
@@ -44,11 +50,11 @@ describe('checkout em um clique após escolher pacote', () => {
   it('não cria PIX ao entrar na página nem ao selecionar um pacote', () => {
     const tree = render();
     expect(state.request).not.toHaveBeenCalled();
-    button(tree, 'Suas memórias').props.onClick();
+    pacotes(tree).props.onSelect('combo');
     expect(state.request).not.toHaveBeenCalled();
   });
   it('gera o PIX do pacote selecionado ao adquirir e já exibe o código', async () => {
-    button(render(), 'Suas memórias').props.onClick();
+    pacotes(render()).props.onSelect('combo');
     expect(state.request).not.toHaveBeenCalled();
     await button(render(), 'Pagar Agora').props.onClick();
     expect(state.request).toHaveBeenCalledExactlyOnceWith({ orderId: 'test-order', sku: 'combo' });
@@ -74,7 +80,7 @@ describe('checkout em um clique após escolher pacote', () => {
   });
   it('trocar pacote limpa o código anterior e aguarda nova confirmação', async () => {
     await button(render(), 'Pagar Agora').props.onClick();
-    button(render(), 'O essencial').props.onClick();
+    pacotes(render()).props.onSelect('audio_only');
     expect(state.request).toHaveBeenCalledTimes(1);
     expect(nodes(render()).some(node => node.type === 'textarea')).toBe(false);
     await button(render(), 'Pagar Agora').props.onClick();
@@ -94,5 +100,13 @@ describe('checkout em um clique após escolher pacote', () => {
   it('mantém SKU específico da oferta de recuperação', async () => {
     await button(render({ promo: '48h' }), 'Pagar Agora').props.onClick();
     expect(state.request).toHaveBeenCalledWith({ orderId: 'test-order', sku: 'recovery_combo_48h' });
+  });
+});
+
+describe('checkout da entrega usa a lista compacta', () => {
+  it('passa o pacote marcado e a ação de pagar para a lista', () => {
+    const lista = pacotes(render());
+    expect(lista.props.selecionado).toBe('combo');
+    expect(typeof lista.props.onPagar).toBe('function');
   });
 });

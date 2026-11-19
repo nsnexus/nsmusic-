@@ -1,26 +1,22 @@
 'use client';
 
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ArrowRight, Zap, CreditCard, Loader2, Copy, CheckCircle2, Landmark } from 'lucide-react';
 import PixQrCode from '@/components/PixQrCode';
-import PackageCard from './PackageCard';
-import InlinePayButton from './InlinePayButton';
+import PacotesCompactos from './PacotesCompactos';
 import { auth } from '@/lib/authClient';
 import { requestPixCharge } from '@/lib/pixCheckout';
-import { deliveryPackages, formatBrl, PROMESSA } from '@/lib/deliveryPackages';
+import { deliveryPackages, formatBrl } from '@/lib/deliveryPackages';
 import { getPriceForSku } from '@/lib/pricing';
 
-const PRINCIPAIS = ['audio_only', 'combo'];
 const MAX_AGE = 55 * 60 * 1000;
 
 export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStatus, onReceipt, onApproved }) {
   const catalog = deliveryPackages();
   // Pré-seleciona por padrão o pacote 'combo' (R$ 16,89 / R$ 16,90 — Música + Vídeo)
   const [selected, setSelected] = useState('combo');
-  const upgradeDiff = Number(getPriceForSku('combo')) - Number(getPriceForSku('audio_only'));
   const [review, setReview] = useState(false);
-  const [showMore, setShowMore] = useState(false);
   const [pix, setPix] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -152,61 +148,28 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
     setPix(null);
     setError('');
     setMessage('');
-    // No celular o botão de pagar aparece logo abaixo do card escolhido (InlinePayButton); garante
-    // que ele fique à vista. Em telas maiores ele é escondido via CSS, então leva até o resumo.
-    const rolar = () => {
-      if (typeof document === 'undefined') return;
-      const inline = document.getElementById('inline-pay');
-      if (inline && inline.offsetParent !== null) inline.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
-      else summary.current?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
-    };
-    if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') window.requestAnimationFrame(rolar);
-    else rolar();
+    // A lista compacta (PacotesCompactos) já mostra o botão de pagar logo abaixo: não rola a tela.
   };
 
   return (
     <section id="pagamento" aria-label="Escolher e comprar seu presente" style={{ marginTop: '32px' }}>
-      <div className="nx-section-heading" style={{ marginBottom: '22px' }}>
-        <h2 style={{ font: '1.9rem/1.2 var(--nx-display, Georgia, serif)', color: 'var(--nx-ink, #29232d)', margin: '0 0 8px' }}>
+      <div className="nx-section-heading" style={{ marginBottom: '12px' }}>
+        <h2 style={{ font: '1.5rem/1.2 var(--nx-display, Georgia, serif)', color: 'var(--nx-ink, #29232d)', margin: '0 0 4px' }}>
           Como você quer emocionar?
         </h2>
-        <p style={{ color: 'var(--nx-soft, #6c636f)', fontSize: '0.96rem', margin: 0 }}>
-          {PROMESSA.checkout} Pagamento único via PIX, sem assinatura.
+        <p style={{ color: 'var(--nx-soft, #6c636f)', fontSize: '0.82rem', margin: 0 }}>
+          Todas liberam suas músicas completas, sem corte. Pagamento único, sem assinatura.
         </p>
       </div>
 
-      {!recovery && upgradeDiff > 0.005 && (
-        <p style={{ margin: '0 0 14px', color: '#29232d', fontSize: '0.96rem', fontWeight: 700 }}>
-          Por só {formatBrl(upgradeDiff)} a mais que a música sozinha, você leva o Vídeo Homenagem com as fotos.
-        </p>
-      )}
-
       {!recovery && (
-        <div className="nx-package-grid" role="group" aria-label="Pacotes de Homenagem">
-          {catalog.filter(item => PRINCIPAIS.includes(item.sku) || showMore || selected === item.sku).map(item => (
-            <Fragment key={item.sku}>
-              {PackageCard({
-                pack: item,
-                isSelected: selected === item.sku,
-                onSelect: () => choose(item.sku),
-                disabled: busy,
-              })}
-              {selected === item.sku && (
-                <InlinePayButton price={item.price} onClick={generate} busy={busy} disabled={payingCard} />
-              )}
-            </Fragment>
-          ))}
-        </div>
-      )}
-
-      {!recovery && !showMore && catalog.some(item => !PRINCIPAIS.includes(item.sku) && item.sku !== selected) && (
-        <button
-          type="button"
-          onClick={() => setShowMore(true)}
-          style={{ display: 'block', margin: '14px auto 0', background: 'none', border: 'none', color: '#6c636f', fontSize: '0.92rem', textDecoration: 'underline', cursor: 'pointer', padding: '8px' }}
-        >
-          Ver mais presentes: Carta, Retrospectiva, Minha Voz
-        </button>
+        <PacotesCompactos
+          selecionado={selected}
+          onSelect={choose}
+          onPagar={generate}
+          pagando={busy}
+          disabled={busy || payingCard}
+        />
       )}
 
       {/* Barra de Resumo e Ação de Compra */}
