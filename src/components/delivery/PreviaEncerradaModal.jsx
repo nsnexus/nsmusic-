@@ -1,9 +1,7 @@
 'use client';
 
 import React, { useEffect } from 'react';
-import { Sparkles, Music, ArrowRight, X, CheckCircle2, Zap, Download, Gift } from 'lucide-react';
-import { formatBrl } from '@/lib/deliveryPackages';
-import { getPriceForSku } from '@/lib/pricing';
+import { Sparkles, Music, X, CheckCircle2, Zap, Download, Gift } from 'lucide-react';
 
 export default function PreviaEncerradaModal({
   isOpen,
@@ -240,16 +238,16 @@ export default function PreviaEncerradaModal({
         <button
           type="button"
           onClick={onGoToPix}
-          className="btn btn-primary"
+          className="btn btn-primary nx-pay-anim"
           style={{
             width: '100%',
             padding: '15px 18px',
             borderRadius: '14px',
             border: 'none',
-            background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+            background: '#059669',
             color: '#ffffff',
             fontWeight: '800',
-            fontSize: '1rem',
+            fontSize: '1.02rem',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
@@ -258,8 +256,8 @@ export default function PreviaEncerradaModal({
             boxShadow: '0 6px 20px rgba(5, 150, 105, 0.35)',
           }}
         >
-          <span>Liberar música completa · {formatBrl(getPriceForSku('audio_only'))}</span>
-          <ArrowRight size={18} aria-hidden="true" />
+          <Zap size={18} aria-hidden="true" />
+          <span>Liberar música completa</span>
         </button>
 
         {/* Link Secundário de Fechar */}

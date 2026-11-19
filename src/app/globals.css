@@ -1473,3 +1473,48 @@ label {
   .admin-orders-card { display: none !important; }
   .admin-orders-mobile { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
 }
+
+/* Botão de pagar com destaque (19/11/2026): pulso suave + brilho que passa por cima. Mesmo visual
+   em todas as telas de pagamento (/criar e /entrega). Quem prefere menos movimento não vê animação. */
+.nx-pay-anim {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  animation: nxPayPulse 2.6s ease-in-out infinite;
+  will-change: transform;
+}
+.nx-pay-anim::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -60%;
+  width: 40%;
+  height: 100%;
+  background: linear-gradient(100deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.45) 50%, rgba(255, 255, 255, 0) 100%);
+  transform: skewX(-20deg);
+  animation: nxPayShine 2.6s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+.nx-pay-anim:disabled,
+.nx-pay-anim[aria-busy="true"] {
+  animation: none;
+}
+.nx-pay-anim:disabled::after,
+.nx-pay-anim[aria-busy="true"]::after {
+  display: none;
+}
+@keyframes nxPayPulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 6px 16px rgba(5, 150, 105, 0.3); }
+  50% { transform: scale(1.025); box-shadow: 0 8px 26px rgba(5, 150, 105, 0.5); }
+}
+@keyframes nxPayShine {
+  0% { left: -60%; }
+  55%, 100% { left: 130%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nx-pay-anim,
+  .nx-pay-anim::after {
+    animation: none;
+  }
+}
