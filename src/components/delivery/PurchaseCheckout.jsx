@@ -151,6 +151,12 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
   // Toque no pacote = escolhe e já gera o PIX (pedido do dono, 19/11/2026: sem o botão extra).
   const escolherEPagar = sku => {
     if (busy || busyRef.current) return;
+    // Tocar de novo no mesmo pacote com PIX ainda válido: reaproveita, não gera outra cobrança.
+    if (sku === selected && pix?.qrCode && pix.sku === sku && Date.now() - new Date(pix.generatedAt).getTime() < MAX_AGE) {
+      setReview(true);
+      panel.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+      return;
+    }
     choose(sku);
     generate(sku);
   };
@@ -186,7 +192,23 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
         />
       )}
 
-      {/* Barra de Resumo e Ação de Compra */}
+      {/* Fora da oferta de recuperação, a lista já é a escolha e o pagamento (tocar = PIX): o card
+          "Seu pacote" repetia o pacote e o botão. Ficou só o atalho para cartão. */}
+      {!recovery && (
+        <button
+          type="button"
+          onClick={payWithCard}
+          disabled={busy || payingCard}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', width: '100%', margin: '10px 0 0', padding: '8px', background: 'transparent', border: 'none', color: 'var(--nx-muted, #4e4653)', fontSize: '0.84rem', fontWeight: 600, textDecoration: 'underline', cursor: (busy || payingCard) ? 'default' : 'pointer' }}
+        >
+          {payingCard
+            ? (<><Loader2 size={15} aria-hidden="true" /> Abrindo checkout seguro…</>)
+            : (<><CreditCard size={15} aria-hidden="true" /> Prefere cartão de crédito? Pagar {formatBrl(pack.price)} no cartão</>)}
+        </button>
+      )}
+
+      {/* Barra de Resumo e Ação de Compra (só na oferta de recuperação, que não mostra a lista) */}
+      {recovery && (
       <div
         className="nx-card nx-checkout-summary"
         ref={summary}
@@ -280,6 +302,7 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
           </button>
         </div>
       </div>
+      )}
 
       {/* Painel de Checkout / PIX */}
       {review && (
