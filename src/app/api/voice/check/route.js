@@ -29,6 +29,7 @@ export async function GET(req) {
           phone: voiceData.phone,
           customerName: voiceData.customerName,
           voiceId: voiceData.voiceId,
+          voiceRecordingId: voiceData.voiceRecordingId || null,
           status: voiceData.status
         }
       });

@@ -58,6 +58,11 @@ export default function OrderDetailsAdmin() {
 
   const [sunoPrompt, setSunoPrompt] = useState('');
   const [useCustomVoice, setUseCustomVoice] = useState(false);
+  // Voz clonada da cliente que existe fora deste pedido (pedido principal ou cadastro por telefone).
+  // Caso real 18/11/2026: cliente clonou a voz no pedido pago e o pedido bônus veio sem a voz, sem
+  // jeito de regerar com o timbre dela pelo painel.
+  const [vozDisponivel, setVozDisponivel] = useState(null);
+  const [vinculandoVoz, setVinculandoVoz] = useState(false);
 
   // Suno AI direct generation states
   const [generatingSuno, setGeneratingSuno] = useState(false);
@@ -766,6 +771,71 @@ export default function OrderDetailsAdmin() {
     }
     current = current.replace(/,\s*,/g, ',').replace(/^\s*,\s*/, '').replace(/,\s*$/, '').trim();
     setSunoPrompt(current);
+  };
+
+  const pedidoTemVoz = Boolean(order?.customVoiceId || order?.isCustomVoice || order?.extras?.customVoiceId || order?.extras?.isCustomVoice);
+
+  useEffect(() => {
+    let ativo = true;
+    setVozDisponivel(null);
+    if (!order || pedidoTemVoz) return () => { ativo = false; };
+    const rel = order.relatedOrder;
+    const relVoz = rel?.customVoiceId || rel?.extras?.customVoiceId;
+    if (relVoz) {
+      setVozDisponivel({
+        voiceId: relVoz,
+        recordId: rel?.customVoiceRecordId || rel?.extras?.customVoiceRecordId || rel?.extras?.voiceRecordingId || null,
+        accountId: rel?.customVoiceAccountId || rel?.extras?.customVoiceAccountId || rel?.extras?.accountId || null,
+        origem: `pedido #${rel.orderNumber || rel.id}`,
+      });
+      return () => { ativo = false; };
+    }
+    const fone = order.customerPhone || order.customer_phone;
+    if (!fone) return () => { ativo = false; };
+    fetch(`/api/voice/check?phone=${encodeURIComponent(fone)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (ativo && j?.found && j.voice?.voiceId) {
+          setVozDisponivel({ voiceId: j.voice.voiceId, recordId: j.voice.voiceRecordingId || null, accountId: null, origem: 'cadastro de voz da cliente' });
+        }
+      })
+      .catch((e) => console.warn('[admin/pedido] Falha ao procurar voz clonada da cliente:', e?.message));
+    return () => { ativo = false; };
+  }, [order?.id, pedidoTemVoz]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleAttachCustomVoice = async () => {
+    if (!vozDisponivel?.voiceId) return;
+    setVinculandoVoz(true);
+    try {
+      const token = await getAdminAuthToken();
+      const extrasVoz = {
+        isCustomVoice: true,
+        customVoiceId: vozDisponivel.voiceId,
+        ...(vozDisponivel.recordId ? { customVoiceRecordId: vozDisponivel.recordId } : {}),
+        ...(vozDisponivel.accountId ? { customVoiceAccountId: vozDisponivel.accountId } : {}),
+      };
+      const res = await fetch('/api/orders/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({
+          orderId,
+          isCustomVoice: true,
+          customVoiceId: vozDisponivel.voiceId,
+          voiceType: 'minha_voz',
+          extras: { ...(order?.extras || {}), ...extrasVoz },
+        }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error || `HTTP ${res.status}`);
+      }
+      await fetchOrder();
+      setUseCustomVoice(true);
+    } catch (e) {
+      alert('Não foi possível vincular a voz: ' + (e.message || 'erro desconhecido'));
+    } finally {
+      setVinculandoVoz(false);
+    }
   };
 
   const handleDetachCustomVoice = async () => {
@@ -2078,6 +2148,23 @@ export default function OrderDetailsAdmin() {
                     </button>
                   </div>
                 </div>
+
+                {/* Cliente tem voz clonada em outro pedido/cadastro, mas este pedido não: oferecer vincular */}
+                {!pedidoTemVoz && vozDisponivel && (
+                  <div style={{ marginBottom: '16px', padding: '12px 14px', borderRadius: '10px', background: '#fefce8', border: '1.5px solid #fde68a' }}>
+                    <p style={{ margin: '0 0 8px', fontSize: '0.84rem', fontWeight: '700', color: '#854d0e' }}>
+                      🎙️ Esta cliente tem voz clonada ({vozDisponivel.origem}), mas este pedido está sem ela.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleAttachCustomVoice}
+                      disabled={vinculandoVoz}
+                      style={{ fontSize: '0.82rem', padding: '8px 12px', borderRadius: '8px', border: 'none', background: '#7c3aed', color: '#fff', fontWeight: '700', cursor: vinculandoVoz ? 'wait' : 'pointer' }}
+                    >
+                      {vinculandoVoz ? 'Vinculando…' : 'Usar a voz dela neste pedido'}
+                    </button>
+                  </div>
+                )}
 
                 {/* Se o pedido possui Voz Clonada (Minha Voz) */}
                 {Boolean(order?.customVoiceId || order?.isCustomVoice || order?.extras?.customVoiceId || order?.extras?.isCustomVoice) && (
