@@ -62,7 +62,7 @@ describe('checkout em um clique após escolher pacote', () => {
   });
   it('sem oferta de recuperação não mostra o card "Seu pacote" (a lista já paga)', () => {
     expect(text(render())).not.toContain('Seu pacote');
-    expect(text(render())).toContain('Prefere cartão?');
+    expect(text(render())).toContain('Prefere cartão de crédito?');
   });
   it('impede duas cobranças com clique duplo', async () => {
     let resolve;
