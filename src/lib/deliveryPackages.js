@@ -36,8 +36,8 @@ export function deliveryPackages() {
     {
       sku: 'combo',
       label: '4 Músicas + Vídeo Homenagem',
-      curto: 'Vídeo + Carta',
-      resumo: 'Vídeo com fotos + carta',
+      curto: 'Vídeo + Música',
+      resumo: 'Vídeo com suas fotos + carta',
       icon: '🎬',
       eyebrow: 'Suas memórias',
       badge: 'MAIS COMPRADO',
