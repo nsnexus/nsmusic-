@@ -128,6 +128,7 @@ export default function PacotesCompactos({ selecionado, onSelect, onPagar, pagan
         onClick={onPagar}
         disabled={disabled || pagando}
         aria-busy={pagando || undefined}
+        className="nx-pay-anim"
         style={{
           width: '100%', boxSizing: 'border-box', marginTop: '9px', minHeight: '48px', padding: '12px 16px', borderRadius: '14px',
           border: 'none', background: '#059669', color: '#fff', fontWeight: 800, fontSize: '1.02rem',

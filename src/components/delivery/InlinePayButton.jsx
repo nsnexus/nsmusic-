@@ -19,6 +19,7 @@ export default function InlinePayButton({ price, onClick, busy, disabled }) {
         onClick={onClick}
         disabled={disabled || busy}
         aria-busy={busy || undefined}
+        className="nx-pay-anim"
         style={{
           width: '100%',
           boxSizing: 'border-box',

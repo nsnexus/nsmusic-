@@ -1,9 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ArrowUpRight, Zap } from 'lucide-react';
-import { formatBrl } from '@/lib/deliveryPackages';
-import { getPriceForSku } from '@/lib/pricing';
+import { Zap } from 'lucide-react';
 
 export default function MobileStickyBar({ onScrollToCheckout }) {
   const [isVisible, setIsVisible] = useState(false);
@@ -64,14 +62,16 @@ export default function MobileStickyBar({ onScrollToCheckout }) {
         <button
           type="button"
           onClick={onScrollToCheckout}
+          className="nx-pay-anim"
           style={{
             width: '100%',
             backgroundColor: 'var(--nx-pay, #059669)',
             color: '#ffffff',
             border: 'none',
             borderRadius: '14px',
-            padding: '14px 20px',
-            fontSize: '0.96rem',
+            padding: '12px 16px',
+            minHeight: '50px',
+            fontSize: '1.02rem',
             fontWeight: 800,
             cursor: 'pointer',
             display: 'flex',
@@ -83,9 +83,8 @@ export default function MobileStickyBar({ onScrollToCheckout }) {
             transition: 'transform 0.15s ease',
           }}
         >
-          <Zap size={18} fill="#ffffff" />
-          <span>Liberar música completa · {formatBrl(getPriceForSku('audio_only'))}</span>
-          <ArrowUpRight size={18} />
+          <Zap size={18} aria-hidden="true" />
+          <span>Liberar música completa</span>
         </button>
       </div>
     </>

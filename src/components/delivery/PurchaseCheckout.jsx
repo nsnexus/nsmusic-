@@ -211,7 +211,7 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
           <button
             type="button"
-            className="nx-button nx-primary"
+            className="nx-button nx-primary nx-pay-anim"
             disabled={busy || payingCard}
             onClick={generate}
             style={{

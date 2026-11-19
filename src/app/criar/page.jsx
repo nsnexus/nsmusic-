@@ -2625,7 +2625,7 @@ export default function CriarMusica() {
                           type="button"
                           disabled={isGeneratingPix || isPayingCard}
                           onClick={gerarPixCriar}
-                        className="btn btn-primary"
+                        className="btn btn-primary nx-pay-anim"
                         style={{
                           width: '100%',
                           maxWidth: '100%',
