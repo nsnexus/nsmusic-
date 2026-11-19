@@ -1959,7 +1959,9 @@ export default function CriarMusica() {
 
   // Gera o PIX do pacote escolhido. Compartilhada pelo botão do resumo e pelo botão que aparece
   // logo abaixo do card no celular (InlinePayButton).
-  const gerarPixCriar = async () => {
+  // `skuEscolhido`: tocar no pacote já gera o PIX; nesse toque o estado do pacote ainda não mudou.
+  const gerarPixCriar = async (skuEscolhido) => {
+    const skuDoPix = typeof skuEscolhido === 'string' ? skuEscolhido : (selectedPackageSku || 'combo');
     setIsGeneratingPix(true);
     setPaymentErrorMessage('');
     if (!formData.customerPhone || !isPhoneValid(formData.customerPhone)) {
@@ -1978,8 +1980,8 @@ export default function CriarMusica() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               orderId,
-              total: getTotalPrice(),
-              package: formData.selectedPackage,
+              total: getPriceForSku(skuDoPix) || getTotalPrice(),
+              package: skuDoPix,
               pixRequestedAt: new Date().toISOString()
             })
           });
@@ -1991,7 +1993,7 @@ export default function CriarMusica() {
         }
       }
 
-      const sku = selectedPackageSku || 'combo';
+      const sku = skuDoPix;
       // Retentativa compartilhada com o checkout de /entrega (ver
       // src/lib/pixCheckout.js): a chamada à Efí falha de forma intermitente e
       // insistir resolve, em vez de devolver um erro para o cliente que estava
@@ -2021,7 +2023,7 @@ export default function CriarMusica() {
           pushAdvancedMatching(formData.customerPhone, formData.customerEmail);
           // Valor real do carrinho (9.99 ou 16.89 com vídeo), não um fixo — combo
           // era subcontado como se fosse sempre a música avulsa.
-          window.fbq('track', 'InitiateCheckout', { value: getTotalPrice(), currency: 'BRL' });
+          window.fbq('track', 'InitiateCheckout', { value: (getPriceForSku(skuDoPix) || getTotalPrice()), currency: 'BRL' });
         }
 
         identifyTikTok(formData.customerPhone, formData.customerEmail, orderId);
@@ -2033,7 +2035,7 @@ export default function CriarMusica() {
               content_name: 'Música Personalizada com IA',
             },
           ],
-          value: getTotalPrice(),
+          value: (getPriceForSku(skuDoPix) || getTotalPrice()),
           currency: 'BRL',
         });
       } else {
@@ -2578,8 +2580,8 @@ export default function CriarMusica() {
             <div style={{ marginBottom: '24px' }}>
               <PacotesCompactos
                 selecionado={selectedPackageSku}
-                onSelect={handleSelectPackage}
-                onPagar={gerarPixCriar}
+                onSelect={(sku) => { if (isGeneratingPix || isPayingCard) return; handleSelectPackage(sku); gerarPixCriar(sku); }}
+                pagarAoEscolher
                 pagando={isGeneratingPix}
                 disabled={isGeneratingPix || isPayingCard}
               />

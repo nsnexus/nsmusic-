@@ -34,7 +34,7 @@ function Radio({ marcado, cor = '#7c3aed' }) {
   );
 }
 
-function Linha({ pack, marcado, onSelect, disabled }) {
+function Linha({ pack, marcado, onSelect, disabled, gerando }) {
   return (
     <button
       type="button"
@@ -64,13 +64,13 @@ function Linha({ pack, marcado, onSelect, disabled }) {
         <span style={{ display: 'block', fontSize: '0.7rem', color: '#5d5563', lineHeight: 1.25 }}>{pack.resumo}</span>
       </span>
       <span style={{ flexShrink: 0, padding: '5px 8px', borderRadius: '999px', background: 'linear-gradient(180deg, #fde047 0%, #f59e0b 100%)', color: '#3b2504', fontWeight: 900, fontSize: '0.82rem', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
-        {formatBrl(pack.price)}
+        {gerando ? 'Gerando PIX…' : formatBrl(pack.price)}
       </span>
     </button>
   );
 }
 
-function Familia({ pack, marcado, onSelect, disabled }) {
+function Familia({ pack, marcado, onSelect, disabled, gerando }) {
   return (
     <button
       type="button"
@@ -108,7 +108,9 @@ function Familia({ pack, marcado, onSelect, disabled }) {
   );
 }
 
-export default function PacotesCompactos({ selecionado, onSelect, onPagar, pagando, disabled }) {
+// `pagarAoEscolher`: tocar no pacote já gera o PIX (onSelect faz as duas coisas) e o botão "Pagar"
+// some; o pacote tocado mostra "gerando PIX…" enquanto espera.
+export default function PacotesCompactos({ selecionado, onSelect, onPagar, pagando, disabled, pagarAoEscolher = false }) {
   const pacotes = deliveryPackages();
   const familia = pacotes.find((p) => p.sku === 'combo_familia');
   const demais = pacotes.filter((p) => p.sku !== 'combo_familia');
@@ -118,10 +120,16 @@ export default function PacotesCompactos({ selecionado, onSelect, onPagar, pagan
     <div style={{ maxWidth: '520px', margin: '0 auto' }}>
       <div role="radiogroup" aria-label="Pacotes" style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
         {demais.map((pack) => (
-          <Linha key={pack.sku} pack={pack} marcado={selecionado === pack.sku} onSelect={() => onSelect(pack.sku)} disabled={disabled} />
+          <Linha key={pack.sku} pack={pack} marcado={selecionado === pack.sku} gerando={pagarAoEscolher && pagando && selecionado === pack.sku} onSelect={() => onSelect(pack.sku)} disabled={disabled} />
         ))}
-        {familia && <Familia pack={familia} marcado={selecionado === 'combo_familia'} onSelect={() => onSelect('combo_familia')} disabled={disabled} />}
+        {familia && <Familia pack={familia} marcado={selecionado === 'combo_familia'} gerando={pagarAoEscolher && pagando && selecionado === 'combo_familia'} onSelect={() => onSelect('combo_familia')} disabled={disabled} />}
       </div>
+
+      {pagarAoEscolher ? (
+        <p style={{ margin: '8px 0 0', textAlign: 'center', fontSize: '0.74rem', color: '#6b6276' }}>
+          👆 Toque no presente e o PIX aparece na hora · liberação automática
+        </p>
+      ) : (<>
 
       <button
         type="button"
@@ -143,6 +151,7 @@ export default function PacotesCompactos({ selecionado, onSelect, onPagar, pagan
       <p style={{ margin: '5px 0 0', textAlign: 'center', fontSize: '0.68rem', color: '#6b6276' }}>
         ⚡ Liberação automática · download em MP3, MP4 e PDF
       </p>
+      </>)}
     </div>
   );
 }
