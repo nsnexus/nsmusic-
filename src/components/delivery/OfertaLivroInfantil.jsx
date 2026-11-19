@@ -90,13 +90,13 @@ export default function OfertaLivroInfantil({ order, orderId, pago }) {
             {nome ? <>E se {nome} virasse {menina ? 'a heroína' : 'o herói'} de um livro? ✨</> : <>E se a criança virasse a estrela de um livro? ✨</>}
           </h2>
           <p style={{ margin: '12px 0 0', fontSize: '15px', lineHeight: 1.5, opacity: 0.95 }}>
-            A <strong>Coruja Lulu</strong> cria um livro infantil ilustrado com a foto da criança, com narração em voz de conto de fadas.
+            A <strong>Coruja Lulu</strong> cria um livro infantil ilustrado com a foto da criança, onde ela é a personagem principal da história.
           </p>
         </div>
 
         <ul style={{ listStyle: 'none', margin: '14px 22px 0', padding: '12px 14px', borderRadius: '16px', background: 'rgba(255,255,255,0.12)', fontSize: '14px', lineHeight: 1.7 }}>
           <li>📸 Ilustrações feitas a partir da foto</li>
-          <li>🎧 História narrada, pronta para a hora de dormir</li>
+          <li>📖 Uma história mágica feita só para ela</li>
           <li>⏱️ Fica pronto em 2 minutos</li>
         </ul>
 
