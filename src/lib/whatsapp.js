@@ -1,3 +1,4 @@
+import { tempoDigitando, tempoAnexo } from './humanizar.js';
 import { getRequestContext } from '@cloudflare/next-on-pages';
 import { DOMINIO_CANONICO } from './siteUrl.js';
 import { resolveDeliveryUrl, resolveCriarUrl, formatToWhatsAppNumber, cleanWhatsAppId, buildAudioDownloadLink } from './whatsappTemplates.js';
@@ -228,8 +229,10 @@ export const sendEvolutionTextMessage = async (phone, message, env = {}) => {
         body: JSON.stringify({
           number: num,
           text: message,
+          // "digitando…" antes de chegar (até 3,5 s aqui: este envio roda dentro de outros fluxos).
+          delay: Math.min(tempoDigitando(message), 3500),
         }),
-        signal: AbortSignal.timeout(10000),
+        signal: AbortSignal.timeout(14000),
       });
 
       if (res.ok) {
@@ -364,9 +367,10 @@ export const sendEvolutionMediaMessage = async (phone, { mediaUrl, caption, file
           mimetype: mimeType,
           caption: caption,
           media: mediaUrl,
-          fileName: fileName
+          fileName: fileName,
+          delay: tempoAnexo(),
         }),
-        signal: AbortSignal.timeout(15000),
+        signal: AbortSignal.timeout(18000),
       });
 
       if (res.ok) {
