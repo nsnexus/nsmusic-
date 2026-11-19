@@ -60,26 +60,30 @@ describe('checkout em um clique após escolher pacote', () => {
     expect(text(tree)).toContain('Copiar código PIX');
     expect(props.onCharge).toHaveBeenCalledWith(expect.objectContaining({ sku: 'combo_carta' }));
   });
-  it('o botão do resumo gera o PIX do pacote marcado', async () => {
-    await button(render(), 'Pagar Agora').props.onClick();
-    expect(state.request).toHaveBeenCalledExactlyOnceWith({ orderId: 'test-order', sku: 'combo' });
+  it('sem oferta de recuperação não mostra o card "Seu pacote" (a lista já paga)', () => {
+    expect(text(render())).not.toContain('Seu pacote');
+    expect(text(render())).toContain('Prefere cartão de crédito?');
   });
   it('impede duas cobranças com clique duplo', async () => {
     let resolve;
     state.request.mockImplementation(() => new Promise(done => { resolve = done; }));
-    const action = button(render(), 'Pagar Agora').props.onClick;
-    const first = action();
-    await action();
+    const action = pacotes(render()).props.onSelect;
+    action('combo');
+    action('combo');
     expect(state.request).toHaveBeenCalledTimes(1);
-    resolve({ ok: true, data: { paymentId: 'test', qrCode: 'pix' } }); await first;
+    resolve({ ok: true, data: { paymentId: 'test', qrCode: 'pix' } });
+    await Promise.resolve(); await Promise.resolve();
   });
-  it('reutiliza o PIX válido quando o botão é pressionado novamente', async () => {
-    await button(render(), 'Pagar Agora').props.onClick();
-    await button(render(), 'Pagar Agora').props.onClick();
+  it('reutiliza o PIX válido quando toca de novo no mesmo pacote', async () => {
+    pacotes(render()).props.onSelect('combo');
+    await Promise.resolve(); await Promise.resolve();
+    pacotes(render()).props.onSelect('combo');
+    await Promise.resolve();
     expect(state.request).toHaveBeenCalledTimes(1);
   });
   it('trocar de pacote gera um PIX novo do pacote tocado', async () => {
-    await button(render(), 'Pagar Agora').props.onClick();
+    pacotes(render()).props.onSelect('combo');
+    await Promise.resolve(); await Promise.resolve();
     pacotes(render()).props.onSelect('audio_only');
     await Promise.resolve(); await Promise.resolve();
     expect(state.request).toHaveBeenCalledTimes(2);
@@ -87,7 +91,8 @@ describe('checkout em um clique após escolher pacote', () => {
   });
   it('mostra erro e permite repetir sem um passo extra de revisão', async () => {
     state.request.mockResolvedValueOnce({ ok: false, error: 'Serviço indisponível.' });
-    await button(render(), 'Pagar Agora').props.onClick();
+    pacotes(render()).props.onSelect('combo');
+    await Promise.resolve(); await Promise.resolve();
     expect(text(render())).toContain('Serviço indisponível.');
     await button(render(), 'Tentar PIX novamente').props.onClick();
     expect(text(render())).toContain('Copiar código PIX');
