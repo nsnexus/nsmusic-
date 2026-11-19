@@ -85,7 +85,7 @@ Diretrizes Obrigatórias de Composição:
    ${requiredPhrase ? `- Incorpore a frase obrigatória "${requiredPhrase}" exatamente no refrão ou refrão final.` : ''}
    ${requiredNames ? `- Incorpore naturalmente os nomes "${requiredNames}" na letra.` : ''}
 
-6. O tom deve refletir o clima "${musicMood}" e o ritmo "${musicStyle}".
+6. O tom deve refletir o clima "${musicMood}" e o ritmo "${musicStyle}".${musicStyle === 'Natal' ? ' É uma música de NATAL: traga o clima natalino (noite de Natal, família reunida, luzes, presentes, gratidão pelo ano) entrelaçado à história, sem perder o foco no homenageado.' : ''}
 
 7. RETORNE EXCLUSIVAMENTE O TEXTO DA LETRA DA MÚSICA. É ESTRITAMENTE PROIBIDO incluir saudações, explicações, observações ou comentários de cortesia no final ou início, pois o texto será enviado diretamente para o motor de gravação de áudio.
 

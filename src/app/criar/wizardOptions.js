@@ -67,6 +67,7 @@ export const stylesList = [
   { id: 'Trap Acústico', label: 'Trap Acústico', icon: '🎸', desc: 'Violão intimista com batidas trap' },
   { id: 'Indie Pop', label: 'Indie Pop', icon: '🌸', desc: 'Leve, melódico e sonhador' },
   { id: 'R&B / Soul', label: 'R&B / Soul', icon: '🎹', desc: 'Suave, groove marcante e emocionante' },
+  { id: 'Natal', label: 'Natal', icon: '🎄', desc: 'Sinos, clima natalino e família reunida' },
 ];
 
 export const moods = [
