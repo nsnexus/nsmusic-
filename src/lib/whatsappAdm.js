@@ -23,6 +23,7 @@ import { findOrdersByPhone } from './orderLookup.js';
 import { isBonusOrder } from './trafficSource.js';
 import { DOMINIO_CANONICO } from './siteUrl.js';
 import { configCloudAdm, enviarTextoCloud, enviarAudioCloud, estadoCloud } from './whatsappAdmCloud.js';
+import { dormir, tempoDigitando, tempoGravando, tempoAnexo, pausaEntreArquivos, tempoLendo, variar } from './humanizar.js';
 
 export const CHAVE_ADM = 'whatsapp_adm';
 export const INSTANCIA_PADRAO = 'nsmusic-adm';
@@ -31,6 +32,11 @@ const MAX_LISTA = 9;
 const VALIDADE_ESCOLHA_MS = 30 * 60 * 1000;
 const INTERVALO_REENVIO_MS = 5 * 60 * 1000;
 const STATUS_PAGO = new Set(['PAGAMENTO_APROVADO', 'PAGO']);
+// Teto de arquivos (MP3 + áudio) por hora no número ADM pela Evolution. Acima disso o robô avisa o
+// cliente e deixa para o dono mandar depois (/musicas), em vez de virar uma rajada de mídia.
+const LIMITE_ARQUIVOS_HORA = 60;
+// Quanto do ~30 s de trabalho em segundo plano da Cloudflare usar antes de passar o resto adiante.
+const ORCAMENTO_ENVIO_MS = 21000;
 
 /**
  * O pedido pode ser entregue? Pago, ou MÚSICA BÔNUS cujo pedido principal está pago — mesma regra
@@ -164,6 +170,7 @@ export function textoListaPedidos(grupos) {
     + `Responda com o *número* do pedido que você quer receber, ou *TODAS* para receber todas as músicas.`;
 }
 
+// Cada resposta fixa tem algumas versões: o robô sorteia uma (texto sempre igual é sinal de robô).
 export const TEXTO_AJUSTE = 'Claro, vamos deixar sua música do jeitinho que você quer! 🎶\n\n'
   + 'Me conta o que você gostaria de ajustar:\n\n'
   + '✍️ *Letra* — alguma palavra, nome ou trecho\n'
@@ -176,6 +183,40 @@ export const TEXTO_OUTROS = 'Claro, estamos aqui para te ajudar! 😊\n\n'
   + 'Me conta qual é o motivo do seu contato? Pode escrever com detalhes ou mandar um áudio.\n\n'
   + 'Se for sobre um pedido que você já fez, mande também o código do pedido (começa com *NS-*) ou o nome de quem recebeu a música.\n\n'
   + 'Nossa equipe já vai te responder! 💜';
+
+export const VERSOES_AJUSTE = [
+  TEXTO_AJUSTE,
+  'Oi! Bora deixar sua música do seu jeito 😊🎶\n\n'
+    + 'O que você quer mudar?\n\n'
+    + '✍️ *Letra* (palavra, nome, algum trecho)\n'
+    + '🥁 *Ritmo / estilo* (mais animada, mais calma, outro gênero)\n'
+    + '🎤 *Voz* (masculina, feminina, outro tom)\n'
+    + '💬 *Outra coisa*\n\n'
+    + 'Me explica com detalhes, pode ser por áudio também. Se tiver mais de um pedido, me diz qual. Já já te respondo! 💜',
+  'Claro! Me conta o que você quer ajustar na sua música 🎵\n\n'
+    + '• *Letra* — trocar palavra, nome ou trecho\n'
+    + '• *Ritmo* — mais animada, mais lenta, outro estilo\n'
+    + '• *Voz* — masculina, feminina, outro tom\n'
+    + '• *Outra coisa*\n\n'
+    + 'Pode mandar por escrito ou em áudio, e se tiver mais de um pedido me fala qual é. Nossa equipe te responde rapidinho 💜',
+];
+
+export const VERSOES_OUTROS = [
+  TEXTO_OUTROS,
+  'Oi! Tô aqui pra te ajudar 😊\n\n'
+    + 'Me conta o que aconteceu? Pode escrever ou mandar áudio.\n\n'
+    + 'Se for sobre um pedido, me manda o código (começa com *NS-*) ou o nome de quem recebeu a música.\n\n'
+    + 'Já já te respondo! 💜',
+  'Claro! Qual o motivo do seu contato? 😊\n\n'
+    + 'Pode explicar por escrito ou em áudio. Se for de um pedido que você já fez, manda o código (*NS-...*) ou o nome do homenageado.\n\n'
+    + 'Nossa equipe te responde rapidinho 💜',
+];
+
+const VERSOES_LINK = [
+  (url) => `Que bom! 🎵 Para criar a sua música é só acessar o link abaixo e contar a história:\n\n${url}`,
+  (url) => `Oba! 😍 É só entrar aqui e contar a história que a gente transforma em música:\n\n${url}`,
+  (url) => `Que legal! 🎶 Cria a sua por aqui, leva só uns minutinhos:\n\n${url}`,
+];
 
 /** Extrai o essencial de um evento messages.upsert da Evolution. Devolve null se não for conversa de cliente. */
 // Comando do DONO, digitado na conversa com o cliente: "/musicas" (ou #musicas, /música...).
@@ -241,7 +282,12 @@ async function chamarEvolution(evolution, caminho, { method = 'POST', body, chav
 
 export async function enviarTextoAdm(evolution, numero, texto) {
   if (evolution.tipo === 'cloud') return enviarTextoCloud(evolution, numero, texto);
-  const r = await chamarEvolution(evolution, `/message/sendText/${evolution.instanceName}`, { body: { number: numero, text: texto } });
+  // `delay`: a Evolution mostra "digitando…" por esse tempo antes de enviar.
+  const delay = tempoDigitando(texto);
+  const r = await chamarEvolution(evolution, `/message/sendText/${evolution.instanceName}`, {
+    body: { number: numero, text: texto, delay },
+    timeoutMs: 20000 + delay,
+  });
   return r.ok;
 }
 
@@ -249,8 +295,8 @@ export async function enviarArquivoAdm(evolution, numero, arquivo) {
   // No canal oficial a música só vai como áudio (a Meta não aceita MP3 como documento).
   if (evolution.tipo === 'cloud') return enviarAudioCloud(evolution, numero, arquivo);
   const r = await chamarEvolution(evolution, `/message/sendMedia/${evolution.instanceName}`, {
-    body: { number: numero, mediatype: 'document', mimetype: 'audio/mpeg', media: arquivo.url, fileName: arquivo.fileName },
-    timeoutMs: 45000,
+    body: { number: numero, mediatype: 'document', mimetype: 'audio/mpeg', media: arquivo.url, fileName: arquivo.fileName, delay: tempoAnexo() },
+    timeoutMs: 48000,
   });
   return r.ok;
 }
@@ -259,10 +305,48 @@ export async function enviarArquivoAdm(evolution, numero, arquivo) {
 export async function enviarAudioAdm(evolution, numero, arquivo) {
   if (evolution.tipo === 'cloud') return enviarAudioCloud(evolution, numero, arquivo);
   const r = await chamarEvolution(evolution, `/message/sendWhatsAppAudio/${evolution.instanceName}`, {
-    body: { number: numero, audio: arquivo.url },
-    timeoutMs: 45000,
+    // Com `delay`, a Evolution mostra "gravando áudio…" antes de mandar.
+    body: { number: numero, audio: arquivo.url, delay: tempoGravando() },
+    timeoutMs: 49000,
   });
   return r.ok;
+}
+
+/** Marca a mensagem do cliente como lida (os dois tracinhos azuis), como faria quem atende. */
+async function marcarComoLida(evolution, msg) {
+  if (evolution.tipo === 'cloud' || !msg?.id || !msg?.jid) return;
+  try {
+    await chamarEvolution(evolution, `/chat/markMessageAsRead/${evolution.instanceName}`, {
+      body: { readMessages: [{ remoteJid: msg.jid, fromMe: false, id: msg.id }] }, timeoutMs: 8000,
+    });
+  } catch (err) {
+    console.warn('[whatsapp-adm] Não consegui marcar como lida:', err?.name);
+  }
+}
+
+/** Antes da 1ª resposta: marca como lida e espera o tempo de "ler" a mensagem. */
+async function comoQuemLeu(ctx, msg) {
+  if (ctx.evolution.tipo === 'cloud') return;
+  await marcarComoLida(ctx.evolution, msg);
+  await dormir(tempoLendo());
+}
+
+/**
+ * Reserva `quantos` arquivos no teto da hora. Devolve false se passaria do limite.
+ * Contador simples na tabela config (chave por hora cheia); falha de leitura não bloqueia o envio.
+ */
+async function reservarArquivosDaHora(supabase, quantos) {
+  const hora = new Date().toISOString().slice(0, 13);
+  const chave = 'adm_arquivos_hora';
+  try {
+    const { data } = await supabase.from('config').select('valor').eq('chave', chave).maybeSingle();
+    const atual = data?.valor?.hora === hora ? Number(data.valor.n) || 0 : 0;
+    if (atual + quantos > LIMITE_ARQUIVOS_HORA) return false;
+    await supabase.from('config').upsert({ chave, valor: { hora, n: atual + quantos }, updated_at: new Date().toISOString() });
+  } catch (err) {
+    console.warn('[whatsapp-adm] Falha no contador por hora:', err?.name);
+  }
+  return true;
 }
 
 /** Apaga para todos a mensagem do comando do dono, para o cliente não ver "/musicas". */
@@ -312,31 +396,17 @@ async function gravarEscolha(supabase, telefone, ids) {
   }
 }
 
-// Manda os MP3 de um ou mais pedidos, com a mensagem de abertura. Devolve { enviados, total }.
-async function enviarPedidos(ctx, destino, pedidos, abertura, todos = pedidos) {
-  const arquivos = selecionarMusicasPagas(pedidos, MAX_ARQUIVOS, todos);
-  await enviarTextoAdm(ctx.evolution, destino, abertura);
+/**
+ * Evolution: manda cada música em MP3 (documento) e em áudio, com pausas de gente entre um e outro.
+ * Para antes de estourar o tempo de segundo plano da Cloudflare e devolve o que sobrou.
+ */
+async function enviarArquivosEvolution(ctx, destino, arquivos, limiteEm) {
   let enviados = 0;
   let audios = 0;
-  const oficial = ctx.evolution.tipo === 'cloud';
-  // O trabalho em segundo plano na Cloudflare dura ~30 s depois da resposta: para antes disso em vez
-  // de ser cortado no meio de uma música.
-  const limiteEm = Date.now() + 22000;
   for (const [i, arquivo] of arquivos.entries()) {
-    if (oficial && Date.now() > limiteEm) break;
-    if (oficial) {
-      // Canal oficial: um áudio por música. Com mais de uma, um rótulo antes diz qual é qual (o áudio
-      // não mostra o nome do arquivo), e uma pausa curta mantém a ordem de chegada.
-      try {
-        if (arquivos.length > 1) {
-          await enviarTextoAdm(ctx.evolution, destino, `🎵 Música ${i + 1} de ${arquivos.length}`);
-        }
-        if (await enviarAudioAdm(ctx.evolution, destino, arquivo)) { enviados++; audios++; }
-      } catch (err) {
-        console.warn('[whatsapp-adm] Falha ao enviar um áudio:', err?.name);
-      }
-      await new Promise((r) => setTimeout(r, 500));
-      continue;
+    if (i > 0) {
+      if (Date.now() > limiteEm) return { enviados, audios, restantes: arquivos.slice(i) };
+      await dormir(pausaEntreArquivos());
     }
     try {
       if (await enviarArquivoAdm(ctx.evolution, destino, arquivo)) enviados++;
@@ -350,13 +420,102 @@ async function enviarPedidos(ctx, destino, pedidos, abertura, todos = pedidos) {
       console.warn('[whatsapp-adm] Falha ao enviar um áudio:', err?.name);
     }
   }
-  if (oficial && enviados < arquivos.length) {
-    await enviarTextoAdm(ctx.evolution, destino, `Mandei ${enviados} de ${arquivos.length} músicas. Para receber as outras, mande *3* de novo daqui a alguns minutos. 😉`);
-    return { enviados, audios, total: arquivos.length };
+  return { enviados, audios, restantes: [] };
+}
+
+/**
+ * O que não coube no tempo desta requisição segue numa requisição nova para o próprio site
+ * (/api/whatsapp/adm/continuar/[segredo]), que tem outros ~30 s. Devolve true se foi aceita.
+ */
+async function continuarEmOutraRequisicao(ctx, destino, restantes) {
+  if (!ctx.config?.segredo || restantes.length === 0) return false;
+  try {
+    const res = await fetch(`${DOMINIO_CANONICO}/api/whatsapp/adm/continuar/${encodeURIComponent(ctx.config.segredo)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ destino, arquivos: restantes }),
+      signal: AbortSignal.timeout(8000),
+    });
+    return res.ok;
+  } catch (err) {
+    console.warn('[whatsapp-adm] Não consegui passar o resto do envio adiante:', err?.name);
+    return false;
   }
-  const faixas = pedidos.reduce((n, p) => n + ((Array.isArray(p.audioFiles) ? p.audioFiles.filter(Boolean).length : 0) || (p.audioUrl ? 1 : 0)), 0);
-  if (faixas > arquivos.length) {
-    await enviarTextoAdm(ctx.evolution, destino, `Mandei os ${arquivos.length} primeiros arquivos. Para receber os outros, mande *3* de novo daqui a alguns minutos e escolha o pedido pelo número. 😉`);
+}
+
+/** Só aceita arquivos do próprio proxy de áudio (o corpo da continuação vem de fora). */
+export function arquivosValidos(lista) {
+  const prefixo = `${DOMINIO_CANONICO}/api/audio/proxy?`;
+  return (Array.isArray(lista) ? lista : [])
+    .filter((a) => a && typeof a.url === 'string' && a.url.startsWith(prefixo) && typeof a.fileName === 'string')
+    .slice(0, MAX_ARQUIVOS)
+    .map((a) => ({ url: a.url, fileName: a.fileName.slice(0, 80) }));
+}
+
+/** Continuação de um envio longo (chamada pela rota /continuar). Nunca lança. */
+export async function continuarEnvioAdm(ctx, destino, arquivos) {
+  try {
+    if (!ctx?.evolution || ctx.evolution.tipo === 'cloud' || !destino) return { enviados: 0 };
+    const lista = arquivosValidos(arquivos);
+    if (lista.length === 0) return { enviados: 0 };
+    await dormir(pausaEntreArquivos());
+    const r = await enviarArquivosEvolution(ctx, String(destino), lista, Date.now() + ORCAMENTO_ENVIO_MS);
+    if (r.restantes.length > 0 && !(await continuarEmOutraRequisicao(ctx, destino, r.restantes))) {
+      await enviarTextoAdm(ctx.evolution, destino, 'Mandei uma parte das músicas. Para receber as outras, mande *3* de novo daqui a alguns minutos. 😉');
+    }
+    return r;
+  } catch (err) {
+    console.warn('[whatsapp-adm] Erro na continuação do envio:', err?.name);
+    return { enviados: 0 };
+  }
+}
+
+// Manda os MP3 de um ou mais pedidos, com a mensagem de abertura. Devolve { enviados, total }.
+async function enviarPedidos(ctx, destino, pedidos, abertura, todos = pedidos) {
+  const inicio = Date.now();
+  const arquivos = selecionarMusicasPagas(pedidos, MAX_ARQUIVOS, todos);
+  const oficial = ctx.evolution.tipo === 'cloud';
+  if (!oficial && !(await reservarArquivosDaHora(ctx.supabase, arquivos.length * 2))) {
+    await enviarTextoAdm(ctx.evolution, destino, variar([
+      'Recebi! 😊 Já já te mando as suas músicas por aqui.',
+      'Oi! Anotei aqui, daqui a pouquinho te envio as músicas 🎵',
+      'Certo! Em alguns minutos te mando as músicas aqui mesmo 😉',
+    ]));
+    return { enviados: 0, audios: 0, total: arquivos.length, limiteHora: true };
+  }
+  await enviarTextoAdm(ctx.evolution, destino, abertura);
+  let enviados = 0;
+  let audios = 0;
+  if (!oficial) {
+    const r = await enviarArquivosEvolution(ctx, destino, arquivos, inicio + ORCAMENTO_ENVIO_MS);
+    if (r.restantes.length > 0 && !(await continuarEmOutraRequisicao(ctx, destino, r.restantes))) {
+      await enviarTextoAdm(ctx.evolution, destino, `Mandei ${r.enviados} de ${arquivos.length} músicas. Para receber as outras, mande *3* de novo daqui a alguns minutos. 😉`);
+    }
+    const faixas = pedidos.reduce((n, p) => n + ((Array.isArray(p.audioFiles) ? p.audioFiles.filter(Boolean).length : 0) || (p.audioUrl ? 1 : 0)), 0);
+    if (faixas > arquivos.length) {
+      await enviarTextoAdm(ctx.evolution, destino, `Mandei os ${arquivos.length} primeiros arquivos. Para receber os outros, mande *3* de novo daqui a alguns minutos e escolha o pedido pelo número. 😉`);
+    }
+    return { enviados: r.enviados, audios: r.audios, total: arquivos.length, continua: r.restantes.length };
+  }
+  // O trabalho em segundo plano na Cloudflare dura ~30 s depois da resposta: para antes disso em vez
+  // de ser cortado no meio de uma música.
+  const limiteEm = Date.now() + 22000;
+  for (const [i, arquivo] of arquivos.entries()) {
+    if (Date.now() > limiteEm) break;
+    // Canal oficial: um áudio por música. Com mais de uma, um rótulo antes diz qual é qual (o áudio
+    // não mostra o nome do arquivo), e uma pausa curta mantém a ordem de chegada.
+    try {
+      if (arquivos.length > 1) {
+        await enviarTextoAdm(ctx.evolution, destino, `🎵 Música ${i + 1} de ${arquivos.length}`);
+      }
+      if (await enviarAudioAdm(ctx.evolution, destino, arquivo)) { enviados++; audios++; }
+    } catch (err) {
+      console.warn('[whatsapp-adm] Falha ao enviar um áudio:', err?.name);
+    }
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  if (enviados < arquivos.length) {
+    await enviarTextoAdm(ctx.evolution, destino, `Mandei ${enviados} de ${arquivos.length} músicas. Para receber as outras, mande *3* de novo daqui a alguns minutos. 😉`);
   }
   return { enviados, audios, total: arquivos.length };
 }
@@ -413,6 +572,7 @@ export async function tratarMensagemAdm(body, env = {}, ctxPronto = null) {
       const abertura = grupos.length === 1
         ? `Perfeito! Aqui está a música do pedido ${descreverGrupo(grupos[0])}, em arquivo MP3 e em áudio 🎵`
         : `Perfeito! Estou te enviando as músicas dos seus ${grupos.length} pedidos aqui mesmo, em arquivo MP3 e em áudio 🎵`;
+      await comoQuemLeu(ctx, msg);
       const r = await enviarPedidos(ctx, destino, escolhidos, abertura, pagos);
       const qual = escolha === 'todas' ? 'todas' : `nº ${escolha}`;
       await registrarAcao(ctx, { opcao: '3', final: final4, resultado: `Escolheu ${qual}: ${r.enviados} de ${r.total} arquivo(s) e ${r.audios} áudio(s) enviados` });
@@ -422,14 +582,16 @@ export async function tratarMensagemAdm(body, env = {}, ctxPronto = null) {
     if (opcao === '1' || opcao === '5') {
       const ajuste = opcao === '1';
       if (msg.telefone && await jaMarcado(ctx.supabase, `adm_${ajuste ? 'ajuste' : 'outros'}_${msg.telefone}`, 10 * 60 * 1000)) return { acao: 'aguardando' };
-      const ok = await enviarTextoAdm(ctx.evolution, destino, ajuste ? TEXTO_AJUSTE : TEXTO_OUTROS);
+      await comoQuemLeu(ctx, msg);
+      const ok = await enviarTextoAdm(ctx.evolution, destino, variar(ajuste ? VERSOES_AJUSTE : VERSOES_OUTROS));
       const feito = ajuste ? 'Perguntou o que ajustar — responda a conversa' : 'Perguntou o motivo do contato — responda a conversa';
       await registrarAcao(ctx, { opcao, final: final4, resultado: ok ? feito : 'Falha ao enviar a pergunta' });
       return { acao: ok ? (ajuste ? 'ajuste' : 'outros') : 'falha' };
     }
 
     if (opcao === '4') {
-      const ok = await enviarTextoAdm(ctx.evolution, destino, `Que bom! 🎵 Para criar a sua música é só acessar o link abaixo e contar a história:\n\n${resolveCriarUrl()}`);
+      await comoQuemLeu(ctx, msg);
+      const ok = await enviarTextoAdm(ctx.evolution, destino, variar(VERSOES_LINK)(resolveCriarUrl()));
       await registrarAcao(ctx, { opcao: '4', final: final4, resultado: ok ? 'Link enviado' : 'Falha ao enviar o link' });
       return { acao: ok ? 'link' : 'falha' };
     }
@@ -448,6 +610,8 @@ export async function tratarMensagemAdm(body, env = {}, ctxPronto = null) {
     if (!dono && await jaMarcado(ctx.supabase, `adm_envio_${msg.telefone}`, INTERVALO_REENVIO_MS)) {
       return { acao: 'aguardando' };
     }
+
+    if (!dono) await comoQuemLeu(ctx, msg);
 
     // Música bônus vai junto com o pedido principal dela (ver agruparComBonus).
     const grupos = agruparComBonus(pagos);

@@ -16,6 +16,19 @@ O menu de boas-vindas (1 a 5) é do próprio WhatsApp Business; o site trata só
   configuração principal (`EVOLUTION_API_URL` / `EVOLUTION_API_KEY` ou `config.evolution`).
 - O webhook é protegido por um segredo no caminho da URL, gerado pelo painel.
 
+## Jeito humano (Evolution)
+
+Para diminuir o risco de restrição por automação no número não oficial (`src/lib/humanizar.js`):
+
+- marca a mensagem do cliente como **lida** e espera 1,5–3,5 s antes de responder (só quando vai responder);
+- **"digitando…"** proporcional ao texto (campo `delay` da Evolution), **"gravando áudio…"** antes de cada áudio;
+- **pausa aleatória** de 2,5–5 s entre uma música e outra;
+- **textos sorteados** entre 3 versões (opções 1, 4 e 5);
+- **teto de 60 arquivos por hora** (MP3 + áudio): acima disso o robô só diz que já já manda; o dono envia depois com `/musicas`;
+- com as pausas, várias músicas passam dos ~30 s de segundo plano da Cloudflare: o que sobrar segue
+  numa nova requisição para `/api/whatsapp/adm/continuar/[segredo]` (mesmo segredo do webhook).
+- O número que dispara as mensagens do site também manda texto com "digitando…" (até 3,5 s) e mídia com um pequeno atraso.
+
 ## Se o botão "Conectar número" não conseguir criar a instância
 
 A chave salva pode ser de instância, sem permissão de criar outras. Nesse caso, no painel da

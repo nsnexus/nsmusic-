@@ -21,19 +21,24 @@ vi.mock('../../src/lib/whatsapp.js', () => ({
 let pedidos = [];
 vi.mock('../../src/lib/orderLookup.js', () => ({ findOrdersByPhone: async () => pedidos }));
 
-import { interpretarOpcao, interpretarEscolha, dataHoraBr, lerMensagemEvolution, selecionarMusicasPagas, tratarMensagemAdm, pedidoLiberado, CHAVE_ADM } from '../../src/lib/whatsappAdm.js';
+import { tempoDigitando, variar } from '../../src/lib/humanizar.js';
+import { interpretarOpcao, interpretarEscolha, dataHoraBr, lerMensagemEvolution, selecionarMusicasPagas, tratarMensagemAdm, pedidoLiberado, arquivosValidos, CHAVE_ADM } from '../../src/lib/whatsappAdm.js';
 
 function evento(texto, extra = {}) {
   return { event: 'messages.upsert', data: { key: { id: `m${Math.random()}`, fromMe: false, remoteJid: '5511999990000@s.whatsapp.net', ...extra }, message: { conversation: texto } } };
 }
 
 let chamadas;
+let lidas;
 beforeEach(() => {
   for (const k of Object.keys(store)) delete store[k];
   store[CHAVE_ADM] = { ligada: true, instanceName: 'nsmusic-adm' };
   pedidos = [];
   chamadas = [];
+  lidas = [];
   vi.stubGlobal('fetch', vi.fn(async (url, init) => {
+    // "Marcar como lida" fica numa lista à parte: os testes abaixo olham só o que o cliente recebe.
+    if (String(url).includes('/chat/markMessageAsRead/')) { lidas.push(JSON.parse(init.body)); return { ok: true, status: 200, json: async () => ({}) }; }
     chamadas.push({ url: String(url), body: JSON.parse(init.body) });
     return { ok: true, status: 200, json: async () => ({}) };
   }));
@@ -269,5 +274,55 @@ describe('música bônus', () => {
     chamadas.length = 0;
     const r = await tratarMensagemAdm(evento('1')); // item 1 = NS-P1 (+ bônus), o mais novo
     expect(r).toMatchObject({ acao: 'musicas', enviados: 4 });
+  });
+});
+
+describe('jeito humano (Evolution)', () => {
+  it('marca como lida e manda o texto com "digitando…" (delay)', async () => {
+    await tratarMensagemAdm(evento('4'));
+    expect(lidas).toHaveLength(1);
+    expect(lidas[0].readMessages[0]).toMatchObject({ remoteJid: '5511999990000@s.whatsapp.net', fromMe: false });
+    expect(chamadas[0].body.delay).toBeGreaterThanOrEqual(1200);
+  });
+
+  it('em silêncio não marca como lida (o dono vê a mensagem pendente)', async () => {
+    pedidos = [{ id: 'x', paymentStatus: 'AGUARDANDO_PAGAMENTO', audioFiles: ['a'] }];
+    await tratarMensagemAdm(evento('3'));
+    await tratarMensagemAdm(evento('oi'));
+    expect(lidas).toHaveLength(0);
+  });
+
+  it('áudio sai com "gravando…" e o MP3 com um tempinho antes', async () => {
+    pedidos = [{ id: 'pago1', paymentStatus: 'PAGO', audioFiles: ['a'] }];
+    await tratarMensagemAdm(evento('3'));
+    const audio = chamadas.find((c) => c.url.includes('/sendWhatsAppAudio/'));
+    const doc = chamadas.find((c) => c.url.includes('/sendMedia/'));
+    expect(audio.body.delay).toBeGreaterThanOrEqual(2000);
+    expect(doc.body.delay).toBeGreaterThanOrEqual(1000);
+  });
+
+  it('passou do teto de arquivos da hora: avisa o cliente e não manda mídia', async () => {
+    store.adm_arquivos_hora = { hora: new Date().toISOString().slice(0, 13), n: 60 };
+    pedidos = [{ id: 'pago1', paymentStatus: 'PAGO', audioFiles: ['a'] }];
+    const r = await tratarMensagemAdm(evento('3'));
+    expect(r.limiteHora).toBe(true);
+    expect(chamadas.filter((c) => c.url.includes('/sendMedia/'))).toHaveLength(0);
+    expect(chamadas).toHaveLength(1);
+  });
+
+  it('tempo de digitação cresce com o texto e fica entre ~1,2 s e 6 s', () => {
+    expect(tempoDigitando('oi')).toBeGreaterThanOrEqual(1200);
+    expect(tempoDigitando('x'.repeat(5000))).toBeLessThanOrEqual(6000);
+    expect(variar(['a'])).toBe('a');
+    expect(variar('só uma')).toBe('só uma');
+  });
+
+  it('a continuação só aceita arquivos do proxy de áudio do site', () => {
+    const ok = arquivosValidos([
+      { url: 'https://nsmusic.ia.br/api/audio/proxy?orderId=1&faixa=0', fileName: 'a.mp3' },
+      { url: 'https://malicioso.com/x.mp3', fileName: 'b.mp3' },
+      { url: 'https://nsmusic.ia.br/api/audio/proxy?orderId=1&faixa=1' },
+    ]);
+    expect(ok).toHaveLength(1);
   });
 });
