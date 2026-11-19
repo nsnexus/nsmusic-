@@ -70,10 +70,13 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
     return () => { stopped = true; clearTimeout(timer); };
   }, [orderId, pix?.paymentId, onApproved]);
 
-  const generate = async () => {
+  // `skuEscolhido`: quando o PIX é gerado no mesmo toque que escolhe o pacote (lista compacta), o
+  // estado `selected` ainda não mudou nesta renderização — o SKU vem direto do toque.
+  const generate = async (skuEscolhido) => {
     if (busyRef.current) return;
+    const sku = typeof skuEscolhido === 'string' ? skuEscolhido : pack.sku;
     setReview(true);
-    if (pix?.qrCode && pix.sku === pack.sku && Date.now() - new Date(pix.generatedAt).getTime() < MAX_AGE) {
+    if (pix?.qrCode && pix.sku === sku && Date.now() - new Date(pix.generatedAt).getTime() < MAX_AGE) {
       panel.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       return;
     }
@@ -81,13 +84,17 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
     setBusy(true);
     setError('');
     try {
-      const result = await requestPixCharge({ orderId, sku: pack.sku });
+      const result = await requestPixCharge({ orderId, sku });
       if (!result.ok) throw new Error(result.error);
       if (!result.data?.paymentId || !result.data?.qrCode) throw new Error('Não foi possível preparar o código PIX. Tente novamente.');
-      const charge = { ...result.data, sku: pack.sku, generatedAt: new Date().toISOString() };
+      const charge = { ...result.data, sku, generatedAt: new Date().toISOString() };
       setPix(charge);
       onCharge?.(charge);
       try { localStorage.setItem(`pixInfo_${orderId}`, JSON.stringify(charge)); } catch {}
+      // Leva a tela até o código PIX (copiar e colar).
+      if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+        window.requestAnimationFrame(() => panel.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }));
+      }
     } catch (failure) {
       setError(failure.message || 'Não foi possível gerar o PIX. Tente novamente.');
     } finally {
@@ -141,6 +148,13 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
     }
   };
 
+  // Toque no pacote = escolhe e já gera o PIX (pedido do dono, 19/11/2026: sem o botão extra).
+  const escolherEPagar = sku => {
+    if (busy || busyRef.current) return;
+    choose(sku);
+    generate(sku);
+  };
+
   const choose = sku => {
     if (busy) return;
     setSelected(sku);
@@ -165,8 +179,8 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
       {!recovery && (
         <PacotesCompactos
           selecionado={selected}
-          onSelect={choose}
-          onPagar={generate}
+          onSelect={escolherEPagar}
+          pagarAoEscolher
           pagando={busy}
           disabled={busy || payingCard}
         />

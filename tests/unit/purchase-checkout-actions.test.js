@@ -47,22 +47,22 @@ beforeEach(() => {
 });
 
 describe('checkout em um clique após escolher pacote', () => {
-  it('não cria PIX ao entrar na página nem ao selecionar um pacote', () => {
-    const tree = render();
-    expect(state.request).not.toHaveBeenCalled();
-    pacotes(tree).props.onSelect('combo');
+  it('não cria PIX só por entrar na página', () => {
+    render();
     expect(state.request).not.toHaveBeenCalled();
   });
-  it('gera o PIX do pacote selecionado ao adquirir e já exibe o código', async () => {
-    pacotes(render()).props.onSelect('combo');
-    expect(state.request).not.toHaveBeenCalled();
-    await button(render(), 'Pagar Agora').props.onClick();
-    expect(state.request).toHaveBeenCalledExactlyOnceWith({ orderId: 'test-order', sku: 'combo' });
+  it('tocar no pacote já gera o PIX daquele pacote e exibe o código', async () => {
+    pacotes(render()).props.onSelect('combo_carta');
+    await Promise.resolve(); await Promise.resolve();
+    expect(state.request).toHaveBeenCalledExactlyOnceWith({ orderId: 'test-order', sku: 'combo_carta' });
     const tree = render();
     expect(nodes(tree).some(node => node.type === 'textarea' && node.props.value === 'pix-test-code')).toBe(true);
     expect(text(tree)).toContain('Copiar código PIX');
-    expect(text(tree)).not.toContain('Gerar PIX de');
-    expect(props.onCharge).toHaveBeenCalledWith(expect.objectContaining({ sku: 'combo' }));
+    expect(props.onCharge).toHaveBeenCalledWith(expect.objectContaining({ sku: 'combo_carta' }));
+  });
+  it('o botão do resumo gera o PIX do pacote marcado', async () => {
+    await button(render(), 'Pagar Agora').props.onClick();
+    expect(state.request).toHaveBeenCalledExactlyOnceWith({ orderId: 'test-order', sku: 'combo' });
   });
   it('impede duas cobranças com clique duplo', async () => {
     let resolve;
@@ -78,12 +78,11 @@ describe('checkout em um clique após escolher pacote', () => {
     await button(render(), 'Pagar Agora').props.onClick();
     expect(state.request).toHaveBeenCalledTimes(1);
   });
-  it('trocar pacote limpa o código anterior e aguarda nova confirmação', async () => {
+  it('trocar de pacote gera um PIX novo do pacote tocado', async () => {
     await button(render(), 'Pagar Agora').props.onClick();
     pacotes(render()).props.onSelect('audio_only');
-    expect(state.request).toHaveBeenCalledTimes(1);
-    expect(nodes(render()).some(node => node.type === 'textarea')).toBe(false);
-    await button(render(), 'Pagar Agora').props.onClick();
+    await Promise.resolve(); await Promise.resolve();
+    expect(state.request).toHaveBeenCalledTimes(2);
     expect(state.request.mock.calls[1][0].sku).toBe('audio_only');
   });
   it('mostra erro e permite repetir sem um passo extra de revisão', async () => {
@@ -107,6 +106,7 @@ describe('checkout da entrega usa a lista compacta', () => {
   it('passa o pacote marcado e a ação de pagar para a lista', () => {
     const lista = pacotes(render());
     expect(lista.props.selecionado).toBe('combo');
-    expect(typeof lista.props.onPagar).toBe('function');
+    expect(lista.props.pagarAoEscolher).toBe(true);
+    expect(typeof lista.props.onSelect).toBe('function');
   });
 });
