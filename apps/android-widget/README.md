@@ -1,7 +1,7 @@
 # NS Music · Widget (Android)
 
 Widget de tela inicial com os números do dia: faturamento, lucro líquido (faturamento − anúncios −
-Kie − WhatsApp) com a margem sobre os gastos (lucro ÷ gastos, ex.: gastou 2.000 e lucrou 1.000 = 50%), vendas e ritmo (hoje × média dos últimos 7 dias, com projeção). Lê
+Kie − WhatsApp) com a margem sobre o faturamento (lucro ÷ faturamento, ex.: faturou 1.000 e lucrou 390 = 39%), vendas e ritmo (hoje × média dos últimos 7 dias, com projeção). Lê
 `https://nsmusic.ia.br/api/widget/resumo` com a chave `WIDGET_TOKEN` (cabeçalho
 `Authorization: Bearer`). Atualiza a cada 30 min, ao tocar em ⟳, e ao salvar a chave no app.
 

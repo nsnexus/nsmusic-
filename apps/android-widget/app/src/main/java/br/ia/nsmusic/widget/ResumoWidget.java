@@ -12,7 +12,7 @@ import android.widget.RemoteViews;
 
 import org.json.JSONObject;
 
-/** Widget "NS Music · Hoje": faturamento, lucro líquido (com % sobre os gastos), vendas e ritmo do dia. */
+/** Widget "NS Music · Hoje": faturamento, lucro líquido (com % sobre o faturamento), vendas e ritmo do dia. */
 public class ResumoWidget extends AppWidgetProvider {
     static final String ACAO_ATUALIZAR = "br.ia.nsmusic.widget.ATUALIZAR";
 
@@ -87,16 +87,15 @@ public class ResumoWidget extends AppWidgetProvider {
             v.setTextViewText(R.id.faturamento, Resumo.reais(json.optDouble("faturamento", 0)));
             v.setTextViewText(R.id.lucro, Resumo.reais(lucro));
             v.setTextColor(R.id.lucro, Color.parseColor(lucro >= 0 ? "#4ADE80" : "#F87171"));
-            // Margem sobre os gastos do dia: lucro ÷ (anúncios + Kie + WhatsApp). Ex.: gastou
-            // R$ 2.000 e lucrou R$ 1.000 → 50%. Sem gasto no dia, não há o que dividir.
-            JSONObject despesas = json.optJSONObject("despesas");
-            double gastos = despesas != null ? despesas.optDouble("total", 0) : 0;
-            if (gastos > 0.009) {
-                long margem = Math.round(lucro / gastos * 100);
-                v.setTextViewText(R.id.margem, (margem >= 0 ? "▲ " : "▼ ") + margem + "% sobre os gastos");
+            // Margem sobre o faturamento do dia: lucro ÷ faturamento. Ex.: faturou R$ 1.000 e lucrou
+            // R$ 390 → 39% (de cada real que entrou, 39 centavos ficaram). Sem faturamento, não há margem.
+            double faturamento = json.optDouble("faturamento", 0);
+            if (faturamento > 0.009) {
+                long margem = Math.round(lucro / faturamento * 100);
+                v.setTextViewText(R.id.margem, (margem >= 0 ? "▲ " : "▼ ") + margem + "% do faturamento");
                 v.setTextColor(R.id.margem, Color.parseColor(margem >= 0 ? "#4ADE80" : "#F87171"));
             } else {
-                v.setTextViewText(R.id.margem, "sem gastos hoje");
+                v.setTextViewText(R.id.margem, "sem faturamento hoje");
                 v.setTextColor(R.id.margem, Color.parseColor("#B3FFFFFF"));
             }
             v.setTextViewText(R.id.vendas, String.valueOf(json.optInt("vendas", 0)));
