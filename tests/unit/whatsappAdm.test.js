@@ -22,7 +22,7 @@ let pedidos = [];
 vi.mock('../../src/lib/orderLookup.js', () => ({ findOrdersByPhone: async () => pedidos }));
 
 import { tempoDigitando, variar } from '../../src/lib/humanizar.js';
-import { interpretarOpcao, interpretarEscolha, dataHoraBr, lerMensagemEvolution, selecionarMusicasPagas, tratarMensagemAdm, pedidoLiberado, arquivosValidos, CHAVE_ADM } from '../../src/lib/whatsappAdm.js';
+import { interpretarOpcao, interpretarEscolha, dataHoraBr, lerMensagemEvolution, selecionarMusicasPagas, tratarMensagemAdm, pedidoLiberado, arquivosValidos, VERSOES_OUTROS, CHAVE_ADM } from '../../src/lib/whatsappAdm.js';
 
 function evento(texto, extra = {}) {
   return { event: 'messages.upsert', data: { key: { id: `m${Math.random()}`, fromMe: false, remoteJid: '5511999990000@s.whatsapp.net', ...extra }, message: { conversation: texto } } };
@@ -155,7 +155,8 @@ describe('fluxo novo do robô', () => {
   it('opção 5 pergunta o motivo do contato', async () => {
     const r = await tratarMensagemAdm(evento('5'));
     expect(r.acao).toBe('outros');
-    expect(textos()[0]).toMatch(/motivo do seu contato/);
+    // O texto é sorteado entre as versões (jeito humano).
+    expect(VERSOES_OUTROS).toContain(textos()[0]);
   });
 
   it('um pedido pago: diz código e data, depois manda os arquivos', async () => {

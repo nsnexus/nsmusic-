@@ -40,6 +40,7 @@ const GENERO_CARDS = [
   { id: 'Sertanejo Raiz', label: 'Sertanejo Raiz', icon: '🪕', sub: 'Modão e viola caipira' },
   { id: 'Romântica', label: 'Romântica / Pop', icon: '💖', sub: 'Suave e envolvente' },
   { id: 'Samba / Pagode', label: 'Pagode / Samba', icon: '🥁', sub: 'Alegre e descontraído' },
+  { id: 'Natal', label: 'Natal', icon: '🎄', sub: 'Sinos e clima natalino' },
   { id: 'Gospel / Adoração', label: 'Gospel / Louvor', icon: '⛪', sub: 'Fé e inspiração' },
   { id: 'MPB / Bossa Nova', label: 'MPB / Acústico', icon: '☕', sub: 'Voz e violão intimista' },
   { id: 'Forró / Baião', label: 'Forró / Piseiro', icon: '🪗', sub: 'Ritmo dançante' },

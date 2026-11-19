@@ -46,6 +46,7 @@ const STYLE_TAGS = {
   'Trap Acústico': 'acoustic trap, fingerstyle nylon acoustic guitar, deep 808 sub bass, crisp trap hi-hats, intimate modern melodic flow',
   'Indie Pop': 'indie pop, warm indie acoustic, melodic guitars, shimmering soft synths, uplifting dreamy vocals',
   'R&B / Soul': 'r&b soul, smooth rhodes piano, warm bassline, soulful lead vocals, mellow groove, emotional',
+  'Natal': 'christmas song, festive holiday pop, sleigh bells and glockenspiel, warm piano and strings, cozy family atmosphere, joyful singalong chorus',
 };
 
 const MOOD_TAGS = {
