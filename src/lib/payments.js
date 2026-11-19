@@ -10,7 +10,7 @@
 //   - estados de estorno/cancelamento revogam acesso já concedido, o que nunca era tratado antes.
 
 import { getOrder, updateOrder } from './supabaseDb.js';
-import { skuApprovesMusic, skuGrantsVideoAccess, skuGrantsCartaAccess, skuGrantsRetrospectivaAccess, skuGrantsCustomVoiceAccess, getPriceForSku, brindesPorValorPago } from './pricing.js';
+import { skuApprovesMusic, skuGrantsVideoAccess, skuGrantsCartaAccess, skuGrantsRetrospectivaAccess, skuGrantsCustomVoiceAccess, getPriceForSku, brindesPorValorPago, geracoesExtrasDoSku } from './pricing.js';
 import { resolveDeliveryUrl } from './whatsappTemplates.js';
 import { sendMetaPurchaseEvent } from './metaCapi.js';
 import { sendTikTokPurchaseEvent } from './tiktokCapi.js';
@@ -251,6 +251,13 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
             updates.hasCustomVoiceAccess = true;
             updates.customVoiceAddonPaid = true;
             updates.customVoicePaidAt = nowIso;
+          }
+          // Pacote Família: gerações extras de música, consumidas por telefone (geracoesExtras.js).
+          // Só grava quando ainda não existe, para um webhook repetido não "recarregar" o saldo.
+          const extras = geracoesExtrasDoSku(sku);
+          if (extras > 0 && !(Number(orderData?.geracoesExtras || orderData?.extras?.geracoesExtras) > 0)) {
+            updates.geracoesExtras = extras;
+            updates.geracoesExtrasPedidos = [];
           }
         }
 

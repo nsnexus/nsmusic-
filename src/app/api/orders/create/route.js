@@ -115,8 +115,18 @@ export async function POST(req) {
       formData.isSecondGeneration
     );
     if (!isSecondGenRequested) {
-      const isFreeLimitBlocked = (await isBlockedByFreeLimit(formData.customerPhone, formData.customerEmail, env))
+      let isFreeLimitBlocked = (await isBlockedByFreeLimit(formData.customerPhone, formData.customerEmail, env))
         || (await isBlockedByIpLimit(ipDoCliente, env));
+      // Quem tem Pacote Família com geração extra sobrando não cai na cota: o pedido novo vai sair
+      // pago na hora de gerar (src/lib/geracoesExtras.js).
+      if (isFreeLimitBlocked && formData.customerPhone) {
+        try {
+          const { encontrarPacoteComSaldo } = await import('@/lib/geracoesExtras');
+          if (await encontrarPacoteComSaldo(formData.customerPhone, env)) isFreeLimitBlocked = false;
+        } catch (e) {
+          console.warn('[orders/create] Falha ao conferir Pacote Família:', e?.message);
+        }
+      }
       if (isFreeLimitBlocked) {
         return NextResponse.json(
           {

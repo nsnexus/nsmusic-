@@ -221,6 +221,24 @@ describe('applyPaymentApproval', () => {
     expect(store['orderComboRetro'].hasVideoAccess).toBe(true);
   });
 
+  it('combo_familia aprovado: libera tudo da retrospectiva e grava 5 gerações extras', async () => {
+    store['orderFamilia'] = { paymentIntentSku: 'combo_familia', paymentId: null };
+    const result = await applyPaymentApproval('orderFamilia', 'fam1', { status: 'approved', transaction_amount: 39.90 });
+    expect(result.applied).toBe(true);
+    expect(store['orderFamilia'].paymentStatus).toBe('PAGAMENTO_APROVADO');
+    expect(store['orderFamilia'].hasRetrospectivaAccess).toBe(true);
+    expect(store['orderFamilia'].hasCartaAccess).toBe(true);
+    expect(store['orderFamilia'].hasVideoAccess).toBe(true);
+    expect(store['orderFamilia'].geracoesExtras).toBe(5);
+    expect(store['orderFamilia'].geracoesExtrasPedidos).toEqual([]);
+  });
+
+  it('combo_familia: aprovação repetida não zera a lista de gerações já usadas', async () => {
+    store['orderFamilia2'] = { paymentIntentSku: 'combo_familia', paymentId: null, geracoesExtras: 5, geracoesExtrasPedidos: ['x1'] };
+    await applyPaymentApproval('orderFamilia2', 'fam2', { status: 'approved', transaction_amount: 39.90 });
+    expect(store['orderFamilia2'].geracoesExtrasPedidos).toEqual(['x1']);
+  });
+
   it('achado 04/09/2026: estorno do combo (música+vídeo) também revoga hasVideoAccess, não só paymentStatus', async () => {
     store['orderComboEstorno'] = {
       paymentStatus: 'PAGAMENTO_APROVADO',

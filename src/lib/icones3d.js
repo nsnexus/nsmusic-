@@ -22,6 +22,8 @@ export const ICONES_3D = {
   '🔥': 'fire',
   '💎': 'gem',
   '🎁': 'gift',
+  '🎬': 'clapper-board',
+  '🖼️': 'framed-picture',
   '🎄': 'christmas-tree',
   '👧': 'girl',
   '🌟': 'glowing-star',

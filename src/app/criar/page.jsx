@@ -1,6 +1,6 @@
 'use client';
 
-import React, { Fragment, useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { auth } from '@/lib/authClient';
@@ -24,8 +24,7 @@ import { StudioLyricsAnimation, StudioAudioAnimation } from '@/components/Studio
 import { IconeCelularWhatsApp } from '@/components/AppIcons';
 import { readReferralCode } from '@/lib/referralTracking';
 import { getPriceForSku } from '@/lib/pricing';
-import PackageCard from '@/components/delivery/PackageCard';
-import InlinePayButton from '@/components/delivery/InlinePayButton';
+import PacotesCompactos from '@/components/delivery/PacotesCompactos';
 import { deliveryPackages, formatBrl } from '@/lib/deliveryPackages';
 import { Zap, Copy, CheckCircle2, CreditCard, Loader2 } from 'lucide-react';
 
@@ -1517,6 +1516,21 @@ export default function CriarMusica() {
         }));
       }
 
+      // Pacote Família: o servidor usou 1 das gerações extras do pacote pago deste telefone
+      // (src/lib/geracoesExtras.js). O pedido já sai pago: avisa quantas restam.
+      if (data.geracaoExtra) {
+        setFormData(prev => ({
+          ...prev,
+          paymentStatus: 'PAGAMENTO_APROVADO',
+          paidSku: 'geracao_extra_familia',
+          geracaoExtraFamilia: {
+            pacote: data.familiaOrderNumber || null,
+            restantes: Number(data.geracoesExtrasRestantes) || 0,
+            total: Number(data.geracoesExtrasTotal) || 5,
+          },
+        }));
+      }
+
       if (typeof window !== 'undefined' && window.fbq) {
         window.fbq('trackCustom', 'GenerateMusic');
       }
@@ -1775,6 +1789,17 @@ export default function CriarMusica() {
     syncOrderProgress(target);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  // Passo 7 (pagamento): leva a tela até o começo da escolha de pacotes, para a lista inteira e o
+  // botão de pagar ficarem visíveis sem rolar no celular (o cabeçalho e a barra de progresso saem
+  // de cima). Espera a rolagem até o topo que os botões de "próximo" fazem.
+  useEffect(() => {
+    if (step !== 7 || pixInfo) return undefined;
+    const t = setTimeout(() => {
+      document.getElementById('escolha-presente')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 450);
+    return () => clearTimeout(t);
+  }, [step]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Mesma trava para qualquer outro caminho de volta (rascunho restaurado numa etapa antiga etc.).
   useEffect(() => {
@@ -2513,8 +2538,8 @@ export default function CriarMusica() {
         }
 
         return (
-          <div style={{ maxWidth: '1000px', margin: '0 auto', width: '100%', boxSizing: 'border-box', padding: '0 16px' }}>
-            <div style={{ marginBottom: '12px', textAlign: 'left' }}>
+          <div id="escolha-presente" style={{ maxWidth: '1000px', margin: '0 auto', width: '100%', boxSizing: 'border-box', padding: '0 2px', scrollMarginTop: '8px' }}>
+            <div style={{ marginBottom: '6px', textAlign: 'left' }}>
               <button
                 type="button"
                 onClick={() => {
@@ -2538,39 +2563,26 @@ export default function CriarMusica() {
               </button>
             </div>
 
-            <div style={{ textAlign: 'center', marginBottom: '22px' }}>
-              <span style={{ fontSize: '0.74rem', fontWeight: '800', letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6366f1', background: '#eef2ff', padding: '4px 14px', borderRadius: '999px', display: 'inline-block', marginBottom: '8px' }}>
-                ÚLTIMO PASSO
-              </span>
-              <h1 className="wz-t" style={{ fontSize: '1.6rem', color: '#0f172a', margin: '0 0 8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                <span>🎁</span> Escolha o seu presente
-              </h1>
-              <p className="wz-s" style={{ margin: '0 auto', maxWidth: '560px' }}>
-                Todas as opções incluem o download imediato das suas músicas completas sem corte em MP3 HD!
-              </p>
+            {/* Cabeçalho curto: no celular a lista de pacotes e o botão de pagar cabem numa tela só. */}
+            <div style={{ textAlign: 'center', margin: '0 0 12px' }}>
+              <h1 className="wz-t" style={{ fontSize: '1.35rem', color: '#0f172a', margin: '0 0 2px' }}>🎁 Escolha o seu presente</h1>
+              <p className="wz-s" style={{ margin: 0, fontSize: '0.8rem' }}>Todas liberam suas músicas completas, sem corte.</p>
             </div>
 
             {paymentErrorMessage && (
-              <div style={{ padding: '12px 16px', background: '#fef2f2', border: '1.5px solid #fecaca', borderRadius: '14px', marginBottom: '20px', color: '#dc2626', fontWeight: 'bold', fontSize: '0.88rem', textAlign: 'center' }}>
+              <div style={{ padding: '10px 14px', background: '#fef2f2', border: '1.5px solid #fecaca', borderRadius: '14px', marginBottom: '12px', color: '#dc2626', fontWeight: 'bold', fontSize: '0.86rem', textAlign: 'center' }}>
                 {paymentErrorMessage}
               </div>
             )}
 
-            {/* Grid dos Pacotes Idêntico ao da Página de Entrega */}
-            <div className="nx-package-grid" role="group" aria-label="Pacotes de Homenagem" style={{ marginBottom: '24px' }}>
-              {deliveryPackages().map(item => (
-                <Fragment key={item.sku}>
-                  <PackageCard
-                    pack={item}
-                    isSelected={selectedPackageSku === item.sku}
-                    onSelect={() => handleSelectPackage(item.sku)}
-                    disabled={isGeneratingPix || isPayingCard}
-                  />
-                  {selectedPackageSku === item.sku && !pixInfo && (
-                    <InlinePayButton price={getTotalPrice()} onClick={gerarPixCriar} busy={isGeneratingPix} disabled={isPayingCard} />
-                  )}
-                </Fragment>
-              ))}
+            <div style={{ marginBottom: '24px' }}>
+              <PacotesCompactos
+                selecionado={selectedPackageSku}
+                onSelect={handleSelectPackage}
+                onPagar={gerarPixCriar}
+                pagando={isGeneratingPix}
+                disabled={isGeneratingPix || isPayingCard}
+              />
             </div>
 
             {/* Box de Pagamento PIX e Cartão */}
@@ -2937,6 +2949,14 @@ export default function CriarMusica() {
           )}
 
           {/* Form step renderers */}
+          {formData.geracaoExtraFamilia && step >= 5 && (
+            <div role="status" style={{ margin: '0 auto 16px', maxWidth: '640px', padding: '12px 16px', borderRadius: '14px', background: '#fff7ed', border: '1.5px solid #fdba74', color: '#7c2d12', fontSize: '0.9rem', lineHeight: 1.45, textAlign: 'center' }}>
+              👨‍👩‍👧 <strong>Pacote Família:</strong> esta música usou 1 das suas {formData.geracaoExtraFamilia.total} gerações extras e já está liberada, não precisa pagar.{' '}
+              {formData.geracaoExtraFamilia.restantes > 0
+                ? `Ainda restam ${formData.geracaoExtraFamilia.restantes}.`
+                : 'Esta foi a última.'}
+            </div>
+          )}
           {formData.bonusAutoPedido && step >= 5 && (
             <div className="nx-message" role="status" style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', color: '#065f46', borderRadius: '14px', padding: '12px 14px', marginBottom: '10px', lineHeight: 1.45 }}>
               <strong style={{ display: 'block', marginBottom: '2px' }}>🎁 Esta música usa a sua geração bônus</strong>

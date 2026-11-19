@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Music, Mail, Film, Sparkles, Mic, Check } from 'lucide-react';
+import { Music, Mail, Film, Sparkles, Mic, Check, Users } from 'lucide-react';
 import { formatBrl } from '@/lib/deliveryPackages';
 
 const ICONS = {
@@ -10,6 +10,7 @@ const ICONS = {
   combo: Film,
   combo_retrospectiva: Sparkles,
   combo_voz: Mic,
+  combo_familia: Users,
 };
 
 export default function PackageCard({ pack, isSelected, onSelect, disabled }) {

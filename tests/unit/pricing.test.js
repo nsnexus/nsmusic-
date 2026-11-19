@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getPriceForSku, skuGrantsVideoAccess, skuGrantsCartaAccess, skuGrantsRetrospectivaAccess, skuGrantsKaraokeAccess, skuApprovesMusic, SKU_PRICES } from '@/lib/pricing';
+import { getPriceForSku, skuGrantsVideoAccess, skuGrantsCartaAccess, skuGrantsRetrospectivaAccess, skuGrantsKaraokeAccess, skuApprovesMusic, SKU_PRICES, geracoesExtrasDoSku } from '@/lib/pricing';
 
 // Catálogo único de preços no servidor (ver C-05 no AUDIT_REPORT.md).
 
@@ -25,7 +25,7 @@ describe('getPriceForSku', () => {
   });
 
   it('não é influenciável por um valor arbitrário — só existe o que está no catálogo', () => {
-    expect(Object.keys(SKU_PRICES)).toEqual(['audio_only', 'combo', 'video_addon', 'playback_addon', 'karaoke_addon', 'carta_addon', 'retrospectiva_addon', 'combo_carta', 'combo_retrospectiva', 'custom_voice_addon', 'combo_voz', 'recovery_combo_24h', 'recovery_combo_48h', 'segunda_musica']);
+    expect(Object.keys(SKU_PRICES)).toEqual(['audio_only', 'combo', 'video_addon', 'playback_addon', 'karaoke_addon', 'carta_addon', 'retrospectiva_addon', 'combo_carta', 'combo_retrospectiva', 'custom_voice_addon', 'combo_voz', 'recovery_combo_24h', 'recovery_combo_48h', 'segunda_musica', 'combo_familia']);
   });
 });
 
@@ -94,5 +94,20 @@ describe('skuApprovesMusic', () => {
     expect(skuGrantsVideoAccess('karaoke_addon')).toBe(false);
     expect(skuGrantsKaraokeAccess('karaoke_addon')).toBe(true);
     expect(skuGrantsKaraokeAccess('audio_only')).toBe(false);
+  });
+});
+
+describe('Pacote Família (combo_familia)', () => {
+  it('custa 39,90, aprova a música e libera vídeo, carta e retrospectiva', () => {
+    expect(getPriceForSku('combo_familia')).toBe(39.90);
+    expect(skuApprovesMusic('combo_familia')).toBe(true);
+    expect(skuGrantsVideoAccess('combo_familia')).toBe(true);
+    expect(skuGrantsCartaAccess('combo_familia')).toBe(true);
+    expect(skuGrantsRetrospectivaAccess('combo_familia')).toBe(true);
+  });
+  it('dá 5 gerações extras; os outros pacotes não dão nenhuma', () => {
+    expect(geracoesExtrasDoSku('combo_familia')).toBe(5);
+    expect(geracoesExtrasDoSku('combo_retrospectiva')).toBe(0);
+    expect(geracoesExtrasDoSku('qualquer')).toBe(0);
   });
 });

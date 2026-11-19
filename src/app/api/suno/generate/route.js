@@ -19,6 +19,7 @@ export async function POST(req) {
     } catch (e) {}
 
     let bonusVinculado = null;
+    let geracaoExtra = null;
     if (orderId) {
       try {
         const { findOrderByIdOrNumber } = await import('@/lib/orderLookup');
@@ -49,6 +50,22 @@ export async function POST(req) {
               }
             } catch (bonusErr) {
               console.warn('[suno/generate] Falha ao vincular bônus automático:', bonusErr?.message);
+            }
+          }
+
+          // Pacote Família: pedido novo não pago de quem tem gerações extras sobrando sai pago,
+          // consumindo 1 do saldo (ver src/lib/geracoesExtras.js). Depois do bônus normal: a 2ª
+          // geração grátis de todo pagamento é usada primeiro.
+          if (!isPaid && !isBonus && order.customerPhone) {
+            try {
+              const { encontrarPacoteComSaldo, usarGeracaoExtra } = await import('@/lib/geracoesExtras');
+              const achado = await encontrarPacoteComSaldo(order.customerPhone, env, { orderIdAtual: order.id });
+              if (achado) {
+                geracaoExtra = await usarGeracaoExtra(order.id, achado, env);
+                isPaid = true;
+              }
+            } catch (extraErr) {
+              console.warn('[suno/generate] Falha ao usar geração extra do Pacote Família:', extraErr?.message);
             }
           }
 
@@ -91,6 +108,7 @@ export async function POST(req) {
       taskId: result.taskId,
       status: 'PROCESSING',
       ...(bonusVinculado ? { bonusAutomatico: true, parentOrderId: bonusVinculado.parentOrderId, parentOrderNumber: bonusVinculado.parentOrderNumber } : {}),
+      ...(geracaoExtra ? { geracaoExtra: true, familiaOrderNumber: geracaoExtra.familiaOrderNumber, geracoesExtrasRestantes: geracaoExtra.restantes, geracoesExtrasTotal: geracaoExtra.total } : {}),
     });
   } catch (error) {
     console.error('Erro fatal na rota /api/suno/generate:', error);
