@@ -10,6 +10,7 @@ import Image from 'next/image';
 import SongCard from './SongCard';
 import PurchaseCheckout from './PurchaseCheckout';
 import SecondSongOffer from './SecondSongOffer';
+import GeracoesExtrasFamilia from './GeracoesExtrasFamilia';
 import MobileValueComparison from './MobileValueComparison';
 import MobileTrustBadges from './MobileTrustBadges';
 import MobileStickyBar from './MobileStickyBar';
@@ -431,6 +432,8 @@ export default function DeliveryExperience({
             <CompletePresente itens={bonuses} onProduct={onProduct} />
 
             <CompartilharPresente order={currentOrderForBonuses || order} orderId={currentOrderForBonuses?.id || orderId} />
+
+            <GeracoesExtrasFamilia order={order} />
 
             {!hasSecondGen && <SecondSongOffer orderId={orderId} order={order} />}
 

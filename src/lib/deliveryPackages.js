@@ -14,6 +14,8 @@ export function deliveryPackages() {
     {
       sku: 'audio_only',
       label: '4 Músicas Personalizadas',
+      curto: 'Música',
+      resumo: '2 versões + 2 de bônus',
       icon: '🎵',
       eyebrow: 'O essencial',
       desc: 'Estas 2 completas, sem corte + mais 2 liberadas depois do pagamento, com outra letra e outro estilo.',
@@ -22,6 +24,8 @@ export function deliveryPackages() {
     {
       sku: 'combo_carta',
       label: '4 Músicas + Carta Virtual',
+      curto: 'Carta + Música',
+      resumo: 'Carta emocionante + músicas',
       icon: '💌',
       eyebrow: 'Suas palavras',
       desc: 'Suas 4 músicas + uma carta com envelope, foto colada e sua assinatura.',
@@ -32,6 +36,8 @@ export function deliveryPackages() {
     {
       sku: 'combo',
       label: '4 Músicas + Vídeo Homenagem',
+      curto: 'Vídeo + Carta',
+      resumo: 'Vídeo com fotos + carta',
       icon: '🎬',
       eyebrow: 'Suas memórias',
       badge: 'MAIS COMPRADO',
@@ -44,6 +50,8 @@ export function deliveryPackages() {
     {
       sku: 'combo_retrospectiva',
       label: '4 Músicas + Retrospectiva',
+      curto: 'Retrospectiva',
+      resumo: 'Linha do tempo + vídeo + carta',
       icon: '💝',
       eyebrow: 'Cada detalhe',
       badge: 'MAIS COMPLETO',
@@ -55,12 +63,25 @@ export function deliveryPackages() {
     {
       sku: 'combo_voz',
       label: '4 Músicas + Minha Voz',
+      curto: 'Minha Voz',
+      resumo: 'Sua própria voz na música',
       icon: '🎙️',
       eyebrow: 'Do seu jeito',
       desc: 'Suas 4 músicas, com versões cantadas no timbre da sua própria voz por IA.',
       hasPreview: true,
       previewType: 'voz',
       includes: ['4 músicas, com 2 delas cantadas na sua voz por IA', 'Treinamento vocal exclusivo']
+    },
+    {
+      sku: 'combo_familia',
+      label: 'Pacote Família',
+      curto: 'Pacote Família',
+      resumo: 'Tudo: música, carta, vídeo e retrospectiva',
+      icon: '👨‍👩‍👧',
+      eyebrow: 'Combo completo',
+      badge: 'OFERTA ESPECIAL',
+      desc: 'Tudo da Retrospectiva (músicas, carta, vídeo e linha do tempo) + 5 músicas extras, com novas letras e estilos, para quem você quiser.',
+      includes: ['Tudo de 4 Músicas + Retrospectiva', 'Vídeo e carta personalizados', '+ 5 músicas extras (novas letras e estilos)']
     },
   ].map(pack => ({ ...pack, price: getPriceForSku(pack.sku) }));
 }

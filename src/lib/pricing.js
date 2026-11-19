@@ -28,7 +28,20 @@ export const SKU_PRICES = {
   recovery_combo_24h: 9.99,
   recovery_combo_48h: 6.99,
   segunda_musica: 4.99,
+  // Pacote Família (19/11/2026): música + carta + vídeo + retrospectiva + 5 gerações extras de
+  // músicas (novas letras e estilos). As gerações extras ficam no pedido pago (geracoesExtras) e são
+  // consumidas por telefone na hora de gerar — ver src/lib/geracoesExtras.js.
+  combo_familia: 39.90,
 };
+
+// Quantas gerações extras de música cada SKU dá (além da 2ª geração bônus que todo pagamento já dá).
+export const GERACOES_EXTRAS_POR_SKU = {
+  combo_familia: 5,
+};
+
+export function geracoesExtrasDoSku(sku) {
+  return Object.prototype.hasOwnProperty.call(GERACOES_EXTRAS_POR_SKU, sku) ? GERACOES_EXTRAS_POR_SKU[sku] : 0;
+}
 
 // Créditos não vencem. Preço e quantidade ficam aqui para nunca serem aceitos do navegador.
 export const CREDIT_PACKAGES = {
@@ -55,16 +68,16 @@ export function getPriceForSku(sku) {
 // Um SKU "inclui vídeo" quando concede acesso ao add-on de vídeo (ver A-13 no AUDIT_REPORT.md —
 // antes disso era decidido por uma heurística de valor, frágil a qualquer cobrança futura de 6.90).
 export function skuGrantsVideoAccess(sku) {
-  return sku === 'combo' || sku === 'combo_retrospectiva' || sku === 'video_addon' || sku === 'recovery_combo_24h' || sku === 'recovery_combo_48h';
+  return sku === 'combo' || sku === 'combo_retrospectiva' || sku === 'combo_familia' || sku === 'video_addon' || sku === 'recovery_combo_24h' || sku === 'recovery_combo_48h';
 }
 
 // Mesma ideia de skuGrantsVideoAccess, para os combos música+carta e música+retrospectiva.
 export function skuGrantsCartaAccess(sku) {
-  return sku === 'combo_carta' || sku === 'combo' || sku === 'combo_retrospectiva';
+  return sku === 'combo_carta' || sku === 'combo' || sku === 'combo_retrospectiva' || sku === 'combo_familia';
 }
 
 export function skuGrantsRetrospectivaAccess(sku) {
-  return sku === 'combo_retrospectiva';
+  return sku === 'combo_retrospectiva' || sku === 'combo_familia';
 }
 
 export function skuGrantsKaraokeAccess(sku) {
@@ -83,7 +96,7 @@ export function skuGrantsCustomVoiceAccess(sku) {
 // do corpo da requisição). Aprova a música como qualquer pagamento do produto principal; o vídeo é
 // concedido à parte, por FAIXA de valor pago (ver src/lib/payments.js), não por este SKU sozinho.
 export function skuApprovesMusic(sku) {
-  return sku === 'audio_only' || sku === 'combo' || sku === 'combo_carta' || sku === 'combo_retrospectiva'
+  return sku === 'audio_only' || sku === 'combo' || sku === 'combo_carta' || sku === 'combo_retrospectiva' || sku === 'combo_familia'
     || sku === 'combo_voz' || sku === 'recovery_combo_24h' || sku === 'recovery_combo_48h' || sku === 'impacto';
 }
 
