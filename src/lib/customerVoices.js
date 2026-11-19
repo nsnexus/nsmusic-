@@ -21,11 +21,29 @@ export function sanitizePhone(rawPhone) {
 }
 
 /**
- * Busca o timbre cadastrado de um cliente a partir do telefone/WhatsApp.
+ * As duas grafias de um celular brasileiro: com e sem o nono dígito (5548996647803 e 554896647803).
+ * Caso real 19/11/2026: a voz foi vinculada no painel como 554896647803 e o pedido tinha
+ * (48) 99664-7803 — a busca exata não achava a voz e o painel não oferecia regerar com ela.
+ */
+export function variantesTelefoneVoz(rawPhone) {
+  const clean = sanitizePhone(rawPhone);
+  if (!clean) return [];
+  const variantes = new Set([clean]);
+  if (clean.startsWith('55') && clean.length === 13 && clean[4] === '9') {
+    variantes.add(clean.slice(0, 4) + clean.slice(5));
+  } else if (clean.startsWith('55') && clean.length === 12 && /[6-9]/.test(clean[4])) {
+    variantes.add(`${clean.slice(0, 4)}9${clean.slice(4)}`);
+  }
+  return [...variantes];
+}
+
+/**
+ * Busca o timbre cadastrado de um cliente a partir do telefone/WhatsApp (com ou sem o nono dígito).
  */
 export async function findCustomerVoice(phone, env = {}) {
   const cleanPhone = sanitizePhone(phone);
   if (!cleanPhone || cleanPhone.length < 10) return null;
+  const variantes = variantesTelefoneVoz(cleanPhone);
 
   const supabase = getSupabaseEdge(env);
   if (!supabase) return null;
@@ -35,7 +53,8 @@ export async function findCustomerVoice(phone, env = {}) {
     const res = await supabase
       .from('customer_voices')
       .select('*')
-      .eq('phone', cleanPhone)
+      .in('phone', variantes)
+      .order('updated_at', { ascending: false })
       .limit(1);
 
     if (res?.data && res.data.length > 0) {
@@ -63,7 +82,8 @@ export async function findCustomerVoice(phone, env = {}) {
     const cfgRes = await supabase
       .from('config')
       .select('chave, valor, updated_at')
-      .eq('chave', `voice_${cleanPhone}`)
+      .in('chave', variantes.map((v) => `voice_${v}`))
+      .order('updated_at', { ascending: false })
       .limit(1);
 
     if (cfgRes?.data && cfgRes.data.length > 0) {
