@@ -25,6 +25,8 @@
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
                 <action android:name="br.ia.nsmusic.widget.ATUALIZAR" />
+                <!-- Versão nova instalada: redesenha logo, com o layout novo. -->
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"

@@ -12,19 +12,32 @@ import android.widget.RemoteViews;
 
 import org.json.JSONObject;
 
-/** Widget "NS Music · Hoje": faturamento, lucro líquido, vendas e ritmo do dia. */
+/** Widget "NS Music · Hoje": faturamento, lucro líquido (com % sobre o faturamento), vendas e ritmo do dia. */
 public class ResumoWidget extends AppWidgetProvider {
     static final String ACAO_ATUALIZAR = "br.ia.nsmusic.widget.ATUALIZAR";
 
     @Override
     public void onUpdate(Context context, AppWidgetManager manager, int[] ids) {
+        // Redesenha NA HORA com o último resultado salvo, antes de ir à internet. Depois de instalar
+        // uma versão nova, o launcher ainda guarda o desenho da versão anterior (com ids de tela que
+        // mudaram) e mostra "Não é possível carregar o widget" até receber um desenho novo; sem isto,
+        // o desenho novo só chegava depois da busca na API (até ~1 min, ou nunca se ela falhasse).
+        mostrar(context, Resumo.ultimo(context), "Atualizando…");
         atualizarEmSegundoPlano(context);
+    }
+
+    @Override
+    public void onAppWidgetOptionsChanged(Context context, AppWidgetManager manager, int id, android.os.Bundle opcoes) {
+        mostrar(context, Resumo.ultimo(context), null);
     }
 
     @Override
     public void onReceive(Context context, Intent intent) {
         super.onReceive(context, intent);
-        if (ACAO_ATUALIZAR.equals(intent.getAction())) {
+        if (Intent.ACTION_MY_PACKAGE_REPLACED.equals(intent.getAction())) {
+            mostrar(context, Resumo.ultimo(context), "Atualizando…");
+            atualizarEmSegundoPlano(context);
+        } else if (ACAO_ATUALIZAR.equals(intent.getAction())) {
             mostrar(context, Resumo.ultimo(context), "Atualizando…");
             atualizarEmSegundoPlano(context);
         }
@@ -74,6 +87,17 @@ public class ResumoWidget extends AppWidgetProvider {
             v.setTextViewText(R.id.faturamento, Resumo.reais(json.optDouble("faturamento", 0)));
             v.setTextViewText(R.id.lucro, Resumo.reais(lucro));
             v.setTextColor(R.id.lucro, Color.parseColor(lucro >= 0 ? "#4ADE80" : "#F87171"));
+            // Margem sobre o faturamento do dia: lucro ÷ faturamento. Ex.: faturou R$ 1.000 e lucrou
+            // R$ 390 → 39% (de cada real que entrou, 39 centavos ficaram). Sem faturamento, não há margem.
+            double faturamento = json.optDouble("faturamento", 0);
+            if (faturamento > 0.009) {
+                long margem = Math.round(lucro / faturamento * 100);
+                v.setTextViewText(R.id.margem, (margem >= 0 ? "▲ " : "▼ ") + margem + "% do faturamento");
+                v.setTextColor(R.id.margem, Color.parseColor(margem >= 0 ? "#4ADE80" : "#F87171"));
+            } else {
+                v.setTextViewText(R.id.margem, "sem faturamento hoje");
+                v.setTextColor(R.id.margem, Color.parseColor("#B3FFFFFF"));
+            }
             v.setTextViewText(R.id.vendas, String.valueOf(json.optInt("vendas", 0)));
             v.setTextViewText(R.id.ritmo, (pct >= 0 ? "▲ +" : "▼ ") + pct + "%");
             v.setTextColor(R.id.ritmo, Color.parseColor(pct >= 0 ? "#4ADE80" : "#F87171"));
