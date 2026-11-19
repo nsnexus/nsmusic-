@@ -33,6 +33,7 @@ import { identifyTikTok, trackTikTok } from '@/lib/tiktokPixel';
 import { trackGooglePurchase } from '@/lib/googleAds';
 import { trackFbPurchase } from '@/lib/metaPixel';
 import { isOrderFromMeta, isOrderFromTikTok } from '@/lib/trafficSource';
+import OfertaLivroInfantil from '@/components/delivery/OfertaLivroInfantil';
 import DeliveryExperience from '@/components/delivery/DeliveryExperience';
 import InAppBrowserBanner from '@/components/delivery/InAppBrowserBanner';
 
@@ -2063,6 +2064,7 @@ function EntregaContent() {
           onApproved={refreshDelivery}
           supportUrl={linkWhatsapp(whatsappSuporte, `Olá! Preciso de ajuda com o pedido ${activeOrder?.orderNumber || activeOrderId || orderId}.`)}
         />
+        <OfertaLivroInfantil order={order} orderId={orderId} pago={isPaid} />
         <CoverCropperModal
           isOpen={cropperModalOpen}
           imageSrc={cropperImageSrc}

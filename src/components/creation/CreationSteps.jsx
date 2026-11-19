@@ -15,6 +15,8 @@ const RECIPIENT_CARDS = [
   { id: 'amigo', label: 'Amiga / Amigo', icon: '🤝', sub: 'Amizade verdadeira', relations: ['Amiga', 'Amigo'] },
   { id: 'irmao', label: 'Irmã / Irmão', icon: '👫', sub: 'Irmandade', relations: ['Irmã', 'Irmão'] },
   { id: 'avo', label: 'Vó / Vô', icon: '👵', sub: 'Carinho de avós', relations: ['Vó', 'Vô'] },
+  { id: 'neto', label: 'Neta / Neto', icon: '🧸', sub: 'Amor de avós', relations: ['Neta', 'Neto'] },
+  { id: 'sobrinho', label: 'Sobrinha / Sobrinho', icon: '🎈', sub: 'Carinho de tios', relations: ['Sobrinha', 'Sobrinho'] },
   { id: 'familia', label: 'Família toda', icon: '👨‍👩‍👧', sub: 'Homenagem familiar', value: 'Família' },
   { id: 'self', label: 'Para mim', icon: '🎤', sub: 'Minha própria canção', value: 'Eu mesmo' },
   { id: 'outro', label: 'Outro (eu escrevo)', icon: '✍️', sub: 'Personalizado' },
@@ -137,6 +139,8 @@ export default function CreationSteps({
     if (['Amiga', 'Amigo'].includes(data.relationship)) return 'amigo';
     if (['Irmã', 'Irmão'].includes(data.relationship)) return 'irmao';
     if (['Vó', 'Vô'].includes(data.relationship)) return 'avo';
+    if (['Neta', 'Neto'].includes(data.relationship)) return 'neto';
+    if (['Sobrinha', 'Sobrinho'].includes(data.relationship)) return 'sobrinho';
     if (data.relationship === 'Família') return 'familia';
     if (data.relationship === 'Outro' || data.customRelationship) return 'outro';
     return chosenCardId;
