@@ -42,7 +42,7 @@ export async function POST(req) {
           if (!isPaid && !isBonus && order.customerPhone) {
             try {
               const { encontrarBonusDisponivel, vincularPedidoAoBonus } = await import('@/lib/bonusAutomatico');
-              const parent = await encontrarBonusDisponivel(order.customerPhone, env, { orderIdAtual: order.id });
+              const parent = await encontrarBonusDisponivel(order.customerPhone, env, { orderIdAtual: order.id, somenteMesmoDia: true });
               if (parent) {
                 bonusVinculado = await vincularPedidoAoBonus(order.id, parent, env);
                 isPaid = true;

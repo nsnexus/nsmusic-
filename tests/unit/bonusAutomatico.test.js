@@ -62,3 +62,25 @@ describe('pedidoJaGerou', () => {
     expect(pedidoJaGerou({ deletedAt: '2026-11-01', sunoTaskId: 't' })).toBe(false);
   });
 });
+
+import { pagoNoMesmoDia, diaEmBrasilia } from '../../src/lib/bonusAutomatico.js';
+
+describe('vínculo automático só no mesmo dia (horário de Brasília)', () => {
+  const agora = new Date('2026-11-20T12:37:00Z'); // 09:37 em Brasília
+
+  it('pago hoje vale', () => {
+    expect(pagoNoMesmoDia({ paidAt: '2026-11-20T03:30:00Z' }, agora)).toBe(true); // 00:30 de hoje
+  });
+  it('pago ontem não vale', () => {
+    expect(pagoNoMesmoDia({ paidAt: '2026-11-19T22:00:00Z' }, agora)).toBe(false); // 19:00 de ontem
+    expect(pagoNoMesmoDia({ paidAt: '2026-11-20T02:59:00Z' }, agora)).toBe(false); // 23:59 de ontem em Brasília
+  });
+  it('sem data de pagamento usa a data de criação; sem nenhuma, não vale', () => {
+    expect(pagoNoMesmoDia({ createdAt: '2026-11-20T10:00:00Z' }, agora)).toBe(true);
+    expect(pagoNoMesmoDia({}, agora)).toBe(false);
+  });
+  it('dia em Brasília vira à meia-noite local, não à meia-noite UTC', () => {
+    expect(diaEmBrasilia('2026-11-21T02:00:00Z')).toBe('2026-11-20');
+    expect(diaEmBrasilia('2026-11-21T03:00:00Z')).toBe('2026-11-21');
+  });
+});
