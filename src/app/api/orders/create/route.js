@@ -198,7 +198,8 @@ export async function POST(req) {
     if (!isSecondGenApproved && formData.customerPhone) {
       try {
         const { encontrarBonusDisponivel, camposDoBonus } = await import('@/lib/bonusAutomatico');
-        const eligibleParent = await encontrarBonusDisponivel(formData.customerPhone, env);
+        // Sem pedido explícito de 2ª geração, o vínculo automático só vale se o pedido pago for de hoje.
+        const eligibleParent = await encontrarBonusDisponivel(formData.customerPhone, env, { somenteMesmoDia: !wantsSecondGen });
         if (eligibleParent) {
           const campos = camposDoBonus(eligibleParent, { automatico: !wantsSecondGen });
           resolvedParentOrderId = eligibleParent.id;

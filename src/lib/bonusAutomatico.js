@@ -58,8 +58,32 @@ export function bonusDisponivel(parent, { orderIdAtual = null, pedidoVinculado =
   return !pedidoJaGerou(pedidoVinculado);
 }
 
-/** Procura, pelo telefone, um pedido pago com a 2ª geração ainda disponível. */
-export async function encontrarBonusDisponivel(phone, env = {}, { orderIdAtual = null } = {}) {
+/**
+ * Dia (AAAA-MM-DD) no horário de Brasília. O Brasil não tem horário de verão desde 2019, então
+ * UTC-3 fixo dá o mesmo resultado sem depender de fuso no runtime.
+ */
+export function diaEmBrasilia(data) {
+  const ms = new Date(data).getTime();
+  if (!Number.isFinite(ms)) return null;
+  return new Date(ms - 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+/**
+ * O pedido pago foi pago HOJE (horário de Brasília)? Regra do dono (20/11/2026): o vínculo automático
+ * pelo telefone só vale no mesmo dia. Se o cliente volta outro dia e cria uma música pela plataforma,
+ * é um pedido novo e independente (pago à parte); o bônus continua no pedido antigo, pelo link dele.
+ */
+export function pagoNoMesmoDia(parent, agora = new Date()) {
+  const quando = parent?.paidAt || parent?.extras?.paidAt || parent?.createdAt;
+  const dia = quando ? diaEmBrasilia(quando) : null;
+  return Boolean(dia && dia === diaEmBrasilia(agora));
+}
+
+/**
+ * Procura, pelo telefone, um pedido pago com a 2ª geração ainda disponível.
+ * `somenteMesmoDia`: no vínculo AUTOMÁTICO, só aceita pedido pago hoje (ver pagoNoMesmoDia).
+ */
+export async function encontrarBonusDisponivel(phone, env = {}, { orderIdAtual = null, somenteMesmoDia = false, agora = new Date() } = {}) {
   const variants = generatePhoneVariants(phone);
   if (variants.length === 0) return null;
   const supabase = getSupabaseEdge(env);
@@ -85,6 +109,7 @@ export async function encontrarBonusDisponivel(phone, env = {}, { orderIdAtual =
 
   for (const parent of pagos) {
     if (parent.id === orderIdAtual) continue;
+    if (somenteMesmoDia && !pagoNoMesmoDia(parent, agora)) continue;
     const vinculado = bonusVinculadoId(parent);
     let pedidoVinculado = null;
     if (vinculado && vinculado !== orderIdAtual) {
