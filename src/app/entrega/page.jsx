@@ -1701,9 +1701,23 @@ function EntregaContent() {
 
         let generatedVideoUrl = null;
 
-        // O vídeo é feito SEMPRE na VPS (FFmpeg). Não existe mais gravação no navegador: o
-        // MediaRecorder do celular gerava MP4 fragmentado com áudio Opus, que o WhatsApp lia
-        // como se tivesse só ~6 segundos, e com tamanho imprevisível (achado 17/11/2026).
+        // TEMPORÁRIO (20/11/2026, pedido do dono): o banco na VPS está lento e o vídeo volta a ser
+        // gravado no aparelho do cliente para não pesar na VPS. Atenção: o MP4 do navegador sai
+        // fragmentado e o WhatsApp pode mostrar só ~6 s (ver PR #70). Para voltar à VPS, troque
+        // VIDEO_NA_VPS para true.
+        const VIDEO_NA_VPS = false;
+        if (!VIDEO_NA_VPS) {
+          const targetAudioUrl = selectedVideoTrack === 'v2' && activeTracks[1] ? activeTracks[1] : activeTracks[0];
+          setUploadProgressMsg('Gerando vídeo slideshow MP4 HD no aparelho... 10%');
+          const { createSlideshowVideo } = await import('@/lib/videoGenerator');
+          generatedVideoUrl = await createSlideshowVideo(
+            targetOrderId,
+            finalUrls,
+            targetAudioUrl,
+            activeOrder || order,
+            (percent) => setUploadProgressMsg(`Renderizando vídeo MP4 HD... ${percent}%`)
+          );
+        } else {
         setUploadProgressMsg('Enviando para o nosso estúdio de vídeo... 15%');
         const vpsRes = await fetch('/api/video/render', {
           method: 'POST',
@@ -1749,6 +1763,7 @@ function EntregaContent() {
           atualizarPedidoNaTela(targetOrderId, { videoStatus: 'GERANDO' });
           setUploadProgressMsg('Seu vídeo ainda está sendo criado. Pode fechar a página e voltar daqui a pouco.');
           return;
+        }
         }
 
         atualizarPedidoNaTela(targetOrderId, { videoUrl: generatedVideoUrl, videoStatus: 'CONCLUIDO', slideshowImages: [] });
