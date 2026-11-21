@@ -7,7 +7,56 @@ export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 const DEFAULT_WABA_ID = '2160994021495241';
-const COST_PER_MSG_BRL = 0.035; // Tarifa oficial da categoria Utilidade (Informativa/Utility) da Meta no Brasil (~US$ 0.0068 = ~R$ 0,035)
+const COST_PER_MSG_BRL = 0.035; // Só para a ESTIMATIVA de reserva, quando a Meta não devolve o custo real.
+
+// Custo REAL cobrado pela Meta (21/11/2026). A Meta cobra por mensagem de modelo entregue, com preço por
+// categoria (marketing é bem mais caro que utilidade) e não cobra respostas dentro da janela de
+// atendimento. O endpoint pricing_analytics devolve volume e custo por categoria e tipo de cobrança.
+async function custoRealMeta({ wabaId, token, inicio, fim, granularidade }) {
+  const campos = `pricing_analytics.start(${inicio}).end(${fim}).granularity(${granularidade})`
+    + `.dimensions(["PRICING_CATEGORY","PRICING_TYPE"])`;
+  const res = await fetch(`https://graph.facebook.com/v21.0/${wabaId}?fields=${encodeURIComponent(campos)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!res.ok) {
+    const j = await res.json().catch(() => ({}));
+    throw new Error(`pricing_analytics ${res.status} ${j?.error?.code || ''}`);
+  }
+  const json = await res.json();
+  const blocos = json?.pricing_analytics?.data || [];
+  const porCategoria = {};
+  let custo = 0;
+  let pagas = 0;
+  let gratis = 0;
+  for (const bloco of blocos) {
+    for (const p of bloco?.data_points || []) {
+      const cat = String(p.pricing_category || 'OUTRA').toUpperCase();
+      const volume = Number(p.volume) || 0;
+      const valor = Number(p.cost) || 0;
+      const gratisPonto = String(p.pricing_type || '').startsWith('FREE');
+      porCategoria[cat] = porCategoria[cat] || { volume: 0, custo: 0, gratis: 0 };
+      porCategoria[cat].volume += volume;
+      porCategoria[cat].custo += valor;
+      if (gratisPonto) { porCategoria[cat].gratis += volume; gratis += volume; } else { pagas += volume; }
+      custo += valor;
+    }
+  }
+  return { custo, pagas, gratis, porCategoria };
+}
+
+async function moedaDaConta(wabaId, token) {
+  try {
+    const res = await fetch(`https://graph.facebook.com/v21.0/${wabaId}?fields=currency`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(6000),
+    });
+    const j = await res.json().catch(() => ({}));
+    return String(j?.currency || 'BRL').toUpperCase();
+  } catch (e) {
+    return 'BRL';
+  }
+}
 
 /**
  * Consulta a volumetria e custos de mensagens enviadas via WhatsApp Cloud API Oficial.
@@ -158,10 +207,39 @@ export async function GET(req) {
       }
     }
 
+    // Custo real (Meta) de hoje e do mês, convertido para reais se a conta cobrar em dólar.
+    let custoReal = null;
+    try {
+      const [hoje, mes, moeda] = await Promise.all([
+        custoRealMeta({ wabaId, token, inicio: startToday, fim: now, granularidade: 'HALF_HOUR' }),
+        custoRealMeta({ wabaId, token, inicio: startMonth, fim: now, granularidade: 'DAILY' }),
+        moedaDaConta(wabaId, token),
+      ]);
+      let taxa = 1;
+      if (moeda === 'USD') {
+        const { getUsdToBrlRate } = await import('@/lib/adsSpend');
+        taxa = Number(await getUsdToBrlRate()) || 1;
+      }
+      const emReais = (r) => ({
+        custoBrl: Number((r.custo * taxa).toFixed(2)),
+        pagas: r.pagas,
+        gratis: r.gratis,
+        porCategoria: Object.fromEntries(Object.entries(r.porCategoria).map(([k, v]) => [k, {
+          volume: v.volume, gratis: v.gratis, custoBrl: Number((v.custo * taxa).toFixed(2)),
+        }])),
+      });
+      custoReal = { moeda, hoje: emReais(hoje), mes: emReais(mes) };
+    } catch (err) {
+      console.warn('[whatsapp-usage] Custo real da Meta indisponível, usando estimativa:', err.message);
+    }
+
     const remainingLast24h = Math.max(0, limitTier - sent24h);
     const usagePercent = limitTier > 0 ? Math.min(100, Math.round((sent24h / limitTier) * 100)) : 0;
-    const isOverLimit = sent24h >= limitTier || canSendMessage === 'LIMITED';
-    const isNearLimit = usagePercent >= 80 || isOverLimit;
+    // O teto da Meta (250/1k/10k) conta CLIENTES DIFERENTES em conversas iniciadas pela empresa, não o
+    // total de mensagens: comparar mensagens com o teto acendia o alerta sem a conta estar limitada.
+    // O alerta agora segue o que a própria Meta diz da saúde do número.
+    const isOverLimit = canSendMessage === 'LIMITED' || canSendMessage === 'BLOCKED';
+    const isNearLimit = isOverLimit || qualityRating === 'YELLOW' || qualityRating === 'RED';
 
     return NextResponse.json({
       ok: true,
@@ -178,6 +256,7 @@ export async function GET(req) {
       costTodayBrl: Number((sentToday * COST_PER_MSG_BRL).toFixed(2)),
       costLast24hBrl: Number((sent24h * COST_PER_MSG_BRL).toFixed(2)),
       costMonthBrl: Number((sentMonth * COST_PER_MSG_BRL).toFixed(2)),
+      custoReal,
       qualityRating,
       status,
       canSendMessage,

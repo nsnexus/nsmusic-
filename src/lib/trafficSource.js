@@ -677,7 +677,10 @@ export function calcularFaturamentoPedido(o, diaFiltro = null, mesReferencia = n
  */
 export function calcularMetricasPorPlataforma(pedidos = [], diaFiltro = null, mesReferencia = null) {
   const KIE_COST_PER_GENERATION = 0.30;
-  const WHATSAPP_COST_PER_MSG = 0.035;
+  const WHATSAPP_COST_PER_MSG = 0.035; // modelos de UTILIDADE (música pronta, pagamento confirmado)
+  // Modelos de MARKETING (recuperação do PIX abandonado): R$ 0,30 por mensagem, informado pelo dono
+  // em 21/11/2026. Antes a recuperação não entrava nas despesas e o lucro do dia aparecia maior.
+  const WHATSAPP_COST_MARKETING = 0.30;
 
   const metricas = {
     facebook_ads: { ...PLATFORMS.facebook_ads, pedidosCriados: 0, musicasGeradas: 0, pedidosPagos: 0, faturamento: 0, geracoesKie: 0, gastoKie: 0, mensagensWhatsApp: 0, gastoWhatsApp: 0 },
@@ -734,6 +737,14 @@ export function calcularMetricasPorPlataforma(pedidos = [], diaFiltro = null, me
         mensagensWhatsAppTotalGeral += 1;
         target.gastoWhatsApp += WHATSAPP_COST_PER_MSG;
         gastoWhatsAppTotalGeral += WHATSAPP_COST_PER_MSG;
+      }
+
+      // Mensagem de recuperação do PIX abandonado (marketing)
+      if (o.recuperacaoWhatsappSent) {
+        target.mensagensWhatsApp += 1;
+        mensagensWhatsAppTotalGeral += 1;
+        target.gastoWhatsApp += WHATSAPP_COST_MARKETING;
+        gastoWhatsAppTotalGeral += WHATSAPP_COST_MARKETING;
       }
     }
 

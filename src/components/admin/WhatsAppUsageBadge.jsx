@@ -96,6 +96,13 @@ function WhatsAppUsageBadgeInner({ style = {} }) {
   const formatBrl = (val) =>
     Number(val || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
+  // Custo real da Meta quando disponível; senão a estimativa antiga (marcada com "~").
+  const real = data?.custoReal || null;
+  const custoHoje = real ? real.hoje.custoBrl : data?.costTodayBrl;
+  const custoMes = real ? real.mes.custoBrl : data?.costMonthBrl;
+  const NOMES_CATEGORIA = { MARKETING: 'Marketing', UTILITY: 'Utilidade', SERVICE: 'Atendimento', AUTHENTICATION: 'Autenticação' };
+  const categoriasHoje = real ? Object.entries(real.hoje.porCategoria).sort((a, b) => b[1].custoBrl - a[1].custoBrl) : [];
+
   return (
     <>
       <div
@@ -128,9 +135,9 @@ function WhatsAppUsageBadgeInner({ style = {} }) {
           <span>Carregando WA...</span>
         ) : (
           <span>
-            WA: <strong>{data.sentLast24h ?? 0}</strong>/{data.limitTier ?? '-'}{' '}
+            WA hoje: <strong>{real ? '' : '~'}{formatBrl(custoHoje)}</strong>{' '}
             <span style={{ fontSize: '0.75rem', opacity: 0.85, fontWeight: '500' }}>
-              ({formatBrl(data.costLast24hBrl)})
+              ({real ? `${real.hoje.pagas} pagas` : `${data.sentToday ?? 0} msgs`})
             </span>
           </span>
         )}
@@ -208,61 +215,41 @@ function WhatsAppUsageBadgeInner({ style = {} }) {
               </button>
             </div>
 
-            {/* Alerta de Limite */}
+            {/* Alerta de saúde do número (segundo a Meta) */}
             {data.isOverLimit && (
-              <div
-                style={{
-                  backgroundColor: '#fef2f2',
-                  border: '1px solid #f87171',
-                  borderRadius: '10px',
-                  padding: '10px 14px',
-                  marginBottom: '16px',
-                  fontSize: '0.82rem',
-                  color: '#991b1b',
-                  lineHeight: '1.4',
-                }}
-              >
-                <strong>🚨 Limite de mensagens atingido!</strong>
+              <div style={{ backgroundColor: '#fef2f2', border: '1px solid #f87171', borderRadius: '10px', padding: '10px 14px', marginBottom: '16px', fontSize: '0.82rem', color: '#991b1b', lineHeight: '1.4' }}>
+                <strong>🚨 A Meta está limitando os envios deste número.</strong>
                 <br />
-                Sua conta enviou {data.sentLast24h} mensagens no período de 24h (teto da Meta: {data.limitTier}). Novos envios liberam gradualmente conforme as mensagens antigas completam 24h.
+                Situação: {data.canSendMessage}. Qualidade: {data.qualityRating}.
               </div>
             )}
 
-            {/* Barra de Progresso do Limite */}
-            <div style={{ marginBottom: '20px' }}>
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  fontSize: '0.82rem',
-                  fontWeight: '600',
-                  marginBottom: '6px',
-                }}
-              >
-                <span>Uso da Janela Móvel (24 horas)</span>
-                <span style={{ color: isOver ? '#dc2626' : isNear ? '#d97706' : '#16a34a' }}>
-                  {data.sentLast24h ?? 0} / {data.limitTier ?? 250} ({data.usagePercent ?? 0}%)
-                </span>
+            {/* Custo de hoje por categoria (valores da Meta) */}
+            <div style={{ marginBottom: '18px' }}>
+              <div style={{ fontSize: '0.82rem', fontWeight: '700', marginBottom: '8px', color: '#0f172a' }}>
+                Hoje por tipo de mensagem {real ? '(valores da Meta)' : ''}
               </div>
-              <div
-                style={{
-                  width: '100%',
-                  height: '10px',
-                  backgroundColor: '#e2e8f0',
-                  borderRadius: '6px',
-                  overflow: 'hidden',
-                }}
-              >
-                <div
-                  style={{
-                    width: `${Math.min(100, ((data.sentLast24h || 0) / (data.limitTier || 250)) * 100)}%`,
-                    height: '100%',
-                    backgroundColor: isOver ? '#ef4444' : isNear ? '#f59e0b' : '#22c55e',
-                    borderRadius: '6px',
-                    transition: 'width 0.3s ease',
-                  }}
-                />
-              </div>
+              {real ? (
+                categoriasHoje.length === 0 ? (
+                  <div style={{ fontSize: '0.8rem', color: '#64748b' }}>Nenhuma mensagem cobrada hoje até agora.</div>
+                ) : (
+                  <div style={{ display: 'grid', gap: '6px' }}>
+                    {categoriasHoje.map(([cat, v]) => (
+                      <div key={cat} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', padding: '7px 10px', borderRadius: '8px', background: cat === 'MARKETING' ? '#fff7ed' : '#f8fafc', border: '1px solid #e2e8f0' }}>
+                        <span>
+                          <strong>{NOMES_CATEGORIA[cat] || cat}</strong>{' '}
+                          <span style={{ color: '#64748b' }}>· {v.volume} msgs{v.gratis ? ` (${v.gratis} grátis)` : ''}</span>
+                        </span>
+                        <strong>{formatBrl(v.custoBrl)}</strong>
+                      </div>
+                    ))}
+                  </div>
+                )
+              ) : (
+                <div style={{ fontSize: '0.78rem', color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px', padding: '8px 10px' }}>
+                  A Meta não devolveu o custo real agora. Os valores abaixo são estimativa (R$ 0,035 por mensagem).
+                </div>
+              )}
             </div>
 
             {/* Grid de Cards de Estatísticas e Custos */}
@@ -283,13 +270,13 @@ function WhatsAppUsageBadgeInner({ style = {} }) {
                 }}
               >
                 <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: '500' }}>
-                  Custo Estimado (24h)
+                  Enviadas (24h)
                 </div>
                 <div style={{ fontSize: '1.25rem', fontWeight: '800', color: '#0f172a', marginTop: '4px' }}>
-                  {formatBrl(data.costLast24hBrl)}
+                  {data.sentLast24h ?? 0}
                 </div>
                 <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: '2px' }}>
-                  {data.sentLast24h ?? 0} disparos (~R$ 0,035/msg - Utilidade)
+                  todas as mensagens, pagas e grátis
                 </div>
               </div>
 
@@ -302,13 +289,13 @@ function WhatsAppUsageBadgeInner({ style = {} }) {
                 }}
               >
                 <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: '500' }}>
-                  Custo Estimado (Hoje)
+                  {real ? 'Custo de hoje (Meta)' : 'Custo estimado (hoje)'}
                 </div>
                 <div style={{ fontSize: '1.25rem', fontWeight: '800', color: '#0f172a', marginTop: '4px' }}>
-                  {formatBrl(data.costTodayBrl)}
+                  {formatBrl(custoHoje)}
                 </div>
                 <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: '2px' }}>
-                  {data.sentToday ?? 0} disparos desde 00:00
+                  {real ? `${real.hoje.pagas} pagas · ${real.hoje.gratis} grátis` : `${data.sentToday ?? 0} disparos desde 00:00`}
                 </div>
               </div>
 
@@ -321,10 +308,10 @@ function WhatsAppUsageBadgeInner({ style = {} }) {
                 }}
               >
                 <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: '500' }}>
-                  Acumulado no Mês
+                  {real ? 'Mês (Meta)' : 'Acumulado no mês (estimativa)'}
                 </div>
                 <div style={{ fontSize: '1.25rem', fontWeight: '800', color: '#0f172a', marginTop: '4px' }}>
-                  {formatBrl(data.costMonthBrl)}
+                  {formatBrl(custoMes)}
                 </div>
                 <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: '2px' }}>
                   {data.sentMonth ?? 0} mensagens enviadas
