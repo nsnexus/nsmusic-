@@ -25,7 +25,12 @@ export async function GET(req, { params }) {
       return NextResponse.json({ error: 'Pedido não encontrado' }, { status: 404 });
     }
 
-    // Enriquece com o histórico consolidado de versões de áudio
+    // As consultas abaixo (histórico de áudio, pedido vinculado e checagem de admin) são
+    // independentes e rodam AO MESMO TEMPO. Antes rodavam uma depois da outra; com o banco lento,
+    // somavam 20-28 s e a página de entrega desistia (20/11/2026).
+    const pedidoBase = { ...order };
+
+    const historicoPromise = (async () => {
     try {
       const supabase = getSupabaseEdge(env);
       let tasks = [];
@@ -40,12 +45,23 @@ export async function GET(req, { params }) {
           tasks = data;
         }
       }
-      order.audioHistory = buildOrderAudioHistory(order, tasks);
+      return buildOrderAudioHistory(pedidoBase, tasks);
     } catch (histErr) {
       console.warn('[api/orders/[id]] Falha ao montar histórico de áudio:', histErr?.message);
-      order.audioHistory = buildOrderAudioHistory(order, []);
+      return buildOrderAudioHistory(pedidoBase, []);
     }
+    })();
 
+    const adminPromise = (async () => {
+      try {
+        const auth = await requireAdmin(req, env);
+        return Boolean(auth?.ok);
+      } catch (e) {
+        return false;
+      }
+    })();
+
+    const vinculadoPromise = (async () => {
     try {
       const parentId = order.parentOrderId;
       const childId = order.secondGenerationOrderId || order.segundaGeracaoOrderId;
@@ -54,21 +70,15 @@ export async function GET(req, { params }) {
       if (!relatedId) {
         const supabase = getSupabaseEdge(env);
         if (supabase) {
-          if (order.id) {
-            const { data: rows1 } = await supabase
+          // Uma consulta só, pelo id OU pelo número (antes eram duas em sequência).
+          const refs = [order.id, order.orderNumber].filter((v) => v && /^[A-Za-z0-9_-]+$/.test(String(v)));
+          if (refs.length > 0) {
+            const { data: rows } = await supabase
               .from('orders')
-              .select('id, extras')
-              .filter('extras->>parentOrderId', 'eq', order.id)
+              .select('id')
+              .or(refs.map((r) => `extras->>parentOrderId.eq.${r}`).join(','))
               .limit(1);
-            if (rows1 && rows1[0]?.id) relatedId = rows1[0].id;
-          }
-          if (!relatedId && order.orderNumber) {
-            const { data: rows2 } = await supabase
-              .from('orders')
-              .select('id, extras')
-              .filter('extras->>parentOrderId', 'eq', order.orderNumber)
-              .limit(1);
-            if (rows2 && rows2[0]?.id) relatedId = rows2[0].id;
+            if (rows && rows[0]?.id) relatedId = rows[0].id;
           }
         }
       }
@@ -143,12 +153,10 @@ export async function GET(req, { params }) {
     } catch (relErr) {
       console.warn('[api/orders/[id]] Falha ao buscar pedido vinculado:', relErr?.message);
     }
+    })();
 
-    let isAdmin = false;
-    try {
-      const auth = await requireAdmin(req, env);
-      if (auth?.ok) isAdmin = true;
-    } catch (e) {}
+    const [audioHistory, isAdmin] = await Promise.all([historicoPromise, adminPromise, vinculadoPromise]);
+    order.audioHistory = audioHistory;
 
     const safeOrder = isAdmin ? order : sanitizeOrderForResponse(order);
 

@@ -90,6 +90,10 @@ function EntregaContent() {
   const [cardError, setCardError] = useState('');
 
   const [loading, setLoading] = useState(true);
+  // 'lento': a consulta passou de alguns segundos; 'falhou': esgotou as tentativas sem resposta do
+  // servidor (diferente de 404, que é pedido inexistente). Ver fetchOrder.
+  const [cargaPedido, setCargaPedido] = useState('ok');
+  const [tentarDeNovo, setTentarDeNovo] = useState(0);
   const [order, setOrder] = useState(null);
   const [copied, setCopied] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -703,22 +707,43 @@ function EntregaContent() {
       ]);
     };
 
+    // O banco às vezes demora (20 s ou mais). Antes, a página desistia em 12 s e mostrava "Não
+    // encontramos esse pedido" para pedidos que existem (20/11/2026). Agora: só diz "não encontrado"
+    // quando o servidor responde 404; demora ou erro de rede tentam de novo e, no fim, mostram
+    // "carregar de novo" em vez de "não encontrado".
     const fetchOrder = async (attempt = 1) => {
       if (!orderId) {
         setLoading(false);
         return;
       }
+      const MAX_TENTATIVAS = 3;
       try {
         let data = null;
+        let naoExiste = false;
         // 1. Primário: consulta via Edge API que lê do Supabase
         try {
-          const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}?t=${Date.now()}`, { cache: 'no-store' });
+          const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}?t=${Date.now()}`, {
+            cache: 'no-store',
+            signal: AbortSignal.timeout(45000),
+          });
           if (res.ok) {
             const json = await res.json();
             if (json?.order) data = json.order;
+          } else if (res.status === 404) {
+            naoExiste = true;
           }
         } catch (apiErr) {
-          console.warn("[entrega] Fallback para leitura direta:", apiErr.message);
+          console.warn('[entrega] Falha ao buscar o pedido:', apiErr?.name || apiErr?.message);
+        }
+
+        if (!cancelled && !data && !naoExiste) {
+          if (attempt < MAX_TENTATIVAS) {
+            await new Promise((r) => setTimeout(r, 1500 * attempt));
+            // `return await` para o finally desta tentativa só rodar depois da próxima.
+            if (!cancelled) return await fetchOrder(attempt + 1);
+            return;
+          }
+          setCargaPedido('falhou');
         }
 
         if (!cancelled && data) {
@@ -768,21 +793,23 @@ function EntregaContent() {
         // Retry automático uma vez em caso de timeout ou falha de rede (comum no iOS Safari)
         if (!cancelled && attempt < 2) {
           console.log("Retentando busca do pedido...");
-          return fetchOrder(attempt + 1);
+          return await fetchOrder(attempt + 1);
         }
       } finally {
         if (!cancelled) setLoading(false);
       }
     };
 
+    setCargaPedido('ok');
+    setLoading(true);
     fetchOrder();
-    // Failsafe: garante que loading nunca fique true por mais de 12 segundos
-    const failsafe = setTimeout(() => {
-      if (!cancelled) setLoading(false);
-    }, 12000);
+    // Não desiste mais aos 12 s: só troca a mensagem do carregamento para avisar que está demorando.
+    const avisoLento = setTimeout(() => {
+      if (!cancelled) setCargaPedido((atual) => (atual === 'ok' ? 'lento' : atual));
+    }, 8000);
 
-    return () => { cancelled = true; clearTimeout(failsafe); };
-  }, [orderId]);
+    return () => { cancelled = true; clearTimeout(avisoLento); };
+  }, [orderId, tentarDeNovo]);
 
   // Polling automático caso o pedido esteja com vídeo sendo processado na VPS (ex: usuário recarregou a página)
   useEffect(() => {
@@ -1560,7 +1587,25 @@ function EntregaContent() {
     return (
       <div style={{ ...styles.wrapper, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
         <div style={styles.spinner} />
-        <p style={{ marginTop: '20px', color: 'var(--text-secondary)' }}>Carregando sua página de entrega...</p>
+        <p style={{ marginTop: '20px', color: 'var(--text-secondary)', textAlign: 'center', padding: '0 24px' }}>
+          {cargaPedido === 'lento'
+            ? 'Estamos buscando sua música, pode levar alguns segundos a mais. Não feche a página. 🎵'
+            : 'Carregando sua página de entrega...'}
+        </p>
+      </div>
+    );
+  }
+
+  if (!order && cargaPedido === 'falhou') {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '70vh', gap: '14px', textAlign: 'center', padding: '24px 20px', maxWidth: '460px', margin: '0 auto' }}>
+        <h1 style={{ fontFamily: 'var(--font-family-title)', fontSize: '1.5rem', margin: 0, color: 'var(--text-primary)' }}>Seu pedido está guardado ✅</h1>
+        <p style={{ margin: 0, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+          Nosso sistema demorou para responder agora. Toque abaixo para carregar de novo.
+        </p>
+        <button type="button" className="btn btn-primary" onClick={() => setTentarDeNovo((n) => n + 1)} style={{ minHeight: '48px', padding: '0 26px' }}>
+          Carregar minha música
+        </button>
       </div>
     );
   }
