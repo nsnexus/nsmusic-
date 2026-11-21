@@ -15,7 +15,7 @@ function LocalPhoto({ file, index, onRemove }) {
 // O percentual real vem das mensagens de progresso ("Montando seu vídeo... 35%"); entre uma
 // atualização e outra a barra anda devagar sozinha (sem passar de 95%) para não parecer travada.
 function faseDoVideo(p) {
-  if (p < 20) return '📤 Enviando suas fotos para o estúdio…';
+  if (p < 20) return '📤 Preparando suas fotos…';
   if (p < 45) return '🖼️ Organizando as fotos no ritmo da música…';
   if (p < 75) return '✨ Montando as transições e os efeitos…';
   if (p < 96) return '🎬 Finalizando o vídeo em alta qualidade…';
@@ -223,7 +223,7 @@ export default function VideoEditor({ order, orderId, access, existingPhotos, fi
                     Aguarde, seu vídeo está sendo montado!
                   </strong>
                   <span>
-                    Leva de 1 a 3 minutos. Pode trocar de aba: se fechar a página, o vídeo continua sendo feito e aparece aqui quando você voltar.
+                    Leva de 1 a 3 minutos. Mantenha esta página aberta e não troque de aba: o vídeo é feito no seu aparelho e pode parar se você sair.
                   </span>
                 </div>
               </div>
