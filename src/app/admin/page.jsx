@@ -391,19 +391,23 @@ export default function AdminDashboard() {
     } catch (e) {}
   }, [orders.length > 0]);
 
-  // Auto-atualização periódica (a cada 25 segundos) e ao focar na janela do painel
+  // Auto-atualização do painel. Cada recarga faz 3 consultas pesadas ao banco (pedidos, relatório de
+  // faturamento e visitas). Antes: a cada 25 s, e ao voltar para a aba disparava DUAS recargas (focus +
+  // visibilitychange), mais uma ao sair da aba. Com o banco da VPS lento (20/11/2026): a cada 90 s,
+  // só com a aba visível, e no máximo uma recarga a cada 60 s ao voltar para a aba.
   useEffect(() => {
     if (!user) return;
 
-    const interval = setInterval(() => {
-      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
-        setReloadTrigger((prev) => prev + 1);
-      }
-    }, 25000);
-
-    const handleFocus = () => {
+    let ultimaRecarga = Date.now();
+    const recarregar = (intervaloMinimo) => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+      if (Date.now() - ultimaRecarga < intervaloMinimo) return;
+      ultimaRecarga = Date.now();
       setReloadTrigger((prev) => prev + 1);
     };
+
+    const interval = setInterval(() => recarregar(0), 90000);
+    const handleFocus = () => recarregar(60000);
 
     window.addEventListener('focus', handleFocus);
     document.addEventListener('visibilitychange', handleFocus);
