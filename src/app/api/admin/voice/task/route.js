@@ -60,7 +60,8 @@ export async function POST(req) {
       }
       const secret = readEnvValue(env, 'KIE_WEBHOOK_SECRET');
       const callback = `${resolverSiteUrl(readEnvValue(env, 'NEXT_PUBLIC_SITE_URL'))}/api/suno/webhook${secret ? `?secret=${encodeURIComponent(secret)}` : ''}`;
-      payload = buildVoiceSongPayload(body, callback);
+      const { lerFidelidadeVoz } = await import('@/lib/vozFidelidade');
+      payload = buildVoiceSongPayload(body, callback, await lerFidelidadeVoz(env));
     } else {
       return NextResponse.json({ error: 'Ação não reconhecida.' }, { status: 400 });
     }

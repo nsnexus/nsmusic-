@@ -379,6 +379,12 @@ async function gerarPelaKie({ orderId, prompt, tags, useCustomVoice = true }, en
           voiceRecord: String(vRec),
           voiceRecordingId: String(vRec),
         };
+        // Fidelidade da voz (ajustável em /admin/voz): quanto a voz pesa, quanto segue o estilo.
+        const { lerFidelidadeVoz } = await import('./vozFidelidade.js');
+        const fid = await lerFidelidadeVoz(env);
+        voicePayload.audioWeight = fid.audioWeight;
+        voicePayload.styleWeight = fid.styleWeight;
+        voicePayload.weirdnessConstraint = fid.weirdness;
       }
     } catch (e) {
       console.warn('[suno] Não foi possível verificar customVoiceId do pedido:', e.message);

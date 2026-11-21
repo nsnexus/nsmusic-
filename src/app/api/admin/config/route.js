@@ -3,6 +3,7 @@ import { getRequestContext } from '@cloudflare/next-on-pages';
 import { requireAdmin } from '@/lib/auth';
 import { normalizarNumeroWhatsapp, WHATSAPP_SUPORTE_PADRAO } from '@/lib/configSite';
 import { getSupabaseEdge } from '@/lib/supabase-edge';
+import { camposFidelidadeParaSalvar, fidelidadeDaConfig } from '@/lib/vozFidelidade';
 
 export const runtime = 'edge';
 
@@ -82,6 +83,12 @@ export async function POST(req) {
       updates.abandonedPixRecoveryMaxPerHourAtualizadoEm = new Date().toISOString();
     }
 
+    // Fidelidade da voz clonada (painel /admin/voz)
+    const fidelidade = camposFidelidadeParaSalvar(body);
+    if (Object.keys(fidelidade).length > 0) {
+      Object.assign(updates, fidelidade, { vozFidelidadeAtualizadoEm: new Date().toISOString() });
+    }
+
     const newValor = { ...currentValor, ...updates };
 
     await supabase
@@ -99,7 +106,8 @@ export async function POST(req) {
       sunoPrimaryProvider: newValor.sunoPrimaryProvider || process.env.SUNO_PRIMARY_PROVIDER || 'unifically',
       contingencyMode: newValor.contingencyMode === true,
       abandonedPixRecoveryEnabled: newValor.abandonedPixRecoveryEnabled === true,
-      abandonedPixRecoveryMaxPerHour: Number(newValor.abandonedPixRecoveryMaxPerHour) || 15
+      abandonedPixRecoveryMaxPerHour: Number(newValor.abandonedPixRecoveryMaxPerHour) || 15,
+      vozFidelidade: fidelidadeDaConfig(newValor),
     });
   } catch (err) {
     console.error('[admin/config] falha ao salvar configuração:', err.message);
@@ -156,6 +164,7 @@ export async function GET(req) {
         contingencyMode: configData.contingencyMode === true,
         abandonedPixRecoveryEnabled: configData.abandonedPixRecoveryEnabled === true,
         abandonedPixRecoveryMaxPerHour: Number(configData.abandonedPixRecoveryMaxPerHour) || 15,
+        vozFidelidade: fidelidadeDaConfig(configData),
         sunoWorkerHeartbeat: workerHeartbeat
       },
       { headers: { 'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60' } }

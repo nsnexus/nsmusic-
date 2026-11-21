@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { onAuthStateChanged, auth } from '@/lib/authClient';
 import { converterParaWavBlob } from '@/lib/audioWav';
+import FidelidadeVozCard from '@/components/admin/FidelidadeVozCard';
 
 export default function AdminVozLab() {
   const router = useRouter();
@@ -701,6 +702,8 @@ Com você ao meu lado eu sei onde quero estar`
             <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Kie.ai Suno Voice</span>
           </div>
         </div>
+
+        <FidelidadeVozCard />
 
         {/* Title */}
         <div style={{ textAlign: 'center', marginBottom: '24px' }}>

@@ -27,13 +27,14 @@ export function readKieJob(payload = {}) {
   };
 }
 
-export function buildVoiceSongPayload({ voiceId, prompt, style = 'Acoustic Pop', title = 'Música com minha voz' }, callBackUrl) {
+export function buildVoiceSongPayload({ voiceId, prompt, style = 'Acoustic Pop', title = 'Música com minha voz' }, callBackUrl, fidelidade = null) {
+  const fid = fidelidade || { audioWeight: 0.85, styleWeight: 0.85, weirdness: 0.20 };
   return {
     model: 'ai-music-api/generate', callBackUrl,
     input: {
       custom_mode: true, instrumental: false, model: 'V6', lyrics: prompt, style,
       title: String(title).substring(0, 80), persona_id: voiceId, persona_model: 'voice_persona',
-      style_weight: 0.85, weirdness_constraint: 0.20,
+      audio_weight: fid.audioWeight, style_weight: fid.styleWeight, weirdness_constraint: fid.weirdness,
     },
   };
 }
