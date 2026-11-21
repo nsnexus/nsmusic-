@@ -456,7 +456,7 @@ export async function createSlideshowVideo(orderId, imageUrls, audioUrl, orderDa
 
     renderFrame();
 
-    const videoBlob = await recordingPromise;
+    let videoBlob = await recordingPromise;
 
     // Remove o listener de visibilidade — a gravação já terminou
     document.removeEventListener('visibilitychange', onVisibilityChange);
@@ -501,11 +501,16 @@ export async function createSlideshowVideo(orderId, imageUrls, audioUrl, orderDa
       console.warn('[VideoGen] Vídeo gerado com sucesso, mas o usuário trocou de aba durante a gravação. O áudio pode estar dessincronizado.');
     }
 
+    // 4b. MP4 normal para o WhatsApp ler o vídeo inteiro (ver src/lib/mp4ParaWhatsapp.js).
+    if (onProgress) onProgress(99);
+    const { mp4ParaWhatsapp } = await import('@/lib/mp4ParaWhatsapp');
+    videoBlob = await mp4ParaWhatsapp(videoBlob, { duracaoEsperada: duration });
+
     // 5. Upload do vídeo — Cloudflare R2 direto via Edge
     let videoUrl = null;
     const uploadRes = await fetch(`/api/video/upload?orderId=${encodeURIComponent(orderId)}&ext=${fileExtension}`, {
       method: 'POST',
-      headers: { 'Content-Type': mimeType },
+      headers: { 'Content-Type': videoBlob.type || mimeType },
       body: videoBlob,
       signal: AbortSignal.timeout(120000),
     });
