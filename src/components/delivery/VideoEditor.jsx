@@ -11,7 +11,43 @@ function LocalPhoto({ file, index, onRemove }) {
   return <div className="nx-photo-tile">{url && <Image src={url} alt={`Nova foto ${index + 1}`} width={160} height={160} unoptimized />}<button type="button" className="nx-photo-remove" aria-label={`Remover nova foto ${index + 1}`} onClick={onRemove}>×</button></div>;
 }
 
+// Barra de progresso do vídeo, no mesmo estilo da tela de gravação da música (/criar).
+// O percentual real vem das mensagens de progresso ("Montando seu vídeo... 35%"); entre uma
+// atualização e outra a barra anda devagar sozinha (sem passar de 95%) para não parecer travada.
+function faseDoVideo(p) {
+  if (p < 20) return '📤 Enviando suas fotos para o estúdio…';
+  if (p < 45) return '🖼️ Organizando as fotos no ritmo da música…';
+  if (p < 75) return '✨ Montando as transições e os efeitos…';
+  if (p < 96) return '🎬 Finalizando o vídeo em alta qualidade…';
+  return '✅ Quase pronto!';
+}
+
+function useProgressoVideo(ativo, progress, progressoSalvo) {
+  const [percentual, setPercentual] = useState(5);
+  const alvoRef = useRef(5);
+
+  const lido = Number(String(progress || '').match(/(\d{1,3})\s*%/)?.[1]);
+  const alvo = Number.isFinite(lido) && lido > 0 ? lido : (Number(progressoSalvo) || 0);
+  if (alvo > alvoRef.current) alvoRef.current = Math.min(alvo, 99);
+
+  useEffect(() => {
+    if (!ativo) { alvoRef.current = 5; setPercentual(5); return undefined; }
+    const timer = setInterval(() => {
+      setPercentual((atual) => {
+        const alvoAtual = alvoRef.current;
+        if (atual < alvoAtual) return Math.min(alvoAtual, atual + Math.max(1, Math.round((alvoAtual - atual) / 4)));
+        return atual < 95 ? Math.min(95, atual + 0.25) : atual;
+      });
+    }, 500);
+    return () => clearInterval(timer);
+  }, [ativo]);
+
+  return Math.round(percentual);
+}
+
 export default function VideoEditor({ order, orderId, access, existingPhotos, files, busy, progress, error, onAddPhotos, onRemovePhoto, onMovePhoto, onRemoveFile, tracks, selectedTrack, onTrack, onGenerate, onDownload, pix, pendingPix, pixError, timedOut, onBuy, onResetVideo }) {
+  const gerandoVideo = Boolean(busy || order?.videoStatus === 'GERANDO');
+  const percentualVideo = useProgressoVideo(gerandoVideo, progress, order?.videoProgress);
   const minPhotos = 3;
   const total = (existingPhotos?.length || 0) + (files?.length || 0);
   const ready = total >= minPhotos && total <= 20 && Boolean(tracks[0]);
@@ -172,11 +208,25 @@ export default function VideoEditor({ order, orderId, access, existingPhotos, fi
         </EditorSection>
 
         <EditorSection id="video-secao-gerar" number="03" title="Vamos juntar tudo?" description="Sua seleção de fotos e música vira um vídeo para guardar.">
-          {busy || order?.videoStatus === 'GERANDO' ? (
-            <div className="nx-editor-processing" role="status" aria-live="polite">
-              <span className="nx-progress-line" />
-              <h3>{progress || 'Preparando o seu vídeo…'}</h3>
-              <p>Mantenha esta página aberta. O vídeo é feito no seu aparelho e trocar de aba pode interromper a geração.</p>
+          {gerandoVideo ? (
+            <div className="suno-retention-box" role="status" aria-live="polite">
+              <h3 style={{ margin: '0 0 6px', fontSize: '1.1rem' }}>Criando o seu vídeo… 🎬</h3>
+              <div className="suno-percent-badge">{percentualVideo}%</div>
+              <div className="suno-progress-track" aria-hidden="true">
+                <div className="suno-progress-fill" style={{ width: `${percentualVideo}%` }} />
+              </div>
+              <p className="suno-phase-text">{faseDoVideo(percentualVideo)}</p>
+              <div className="suno-retention-tip" style={{ textAlign: 'left' }}>
+                <span style={{ fontSize: '1.5rem', flexShrink: 0 }}>⏳</span>
+                <div>
+                  <strong style={{ color: '#4f46e5', display: 'block', marginBottom: '3px' }}>
+                    Aguarde, seu vídeo está sendo montado!
+                  </strong>
+                  <span>
+                    Leva de 1 a 3 minutos. Pode trocar de aba: se fechar a página, o vídeo continua sendo feito e aparece aqui quando você voltar.
+                  </span>
+                </div>
+              </div>
               {onResetVideo && (
                 <div style={{ marginTop: '14px' }}>
                   <button

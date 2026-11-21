@@ -1705,7 +1705,7 @@ function EntregaContent() {
         // gravado no aparelho do cliente para não pesar na VPS. Atenção: o MP4 do navegador sai
         // fragmentado e o WhatsApp pode mostrar só ~6 s (ver PR #70). Para voltar à VPS, troque
         // VIDEO_NA_VPS para true.
-        const VIDEO_NA_VPS = false;
+        const VIDEO_NA_VPS = true; // VPS normalizou (20/11/2026, 21h20): de volta para a VPS.
         if (!VIDEO_NA_VPS) {
           const targetAudioUrl = selectedVideoTrack === 'v2' && activeTracks[1] ? activeTracks[1] : activeTracks[0];
           setUploadProgressMsg('Gerando vídeo slideshow MP4 HD no aparelho... 10%');
