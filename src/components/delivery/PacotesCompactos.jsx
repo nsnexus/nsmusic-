@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import { Check, Zap, Loader2 } from 'lucide-react';
-import { deliveryPackages, formatBrl } from '@/lib/deliveryPackages';
+import { deliveryPackages, formatBrl, seloRedes, SeloRedesEstilo } from '@/lib/deliveryPackages';
 
 // Escolha do pacote no último passo do /criar, em lista compacta (pedido do dono, 19/11/2026):
 // o cliente chega no pagamento e vê TODOS os pacotes e o botão de pagar sem rolar a tela, no
@@ -62,6 +62,7 @@ function Linha({ pack, marcado, onSelect, disabled, gerando }) {
       <span style={{ flex: 1, minWidth: 0 }}>
         <span style={{ display: 'block', fontSize: '0.9rem', fontWeight: 800, lineHeight: 1.15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{pack.curto}</span>
         <span style={{ display: 'block', fontSize: '0.7rem', color: '#5d5563', lineHeight: 1.25 }}>{pack.resumo}</span>
+        {seloRedes(pack.sku) && <span style={SeloRedesEstilo(seloRedes(pack.sku).tipo)}>{seloRedes(pack.sku).texto}</span>}
       </span>
       <span style={{ flexShrink: 0, padding: '5px 8px', borderRadius: '999px', background: 'linear-gradient(180deg, #fde047 0%, #f59e0b 100%)', color: '#3b2504', fontWeight: 900, fontSize: '0.82rem', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
         {gerando ? 'Gerando PIX…' : formatBrl(pack.price)}
@@ -99,6 +100,7 @@ function Familia({ pack, marcado, onSelect, disabled, gerando }) {
           <span style={{ fontSize: '0.95rem', fontWeight: 900, color: '#fde68a', lineHeight: 1.1, whiteSpace: 'nowrap' }}>👑 {pack.curto}</span>
         </span>
         <span style={{ fontSize: '0.7rem', lineHeight: 1.25, color: '#f5f3ff' }}>{pack.resumo}</span>
+        <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#bbf7d0' }}>📲 Posta no Status, Reels e TikTok</span>
         <span style={{ fontSize: '0.74rem', fontWeight: 800, color: '#fde047', lineHeight: 1.2 }}>+ 5 músicas extras, novas letras e estilos</span>
       </span>
       <span style={{ alignSelf: 'flex-end', flexShrink: 0, padding: '5px 9px', borderRadius: '11px', background: 'linear-gradient(180deg, #fde047 0%, #f59e0b 100%)', color: '#3b0764', fontWeight: 900, fontSize: '0.98rem', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>

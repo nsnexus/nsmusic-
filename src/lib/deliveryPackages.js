@@ -1,4 +1,4 @@
-import { getPriceForSku } from './pricing.js';
+import { getPriceForSku, skuGrantsVideoAccess } from './pricing.js';
 
 // Promessa única do produto. Toda tela que fala do que o pagamento libera usa estas frases.
 // Regra de negócio: o pagamento libera as 2 versões completas já geradas e mais 2 de bônus (4 músicas).
@@ -87,3 +87,19 @@ export function deliveryPackages() {
 }
 
 export const formatBrl = value => Number(value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+// Selo "redes sociais" dos pacotes (21/11/2026). Status do WhatsApp, Reels e TikTok só aceitam vídeo:
+// quem compra só a música não consegue postar. O selo deixa isso claro ANTES da compra.
+export function seloRedes(sku) {
+  if (skuGrantsVideoAccess(sku)) return { tipo: 'video', texto: '📲 Posta no Status, Reels e TikTok' };
+  if (sku === 'audio_only' || sku === 'combo_carta' || sku === 'combo_voz') {
+    return { tipo: 'audio', texto: '🎧 Só áudio: não dá para postar no Status/Reels' };
+  }
+  return null;
+}
+
+export function SeloRedesEstilo(tipo) {
+  return tipo === 'video'
+    ? { display: 'inline-block', marginTop: '4px', padding: '2px 8px', borderRadius: '999px', background: '#dcfce7', color: '#166534', fontSize: '0.68rem', fontWeight: 800, lineHeight: 1.35 }
+    : { display: 'block', marginTop: '3px', color: '#8a8190', fontSize: '0.66rem', fontWeight: 600, lineHeight: 1.3 };
+}

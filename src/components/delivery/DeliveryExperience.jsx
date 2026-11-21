@@ -431,7 +431,12 @@ export default function DeliveryExperience({
 
             <CompletePresente itens={bonuses} onProduct={onProduct} />
 
-            <CompartilharPresente order={currentOrderForBonuses || order} orderId={currentOrderForBonuses?.id || orderId} />
+            <CompartilharPresente
+              order={currentOrderForBonuses || order}
+              orderId={currentOrderForBonuses?.id || orderId}
+              temVideo={Boolean(bonuses.find((b) => b.key === 'video')?.owned)}
+              onVideo={onProduct ? () => onProduct('video') : null}
+            />
 
             <GeracoesExtrasFamilia order={order} />
 

@@ -33,6 +33,7 @@ import { identifyTikTok, trackTikTok } from '@/lib/tiktokPixel';
 import { trackGooglePurchase } from '@/lib/googleAds';
 import { trackFbPurchase } from '@/lib/metaPixel';
 import { isOrderFromMeta, isOrderFromTikTok } from '@/lib/trafficSource';
+import { seloRedes, SeloRedesEstilo } from '@/lib/deliveryPackages';
 import OfertaLivroInfantil from '@/components/delivery/OfertaLivroInfantil';
 import DeliveryExperience from '@/components/delivery/DeliveryExperience';
 import InAppBrowserBanner from '@/components/delivery/InAppBrowserBanner';
@@ -3451,6 +3452,7 @@ function EntregaContent() {
                                   <span className="presente-price">R$ {pacote.valor.toFixed(2).replace('.', ',')}</span>
                                 </div>
                                 <p className="presente-desc">{pacote.desc}</p>
+                                {seloRedes(pacote.sku) && <span style={SeloRedesEstilo(seloRedes(pacote.sku).tipo)}>{seloRedes(pacote.sku).texto}</span>}
                               </div>
                             </div>
                           );
