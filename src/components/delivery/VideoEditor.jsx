@@ -176,7 +176,7 @@ export default function VideoEditor({ order, orderId, access, existingPhotos, fi
             <div className="nx-editor-processing" role="status" aria-live="polite">
               <span className="nx-progress-line" />
               <h3>{progress || 'Preparando o seu vídeo…'}</h3>
-              <p>O vídeo é criado no nosso estúdio. Pode trocar de aba ou fechar a página e voltar depois.</p>
+              <p>Mantenha esta página aberta. O vídeo é feito no seu aparelho e trocar de aba pode interromper a geração.</p>
               {onResetVideo && (
                 <div style={{ marginTop: '14px' }}>
                   <button
