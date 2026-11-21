@@ -35,7 +35,30 @@ describe('consulta leve dos relatórios', () => {
   it('todo campo do extras lido pelo mapeamento está na lista', async () => {
     const fs = await import('node:fs');
     const src = fs.readFileSync(new URL('../../src/lib/pedidosRelatorio.js', import.meta.url), 'utf8');
-    const usados = new Set([...src.matchAll(/extras\.([A-Za-z]+)/g)].map((m) => m[1]));
+    const usados = new Set([...src.matchAll(/extras\.([A-Za-z_]+)/g)].map((m) => m[1]));
     for (const k of usados) expect(CAMPOS_EXTRAS_RELATORIO).toContain(k);
+  });
+});
+
+import { calcularMetricasPorPlataforma } from '../../src/lib/trafficSource.js';
+
+describe('custo do WhatsApp com recuperação (marketing)', () => {
+  it('lê a marcação da recuperação do extras', () => {
+    const o = mapearPedidoRelatorio({ id: 'a', created_at: '2026-11-21T15:00:00Z', payment_status: 'AGUARDANDO_PAGAMENTO', extras: { abandoned_pix_recovery_sent: true } });
+    expect(o.recuperacaoWhatsappSent).toBe(true);
+    const leve = mapearPedidoRelatorio(remontarExtras({ id: 'b', created_at: '2026-11-21T15:00:00Z', x_abandoned_pix_recovery_sent: true }));
+    expect(leve.recuperacaoWhatsappSent).toBe(true);
+  });
+});
+
+describe('gasto de WhatsApp no Dashboard', () => {
+  it('recuperação entra a R$ 0,30 e a música pronta a R$ 0,035', () => {
+    const pedidos = [
+      { id: 'a', createdAt: '2026-11-21T15:00:00Z', readyTemplateSent: true, recuperacaoWhatsappSent: true },
+      { id: 'b', createdAt: '2026-11-21T16:00:00Z', readyTemplateSent: true },
+    ];
+    const { totais } = calcularMetricasPorPlataforma(pedidos);
+    expect(totais.mensagensWhatsApp).toBe(3);
+    expect(totais.gastoWhatsApp).toBeCloseTo(0.37, 2);
   });
 });

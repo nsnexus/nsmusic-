@@ -42,6 +42,8 @@ export const mapearPedidoRelatorio = (row) => {
     readyTemplateSent: Boolean(row.ready_template_sent ?? extras.readyTemplateSent),
     paymentWhatsappSent: Boolean(row.payment_whatsapp_sent ?? extras.paymentWhatsappSent),
     whatsappSent: Boolean(row.whatsapp_sent ?? extras.whatsappSent),
+    // Mensagem de recuperação do PIX abandonado (modelo MARKETING, cobrado mais caro).
+    recuperacaoWhatsappSent: Boolean(extras.abandoned_pix_recovery_sent),
     videoAddonPaid: extras.videoAddonPaid ?? (hasVid && isPago),
     videoPaidAt: extras.videoPaidAt ?? row.paid_at,
     videoPaidAmount: extras.videoPaidAmount,
@@ -107,7 +109,7 @@ export const mapearPedidoRelatorio = (row) => {
 // pedem SÓ esses campos ao banco (`x_campo:extras->campo`) em vez do JSON inteiro do pedido, que
 // carrega letra, história, faixas etc. e deixava o Dashboard pesado demais para carregar.
 export const CAMPOS_EXTRAS_RELATORIO = [
-  'audioUrl', 'cartaAddonPaid', 'cartaPaidAmount', 'cartaPaidAt', 'cartaPaymentId', 'fbclid', 'gclid',
+  'abandoned_pix_recovery_sent', 'audioUrl', 'cartaAddonPaid', 'cartaPaidAmount', 'cartaPaidAt', 'cartaPaymentId', 'fbclid', 'gclid',
   'hasKaraokeAccess', 'isSecondGeneration', 'karaokeAddonPaid', 'karaokePaidAmount', 'karaokePaidAt',
   'karaokePaymentId', 'origem', 'paidAmount', 'paidSku', 'parentOrderId', 'paymentIntentSku',
   'paymentWhatsappSent', 'platform', 'playbackAddonPaid', 'playbackPaidAmount', 'playbackPaidAt',
