@@ -200,6 +200,13 @@ export default function SecondSongOffer({ orderId, order }) {
         </h3>
         <p style={{ color: '#166534', fontSize: '0.95rem', maxWidth: '540px', margin: '0 auto 22px', lineHeight: 1.6 }}>
           Seu pedido inclui <strong>4 músicas personalizadas</strong> (2 gerações completas). Suas primeiras 2 versões já estão prontas acima. Agora você pode criar <strong>mais 2 músicas do zero</strong> com outra letra, história ou estilo sem pagar nada!
+          {(order?.hasRetrospectivaAccess || order?.retrospectivaAddonPaid)
+            ? <><br /><strong>E elas também ganham a retrospectiva, o vídeo e a carta delas.</strong></>
+            : (order?.hasVideoAccess || order?.videoAddonPaid)
+              ? <><br /><strong>E elas também ganham o vídeo e a carta delas.</strong></>
+              : (order?.hasCartaAccess || order?.cartaAddonPaid)
+                ? <><br /><strong>E elas também ganham a carta delas.</strong></>
+                : null}
         </p>
         <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
           <Link

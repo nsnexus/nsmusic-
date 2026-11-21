@@ -73,9 +73,9 @@ export async function createStripeCheckoutSession(params, env = {}) {
   // Descrição amigável pelo SKU
   const productNamesBySku = {
     audio_only: '4 Músicas Personalizadas com IA - NS Music',
-    combo_carta: '4 Músicas + Carta Virtual - NS Music',
-    combo_retrospectiva: '4 Músicas + Retrospectiva - NS Music',
-    combo: 'Música Personalizada + Vídeo Homenagem - NS Music',
+    combo_carta: '4 Músicas + 2 Cartas Virtuais - NS Music',
+    combo_retrospectiva: '4 Músicas + 2 Retrospectivas - NS Music',
+    combo: '4 Músicas + 2 Vídeos - NS Music',
     video_addon: 'Vídeo Homenagem (Slideshow) - NS Music',
     carta_addon: 'Carta Emocionante Narrada - NS Music',
     playback_addon: 'Playback Instrumental - NS Music',

@@ -23,42 +23,42 @@ export function deliveryPackages() {
     },
     {
       sku: 'combo_carta',
-      label: '4 Músicas + Carta Virtual',
+      label: '4 Músicas + 2 Cartas Virtuais',
       curto: 'Carta + Música',
-      resumo: 'Carta emocionante + músicas',
+      resumo: '2 cartas emocionantes + músicas',
       icon: '💌',
       eyebrow: 'Suas palavras',
-      desc: 'Suas 4 músicas + uma carta com envelope, foto colada e sua assinatura.',
+      desc: 'Suas 4 músicas + uma carta com envelope, foto e sua assinatura para cada geração: 2 cartas.',
       hasPreview: true,
       previewType: 'carta',
-      includes: ['Tudo de 4 Músicas Personalizadas', 'Carta com envelope interativo e foto', 'Selo e sua assinatura especial']
+      includes: ['Tudo de 4 Músicas Personalizadas', '2 cartas com envelope interativo e foto (uma por geração)', 'Selo e sua assinatura especial']
     },
     {
       sku: 'combo',
-      label: '4 Músicas + Vídeo Homenagem',
+      label: '4 Músicas + 2 Vídeos',
       curto: 'Vídeo + Música',
-      resumo: 'Vídeo com suas fotos + carta',
+      resumo: '2 vídeos com suas fotos + 2 cartas',
       icon: '🎬',
       eyebrow: 'Suas memórias',
       badge: 'MAIS COMPRADO',
       featured: true,
-      desc: 'Suas 4 músicas + um lindo vídeo slideshow sincronizado com suas fotos para emocionar.',
+      desc: 'Pague uma vez e leve em dobro: 4 músicas + um vídeo com fotos para cada geração. E 2 cartas virtuais de brinde.',
       hasPreview: true,
       previewType: 'video',
-      includes: ['4 músicas em MP3 HD', 'Vídeo emocionante com fotos', 'Edição profissional sincronizada']
+      includes: ['4 músicas em MP3 HD', '2 vídeos com fotos (um por geração)', '2 cartas virtuais de brinde']
     },
     {
       sku: 'combo_retrospectiva',
-      label: '4 Músicas + Retrospectiva',
+      label: '4 Músicas + 2 Retrospectivas',
       curto: 'Retrospectiva',
-      resumo: 'Linha do tempo + vídeo + carta',
+      resumo: '2 retrospectivas + vídeos + cartas',
       icon: '💝',
       eyebrow: 'Cada detalhe',
       badge: 'MAIS COMPLETO',
-      desc: 'Suas 4 músicas tocando numa página só de vocês: fotos, linha do tempo, contador dos dias, jogos e carta.',
+      desc: 'O pacote completo em dobro: uma retrospectiva para cada geração (fotos, linha do tempo, contador dos dias, jogos), mais 2 vídeos e 2 cartas.',
       hasPreview: true,
       previewType: 'retrospectiva',
-      includes: ['Tudo de 4 Músicas + Carta Virtual', 'Página exclusiva de casal/família', 'Linha do tempo interativa com fotos', 'Contador de dias e momentos marcantes']
+      includes: ['4 músicas em MP3 HD', '2 retrospectivas (uma por geração)', '2 vídeos com fotos + 2 cartas virtuais', 'Linha do tempo e contador de dias']
     },
     {
       sku: 'combo_voz',
