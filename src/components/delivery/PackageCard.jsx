@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Music, Mail, Film, Sparkles, Mic, Check, Users } from 'lucide-react';
-import { formatBrl } from '@/lib/deliveryPackages';
+import { formatBrl, seloRedes, SeloRedesEstilo } from '@/lib/deliveryPackages';
 
 const ICONS = {
   audio_only: Music,
@@ -76,6 +76,7 @@ export default function PackageCard({ pack, isSelected, onSelect, disabled }) {
       <div>
         <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: '0 0 6px', lineHeight: 1.25 }}>{pack.label}</h3>
         <p style={{ fontSize: '0.86rem', color: 'var(--nx-muted, #4e4653)', lineHeight: 1.45, margin: 0 }}>{pack.desc}</p>
+        {seloRedes(pack.sku) && <span style={SeloRedesEstilo(seloRedes(pack.sku).tipo)}>{seloRedes(pack.sku).texto}</span>}
       </div>
 
       <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
