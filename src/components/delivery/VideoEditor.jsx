@@ -25,6 +25,20 @@ function faseDoVideo(p) {
 function useProgressoVideo(ativo, progress, progressoSalvo) {
   const [percentual, setPercentual] = useState(5);
   const alvoRef = useRef(5);
+  const modoAnteriorRef = useRef(null);
+  const modoAtual = /Codificando vídeo acelerado/.test(String(progress || ''))
+    ? 'acelerado'
+    : /Modo compatível/.test(String(progress || '')) ? 'tempo-real' : null;
+
+  useEffect(() => {
+    // Não deixar barra travada em ~95% se WebCodecs falhar e a gravação
+    // precisar recomeçar no método seguro MediaRecorder.
+    if (modoAtual === 'tempo-real' && modoAnteriorRef.current === 'acelerado') {
+      alvoRef.current = 5;
+      setPercentual(5);
+    }
+    modoAnteriorRef.current = modoAtual;
+  }, [modoAtual]);
 
   const lido = Number(String(progress || '').match(/(\d{1,3})\s*%/)?.[1]);
   const alvo = Number.isFinite(lido) && lido > 0 ? lido : (Number(progressoSalvo) || 0);
