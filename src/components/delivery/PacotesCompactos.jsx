@@ -99,9 +99,14 @@ function Familia({ pack, marcado, onSelect, disabled, gerando }) {
           <Radio marcado={marcado} cor="#f59e0b" />
           <span style={{ fontSize: '0.95rem', fontWeight: 900, color: '#fde68a', lineHeight: 1.1, whiteSpace: 'nowrap' }}>👑 {pack.curto}</span>
         </span>
-        <span style={{ fontSize: '0.7rem', lineHeight: 1.25, color: '#f5f3ff' }}>{pack.resumo}</span>
-        <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#bbf7d0' }}>📲 Posta no Status, Reels e TikTok</span>
-        <span style={{ fontSize: '0.74rem', fontWeight: 800, color: '#fde047', lineHeight: 1.2 }}>+ 5 músicas extras, novas letras e estilos</span>
+        <span style={{ display: 'flex', alignItems: 'baseline', gap: '6px', color: '#fde047', lineHeight: 1.1 }}>
+          <strong style={{ fontSize: '1.65rem', fontWeight: 950, letterSpacing: '-0.04em' }}>{pack.geracoesTotal}</strong>
+          <strong style={{ fontSize: '0.73rem', fontWeight: 900 }}>GERAÇÕES AO TODO</strong>
+        </span>
+        <span style={{ fontSize: '0.73rem', lineHeight: 1.3, fontWeight: 800, color: '#fff' }}>
+          {pack.geracoesIncluidas} incluídas + {pack.geracoesExtras} extras com novas letras e estilos
+        </span>
+        <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#bbf7d0' }}>📲 Vídeo para Status, Reels e TikTok</span>
       </span>
       <span style={{ alignSelf: 'flex-end', flexShrink: 0, padding: '5px 9px', borderRadius: '11px', background: 'linear-gradient(180deg, #fde047 0%, #f59e0b 100%)', color: '#3b0764', fontWeight: 900, fontSize: '0.98rem', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
         {formatBrl(pack.price)}
