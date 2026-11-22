@@ -17,6 +17,7 @@ import RetrospectivaAddonCard from '@/components/RetrospectivaAddonCard';
 import VozClienteAddonCard from '@/components/VozClienteAddonCard';
 import BannerLinkPresente from '@/components/BannerLinkPresente';
 import { requestPixCharge } from '@/lib/pixCheckout';
+import { pixLocalAindaValido } from '@/lib/pixValidade';
 import { compressImage } from '@/lib/imageCompress';
 import { mapWithConcurrency } from '@/lib/videoUploadQueue';
 import { aplicarPatchNoPedido } from '@/lib/pedidoIrmao';
@@ -418,17 +419,26 @@ function EntregaContent() {
   }, [orderId, stripeSessionId, paidParam, infinitePaySlug, order?.paymentIntentId]);
 
 
-  // Recupera videoPixInfo do localStorage ao carregar (idempotência ao recarregar página)
+  // O QR dinâmico de vídeo tem a mesma validade de 1h que o da música.
+  // Nunca recuperar do celular um QR antigo sem data (versões legadas) ou
+  // com mais de 55min: bancos deixam de localizar a cobrança vencida.
   useEffect(() => {
     if (mounted && orderId && typeof window !== 'undefined') {
       try {
-        const stored = localStorage.getItem(`videoPixInfo_${orderId}`);
+        const key = `videoPixInfo_${orderId}`;
+        const stored = localStorage.getItem(key);
         if (stored) {
           const data = JSON.parse(stored);
-          setVideoPixInfo(data);
+          if (pixLocalAindaValido(data)) {
+            setVideoPixInfo(data);
+          } else {
+            localStorage.removeItem(key);
+            setVideoPixInfo({ qrCode: '', qrCodeBase64: '', paymentId: '' });
+          }
         }
       } catch (e) {
         console.warn('Erro ao carregar videoPixInfo do localStorage:', e);
+        try { localStorage.removeItem(`videoPixInfo_${orderId}`); } catch { /* armazenamento bloqueado */ }
       }
     }
   }, [mounted, orderId]);
@@ -1116,9 +1126,14 @@ function EntregaContent() {
         const videoPixData = {
           qrCode: data.qrCode || '',
           qrCodeBase64: data.qrCodeBase64 || '',
-          paymentId: data.paymentId || ''
+          paymentId: data.paymentId || '',
+          provider: data.provider || '',
+          generatedAt: new Date().toISOString(),
         };
         setVideoPixInfo(videoPixData);
+        // A cobrança já foi gerada. Não deixar o botão de renovar bloqueado
+        // pelos 55min seguintes enquanto aguardamos o pagamento.
+        setPendingVideoPix(false);
         if (typeof window !== 'undefined' && orderId) {
           localStorage.setItem(`videoPixInfo_${orderId}`, JSON.stringify(videoPixData));
         }

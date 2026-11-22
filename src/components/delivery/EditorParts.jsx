@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { pixLocalAindaValido } from '@/lib/pixValidade';
 import Image from 'next/image';
 import PixQrCode from '@/components/PixQrCode';
 import { getPriceForSku } from '@/lib/pricing';
@@ -22,8 +23,19 @@ export function ShareLinks({ url, label = 'presente', disabled = false }) {
 
 export function AddonCheckout({ sku, title, description, features, image, pix, loading, error, timedOut, onGenerate }) {
   const [copyMessage, setCopyMessage] = useState('');
+  const [agora, setAgora] = useState(() => Date.now());
+  // Só aplicar a expiração aqui ao vídeo avulso, para não alterar os demais
+  // add-ons que ainda não incluem generatedAt em seus estados de PIX.
+  useEffect(() => {
+    if (sku !== 'video_addon' || !pix?.qrCode) return undefined;
+    setAgora(Date.now());
+    const timer = setInterval(() => setAgora(Date.now()), 15000);
+    return () => clearInterval(timer);
+  }, [sku, pix?.qrCode, pix?.generatedAt]);
+  const expirou = sku === 'video_addon' && Boolean(pix?.qrCode) && !pixLocalAindaValido(pix, agora);
+  const pixAtivo = Boolean(pix?.qrCode) && !expirou;
   const amount = formatBrl(getPriceForSku(sku));
-  return <div className="nx-addon-offer"><div className="nx-addon-editorial"><Image src={image} alt="Imagem editorial ilustrativa do presente" width={720} height={480} unoptimized /><div><span className="nx-eyebrow">Um carinho a mais</span><h2>{title}</h2><p>{description}</p><small>Imagem ilustrativa. Seu presente usa a sua história e as suas fotos.</small></div></div><section className="nx-card nx-addon-purchase"><h2>Complete seu presente</h2><ul className="nx-checklist">{features.map(feature => <li key={feature}>{feature}</li>)}</ul><div className="nx-addon-price">{amount}<span>pagamento único</span></div>{error && <p className="nx-message nx-error" role="alert">{error}</p>}{!pix?.qrCode ? <button type="button" className="nx-button nx-primary" onClick={onGenerate} disabled={loading}>{loading ? 'Preparando seu PIX…' : `Adicionar por ${amount}`}</button> : <div className="nx-editor-pix"><p>Copie o código e pague pelo aplicativo do seu banco.</p><button type="button" className="nx-button nx-primary" onClick={async () => { try { await navigator.clipboard.writeText(pix.qrCode); setCopyMessage('Código PIX copiado.'); } catch { setCopyMessage('Selecione o código abaixo para copiar manualmente.'); } }}>Copiar código PIX</button><label className="nx-field"><span>PIX Copia e Cola</span><textarea className="nx-pix-code" readOnly value={pix.qrCode} /></label><details className="nx-details"><summary>Mostrar QR Code</summary><PixQrCode payload={pix.qrCode} size={180} label={`QR Code para ${title}`} /></details>{copyMessage && <p role="status" className="nx-message">{copyMessage}</p>}<p className="nx-helper" role="status">{timedOut ? 'A confirmação ainda não chegou. Se já pagou, atualize esta página em alguns instantes.' : 'Aguardando a confirmação do pagamento. Não é necessário pagar de novo.'}</p></div>}<p className="nx-helper">A edição é liberada após a confirmação do pagamento.</p></section></div>;
+  return <div className="nx-addon-offer"><div className="nx-addon-editorial"><Image src={image} alt="Imagem editorial ilustrativa do presente" width={720} height={480} unoptimized /><div><span className="nx-eyebrow">Um carinho a mais</span><h2>{title}</h2><p>{description}</p><small>Imagem ilustrativa. Seu presente usa a sua história e as suas fotos.</small></div></div><section className="nx-card nx-addon-purchase"><h2>Complete seu presente</h2><ul className="nx-checklist">{features.map(feature => <li key={feature}>{feature}</li>)}</ul><div className="nx-addon-price">{amount}<span>pagamento único</span></div>{error && <p className="nx-message nx-error" role="alert">{error}</p>}{expirou && <p className="nx-message nx-error" role="alert">O PIX anterior venceu ou não tem validade confirmada. Gere um novo código para pagar com segurança.</p>}{!pixAtivo ? <button type="button" className="nx-button nx-primary" onClick={onGenerate} disabled={loading}>{loading ? 'Preparando seu PIX…' : expirou ? 'Gerar novo PIX válido' : `Adicionar por ${amount}`}</button> : <div className="nx-editor-pix"><p>Copie o código e pague pelo aplicativo do seu banco.</p><button type="button" className="nx-button nx-primary" onClick={async () => { try { await navigator.clipboard.writeText(pix.qrCode); setCopyMessage('Código PIX copiado.'); } catch { setCopyMessage('Selecione o código abaixo para copiar manualmente.'); } }}>Copiar código PIX</button><label className="nx-field"><span>PIX Copia e Cola</span><textarea className="nx-pix-code" readOnly value={pix.qrCode} /></label><details className="nx-details"><summary>Mostrar QR Code</summary><PixQrCode payload={pix.qrCode} size={180} label={`QR Code para ${title}`} /></details>{copyMessage && <p role="status" className="nx-message">{copyMessage}</p>}<p className="nx-helper" role="status">{timedOut ? 'A confirmação ainda não chegou. Se já pagou, atualize esta página em alguns instantes.' : 'Aguardando a confirmação do pagamento. Não é necessário pagar de novo.'}</p></div>}<p className="nx-helper">A edição é liberada após a confirmação do pagamento.</p></section></div>;
 }
 
 export function TrackPicker({ tracks, value, onChange, busy, name, proxied = false }) {

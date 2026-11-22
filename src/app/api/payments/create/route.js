@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
 import { getOrder, updateOrder } from '@/lib/supabaseDb';
 import { getPriceForSku } from '@/lib/pricing';
-import { createPixCharge, getChargeStatus, generateTxid } from '@/lib/efi';
+import { createPixCharge, getChargeStatus, generateTxid, getEfiMode } from '@/lib/efi';
+import { cobrancaEfiAindaPagavel } from '@/lib/pixValidade';
 import { getSupabaseEdge } from '@/lib/supabase-edge';
 import { generateStaticPixPayload } from '@/lib/pixStatic';
 
@@ -76,27 +77,61 @@ export async function POST(req) {
     });
     if (reservationError || !intent) return NextResponse.json({ error: 'Não foi possível reservar seu PIX. Tente novamente.' }, { status: 503 });
 
-    let charge = intent.qr_code && intent.provider === 'efi' ? { txid: intent.txid, pixCopiaECola: intent.qr_code } : null;
+    // Reutilização de cobrança: a função de reserva retorna o intent antigo do
+    // mesmo pedido/SKU. Nunca confiar apenas em qr_code do banco: a Efí expira
+    // em 1h e um QR expirado ainda pode estar persistido por dias.
     let provider = intent.provider || 'efi';
+    let charge = null;
+    const cachedInfinitePay = provider === 'infinitepay' &&
+      /^https:\/\/checkout\.infinitepay\.io\//i.test(String(intent.qr_code || ''));
+    if (cachedInfinitePay) {
+      charge = { txid: intent.txid, checkoutUrl: intent.qr_code, isCheckoutRedirect: true };
+    }
+
     if (!charge) {
       try {
+        // Cobrança de homologação pode ser criada normalmente, mas NÃO pode ser
+        // paga no app bancário. Nunca entregá-la no domínio público de produção.
+        const publicHost = typeof req.url === 'string' &&
+          /^(www\.)?nsmusic\.ia\.br$/i.test(new URL(req.url).hostname);
+        if (publicHost && getEfiMode(env) !== 'production') {
+          throw new Error('Efí está em homologação no domínio público. Recusando QR não pagável.');
+        }
+
         const existing = await getChargeStatus(intent.txid, env);
-        charge = existing || await createPixCharge({ orderId: existingOrderData.id, amount, description: `Pedido NS Music ${existingOrderData.id}`, txid: intent.txid }, env);
+        if (existing?.status === 'CONCLUIDA') {
+          return NextResponse.json({
+            error: 'Já existe um pagamento concluído para este pedido. Atualize a página para verificar a liberação.',
+          }, { status: 409 });
+        }
+        if (existing) {
+          // status ATIVA sozinho NÃO garante que o QR ainda é pagável:
+          // calendario.criacao + expiracao pode ter vencido.
+          if (!cobrancaEfiAindaPagavel(existing)) {
+            throw new Error('Cobrança Efí vencida, removida ou sem payload válido.');
+          }
+          charge = { txid: existing.txid || intent.txid, pixCopiaECola: existing.pixCopiaECola, status: existing.status };
+        } else {
+          charge = await createPixCharge({
+            orderId: existingOrderData.id, amount,
+            description: `Pedido NS Music ${existingOrderData.id}`,
+            txid: intent.txid,
+          }, env);
+          if (!charge?.pixCopiaECola || charge.status !== 'ATIVA') {
+            throw new Error('A Efí não devolveu um Pix Copia e Cola ativo.');
+          }
+        }
         provider = 'efi';
       } catch (error) {
-        console.warn('[payments/create] Efí falhou, acionando contingência InfinitePay:', error.message);
-        // Fallback 1: InfinitePay Checkout
+        console.warn('[payments/create] Não é possível entregar o PIX da Efí; tentando InfinitePay:', error.message);
         try {
           const { createInfinitePayCheckoutLink } = await import('@/lib/infinitepay');
           const infLink = await createInfinitePayCheckoutLink({
-            orderId: existingOrderData.id,
-            sku,
-            amount,
+            orderId: existingOrderData.id, sku, amount,
             customerName: existingOrderData.customerName,
             customerPhone: existingOrderData.customerPhone,
             customerEmail: existingOrderData.customerEmail,
           }, env);
-
           provider = 'infinitepay';
           charge = {
             txid: `inf_${infLink.slug}`,
@@ -104,19 +139,31 @@ export async function POST(req) {
             isCheckoutRedirect: true,
           };
         } catch (infErr) {
-          console.warn('[payments/create] InfinitePay fallback também falhou, usando PIX estático:', infErr.message);
-          // Fallback 2: PIX Estático de contingência
+          console.warn('[payments/create] Alternativa InfinitePay indisponível:', infErr.message);
+          if (sku === 'video_addon') {
+            // PIX estático não confirma o add-on automaticamente. Evitar entregar
+            // uma cobrança não rastreável e prender a compra do cliente no polling.
+            return NextResponse.json({
+              error: 'O PIX do vídeo está indisponível neste momento. Tente gerar novamente. Nenhuma cobrança foi efetuada.',
+            }, { status: 424 });
+          }
+          // Mantém a contingência estática dos demais produtos, sem alterar
+          // o comportamento do checkout principal neste reparo do vídeo.
           charge = generateStaticPixPayload(amount, existingOrderData.id, undefined, intent.txid);
           provider = 'static';
         }
       }
-      if (!charge?.pixCopiaECola && !charge?.checkoutUrl) return NextResponse.json({ error: 'A cobrança não está disponível. Consulte o pagamento ou tente novamente.' }, { status: 503 });
+      if (!charge?.pixCopiaECola && !charge?.checkoutUrl) {
+        return NextResponse.json({ error: 'Não foi possível obter um PIX válido. Tente novamente.' }, { status: 503 });
+      }
       const saved = await supabase.from('order_payment_intents').eq('id', intent.id).update({
         qr_code: charge.pixCopiaECola || charge.checkoutUrl,
         txid: charge.txid,
-        provider
+        provider,
       });
-      if (saved.error) return NextResponse.json({ error: 'Não foi possível registrar o PIX. Tente novamente para recuperar a cobrança.' }, { status: 503 });
+      if (saved.error) {
+        return NextResponse.json({ error: 'Não foi possível registrar o PIX. Tente novamente para recuperar a cobrança.' }, { status: 503 });
+      }
     }
     const recorded = await supabase.rpc('record_order_payment_intent', {
       p_order_id: existingOrderData.id, p_txid: charge.txid, p_sku: sku, p_amount: amount,

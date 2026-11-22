@@ -1,10 +1,25 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-const state = vi.hoisted(() => ({ orders:{}, intents:[], records:[], reserveError:false, nextId:0, provider:vi.fn() }));
+const state = vi.hoisted(() => ({ orders:{}, intents:[], records:[], reserveError:false, nextId:0, provider:vi.fn(), charges:{}, efiFails:false, infinitepayFails:false, efiMode:'production' }));
 vi.mock('@/lib/supabaseDb',()=>({ getOrder:async id=>state.orders[id]||null,updateOrder:async()=>true }));
 vi.mock('@/lib/efi',()=>({
   generateTxid:()=> 'A'.repeat(26),
-  getChargeStatus:async()=>null,
-  createPixCharge:async args=>{ state.provider(args); return {txid:args.txid,pixCopiaECola:'code-'+args.txid,status:'ATIVA'}; }
+  getEfiMode:()=> state.efiMode,
+  getChargeStatus:async txid=>state.charges[txid] || null,
+  createPixCharge:async args=>{
+    state.provider(args);
+    if (state.efiFails) throw new Error('Efí indisponível');
+    const charge = { txid:args.txid, pixCopiaECola:'code-'+args.txid,status:'ATIVA' };
+    state.charges[args.txid] = {
+      ...charge, calendario: { criacao: new Date().toISOString(), expiracao:3600 },
+    };
+    return charge;
+  }
+}));
+vi.mock('@/lib/infinitepay',()=>({
+  createInfinitePayCheckoutLink:async ()=> {
+    if (state.infinitepayFails) throw new Error('InfinitePay indisponível');
+    return { slug:'checkout-teste', url:'https://checkout.infinitepay.io/handle/checkout-teste' };
+  },
 }));
 vi.mock('@/lib/supabase-edge',()=>({getSupabaseEdge:()=>({
   rpc:async(name,args)=>{
@@ -25,7 +40,7 @@ vi.mock('@/lib/supabase-edge',()=>({getSupabaseEdge:()=>({
 })}));
 const {POST}=await import('@/app/api/payments/create/route');
 const request=body=>({json:async()=>body});
-beforeEach(()=>{state.orders={order1:{id:'order1'}};state.intents=[];state.records=[];state.nextId=0;state.reserveError=false;state.provider.mockClear();});
+beforeEach(()=>{state.orders={order1:{id:'order1'}};state.intents=[];state.records=[];state.nextId=0;state.reserveError=false;state.charges={};state.efiFails=false;state.infinitepayFails=false;state.efiMode='production';state.provider.mockClear();});
 describe('PIX com reserva persistida',()=>{
   it('deriva preço do catálogo e registra o vínculo ao pedido',async()=>{
     const res=await POST(request({orderId:'order1',sku:'audio_only',totalAmount:0.01}));
@@ -39,6 +54,64 @@ describe('PIX com reserva persistida',()=>{
     expect((await a.json()).paymentId).toBe((await b.json()).paymentId);
     expect(state.provider).toHaveBeenCalledTimes(1);
   });
+  it('QR antigo de vídeo não é reaproveitado: oferece checkout pagável alternativo',async()=>{
+    const primeira = await POST(request({orderId:'order1',sku:'video_addon',isSecondaryPayment:true}));
+    const txid = (await primeira.json()).paymentId;
+    state.charges[txid].calendario.criacao = new Date(Date.now() - 70*60*1000).toISOString();
+    const nova = await POST(request({orderId:'order1',sku:'video_addon',isSecondaryPayment:true}));
+    const data = await nova.json();
+    expect(nova.status).toBe(200);
+    expect(data.provider).toBe('infinitepay');
+    expect(data.checkoutUrl).toMatch(/^https:\/\/checkout\.infinitepay\.io\//);
+    expect(data.qrCode).toBe('');
+    expect(data.paymentId).toBe('inf_checkout-teste');
+    expect(state.intents[0].provider).toBe('infinitepay');
+  });
+
+  it('reutiliza o checkout InfinitePay já criado sem emitir PIX expirado',async()=>{
+    state.intents.push({
+      id:++state.nextId,order_id:'order1',sku:'video_addon',expected_amount:6.90,
+      txid:'inf_checkout-teste',provider:'infinitepay',
+      qr_code:'https://checkout.infinitepay.io/handle/checkout-teste',
+    });
+    const res=await POST(request({orderId:'order1',sku:'video_addon',isSecondaryPayment:true}));
+    expect(res.status).toBe(200);
+    const data=await res.json();
+    expect(data.checkoutUrl).toMatch(/^https:\/\/checkout\.infinitepay\.io\//);
+    expect(state.provider).not.toHaveBeenCalled();
+  });
+
+  it('não mostra QR Efí de homologação em nsmusic.ia.br; oferece checkout real',async()=>{
+    state.efiMode='sandbox';
+    const req=request({orderId:'order1',sku:'video_addon',isSecondaryPayment:true});
+    req.url='https://nsmusic.ia.br/api/payments/create';
+    const res=await POST(req);
+    const data=await res.json();
+    expect(res.status).toBe(200);
+    expect(data.provider).toBe('infinitepay');
+    expect(data.checkoutUrl).toMatch(/^https:\/\/checkout\.infinitepay\.io\//);
+    expect(state.provider).not.toHaveBeenCalled();
+  });
+
+  it('não expõe PIX estático de vídeo quando os dois provedores falham',async()=>{
+    state.efiFails=true;
+    state.infinitepayFails=true;
+    const res=await POST(request({orderId:'order1',sku:'video_addon',isSecondaryPayment:true}));
+    const data=await res.json();
+    expect(res.status).toBe(424);
+    expect(data.error).toMatch(/PIX do vídeo está indisponível/);
+    expect(data.qrCode).toBeUndefined();
+  });
+
+  it('não emite segunda cobrança quando a Efí já informa CONCLUIDA',async()=>{
+    const primeira=await POST(request({orderId:'order1',sku:'video_addon',isSecondaryPayment:true}));
+    const txid=(await primeira.json()).paymentId;
+    state.charges[txid].status='CONCLUIDA';
+    const res=await POST(request({orderId:'order1',sku:'video_addon',isSecondaryPayment:true}));
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toMatch(/pagamento concluído/);
+  });
+
   it('uma troca de pacote conserva o vínculo da cobrança anterior',async()=>{
     const a=await POST(request({orderId:'order1',sku:'audio_only'}));
     const prior=(await a.json()).paymentId;
