@@ -58,6 +58,8 @@ export default function OrderDetailsAdmin() {
 
   const [sunoPrompt, setSunoPrompt] = useState('');
   const [useCustomVoice, setUseCustomVoice] = useState(false);
+  const [checkingKieVoice, setCheckingKieVoice] = useState(false);
+  const [kieVoiceDiagnostic, setKieVoiceDiagnostic] = useState(null);
   // Voz clonada da cliente que existe fora deste pedido (pedido principal ou cadastro por telefone).
   // Caso real 18/11/2026: cliente clonou a voz no pedido pago e o pedido bônus veio sem a voz, sem
   // jeito de regerar com o timbre dela pelo painel.
@@ -905,6 +907,31 @@ export default function OrderDetailsAdmin() {
       alert('Voz clonada desvinculada com sucesso de todas as versões do pedido (Principal e 2ª Geração)!');
     } catch (e) {
       alert('Erro ao desvincular voz: ' + e.message);
+    }
+  };
+
+  // A verificação gratuita da KIE consulta a disponibilidade real da Voice Persona.
+  // Não inicia geração, não gasta créditos de música e não altera o pedido.
+  const handleDiagnoseKieVoice = async () => {
+    if (!orderId) return;
+    setCheckingKieVoice(true);
+    setKieVoiceDiagnostic(null);
+    try {
+      const token = await getAdminAuthToken();
+      if (!token) throw new Error('Sua sessão expirou. Entre novamente no painel.');
+      const res = await fetch('/api/admin/voice/diagnose', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ orderId, useCustomVoice }),
+        cache: 'no-store',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) throw new Error(data.error || 'Não foi possível consultar a KIE.');
+      setKieVoiceDiagnostic(data);
+    } catch (err) {
+      setKieVoiceDiagnostic({ error: err.message || 'Falha de rede ao consultar a KIE.' });
+    } finally {
+      setCheckingKieVoice(false);
     }
   };
 
@@ -2174,7 +2201,7 @@ export default function OrderDetailsAdmin() {
                         <input
                           type="checkbox"
                           checked={useCustomVoice}
-                          onChange={(e) => setUseCustomVoice(e.target.checked)}
+                          onChange={(e) => { setUseCustomVoice(e.target.checked); setKieVoiceDiagnostic(null); }}
                           style={{ width: '16px', height: '16px', cursor: 'pointer' }}
                         />
                         🎙️ Usar Voz Clonada da Cliente nesta geração
@@ -2196,6 +2223,35 @@ export default function OrderDetailsAdmin() {
                       >
                         Desvincular voz permanentemente
                       </button>
+                    </div>
+                    <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #ddd6fe' }}>
+                      <button
+                        type="button"
+                        onClick={handleDiagnoseKieVoice}
+                        disabled={checkingKieVoice || generatingSuno}
+                        style={{ padding: '10px 12px', border: '1px solid #8b5cf6', borderRadius: '8px', fontWeight: 800, background: '#fff', color: '#6d28d9', cursor: checkingKieVoice ? 'wait' : 'pointer', width: '100%' }}
+                      >
+                        {checkingKieVoice ? '🔎 Consultando a KIE...' : '🔎 Verificar voz diretamente na KIE (grátis)'}
+                      </button>
+                      {kieVoiceDiagnostic && (
+                        <div role="status" style={{ marginTop: '10px', padding: '10px', borderRadius: '8px', fontSize: '0.78rem', lineHeight: 1.55, background: kieVoiceDiagnostic.error || !kieVoiceDiagnostic.voiceAvailable || !kieVoiceDiagnostic.willUseClonedVoice ? '#fff7ed' : '#ecfdf5', color: '#334155', border: '1px solid #cbd5e1' }}>
+                          {kieVoiceDiagnostic.error ? (
+                            <strong>⚠️ {kieVoiceDiagnostic.error}</strong>
+                          ) : (<>
+                            <strong>
+                              {kieVoiceDiagnostic.voiceAvailable ? '✅ Voice ID disponível na KIE.' : '❌ Voice ID indisponível na KIE.'}
+                            </strong>
+                            <div>{kieVoiceDiagnostic.message}</div>
+                            <div style={{ marginTop: '6px' }}>
+                              {kieVoiceDiagnostic.willUseClonedVoice
+                                ? '✅ O pedido está configurado para enviar a voz clonada.'
+                                : `⚠️ ${kieVoiceDiagnostic.reason}`}
+                            </div>
+                            {kieVoiceDiagnostic.voiceIdSuffix && <div>Identificador final: ...{kieVoiceDiagnostic.voiceIdSuffix}</div>}
+                            <small>Este teste não gera música, não verifica fidelidade auditiva e não confirma o uso da voz em gerações anteriores.</small>
+                          </>)}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
