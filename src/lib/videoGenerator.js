@@ -31,7 +31,9 @@ async function salvarVideoGerado(orderId, videoBlob) {
     method: 'POST',
     headers: { 'Content-Type': videoBlob.type },
     body: videoBlob,
-    signal: AbortSignal.timeout(120000),
+    // Em conexão móvel lenta, MP4 de 7 minutos pode levar mais de 2 minutos
+    // para subir. Não descartar um vídeo inteiro já finalizado por timeout curto.
+    signal: AbortSignal.timeout(300000),
   });
   if (!uploadRes.ok) {
     throw new Error(`Falha no upload do vídeo para o R2 (HTTP ${uploadRes.status})`);
