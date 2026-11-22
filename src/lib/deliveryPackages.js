@@ -1,4 +1,4 @@
-import { getPriceForSku, skuGrantsVideoAccess } from './pricing.js';
+import { getPriceForSku, skuGrantsVideoAccess, geracoesExtrasDoSku, GERACOES_INCLUIDAS_POR_COMPRA } from './pricing.js';
 
 // Promessa única do produto. Toda tela que fala do que o pagamento libera usa estas frases.
 // Regra de negócio: o pagamento libera as 2 versões completas já geradas e mais 2 de bônus (4 músicas).
@@ -10,6 +10,8 @@ export const PROMESSA = {
 };
 
 export function deliveryPackages() {
+  const extrasFamilia = geracoesExtrasDoSku('combo_familia');
+  const totalFamilia = GERACOES_INCLUIDAS_POR_COMPRA + extrasFamilia;
   return [
     {
       sku: 'audio_only',
@@ -74,14 +76,17 @@ export function deliveryPackages() {
     },
     {
       sku: 'combo_familia',
-      label: 'Pacote Família',
+      label: `Pacote Família — ${totalFamilia} gerações`,
       curto: 'Pacote Família',
-      resumo: 'Tudo: música, carta, vídeo e retrospectiva',
+      resumo: `${totalFamilia} gerações ao todo: ${GERACOES_INCLUIDAS_POR_COMPRA} incluídas + ${extrasFamilia} extras`,
+      geracoesTotal: totalFamilia,
+      geracoesIncluidas: GERACOES_INCLUIDAS_POR_COMPRA,
+      geracoesExtras: extrasFamilia,
       icon: '👨‍👩‍👧',
       eyebrow: 'Combo completo',
       badge: 'OFERTA ESPECIAL',
-      desc: 'Tudo da Retrospectiva (músicas, carta, vídeo e linha do tempo) + 5 músicas extras, com novas letras e estilos, para quem você quiser.',
-      includes: ['Tudo de 4 Músicas + Retrospectiva', 'Vídeo e carta personalizados', '+ 5 músicas extras (novas letras e estilos)']
+      desc: `${totalFamilia} gerações de música no total: ${GERACOES_INCLUIDAS_POR_COMPRA} incluídas no pedido + ${extrasFamilia} novas gerações para quem você quiser, com letras e estilos diferentes. Inclui carta, vídeo e retrospectiva.`,
+      includes: [`${totalFamilia} gerações no total (${GERACOES_INCLUIDAS_POR_COMPRA} incluídas + ${extrasFamilia} extras)`, 'Tudo de 4 Músicas + Retrospectiva', 'Vídeo e carta personalizados']
     },
   ].map(pack => ({ ...pack, price: getPriceForSku(pack.sku) }));
 }
