@@ -6,6 +6,7 @@ const estado = vi.hoisted(() => ({
   videoSuportado: true,
   audioSuportado: true,
   duration: 420,
+  audioDuration: 420,
   frames: [],
   audios: [],
   cancelamentos: 0,
@@ -39,9 +40,10 @@ vi.mock('mediabunny', () => ({
   },
   Input: class Input {
     constructor() {}
-    async computeDuration() { return estado.duration; }
-    async getPrimaryAudioTrack() { return {}; }
-    async getPrimaryVideoTrack() { return {}; }
+    async computeDuration(tracks) { return tracks?.[0]?.kind === 'audio' ? estado.audioDuration : estado.duration; }
+    async getPrimaryAudioTrack() { return { kind: 'audio' }; }
+    async getPrimaryVideoTrack() { return { kind: 'video' }; }
+    dispose() {}
   },
   BlobSource: class BlobSource { constructor() {} },
   ALL_FORMATS: [],
@@ -59,7 +61,7 @@ const audio = { duration: 420, numberOfChannels: 2, sampleRate: 44100 };
 
 beforeEach(() => {
   Object.assign(estado, {
-    videoSuportado: true, audioSuportado: true, duration: 420,
+    videoSuportado: true, audioSuportado: true, duration: 420, audioDuration: 420,
     frames: [], audios: [], cancelamentos: 0, falharNoFrame: -1,
   });
   globalThis.window = { VideoEncoder: class {}, AudioEncoder: class {} };
@@ -87,7 +89,16 @@ describe('exportação acelerada de vídeo no front', () => {
     expect(estado.audios).toEqual([420]);
     expect(estado.frames).toHaveLength(6300);
     expect(estado.frames.at(-1)).toBeGreaterThan(419);
-    expect(progresso).toHaveBeenCalledWith(95);
+    expect(progresso).toHaveBeenCalledWith(95, 'acelerado');
+  });
+
+  it('rejeita MP4 quando o vídeo tem 7 minutos, mas a trilha de áudio foi cortada em 6 minutos', async () => {
+    estado.audioDuration = 360;
+    const blob = await tentarVideoAcelerado({
+      imagens: [imagem, imagem, imagem], audioBuffer: audio, duracao: 420,
+    });
+    expect(blob).toBeNull();
+    expect(estado.frames).toHaveLength(6300);
   });
 
   it('não tenta gerar com WebCodecs se o navegador não tiver codificação AAC', async () => {
