@@ -3,58 +3,59 @@
 import { useState, useEffect } from 'react';
 import { getAdminAuthToken } from '@/lib/authClient';
 
-// Resumo do mês do Dashboard, já calculado no servidor a partir de metricas_diarias
-// (/api/admin/dashboard-mes). Substitui baixar todos os pedidos do mês no navegador.
-// Na primeira montagem de um mês o servidor calcula alguns dias por vez e responde
-// `incompleto: true`; aqui pedimos de novo até completar, mostrando o que já veio.
-
-const MAX_RODADAS = 12;
-
-async function pedir(mes, renovar = false) {
+async function pedir(params, signal, renovar = false) {
   const token = await getAdminAuthToken(renovar);
-  return fetch(`/api/admin/dashboard-mes?mes=${encodeURIComponent(mes)}`, {
+  return fetch(`/api/admin/dashboard-mes?${params}`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
-    signal: AbortSignal.timeout(60000),
+    signal: AbortSignal.any([signal, AbortSignal.timeout(60000)]),
   });
 }
 
-export function useResumoMes(mes) {
-  const [resumo, setResumo] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [erro, setErro] = useState('');
-  const [montando, setMontando] = useState(false);
+export function useResumoMes(periodo, mes = null, tentativa = 0) {
+  const chave = periodo ? `${periodo}:${mes || ''}:${tentativa}` : null;
+  const [resultado, setResultado] = useState(null);
 
   useEffect(() => {
-    if (!mes) return undefined;
-    let ativo = true;
-    setLoading(true);
-    setErro('');
-    setResumo(null);
-    (async () => {
-      for (let rodada = 0; rodada < MAX_RODADAS && ativo; rodada++) {
-        try {
-          let res = await pedir(mes);
-          if (res.status === 401) res = await pedir(mes, true);
-          const json = await res.json().catch(() => null);
-          if (!ativo) return;
-          if (!res.ok || !json?.ok) {
-            setErro(json?.error || 'Não foi possível carregar o resumo do mês.');
-            break;
-          }
-          setResumo(json);
-          setLoading(false);
-          setMontando(Boolean(json.incompleto));
-          if (!json.incompleto) break;
-        } catch (e) {
-          if (!ativo) return;
-          setErro('O resumo do mês demorou demais para responder. Tente atualizar a página.');
-          break;
-        }
-      }
-      if (ativo) { setLoading(false); setMontando(false); }
-    })();
-    return () => { ativo = false; };
-  }, [mes]);
+    if (!periodo) return undefined;
+    const controller = new AbortController();
+    const params = new URLSearchParams({ periodo });
+    if (mes) params.set('mes', mes);
+    const detalhes = {};
+    let resumo = null;
 
-  return { resumo, loading, erro, montando };
+    (async () => {
+      try {
+        // O mês pode vir em lotes se alguns dias ainda não estiverem consolidados.
+        do {
+          let res = await pedir(params, controller.signal);
+          if (res.status === 401) res = await pedir(params, controller.signal, true);
+          const json = await res.json().catch(() => null);
+          if (controller.signal.aborted) return;
+          if (!res.ok || !json?.ok) throw new Error(json?.error || 'Não foi possível carregar os dados.');
+
+          Object.assign(detalhes, json.detalhes);
+          resumo = json;
+          if (params.has('dias')) {
+            const { combinarMes } = await import('@/lib/dashboardAgregados');
+            const dias = Object.keys(detalhes).sort().map((data) => Number(data.slice(-2)));
+            resumo = { ...json, dias, ...combinarMes(detalhes, json.mes, dias) };
+          }
+          if (controller.signal.aborted) return;
+          setResultado({ chave, resumo, loading: false, erro: '', montando: json.incompleto });
+          if (!json.pendentes?.length) break;
+          params.set('dias', json.pendentes.join(','));
+        } while (!controller.signal.aborted);
+      } catch (e) {
+        if (controller.signal.aborted) return;
+        const erro = e?.name === 'TimeoutError' ? 'O painel demorou para responder.' : e.message;
+        setResultado({ chave, resumo, loading: false, erro, montando: false });
+      }
+    })();
+
+    return () => controller.abort();
+  }, [chave, periodo, mes]);
+
+  return resultado?.chave === chave
+    ? resultado
+    : { resumo: null, loading: Boolean(periodo), erro: '', montando: false };
 }

@@ -7,12 +7,10 @@ import Link from 'next/link';
 import Image from 'next/image';
 import dynamic from 'next/dynamic';
 import { useResumoMes } from '@/lib/useResumoMes';
-import RitmoVendasCard from '@/components/RitmoVendasCard';
-import VendasPorPlataformaCard from '@/components/VendasPorPlataformaCard';
+import { diaSp } from '@/lib/relogioSp';
 import KieCreditsBadge from '@/components/admin/KieCreditsBadge';
 import UnificallyCreditsBadge from '@/components/admin/UnificallyCreditsBadge';
 import WhatsAppUsageBadge from '@/components/admin/WhatsAppUsageBadge';
-import { hasMusicaGerada } from '@/lib/stats';
 import { Package, BarChart3, Megaphone, Mail, LogOut } from 'lucide-react';
 
 // Componentes pesados carregados sob demanda (code-splitting) para reduzir First Load JS
@@ -30,38 +28,36 @@ const VendasPorEstadoMapa = dynamic(() => import('@/components/VendasPorEstadoMa
   loading: () => <div style={{ padding: '24px', textAlign: 'center', color: '#64748b' }}>Carregando mapa por estado...</div>,
 });
 
-// toISOStr precisa lidar com os dois formatos gravados historicamente (Timestamp do Firestore e
-// string ISO) — mesmo utilitário replicado de admin/page.jsx.
-function toISOStr(value) {
-  if (!value) return null;
-  if (typeof value === 'string') return value;
-  if (value?.toDate) return value.toDate().toISOString();
-  return null;
-}
+const VendasPorPlataformaCard = dynamic(() => import('@/components/VendasPorPlataformaCard'), { ssr: false });
+const RitmoVendasCard = dynamic(() => import('@/components/RitmoVendasCard'), { ssr: false });
 
 // Lista vazia estável (os cards recebem o resumo pronto; não há pedidos no navegador).
 const EMPTY_ORDERS = [];
 
-function daysInMonth(year, month) {
-  // month é 1-indexado aqui (1=Janeiro) — Date(year, month, 0) devolve o último dia do mês anterior.
-  return new Date(year, month, 0).getDate();
-}
+const PERIODOS = [['hoje', 'Hoje'], ['ontem', 'Ontem'], ['mes', 'Mês todo']];
 
 export default function AdminDashboard() {
   const [user, setUser] = useState(null);
   const [checkingAuth, setCheckingAuth] = useState(true);
 
-  const now = new Date();
-  const defaultMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const [monthValue, setMonthValue] = useState(defaultMonth);
+  const [periodo, setPeriodo] = useState('hoje');
+  const [monthValue, setMonthValue] = useState(() => diaSp().slice(0, 7));
+  const [compararRitmo, setCompararRitmo] = useState(false);
+  const [tentativa, setTentativa] = useState(0);
+  const [mostrarSaldos, setMostrarSaldos] = useState(false);
 
-  // Resumo do mês já calculado no servidor (tabela metricas_diarias): o navegador não baixa mais
-  // os pedidos do mês — dias fechados vêm guardados e só os dias abertos são recalculados.
-  const { resumo, loading: loadingResumo, erro: erroResumo, montando } = useResumoMes(monthValue);
-  const orders = EMPTY_ORDERS;
-  const loadingOrders = loadingResumo && !resumo;
+  const { resumo, loading: loadingResumo, erro: erroResumo, montando } = useResumoMes(
+    checkingAuth ? null : periodo,
+    periodo === 'mes' ? monthValue : null,
+    tentativa
+  );
+  const ritmo = useResumoMes(resumo && periodo === 'hoje' && compararRitmo ? 'ritmo' : null);
 
   const router = useRouter();
+
+  useEffect(() => {
+    if (resumo || erroResumo) setMostrarSaldos(true);
+  }, [resumo, erroResumo]);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -94,32 +90,19 @@ export default function AdminDashboard() {
     router.push('/admin/login');
   };
 
-  // Série diária do mês selecionado: quantos pedidos foram CRIADOS em cada dia (feito) e quantos
-  // foram PAGOS em cada dia (convertido, usa paidAt — não createdAt, um pedido pode converter dias
-  // depois de criado). % é sempre relativo ao que foi criado NAQUELE mesmo dia, não cumulativo — dá
-  // pra ver se a conversão de um dia específico foi boa ou ruim, que é a pergunta que o gráfico
-  // responde.
   const monthlySeries = useMemo(() => {
-    const [yearStr, monthStr] = monthValue.split('-');
-    const year = Number(yearStr);
-    const month = Number(monthStr); // 1-indexado
-    const totalDays = daysInMonth(year, month);
-
-    const vazio = new Array(totalDays).fill(0);
-    const serie = (resumo && resumo.mes === monthValue && resumo.serie) ? resumo.serie : null;
-    const feito = serie ? serie.feito.slice(0, totalDays) : vazio;
-    const convertido = serie ? serie.convertido.slice(0, totalDays) : vazio.slice();
+    const { feito = [], convertido = [] } = resumo?.serie || {};
     const percent = feito.map((f, i) => (f > 0 ? Math.round((convertido[i] / f) * 1000) / 10 : 0));
 
     return {
-      days: Array.from({ length: totalDays }, (_, i) => i + 1),
+      days: resumo?.dias || [],
       feito,
       convertido,
       percent,
       totalFeito: feito.reduce((a, b) => a + b, 0),
       totalConvertido: convertido.reduce((a, b) => a + b, 0),
     };
-  }, [resumo, monthValue]);
+  }, [resumo]);
 
   const overallPercent = monthlySeries.totalFeito > 0
     ? Math.round((monthlySeries.totalConvertido / monthlySeries.totalFeito) * 1000) / 10
@@ -163,9 +146,13 @@ export default function AdminDashboard() {
             </nav>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-            <UnificallyCreditsBadge />
-            <KieCreditsBadge />
-            <WhatsAppUsageBadge />
+            {mostrarSaldos && (
+              <>
+                <UnificallyCreditsBadge />
+                <KieCreditsBadge />
+                <WhatsAppUsageBadge />
+              </>
+            )}
             <span style={{ fontSize: '0.84rem', color: '#475569', fontWeight: '600' }}>{user?.email}</span>
             <button type="button" onClick={handleLogout} style={{ ...styles.logoutBtn, display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
               <LogOut size={14} aria-hidden="true" /> Sair
@@ -177,67 +164,116 @@ export default function AdminDashboard() {
       <main style={{ flex: 1, padding: '32px 0' }}>
         <div className="container" style={{ maxWidth: '1280px', margin: '0 auto', padding: '0 20px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '24px' }}>
-            <h1 style={{ fontSize: '1.6rem', fontWeight: '800', color: '#0f172a', margin: 0 }}>Dashboard do mês</h1>
-            <div>
-              <label htmlFor="dashboard-month" style={{ display: 'block', fontSize: '0.78rem', color: '#64748b', marginBottom: '4px' }}>Mês</label>
+            <h1 style={{ fontSize: '1.6rem', fontWeight: '800', color: '#0f172a', margin: 0 }}>Dashboard de vendas</h1>
+            <div role="group" aria-label="Período do dashboard" style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+              {PERIODOS.map(([valor, label]) => (
+                <button
+                  type="button"
+                  key={valor}
+                  aria-pressed={periodo === valor}
+                  onClick={() => { setCompararRitmo(false); setPeriodo(valor); }}
+                  style={{ ...styles.tabBtn, background: periodo === valor ? '#0f172a' : '#ffffff', color: periodo === valor ? '#ffffff' : '#334155' }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {periodo === 'mes' && (
               <input
-                id="dashboard-month"
+                aria-label="Mês do dashboard"
                 type="month"
                 value={monthValue}
-                onChange={(e) => setMonthValue(e.target.value)}
+                max={diaSp().slice(0, 7)}
+                onChange={(e) => { if (e.target.value) setMonthValue(e.target.value); }}
                 style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.9rem', color: '#0f172a' }}
               />
-            </div>
+            )}
           </div>
 
-          {/* Resumo do mês: os três números que respondem 'como estamos' antes dos detalhes */}
-          <div style={{ ...styles.metricsGrid, marginBottom: '24px' }}>
+          {resumo?.dia && (
+            <time dateTime={resumo.dia} style={{ display: 'block', color: '#475569', marginBottom: '12px' }}>
+              {resumo.dia.split('-').reverse().join('/')}
+            </time>
+          )}
+
+          <div style={{ ...styles.metricsGrid, marginBottom: '24px' }} aria-busy={loadingResumo}>
             {[
-              { label: 'Músicas geradas no mês', valor: monthlySeries.totalFeito },
+              { label: 'Músicas geradas', valor: monthlySeries.totalFeito },
               { label: 'Convertidas em venda', valor: monthlySeries.totalConvertido },
               { label: 'Taxa de conversão', valor: `${String(overallPercent).replace('.', ',')}%` },
             ].map(item => (
-              <div key={item.label} style={styles.metricCard}>
+              <div key={item.label} style={{ ...styles.metricCard, padding: 'clamp(10px, 2vw, 20px)' }}>
                 <div style={styles.metricLabel}>{item.label}</div>
-                <div style={{ ...styles.metricValue, fontVariantNumeric: 'tabular-nums' }}>{loadingOrders && orders.length === 0 ? '…' : item.valor}</div>
+                <div style={{ ...styles.metricValue, fontVariantNumeric: 'tabular-nums' }}>{resumo ? item.valor : '—'}</div>
               </div>
             ))}
           </div>
 
-          {/* Ritmo de Ganho Intradiário em Tempo Real (Hoje vs Média Líquida dos Últimos 7 Dias) */}
-          {(erroResumo || montando) && (
-            <div style={{ marginBottom: '16px', padding: '10px 14px', borderRadius: '10px', fontSize: '0.85rem', background: erroResumo ? '#fef2f2' : '#eff6ff', color: erroResumo ? '#b91c1c' : '#1d4ed8', border: `1px solid ${erroResumo ? '#fecaca' : '#bfdbfe'}` }}>
-              {erroResumo || 'Montando os dias do mês pela primeira vez… os números vão completando sozinhos.'}
+          {(loadingResumo || erroResumo || montando) && (
+            <div role={erroResumo ? 'alert' : 'status'} style={{ marginBottom: '16px', padding: '10px 14px', borderRadius: '10px', fontSize: '0.85rem', background: erroResumo ? '#fef2f2' : '#eff6ff', color: erroResumo ? '#b91c1c' : '#1d4ed8' }}>
+              {erroResumo || (montando ? 'Carregando os dias restantes do mês…' : 'Carregando dados do período…')}
+              {erroResumo && (
+                <button type="button" onClick={() => setTentativa(t => t + 1)} style={{ ...styles.tabBtn, marginLeft: '8px', background: '#ffffff', color: '#334155' }}>
+                  Tentar novamente
+                </button>
+              )}
             </div>
           )}
 
-          <RitmoVendasCard pedidos={EMPTY_ORDERS} pace={resumo?.ritmo || null} loading={loadingOrders} />
+          {resumo && (
+            <>
+              <section style={{ ...styles.metricCard, marginBottom: '24px' }}>
+                <h2 style={{ fontSize: '1.1rem', margin: '0 0 8px' }}>{resumo.dia ? 'Vendas por horário' : 'Músicas geradas e convertidas por dia'}</h2>
+                {resumo.dia && <p style={{ color: '#475569', margin: '0 0 16px' }}>Músicas e adicionais pelo horário do pagamento.</p>}
+                {resumo.dia ? <VendasPorHorario horas={resumo.horas} /> : <ConversionChart series={monthlySeries} />}
+              </section>
 
-          {/* Faturamento e conversões por plataforma (Facebook Ads, TikTok Ads, Orgânico, Direto) */}
-          <VendasPorPlataformaCard monthValue={monthValue} pedidos={orders} loading={loadingOrders} resumo={resumo} />
+              {periodo === 'hoje' && (
+                <>
+                  <button
+                    type="button"
+                    aria-expanded={compararRitmo}
+                    onClick={() => setCompararRitmo(!compararRitmo)}
+                    style={{ ...styles.tabBtn, background: '#ffffff', color: '#334155' }}
+                  >
+                    {compararRitmo ? 'Fechar comparação' : 'Comparar com os últimos 7 dias'}
+                  </button>
+                  {ritmo.erro && <p role="alert">{ritmo.erro}</p>}
+                  {compararRitmo && !ritmo.erro && (
+                    <RitmoVendasCard pedidos={EMPTY_ORDERS} pace={ritmo.resumo?.ritmo || null} loading={ritmo.loading} />
+                  )}
+                </>
+              )}
 
-          {/* Vendas por dia (+ faturamento líquido, gerações e conversão), mapa de calor por horário e mapa por estado */}
-          <VendasPorDiaTable mes={monthValue} pedidos={orders} loading={loadingOrders} resumo={resumo} />
-          <VendasPorHoraHeatmap mes={monthValue} pedidos={orders} loading={loadingOrders} resumo={resumo} />
-          <VendasPorEstadoMapa mes={monthValue} pedidos={orders} loading={loadingOrders} resumo={resumo} />
-
-          {/* Solicitações x Conversões por dia com rótulos de dados (no final da página) */}
-          <div className="glass-card admin-card-responsive" style={{ marginTop: '32px', padding: '24px', borderRadius: '16px', backgroundColor: '#ffffff', border: '1px solid #e2e8f0' }}>
-            <h3 style={{ fontSize: '1.1rem', fontWeight: '700', color: '#0f172a', margin: '0 0 4px' }}>Músicas Geradas x Conversões por dia</h3>
-            <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '0 0 20px' }}>
-              Barras: quantidade de músicas geradas e convertidas por dia. Linha: % de conversão do dia (eixo direito).
-            </p>
-            {loadingOrders && orders.length === 0 ? (
-              <div style={{ padding: '36px 0', textAlign: 'center', color: '#64748b', fontSize: '0.88rem' }}>
-                <div style={{ ...styles.spinner, margin: '0 auto 12px' }} />
-                Carregando gráfico mensal...
-              </div>
-            ) : (
-              <ConversionChart series={monthlySeries} />
-            )}
-          </div>
+              <VendasPorPlataformaCard monthValue={resumo.mes} pedidos={EMPTY_ORDERS} resumo={resumo} dataSelecionada={resumo.dia} onVerMes={() => setPeriodo('mes')} />
+              <VendasPorDiaTable mes={resumo.mes} pedidos={EMPTY_ORDERS} resumo={resumo} />
+              {!resumo.dia && <VendasPorHoraHeatmap mes={resumo.mes} pedidos={EMPTY_ORDERS} resumo={resumo} />}
+              <VendasPorEstadoMapa mes={resumo.mes} pedidos={EMPTY_ORDERS} resumo={resumo} />
+            </>
+          )}
         </div>
       </main>
+    </div>
+  );
+}
+
+function VendasPorHorario({ horas }) {
+  const max = Math.max(...horas);
+  if (!max) return <p style={{ color: '#475569', margin: 0 }}>Nenhuma venda registrada neste dia.</p>;
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(24, minmax(0, 1fr))', gap: '3px' }}>
+      {horas.map((vendas, hora) => {
+        const label = `${String(hora).padStart(2, '0')}h`;
+        return (
+          <div key={hora} style={{ minWidth: 0, textAlign: 'center' }}>
+            <div role="img" aria-label={`${label}, ${vendas} vendas`} title={`${label} · ${vendas} vendas`} style={{ height: '132px', display: 'flex', alignItems: 'end', borderBottom: '1px solid #cbd5e1' }}>
+              <span style={{ display: 'block', width: '100%', height: `${(vendas / max) * 100}%`, background: '#7c3aed', borderRadius: '3px 3px 0 0' }} />
+            </div>
+            {hora % 4 === 0 && <span aria-hidden="true" style={{ display: 'block', marginTop: '6px', color: '#475569', fontSize: '0.75rem' }}>{label}</span>}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -375,7 +411,8 @@ const styles = {
   tabBtn: {
     padding: '8px 16px',
     borderRadius: '8px',
-    border: 'none',
+    border: '1px solid #cbd5e1',
+    minHeight: '44px',
     fontSize: '0.9rem',
     fontWeight: '600',
     cursor: 'pointer',
@@ -391,8 +428,8 @@ const styles = {
   },
   metricsGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-    gap: '20px',
+    gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+    gap: 'clamp(8px, 2vw, 20px)',
   },
   metricCard: {
     backgroundColor: '#ffffff',
@@ -401,5 +438,5 @@ const styles = {
     padding: '20px',
       },
   metricLabel: { fontSize: '0.82rem', color: '#64748b', fontWeight: '600' },
-  metricValue: { fontSize: '1.8rem', fontWeight: '800', color: '#0f172a', margin: '8px 0 0' },
+  metricValue: { fontSize: 'clamp(1.15rem, 4.5vw, 1.8rem)', fontWeight: '800', color: '#0f172a', margin: '8px 0 0' },
 };

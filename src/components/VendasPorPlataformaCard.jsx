@@ -22,7 +22,7 @@ function mesAtualPadrao() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-export default function VendasPorPlataformaCard({ monthValue, pedidos: pedidosProp = null, loading: loadingProp = null, resumo = null }) {
+export default function VendasPorPlataformaCard({ monthValue, pedidos: pedidosProp = null, loading: loadingProp = null, resumo = null, dataSelecionada, onVerMes }) {
   const mesAtivo = monthValue || mesAtualPadrao();
 
   const [ano, mesNum] = useMemo(() => {
@@ -43,7 +43,7 @@ export default function VendasPorPlataformaCard({ monthValue, pedidos: pedidosPr
 
   // Estado para filtrar por dia específico ('', 'todos' ou número do dia 1..31)
   // Se for o mês atual, sempre inicia com o dia de HOJE selecionado por padrão
-  const [diaSelecionado, setDiaSelecionado] = useState(() => {
+  const [diaInterno, setDiaSelecionado] = useState(() => {
     const d = new Date();
     const targetMonth = monthValue || mesAtualPadrao();
     const [tAno, tMes] = (targetMonth || '').split('-').map(Number);
@@ -52,12 +52,16 @@ export default function VendasPorPlataformaCard({ monthValue, pedidos: pedidosPr
     }
     return '';
   });
+  const periodoControlado = dataSelecionada !== undefined;
+  const diaSelecionado = periodoControlado
+    ? (dataSelecionada ? String(Number(dataSelecionada.slice(-2))) : '')
+    : diaInterno;
 
   const prevMesRef = useRef(mesAtivo);
 
   // Ao trocar de mês no dashboard: se for o mês atual, seleciona hoje; se for outro mês, seleciona o mês todo
   useEffect(() => {
-    if (prevMesRef.current !== mesAtivo) {
+    if (!periodoControlado && prevMesRef.current !== mesAtivo) {
       prevMesRef.current = mesAtivo;
       if (ehMesAtual && hojeDia) {
         setDiaSelecionado(String(hojeDia));
@@ -65,7 +69,7 @@ export default function VendasPorPlataformaCard({ monthValue, pedidos: pedidosPr
         setDiaSelecionado('');
       }
     }
-  }, [mesAtivo, ehMesAtual, hojeDia]);
+  }, [mesAtivo, ehMesAtual, hojeDia, periodoControlado]);
 
   // Modal para gerenciar gastos do TikTok Ads dia a dia
   const [modalTikTokAberto, setModalTikTokAberto] = useState(false);
@@ -81,7 +85,7 @@ export default function VendasPorPlataformaCard({ monthValue, pedidos: pedidosPr
   const { pedidos: pedidosHook, loading: loadingHook, erro } = usePedidosDoMes(pedidosProp ? null : mesAtivo);
   const pedidos = pedidosProp !== null ? pedidosProp : pedidosHook;
   const loading = loadingProp !== null ? loadingProp : loadingHook;
-  const { adsSpend, loadingAds, saveManualSpend } = useAdsSpend(mesAtivo);
+  const { adsSpend, loadingAds, saveManualSpend } = useAdsSpend(mesAtivo, dataSelecionada);
 
   const { plataformas, totais } = useMemo(() => {
     // Resumo pronto do servidor (metricas_diarias): um dia = as métricas guardadas daquele dia;
@@ -350,8 +354,8 @@ export default function VendasPorPlataformaCard({ monthValue, pedidos: pedidosPr
         </div>
       </div>
 
-      {/* Barra de Filtro por Dia / Período */}
-      <div
+      {/* Na visão geral o período é controlado no topo da página. */}
+      {!periodoControlado && <div
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -502,7 +506,7 @@ export default function VendasPorPlataformaCard({ monthValue, pedidos: pedidosPr
             </button>
           </div>
         )}
-      </div>
+      </div>}
 
       {loading && pedidos.length === 0 ? (
         <div style={{ padding: '32px 0', textAlign: 'center', color: '#64748b', fontSize: '0.9rem' }}>
@@ -801,7 +805,7 @@ export default function VendasPorPlataformaCard({ monthValue, pedidos: pedidosPr
               </p>
               <button
                 type="button"
-                onClick={() => setDiaSelecionado('')}
+                onClick={onVerMes || (() => setDiaSelecionado(''))}
                 style={{
                   padding: '6px 14px',
                   backgroundColor: '#7c3aed',

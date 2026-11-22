@@ -50,13 +50,13 @@ export default function VendasPorEstadoMapa({
         <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: '800', color: '#0f172a' }}>
           🗺️ Vendas por estado
         </h3>
-        <input
+        {!mesProp && <input
           type="month"
           value={mes}
           onChange={(e) => setMes(e.target.value)}
           style={{ padding: '7px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
           aria-label="Mês do mapa por estado"
-        />
+        />}
       </div>
 
       {loading ? (
@@ -64,7 +64,7 @@ export default function VendasPorEstadoMapa({
       ) : erro ? (
         <p style={{ color: '#dc2626', fontSize: '0.9rem' }}>{erro}</p>
       ) : totalVendas === 0 ? (
-        <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Nenhuma venda neste mês ainda.</p>
+        <p style={{ color: '#475569', fontSize: '0.9rem' }}>Nenhuma venda no período.</p>
       ) : (
         <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
           <svg viewBox={BR_VIEWBOX} style={{ width: '100%', maxWidth: '380px', height: 'auto', flexShrink: 0 }}>
