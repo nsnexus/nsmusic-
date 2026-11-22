@@ -26,7 +26,7 @@ export default function VozClienteAddonCard({ orderId, order }) {
   const [modalAberto, setModalAberto] = useState(false);
   const [gravando, setGravando] = useState(false);
   const [segundos, setSegundos] = useState(0);
-  const [etapaGravacao, setEtapaGravacao] = useState(1); // 1 = Amostra 20s, 2 = Validação, 3 = Gerando
+  const [etapaGravacao, setEtapaGravacao] = useState(1); // 1 = Amostra cantada 30s+, 2 = Leitura de validação, 3 = Gerando
   const [amostraBlob, setAmostraBlob] = useState(null);
   const [duracaoAmostra, setDuracaoAmostra] = useState(null);
   const [amostraUrl, setAmostraUrl] = useState('');
