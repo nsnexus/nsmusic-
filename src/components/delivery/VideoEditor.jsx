@@ -223,7 +223,7 @@ export default function VideoEditor({ order, orderId, access, existingPhotos, fi
                     Aguarde, seu vídeo está sendo montado!
                   </strong>
                   <span>
-                    O vídeo é gravado no seu aparelho e costuma levar pelo menos a duração da música (por exemplo, 4 minutos de música levam cerca de 4 minutos para gravar), além do envio das fotos e do arquivo final. Mantenha a página aberta, sem trocar de aba.
+                    O vídeo é criado no seu aparelho. Quando ele permite o modo rápido, pode ficar pronto antes da música terminar. Nos demais celulares, a gravação leva aproximadamente a duração da música, mais o preparo e o envio. Mantenha esta página aberta.
                   </span>
                 </div>
               </div>
