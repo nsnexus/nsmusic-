@@ -417,8 +417,9 @@ export async function createSlideshowVideo(orderId, imageUrls, audioUrl, orderDa
       }
 
       // captureStream grava 15 FPS: desenhar 60 vezes/segundo não melhora o
-      // arquivo e usa CPU/GPU do celular. Redesenha em até ~15 FPS.
-      if (ultimoQuadroDesenhado >= 0 && elapsed - ultimoQuadroDesenhado < 1 / 15) {
+      // arquivo e usa CPU/GPU do celular. Redesenha em até ~20 FPS para
+      // alimentar com folga o encoder de 15 FPS.
+      if (ultimoQuadroDesenhado >= 0 && elapsed - ultimoQuadroDesenhado < 1 / 20) {
         requestAnimationFrame(renderFrame);
         return;
       }
