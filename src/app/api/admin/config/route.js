@@ -29,11 +29,12 @@ export async function POST(req) {
     }
 
     // Lê valor atual
-    const { data: currentRecord } = await supabase
+    const { data: currentRecord, error: readError } = await supabase
       .from('config')
       .select('valor')
       .eq('chave', 'site')
       .maybeSingle();
+    if (readError) throw new Error(`Falha ao consultar configuração atual: ${readError.message}`);
 
     const currentValor = currentRecord?.valor || {};
     const updates = {};
@@ -91,24 +92,31 @@ export async function POST(req) {
 
     const newValor = { ...currentValor, ...updates };
 
-    await supabase
+    const { data: savedRecords, error: saveError } = await supabase
       .from('config')
       .upsert({
         chave: 'site',
         valor: newValor,
         updated_at: new Date().toISOString()
       });
+    if (saveError) throw new Error(`Falha ao gravar no Supabase: ${saveError.message}`);
+    // A API Edge retorna representação do registro salvo. Nunca confirmar sucesso com persistência incerta.
+    const savedRecord = Array.isArray(savedRecords) ? savedRecords[0] : savedRecords;
+    if (!savedRecord || savedRecord.chave !== 'site' || !savedRecord.valor) {
+      throw new Error('O banco não confirmou a gravação da configuração.');
+    }
+    const persistedValor = savedRecord.valor;
 
     return NextResponse.json({
       ok: true,
-      whatsappSuporte: newValor.whatsappSuporte || WHATSAPP_SUPORTE_PADRAO,
-      agentEnabled: newValor.agentEnabled !== false,
-      sunoPrimaryProvider: newValor.sunoPrimaryProvider || process.env.SUNO_PRIMARY_PROVIDER || 'unifically',
-      contingencyMode: newValor.contingencyMode === true,
-      abandonedPixRecoveryEnabled: newValor.abandonedPixRecoveryEnabled === true,
-      abandonedPixRecoveryMaxPerHour: Number(newValor.abandonedPixRecoveryMaxPerHour) || 15,
-      vozFidelidade: fidelidadeDaConfig(newValor),
-    });
+      whatsappSuporte: persistedValor.whatsappSuporte || WHATSAPP_SUPORTE_PADRAO,
+      agentEnabled: persistedValor.agentEnabled !== false,
+      sunoPrimaryProvider: persistedValor.sunoPrimaryProvider || process.env.SUNO_PRIMARY_PROVIDER || 'unifically',
+      contingencyMode: persistedValor.contingencyMode === true,
+      abandonedPixRecoveryEnabled: persistedValor.abandonedPixRecoveryEnabled === true,
+      abandonedPixRecoveryMaxPerHour: Number(persistedValor.abandonedPixRecoveryMaxPerHour) || 15,
+      vozFidelidade: fidelidadeDaConfig(persistedValor),
+    }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (err) {
     console.error('[admin/config] falha ao salvar configuração:', err.message);
     return NextResponse.json({ error: 'Não foi possível salvar a configuração.' }, { status: 500 });
@@ -124,15 +132,17 @@ export async function GET(req) {
     } catch (e) {}
 
     const supabase = getSupabaseEdge(env);
+    if (!supabase) return NextResponse.json({ error: 'Supabase não configurado' }, { status: 503, headers: { 'Cache-Control': 'no-store' } });
     let configData = {};
     let workerHeartbeat = null;
 
     if (supabase) {
-      const { data } = await supabase
+      const { data, error: readError } = await supabase
         .from('config')
         .select('valor')
         .eq('chave', 'site')
         .maybeSingle();
+      if (readError) throw new Error(`Falha ao ler configurações: ${readError.message}`);
       if (data?.valor) {
         configData = data.valor;
       }
@@ -167,17 +177,10 @@ export async function GET(req) {
         vozFidelidade: fidelidadeDaConfig(configData),
         sunoWorkerHeartbeat: workerHeartbeat
       },
-      { headers: { 'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60' } }
+      { headers: { 'Cache-Control': 'no-store' } }
     );
   } catch (err) {
-    return NextResponse.json({
-      ok: true,
-      whatsappSuporte: WHATSAPP_SUPORTE_PADRAO,
-      agentEnabled: true,
-      sunoPrimaryProvider: 'unifically',
-      contingencyMode: false,
-      abandonedPixRecoveryEnabled: false,
-      abandonedPixRecoveryMaxPerHour: 15
-    });
+    console.error('[admin/config] falha ao carregar configuração:', err?.message);
+    return NextResponse.json({ error: 'Não foi possível carregar as configurações do banco.' }, { status: 503, headers: { 'Cache-Control': 'no-store' } });
   }
 }

@@ -189,7 +189,7 @@ describe('requestSunoGeneration', () => {
     expect(global.fetch.mock.calls[0][0]).toBe('https://api.kie.ai/api/v1/generate');
   });
 
-  it('desvia obrigatoriamente para Kie.ai quando pedido tem voz personalizada do cliente e envia account_id e voice_record', async () => {
+  it('usa Jobs API e fidelidade exclusivamente quando pedido tem clonagem ativa e Voice ID', async () => {
     global.fetch.mockResolvedValueOnce(kieOkResponse('task-kie-voice'));
     store['order-voice'] = {
       isCustomVoice: true,
@@ -206,13 +206,45 @@ describe('requestSunoGeneration', () => {
     expect(result).toEqual({ ok: true, taskId: 'task-kie-voice', provider: 'kie' });
     expect(store['order-voice'].sunoProvider).toBe('kie');
     expect(global.fetch).toHaveBeenCalledTimes(1);
-    expect(global.fetch.mock.calls[0][0]).toBe('https://api.kie.ai/api/v1/generate');
+    expect(global.fetch.mock.calls[0][0]).toBe('https://api.kie.ai/api/v1/jobs/createTask');
 
     const sentBody = JSON.parse(global.fetch.mock.calls[0][1].body);
-    expect(sentBody.persona_id).toBe('persona-123');
-    expect(sentBody.persona_model).toBe('voice_persona');
-    expect(sentBody.account_id).toBe('acc-789');
-    expect(sentBody.voice_record).toBe('rec-456');
+    expect(sentBody.model).toBe('ai-music-api/generate');
+    expect(sentBody.input.persona_id).toBe('persona-123');
+    expect(sentBody.input.persona_model).toBe('voice_persona');
+    expect(sentBody.input.audio_weight).toBe(0.85);
+    expect(sentBody.input.style_weight).toBe(0.75);
+    expect(sentBody.input.weirdness_constraint).toBe(0.2);
+    expect(store['task-kie-voice'].result).toEqual({ kieTaskApi: 'jobs' });
+  });
+
+  it('voz clonada nunca cai na Unifically, mesmo quando Kie falha', async () => {
+    global.fetch.mockResolvedValue(kieErrorResponse(500, 500));
+    store['order-clone-fail'] = { isCustomVoice: true, customVoiceId: 'voice-123' };
+
+    const result = await requestSunoGeneration(
+      { orderId: 'order-clone-fail', prompt: 'letra', tags: 'pop' },
+      { UNIFICALLY_API_KEY: 'unif-key', KIE_API_KEY: 'kie-key' }
+    );
+
+    expect(result.ok).toBe(false);
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+    expect(global.fetch.mock.calls.every(([url]) => url === 'https://api.kie.ai/api/v1/jobs/createTask')).toBe(true);
+  });
+
+  it('com clonagem desativada, usa o payload normal sem ajustes de voz', async () => {
+    global.fetch.mockResolvedValueOnce(kieOkResponse('task-regular'));
+    store['order-disabled'] = { isCustomVoice: false, customVoiceId: 'voice-123' };
+    const result = await requestSunoGeneration(
+      { orderId: 'order-disabled', prompt: 'letra', tags: 'pop', preferredProvider: 'kie' },
+      { KIE_API_KEY: 'kie-key' }
+    );
+    expect(result.ok).toBe(true);
+    expect(global.fetch.mock.calls[0][0]).toBe('https://api.kie.ai/api/v1/generate');
+    const payload = JSON.parse(global.fetch.mock.calls[0][1].body);
+    expect(payload.persona_id).toBeUndefined();
+    expect(payload.audio_weight).toBeUndefined();
+    expect(payload.styleWeight).toBe(0.75);
   });
 
   it('quando SUNO_PRIMARY_PROVIDER é kie, tenta Kie primeiro e faz fallback para Unifically se Kie falhar', async () => {

@@ -1149,6 +1149,7 @@ export default function AdminDashboard() {
     { id: 'CONTAS', label: 'Contas', Icon: UserRound },
     { id: 'STUCK', label: 'Conferir pagamentos', Icon: SearchCheck },
     { id: 'TIMBRES', label: 'Timbres', Icon: Mic },
+    { id: 'VOZ', label: 'Clonagem de voz', Icon: Mic, isLink: true, href: '/admin/voz' },
     { id: 'REMIX', label: 'Remix', Icon: SlidersHorizontal },
     { id: 'CARTAS', label: 'Cartas', Icon: Mail, isLink: true, href: '/admin/cartas' },
     { id: 'PAISES_EUA', label: 'Países EUA', Icon: Globe, isLink: true, href: '/admin/paises-eua' },

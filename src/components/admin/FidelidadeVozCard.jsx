@@ -28,10 +28,16 @@ export default function FidelidadeVozCard() {
 
   useEffect(() => {
     let ativo = true;
-    fetch(`/api/admin/config?t=${Date.now()}`, { cache: 'no-store' })
-      .then((r) => r.json())
-      .then((j) => { if (ativo && j?.vozFidelidade) setValores(j.vozFidelidade); })
-      .catch(() => { if (ativo) setMensagem('Não deu para carregar os ajustes salvos; mostrando o padrão.'); })
+    fetch('/api/admin/config', { cache: 'no-store' })
+      .then(async (r) => {
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok || !j.ok || !j.vozFidelidade) {
+          throw new Error(j.error || 'Resposta inválida ao carregar configurações.');
+        }
+        return j.vozFidelidade;
+      })
+      .then((saved) => { if (ativo) setValores(saved); })
+      .catch((err) => { if (ativo) setMensagem(`❌ Não foi possível carregar os ajustes salvos: ${err.message}`); })
       .finally(() => { if (ativo) setCarregando(false); });
     return () => { ativo = false; };
   }, []);
@@ -41,6 +47,7 @@ export default function FidelidadeVozCard() {
     setMensagem('');
     try {
       const token = await getAdminAuthToken();
+      if (!token) throw new Error('Sua sessão expirou. Faça login novamente no painel.');
       const corpo = Object.fromEntries(CONTROLES.map((c) => [c.campo, valores[c.chave]]));
       const res = await fetch('/api/admin/config', {
         method: 'POST',
@@ -48,9 +55,13 @@ export default function FidelidadeVozCard() {
         body: JSON.stringify(corpo),
       });
       const j = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(j?.error || 'Falha ao salvar');
-      if (j?.vozFidelidade) setValores(j.vozFidelidade);
-      setMensagem('✅ Salvo. Vale para as próximas músicas com voz clonada.');
+      if (!res.ok || !j.ok || !j.vozFidelidade) throw new Error(j?.error || 'O banco não confirmou a gravação.');
+      const persisted = j.vozFidelidade;
+      if (CONTROLES.some((control) => Math.abs(persisted[control.chave] - valores[control.chave]) > 0.001)) {
+        throw new Error('Os valores confirmados pelo banco diferem do solicitado.');
+      }
+      setValores(persisted);
+      setMensagem('✅ Ajustes confirmados no banco. Valem apenas para novas músicas com voz clonada.');
     } catch (err) {
       setMensagem(`❌ ${err.message}`);
     } finally {
