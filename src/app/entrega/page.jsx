@@ -1131,6 +1131,9 @@ function EntregaContent() {
           generatedAt: new Date().toISOString(),
         };
         setVideoPixInfo(videoPixData);
+        // A cobrança já foi gerada. Não deixar o botão de renovar bloqueado
+        // pelos 55min seguintes enquanto aguardamos o pagamento.
+        setPendingVideoPix(false);
         if (typeof window !== 'undefined' && orderId) {
           localStorage.setItem(`videoPixInfo_${orderId}`, JSON.stringify(videoPixData));
         }
