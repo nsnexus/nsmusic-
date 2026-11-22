@@ -15,6 +15,18 @@ describe('fidelidade da voz clonada', () => {
     expect(camposFidelidadeParaSalvar({ vozAudioWeight: 0.95 })).toEqual({ vozAudioWeight: 0.95 });
     expect(camposFidelidadeParaSalvar({ whatsappSuporte: 'x' })).toEqual({});
   });
+  it('reforça a voz feminina na KIE somente quando a tag feminina foi escolhida', () => {
+    const mulher = buildVoiceSongPayload({ voiceId: 'v', prompt: 'letra', style: 'Sertanejo, female lead vocal, emotional' }, 'cb');
+    expect(mulher.input.persona_model).toBe('voice_persona');
+    expect(mulher.input.vocal_gender).toBe('f');
+    const homem = buildVoiceSongPayload({ voiceId: 'v', prompt: 'letra', style: 'Sertanejo, male lead vocal' }, 'cb');
+    expect(homem.input.vocal_gender).toBe('m');
+    const indefinido = buildVoiceSongPayload({ voiceId: 'v', prompt: 'letra', style: 'Sertanejo, acoustic guitar' }, 'cb');
+    expect(indefinido.input.vocal_gender).toBeUndefined();
+    const dueto = buildVoiceSongPayload({ voiceId: 'v', prompt: 'letra', style: 'male lead vocal, female lead vocal, duet' }, 'cb');
+    expect(dueto.input.vocal_gender).toBeUndefined();
+  });
+
   it('o teste de voz do painel manda audio_weight para a Kie', () => {
     const p = buildVoiceSongPayload({ voiceId: 'v', prompt: 'letra' }, 'cb', { audioWeight: 0.9, styleWeight: 0.6, weirdness: 0.1 });
     expect(p.input).toMatchObject({ audio_weight: 0.9, style_weight: 0.6, weirdness_constraint: 0.1, persona_model: 'voice_persona' });

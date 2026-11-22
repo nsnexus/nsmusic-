@@ -221,7 +221,7 @@ describe('applyPaymentApproval', () => {
     expect(store['orderComboRetro'].hasVideoAccess).toBe(true);
   });
 
-  it('combo_familia aprovado: libera tudo da retrospectiva e grava 5 gerações extras', async () => {
+  it('combo_familia aprovado: libera tudo da retrospectiva e grava 10 gerações extras', async () => {
     store['orderFamilia'] = { paymentIntentSku: 'combo_familia', paymentId: null };
     const result = await applyPaymentApproval('orderFamilia', 'fam1', { status: 'approved', transaction_amount: 39.90 });
     expect(result.applied).toBe(true);
@@ -229,7 +229,7 @@ describe('applyPaymentApproval', () => {
     expect(store['orderFamilia'].hasRetrospectivaAccess).toBe(true);
     expect(store['orderFamilia'].hasCartaAccess).toBe(true);
     expect(store['orderFamilia'].hasVideoAccess).toBe(true);
-    expect(store['orderFamilia'].geracoesExtras).toBe(5);
+    expect(store['orderFamilia'].geracoesExtras).toBe(10);
     expect(store['orderFamilia'].geracoesExtrasPedidos).toEqual([]);
   });
 

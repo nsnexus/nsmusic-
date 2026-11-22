@@ -29,12 +29,18 @@ export function readKieJob(payload = {}) {
 
 export function buildVoiceSongPayload({ voiceId, prompt, style = 'Acoustic Pop', title = 'Música com minha voz' }, callBackUrl, fidelidade = null) {
   const fid = fidelidade || { audioWeight: 0.85, styleWeight: 0.85, weirdness: 0.20 };
+  // Se o admin marcou Feminina/Masculina nas Tags, reforçar essa preferência no campo
+  // nativo da KIE. Não inferir gênero de nome ou de idade; sem marcação, omitir.
+  const femaleRequested = /\bfemale\s+(?:lead\s+)?(?:vocal(?:s|ist)?|singer)\b/i.test(style);
+  const maleRequested = /\bmale\s+(?:lead\s+)?(?:vocal(?:s|ist)?|singer)\b/i.test(style);
+  const vocalGender = femaleRequested && !maleRequested ? 'f' : maleRequested && !femaleRequested ? 'm' : null;
   return {
     model: 'ai-music-api/generate', callBackUrl,
     input: {
       custom_mode: true, instrumental: false, model: 'V6', lyrics: prompt, style,
       title: String(title).substring(0, 80), persona_id: voiceId, persona_model: 'voice_persona',
       audio_weight: fid.audioWeight, style_weight: fid.styleWeight, weirdness_constraint: fid.weirdness,
+      ...(vocalGender ? { vocal_gender: vocalGender } : {}),
     },
   };
 }
