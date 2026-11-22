@@ -1,6 +1,7 @@
 // O AudioContext vive em módulo próprio porque precisa ser destravado de forma síncrona no clique
 // do usuário, e este arquivo só é carregado por import dinâmico — ver src/lib/audioContext.js.
 import { primeAudioContext } from '@/lib/audioContext';
+import { desenharQuadroSlideshow } from '@/lib/slideshowFrames';
 
 async function updateOrderClient(orderId, updates) {
   try {
@@ -99,7 +100,8 @@ export async function createSlideshowVideo(orderId, imageUrls, audioUrl, orderDa
 
     // Duração exata do arquivo decodificado — não existe mais o palpite de 180s que sobrava do
     // antigo timeout de 4s esperando os metadados do <audio>.
-    const duration = Math.min(audioBuffer.duration, 360);
+    // Não cortar músicas acima de 6 minutos: renderizar a duração original completa.
+    const duration = audioBuffer.duration;
     if (!duration || !isFinite(duration) || duration <= 0) {
       throw new Error('A música deste pedido está com duração inválida. Fale com o suporte.');
     }
@@ -227,9 +229,6 @@ export async function createSlideshowVideo(orderId, imageUrls, audioUrl, orderDa
       throw new Error('Nenhuma imagem válida pôde ser carregada. Por favor, selecione as fotos novamente.');
     }
 
-    const imageCount = validImages.length;
-    const timePerImage = duration / imageCount;
-
     // 3. Configura o Canvas para formato Stories/Reels vertical — 720x1280 em vez de 1080x1920:
     // metade dos pixels por frame, o que já reduz bastante o tamanho final sem perda perceptível
     // num slideshow de fotos com pan/zoom lento (ver reclamação de vídeo de +50MB e "formato
@@ -240,7 +239,34 @@ export async function createSlideshowVideo(orderId, imageUrls, audioUrl, orderDa
     canvas.width = width;
     canvas.height = height;
     const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Não foi possível inicializar o canvas do vídeo.');
 
+    // Preferir WebCodecs + Mediabunny: frames gerados diretamente por timestamps
+    // e áudio AAC codificado sem reproduzir a música em tempo real.
+    // Se o navegador não tiver os codecs ou o modo rápido falhar, o método
+    // tradicional MediaRecorder permanece disponível e gera o vídeo completo.
+    let videoBlob = null;
+    let modoAcelerado = false;
+    let fileExtension = 'mp4';
+    try {
+      const { suportaVideoAcelerado, renderizarSlideshowAcelerado } = await import('@/lib/videoFastRenderer');
+      if (await suportaVideoAcelerado(audioBuffer, width, height)) {
+        console.log('[VideoGen] WebCodecs H.264/AAC disponíveis: iniciando modo acelerado.');
+        onProgress?.(11, 'acelerado');
+        videoBlob = await renderizarSlideshowAcelerado({
+          canvas, ctx, imagens: validImages, audioBuffer, onProgress,
+        });
+        modoAcelerado = true;
+      } else {
+        console.log('[VideoGen] Modo acelerado não suportado. Usando MediaRecorder em tempo real.');
+      }
+    } catch (fastErr) {
+      console.warn('[VideoGen] Modo acelerado falhou. Recuperando com MediaRecorder:', fastErr?.message);
+      videoBlob = null;
+      onProgress?.(10, 'tempo-real');
+    }
+
+    if (!videoBlob) {
     // Áudio ligado ao stream por AudioBufferSourceNode (amostras já decodificadas), não por
     // createMediaElementSource — ver comentário de topo de primeAudioContext. `source` só é
     // conectado ao destino do MediaRecorder, nunca a audioCtx.destination: a gravação continua
@@ -304,7 +330,7 @@ export async function createSlideshowVideo(orderId, imageUrls, audioUrl, orderDa
     // não suportam gravar em .mp4 de verdade e caem no fallback video/webm. Salvar esse conteúdo
     // como "video_homenagem.mp4" produzia um arquivo com extensão .mp4 mas conteúdo WebM por
     // dentro — o WhatsApp valida o container e recusava como "formato inválido".
-    const fileExtension = mimeType.startsWith('video/mp4') ? 'mp4' : 'webm';
+    fileExtension = mimeType.startsWith('video/mp4') ? 'mp4' : 'webm';
 
     // ACHADO 03/09/2026: um vídeo gerado com ESTA configuração de 900 kbps saiu com 136 MB (~6 Mbps
     // reais) — ou seja, o navegador IGNOROU `videoBitsPerSecond`. Isso acontece principalmente no
@@ -425,58 +451,14 @@ export async function createSlideshowVideo(orderId, imageUrls, audioUrl, orderDa
       }
       ultimoQuadroDesenhado = elapsed;
 
-      const currentIndex = Math.min(
-        validImages.length - 1,
-        Math.floor(elapsed / timePerImage)
-      );
-      const img = validImages[currentIndex];
-      const imgProgress = (elapsed % timePerImage) / timePerImage;
-
-      // Fundo escuro com gradiente elegante
-      ctx.fillStyle = '#0f172a';
-      ctx.fillRect(0, 0, width, height);
-
-      if (img && img.naturalWidth > 0 && img.naturalHeight > 0) {
-        // Efeito Ken Burns (Zoom suave de 1.0 a 1.1)
-        const scale = 1.0 + (imgProgress * 0.1);
-        const imgAspect = img.naturalWidth / img.naturalHeight;
-
-        // Sempre modo "contain": mostra a foto inteira, nunca corta nenhuma lateral. Quando a foto
-        // não bate exatamente com o formato vertical do canvas, sobra barra do fundo escuro (já
-        // pintado acima) acima/abaixo ou nas laterais — preferível a cortar parte da imagem.
-        const canvasAspect = width / height;
-        let drawWidth, drawHeight;
-        if (imgAspect > canvasAspect) {
-          drawWidth = width * scale;
-          drawHeight = drawWidth / imgAspect;
-        } else {
-          drawHeight = height * scale;
-          drawWidth = drawHeight * imgAspect;
-        }
-
-        const offsetX = (width - drawWidth) / 2;
-        const offsetY = (height - drawHeight) / 2;
-
-        ctx.save();
-        // Efeito de transição Fade In nos primeiros 0.5s de cada foto
-        const fadeSec = 0.5;
-        const timeInImg = elapsed % timePerImage;
-        if (timeInImg < fadeSec) {
-          ctx.globalAlpha = timeInImg / fadeSec;
-        } else {
-          ctx.globalAlpha = 1.0;
-        }
-
-        ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
-        ctx.restore();
-      }
+      desenharQuadroSlideshow(ctx, validImages, elapsed, duration, width, height);
 
       requestAnimationFrame(renderFrame);
     };
 
     renderFrame();
 
-    let videoBlob = await recordingPromise;
+    videoBlob = await recordingPromise;
 
     // Remove o listener de visibilidade — a gravação já terminou
     document.removeEventListener('visibilitychange', onVisibilityChange);
@@ -520,11 +502,16 @@ export async function createSlideshowVideo(orderId, imageUrls, audioUrl, orderDa
     if (tabWasHidden) {
       console.warn('[VideoGen] Vídeo gerado com sucesso, mas o usuário trocou de aba durante a gravação. O áudio pode estar dessincronizado.');
     }
+    } // fim do fallback MediaRecorder; modo acelerado já entrega MP4 H.264/AAC válido.
 
-    // 4b. MP4 normal para o WhatsApp ler o vídeo inteiro (ver src/lib/mp4ParaWhatsapp.js).
+    // O modo acelerado já exporta MP4 normal com fastStart e áudio validado.
+    // O MediaRecorder pode entregar MP4 fragmentado: preservar a correção
+    // necessária para o WhatsApp reproduzir o vídeo inteiro.
     if (onProgress) onProgress(99);
-    const { mp4ParaWhatsapp } = await import('@/lib/mp4ParaWhatsapp');
-    videoBlob = await mp4ParaWhatsapp(videoBlob, { duracaoEsperada: duration });
+    if (!modoAcelerado) {
+      const { mp4ParaWhatsapp } = await import('@/lib/mp4ParaWhatsapp');
+      videoBlob = await mp4ParaWhatsapp(videoBlob, { duracaoEsperada: duration });
+    }
 
     // 5. Upload do vídeo — Cloudflare R2 direto via Edge
     let videoUrl = null;
