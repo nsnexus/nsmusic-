@@ -35,7 +35,7 @@ describe('quadros do vídeo sem cortar a música', () => {
       { naturalWidth: 1600, naturalHeight: 900 },
       { naturalWidth: 900, naturalHeight: 1600 },
     ];
-    desenharQuadroSlideshow(ctx, fotos, 5, 10, 720, 1280);
+    desenharQuadroSlideshow(ctx, fotos, 2, 10, 720, 1280);
     expect(ctx.drawImage).toHaveBeenCalledTimes(1);
     const [, x, y, w, h] = ctx.drawImage.mock.calls[0];
     expect(w / h).toBeCloseTo(16 / 9);
