@@ -273,7 +273,7 @@ export async function createSlideshowVideo(orderId, imageUrls, audioUrl, orderDa
     if (fastBlob) {
       if (onProgress) onProgress(99);
       // MP4 já convencional, H.264 + AAC e com Fast Start: dispensa o remux.
-      return uploadCompletedVideo(orderId, fastBlob, 'mp4', 'video/mp4');
+      return await uploadCompletedVideo(orderId, fastBlob, 'mp4', 'video/mp4');
     }
 
     // 3. Fallback: o mesmo Canvas/MediaRecorder que já funciona em produção.
@@ -530,7 +530,7 @@ export async function createSlideshowVideo(orderId, imageUrls, audioUrl, orderDa
     videoBlob = await mp4ParaWhatsapp(videoBlob, { duracaoEsperada: duration });
 
     // 5. Upload do vídeo e status de conclusão (compartilhado com WebCodecs).
-    return uploadCompletedVideo(orderId, videoBlob, fileExtension, mimeType);
+    return await uploadCompletedVideo(orderId, videoBlob, fileExtension, mimeType);
 
   } catch (err) {
     console.error("Erro na geração do vídeo:", err);
