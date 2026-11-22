@@ -232,6 +232,22 @@ describe('requestSunoGeneration', () => {
     expect(global.fetch.mock.calls.every(([url]) => url === 'https://api.kie.ai/api/v1/jobs/createTask')).toBe(true);
   });
 
+  it('não gasta créditos com voz padrão se o admin marcou clonagem mas o pedido está desabilitado', async () => {
+    store['order-flag-old'] = {
+      customVoiceId: 'voice-123',
+      voiceType: 'minha_voz',
+      isCustomVoice: false,
+    };
+    const result = await requestSunoGeneration(
+      { orderId: 'order-flag-old', prompt: 'letra', tags: 'sertanejo', useCustomVoice: true },
+      { KIE_API_KEY: 'kie-key', UNIFICALLY_API_KEY: 'unif-key' }
+    );
+    expect(result.ok).toBe(false);
+    expect(result.status).toBe(409);
+    expect(result.error).toMatch(/Voz clonada|voz clonada/i);
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
   it('com clonagem desativada, usa o payload normal sem ajustes de voz', async () => {
     global.fetch.mockResolvedValueOnce(kieOkResponse('task-regular'));
     store['order-disabled'] = { isCustomVoice: false, customVoiceId: 'voice-123' };
