@@ -273,9 +273,10 @@ export function montarDetalhesDia(pedidos, dia, plataformas) {
 }
 
 /** Junta os dias do mês no formato que cada card usa. `detalhesPorDia`: { 'AAAA-MM-DD': detalhes }. */
-export function combinarMes(detalhesPorDia, mes) {
+export function combinarMes(detalhesPorDia, mes, diasSelecionados) {
   const [ano, mesNum] = mes.split('-').map(Number);
   const diasNoMes = new Date(ano, mesNum, 0).getDate();
+  const dias = diasSelecionados || Array.from({ length: diasNoMes }, (_, i) => i + 1);
   const vendasPorDia = [];
   const feito = [];
   const convertido = [];
@@ -284,7 +285,7 @@ export function combinarMes(detalhesPorDia, mes) {
   let semEstado = 0;
   let totalVendasEstado = 0;
   const plataformasPorDia = {};
-  for (let d = 1; d <= diasNoMes; d++) {
+  for (const d of dias) {
     const chave = `${mes}-${String(d).padStart(2, '0')}`;
     const x = detalhesPorDia[chave];
     vendasPorDia.push(x?.vendas ? { ...x.vendas, dia: d } : linhaVendasVazia(d));

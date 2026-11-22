@@ -63,7 +63,7 @@ export default function VendasPorDiaTable({
 
     const hoje = new Date();
     const ehMesAtual = hoje.getFullYear() === ano && hoje.getMonth() === mesNum - 1;
-    const linhasVisiveisCalc = (ehMesAtual ? porDiaList.filter((l) => l.dia <= hoje.getDate()) : porDiaList).slice().reverse();
+    const linhasVisiveisCalc = (ehMesAtual && !resumo ? porDiaList.filter((l) => l.dia <= hoje.getDate()) : porDiaList).slice().reverse();
 
     return { porDia: porDiaList, totais: totaisCalc, linhasVisiveis: linhasVisiveisCalc };
   }, [pedidos, resumo, mes, ano, mesNum]);
@@ -82,13 +82,13 @@ export default function VendasPorDiaTable({
         <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: '800', color: '#0f172a' }}>
           📊 Vendas por dia
         </h3>
-        <input
+        {!mesProp && <input
           type="month"
           value={mes}
           onChange={(e) => setMes(e.target.value)}
           style={{ padding: '7px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
           aria-label="Mês das vendas"
-        />
+        />}
       </div>
 
       {loading ? (

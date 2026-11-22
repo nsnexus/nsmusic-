@@ -4,42 +4,47 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getAdminAuthToken } from './authClient.js';
 
-export function useAdsSpend(mes) {
-  const [adsSpend, setAdsSpend] = useState({
-    meta: { byDate: {}, total: 0 },
-    tiktok: { byDate: {}, total: 0 },
-    google: { byDate: {}, total: 0 },
-  });
+const SEM_GASTOS = { meta: { byDate: {}, total: 0 }, tiktok: { byDate: {}, total: 0 }, google: { byDate: {}, total: 0 } };
+
+export function useAdsSpend(mes, dia) {
+  const periodo = dia || mes;
+  const [resultado, setResultado] = useState(null);
   const [loadingAds, setLoadingAds] = useState(false);
   const [adsError, setAdsError] = useState(null);
 
-  const fetchSpend = useCallback(async () => {
+  const fetchSpend = useCallback(async (signal) => {
     if (!mes) return;
     setLoadingAds(true);
     setAdsError(null);
     try {
       const token = await getAdminAuthToken();
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
-      const res = await fetch(`/api/admin/ads-spend?mes=${encodeURIComponent(mes)}`, { headers });
+      const params = new URLSearchParams(dia ? { since: dia, until: dia } : { mes });
+      const res = await fetch(`/api/admin/ads-spend?${params}`, { headers, signal });
       if (res.ok) {
         const json = await res.json().catch(() => null);
-        if (json?.ok) {
-          setAdsSpend({
-            meta: json.meta || { byDate: {}, total: 0 },
-            tiktok: json.tiktok || { byDate: {}, total: 0 },
-            google: json.google || { byDate: {}, total: 0 },
+        if (json?.ok && !signal?.aborted) {
+          setResultado({
+            periodo,
+            adsSpend: {
+              meta: json.meta || SEM_GASTOS.meta,
+              tiktok: json.tiktok || SEM_GASTOS.tiktok,
+              google: json.google || SEM_GASTOS.google,
+            },
           });
         }
       }
     } catch (err) {
-      setAdsError(err?.message);
+      if (!signal?.aborted) setAdsError(err?.message);
     } finally {
-      setLoadingAds(false);
+      if (!signal?.aborted) setLoadingAds(false);
     }
-  }, [mes]);
+  }, [mes, dia, periodo]);
 
   useEffect(() => {
-    fetchSpend();
+    const controller = new AbortController();
+    fetchSpend(controller.signal);
+    return () => controller.abort();
   }, [fetchSpend]);
 
   const saveManualSpend = useCallback(async ({ channel, date, spend, entries, days }) => {
@@ -68,6 +73,7 @@ export function useAdsSpend(mes) {
     }
   }, [fetchSpend]);
 
+  const adsSpend = resultado?.periodo === periodo ? resultado.adsSpend : SEM_GASTOS;
   return { adsSpend, loadingAds, adsError, refetch: fetchSpend, saveManualSpend };
 }
 

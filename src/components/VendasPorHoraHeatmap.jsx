@@ -47,13 +47,13 @@ export default function VendasPorHoraHeatmap({
         <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: '800', color: '#0f172a' }}>
           🕒 Vendas por horário do dia
         </h3>
-        <input
+        {!mesProp && <input
           type="month"
           value={mes}
           onChange={(e) => setMes(e.target.value)}
           style={{ padding: '7px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
           aria-label="Mês do mapa de calor por horário"
-        />
+        />}
       </div>
 
       {loading ? (

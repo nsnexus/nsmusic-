@@ -131,15 +131,22 @@ export async function obterMetricasDias(supabase, dias, hoje, agora = new Date()
   for (const l of novas) guardadas[l.dia] = l;
 
   if (tabelaOk && novas.length) {
-    try {
-      let { error } = await supabase.from('metricas_diarias').upsert(novas, { onConflict: 'dia' });
-      if (error && /detalhes/i.test(error.message || '')) {
-        // Coluna detalhes ainda não criada (migração 20261117b): guarda o resto.
-        ({ error } = await supabase.from('metricas_diarias').upsert(novas.map(({ detalhes, ...resto }) => resto), { onConflict: 'dia' }));
+    const gravacao = (async () => {
+      try {
+        let { error } = await supabase.from('metricas_diarias').upsert(novas, { onConflict: 'dia' });
+        if (error && /detalhes/i.test(error.message || '')) {
+          // Coluna detalhes ainda não criada (migração 20261117b): guarda o resto.
+          ({ error } = await supabase.from('metricas_diarias').upsert(novas.map(({ detalhes, ...resto }) => resto), { onConflict: 'dia' }));
+        }
+        if (error) throw new Error(error.message);
+      } catch (e) {
+        console.warn('[metricasDiarias] Falha ao gravar:', e?.message);
       }
-      if (error) throw new Error(error.message);
-    } catch (e) {
-      console.warn('[metricasDiarias] Falha ao gravar:', e?.message);
+    })();
+    if (opcoes.gravarEmSegundoPlano) {
+      opcoes.gravarEmSegundoPlano(gravacao);
+    } else {
+      await gravacao;
     }
   }
   return guardadas;
