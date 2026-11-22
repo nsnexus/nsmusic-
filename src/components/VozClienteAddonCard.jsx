@@ -4,10 +4,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { requestPixCharge } from '@/lib/pixCheckout';
 import PixQrCode from './PixQrCode';
 import { useWhatsappSuporte, linkWhatsapp } from '@/lib/useWhatsappSuporte';
-import { converterParaWavBlob } from '@/lib/audioWav';
+import { converterParaWavBlob, obterDuracaoAudioSegundos } from '@/lib/audioWav';
 
 const MAX_PIX_ATTEMPTS = 3;
 const PIX_POLLING_MAX_ATTEMPTS = 150; // ~10min
+const MIN_AMOSTRA_SEGUNDOS = 30;
 
 export default function VozClienteAddonCard({ orderId, order }) {
   const whatsappSuporte = useWhatsappSuporte();
@@ -27,6 +28,7 @@ export default function VozClienteAddonCard({ orderId, order }) {
   const [segundos, setSegundos] = useState(0);
   const [etapaGravacao, setEtapaGravacao] = useState(1); // 1 = Amostra 20s, 2 = Validação, 3 = Gerando
   const [amostraBlob, setAmostraBlob] = useState(null);
+  const [duracaoAmostra, setDuracaoAmostra] = useState(null);
   const [amostraUrl, setAmostraUrl] = useState('');
   const [amostraR2Url, setAmostraR2Url] = useState('');
   const [fraseValidacao, setFraseValidacao] = useState('');
@@ -92,6 +94,7 @@ export default function VozClienteAddonCard({ orderId, order }) {
   const audioChunksRef = useRef([]);
   const timerRef = useRef(null);
   const streamRef = useRef(null);
+  const inicioGravacaoRef = useRef(0);
 
   useEffect(() => {
     return () => {
@@ -171,6 +174,12 @@ export default function VozClienteAddonCard({ orderId, order }) {
 
   // Funções de Gravação de Áudio
   const iniciarGravacao = async () => {
+    setErroVoz('');
+    if (etapaGravacao === 1) {
+      setAmostraBlob(null);
+      setAmostraUrl('');
+      setDuracaoAmostra(null);
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
@@ -188,8 +197,13 @@ export default function VozClienteAddonCard({ orderId, order }) {
           const blob = await converterParaWavBlob(rawBlob);
           const url = URL.createObjectURL(blob);
           if (etapaGravacao === 1) {
+            const duracao = (await obterDuracaoAudioSegundos(blob)) ?? (Date.now() - inicioGravacaoRef.current) / 1000;
+            setDuracaoAmostra(duracao);
             setAmostraBlob(blob);
             setAmostraUrl(url);
+            if (duracao < MIN_AMOSTRA_SEGUNDOS) {
+              setErroVoz(`A gravação tem ${Math.floor(duracao)} segundos. Grave cantando por pelo menos ${MIN_AMOSTRA_SEGUNDOS} segundos para continuar.`);
+            }
           } else if (etapaGravacao === 2) {
             setVerificacaoBlob(blob);
           }
@@ -200,6 +214,7 @@ export default function VozClienteAddonCard({ orderId, order }) {
       };
 
       mediaRecorder.start(200);
+      inicioGravacaoRef.current = Date.now();
       setGravando(true);
       setSegundos(0);
       timerRef.current = setInterval(() => {
@@ -219,9 +234,14 @@ export default function VozClienteAddonCard({ orderId, order }) {
     }
   };
 
-  // Envia a amostra de 20s e pede a frase de validação à API
+  // A primeira etapa exige 30 segundos cantados; a frase de confirmação é outra gravação.
   const handleEnviarAmostra = async () => {
     if (!amostraBlob) return;
+    if (duracaoAmostra === null || duracaoAmostra < MIN_AMOSTRA_SEGUNDOS) {
+      setErroVoz(`Grave cantando por pelo menos ${MIN_AMOSTRA_SEGUNDOS} segundos antes de avançar.`);
+      return;
+    }
+    setErroVoz('');
     setProcessandoVoz(true);
     setStatusMsg('Enviando áudio da sua voz para análise...');
 
@@ -241,7 +261,7 @@ export default function VozClienteAddonCard({ orderId, order }) {
       const phraseRes = await fetch('/api/admin/voice/task', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'request_phrase', voiceUrl: upData.url })
+        body: JSON.stringify({ action: 'request_phrase', voiceUrl: upData.url, vocalStart: 0, vocalEnd: 30, language: 'pt' })
       });
       const pData = await phraseRes.json();
       if (!phraseRes.ok || !pData.taskId) throw new Error(pData.error || 'Erro ao gerar frase de segurança.');
@@ -503,7 +523,7 @@ export default function VozClienteAddonCard({ orderId, order }) {
       </div>
 
       <p style={{ fontSize: '0.88rem', color: '#475569', lineHeight: 1.5, margin: '0 0 18px' }}>
-        Nossa Inteligência Artificial clona o seu timbre a partir de uma gravação rápida de 20 segundos e regera esta mesma música cantada exatamente por você!
+        Para personalizar sua música, grave sua voz cantando por pelo menos 30 segundos, sem acompanhamento musical. A IA tentará reproduzir o seu timbre na nova versão.
       </p>
 
       {/* CASO JÁ TENHA ACESSO LIBERADO (PAGO) */}
@@ -598,7 +618,7 @@ export default function VozClienteAddonCard({ orderId, order }) {
               ) : (
                 <div>
                   <p style={{ fontSize: '0.85rem', color: '#92400e', marginBottom: '16px' }}>
-                    Grave uma amostra rápida de 20 segundos para a IA clonar o seu tom de voz.
+                    Grave pelo menos 30 segundos cantando, sem música de fundo, para a IA aprender melhor o seu timbre.
                   </p>
 
                   <button
@@ -719,7 +739,7 @@ export default function VozClienteAddonCard({ orderId, order }) {
             {etapaGravacao === 1 && (
               <div>
                 <p style={{ fontSize: '0.85rem', color: '#a1a1aa', marginBottom: '20px' }}>
-                  Fale ou cante normalmente por 20 segundos em um ambiente silencioso. Conte algo bonito sobre quem você está homenageando.
+                  <strong style={{ color: '#fbbf24' }}>Cante por pelo menos 30 segundos.</strong> Escolha uma música que conheça e cante um trecho com sua voz natural, sem playback, sem outros cantores e sem efeitos. Grave em local silencioso, sem televisão, ventilador ou eco. Não basta apenas falar: a IA precisa ouvir seu jeito de cantar.
                 </p>
 
                 <div style={{ marginBottom: '20px' }}>
@@ -730,6 +750,9 @@ export default function VozClienteAddonCard({ orderId, order }) {
                     marginBottom: '12px'
                   }}>
                     {segundos}s {gravando && '🔴 Gravando...'}
+                    {gravando && etapaGravacao === 1 && <div style={{ fontSize: '0.78rem', color: '#fbbf24', marginTop: '6px' }}>
+                      {segundos < MIN_AMOSTRA_SEGUNDOS ? `Faltam ${MIN_AMOSTRA_SEGUNDOS - segundos}s para completar o mínimo` : '✅ Tempo mínimo atingido! Pode parar a gravação.'}
+                    </div>}
                   </div>
 
                   {!gravando ? (
@@ -771,11 +794,15 @@ export default function VozClienteAddonCard({ orderId, order }) {
                   <div style={{ marginBottom: '20px' }}>
                     <p style={{ fontSize: '0.8rem', color: '#a1a1aa', margin: '0 0 6px' }}>Ouça como ficou:</p>
                     <audio controls src={amostraUrl} style={{ width: '100%', marginBottom: '12px' }} />
+                    <p style={{ fontSize: '0.82rem', color: duracaoAmostra !== null && duracaoAmostra >= MIN_AMOSTRA_SEGUNDOS ? '#86efac' : '#fca5a5', margin: '0 0 10px' }}>
+                      {duracaoAmostra !== null ? `${Math.floor(duracaoAmostra)} segundos gravados · ` : 'Analisando duração · '}
+                      {duracaoAmostra !== null && duracaoAmostra >= MIN_AMOSTRA_SEGUNDOS ? '✅ Pronta para validar' : 'É preciso gravar pelo menos 30 segundos cantando'}
+                    </p>
                     {erroVoz && <p role="alert" style={{ margin: '0 0 10px', padding: '10px 12px', borderRadius: '10px', background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b', fontSize: '0.9rem', lineHeight: 1.4 }}>{erroVoz}</p>}
                     <button
                       type="button"
                       onClick={handleEnviarAmostra}
-                      disabled={processandoVoz}
+                      disabled={processandoVoz || duracaoAmostra === null || duracaoAmostra < MIN_AMOSTRA_SEGUNDOS}
                       style={{
                         width: '100%',
                         background: '#10b981',
