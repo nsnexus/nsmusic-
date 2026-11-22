@@ -28,15 +28,18 @@ export const SKU_PRICES = {
   recovery_combo_24h: 9.99,
   recovery_combo_48h: 6.99,
   segunda_musica: 4.99,
-  // Pacote Família (19/11/2026): música + carta + vídeo + retrospectiva + 5 gerações extras de
+  // Pacote Família: música + carta + vídeo + retrospectiva + 10 gerações extras de
   // músicas (novas letras e estilos). As gerações extras ficam no pedido pago (geracoesExtras) e são
   // consumidas por telefone na hora de gerar — ver src/lib/geracoesExtras.js.
   combo_familia: 39.90,
 };
 
-// Quantas gerações extras de música cada SKU dá (além da 2ª geração bônus que todo pagamento já dá).
+// Cada pagamento principal inclui 2 gerações: a inicial e a segunda de bônus.
+export const GERACOES_INCLUIDAS_POR_COMPRA = 2;
+
+// Gerações adicionais compradas em cada SKU. O Pacote Família totaliza 12 (2 incluídas + 10 extras).
 export const GERACOES_EXTRAS_POR_SKU = {
-  combo_familia: 5,
+  combo_familia: 10,
 };
 
 export function geracoesExtrasDoSku(sku) {
