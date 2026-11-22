@@ -65,14 +65,19 @@ export async function tentarVideoAcelerado({
 
     await output.start();
 
-    // Codificar AAC primeiro, com a duração INTEGRAL do áudio original.
-    // O writer aceita as faixas independentemente do avanço do relógio.
-    await audio.add(audioBuffer);
-    audio.close();
+    // Codifica AAC em paralelo aos quadros para evitar bloqueio de backpressure
+    // (um muxer pode aguardar pacotes das duas faixas para liberar o próximo lote).
+    // Nunca descarta parte do áudio.
+    let erroAudio = null;
+    const audioTask = audio.add(audioBuffer).then(
+      () => { audio.close(); },
+      (err) => { erroAudio = err; }
+    );
 
     const total = calcularQuadrosVideo(duracao);
     let ultimoPercentual = -1;
     for (let frame = 0; frame < total; frame++) {
+      if (erroAudio) throw erroAudio;
       const timestamp = frame / VIDEO_RAPIDO_FPS;
       const tempoFrame = Math.min(1 / VIDEO_RAPIDO_FPS, duracao - timestamp);
       desenharQuadroSlideshow(ctx, imagens, largura, altura, duracao, timestamp);
@@ -91,6 +96,8 @@ export async function tentarVideoAcelerado({
       }
     }
     video.close();
+    await audioTask;
+    if (erroAudio) throw erroAudio;
     onProgress?.(95);
     await output.finalize();
 
