@@ -9,6 +9,7 @@ import { saveTask, getTask } from './db.js';
 import { buildSunoPayload } from './sunoPayload.js';
 import { resolverSiteUrl } from './siteUrl.js';
 import { readEnvValue } from './envValue.js';
+import { buildVoiceSongPayload } from './kieVoice.js';
 
 // Provedores de geração suportados: Unifically (primário), Kie.ai (fallback) e Suno Local (robô desktop).
 export const PROVIDER_KIE = 'kie';
@@ -172,7 +173,8 @@ export async function requestSunoGeneration({ orderId, prompt, tags, preferredPr
   }
 
   const fallback = effectivePrimary === PROVIDER_SUNO_LOCAL ? PROVIDER_KIE : (effectivePrimary === PROVIDER_UNIFICALLY ? PROVIDER_KIE : PROVIDER_UNIFICALLY);
-  const hasFallback = fallback === PROVIDER_UNIFICALLY ? Boolean(unificallyKey) : Boolean(kieKey);
+  // Voz clonada não pode sofrer failover para um provedor que não suporta Voice Persona.
+  const hasFallback = !isCustomVoiceOrder && (fallback === PROVIDER_UNIFICALLY ? Boolean(unificallyKey) : Boolean(kieKey));
 
   const tentarProvedor = async (prov) => {
     if (prov === PROVIDER_SUNO_LOCAL) {
@@ -222,8 +224,8 @@ export async function requestSunoGeneration({ orderId, prompt, tags, preferredPr
  * Grava o vínculo tarefa->pedido das duas pontas (suno_tasks e orders) — o resto do sistema
  * (webhook, polling, reconciliação, arquivamento) lê sempre daqui, nunca do provedor.
  */
-async function persistirGeracao({ orderId, taskId, provider }, env = {}) {
-  const salvo = await saveTask(taskId, 'PROCESSING', null, orderId, { provider }, env);
+async function persistirGeracao({ orderId, taskId, provider, kieJobsApi = false }, env = {}) {
+  const salvo = await saveTask(taskId, 'PROCESSING', kieJobsApi ? { kieTaskApi: 'jobs' } : null, orderId, { provider }, env);
   if (!salvo) {
     await recordSunoFailure(orderId, 'save_task_failed', env);
     return { ok: false, error: 'A geração foi iniciada, mas houve uma falha ao registrar o pedido. A equipe será notificada.', status: 502 };
@@ -355,39 +357,27 @@ async function gerarPelaKie({ orderId, prompt, tags, useCustomVoice = true }, en
     ? `${baseUrl}/api/suno/webhook?secret=${encodeURIComponent(webhookSecret)}`
     : `${baseUrl}/api/suno/webhook`;
 
-  // Suporte a voz personalizada do cliente (timbre clonado)
-  let voicePayload = {};
+  // Somente pedidos com Voice ID válido e clonagem ativa usam o endpoint novo da Kie.
+  // Os outros pedidos conservam integralmente o payload e a API de geração tradicionais.
+  let customVoicePayload = null;
   if (orderId && useCustomVoice !== false) {
     try {
       const order = await getOrder(orderId, env);
       const vId = order?.customVoiceId || order?.extras?.customVoiceId;
-      if (vId && (order?.isCustomVoice || order?.voiceType === 'minha_voz' || order?.extras?.isCustomVoice)) {
-        const vAcc = order?.customVoiceAccountId || order?.extras?.accountId || order?.extras?.customVoiceAccountId || '70147233';
-        const vRec = order?.customVoiceRecordId || order?.extras?.voiceRecordingId || order?.extras?.customVoiceRecordId || 'b4fa71e2-b681-4b1c-97f7-812a9ed0effa';
-        voicePayload = {
-          persona_id: vId,
-          personaId: vId,
-          persona_model: 'voice_persona',
-          personaModel: 'voice_persona',
-          account_id: String(vAcc),
-          accountId: String(vAcc),
-          suno_user_id: String(vAcc),
-          persona_voice_user_id: Number(vAcc) || String(vAcc),
-          voice_record: String(vRec),
-          voice_record_id: String(vRec),
-          voice_recording_id: String(vRec),
-          voiceRecord: String(vRec),
-          voiceRecordingId: String(vRec),
-        };
-        // Fidelidade da voz (ajustável em /admin/voz): quanto a voz pesa, quanto segue o estilo.
+      const explicitlyDisabled = order?.isCustomVoice === false || order?.extras?.isCustomVoice === false;
+      if (!explicitlyDisabled && vId && (order?.isCustomVoice || order?.voiceType === 'minha_voz' || order?.extras?.isCustomVoice)) {
         const { lerFidelidadeVoz } = await import('./vozFidelidade.js');
         const fid = await lerFidelidadeVoz(env);
-        voicePayload.audioWeight = fid.audioWeight;
-        voicePayload.styleWeight = fid.styleWeight;
-        voicePayload.weirdnessConstraint = fid.weirdness;
+        customVoicePayload = buildVoiceSongPayload({
+          voiceId: vId,
+          prompt,
+          style: tags,
+          title: `Pedido ${orderId.substring(0, 8)}`,
+        }, callbackUrl, fid);
       }
     } catch (e) {
-      console.warn('[suno] Não foi possível verificar customVoiceId do pedido:', e.message);
+      console.warn('[suno] Não foi possível preparar geração com voz personalizada:', e.message);
+      return { ok: false, error: 'Não foi possível preparar a voz clonada. Tente novamente.', status: 503 };
     }
   }
 
@@ -398,30 +388,28 @@ async function gerarPelaKie({ orderId, prompt, tags, useCustomVoice = true }, en
   let response, data;
   for (let attempt = 1; attempt <= MAX_KIE_ATTEMPTS; attempt++) {
     try {
-      response = await fetch('https://api.kie.ai/api/v1/generate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({
-          prompt: prompt,
-          customMode: true,
-          instrumental: false,
-          model: readEnvValue(env, 'SUNO_MODEL') || 'V6',
-          style: tags,
-          title: `Pedido ${orderId ? orderId.substring(0, 8) : 'Novo'}`.substring(0, 80),
-          callBackUrl: callbackUrl,
-          // Sem esses dois campos, a Kie.ai decide sozinha (default não documentado) — explica cliente
-          // pedir um estilo e a música sair "torta" (achado 28/08/2026). styleWeight alto = mais fiel
-          // ao estilo pedido; weirdnessConstraint baixo = MENOS desvio criativo (documentação da
-          // Kie.ai: valor alto em weirdnessConstraint é mais estranho/experimental, não o contrário).
-          styleWeight: STYLE_WEIGHT,
-          weirdnessConstraint: WEIRDNESS_CONSTRAINT,
-          ...voicePayload
-        }),
-        signal: AbortSignal.timeout(KIE_REQUEST_TIMEOUT_MS)
-      });
+      response = await fetch(
+        customVoicePayload ? 'https://api.kie.ai/api/v1/jobs/createTask' : 'https://api.kie.ai/api/v1/generate',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+          },
+          body: JSON.stringify(customVoicePayload || {
+            prompt: prompt,
+            customMode: true,
+            instrumental: false,
+            model: readEnvValue(env, 'SUNO_MODEL') || 'V6',
+            style: tags,
+            title: `Pedido ${orderId ? orderId.substring(0, 8) : 'Novo'}`.substring(0, 80),
+            callBackUrl: callbackUrl,
+            styleWeight: STYLE_WEIGHT,
+            weirdnessConstraint: WEIRDNESS_CONSTRAINT,
+          }),
+          signal: AbortSignal.timeout(KIE_REQUEST_TIMEOUT_MS)
+        }
+      );
 
       data = await response.json().catch(() => ({}));
 
@@ -458,7 +446,7 @@ async function gerarPelaKie({ orderId, prompt, tags, useCustomVoice = true }, en
   // identifica a faixa por taskId+audioId da geração original (ver src/lib/playback.js).
   // sunoGenerationCount conta cada chamada que o provedor de fato aceitou (e portanto cobrou),
   // para o painel admin estimar gasto; increment() sobrevive a retentativas concorrentes.
-  const persistido = await persistirGeracao({ orderId, taskId, provider: PROVIDER_KIE }, env);
+  const persistido = await persistirGeracao({ orderId, taskId, provider: PROVIDER_KIE, kieJobsApi: Boolean(customVoicePayload) }, env);
   if (!persistido.ok) return persistido;
 
   return { ok: true, taskId, provider: PROVIDER_KIE };
@@ -541,7 +529,14 @@ export async function maybeAutoRetrySunoFailure({ taskId, orderId, env = {}, rea
 
   // Determina o provedor de destino da retentativa:
   // Se a falha foi na Unifically, vai para Kie.ai; se foi na Kie.ai e há Unifically configurada, tenta Unifically.
-  let targetProvider = preferredProvider;
+  const retryIsClonedVoice = Boolean(
+    (orderData.customVoiceId || orderData.extras?.customVoiceId)
+    && orderData.isCustomVoice !== false
+    && orderData.extras?.isCustomVoice !== false
+    && (orderData.isCustomVoice || orderData.voiceType === 'minha_voz' || orderData.extras?.isCustomVoice)
+  );
+  // A retentativa de voz clonada deve permanecer na Kie.ai, não cair na Unifically.
+  let targetProvider = retryIsClonedVoice ? PROVIDER_KIE : preferredProvider;
   if (!targetProvider) {
     try {
       const failedTask = await getTask(taskId, env);
