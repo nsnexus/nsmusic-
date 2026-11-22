@@ -1,6 +1,7 @@
 // O AudioContext vive em módulo próprio porque precisa ser destravado de forma síncrona no clique
 // do usuário, e este arquivo só é carregado por import dinâmico — ver src/lib/audioContext.js.
 import { primeAudioContext } from '@/lib/audioContext';
+import { drawSlideshowFrame, VIDEO_WIDTH, VIDEO_HEIGHT } from './videoFrames.js';
 
 async function updateOrderClient(orderId, updates) {
   try {
@@ -48,6 +49,37 @@ async function fetchAudioBytes(audioUrl) {
   }
 
   return null;
+}
+
+/**
+ * Etapa compartilhada pelos dois motores do navegador. Nunca publica um arquivo
+ * antes de o motor de vídeo terminar e validar áudio/imagens. Retém o upload R2
+ * e o status de entrega atuais, inclusive para a música bônus.
+ */
+async function uploadCompletedVideo(orderId, videoBlob, extension, contentType) {
+  const uploadRes = await fetch(`/api/video/upload?orderId=${encodeURIComponent(orderId)}&ext=${extension}`, {
+    method: 'POST',
+    headers: { 'Content-Type': videoBlob.type || contentType },
+    body: videoBlob,
+    signal: AbortSignal.timeout(120000),
+  });
+  if (!uploadRes.ok) {
+    throw new Error(`Falha no upload do vídeo para o R2 (HTTP ${uploadRes.status})`);
+  }
+  const data = await uploadRes.json();
+  const videoUrl = data?.url || null;
+  if (!videoUrl) {
+    throw new Error('URL do vídeo não foi retornada pelo servidor');
+  }
+  const nowIso = new Date().toISOString();
+  await updateOrderClient(orderId, {
+    videoUrl,
+    videoStatus: 'CONCLUIDO',
+    videoProgress: 100,
+    videoCreatedAt: nowIso,
+    updatedAt: nowIso,
+  });
+  return videoUrl;
 }
 
 /**
@@ -99,7 +131,8 @@ export async function createSlideshowVideo(orderId, imageUrls, audioUrl, orderDa
 
     // Duração exata do arquivo decodificado — não existe mais o palpite de 180s que sobrava do
     // antigo timeout de 4s esperando os metadados do <audio>.
-    const duration = Math.min(audioBuffer.duration, 360);
+    // A música inteira deve ir para o vídeo: o limite antigo de 360s cortava músicas de 7 minutos.
+    const duration = audioBuffer.duration;
     if (!duration || !isFinite(duration) || duration <= 0) {
       throw new Error('A música deste pedido está com duração inválida. Fale com o suporte.');
     }
@@ -227,16 +260,30 @@ export async function createSlideshowVideo(orderId, imageUrls, audioUrl, orderDa
       throw new Error('Nenhuma imagem válida pôde ser carregada. Por favor, selecione as fotos novamente.');
     }
 
-    const imageCount = validImages.length;
-    const timePerImage = duration / imageCount;
+    // Prioridade: WebCodecs/Mediabunny no próprio navegador, com frames e áudio
+    // codificados sem esperar o áudio tocar. Não mexe na VPS.
+    // Sem suporte ou com falha, volta ao MediaRecorder tradicional e seguro.
+    let fastBlob = null;
+    try {
+      const { renderFastSlideshow } = await import('./videoFast.js');
+      fastBlob = await renderFastSlideshow({ images: validImages, audioBuffer, duration, onProgress });
+    } catch (fastErr) {
+      console.warn('[VideoGen] Motor WebCodecs indisponível/falhou; usando MediaRecorder no navegador:', fastErr?.message);
+    }
+    if (fastBlob) {
+      if (onProgress) onProgress(99);
+      // MP4 já convencional, H.264 + AAC e com Fast Start: dispensa o remux.
+      return uploadCompletedVideo(orderId, fastBlob, 'mp4', 'video/mp4');
+    }
 
-    // 3. Configura o Canvas para formato Stories/Reels vertical — 720x1280 em vez de 1080x1920:
+    // 3. Fallback: o mesmo Canvas/MediaRecorder que já funciona em produção.
+    // Resolução, FPS, efeitos, integridade e compatibilidade WhatsApp mantidos.
     // metade dos pixels por frame, o que já reduz bastante o tamanho final sem perda perceptível
     // num slideshow de fotos com pan/zoom lento (ver reclamação de vídeo de +50MB e "formato
     // inválido" no WhatsApp).
     const canvas = document.createElement('canvas');
-    const width = 720;
-    const height = 1280;
+    const width = VIDEO_WIDTH;
+    const height = VIDEO_HEIGHT;
     canvas.width = width;
     canvas.height = height;
     const ctx = canvas.getContext('2d');
@@ -425,51 +472,7 @@ export async function createSlideshowVideo(orderId, imageUrls, audioUrl, orderDa
       }
       ultimoQuadroDesenhado = elapsed;
 
-      const currentIndex = Math.min(
-        validImages.length - 1,
-        Math.floor(elapsed / timePerImage)
-      );
-      const img = validImages[currentIndex];
-      const imgProgress = (elapsed % timePerImage) / timePerImage;
-
-      // Fundo escuro com gradiente elegante
-      ctx.fillStyle = '#0f172a';
-      ctx.fillRect(0, 0, width, height);
-
-      if (img && img.naturalWidth > 0 && img.naturalHeight > 0) {
-        // Efeito Ken Burns (Zoom suave de 1.0 a 1.1)
-        const scale = 1.0 + (imgProgress * 0.1);
-        const imgAspect = img.naturalWidth / img.naturalHeight;
-
-        // Sempre modo "contain": mostra a foto inteira, nunca corta nenhuma lateral. Quando a foto
-        // não bate exatamente com o formato vertical do canvas, sobra barra do fundo escuro (já
-        // pintado acima) acima/abaixo ou nas laterais — preferível a cortar parte da imagem.
-        const canvasAspect = width / height;
-        let drawWidth, drawHeight;
-        if (imgAspect > canvasAspect) {
-          drawWidth = width * scale;
-          drawHeight = drawWidth / imgAspect;
-        } else {
-          drawHeight = height * scale;
-          drawWidth = drawHeight * imgAspect;
-        }
-
-        const offsetX = (width - drawWidth) / 2;
-        const offsetY = (height - drawHeight) / 2;
-
-        ctx.save();
-        // Efeito de transição Fade In nos primeiros 0.5s de cada foto
-        const fadeSec = 0.5;
-        const timeInImg = elapsed % timePerImage;
-        if (timeInImg < fadeSec) {
-          ctx.globalAlpha = timeInImg / fadeSec;
-        } else {
-          ctx.globalAlpha = 1.0;
-        }
-
-        ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
-        ctx.restore();
-      }
+      drawSlideshowFrame(ctx, validImages, elapsed, duration, width, height);
 
       requestAnimationFrame(renderFrame);
     };
@@ -526,34 +529,8 @@ export async function createSlideshowVideo(orderId, imageUrls, audioUrl, orderDa
     const { mp4ParaWhatsapp } = await import('@/lib/mp4ParaWhatsapp');
     videoBlob = await mp4ParaWhatsapp(videoBlob, { duracaoEsperada: duration });
 
-    // 5. Upload do vídeo — Cloudflare R2 direto via Edge
-    let videoUrl = null;
-    const uploadRes = await fetch(`/api/video/upload?orderId=${encodeURIComponent(orderId)}&ext=${fileExtension}`, {
-      method: 'POST',
-      headers: { 'Content-Type': videoBlob.type || mimeType },
-      body: videoBlob,
-      signal: AbortSignal.timeout(120000),
-    });
-    if (!uploadRes.ok) {
-      throw new Error(`Falha no upload do vídeo para o R2 (HTTP ${uploadRes.status})`);
-    }
-    const data = await uploadRes.json();
-    videoUrl = data?.url || null;
-    if (!videoUrl) {
-      throw new Error('URL do vídeo não foi retornada pelo servidor');
-    }
-
-    // 6. Atualiza o pedido com a URL do vídeo concluído
-    const nowIso = new Date().toISOString();
-    await updateOrderClient(orderId, {
-      videoUrl: videoUrl,
-      videoStatus: 'CONCLUIDO',
-      videoProgress: 100,
-      videoCreatedAt: nowIso,
-      updatedAt: nowIso
-    });
-
-    return videoUrl;
+    // 5. Upload do vídeo e status de conclusão (compartilhado com WebCodecs).
+    return uploadCompletedVideo(orderId, videoBlob, fileExtension, mimeType);
 
   } catch (err) {
     console.error("Erro na geração do vídeo:", err);
