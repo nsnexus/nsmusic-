@@ -517,7 +517,7 @@ export async function createSlideshowVideo(orderId, imageUrls, audioUrl, orderDa
     let videoUrl = null;
     const uploadRes = await fetch(`/api/video/upload?orderId=${encodeURIComponent(orderId)}&ext=${fileExtension}`, {
       method: 'POST',
-      headers: { 'Content-Type': videoBlob.type || mimeType },
+      headers: { 'Content-Type': videoBlob.type || (modoAcelerado ? 'video/mp4' : 'video/webm') },
       body: videoBlob,
       signal: AbortSignal.timeout(120000),
     });
