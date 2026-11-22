@@ -100,7 +100,7 @@ export async function resolvePrimaryProvider(env = {}) {
  * @param {object} env
  * @returns {Promise<{ok: true, taskId: string, provider: string} | {ok: false, error: string, status: number}>}
  */
-export async function requestSunoGeneration({ orderId, prompt, tags, preferredProvider = null, useCustomVoice = true }, env = {}) {
+export async function requestSunoGeneration({ orderId, prompt, tags, preferredProvider = null, useCustomVoice = null }, env = {}) {
   const unificallyKey = readEnvValue(env, 'UNIFICALLY_API_KEY');
   const kieKey = readEnvValue(env, 'KIE_API_KEY');
 
@@ -115,6 +115,17 @@ export async function requestSunoGeneration({ orderId, prompt, tags, preferredPr
         isCustomVoiceOrder = true;
       }
     } catch (e) {}
+  }
+
+  // Na tela admin a marcação é explícita. Não gastar créditos com voz padrão caso a
+  // solicitação de voz clonada tenha perdido o vínculo ou esteja bloqueada por um flag antigo.
+  // Chamadas sem a opção explícita mantêm o comportamento anterior (autodetecção pelo pedido).
+  if (useCustomVoice === true && orderId && !isCustomVoiceOrder) {
+    return {
+      ok: false,
+      status: 409,
+      error: 'A voz clonada foi selecionada, mas o pedido não tem um Voice ID ativo e habilitado. Nenhuma música foi enviada. Verifique o vínculo da voz no pedido.',
+    };
   }
 
   const primary = preferredProvider || await resolvePrimaryProvider(env);
