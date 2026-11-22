@@ -19,11 +19,14 @@ if (fs.existsSync('.env.local')) {
 }
 
 import { createOrder, getOrder, updateOrder, softDeleteOrder } from '@/lib/supabaseDb';
+import { getSupabaseEdge } from '@/lib/supabase-edge';
 import { generateUniqueOrderNumber } from '@/lib/orderNumber';
 import { findOrderByIdOrNumber } from '@/lib/orderLookup';
 import { sanitizeOrderForResponse } from '@/app/api/orders/[id]/route';
 
-describe('Fluxo Completo de Criação e Validação de Pedido (Teste Real)', () => {
+const supabase = getSupabaseEdge();
+
+describe.skipIf(!supabase)('Fluxo Completo de Criação e Validação de Pedido (Teste Real)', () => {
   it('cria, busca, sanitiza, atualiza e limpa pedido com sucesso no Supabase', async () => {
     // 1. Gerar número de pedido único
     const orderNumber = await generateUniqueOrderNumber();
@@ -106,9 +109,9 @@ describe('Fluxo Completo de Criação e Validação de Pedido (Teste Real)', () 
     } finally {
       // 8. Limpar pedido de teste via soft delete
       await softDeleteOrder(created.id);
-      const afterDelete = await getOrder(created.id);
-      expect(afterDelete.deletedAt).toBeDefined();
-      console.log('8. Pedido de teste excluído logicamente (softDelete) com sucesso.');
     }
+
+    expect((await getOrder(created.id))?.deletedAt).toEqual(expect.any(String));
+    console.log('8. Pedido de teste excluído logicamente (softDelete) com sucesso.');
   }, 20000);
 });
