@@ -76,6 +76,7 @@ export async function tentarVideoAcelerado({
 
     const total = calcularQuadrosVideo(duracao);
     let ultimoPercentual = -1;
+    const inicioCodificacao = Date.now();
     for (let frame = 0; frame < total; frame++) {
       if (erroAudio) throw erroAudio;
       const timestamp = frame / VIDEO_RAPIDO_FPS;
@@ -86,7 +87,17 @@ export async function tentarVideoAcelerado({
       const percentual = Math.min(94, 12 + Math.floor(((frame + 1) / total) * 82));
       if (percentual !== ultimoPercentual) {
         ultimoPercentual = percentual;
-        onProgress?.(percentual);
+        onProgress?.(percentual, 'acelerado');
+      }
+
+      // Se o próprio encoder estiver mais lento do que tocar a música,
+      // interrompe cedo para não gastar vários minutos aqui e depois
+      // ainda precisar fazer mais uma gravação inteira com MediaRecorder.
+      if (frame >= 150 && frame % 75 === 0) {
+        const tempoVideoMs = ((frame + 1) / VIDEO_RAPIDO_FPS) * 1000;
+        if (Date.now() - inicioCodificacao > tempoVideoMs * 1.8 + 8000) {
+          throw new Error('WebCodecs está lento neste aparelho. Usando modo compatível.');
+        }
       }
 
       // Deixa o navegador atualizar o progresso e responder aos toques.
@@ -98,7 +109,7 @@ export async function tentarVideoAcelerado({
     video.close();
     await audioTask;
     if (erroAudio) throw erroAudio;
-    onProgress?.(95);
+    onProgress?.(95, 'acelerado');
     await output.finalize();
 
     const buffer = output.target.buffer;
@@ -110,15 +121,27 @@ export async function tentarVideoAcelerado({
     const blob = new Blob([buffer], { type: 'video/mp4' });
     // Confirma que o contêiner tem áudio, vídeo e a música inteira.
     const input = new Input({ source: new BlobSource(blob), formats: ALL_FORMATS });
-    const [arquivoDuracao, faixaAudio, faixaVideo] = await Promise.all([
-      input.computeDuration(), input.getPrimaryAudioTrack(), input.getPrimaryVideoTrack(),
-    ]);
-    if (!faixaAudio || !faixaVideo || !Number.isFinite(arquivoDuracao) ||
-        arquivoDuracao < duracao - 2) {
-      throw new Error('MP4 acelerado incompleto ou sem faixa de áudio/vídeo.');
+    try {
+      const [faixaAudio, faixaVideo] = await Promise.all([
+        input.getPrimaryAudioTrack(), input.getPrimaryVideoTrack(),
+      ]);
+      if (!faixaAudio || !faixaVideo) {
+        throw new Error('MP4 acelerado sem faixa de áudio ou vídeo.');
+      }
+      // Conferir cada faixa separadamente: antes o vídeo podia ter a
+      // duração integral e encobrir um áudio AAC interrompido.
+      const [duracaoAudio, duracaoVideo] = await Promise.all([
+        input.computeDuration([faixaAudio]), input.computeDuration([faixaVideo]),
+      ]);
+      if (!Number.isFinite(duracaoAudio) || !Number.isFinite(duracaoVideo) ||
+          duracaoAudio < duracao - 2 || duracaoVideo < duracao - 2) {
+        throw new Error('MP4 acelerado com música ou imagens cortadas.');
+      }
+      console.info(`[VideoRapido] MP4 H.264/AAC completo: áudio ${duracaoAudio.toFixed(1)}s, vídeo ${duracaoVideo.toFixed(1)}s, ${(blob.size / 1048576).toFixed(1)} MB.`);
+    } finally {
+      input.dispose?.();
     }
 
-    console.info(`[VideoRapido] MP4 H.264/AAC completo: ${arquivoDuracao.toFixed(1)}s, ${(blob.size / 1048576).toFixed(1)} MB.`);
     return blob;
   } catch (err) {
     console.warn('[VideoRapido] Modo acelerado indisponível; usando MediaRecorder:', err?.message);
