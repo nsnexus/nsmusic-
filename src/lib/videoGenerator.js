@@ -382,8 +382,11 @@ export async function createSlideshowVideo(orderId, imageUrls, audioUrl, orderDa
     // da música e o vídeo termina no lugar errado. audioCtx.currentTime acompanha exatamente o que
     // está sendo gravado na trilha de áudio.
     const startTime = audioCtx.currentTime;
+    let ultimoProgresso = -1;
+    let ultimoSegundoPersistido = 0;
+    let ultimoQuadroDesenhado = -1;
 
-    const renderFrame = async () => {
+    const renderFrame = () => {
       const elapsed = audioCtx.currentTime - startTime;
 
       // Amostra o sinal de áudio a cada quadro: é assim que se descobre que o vídeo saiu mudo antes
@@ -398,12 +401,29 @@ export async function createSlideshowVideo(orderId, imageUrls, audioUrl, orderDa
         return;
       }
 
-      // Progresso na UI e atualização periódica do pedido
+      // Antes: dezenas de POSTs por segundo enquanto floor(elapsed) % 10 === 0,
+      // além de callbacks de UI a cada requestAnimationFrame. No celular, isso
+      // competia com o encoder do vídeo. Agora: 1 callback por percentual real
+      // e no máximo 1 gravação de progresso a cada 10 segundos de áudio.
       const progressPercent = Math.min(95, Math.floor((elapsed / duration) * 90) + 10);
-      if (onProgress) onProgress(progressPercent);
-      if (Math.floor(elapsed) % 10 === 0) {
+      if (progressPercent !== ultimoProgresso) {
+        ultimoProgresso = progressPercent;
+        if (onProgress) onProgress(progressPercent);
+      }
+      const segundoAtual = Math.floor(elapsed);
+      if (segundoAtual - ultimoSegundoPersistido >= 10) {
+        ultimoSegundoPersistido = segundoAtual;
         updateOrderClient(orderId, { videoProgress: progressPercent }).catch(() => {});
       }
+
+      // captureStream grava 15 FPS: desenhar 60 vezes/segundo não melhora o
+      // arquivo e usa CPU/GPU do celular. Redesenha em até ~20 FPS para
+      // alimentar com folga o encoder de 15 FPS.
+      if (ultimoQuadroDesenhado >= 0 && elapsed - ultimoQuadroDesenhado < 1 / 20) {
+        requestAnimationFrame(renderFrame);
+        return;
+      }
+      ultimoQuadroDesenhado = elapsed;
 
       const currentIndex = Math.min(
         validImages.length - 1,

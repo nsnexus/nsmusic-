@@ -18,6 +18,7 @@ import VozClienteAddonCard from '@/components/VozClienteAddonCard';
 import BannerLinkPresente from '@/components/BannerLinkPresente';
 import { requestPixCharge } from '@/lib/pixCheckout';
 import { compressImage } from '@/lib/imageCompress';
+import { mapWithConcurrency } from '@/lib/videoUploadQueue';
 import { aplicarPatchNoPedido } from '@/lib/pedidoIrmao';
 import { enviarFotosEmSerie, enviarUmaFoto } from '@/lib/envioFotos';
 import { getPriceForSku, faixasDeImpacto } from '@/lib/pricing';
@@ -1660,17 +1661,14 @@ function EntregaContent() {
       try {
         const finalUrls = [...existingPhotos];
 
-        // Upload de novas fotos locais caso existam
+        // Três fotos por vez: reduz o tempo de envio no 4G sem sobrecarregar
+        // memória/CPU do celular. O resultado preserva a ordem escolhida.
         if (newPhotoFiles.length > 0) {
-          setUploadProgressMsg('Enviando novas fotos para o servidor...');
-          for (let i = 0; i < newPhotoFiles.length; i++) {
-            const file = newPhotoFiles[i];
-            setUploadProgressMsg(`Enviando foto ${i + 1} de ${newPhotoFiles.length}...`);
-            // Comprime antes de subir: upload muito mais rápido no 4G,
-            // menos memória durante a renderização do vídeo e menos
-            // Storage (as fotos agora ficam guardadas pra Retrospectiva).
-            // Nunca falha o upload por causa disso — em erro devolve o
-            // arquivo original (ver src/lib/imageCompress.js).
+          const totalNovas = newPhotoFiles.length;
+          let concluido = 0;
+          setUploadProgressMsg(`Preparando ${totalNovas} fotos para o vídeo...`);
+          const urlsEnviadas = await mapWithConcurrency(newPhotoFiles, 3, async (file, i) => {
+            // O compressor nunca descarta a foto: em erro mantém o original.
             const arquivo = await compressImage(file);
             const uploadData = new FormData();
             uploadData.append('file', arquivo, `photo_${i}.jpg`);
@@ -1685,8 +1683,11 @@ function EntregaContent() {
             if (!resJson?.url) {
               throw new Error(`URL da foto ${i + 1} não retornada`);
             }
-            finalUrls.push(resJson.url);
-          }
+            concluido += 1;
+            setUploadProgressMsg(`Fotos enviadas: ${concluido} de ${totalNovas}`);
+            return resJson.url;
+          });
+          finalUrls.push(...urlsEnviadas);
           setExistingPhotos(finalUrls);
           setNewPhotoFiles([]);
         }
