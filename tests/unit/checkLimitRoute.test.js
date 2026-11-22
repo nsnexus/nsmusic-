@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 let dbOrders = [];
 let isBlockedContact = false;
+let pacotes = [];
 
 vi.mock('@/lib/blocklist', () => ({
   isContactBlocked: vi.fn(async () => ({ blocked: isBlockedContact, reason: isBlockedContact ? 'manual_block' : null })),
@@ -11,6 +12,26 @@ vi.mock('@/lib/supabase-edge', () => ({
   getSupabaseEdge: vi.fn(() => ({
     from: () => ({
       select: () => ({
+        in: () => {
+          let selected = pacotes;
+          const query = {
+            in: () => query,
+            is: () => query,
+            filter: (column, operator, value) => {
+              expect([column, operator, value]).toEqual(['extras->>geracoesExtras', 'not.is', null]);
+              return query;
+            },
+            order: () => query,
+            limit: () => query,
+            eq: (column, value) => {
+              expect(column).toBe('id');
+              selected = selected.filter((p) => p.id === value);
+              return query;
+            },
+            then: (resolve) => resolve({ data: selected, error: null }),
+          };
+          return query;
+        },
         eq: () => ({
           maybeSingle: async () => ({ data: null })
         }),
@@ -38,6 +59,7 @@ const { GET } = await import('@/app/api/orders/check-limit/route');
 beforeEach(() => {
   dbOrders = [];
   isBlockedContact = false;
+  pacotes = [];
 });
 
 describe('GET /api/orders/check-limit', () => {
@@ -95,5 +117,28 @@ describe('GET /api/orders/check-limit', () => {
     expect(data.restantes).toBe(0);
     expect(data.reason).toBe('cota_excedida');
     expect(data.manualBlock).toBe(false);
+  });
+
+  it('permite avançar com a cota comum esgotada se o cliente tem saldo no Pacote Família', async () => {
+    pacotes = [{ id: 'familia', payment_status: 'PAGAMENTO_APROVADO', extras: { geracoesExtras: 10 } }];
+    dbOrders = [
+      { orderNumber: 'familia', paymentStatus: 'PAGAMENTO_APROVADO' },
+      ...Array.from({ length: 9 }, (_, i) => ({ orderNumber: `free-${i}` })),
+    ];
+
+    const req = new Request('https://nsmusic.com.br/api/orders/check-limit?phone=11988887777');
+    const data = await (await GET(req)).json();
+    expect(data).toMatchObject({ isBlocked: false, restantes: 0, reason: null });
+
+    isBlockedContact = true;
+    const blocked = await (await GET(req)).json();
+    expect(blocked).toMatchObject({ isBlocked: true, manualBlock: true, reason: 'manual_block' });
+  });
+
+  it('interrompe a criação pelo Pacote Família antes da letra quando o pacote informado não é encontrado', async () => {
+    pacotes = [{ id: 'outro', payment_status: 'PAGAMENTO_APROVADO', extras: { geracoesExtras: 10 } }];
+    const req = new Request('https://nsmusic.com.br/api/orders/check-limit?phone=11988887777&familiaRef=escolhido');
+    const data = await (await GET(req)).json();
+    expect(data).toMatchObject({ isBlocked: true, reason: 'pacote_familia_indisponivel', restantes: 5 });
   });
 });

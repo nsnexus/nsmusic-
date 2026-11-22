@@ -733,7 +733,7 @@ export default function CreationSteps({
         {/* Campo WhatsApp */}
         <div data-missing={isPhoneMissing ? "true" : undefined} style={{ marginBottom: '14px' }}>
           <label style={{ display: 'block', fontSize: '0.88rem', fontWeight: 700, color: '#1E1418', marginBottom: '4px' }}>
-            Seu WhatsApp para receber o link *
+            {data.familiaRef ? 'WhatsApp usado na compra do Pacote Família' : 'Seu WhatsApp para receber o link'} *
           </label>
           <span style={{ display: 'block', fontSize: '0.78rem', color: '#857D80', marginBottom: '8px' }}>
             Enviaremos o link seguro para você ouvir a prévia e baixar sua canção quando quiser.

@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
 import { getOrder, updateOrder } from '@/lib/supabaseDb';
-import { getPriceForSku } from '@/lib/pricing';
+import { getPriceForSku, skuApprovesMusic } from '@/lib/pricing';
+import { geracaoExtraJaLiberada } from '@/lib/geracoesExtrasRegras';
 import { createStripeCheckoutSession } from '@/lib/stripe';
 import { createInfinitePayCheckoutLink } from '@/lib/infinitepay';
 import { isUSOrder } from '@/lib/country';
@@ -51,6 +52,12 @@ export async function POST(req) {
     const existingOrderData = await getOrder(orderId, env);
     if (!existingOrderData) {
       return NextResponse.json({ error: 'Pedido não encontrado.' }, { status: 404 });
+    }
+    if (skuApprovesMusic(sku) && geracaoExtraJaLiberada(existingOrderData)) {
+      return NextResponse.json({ error: 'Esta música já está liberada pelo seu Pacote Família. Acesse Minhas Músicas para ouvir e baixar.' }, { status: 409 });
+    }
+    if (skuApprovesMusic(sku) && existingOrderData.familiaRef) {
+      return NextResponse.json({ error: 'Esta música foi iniciada pelo Pacote Família. Volte à página do pacote para conferir o saldo e o WhatsApp da compra.' }, { status: 409 });
     }
 
     const isInternational = isUSOrder(existingOrderData);
@@ -120,16 +127,13 @@ export async function POST(req) {
       console.warn('[card/create] Aviso ao registrar intent no Supabase:', dbErr?.message);
     }
 
-    // Atualiza o pedido com carimbos e o intent atual
+    // O status pode ter mudado enquanto o provedor preparava a cobrança.
     const agora = new Date().toISOString();
     await updateOrder(existingOrderData.id, {
       stripeSessionId: provider === 'stripe' ? checkoutSession.id : null,
       paymentIntentId: checkoutSession.id,
       paymentIntentSku: sku,
       stripeCheckoutAt: agora,
-      paymentStatus: existingOrderData.paymentStatus === 'PAGO' || existingOrderData.paymentStatus === 'PAGAMENTO_APROVADO'
-        ? existingOrderData.paymentStatus
-        : 'AGUARDANDO_PAGAMENTO',
     }, env).catch((e) => {
       console.warn('[card/create] Aviso ao carimbar pedido:', e?.message);
     });

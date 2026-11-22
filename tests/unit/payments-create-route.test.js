@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-const state = vi.hoisted(() => ({ orders:{}, intents:[], records:[], reserveError:false, nextId:0, provider:vi.fn(), charges:{}, efiFails:false, infinitepayFails:false, efiMode:'production' }));
-vi.mock('@/lib/supabaseDb',()=>({ getOrder:async id=>state.orders[id]||null,updateOrder:async()=>true }));
+const state = vi.hoisted(() => ({ orders:{}, intents:[], records:[], reserveError:false, nextId:0, provider:vi.fn(), updateOrder:vi.fn(), charges:{}, efiFails:false, infinitepayFails:false, efiMode:'production' }));
+vi.mock('@/lib/supabaseDb',()=>({ getOrder:async id=>state.orders[id]||null,updateOrder:state.updateOrder }));
 vi.mock('@/lib/efi',()=>({
   generateTxid:()=> 'A'.repeat(26),
   getEfiMode:()=> state.efiMode,
@@ -39,9 +39,48 @@ vi.mock('@/lib/supabase-edge',()=>({getSupabaseEdge:()=>({
   from:()=>{let id;return {eq(column,value){id=value;return this},async update(data){Object.assign(state.intents.find(row=>row.id===id),data);return {error:null}}}}
 })}));
 const {POST}=await import('@/app/api/payments/create/route');
+const { POST: createCardCheckout } = await import('@/app/api/payments/stripe/create/route');
 const request=body=>({json:async()=>body});
-beforeEach(()=>{state.orders={order1:{id:'order1'}};state.intents=[];state.records=[];state.nextId=0;state.reserveError=false;state.charges={};state.efiFails=false;state.infinitepayFails=false;state.efiMode='production';state.provider.mockClear();});
+beforeEach(()=>{state.orders={order1:{id:'order1'}};state.intents=[];state.records=[];state.nextId=0;state.reserveError=false;state.charges={};state.efiFails=false;state.infinitepayFails=false;state.efiMode='production';state.provider.mockClear();state.updateOrder.mockReset().mockResolvedValue(true);});
 describe('PIX com reserva persistida',()=>{
+  it('recusa PIX ou cartão para a música já liberada pelo Pacote Família', async () => {
+    state.orders.order1 = { id: 'order1', paymentStatus: 'PAGAMENTO_APROVADO', paidSku: 'geracao_extra_familia' };
+    for (const createCheckout of [POST, createCardCheckout]) {
+      const res = await createCheckout(request({ orderId: 'order1', sku: 'audio_only' }));
+      expect(res.status).toBe(409);
+      expect((await res.json()).error).toMatch(/já está liberada pelo seu Pacote Família/);
+    }
+    expect(state.intents).toHaveLength(0);
+    expect(state.records).toHaveLength(0);
+    expect(state.provider).not.toHaveBeenCalled();
+  });
+
+  it('permite comprar vídeo avulso para uma música do Pacote Família', async () => {
+    state.orders.order1 = { id: 'order1', paymentStatus: 'PAGO', paidSku: 'geracao_extra_familia' };
+    const res = await POST(request({ orderId: 'order1', sku: 'video_addon' }));
+    expect(res.status).toBe(200);
+    expect(state.provider).toHaveBeenCalledOnce();
+  });
+
+  it('não oferece cobrança avulsa enquanto um pedido iniciado pelo pacote aguarda liberação', async () => {
+    state.orders.order1 = { id: 'order1', paymentStatus: 'AGUARDANDO_PAGAMENTO', familiaRef: 'familia' };
+    for (const createCheckout of [POST, createCardCheckout]) {
+      const res = await createCheckout(request({ orderId: 'order1', sku: 'audio_only' }));
+      expect(res.status).toBe(409);
+      expect((await res.json()).error).toContain('iniciada pelo Pacote Família');
+    }
+    expect(state.intents).toHaveLength(0);
+    expect(state.records).toHaveLength(0);
+  });
+
+  it('gravar a cobrança não sobrescreve uma liberação da música feita em paralelo', async () => {
+    for (const createCheckout of [POST, createCardCheckout]) {
+      const res = await createCheckout(request({ orderId: 'order1', sku: 'audio_only' }));
+      expect(res.status).toBe(200);
+      expect(state.updateOrder.mock.lastCall[1]).not.toHaveProperty('paymentStatus');
+    }
+  });
+
   it('deriva preço do catálogo e registra o vínculo ao pedido',async()=>{
     const res=await POST(request({orderId:'order1',sku:'audio_only',totalAmount:0.01}));
     expect(res.status).toBe(200);

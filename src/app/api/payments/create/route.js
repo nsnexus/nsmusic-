@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
 import { getOrder, updateOrder } from '@/lib/supabaseDb';
-import { getPriceForSku } from '@/lib/pricing';
+import { getPriceForSku, skuApprovesMusic } from '@/lib/pricing';
+import { geracaoExtraJaLiberada } from '@/lib/geracoesExtrasRegras';
 import { createPixCharge, getChargeStatus, generateTxid, getEfiMode } from '@/lib/efi';
 import { cobrancaEfiAindaPagavel } from '@/lib/pixValidade';
 import { getSupabaseEdge } from '@/lib/supabase-edge';
@@ -51,6 +52,12 @@ export async function POST(req) {
     const existingOrderData = await getOrder(orderId, env);
     if (!existingOrderData) {
       return NextResponse.json({ error: 'Pedido não encontrado.' }, { status: 404 });
+    }
+    if (skuApprovesMusic(sku) && geracaoExtraJaLiberada(existingOrderData)) {
+      return NextResponse.json({ error: 'Esta música já está liberada pelo seu Pacote Família. Acesse Minhas Músicas para ouvir e baixar.' }, { status: 409 });
+    }
+    if (skuApprovesMusic(sku) && existingOrderData.familiaRef) {
+      return NextResponse.json({ error: 'Esta música foi iniciada pelo Pacote Família. Volte à página do pacote para conferir o saldo e o WhatsApp da compra.' }, { status: 409 });
     }
 
     // Atualiza IP e User-Agent do cliente no pedido caso ainda não estejam gravados (para Meta/TikTok CAPI)
@@ -170,14 +177,11 @@ export async function POST(req) {
     });
     if (recorded.error || !recorded.data) return NextResponse.json({ error: 'Não foi possível associar o PIX ao pedido. Tente novamente.' }, { status: 503 });
 
-    // Registra carimbo de PIX gerado e garante status de aguardando pagamento
+    // O status pode ter mudado enquanto o provedor preparava a cobrança.
     const agora = new Date().toISOString();
     await updateOrder(existingOrderData.id, {
       pixGeneratedAt: agora,
       pixGeneratedLastAt: agora,
-      paymentStatus: existingOrderData.paymentStatus === 'PAGO' || existingOrderData.paymentStatus === 'PAGAMENTO_APROVADO'
-        ? existingOrderData.paymentStatus
-        : 'AGUARDANDO_PAGAMENTO',
     }, env).catch((e) => {
       console.warn('[payments/create] Aviso ao carimbar pixGeneratedAt:', e?.message);
     });

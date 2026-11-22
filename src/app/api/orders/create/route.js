@@ -83,6 +83,9 @@ export async function POST(req) {
 
     const formData = await req.json();
     const authenticatedCustomer = await getCustomer(req, env);
+    const familiaRef = typeof formData.familiaRef === 'string' && /^[A-Za-z0-9_-]{1,80}$/.test(formData.familiaRef)
+      ? formData.familiaRef
+      : null;
 
     // O aceite dos termos é implícito ao avançar na criação
     const isWizardStep = typeof formData.productionStatus === 'string' && formData.productionStatus.startsWith('ETAPA_');
@@ -195,7 +198,7 @@ export async function POST(req) {
     // Ver src/lib/bonusAutomatico.js. O consumo só é marcado quando a música é gerada.
     let bonusAutomatico = false;
     let parentOrderNumber = null;
-    if (!isSecondGenApproved && formData.customerPhone) {
+    if (!isSecondGenApproved && formData.customerPhone && !familiaRef) {
       try {
         const { encontrarBonusDisponivel, camposDoBonus } = await import('@/lib/bonusAutomatico');
         // Sem pedido explícito de 2ª geração, o vínculo automático só vale se o pedido pago for de hoje.
@@ -416,6 +419,7 @@ export async function POST(req) {
       paymentStatus: isSecondGenApproved ? 'PAGAMENTO_APROVADO' : 'AGUARDANDO_PAGAMENTO',
       paidAmount: isSecondGenApproved ? 0 : 0,
       paidSku: isSecondGenApproved ? 'segunda_geracao_bonus' : null,
+      ...(familiaRef ? { familiaRef } : {}),
       parentOrderId: resolvedParentOrderId || null,
       isSecondGeneration: isSecondGenApproved,
       ...inheritedAddons,

@@ -6,6 +6,7 @@ import { lerResetDeCota } from '@/lib/cotaReset';
 import { isContactBlocked } from '@/lib/blocklist';
 import { obterIpDoCliente } from '@/lib/cotaPorIp';
 import { generatePhoneVariants } from '@/lib/orderLookup';
+import { encontrarPacoteComSaldo } from '@/lib/geracoesExtras';
 
 export const runtime = 'edge';
 
@@ -20,6 +21,7 @@ export async function GET(req) {
     const { searchParams } = new URL(req.url);
     const phone = (searchParams.get('phone') || '').trim();
     const email = (searchParams.get('email') || '').trim();
+    const familiaRef = searchParams.get('familiaRef');
 
     const digits = phone ? phone.replace(/\D/g, '') : '';
     const hasValidEmail = email && email.includes('@');
@@ -93,15 +95,19 @@ export async function GET(req) {
 
     const resetAt = phone ? await lerResetDeCota(phone, env) : '';
     const cota = calcularCota(matches, { resetAt });
+    const consultarPacote = (cota.bloqueado || familiaRef) && digits.length >= 10;
+    const temSaldoFamilia = consultarPacote && await encontrarPacoteComSaldo(phone, env, { familiaRef });
+    const reason = familiaRef && !temSaldoFamilia ? 'pacote_familia_indisponivel'
+      : cota.bloqueado && !temSaldoFamilia ? 'cota_excedida' : null;
 
     return NextResponse.json({
-      isBlocked: Boolean(cota.bloqueado),
+      isBlocked: Boolean(reason),
       totalCount: cota.usados,
       cota: cota.cota,
       pagos: cota.pagos,
       restantes: cota.restantes,
       manualBlock: false,
-      reason: cota.bloqueado ? 'cota_excedida' : null,
+      reason,
     });
   } catch (error) {
     console.error('[check-limit] Falha ao verificar cota:', error.message);
