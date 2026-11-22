@@ -23,7 +23,7 @@ import { lerConfigSite } from '@/lib/configSite';
 import { StudioLyricsAnimation, StudioAudioAnimation } from '@/components/StudioAnimations';
 import { IconeCelularWhatsApp } from '@/components/AppIcons';
 import { readReferralCode } from '@/lib/referralTracking';
-import { getPriceForSku } from '@/lib/pricing';
+import { getPriceForSku, geracoesExtrasDoSku } from '@/lib/pricing';
 import PacotesCompactos from '@/components/delivery/PacotesCompactos';
 import { deliveryPackages, formatBrl } from '@/lib/deliveryPackages';
 import { Zap, Copy, CheckCircle2, CreditCard, Loader2 } from 'lucide-react';
@@ -1526,7 +1526,7 @@ export default function CriarMusica() {
           geracaoExtraFamilia: {
             pacote: data.familiaOrderNumber || null,
             restantes: Number(data.geracoesExtrasRestantes) || 0,
-            total: Number(data.geracoesExtrasTotal) || 5,
+            total: Number(data.geracoesExtrasTotal) || geracoesExtrasDoSku('combo_familia'),
           },
         }));
       }
