@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { getPriceForSku, skuGrantsVideoAccess, skuGrantsCartaAccess, skuGrantsRetrospectivaAccess, skuGrantsKaraokeAccess, skuApprovesMusic, SKU_PRICES, geracoesExtrasDoSku } from '@/lib/pricing';
+import { getPriceForSku, skuGrantsVideoAccess, skuGrantsCartaAccess, skuGrantsRetrospectivaAccess, skuGrantsKaraokeAccess, skuApprovesMusic, SKU_PRICES, geracoesExtrasDoSku, GERACOES_INCLUIDAS_POR_COMPRA } from '@/lib/pricing';
+import { deliveryPackages } from '@/lib/deliveryPackages';
 
 // Catálogo único de preços no servidor (ver C-05 no AUDIT_REPORT.md).
 
@@ -105,9 +106,21 @@ describe('Pacote Família (combo_familia)', () => {
     expect(skuGrantsCartaAccess('combo_familia')).toBe(true);
     expect(skuGrantsRetrospectivaAccess('combo_familia')).toBe(true);
   });
-  it('dá 5 gerações extras; os outros pacotes não dão nenhuma', () => {
-    expect(geracoesExtrasDoSku('combo_familia')).toBe(5);
+  it('dá 10 gerações extras, total de 12; os outros pacotes não dão nenhuma', () => {
+    expect(geracoesExtrasDoSku('combo_familia')).toBe(10);
+    expect(GERACOES_INCLUIDAS_POR_COMPRA + geracoesExtrasDoSku('combo_familia')).toBe(12);
     expect(geracoesExtrasDoSku('combo_retrospectiva')).toBe(0);
     expect(geracoesExtrasDoSku('qualquer')).toBe(0);
+  });
+
+  it('mostra 12 gerações ao todo no checkout sem modificar o preço', () => {
+    const pacote = deliveryPackages().find((item) => item.sku === 'combo_familia');
+    expect(pacote.price).toBe(39.90);
+    expect(pacote.geracoesTotal).toBe(12);
+    expect(pacote.geracoesIncluidas).toBe(2);
+    expect(pacote.geracoesExtras).toBe(10);
+    expect(pacote.label).toContain('12 gerações');
+    expect(pacote.resumo).toContain('2 incluídas + 10 extras');
+    expect(pacote.desc).toContain('12 gerações');
   });
 });
