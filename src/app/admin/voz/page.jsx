@@ -4,8 +4,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { onAuthStateChanged, auth } from '@/lib/authClient';
-import { converterParaWavBlob } from '@/lib/audioWav';
+import { converterParaWavBlob, obterDuracaoAudioSegundos } from '@/lib/audioWav';
 import FidelidadeVozCard from '@/components/admin/FidelidadeVozCard';
+
+const MIN_AMOSTRA_SEGUNDOS = 30;
 
 export default function AdminVozLab() {
   const router = useRouter();
@@ -21,9 +23,11 @@ export default function AdminVozLab() {
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const timerIntervalRef = useRef(null);
+  const inicioGravacaoRef = useRef(0);
 
   // Passo 1: Amostra da Voz
   const [amostraBlob, setAmostraBlob] = useState(null);
+  const [duracaoAmostra, setDuracaoAmostra] = useState(null);
   const [amostraPreviewUrl, setAmostraPreviewUrl] = useState('');
   const [amostraPublicUrl, setAmostraPublicUrl] = useState('');
   const [enviandoAmostra, setEnviandoAmostra] = useState(false);
@@ -141,6 +145,7 @@ Com você ao meu lado eu sei onde quero estar`
   const handleReiniciarTudo = () => {
     setEtapa(1);
     setAmostraBlob(null);
+    setDuracaoAmostra(null);
     setAmostraPreviewUrl('');
     setAmostraPublicUrl('');
     setEnviandoAmostra(false);
@@ -204,6 +209,11 @@ Com você ao meu lado eu sei onde quero estar`
   // Funções do Gravador de Áudio Nativo do Navegador
   const iniciarGravacao = async (destino) => {
     setMsgErro('');
+    if (destino === 'amostra') {
+      setAmostraBlob(null);
+      setAmostraPreviewUrl('');
+      setDuracaoAmostra(null);
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       audioChunksRef.current = [];
@@ -234,8 +244,13 @@ Com você ao meu lado eu sei onde quero estar`
         const url = URL.createObjectURL(finalBlob);
 
         if (destino === 'amostra') {
+          const duracao = (await obterDuracaoAudioSegundos(finalBlob)) ?? (Date.now() - inicioGravacaoRef.current) / 1000;
+          setDuracaoAmostra(duracao);
           setAmostraBlob(finalBlob);
           setAmostraPreviewUrl(url);
+          if (duracao < MIN_AMOSTRA_SEGUNDOS) {
+            setMsgErro(`A gravação ficou com ${Math.floor(duracao)} segundos. Cante por pelo menos 30 segundos e grave novamente.`);
+          }
         } else if (destino === 'verificacao') {
           setVerificacaoBlob(finalBlob);
           setVerificacaoPreviewUrl(url);
@@ -246,6 +261,7 @@ Com você ao meu lado eu sei onde quero estar`
       };
 
       recorder.start(250); // Coleta a cada 250ms
+      inicioGravacaoRef.current = Date.now();
       setGravando(true);
       setSegundosGravacao(0);
 
@@ -269,15 +285,26 @@ Com você ao meu lado eu sei onde quero estar`
   const handleArquivoUpload = async (e, destino) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    const finalBlob = await converterParaWavBlob(file);
-    const url = URL.createObjectURL(finalBlob);
-    if (destino === 'amostra') {
-      setAmostraBlob(finalBlob);
-      setAmostraPreviewUrl(url);
-    } else if (destino === 'verificacao') {
-      setVerificacaoBlob(finalBlob);
-      setVerificacaoPreviewUrl(url);
+    setMsgErro('');
+    try {
+      const finalBlob = await converterParaWavBlob(file);
+      const duracao = destino === 'amostra' ? await obterDuracaoAudioSegundos(finalBlob) : null;
+      const url = URL.createObjectURL(finalBlob);
+      if (destino === 'amostra') {
+        setAmostraBlob(finalBlob);
+        setDuracaoAmostra(duracao);
+        setAmostraPreviewUrl(url);
+        if (duracao === null) {
+          setMsgErro('Não conseguimos verificar a duração do áudio. Grave novamente pelo microfone ou envie outro arquivo.');
+        } else if (duracao < MIN_AMOSTRA_SEGUNDOS) {
+          setMsgErro(`Este arquivo tem ${Math.floor(duracao)} segundos. A amostra precisa ter pelo menos 30 segundos cantando.`);
+        }
+      } else if (destino === 'verificacao') {
+        setVerificacaoBlob(finalBlob);
+        setVerificacaoPreviewUrl(url);
+      }
+    } catch (err) {
+      setMsgErro(err?.message || 'Não foi possível ler esse arquivo de áudio.');
     }
   };
 
@@ -285,6 +312,10 @@ Com você ao meu lado eu sei onde quero estar`
   const handleEnviarAmostra = async () => {
     if (!amostraBlob) {
       setMsgErro('Grave ou selecione um áudio de amostra primeiro.');
+      return;
+    }
+    if (duracaoAmostra === null || duracaoAmostra < MIN_AMOSTRA_SEGUNDOS) {
+      setMsgErro('Para continuar, envie uma amostra cantada com pelo menos 30 segundos.');
       return;
     }
 
@@ -319,7 +350,7 @@ Com você ao meu lado eu sei onde quero estar`
           action: 'request_phrase',
           voiceUrl: uploadData.url,
           vocalStart: 0,
-          vocalEnd: Math.min(Math.max(segundosGravacao, 15), 30),
+          vocalEnd: 30, // primeiro trecho de 30 segundos da amostra validada
           language: 'pt',
         }),
       });
@@ -804,7 +835,7 @@ Com você ao meu lado eu sei onde quero estar`
               Passo 1: Gravar Amostra da sua Voz
             </h2>
             <p style={{ fontSize: '0.84rem', color: '#94a3b8', lineHeight: '1.4', marginBottom: '20px' }}>
-              Grave de 15 a 30 segundos falando ou cantando de forma natural e nítida. Evite barulho de ventilador ou eco.
+              <strong style={{ color: '#fbbf24' }}>Grave cantando por pelo menos 30 segundos</strong>, de preferência entre 30 e 60 segundos. Use sua voz normal, sem playback, sem acompanhamento, sem outras pessoas cantando e sem autotune. Escolha um trecho que conheça bem e evite ventilador, televisão e eco. A KIE analisará os primeiros 30 segundos da amostra.
             </p>
 
             {/* Controles do Gravador */}
@@ -814,6 +845,9 @@ Com você ao meu lado eu sei onde quero estar`
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#ef4444', fontWeight: '700', fontSize: '1.1rem' }}>
                     <span style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#ef4444', display: 'inline-block', animation: 'pulse 1s infinite' }} />
                     Gravando: {String(Math.floor(segundosGravacao / 60)).padStart(2, '0')}:{String(segundosGravacao % 60).padStart(2, '0')}
+                    <div style={{ fontSize: '0.8rem', color: '#fbbf24', marginTop: '6px' }}>
+                      {segundosGravacao < MIN_AMOSTRA_SEGUNDOS ? `Faltam ${MIN_AMOSTRA_SEGUNDOS - segundosGravacao}s para o mínimo` : '✅ Gravação com tempo suficiente. Pode parar.'}
+                    </div>
                   </div>
                   <button
                     type="button"
@@ -871,6 +905,10 @@ Com você ao meu lado eu sei onde quero estar`
                     🎧 Prévia do Áudio Gravado:
                   </span>
                   <audio controls src={amostraPreviewUrl} style={{ width: '100%', height: '40px' }} />
+                  <span style={{ display: 'block', marginTop: '8px', fontSize: '0.8rem', color: duracaoAmostra !== null && duracaoAmostra >= MIN_AMOSTRA_SEGUNDOS ? '#86efac' : '#fca5a5' }}>
+                    {duracaoAmostra !== null ? `${Math.floor(duracaoAmostra)} segundos · ` : 'Duração não identificada · '}
+                    {duracaoAmostra !== null && duracaoAmostra >= MIN_AMOSTRA_SEGUNDOS ? '✅ Amostra pronta' : 'É necessário cantar pelo menos 30 segundos'}
+                  </span>
                 </div>
               )}
             </div>
@@ -885,7 +923,7 @@ Com você ao meu lado eu sei onde quero estar`
             <button
               type="button"
               onClick={handleEnviarAmostra}
-              disabled={!amostraBlob || enviandoAmostra || gravando}
+              disabled={!amostraBlob || duracaoAmostra === null || duracaoAmostra < MIN_AMOSTRA_SEGUNDOS || enviandoAmostra || gravando}
               style={{
                 width: '100%',
                 padding: '16px',
@@ -911,7 +949,7 @@ Com você ao meu lado eu sei onde quero estar`
               Passo 2: Confirmação de Consentimento
             </h2>
             <p style={{ fontSize: '0.84rem', color: '#94a3b8', lineHeight: '1.4', marginBottom: '16px' }}>
-              A IA exige que você leia a frase abaixo em voz alta para confirmar que a voz pertence a você:
+              Nesta segunda etapa, <strong>leia</strong> a frase abaixo com sua voz normal para confirmar a identidade. Aqui não precisa cantar. A primeira gravação é a que deve ter pelo menos 30 segundos cantados:
             </p>
 
             {/* Frase de Validação em Destaque */}
