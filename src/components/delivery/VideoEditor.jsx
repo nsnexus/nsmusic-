@@ -25,6 +25,21 @@ function faseDoVideo(p) {
 function useProgressoVideo(ativo, progress, progressoSalvo) {
   const [percentual, setPercentual] = useState(5);
   const alvoRef = useRef(5);
+  const modoAnteriorRef = useRef(null);
+  const modoAtual = /Codificando vídeo acelerado/.test(String(progress || ''))
+    ? 'acelerado'
+    : /Modo compatível/.test(String(progress || '')) ? 'tempo-real' : null;
+
+  // Se a codificação rápida falhar, reinicia a barra quando o aparelho
+  // passar para o MediaRecorder. Sem isso ela ficava presa em 95% durante
+  // a nova gravação de toda a música.
+  useEffect(() => {
+    if (modoAtual === 'tempo-real' && modoAnteriorRef.current === 'acelerado') {
+      alvoRef.current = 5;
+      setPercentual(5);
+    }
+    modoAnteriorRef.current = modoAtual;
+  }, [modoAtual]);
 
   const lido = Number(String(progress || '').match(/(\d{1,3})\s*%/)?.[1]);
   const alvo = Number.isFinite(lido) && lido > 0 ? lido : (Number(progressoSalvo) || 0);
