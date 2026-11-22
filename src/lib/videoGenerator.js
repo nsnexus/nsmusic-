@@ -31,7 +31,9 @@ async function salvarVideoGerado(orderId, videoBlob) {
     method: 'POST',
     headers: { 'Content-Type': videoBlob.type },
     body: videoBlob,
-    signal: AbortSignal.timeout(120000),
+    // Um MP4 de sete minutos pode levar mais de 2 min para subir no 4G.
+    // Não descartar uma renderização completa por timeout de upload curto.
+    signal: AbortSignal.timeout(300000),
   });
   if (!uploadRes.ok) {
     throw new Error(`Falha no upload do vídeo para o R2 (HTTP ${uploadRes.status})`);
@@ -271,9 +273,12 @@ export async function createSlideshowVideo(orderId, imageUrls, audioUrl, orderDa
       onProgress,
     });
     if (videoRapido) {
-      onProgress?.(98);
+      onProgress?.(98, 'acelerado');
       return await salvarVideoGerado(orderId, videoRapido);
     }
+    // O navegador não possui H.264/AAC ou o modo rápido não passou na validação.
+    // Avisar o front para zerar a barra e mostrar a gravação de tempo real.
+    onProgress?.(10, 'tempo-real');
 
     // 4. Modo compatível: grava o canvas e a música em tempo real, como antes.
     // 3. Configura o Canvas para formato Stories/Reels vertical — 720x1280 em vez de 1080x1920:
