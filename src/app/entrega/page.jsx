@@ -438,7 +438,7 @@ function EntregaContent() {
         }
       } catch (e) {
         console.warn('Erro ao carregar videoPixInfo do localStorage:', e);
-        localStorage.removeItem(`videoPixInfo_${orderId}`);
+        try { localStorage.removeItem(`videoPixInfo_${orderId}`); } catch { /* armazenamento bloqueado */ }
       }
     }
   }, [mounted, orderId]);
