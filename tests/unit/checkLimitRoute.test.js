@@ -13,6 +13,7 @@ vi.mock('@/lib/supabase-edge', () => ({
     from: () => ({
       select: () => ({
         in: () => {
+          let selected = pacotes;
           const query = {
             in: () => query,
             is: () => query,
@@ -21,7 +22,13 @@ vi.mock('@/lib/supabase-edge', () => ({
               return query;
             },
             order: () => query,
-            limit: async () => ({ data: pacotes, error: null }),
+            limit: () => query,
+            eq: (column, value) => {
+              expect(column).toBe('id');
+              selected = selected.filter((p) => p.id === value);
+              return query;
+            },
+            then: (resolve) => resolve({ data: selected, error: null }),
           };
           return query;
         },
@@ -126,5 +133,12 @@ describe('GET /api/orders/check-limit', () => {
     isBlockedContact = true;
     const blocked = await (await GET(req)).json();
     expect(blocked).toMatchObject({ isBlocked: true, manualBlock: true, reason: 'manual_block' });
+  });
+
+  it('interrompe a criação pelo Pacote Família antes da letra quando o pacote informado não é encontrado', async () => {
+    pacotes = [{ id: 'outro', payment_status: 'PAGAMENTO_APROVADO', extras: { geracoesExtras: 10 } }];
+    const req = new Request('https://nsmusic.com.br/api/orders/check-limit?phone=11988887777&familiaRef=escolhido');
+    const data = await (await GET(req)).json();
+    expect(data).toMatchObject({ isBlocked: true, reason: 'pacote_familia_indisponivel', restantes: 5 });
   });
 });

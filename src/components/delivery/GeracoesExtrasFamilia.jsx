@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { totalGeracoesExtras, pedidosQueUsaram } from '@/lib/geracoesExtrasRegras';
+import { CHAVE_WHATSAPP_PACOTE_FAMILIA, totalGeracoesExtras, pedidosQueUsaram } from '@/lib/geracoesExtrasRegras';
 import { GERACOES_INCLUIDAS_POR_COMPRA } from '@/lib/pricing';
 
 // Saldo das gerações extras do Pacote Família na página de entrega. Cada geração extra é um pedido
@@ -35,7 +35,16 @@ export default function GeracoesExtrasFamilia({ order }) {
       </p>
       {restantes > 0 && (
         <Link
-          href="/criar?reset=1&origem=familia"
+          href={`/criar?reset=1&origem=familia&familiaRef=${encodeURIComponent(order.id)}`}
+          onClick={() => {
+            if (order.customerPhone) {
+              try {
+                sessionStorage.setItem(CHAVE_WHATSAPP_PACOTE_FAMILIA + order.id, order.customerPhone);
+              } catch {
+                // Se o navegador bloquear o armazenamento, o formulário pede o WhatsApp.
+              }
+            }
+          }}
           style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minHeight: '46px', padding: '10px 18px', borderRadius: '12px', background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', color: '#ffffff', fontWeight: 800, textDecoration: 'none' }}
         >
           Criar nova música →

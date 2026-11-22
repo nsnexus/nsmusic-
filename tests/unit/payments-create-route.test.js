@@ -62,6 +62,17 @@ describe('PIX com reserva persistida',()=>{
     expect(state.provider).toHaveBeenCalledOnce();
   });
 
+  it('não oferece cobrança avulsa enquanto um pedido iniciado pelo pacote aguarda liberação', async () => {
+    state.orders.order1 = { id: 'order1', paymentStatus: 'AGUARDANDO_PAGAMENTO', familiaRef: 'familia' };
+    for (const createCheckout of [POST, createCardCheckout]) {
+      const res = await createCheckout(request({ orderId: 'order1', sku: 'audio_only' }));
+      expect(res.status).toBe(409);
+      expect((await res.json()).error).toContain('iniciada pelo Pacote Família');
+    }
+    expect(state.intents).toHaveLength(0);
+    expect(state.records).toHaveLength(0);
+  });
+
   it('gravar a cobrança não sobrescreve uma liberação da música feita em paralelo', async () => {
     for (const createCheckout of [POST, createCardCheckout]) {
       const res = await createCheckout(request({ orderId: 'order1', sku: 'audio_only' }));

@@ -56,6 +56,9 @@ export async function POST(req) {
     if (skuApprovesMusic(sku) && geracaoExtraJaLiberada(existingOrderData)) {
       return NextResponse.json({ error: 'Esta música já está liberada pelo seu Pacote Família. Acesse Minhas Músicas para ouvir e baixar.' }, { status: 409 });
     }
+    if (skuApprovesMusic(sku) && existingOrderData.familiaRef) {
+      return NextResponse.json({ error: 'Esta música foi iniciada pelo Pacote Família. Volte à página do pacote para conferir o saldo e o WhatsApp da compra.' }, { status: 409 });
+    }
 
     // Atualiza IP e User-Agent do cliente no pedido caso ainda não estejam gravados (para Meta/TikTok CAPI)
     const clientIp = req.headers?.get?.('cf-connecting-ip') ||

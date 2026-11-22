@@ -1,6 +1,8 @@
 // Regras puras das gerações extras do Pacote Família (sem banco): usadas no servidor
 // (geracoesExtras.js) e na tela de entrega. Ver geracoesExtras.js para o desenho completo.
 
+export const CHAVE_WHATSAPP_PACOTE_FAMILIA = 'nsmusic_familia_whatsapp_';
+
 function jaGerou(order) {
   if (!order || order.deletedAt) return false;
   return Boolean(order.audioUrl || order.sunoTaskId || (Array.isArray(order.audioFiles) && order.audioFiles.length > 0));

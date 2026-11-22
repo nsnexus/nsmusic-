@@ -39,7 +39,7 @@ async function carregarPedidos(ids, env) {
 }
 
 /** Procura, pelo telefone, um Pacote Família pago com geração extra sobrando. */
-export async function encontrarPacoteComSaldo(phone, env = {}, { orderIdAtual = null } = {}) {
+export async function encontrarPacoteComSaldo(phone, env = {}, { orderIdAtual = null, familiaRef = null } = {}) {
   const variants = generatePhoneVariants(phone);
   if (variants.length === 0) return null;
   const supabase = getSupabaseEdge(env);
@@ -47,7 +47,7 @@ export async function encontrarPacoteComSaldo(phone, env = {}, { orderIdAtual = 
 
   let pagos = [];
   try {
-    const { data, error } = await supabase
+    const query = supabase
       .from('orders')
       .select('*')
       .in('customer_phone', variants.slice(0, 25))
@@ -56,6 +56,8 @@ export async function encontrarPacoteComSaldo(phone, env = {}, { orderIdAtual = 
       .filter('extras->>geracoesExtras', 'not.is', null)
       .order('created_at', { ascending: true })
       .limit(30);
+    if (familiaRef) query.eq('id', familiaRef);
+    const { data, error } = await query;
     if (error || !Array.isArray(data)) return null;
     pagos = data.map(mapSupabaseOrderToFirestore).filter(Boolean);
   } catch (err) {

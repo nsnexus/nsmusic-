@@ -24,7 +24,7 @@ import { StudioLyricsAnimation, StudioAudioAnimation } from '@/components/Studio
 import { IconeCelularWhatsApp } from '@/components/AppIcons';
 import { readReferralCode } from '@/lib/referralTracking';
 import { getPriceForSku, geracoesExtrasDoSku } from '@/lib/pricing';
-import { geracaoExtraJaLiberada } from '@/lib/geracoesExtrasRegras';
+import { CHAVE_WHATSAPP_PACOTE_FAMILIA, geracaoExtraJaLiberada } from '@/lib/geracoesExtrasRegras';
 import PacotesCompactos from '@/components/delivery/PacotesCompactos';
 import { deliveryPackages, formatBrl } from '@/lib/deliveryPackages';
 import { Zap, Copy, CheckCircle2, CreditCard, Loader2 } from 'lucide-react';
@@ -485,6 +485,7 @@ export default function CriarMusica() {
             const url = new URL(window.location.href);
             url.searchParams.delete('reset');
             url.searchParams.delete('origem');
+            url.searchParams.delete('familiaRef');
             window.history.replaceState(window.history.state, '', url);
           } else {
             sessionStorage.setItem(resetKey, '1');
@@ -492,6 +493,15 @@ export default function CriarMusica() {
           localStorage.removeItem('nsmusic_order_draft');
           const initialUpdates = {};
           if (ocasiaoValida) initialUpdates.occasion = ocasiaoValida;
+          if (isNewFamilySong) {
+            initialUpdates.familiaRef = urlParams.get('familiaRef');
+            const chaveWhatsApp = CHAVE_WHATSAPP_PACOTE_FAMILIA + initialUpdates.familiaRef;
+            const telefoneDaCompra = sessionStorage.getItem(chaveWhatsApp);
+            if (telefoneDaCompra) {
+              initialUpdates.customerPhone = telefoneDaCompra;
+              sessionStorage.removeItem(chaveWhatsApp);
+            }
+          }
           if (orderRefParam) {
             initialUpdates.origem = origemParam || 'segunda_geracao';
             initialUpdates.orderRef = orderRefParam;
@@ -1045,6 +1055,7 @@ export default function CriarMusica() {
       const params = new URLSearchParams();
       if (phone) params.set('phone', phone);
       if (email) params.set('email', email);
+      if (formData.familiaRef) params.set('familiaRef', formData.familiaRef);
 
       const res = await fetch(`/api/orders/check-limit?${params.toString()}`);
       if (res.ok) {
@@ -1152,6 +1163,8 @@ export default function CriarMusica() {
         setIsSubmitting(false);
         if (reason === 'cota_excedida') {
           setCreationError('Você atingiu o limite de 5 músicas geradas sem pagamento. Para liberar novas músicas, conclua o pagamento de uma das suas criações anteriores.');
+        } else if (reason === 'pacote_familia_indisponivel') {
+          setCreationError('Use o mesmo WhatsApp informado na compra do Pacote Família. Se o número estiver certo, confira o saldo na página do pacote.');
         } else {
           setCreationError('Este contato foi bloqueado para novas gerações na plataforma. Entre em contato com o suporte para mais informações.');
         }
@@ -1500,7 +1513,8 @@ export default function CriarMusica() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...buildSunoPayload(formData),
-          orderId: activeOrderId
+          orderId: activeOrderId,
+          familiaRef: formData.familiaRef,
         })
       });
 

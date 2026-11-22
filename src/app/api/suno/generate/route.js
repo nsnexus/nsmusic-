@@ -4,12 +4,18 @@ import { requestSunoGeneration } from '@/lib/suno';
 
 export const runtime = 'edge';
 
+const ERRO_PACOTE_FAMILIA = 'Não foi possível usar uma geração do Pacote Família. Volte à página do pacote, confira o saldo e inicie uma nova música com o mesmo WhatsApp da compra.';
+
 export async function POST(req) {
   try {
-    const { prompt, tags, orderId, useCustomVoice } = await req.json();
+    const { prompt, tags, orderId, useCustomVoice, familiaRef: familiaRefRecebida } = await req.json();
+    let familiaRef = familiaRefRecebida;
 
     if (!prompt?.trim() || !tags?.trim()) {
       return NextResponse.json({ error: 'Estilo musical e detalhes do homenageado são obrigatórios.' }, { status: 400 });
+    }
+    if (familiaRef && (!orderId || typeof familiaRef !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/.test(familiaRef))) {
+      return NextResponse.json({ error: ERRO_PACOTE_FAMILIA }, { status: 409 });
     }
 
     let env = {};
@@ -26,7 +32,11 @@ export async function POST(req) {
         const { isContactBlocked } = await import('@/lib/blocklist');
         const { isBlockedByFreeLimit } = await import('@/app/api/orders/create/route');
         const order = await findOrderByIdOrNumber(orderId, env);
+        if (familiaRef && !order) {
+          return NextResponse.json({ error: ERRO_PACOTE_FAMILIA }, { status: 409 });
+        }
         if (order) {
+          familiaRef = order.familiaRef || familiaRef;
           const { obterIpDoCliente, isBlockedByIpLimit } = await import('@/lib/cotaPorIp');
           const ipDoCliente = obterIpDoCliente(req);
           const block = await isContactBlocked(order.customerPhone, order.customerEmail, env, ipDoCliente);
@@ -39,7 +49,7 @@ export async function POST(req) {
 
           // Bônus automático: pedido novo não pago de quem já pagou e ainda tem a 2ª geração sobrando
           // vira esse bônus aqui, antes de gerar (ver src/lib/bonusAutomatico.js).
-          if (!isPaid && !isBonus && order.customerPhone) {
+          if (!familiaRef && !isPaid && !isBonus && order.customerPhone) {
             try {
               const { encontrarBonusDisponivel, vincularPedidoAoBonus } = await import('@/lib/bonusAutomatico');
               const parent = await encontrarBonusDisponivel(order.customerPhone, env, { orderIdAtual: order.id, somenteMesmoDia: true });
@@ -53,13 +63,11 @@ export async function POST(req) {
             }
           }
 
-          // Pacote Família: pedido novo não pago de quem tem gerações extras sobrando sai pago,
-          // consumindo 1 do saldo (ver src/lib/geracoesExtras.js). Depois do bônus normal: a 2ª
-          // geração grátis de todo pagamento é usada primeiro.
+          // O botão na entrega usa o pacote escolhido. A criação comum tenta o bônus antes do saldo extra.
           if (!isPaid && !isBonus && order.customerPhone) {
             try {
               const { encontrarPacoteComSaldo, usarGeracaoExtra } = await import('@/lib/geracoesExtras');
-              const achado = await encontrarPacoteComSaldo(order.customerPhone, env, { orderIdAtual: order.id });
+              const achado = await encontrarPacoteComSaldo(order.customerPhone, env, { orderIdAtual: order.id, familiaRef });
               if (achado) {
                 geracaoExtra = await usarGeracaoExtra(order.id, achado, env);
                 isPaid = true;
@@ -67,6 +75,10 @@ export async function POST(req) {
             } catch (extraErr) {
               console.warn('[suno/generate] Falha ao usar geração extra do Pacote Família:', extraErr?.message);
             }
+          }
+
+          if (familiaRef && !isPaid) {
+            return NextResponse.json({ error: ERRO_PACOTE_FAMILIA }, { status: 409 });
           }
 
           if (!isPaid && !isBonus) {
@@ -82,6 +94,9 @@ export async function POST(req) {
         }
       } catch (checkErr) {
         console.warn('[suno/generate] Falha ao conferir bloqueio do pedido:', checkErr.message);
+        if (familiaRef) {
+          return NextResponse.json({ error: 'O saldo do Pacote Família está indisponível no momento. Tente novamente em instantes.' }, { status: 503 });
+        }
       }
     }
 
