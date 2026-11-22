@@ -67,3 +67,52 @@ export async function converterParaWavBlob(sourceBlob) {
     return sourceBlob;
   }
 }
+
+
+/**
+ * Mede a duração real da amostra antes de enviá-la à KIE, inclusive quando o
+ * usuário seleciona um arquivo. Para WAV PCM, usa os metadados do arquivo;
+ * para formatos de navegador usa a duração decodificada, sem fazer upload.
+ * Retorna null quando o navegador não consegue ler a duração.
+ */
+export async function obterDuracaoAudioSegundos(blob) {
+  if (!blob) return null;
+  try {
+    const buffer = await blob.arrayBuffer();
+    if (buffer.byteLength >= 44) {
+      const view = new DataView(buffer);
+      const fourcc = (offset) => String.fromCharCode(...new Uint8Array(buffer, offset, 4));
+      if (fourcc(0) === 'RIFF' && fourcc(8) === 'WAVE') {
+        let offset = 12;
+        let bytesPorSegundo = 0;
+        let bytesAudio = null;
+        while (offset + 8 <= buffer.byteLength) {
+          const tipo = fourcc(offset);
+          const size = view.getUint32(offset + 4, true);
+          if (tipo === 'fmt ' && size >= 16 && offset + 24 <= buffer.byteLength) {
+            bytesPorSegundo = view.getUint32(offset + 16, true);
+          }
+          if (tipo === 'data') {
+            bytesAudio = size;
+            break;
+          }
+          offset += 8 + size + (size % 2);
+        }
+        if (bytesPorSegundo > 0 && bytesAudio !== null) return bytesAudio / bytesPorSegundo;
+      }
+    }
+    const AudioCtxClass = typeof window !== 'undefined'
+      ? (window.AudioContext || window.webkitAudioContext) : null;
+    if (!AudioCtxClass) return null;
+    const context = new AudioCtxClass();
+    try {
+      const decoded = await context.decodeAudioData(buffer);
+      return Number.isFinite(decoded.duration) ? decoded.duration : null;
+    } finally {
+      await context.close().catch(() => {});
+    }
+  } catch (err) {
+    console.warn('[audioWav] Não foi possível medir duração:', err?.message);
+    return null;
+  }
+}
