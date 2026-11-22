@@ -6,6 +6,7 @@ import { lerResetDeCota } from '@/lib/cotaReset';
 import { isContactBlocked } from '@/lib/blocklist';
 import { obterIpDoCliente } from '@/lib/cotaPorIp';
 import { generatePhoneVariants } from '@/lib/orderLookup';
+import { encontrarPacoteComSaldo } from '@/lib/geracoesExtras';
 
 export const runtime = 'edge';
 
@@ -93,15 +94,16 @@ export async function GET(req) {
 
     const resetAt = phone ? await lerResetDeCota(phone, env) : '';
     const cota = calcularCota(matches, { resetAt });
+    const isBlocked = cota.bloqueado && !(digits.length >= 10 && await encontrarPacoteComSaldo(phone, env));
 
     return NextResponse.json({
-      isBlocked: Boolean(cota.bloqueado),
+      isBlocked: Boolean(isBlocked),
       totalCount: cota.usados,
       cota: cota.cota,
       pagos: cota.pagos,
       restantes: cota.restantes,
       manualBlock: false,
-      reason: cota.bloqueado ? 'cota_excedida' : null,
+      reason: isBlocked ? 'cota_excedida' : null,
     });
   } catch (error) {
     console.error('[check-limit] Falha ao verificar cota:', error.message);

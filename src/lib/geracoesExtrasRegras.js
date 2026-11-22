@@ -42,3 +42,7 @@ export function pedidoEhGeracaoExtra(order) {
   return Boolean(campo(order, 'familiaOrderId')) || order?.paidSku === 'geracao_extra_familia';
 }
 
+export function geracaoExtraJaLiberada(order) {
+  return pedidoEhGeracaoExtra(order) && ['PAGO', 'PAGAMENTO_APROVADO'].includes(order.paymentStatus);
+}
+

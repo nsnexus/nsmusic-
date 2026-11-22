@@ -53,6 +53,7 @@ export async function encontrarPacoteComSaldo(phone, env = {}, { orderIdAtual = 
       .in('customer_phone', variants.slice(0, 25))
       .in('payment_status', ['PAGO', 'PAGAMENTO_APROVADO'])
       .is('deleted_at', null)
+      .filter('extras->>geracoesExtras', 'not.is', null)
       .order('created_at', { ascending: true })
       .limit(30);
     if (error || !Array.isArray(data)) return null;

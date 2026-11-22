@@ -35,7 +35,7 @@ export default function GeracoesExtrasFamilia({ order }) {
       </p>
       {restantes > 0 && (
         <Link
-          href="/criar?reset=1"
+          href="/criar?reset=1&origem=familia"
           style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minHeight: '46px', padding: '10px 18px', borderRadius: '12px', background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', color: '#ffffff', fontWeight: 800, textDecoration: 'none' }}
         >
           Criar nova música →

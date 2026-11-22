@@ -24,6 +24,7 @@ import { StudioLyricsAnimation, StudioAudioAnimation } from '@/components/Studio
 import { IconeCelularWhatsApp } from '@/components/AppIcons';
 import { readReferralCode } from '@/lib/referralTracking';
 import { getPriceForSku, geracoesExtrasDoSku } from '@/lib/pricing';
+import { geracaoExtraJaLiberada } from '@/lib/geracoesExtrasRegras';
 import PacotesCompactos from '@/components/delivery/PacotesCompactos';
 import { deliveryPackages, formatBrl } from '@/lib/deliveryPackages';
 import { Zap, Copy, CheckCircle2, CreditCard, Loader2 } from 'lucide-react';
@@ -72,6 +73,7 @@ export default function CriarMusica() {
   const [orderId, setOrderId] = useState('');
   const [taskId, setTaskId] = useState('');
   const [isRestored, setIsRestored] = useState(false);
+  const [isCheckingRestoredOrder, setIsCheckingRestoredOrder] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSelfTribute, setIsSelfTribute] = useState(false);
   const [customLyricsMode, setCustomLyricsMode] = useState(false);
@@ -277,6 +279,7 @@ export default function CriarMusica() {
     formData.paymentStatus === 'PAGAMENTO_APROVADO' ||
     (formData.orderRef && (formData.origem === 'segunda_geracao' || formData.origem === 'segunda_musica'))
   );
+  const isFamilyExtraOrder = geracaoExtraJaLiberada(formData);
 
   const TOTAL_JOURNEY_STEPS = 7; // Jornada total de 7 etapas no padrão Capivarinha Love
   const TOTAL_FORM_STEPS = 4; // Etapas do formulário Wizard (1: Pessoa, 2: História, 3: Estilo, 4: Contato)
@@ -476,8 +479,16 @@ export default function CriarMusica() {
         const alreadyHandledReset = sessionStorage.getItem(resetKey) === '1';
 
         // Apenas limpa o rascunho se o usuário clicou explicitamente em novo=1 e ainda não tratou nesta aba
-        if ((resetParam === 'true' || resetParam === '1') && !alreadyHandledReset) {
-          sessionStorage.setItem(resetKey, '1');
+        const isNewFamilySong = origemParam === 'familia';
+        if ((resetParam === 'true' || resetParam === '1') && (isNewFamilySong || !alreadyHandledReset)) {
+          if (isNewFamilySong) {
+            const url = new URL(window.location.href);
+            url.searchParams.delete('reset');
+            url.searchParams.delete('origem');
+            window.history.replaceState(window.history.state, '', url);
+          } else {
+            sessionStorage.setItem(resetKey, '1');
+          }
           localStorage.removeItem('nsmusic_order_draft');
           const initialUpdates = {};
           if (ocasiaoValida) initialUpdates.occasion = ocasiaoValida;
@@ -543,7 +554,10 @@ export default function CriarMusica() {
           // Se estava aguardando áudio ou tem um taskId pendente
           if (savedTaskId && parsed.formData?.sunoStatus !== 'generated') {
             pollSunoStatus(savedTaskId, currentOrderId);
-          } else if (currentOrderId && parsed.formData?.sunoStatus !== 'generated' && parsed.step >= 5) {
+          } else if (currentOrderId && parsed.formData?.sunoStatus === 'generated' && parsed.step >= 6) {
+            setIsCheckingRestoredOrder(true);
+            checkOrderStatusInFirestore(currentOrderId).finally(() => setIsCheckingRestoredOrder(false));
+          } else if (currentOrderId && parsed.step >= 5) {
             checkOrderStatusInFirestore(currentOrderId, savedTaskId);
           }
         } else if (ocasiaoValida) {
@@ -571,7 +585,7 @@ export default function CriarMusica() {
 
   const checkOrderStatusInFirestore = async (targetOrderId, activeTaskId) => {
     try {
-      const res = await fetch(`/api/orders/${encodeURIComponent(targetOrderId)}`, { cache: 'no-store' });
+      const res = await fetch(`/api/orders/${encodeURIComponent(targetOrderId)}`, { cache: 'no-store', signal: AbortSignal.timeout(5000) });
       if (res.ok) {
         const json = await res.json();
         const data = json?.order;
@@ -586,6 +600,7 @@ export default function CriarMusica() {
           }));
         }
         if ((data?.paymentStatus === 'PAGO' || data?.paymentStatus === 'PAGAMENTO_APROVADO') && ((data?.audioFiles && data.audioFiles.length > 0) || data?.audioUrl || data?.productionStatus === 'AUDIO_GERADO')) {
+          setFormData((prev) => ({ ...prev, paymentStatus: data.paymentStatus, paidSku: data.paidSku }));
           if (typeof window !== 'undefined') {
             localStorage.removeItem('nsmusic_order_draft');
           }
@@ -1606,7 +1621,16 @@ export default function CriarMusica() {
               // verdade; sem confirmação, fica na tela in-page (mesmo fallback já usado quando não
               // há orderId, com os players tocando pelo proxy e o card de WhatsApp logo abaixo).
               updateField('sunoProgress', 'Finalizando e conferindo o áudio...');
-              await waitForAudioReady(primaryAudio);
+              const [, latestOrder] = await Promise.all([
+                waitForAudioReady(primaryAudio),
+                fetch(`/api/orders/${encodeURIComponent(targetOrder)}`, { cache: 'no-store', signal: AbortSignal.timeout(5000) })
+                  .then((res) => res.ok ? res.json() : null)
+                  .then((data) => data?.order)
+                  .catch(() => null),
+              ]);
+              if (geracaoExtraJaLiberada(latestOrder)) {
+                setFormData((prev) => ({ ...prev, paymentStatus: latestOrder.paymentStatus, paidSku: 'geracao_extra_familia' }));
+              }
               updateField('sunoStatus', 'generated');
               setStep(6);
             } else {
@@ -2440,9 +2464,9 @@ export default function CriarMusica() {
               </div>
             ) : (
               <div>
-                <h1 className="wz-t">{isSecondGenOrder ? 'Suas Músicas Bônus Ficaram Prontas! 🎉' : 'Ouça suas prévias! 🎧'}</h1>
+                <h1 className="wz-t">{isFamilyExtraOrder ? 'Sua música do Pacote Família está pronta!' : isSecondGenOrder ? 'Suas Músicas Bônus Ficaram Prontas! 🎉' : 'Ouça suas prévias! 🎧'}</h1>
                 <p className="wz-s">
-                  {isSecondGenOrder ? 'Criamos 2 arranjos adicionais para ' + (formData.honoreeName || 'alguém especial') + '. Ambas completas estão inclusas no seu pacote de 4 músicas e sem cortes!' : 'Criamos 2 arranjos diferentes para ' + (formData.honoreeName || 'alguém especial') + '. Ambas completas estão inclusas no seu pacote!'}
+                  {isFamilyExtraOrder ? 'As duas versões desta geração estão liberadas pelo seu Pacote Família.' : isSecondGenOrder ? 'Criamos 2 arranjos adicionais para ' + (formData.honoreeName || 'alguém especial') + '. Ambas completas estão inclusas no seu pacote de 4 músicas e sem cortes!' : 'Criamos 2 arranjos diferentes para ' + (formData.honoreeName || 'alguém especial') + '. Ambas completas estão inclusas no seu pacote!'}
                 </p>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '16px' }}>
@@ -2453,7 +2477,7 @@ export default function CriarMusica() {
                     badge={`VERSÃO 1 - ESTILO ${formData.musicStyle?.toUpperCase() || 'PRINCIPAL'}`}
                     isBonus={false}
                     orderId={orderId}
-                    isSecondGen={isSecondGenOrder}
+                    isSecondGen={isSecondGenOrder && !isFamilyExtraOrder}
                     isPaid={isSecondGenOrder}
                     coverUrl={formData.coverUrl}
                   />
@@ -2466,7 +2490,7 @@ export default function CriarMusica() {
                       badge="VERSÃO 2 - ARRANJO ALTERNATIVO BÔNUS"
                       isBonus={true}
                       orderId={orderId}
-                      isSecondGen={isSecondGenOrder}
+                      isSecondGen={isSecondGenOrder && !isFamilyExtraOrder}
                       isPaid={isSecondGenOrder}
                       coverUrl={formData.coverUrl}
                     />
@@ -2499,6 +2523,9 @@ export default function CriarMusica() {
           </div>
         );
       case 7: // Etapa 7: Escolha do Presente & Pagamento (Padrão Capivarinha Love)
+        if (isCheckingRestoredOrder) {
+          return <p className="wz-s" role="status">Conferindo a liberação da sua música…</p>;
+        }
         if (isSecondGenOrder || formData.paymentStatus === 'PAGO' || formData.paymentStatus === 'PAGAMENTO_APROVADO') {
           return (
             <div style={{ maxWidth: '34rem', margin: '0 auto', textAlign: 'center', backgroundColor: '#ffffff', borderRadius: '20px', border: '1.5px solid #86efac', padding: '32px 20px', boxShadow: '0 4px 18px rgba(16, 185, 129, 0.08)' }}>
@@ -3062,6 +3089,7 @@ export default function CriarMusica() {
                   ) : step === 6 ? (
                     <button
                       type="button"
+                      disabled={isCheckingRestoredOrder}
                       onClick={() => {
                         if (isSecondGenOrder) {
                           const target = orderId || formData.orderRef;
@@ -3083,7 +3111,7 @@ export default function CriarMusica() {
                         boxShadow: isSecondGenOrder ? '0 4px 14px rgba(5, 150, 105, 0.3)' : undefined
                       }}
                     >
-                      {isSecondGenOrder ? '🎉 Concluir e Acessar Todas as Músicas →' : 'Escolher Meu Presente →'}
+                      {isCheckingRestoredOrder ? 'Conferindo sua música…' : isFamilyExtraOrder ? 'Ouvir e baixar minha música' : isSecondGenOrder ? '🎉 Concluir e Acessar Todas as Músicas →' : 'Escolher Meu Presente →'}
                     </button>
                   ) : null}
                 </div>
