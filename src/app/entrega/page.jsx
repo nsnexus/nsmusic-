@@ -1717,7 +1717,13 @@ function EntregaContent() {
             finalUrls,
             targetAudioUrl,
             activeOrder || order,
-            (percent) => setUploadProgressMsg(`Renderizando vídeo MP4 HD... ${percent}%`)
+            (percent, modo) => setUploadProgressMsg(
+              modo === 'acelerado'
+                ? `Codificando vídeo acelerado no aparelho... ${percent}%`
+                : modo === 'tempo-real'
+                  ? `Modo compatível: gravando vídeo no aparelho... ${percent}%`
+                  : `Renderizando vídeo MP4 HD... ${percent}%`
+            )
           );
         } else {
         setUploadProgressMsg('Enviando para o nosso estúdio de vídeo... 15%');
