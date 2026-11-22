@@ -97,6 +97,7 @@ export async function renderizarSlideshowAcelerado({
 
   const quadroTotal = Math.ceil(duration * FPS);
   const inicio = Date.now();
+  let ultimoProgresso = -1;
   try {
     await output.start();
     // Audio e vídeo precisam alimentar o multiplexador em paralelo. A chamada
@@ -112,7 +113,10 @@ export async function renderizarSlideshowAcelerado({
 
           if (i % 15 === 0) {
             const andamento = Math.min(95, 10 + Math.floor(((i + 1) / quadroTotal) * 85));
-            onProgress?.(andamento, 'acelerado');
+            if (andamento !== ultimoProgresso) {
+              ultimoProgresso = andamento;
+              onProgress?.(andamento, 'acelerado');
+            }
 
             // Em dispositivos que codificam mais lentamente que a reprodução,
             // não deixar tentar o modo rápido até o fim e depois perder outro
