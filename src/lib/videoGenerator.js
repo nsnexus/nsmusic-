@@ -519,7 +519,9 @@ export async function createSlideshowVideo(orderId, imageUrls, audioUrl, orderDa
       method: 'POST',
       headers: { 'Content-Type': videoBlob.type || (modoAcelerado ? 'video/mp4' : 'video/webm') },
       body: videoBlob,
-      signal: AbortSignal.timeout(120000),
+      // MP4 de músicas longas pode demorar a subir no 4G; não interromper
+      // prematuramente um vídeo já renderizado após dois minutos de upload.
+      signal: AbortSignal.timeout(300000),
     });
     if (!uploadRes.ok) {
       throw new Error(`Falha no upload do vídeo para o R2 (HTTP ${uploadRes.status})`);
