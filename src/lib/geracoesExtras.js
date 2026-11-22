@@ -1,6 +1,6 @@
 // Gerações extras de música do Pacote Família (19/11/2026).
 //
-// O pagamento do SKU `combo_familia` grava no pedido pago `geracoesExtras: 5` e uma lista vazia
+// O pagamento do SKU `combo_familia` grava no pedido pago `geracoesExtras: 10` e uma lista vazia
 // `geracoesExtrasPedidos` (ver payments.js). Cada geração extra é um PEDIDO NOVO do mesmo telefone
 // (o cliente abre /criar de novo, conta outra história, escolhe outro estilo): na hora de gerar a
 // música (suno/generate), se o pedido não está pago e não virou a 2ª geração bônus, procuramos um

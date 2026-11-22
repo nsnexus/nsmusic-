@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { totalGeracoesExtras, pedidosQueUsaram } from '@/lib/geracoesExtrasRegras';
+import { GERACOES_INCLUIDAS_POR_COMPRA } from '@/lib/pricing';
 
 // Saldo das gerações extras do Pacote Família na página de entrega. Cada geração extra é um pedido
 // novo, feito em /criar com o MESMO WhatsApp do pacote: na hora de gerar, o servidor reconhece o
@@ -11,6 +12,7 @@ export default function GeracoesExtrasFamilia({ order }) {
   if (total === 0) return null;
   const usadas = Math.min(pedidosQueUsaram(order).length, total);
   const restantes = total - usadas;
+  const totalGeracoesPacote = GERACOES_INCLUIDAS_POR_COMPRA + total;
 
   return (
     <section
@@ -20,11 +22,15 @@ export default function GeracoesExtrasFamilia({ order }) {
       <p style={{ margin: '0 0 4px', fontSize: '0.78rem', fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#b45309' }}>
         👨‍👩‍👧 Pacote Família
       </p>
-      <h3 style={{ margin: '0 0 6px', fontSize: '1.15rem', fontWeight: 800 }}>
-        {restantes > 0 ? `Você ainda tem ${restantes} ${restantes === 1 ? 'música extra' : 'músicas extras'} para criar` : 'Você já usou todas as suas músicas extras'}
+      <h3 style={{ margin: '0 0 6px', fontSize: '1.3rem', fontWeight: 900 }}>
+        {totalGeracoesPacote} gerações no total
       </h3>
+      <p style={{ margin: '0 0 8px', fontSize: '0.86rem', fontWeight: 700, lineHeight: 1.4 }}>
+        {GERACOES_INCLUIDAS_POR_COMPRA} gerações incluídas + {total} gerações extras para novas homenagens.
+      </p>
       <p style={{ margin: '0 0 12px', fontSize: '0.88rem', lineHeight: 1.45 }}>
-        {usadas} de {total} usadas. Cada uma é uma música nova, com outra letra e outro estilo, para quem você quiser.
+        {restantes > 0 ? `Você ainda pode criar ${restantes} ${restantes === 1 ? 'geração extra' : 'gerações extras'}.` : 'Você já usou todas as gerações extras.'}
+        {' '}{usadas} de {total} extras utilizadas. Cada geração permite uma música nova, com outra letra e outro estilo, para quem você quiser.
         {restantes > 0 && <> Use o <strong>mesmo WhatsApp</strong> deste pedido: a música sai liberada, sem pagar de novo.</>}
       </p>
       {restantes > 0 && (

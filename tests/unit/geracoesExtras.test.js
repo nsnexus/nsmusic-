@@ -4,11 +4,19 @@ import { totalGeracoesExtras, pedidosQueUsaram, saldoGeracoesExtras, pedidoEhGer
 describe('gerações extras do Pacote Família', () => {
   const pacote = (extra = {}) => ({ id: 'F1', paymentStatus: 'PAGAMENTO_APROVADO', extras: { geracoesExtras: 5, geracoesExtrasPedidos: [] }, ...extra });
 
-  it('lê total e lista no topo ou em extras', () => {
+  // Pacotes antigos com 5 extras continuam com o saldo original armazenado no pedido.
+  it('lê pacote antigo com 5 extras e lista no topo ou em extras', () => {
     expect(totalGeracoesExtras(pacote())).toBe(5);
     expect(totalGeracoesExtras({ geracoesExtras: 5 })).toBe(5);
     expect(totalGeracoesExtras({ id: 'x' })).toBe(0);
     expect(pedidosQueUsaram({ extras: { geracoesExtrasPedidos: ['a', null, 'b'] } })).toEqual(['a', 'b']);
+  });
+
+  it('novo pacote com 10 extras desconta só as gerações efetivamente utilizadas', () => {
+    const novo = { geracoesExtras: 10, geracoesExtrasPedidos: ['a', 'b', 'c'] };
+    expect(totalGeracoesExtras(novo)).toBe(10);
+    expect(saldoGeracoesExtras(novo)).toBe(7);
+    expect(saldoGeracoesExtras(novo, [{ id: 'a', audioFiles: ['musica.mp3'] }, { id: 'b', sunoTaskId: 'task' }, { id: 'c' }])).toBe(8);
   });
 
   it('saldo desconta só pedidos que existem e geraram música', () => {
