@@ -110,16 +110,30 @@ export async function tentarVideoAcelerado({
     const blob = new Blob([buffer], { type: 'video/mp4' });
     // Confirma que o contêiner tem áudio, vídeo e a música inteira.
     const input = new Input({ source: new BlobSource(blob), formats: ALL_FORMATS });
-    const [arquivoDuracao, faixaAudio, faixaVideo] = await Promise.all([
-      input.computeDuration(), input.getPrimaryAudioTrack(), input.getPrimaryVideoTrack(),
-    ]);
-    if (!faixaAudio || !faixaVideo || !Number.isFinite(arquivoDuracao) ||
-        arquivoDuracao < duracao - 2) {
-      throw new Error('MP4 acelerado incompleto ou sem faixa de áudio/vídeo.');
-    }
+    try {
+      const [faixaAudio, faixaVideo] = await Promise.all([
+        input.getPrimaryAudioTrack(), input.getPrimaryVideoTrack(),
+      ]);
+      if (!faixaAudio || !faixaVideo) {
+        throw new Error('MP4 acelerado incompleto ou sem faixa de áudio/vídeo.');
+      }
 
-    console.info(`[VideoRapido] MP4 H.264/AAC completo: ${arquivoDuracao.toFixed(1)}s, ${(blob.size / 1048576).toFixed(1)} MB.`);
-    return blob;
+      // input.computeDuration() sozinho informa a MAIOR duração das faixas:
+      // um vídeo de 7 minutos com só alguns segundos de áudio passaria na checagem.
+      // Verificar CADA trilha impede publicar vídeo mudo ou com música cortada.
+      const [duracaoAudio, duracaoVideo] = await Promise.all([
+        faixaAudio.computeDuration(), faixaVideo.computeDuration(),
+      ]);
+      if (!Number.isFinite(duracaoAudio) || !Number.isFinite(duracaoVideo) ||
+          duracaoAudio < duracao - 2 || duracaoVideo < duracao - 2) {
+        throw new Error(`MP4 acelerado incompleto: áudio ${duracaoAudio}s e vídeo ${duracaoVideo}s para música de ${duracao}s.`);
+      }
+
+      console.info(`[VideoRapido] MP4 H.264/AAC completo: áudio ${duracaoAudio.toFixed(1)}s, vídeo ${duracaoVideo.toFixed(1)}s, ${(blob.size / 1048576).toFixed(1)} MB.`);
+      return blob;
+    } finally {
+      input.dispose?.();
+    }
   } catch (err) {
     console.warn('[VideoRapido] Modo acelerado indisponível; usando MediaRecorder:', err?.message);
     try {

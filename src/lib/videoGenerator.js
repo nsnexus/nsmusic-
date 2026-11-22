@@ -137,15 +137,6 @@ export async function createSlideshowVideo(orderId, imageUrls, audioUrl, orderDa
       throw new Error('A música deste pedido está com duração inválida. Fale com o suporte.');
     }
 
-    // Se o contexto não destravou, um BufferSource não produz som nenhum — abortar aqui é melhor do
-    // que gravar 3 minutos de silêncio e só descobrir na entrega.
-    if (audioCtx.state === 'suspended') {
-      await audioCtx.resume().catch(() => {});
-    }
-    if (audioCtx.state !== 'running') {
-      throw new Error('O navegador bloqueou o áudio. Toque na tela e clique novamente em "Criar Vídeo Homenagem".');
-    }
-
     // 2. Pré-carrega todas as imagens via proxy para garantir Blob URLs de mesma origem sem contaminar o Canvas (CORS tainting)
     console.log(`[VideoGen] Carregando ${imageUrls.length} imagens...`);
     const loadedImages = await Promise.all(
@@ -273,6 +264,16 @@ export async function createSlideshowVideo(orderId, imageUrls, audioUrl, orderDa
     if (videoRapido) {
       onProgress?.(98);
       return await salvarVideoGerado(orderId, videoRapido);
+    }
+
+    // Somente o MediaRecorder depende do áudio tocando em tempo real.
+    // O modo rápido codifica o AudioBuffer diretamente, mesmo quando o
+    // AudioContext ainda está suspenso (comum em navegadores móveis).
+    if (audioCtx.state === 'suspended') {
+      await audioCtx.resume().catch(() => {});
+    }
+    if (audioCtx.state !== 'running') {
+      throw new Error('O navegador bloqueou o áudio. Toque na tela e clique novamente em "Criar Vídeo Homenagem".');
     }
 
     // 4. Modo compatível: grava o canvas e a música em tempo real, como antes.
