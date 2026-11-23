@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
 import { getRequestContext } from '@cloudflare/next-on-pages';
 import { updateOrder } from '@/lib/supabaseDb';
+import { formatarTelefoneBr, telefoneBrCompleto } from '@/lib/telefoneBr';
 
 export const runtime = 'edge';
 
@@ -30,6 +31,15 @@ export async function POST(req) {
       if (val !== undefined) {
         // Proteção contra corrupção: nunca permitir gravar URL de proxy interno no banco
         if (key === 'audioUrl' && typeof val === 'string' && val.includes('/api/audio/proxy')) {
+          continue;
+        }
+        // Telefone corrigido pelo admin: só aceita DDD + 8/9 dígitos e grava sempre na mesma máscara
+        // do /criar. A coluna customer_phone_digits (gerada no Postgres) acompanha sozinha.
+        if (key === 'customerPhone') {
+          if (!telefoneBrCompleto(val)) {
+            return NextResponse.json({ error: 'Telefone inválido. Use DDD + número, ex.: (31) 98241-4961.' }, { status: 400 });
+          }
+          updateData.customerPhone = formatarTelefoneBr(val);
           continue;
         }
         if (key === 'audioFiles' && Array.isArray(val)) {

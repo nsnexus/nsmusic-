@@ -24,6 +24,7 @@ import { StudioLyricsAnimation, StudioAudioAnimation } from '@/components/Studio
 import { IconeCelularWhatsApp } from '@/components/AppIcons';
 import { readReferralCode } from '@/lib/referralTracking';
 import { getPriceForSku, geracoesExtrasDoSku } from '@/lib/pricing';
+import { normalizeBrazilPhoneDigits, formatarTelefoneBr } from '@/lib/telefoneBr';
 import PacotesCompactos from '@/components/delivery/PacotesCompactos';
 import { deliveryPackages, formatBrl } from '@/lib/deliveryPackages';
 import { Zap, Copy, CheckCircle2, CreditCard, Loader2 } from 'lucide-react';
@@ -45,22 +46,6 @@ const VALID_BRAZIL_DDDS = new Set([
   '81', '82', '83', '84', '85', '86', '87', '88', '89',
   '91', '92', '93', '94', '95', '96', '97', '98', '99',
 ]);
-
-// Normaliza dígitos de telefone brasileiro removendo pontuação e DDI 55 quando presente.
-// No Brasil, todo celular começa com '9' após o DDD. Se o usuário digita 55 seguido de 1..8
-// (ex: 55219..., 55119..., 55519...), o '55' inicial é indubitavelmente o DDI do país e não o DDD 55 (Santa Maria/RS).
-export function normalizeBrazilPhoneDigits(raw) {
-  let digits = String(raw || '').replace(/\D/g, '');
-  if (digits.startsWith('55')) {
-    if (digits.length >= 12) {
-      digits = digits.slice(2);
-    } else if (digits.length >= 3 && digits[2] !== '9') {
-      digits = digits.slice(2);
-    }
-  }
-  return digits;
-}
-
 
 
 export default function CriarMusica() {
@@ -867,21 +852,7 @@ export default function CriarMusica() {
   const handlePhoneChange = (input) => {
     const raw = typeof input === 'string' ? input : (input?.target?.value ?? '');
     const clean = normalizeBrazilPhoneDigits(raw).slice(0, 11);
-    let formatted = clean;
-    if (clean.length > 0) {
-      formatted = `(${clean.slice(0, 2)}`;
-    }
-    if (clean.length > 2) {
-      const local = clean.slice(2);
-      // Número local pode ter 8 dígitos (sem o 9º, esquecimento comum) ou 9 (padrão atual) — o
-      // agrupamento do meio muda de tamanho conforme o total (ver isPhoneValid, que aceita as
-      // duas variantes).
-      const splitAt = local.length >= 9 ? 5 : Math.min(4, local.length);
-      formatted += `) ${local.slice(0, splitAt)}`;
-      if (local.length > splitAt) {
-        formatted += `-${local.slice(splitAt)}`;
-      }
-    }
+    const formatted = formatarTelefoneBr(clean);
     updateField('customerPhone', formatted);
 
     // Salva o telefone no pedido assim que atingir formato completo (11 dígitos para celular com WhatsApp)
