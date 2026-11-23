@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { playbackTravado } from '@/lib/playbackVps';
 import { requestPixCharge } from '@/lib/pixCheckout';
 import { buildAudioProxySrc } from '@/lib/audioProxy';
 import PixQrCode from './PixQrCode';
@@ -25,6 +26,10 @@ export default function PlaybackAddonCard({ orderId, order }) {
   const [localVocalUrl, setLocalVocalUrl] = useState(order?.extras?.vocalUrl || order?.vocalUrl || null);
   const [isTriggering, setIsTriggering] = useState(false);
   const [generationError, setGenerationError] = useState('');
+  // A VPS às vezes perde o trabalho e o pedido fica em GERANDO para sempre. Quando isso é
+  // detectado, a página tenta de novo sozinha UMA vez; se travar de novo, mostra o botão.
+  const [separacaoTravada, setSeparacaoTravada] = useState(false);
+  const retentativaAutomatica = useRef(false);
 
   // Faixa escolhida pelo cliente
   const faixas = useMemo(() => Array.isArray(order?.audioIds) ? order.audioIds : [], [order?.audioIds]);
@@ -114,6 +119,7 @@ export default function PlaybackAddonCard({ orderId, order }) {
     if (!orderId || isTriggering) return;
     setIsTriggering(true);
     setGenerationError('');
+    setSeparacaoTravada(false);
 
     try {
       const targetAudioId = faixas[chosenIdx] || (temEscolha && faixas[faixaEscolhida] ? faixas[faixaEscolhida] : (order?.playbackChosenAudioId || null));
@@ -155,10 +161,19 @@ export default function PlaybackAddonCard({ orderId, order }) {
     }
 
     let attempts = 0;
+    const travou = () => {
+      clearInterval(interval);
+      if (!retentativaAutomatica.current) {
+        retentativaAutomatica.current = true;
+        triggerAiSeparation(faixaEscolhida);
+      } else {
+        setSeparacaoTravada(true);
+      }
+    };
     const interval = setInterval(async () => {
       attempts += 1;
       if (attempts >= AUDIO_POLLING_MAX_ATTEMPTS) {
-        clearInterval(interval);
+        travou();
         return;
       }
 
@@ -176,6 +191,8 @@ export default function PlaybackAddonCard({ orderId, order }) {
             setLocalPlaybackStatus('FAILED');
             setGenerationError(freshOrder.playbackError || 'Erro ao processar o áudio.');
             clearInterval(interval);
+          } else if (playbackTravado(freshOrder)) {
+            travou();
           }
         }
       } catch (err) {
@@ -184,7 +201,7 @@ export default function PlaybackAddonCard({ orderId, order }) {
     }, 4000);
 
     return () => clearInterval(interval);
-  }, [hasAccess, currentPlaybackStatus, currentPlaybackUrl, orderId]);
+  }, [hasAccess, currentPlaybackStatus, currentPlaybackUrl, orderId, triggerAiSeparation, faixaEscolhida]);
 
   const estiloCartao = {
     padding: '24px',
@@ -384,6 +401,39 @@ export default function PlaybackAddonCard({ orderId, order }) {
             </a>
           </div>
         )}
+      </div>
+    );
+  }
+
+  // 3a. Separação travou (VPS perdeu o trabalho e a retentativa automática também não voltou)
+  if (currentPlaybackStatus === 'GERANDO' && separacaoTravada && !isTriggering) {
+    return (
+      <div style={{ ...estiloCartao, textAlign: 'center' }}>
+        <div style={{ fontSize: '2.2rem', marginBottom: '10px' }}>⚠️</div>
+        <h4 style={{ fontSize: '1.15rem', marginBottom: '8px', fontFamily: 'var(--font-family-title)', color: '#0f172a', fontWeight: '800' }}>
+          A separação demorou mais que o normal
+        </h4>
+        <p style={{ fontSize: '0.88rem', color: '#475569', marginBottom: '16px', lineHeight: 1.5 }}>
+          Seu pagamento está garantido. Toque abaixo para tentar de novo — leva cerca de 1 minuto.
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'center' }}>
+          <button
+            type="button"
+            onClick={() => triggerAiSeparation(faixaEscolhida)}
+            className="btn btn-primary"
+            style={{ padding: '12px 24px', fontSize: '0.95rem', fontWeight: 'bold', border: 'none', cursor: 'pointer' }}
+          >
+            🔄 Tentar de novo
+          </button>
+          <a
+            href={linkWhatsapp(whatsappSuporte, `Olá! Paguei o Playback do pedido ${identificacao} e a separação não terminou.`)}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ fontSize: '0.85rem', color: '#16a34a', fontWeight: '700', textDecoration: 'underline' }}
+          >
+            💬 Falar com o suporte no WhatsApp
+          </a>
+        </div>
       </div>
     );
   }
