@@ -582,6 +582,8 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
             await updateOrder(orderId, {
               playbackStatus: 'FAILED',
               playbackError: 'O servidor de áudio não respondeu. Tente novamente em instantes.',
+              playbackFalhaMotivo: `disparo_pagamento_${disparo.motivo}`,
+              playbackFalhaEm: new Date().toISOString(),
               updatedAt: new Date().toISOString(),
             }, env);
           }

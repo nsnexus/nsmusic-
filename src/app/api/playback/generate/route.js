@@ -91,6 +91,12 @@ export async function POST(req) {
       playbackStatus: 'GERANDO',
       playbackError: null,
       playbackStartedAt: new Date().toISOString(),
+      // Diagnóstico: se estava em GERANDO e travou, a VPS aceitou o trabalho e nunca terminou.
+      ...(order.playbackStatus === 'GERANDO' ? {
+        playbackFalhaMotivo: 'vps_aceitou_e_nao_terminou',
+        playbackFalhaEm: new Date().toISOString(),
+        playbackReenvios: (Number(order.playbackReenvios) || 0) + 1,
+      } : {}),
       playbackChosenAudioId: targetAudioId || null,
       playbackChosenAudioUrl: targetAudioUrl || null,
       updatedAt: new Date().toISOString(),
@@ -104,6 +110,8 @@ export async function POST(req) {
       await updateOrder(orderId, {
         playbackStatus: 'FAILED',
         playbackError: 'O servidor de áudio não respondeu. Tente novamente em instantes.',
+        playbackFalhaMotivo: `disparo_${disparo.motivo}`,
+        playbackFalhaEm: new Date().toISOString(),
       }, env).catch(() => {});
 
       return NextResponse.json({
