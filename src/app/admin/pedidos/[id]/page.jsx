@@ -11,6 +11,7 @@ import { hasPreviewTrackingData } from '@/lib/previewTracking';
 import { buildSunoPayload } from '@/lib/sunoPayload';
 import { buildAudioProxySrc } from '@/lib/audioProxy';
 import PlatformIcon from '@/components/admin/PlatformIcon';
+import EditarTelefoneCliente from '@/components/admin/EditarTelefoneCliente';
 import OrderWhatsAppFeedbackCard from '@/components/admin/OrderWhatsAppFeedbackCard';
 import { getOrderPlatform, PLATFORMS } from '@/lib/trafficSource';
 import { isStripePayment, calculateStripeFee, calculateStripeNet, getPayoutStatus } from '@/lib/paymentFees';
@@ -1157,7 +1158,7 @@ export default function OrderDetailsAdmin() {
                 )}
               </h1>
               <p style={{ color: '#475569', fontSize: '0.95rem', marginTop: '4px', fontWeight: '500' }}>
-                Cliente: <strong style={{ color: '#0f172a' }}>{order.customerName}</strong> ({order.customerEmail || 'Sem e-mail'}) • <strong style={{ color: '#2563eb' }}>{order.customerPhone || 'Sem telefone'}</strong>
+                Cliente: <strong style={{ color: '#0f172a' }}>{order.customerName}</strong> ({order.customerEmail || 'Sem e-mail'}) • <EditarTelefoneCliente orderId={orderId} telefone={order.customerPhone} onSalvo={(novo) => setOrder(prev => ({ ...prev, customerPhone: novo }))} />
               </p>
 
               {/* Card de Vínculo de Conta de Usuário (recolhido: uso raro) */}
