@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
 import { getOrder, updateOrder } from '@/lib/supabaseDb';
+import { dispararSeparacaoVps, playbackTravado, resolverEndpointSeparacao } from '@/lib/playbackVps';
 
 export const runtime = 'edge';
 
@@ -16,22 +17,7 @@ export async function POST(req) {
       if (ctx?.env) env = ctx.env;
     } catch (e) {}
 
-    const vpsVideoUrl = String(env?.VPS_VIDEO_URL || process.env.VPS_VIDEO_URL || '').trim();
-    let vpsAudioUrl = String(env?.VPS_AUDIO_URL || process.env.VPS_AUDIO_URL || '').trim();
-    if (!vpsAudioUrl) {
-      if (vpsVideoUrl) {
-        vpsAudioUrl = vpsVideoUrl.replace(/\/video\/?$/, '/audio');
-      } else {
-        vpsAudioUrl = 'https://evolution.nsnexus.com.br/audio';
-      }
-    }
-    // Normaliza rota e IP para evitar Cloudflare Error 1003
-    let cleanAudioUrl = vpsAudioUrl.replace(/\/+$/, '');
-    if (cleanAudioUrl.includes('81.17.98.66')) {
-      cleanAudioUrl = cleanAudioUrl.replace(/https?:\/\/81\.17\.98\.66(\/audio)?/, 'https://evolution.nsnexus.com.br/audio');
-    }
-
-    const vpsSecret = String(env?.VPS_VIDEO_SECRET || process.env.VPS_VIDEO_SECRET || '').trim();
+    const { segredo: vpsSecret } = resolverEndpointSeparacao(env);
 
     const body = await req.json().catch(() => ({}));
     const { orderId, audioId, audioUrl } = body || {};
@@ -62,6 +48,12 @@ export async function POST(req) {
     }
 
     // Determina a faixa de áudio selecionada
+    // Já tem uma separação rodando de verdade (iniciada há menos de 6 min): não dispara outra.
+    // Se passou disso, a VPS perdeu o trabalho e o pedido pode ser disparado de novo.
+    if (order.playbackStatus === 'GERANDO' && !playbackTravado(order)) {
+      return NextResponse.json({ success: true, playbackStatus: 'GERANDO', alreadyRunning: true });
+    }
+
     const faixas = Array.isArray(order.audioIds) ? order.audioIds : [];
     const arquivosFaixas = Array.isArray(order.audioFiles)
       ? order.audioFiles.map(f => typeof f === 'string' ? f : f?.url).filter(Boolean)
@@ -98,6 +90,13 @@ export async function POST(req) {
     await updateOrder(orderId, {
       playbackStatus: 'GERANDO',
       playbackError: null,
+      playbackStartedAt: new Date().toISOString(),
+      // Diagnóstico: se estava em GERANDO e travou, a VPS aceitou o trabalho e nunca terminou.
+      ...(order.playbackStatus === 'GERANDO' ? {
+        playbackFalhaMotivo: 'vps_aceitou_e_nao_terminou',
+        playbackFalhaEm: new Date().toISOString(),
+        playbackReenvios: (Number(order.playbackReenvios) || 0) + 1,
+      } : {}),
       playbackChosenAudioId: targetAudioId || null,
       playbackChosenAudioUrl: targetAudioUrl || null,
       updatedAt: new Date().toISOString(),
@@ -105,27 +104,14 @@ export async function POST(req) {
       console.warn('[playback/generate] Falha ao atualizar playbackStatus para GERANDO:', err?.message);
     });
 
-    // Despacha requisição HTTP para a VPS
-    const targetEndpoint = cleanAudioUrl.endsWith('/separate') ? cleanAudioUrl : `${cleanAudioUrl}/separate`;
-    const vpsRes = await fetch(targetEndpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${vpsSecret}`,
-      },
-      body: JSON.stringify({
-        orderId,
-        audioUrl: targetAudioUrl,
-      }),
-      signal: AbortSignal.timeout(15000),
-    });
-
-    if (!vpsRes.ok) {
-      const errText = await vpsRes.text().catch(() => '');
-      console.error(`[playback/generate] Falha ao acionar VPS (${vpsRes.status}): ${errText}`);
+    const disparo = await dispararSeparacaoVps({ orderId, audioUrl: targetAudioUrl, env });
+    if (!disparo.ok) {
+      console.error(`[playback/generate] Falha ao acionar VPS (${disparo.motivo})`);
       await updateOrder(orderId, {
         playbackStatus: 'FAILED',
-        playbackError: `Erro ao iniciar separação na VPS (${vpsRes.status})`,
+        playbackError: 'O servidor de áudio não respondeu. Tente novamente em instantes.',
+        playbackFalhaMotivo: `disparo_${disparo.motivo}`,
+        playbackFalhaEm: new Date().toISOString(),
       }, env).catch(() => {});
 
       return NextResponse.json({
@@ -133,12 +119,11 @@ export async function POST(req) {
       }, { status: 502 });
     }
 
-    const vpsData = await vpsRes.json().catch(() => ({}));
     return NextResponse.json({
       success: true,
       playbackStatus: 'GERANDO',
       message: 'Geração do playback iniciada na VPS',
-      data: vpsData,
+      data: disparo.dados,
     });
 
   } catch (err) {

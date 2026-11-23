@@ -9,6 +9,7 @@
 //   - o SKU vem do paymentIntent persistido em /api/payments/create, não de uma heurística de valor (A-13);
 //   - estados de estorno/cancelamento revogam acesso já concedido, o que nunca era tratado antes.
 
+import { dispararSeparacaoVps, resolverEndpointSeparacao } from './playbackVps.js';
 import { getOrder, updateOrder } from './supabaseDb.js';
 import { skuApprovesMusic, skuGrantsVideoAccess, skuGrantsCartaAccess, skuGrantsRetrospectivaAccess, skuGrantsCustomVoiceAccess, getPriceForSku, brindesPorValorPago, geracoesExtrasDoSku } from './pricing.js';
 import { resolveDeliveryUrl } from './whatsappTemplates.js';
@@ -562,37 +563,30 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
           targetAudio = orderData.audioUrl || arquivosFaixas[0] || orderData.secondAudioUrl || null;
         }
 
-        const vpsVideoUrl = String(env?.VPS_VIDEO_URL || process.env.VPS_VIDEO_URL || '').trim();
-        let vpsAudioUrl = String(env?.VPS_AUDIO_URL || process.env.VPS_AUDIO_URL || '').trim();
-        if (!vpsAudioUrl && vpsVideoUrl) {
-          vpsAudioUrl = vpsVideoUrl.replace(/\/video\/?$/, '/audio');
-        } else if (!vpsAudioUrl) {
-          vpsAudioUrl = 'https://evolution.nsnexus.com.br/audio';
-        }
-        const vpsSecret = String(env?.VPS_VIDEO_SECRET || process.env.VPS_VIDEO_SECRET || '').trim();
+        const { segredo: vpsSecret } = resolverEndpointSeparacao(env);
 
-        if (targetAudio && vpsAudioUrl && vpsSecret) {
-          let cleanAudioUrl = vpsAudioUrl.replace(/\/+$/, '');
-          if (cleanAudioUrl.includes('81.17.98.66')) {
-            cleanAudioUrl = cleanAudioUrl.replace(/https?:\/\/81\.17\.98\.66(\/audio)?/, 'https://evolution.nsnexus.com.br/audio');
-          }
-          const targetEndpoint = cleanAudioUrl.endsWith('/separate') ? cleanAudioUrl : `${cleanAudioUrl}/separate`;
-
+        if (targetAudio && vpsSecret) {
           await updateOrder(orderId, {
             playbackStatus: 'GERANDO',
             playbackError: null,
+            playbackStartedAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
           }, env);
 
-          fetch(targetEndpoint, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${vpsSecret}`,
-            },
-            body: JSON.stringify({ orderId, audioUrl: targetAudio }),
-            signal: AbortSignal.timeout(10000),
-          }).catch(e => console.warn('[payments] Disparo assíncrono de playback na VPS falhou:', e?.message));
+          // Espera o aceite da VPS: um fetch solto no Edge pode ser cortado e o pedido ficava
+          // em GERANDO para sempre. Se a VPS não aceitar, volta para FAILED e o cliente vê o
+          // botão de tentar de novo.
+          const disparo = await dispararSeparacaoVps({ orderId, audioUrl: targetAudio, env });
+          if (!disparo.ok) {
+            console.warn(`[payments] Disparo de playback na VPS falhou (${disparo.motivo})`);
+            await updateOrder(orderId, {
+              playbackStatus: 'FAILED',
+              playbackError: 'O servidor de áudio não respondeu. Tente novamente em instantes.',
+              playbackFalhaMotivo: `disparo_pagamento_${disparo.motivo}`,
+              playbackFalhaEm: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            }, env);
+          }
         } else {
           await updateOrder(orderId, {
             playbackStatus: 'AGUARDANDO_CONTATO',
