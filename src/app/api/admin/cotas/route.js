@@ -22,7 +22,7 @@ async function carregarPedidos(env) {
     try {
       const { data, error } = await supabase
         .from('orders')
-        .select('customer_phone, customer_name, payment_status, created_at, deleted_at, production_status')
+        .select('customer_phone, customer_name, payment_status, created_at, deleted_at, production_status, ip:extras->>clientIp')
         .gte('created_at', desde)
         .is('deleted_at', 'null')
         .order('created_at', { ascending: false })
@@ -39,6 +39,7 @@ async function carregarPedidos(env) {
             createdAt: row.created_at || null,
             paymentStatus: row.payment_status || null,
             customerName: row.customer_name || '',
+            ip: row.ip || null,
           });
         }
       }
@@ -94,6 +95,9 @@ export async function GET(req) {
         cota: cota.cota,
         pagos: cota.pagos,
         ultimoPedidoEm: maisRecente?.createdAt || null,
+        // IP do pedido mais recente + quantos IPs diferentes a pessoa usou (troca de rede = suspeita).
+        ultimoIp: maisRecente?.ip || pedidos.find((p) => p.ip)?.ip || null,
+        totalIps: new Set(pedidos.map((p) => p.ip).filter(Boolean)).size,
         resetAt: resetAt || null,
         bloqueadoCota: cota.bloqueado,
         bloqueadoManual: Boolean(manualItem),

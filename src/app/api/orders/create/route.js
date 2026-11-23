@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { calcularCota } from '@/lib/cotaGeracoes';
+import { buscarPedidosDaPessoa } from '@/lib/cotaConsulta';
 import { lerResetDeCota } from '@/lib/cotaReset';
 import { getSupabaseEdge } from '@/lib/supabase-edge';
 import { getRequestContext } from '@cloudflare/next-on-pages';
@@ -29,43 +30,14 @@ export async function isBlockedByFreeLimit(phone, email, env = {}) {
   if (!supabase) return false;
 
   try {
-    const orParts = [];
-    if (digits.length >= 10) {
-      const variants = generatePhoneVariants(phone);
-      if (variants.length > 0) {
-        const inList = variants.map((v) => `"${v}"`).join(',');
-        orParts.push(`customer_phone.in.(${inList})`);
-      } else {
-        orParts.push(`customer_phone.eq.${phone}`);
-      }
+    const { pedidos, erro } = await buscarPedidosDaPessoa(supabase, { phone: digits.length >= 10 ? phone : '', email: hasEmail ? email : '' });
+    if (erro) {
+      // Falha aberta de propósito (não derruba venda por falha técnica), mas registrada.
+      console.warn('[isBlockedByFreeLimit] Erro ao consultar cota no Supabase:', erro);
+      if (pedidos.length === 0) return false;
     }
-    if (hasEmail) {
-      orParts.push(`customer_email.eq.${email.trim().toLowerCase()}`);
-    }
-
-    if (orParts.length > 0) {
-      const { data, error } = await supabase
-        .from('orders')
-        .select('order_number, payment_status, created_at, deleted_at, is_second_generation, paid_sku')
-        .is('deleted_at', null)
-        .or(orParts.join(','));
-
-      if (!error && Array.isArray(data)) {
-        // Ignora cortesias de segunda geração vinculadas a pedidos pagos
-        const matches = data
-          .filter((o) => !o.is_second_generation && o.paid_sku !== 'segunda_geracao_bonus')
-          .map((o) => ({
-            orderNumber: o.order_number,
-            paymentStatus: o.payment_status,
-            createdAt: o.created_at,
-          }));
-        const resetAt = phone ? await lerResetDeCota(phone, env) : '';
-        return Boolean(calcularCota(matches, { resetAt }).bloqueado);
-      }
-      if (error) {
-        console.warn('[isBlockedByFreeLimit] Erro ao consultar cota no Supabase:', error.message);
-      }
-    }
+    const resetAt = phone ? await lerResetDeCota(phone, env) : '';
+    return Boolean(calcularCota(pedidos, { resetAt }).bloqueado);
   } catch (e) {
     console.warn('[isBlockedByFreeLimit] Exceção ao verificar cota:', e.message);
   }
