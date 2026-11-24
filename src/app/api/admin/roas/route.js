@@ -41,7 +41,9 @@ export async function GET(req) {
   try {
     const pendentes = [];
     const [linhas, ads] = await Promise.all([
-      obterMetricasDias(supabase, dias, hoje, agora, { maxRecalculos: 4, pendentes }),
+      // Hoje vale por 15 min aqui (5 min no resto): o card de ROAS abre junto com "Como está o dia" e
+      // o resumo do mês, e os três recalculando "hoje" ao mesmo tempo sobrecarregavam o banco.
+      obterMetricasDias(supabase, dias, hoje, agora, { maxRecalculos: 4, pendentes, validadeHojeMs: 15 * 60 * 1000 }),
       gastoAnunciosComManual(env, supabase, inicio, dias[dias.length - 1]).catch((e) => {
         console.warn('[roas] Gasto com anúncios indisponível:', e?.message);
         return null;

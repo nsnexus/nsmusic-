@@ -88,13 +88,13 @@ export async function calcularDia(supabase, dia, agora = new Date()) {
 }
 
 /** A linha guardada ainda serve? */
-export function linhaValida(linha, hoje, agora = new Date()) {
+export function linhaValida(linha, hoje, agora = new Date(), validadeHojeMs = VALIDADE_HOJE_MS) {
   if (!linha?.calculado_em) return false;
   if (linha.detalhes?.v !== VERSAO_DETALHES) return false; // linha antiga, sem os detalhes do Dashboard
   const calc = Date.parse(linha.calculado_em);
   if (Number.isNaN(calc)) return false;
   const idade = agora.getTime() - calc;
-  if (linha.dia === hoje) return idade >= 0 && idade < VALIDADE_HOJE_MS;
+  if (linha.dia === hoje) return idade >= 0 && idade < validadeHojeMs;
   if (calc >= Date.parse(inicioDiaUtc(somarDias(linha.dia, 2)))) return true; // dia fechado
   return idade >= 0 && idade < VALIDADE_DIA_ABERTO_MS;
 }
@@ -119,14 +119,30 @@ export async function obterMetricasDias(supabase, dias, hoje, agora = new Date()
   // No máximo 2 dias ao mesmo tempo, para não sobrecarregar o banco na primeira montagem.
   // Mais recentes primeiro; com opcoes.maxRecalculos, o resto fica em opcoes.pendentes (o chamador
   // pede de novo depois), para uma chamada não passar do tempo limite.
-  let vencidos = dias.filter((d) => !linhaValida(guardadas[d], hoje, agora)).sort().reverse();
+  let vencidos = dias.filter((d) => !linhaValida(guardadas[d], hoje, agora, opcoes.validadeHojeMs)).sort().reverse();
   if (opcoes.maxRecalculos && vencidos.length > opcoes.maxRecalculos) {
     if (Array.isArray(opcoes.pendentes)) opcoes.pendentes.push(...vencidos.slice(opcoes.maxRecalculos));
     vencidos = vencidos.slice(0, opcoes.maxRecalculos);
   }
+  // Se o recálculo de um dia falhar (banco lento, tempo limite da Cloudflare — o Dashboard abre 3-4
+  // rotas ao mesmo tempo e todas recalculam "hoje" juntas), usa a última linha guardada desse dia em
+  // vez de derrubar a rota inteira com 503 (24/11/2026: "Dashboard sempre falha nos dados de hoje").
+  // Só propaga o erro quando não há nada guardado para mostrar.
   const novas = [];
   for (let i = 0; i < vencidos.length; i += 2) {
-    novas.push(...await Promise.all(vencidos.slice(i, i + 2).map((d) => calcularDia(supabase, d, agora))));
+    const lote = vencidos.slice(i, i + 2);
+    const resultados = await Promise.allSettled(lote.map((d) => calcularDia(supabase, d, agora)));
+    resultados.forEach((r, j) => {
+      const d = lote[j];
+      if (r.status === 'fulfilled') {
+        novas.push(r.value);
+        return;
+      }
+      console.warn(`[metricasDiarias] Falha ao recalcular ${d}:`, r.reason?.message);
+      if (!guardadas[d]) throw r.reason;
+      guardadas[d] = { ...guardadas[d], desatualizada: true };
+      if (Array.isArray(opcoes.pendentes)) opcoes.pendentes.push(d);
+    });
   }
   for (const l of novas) guardadas[l.dia] = l;
 
