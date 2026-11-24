@@ -281,6 +281,7 @@ export default function LimitesCota() {
                   <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
                     <th style={{ textAlign: 'left', padding: '10px 12px', color: '#334155', fontWeight: '700' }}>Cliente</th>
                     <th style={{ textAlign: 'left', padding: '10px 12px', color: '#334155', fontWeight: '700' }}>WhatsApp</th>
+                    <th style={{ textAlign: 'left', padding: '10px 12px', color: '#334155', fontWeight: '700' }}>IP</th>
                     <th style={{ textAlign: 'center', padding: '10px 12px', color: '#334155', fontWeight: '700' }}>Músicas Criadas</th>
                     <th style={{ textAlign: 'center', padding: '10px 12px', color: '#334155', fontWeight: '700' }}>Pagas</th>
                     <th style={{ textAlign: 'center', padding: '10px 12px', color: '#334155', fontWeight: '700' }}>Status</th>
@@ -305,6 +306,14 @@ export default function LimitesCota() {
                           >
                             {c.telefone} ↗
                           </a>
+                        </td>
+                        <td style={{ padding: '10px 12px', color: '#475569', fontFamily: 'monospace', fontSize: '0.8rem' }}>
+                          {c.ultimoIp || '—'}
+                          {c.totalIps > 1 && (
+                            <span style={{ display: 'block', fontSize: '0.72rem', color: '#b45309', fontFamily: 'inherit' }}>
+                              {c.totalIps} IPs diferentes
+                            </span>
+                          )}
                         </td>
                         <td style={{ padding: '10px 12px', textAlign: 'center' }}>
                           <span style={{
@@ -367,7 +376,7 @@ export default function LimitesCota() {
                             ) : (
                               <button
                                 type="button"
-                                onClick={() => bloquearContato(c.telefone, c.nome, 'Bloqueio rápido via maiores geradores')}
+                                onClick={() => bloquearContato(c.telefone, c.nome, 'Bloqueio rápido via maiores geradores', c.ultimoIp || '')}
                                 disabled={isProc}
                                 style={{
                                   padding: '5px 10px',

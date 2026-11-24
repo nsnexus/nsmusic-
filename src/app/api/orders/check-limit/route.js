@@ -5,7 +5,7 @@ import { calcularCota } from '@/lib/cotaGeracoes';
 import { lerResetDeCota } from '@/lib/cotaReset';
 import { isContactBlocked } from '@/lib/blocklist';
 import { obterIpDoCliente } from '@/lib/cotaPorIp';
-import { generatePhoneVariants } from '@/lib/orderLookup';
+import { buscarPedidosDaPessoa } from '@/lib/cotaConsulta';
 
 export const runtime = 'edge';
 
@@ -56,38 +56,13 @@ export async function GET(req) {
     let matches = [];
 
     if (supabase) {
-      const orParts = [];
-      if (digits.length >= 10) {
-        const variants = generatePhoneVariants(phone);
-        if (variants.length > 0) {
-          const inList = variants.map((v) => `"${v}"`).join(',');
-          orParts.push(`customer_phone.in.(${inList})`);
-        } else {
-          orParts.push(`customer_phone.eq.${phone}`);
-        }
-      }
-      if (hasValidEmail) {
-        orParts.push(`customer_email.eq.${email.trim().toLowerCase()}`);
-      }
-
-      if (orParts.length > 0) {
-        const { data, error } = await supabase
-          .from('orders')
-          .select('order_number, payment_status, created_at, deleted_at, is_second_generation, paid_sku')
-          .is('deleted_at', null)
-          .or(orParts.join(','));
-
-        if (!error && Array.isArray(data)) {
-          matches = data
-            .filter((o) => !o.is_second_generation && o.paid_sku !== 'segunda_geracao_bonus')
-            .map((o) => ({
-              orderNumber: o.order_number,
-              paymentStatus: o.payment_status,
-              createdAt: o.created_at,
-            }));
-        } else if (error) {
-          console.warn('[check-limit] Erro ao consultar pedidos no Supabase:', error.message);
-        }
+      const resultado = await buscarPedidosDaPessoa(supabase, {
+        phone: digits.length >= 10 ? phone : '',
+        email: hasValidEmail ? email : '',
+      });
+      matches = resultado.pedidos;
+      if (resultado.erro) {
+        console.warn('[check-limit] Erro ao consultar pedidos no Supabase:', resultado.erro);
       }
     }
 

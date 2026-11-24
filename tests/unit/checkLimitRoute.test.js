@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { criarFakePostgrest, linhaPedido } from '../helpers/fakePostgrest.js';
 
 let dbOrders = [];
 let isBlockedContact = false;
@@ -7,27 +8,10 @@ vi.mock('@/lib/blocklist', () => ({
   isContactBlocked: vi.fn(async () => ({ blocked: isBlockedContact, reason: isBlockedContact ? 'manual_block' : null })),
 }));
 
-vi.mock('@/lib/supabase-edge', () => ({
-  getSupabaseEdge: vi.fn(() => ({
-    from: () => ({
-      select: () => ({
-        eq: () => ({
-          maybeSingle: async () => ({ data: null })
-        }),
-        is: () => ({
-          or: async () => ({
-            data: dbOrders.map(o => ({
-              order_number: o.orderNumber,
-              payment_status: o.paymentStatus || 'AGUARDANDO_PAGAMENTO',
-              created_at: o.createdAt || new Date().toISOString()
-            })),
-            error: null
-          })
-        })
-      })
-    })
-  }))
-}));
+vi.mock('@/lib/supabase-edge', async () => {
+  const real = await vi.importActual('@/lib/supabase-edge');
+  return { ...real, getSupabaseEdge: vi.fn(() => new real.NativeSupabaseClient('https://db.test', 'chave-teste')) };
+});
 
 vi.mock('@cloudflare/next-on-pages', () => ({
   getRequestContext: () => ({ env: {} }),
@@ -37,6 +21,11 @@ const { GET } = await import('@/app/api/orders/check-limit/route');
 
 beforeEach(() => {
   dbOrders = [];
+  vi.stubGlobal('fetch', criarFakePostgrest(() => dbOrders.map((o, i) => linhaPedido({
+    n: o.orderNumber ?? i,
+    phone: o.phone || '(14) 99879-8883',
+    pago: ['PAGO', 'PAGAMENTO_APROVADO'].includes(o.paymentStatus),
+  }))));
   isBlockedContact = false;
 });
 
@@ -83,6 +72,7 @@ describe('GET /api/orders/check-limit', () => {
   it('bloqueia automaticamente usuário com 5 pedidos gratuitos sem pagamento (cota esgotada)', async () => {
     dbOrders = Array.from({ length: 5 }, (_, i) => ({
       orderNumber: `free-${i}`,
+      phone: '(11) 98888-7777',
       paymentStatus: 'AGUARDANDO_PAGAMENTO'
     }));
     const req = new Request('https://nsmusic.com.br/api/orders/check-limit?phone=11988887777');
