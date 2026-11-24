@@ -489,11 +489,8 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
           console.warn('[payments] Falha ao conceder crédito de indicação:', referralError.message);
         }
       }
-      try {
-        await notifyPaymentApproved(orderId, txResult.orderData, {}, env);
-      } catch (notifyErr) {
-        console.warn('[payments] Falha ao notificar aprovação de pagamento via WhatsApp:', notifyErr?.message);
-      }
+      // O WhatsApp de "pagamento aprovado" NÃO sai mais aqui (24/11/2026): só 10 min depois, se o
+      // cliente não abriu a página de entrega — ver src/lib/avisosAtrasados.js (cron do reconcile).
 
       // Contador de vendas da vitrine da home (stats/_live)
       try {

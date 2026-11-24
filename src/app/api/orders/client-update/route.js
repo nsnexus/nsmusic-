@@ -15,6 +15,9 @@ const ALLOWED_CLIENT_FIELDS = new Set([
   'videoError',
   'videoCreatedAt',
   'previewListenedAt',
+  // Marcado pela /entrega quando o cliente vê o pedido já pago: aí não precisa do WhatsApp de
+  // pagamento aprovado (src/lib/avisosAtrasados.js). Só serve para suprimir o próprio aviso.
+  'deliveryViewedAt',
   'termsAccepted',
   'termsAcceptedAt',
   'lyrics',

@@ -463,6 +463,18 @@ export async function POST(req) {
       }
     }
 
+    // WhatsApp só para quem sumiu: música pronta sem prévia ouvida (15 min) e pagamento sem a
+    // entrega aberta (10 min). Isolado: falha aqui não atrapalha o resto. Ver src/lib/avisosAtrasados.js.
+    if (fase === 'tudo') {
+      try {
+        const { enviarAvisosAtrasados } = await import('@/lib/avisosAtrasados');
+        resposta.avisos = await enviarAvisosAtrasados(env);
+      } catch (err) {
+        console.error('[reconcile] Falha nos avisos de WhatsApp:', err.message);
+        resposta.avisos = { musica: 0, pagamento: 0, error: `inesperado: ${err.message}` };
+      }
+    }
+
     console.log('[reconcile] Resultado:', JSON.stringify(resposta));
 
     return NextResponse.json(resposta);

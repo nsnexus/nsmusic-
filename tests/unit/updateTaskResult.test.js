@@ -29,7 +29,9 @@ beforeEach(() => {
 });
 
 describe('updateTaskResult — idempotência do envio de WhatsApp', () => {
-  it('envia WhatsApp uma única vez mesmo com duas chamadas concorrentes para o mesmo pedido', async () => {
+  // Desde 24/11/2026 o WhatsApp de música pronta é adiado (src/lib/avisosAtrasados.js): aqui só
+  // grava quando ficou pronta.
+  it('não envia WhatsApp na hora em que a música fica pronta; grava musicReadyAt', async () => {
     store['task1'] = { orderId: 'order1' };
     store['order1'] = { customerPhone: '5511999999999', whatsappRequested: true, customerName: 'Cliente', honoreeName: 'Alguém' };
 
@@ -40,8 +42,8 @@ describe('updateTaskResult — idempotência do envio de WhatsApp', () => {
       updateTaskResult('task1', result),
     ]);
 
-    expect(store['order1'].whatsappSent).toBe(true);
-    expect(store['order1'].whatsappSending).toBe(false);
+    expect(store['order1'].whatsappSent).toBeFalsy();
+    expect(store['order1'].musicReadyAt).toBeTruthy();
   });
 
   it('não reenvia se whatsappSent já é true', async () => {
