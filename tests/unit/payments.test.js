@@ -309,7 +309,9 @@ describe('applyPaymentApproval', () => {
     }
   });
 
-  it('notifica o cliente via WhatsApp por padrão na aprovação do pagamento', async () => {
+  // Desde 24/11/2026 o WhatsApp de pagamento aprovado é adiado: sai pelo cron
+  // (src/lib/avisosAtrasados.js) só se o cliente não abrir a entrega em 10 min.
+  it('NÃO notifica via WhatsApp na hora da aprovação do pagamento (aviso adiado)', async () => {
     store['order12_on'] = {
       paymentIntentSku: 'audio_only',
       customerPhone: '5511999999999',
@@ -322,17 +324,8 @@ describe('applyPaymentApproval', () => {
 
     await applyPaymentApproval('order12_on', '1212_on', { status: 'approved', transaction_amount: 9.99 });
 
-    expect(sendPaymentApprovedTemplateMock).toHaveBeenCalledTimes(1);
-    expect(sendPaymentApprovedTemplateMock).toHaveBeenCalledWith(
-      '5511999999999',
-      expect.objectContaining({
-        customerName: 'Maria',
-        honoreeName: 'Vovó Lúcia',
-        audioUrls: ['https://cdn1.suno.ai/a.mp3', 'https://cdn1.suno.ai/b.mp3'],
-      }),
-      expect.anything()
-    );
-    expect(store['order12_on'].paymentWhatsappSent).toBe(true);
+    expect(sendPaymentApprovedTemplateMock).not.toHaveBeenCalled();
+    expect(store['order12_on'].paymentWhatsappSent).toBeFalsy();
   });
 
   it('NÃO notifica via WhatsApp no pagamento isolado do add-on de vídeo', async () => {

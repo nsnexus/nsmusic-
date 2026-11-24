@@ -504,6 +504,19 @@ function EntregaContent() {
     const paid = order?.paymentStatus === 'PAGAMENTO_APROVADO' || order?.paymentStatus === 'PAGO';
     if (paid && typeof window !== 'undefined' && orderId) {
       localStorage.removeItem(`pixInfo_${orderId}`);
+      // Cliente viu o pedido pago: o WhatsApp de "pagamento aprovado" não precisa sair
+      // (src/lib/avisosAtrasados.js). Uma vez por visita.
+      const chave = `entregaVista_${orderId}`;
+      try {
+        if (!sessionStorage.getItem(chave)) {
+          sessionStorage.setItem(chave, '1');
+          fetch('/api/orders/client-update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ orderId, deliveryViewedAt: new Date().toISOString() }),
+          }).catch((e) => console.warn('[entrega] Falha ao marcar entrega vista:', e?.message));
+        }
+      } catch (_) {}
     }
   }, [order?.paymentStatus, orderId]);
 

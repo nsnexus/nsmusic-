@@ -1559,12 +1559,8 @@ export default function CriarMusica() {
                 })
               }).catch(e => console.warn("Aviso ao atualizar ordem:", e));
 
-              // Dispara garantia da notificação de música pronta no WhatsApp
-              fetch('/api/whatsapp/notify', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ orderId: targetOrder })
-              }).catch(e => console.warn("[criar] Aviso ao disparar notificação:", e));
+              // WhatsApp de "música pronta" não sai mais daqui: só 15 min depois, se o cliente não
+              // ouvir a prévia (src/lib/avisosAtrasados.js).
 
               // sunoStatus fica em 'generating' (tela de loading, com o CTA de WhatsApp já visível)
               // até aqui de propósito — só vira 'generated' (tela de prévia com os players, mais

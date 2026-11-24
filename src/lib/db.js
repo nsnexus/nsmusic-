@@ -217,10 +217,11 @@ export const updateTaskResult = async (taskId, result, overrideOrderId = null, e
       if (!jaTinhaAudio) {
         const { addGeneration } = await import('./liveStats.js');
         await addGeneration();
+        // O WhatsApp de "música pronta" NÃO sai mais aqui (24/11/2026): só 15 min depois, se o
+        // cliente não ouviu a prévia — ver src/lib/avisosAtrasados.js. Guarda quando ficou pronta.
+        await updateOrder(orderId, { musicReadyAt: new Date().toISOString() }, env)
+          .catch((e) => console.warn('[db] Falha ao gravar musicReadyAt:', e?.message));
       }
-
-      // Envia notificação oficial avisando que a música ficou pronta com o link do pedido
-      await notifyMusicReady(orderId, null, orderId, {}, env);
     }
   } catch (err) {
     console.error("Error updating task result:", err);
