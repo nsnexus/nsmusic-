@@ -80,6 +80,12 @@ describe('isBlockedByFreeLimit', () => {
     expect(await isBlockedByFreeLimit('89981232236', '')).toBe(true);
   });
 
+  it('banco sem a coluna customer_phone_digits: usa a busca por customer_phone (plano B)', async () => {
+    vi.stubGlobal('fetch', criarFakePostgrest(() => rows, { semColunaDigitos: true }));
+    rows = Array.from({ length: 5 }, (_, i) => linhaPedido({ n: i, phone: i % 2 ? '(89) 98123-2236' : '89981232236' }));
+    expect(await isBlockedByFreeLimit('89981232236', '')).toBe(true);
+  });
+
   it('não conta a 2ª geração (bônus) de pedido pago', async () => {
     rows = [
       ...Array.from({ length: 4 }, (_, i) => linhaPedido({ n: i, phone: '(11) 99999-9999' })),
