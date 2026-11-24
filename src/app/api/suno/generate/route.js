@@ -70,8 +70,11 @@ export async function POST(req) {
           }
 
           if (!isPaid && !isBonus) {
-            const freeLimitBlocked = (await isBlockedByFreeLimit(order.customerPhone, order.customerEmail, env))
-              || (await isBlockedByIpLimit(ipDoCliente, env));
+            // O próprio pedido já existe e não conta contra ele mesmo: sem isso, o 5º pedido grátis
+            // era criado (4 anteriores < 5) e a música dele falhava aqui (5 >= 5).
+            const ignorar = { ignorarPedido: order.orderNumber };
+            const freeLimitBlocked = (await isBlockedByFreeLimit(order.customerPhone, order.customerEmail, env, ignorar))
+              || (await isBlockedByIpLimit(ipDoCliente, env, ignorar));
             if (freeLimitBlocked) {
               return NextResponse.json(
                 { error: 'Você atingiu o limite de músicas geradas sem pagamento. Realize o pagamento de uma das músicas para continuar.', blocked: true, reason: 'cota_excedida' },
