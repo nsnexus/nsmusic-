@@ -11,6 +11,7 @@ import { diaSp } from '@/lib/relogioSp';
 import KieCreditsBadge from '@/components/admin/KieCreditsBadge';
 import UnificallyCreditsBadge from '@/components/admin/UnificallyCreditsBadge';
 import WhatsAppUsageBadge from '@/components/admin/WhatsAppUsageBadge';
+import ComoEstaODia from '@/components/admin/ComoEstaODia';
 import { Package, BarChart3, Megaphone, Mail, LogOut } from 'lucide-react';
 
 // Componentes pesados carregados sob demanda (code-splitting) para reduzir First Load JS
@@ -190,6 +191,8 @@ export default function AdminDashboard() {
             )}
           </div>
 
+          {periodo === 'hoje' && <ComoEstaODia />}
+
           {resumo?.dia && (
             <time dateTime={resumo.dia} style={{ display: 'block', color: '#475569', marginBottom: '12px' }}>
               {resumo.dia.split('-').reverse().join('/')}
@@ -208,6 +211,12 @@ export default function AdminDashboard() {
               </div>
             ))}
           </div>
+
+          {resumo?.diag && monthlySeries.totalFeito === 0 && monthlySeries.totalConvertido > 0 && (
+            <p style={{ margin: '-12px 0 20px', fontSize: '0.75rem', color: '#94a3b8', fontFamily: 'monospace', wordBreak: 'break-all' }}>
+              diagnóstico: lidos {resumo.diag.pedidos} · criados no dia {resumo.diag.criadosNoDia} · com música {resumo.diag.criadosComMusica} · pagos no dia {resumo.diag.pagosNoDia} · datas inválidas {resumo.diag.datasInvalidas} · ex. {resumo.diag.exemploCriadoEm}
+            </p>
+          )}
 
           {(loadingResumo || erroResumo || montando) && (
             <div role={erroResumo ? 'alert' : 'status'} style={{ marginBottom: '16px', padding: '10px 14px', borderRadius: '10px', fontSize: '0.85rem', background: erroResumo ? '#fef2f2' : '#eff6ff', color: erroResumo ? '#b91c1c' : '#1d4ed8' }}>

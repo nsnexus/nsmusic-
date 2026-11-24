@@ -268,6 +268,19 @@ export function montarDetalhesDia(pedidos, dia, plataformas) {
     totalVendasEstado: estados.totalVendas,
     feito: serie.feito[diaNum - 1],
     convertido: serie.convertido[diaNum - 1],
+    // Diagnóstico do card "Músicas geradas" (que já apareceu 0 com 40 vendas no dia, 23/11/2026).
+    // Só contagens e um horário de exemplo; nada de cliente.
+    diag: {
+      pedidos: (pedidos || []).length,
+      criadosNoDia: criadosNoDia.length,
+      criadosComMusica: criadosNoDia.filter(hasMusicaGerada).length,
+      pagosNoDia: (pedidos || []).filter((o) => {
+        const p = paraData(o.paidAt);
+        return p && p.getFullYear() === ano && p.getMonth() === mesNum - 1 && p.getDate() === diaNum;
+      }).length,
+      datasInvalidas: (pedidos || []).filter((o) => o.createdAt && !paraData(o.createdAt)).length,
+      exemploCriadoEm: String((pedidos || [])[0]?.createdAt || ''),
+    },
     plataformas: (plataformas || []).map((p) => ({ key: p.key, ...Object.fromEntries(CAMPOS_PLATAFORMA.map((c) => [c, Number(p[c]) || 0])) })),
   };
 }
@@ -305,5 +318,7 @@ export function combinarMes(detalhesPorDia, mes, diasSelecionados) {
     horas,
     estados: { porEstado, semEstado, totalVendas: totalVendasEstado },
     plataformasPorDia,
+    // Um dia só (Hoje/Ontem): leva o diagnóstico junto.
+    diag: dias.length === 1 ? (detalhesPorDia[`${mes}-${String(dias[0]).padStart(2, '0')}`]?.diag || null) : null,
   };
 }
