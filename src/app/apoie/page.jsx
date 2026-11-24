@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import PixQrCode from '@/components/PixQrCode';
+import { copiarTexto } from '@/lib/copiarTexto';
 
 // Página de apoio/gorjeta — PIX estático direto pra chave do estúdio (src/lib/pixStatic.js), sem
 // nenhuma cobrança na Efí e sem produto nenhum atrelado. Sem segmento dinâmico ([id]), então não
@@ -59,9 +60,9 @@ export default function ApoiePage() {
     }
   };
 
-  const handleCopy = () => {
+  const handleCopy = async () => {
     if (!pixInfo?.pixCopiaECola) return;
-    navigator.clipboard.writeText(pixInfo.pixCopiaECola);
+    if (!(await copiarTexto(pixInfo.pixCopiaECola))) return;
     setCopied(true);
     setTimeout(() => setCopied(false), 3000);
   };

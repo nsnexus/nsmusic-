@@ -253,7 +253,13 @@ const ADDON_ACCESS = {
   retrospectiva_addon: ['has_retrospectiva_access', 'retrospectivaAddonPaid'],
   karaoke_addon: ['has_karaoke_access', 'karaokeAddonPaid'],
 };
-const JANELA_PIX_HORAS = 48;
+// Janela de 2h (antes 48h, até 24/11/2026). O PIX vence em 1h (calendario.expiracao = 3600 em
+// createPixCharge) e depois disso não pode mais ser pago; a Efí segue respondendo status ATIVA,
+// então o cron continuava consultando cobranças mortas por 2 dias — umas 30 consultas a cada
+// 10 min, quase todas inúteis. 2h cobre a hora de validade + folga para webhook atrasado e
+// ~12 passadas do cron. Para o que for mais antigo existe o botão de varredura do painel
+// (/api/orders/audit-payments), que continua olhando vários dias.
+const JANELA_PIX_MINUTOS = 120;
 const MAX_PIX_CONSULTADOS = 30;
 const LOTE_CONSULTA_EFI = 5;
 
@@ -263,8 +269,9 @@ const LOTE_CONSULTA_EFI = 5;
 // cron não convergia quase nada e sobrava o botão manual do painel.
 //
 // Agora parte de order_payment_intents (todo PIX gerado fica registrado ali, inclusive cobranças
-// antigas do mesmo pedido e add-ons), mesma base que o botão "checar" do painel usa: últimas 48h,
+// antigas do mesmo pedido e add-ons), mesma base que o botão "checar" do painel usa: últimas 2h,
 // prioriza quem copiou o PIX e consulta até 30 cobranças na Efí em lotes paralelos de 5.
+// (Janela reduzida para 2h em 24/11/2026 — ver JANELA_PIX_MINUTOS.)
 async function reconcilePendingPayments(env) {
   const result = { checked: 0, approved: 0, stillPending: 0, viaPixCopiado: 0, candidatos: 0 };
 
@@ -276,7 +283,7 @@ async function reconcilePendingPayments(env) {
 
   try {
     const agora = Date.now();
-    const desde = new Date(agora - JANELA_PIX_HORAS * 3600000).toISOString();
+    const desde = new Date(agora - JANELA_PIX_MINUTOS * 60000).toISOString();
     const ate = new Date(agora - MIN_AGE_MINUTES * 60000).toISOString();
 
     const { data: intents, error: intentsErr } = await supabase

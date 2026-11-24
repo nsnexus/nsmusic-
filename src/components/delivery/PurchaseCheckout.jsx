@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ArrowRight, Zap, CreditCard, Loader2, Copy, CheckCircle2, Landmark } from 'lucide-react';
 import PixQrCode from '@/components/PixQrCode';
+import { copiarTexto } from '@/lib/copiarTexto';
 import PacotesCompactos from './PacotesCompactos';
 import { auth } from '@/lib/authClient';
 import { requestPixCharge } from '@/lib/pixCheckout';
@@ -370,7 +371,7 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
                       if (typeof navigator !== 'undefined' && navigator.vibrate) {
                         navigator.vibrate([40, 30, 40]);
                       }
-                      await navigator.clipboard.writeText(pix.qrCode);
+                      if (!(await copiarTexto(pix.qrCode))) throw new Error('copia_falhou');
                       setPixCopied(true);
                       setMessage('Código PIX copiado com sucesso! Abra o app do seu banco e escolha PIX Copia e Cola.');
                       setTimeout(() => setPixCopied(false), 4000);
@@ -465,7 +466,7 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
                   onClick={async (e) => {
                     try { e.target.select(); } catch (_) {}
                     try {
-                      await navigator.clipboard.writeText(pix.qrCode);
+                      if (!(await copiarTexto(pix.qrCode))) throw new Error('copia_falhou');
                       setMessage('Código PIX copiado. Cole no aplicativo do seu banco.');
                     } catch (_) {}
                   }}

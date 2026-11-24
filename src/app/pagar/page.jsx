@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { getPriceForSku, faixasDeImpacto } from '@/lib/pricing';
 import { requestPixCharge } from '@/lib/pixCheckout';
 import PixQrCode from '@/components/PixQrCode';
+import { copiarTexto, selecionarCampo } from '@/lib/copiarTexto';
 
 // Página "pague conforme o impacto emocional" — link avulso que o estúdio manda manualmente por
 // WhatsApp (pedido do dono do estúdio, 02/09/2026), separada do checkout fixo de R$9,99 em
@@ -50,6 +51,25 @@ function PagarContent() {
   const [conferindo, setConferindo] = useState(false);
   const [mensagemConferencia, setMensagemConferencia] = useState('');
   const [pixCopied, setPixCopied] = useState(false);
+
+  // Só mostra "Copiado!" se copiou mesmo (ver src/lib/copiarTexto.js).
+  const copiarPix = async () => {
+    if (!pixInfo?.qrCode) return;
+    if (orderId) {
+      fetch('/api/payments/pix-copied', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId }),
+      }).catch(() => {});
+    }
+    const ok = await copiarTexto(pixInfo.qrCode);
+    if (ok) {
+      setPixCopied(true);
+      setTimeout(() => setPixCopied(false), 3000);
+    } else {
+      selecionarCampo(document.getElementById('pix-copia-cola-impacto'));
+    }
+  };
 
   // Estado do pedido ao vivo via API Edge (Supabase)
   useEffect(() => {
@@ -387,27 +407,7 @@ function PagarContent() {
                   id="pix-copia-cola-impacto"
                   readOnly
                   value={pixInfo.qrCode}
-                  onClick={(e) => {
-                    try {
-                      e.target?.select?.();
-                    } catch (_) {}
-                    if (pixInfo?.qrCode) {
-                      try {
-                        if (navigator?.clipboard?.writeText) {
-                          navigator.clipboard.writeText(pixInfo.qrCode).catch(() => {});
-                        }
-                      } catch (_) {}
-                      setPixCopied(true);
-                      setTimeout(() => setPixCopied(false), 3000);
-                      if (orderId) {
-                        fetch('/api/payments/pix-copied', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ orderId }),
-                        }).catch(() => {});
-                      }
-                    }
-                  }}
+                  onClick={() => copiarPix()}
                   title="Clique para copiar o código Pix"
                   style={{
                     width: '100%',
@@ -428,18 +428,7 @@ function PagarContent() {
               </div>
               <button
                 type="button"
-                onClick={() => {
-                  navigator.clipboard.writeText(pixInfo.qrCode);
-                  setPixCopied(true);
-                  setTimeout(() => setPixCopied(false), 3000);
-                  if (orderId) {
-                    fetch('/api/payments/pix-copied', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ orderId }),
-                    }).catch(() => {});
-                  }
-                }}
+                onClick={() => copiarPix()}
                 className="btn btn-primary"
                 style={{ width: '100%', padding: '12px', borderRadius: '10px', fontWeight: 'bold', border: 'none', cursor: 'pointer', marginBottom: '12px' }}
               >

@@ -5,6 +5,7 @@ import { playbackTravado } from '@/lib/playbackVps';
 import { requestPixCharge } from '@/lib/pixCheckout';
 import { buildAudioProxySrc } from '@/lib/audioProxy';
 import PixQrCode from './PixQrCode';
+import { copiarTexto, selecionarCampo } from '@/lib/copiarTexto';
 import { useWhatsappSuporte, linkWhatsapp } from '@/lib/useWhatsappSuporte';
 
 const MAX_PIX_ATTEMPTS = 3;
@@ -19,6 +20,18 @@ export default function PlaybackAddonCard({ orderId, order }) {
   const [unlocked, setUnlocked] = useState(false);
   const [pollingTimedOut, setPollingTimedOut] = useState(false);
   const [pixCopied, setPixCopied] = useState(false);
+
+  // Só mostra "Copiado!" se copiou mesmo (ver src/lib/copiarTexto.js).
+  const copiarPix = async () => {
+    if (!pixInfo?.qrCode) return;
+    const ok = await copiarTexto(pixInfo.qrCode);
+    if (ok) {
+      setPixCopied(true);
+      setTimeout(() => setPixCopied(false), 3000);
+    } else {
+      selecionarCampo(document.getElementById('pix-copia-cola-playback'));
+    }
+  };
 
   // Estados locais para a separação vocal por IA
   const [localPlaybackStatus, setLocalPlaybackStatus] = useState(order?.playbackStatus || null);
@@ -240,20 +253,7 @@ export default function PlaybackAddonCard({ orderId, order }) {
                 id="pix-copia-cola-playback"
                 readOnly
                 value={pixInfo.qrCode}
-                onClick={(e) => {
-                  try {
-                    e.target?.select?.();
-                  } catch (_) {}
-                  if (pixInfo?.qrCode) {
-                    try {
-                      if (navigator?.clipboard?.writeText) {
-                        navigator.clipboard.writeText(pixInfo.qrCode).catch(() => {});
-                      }
-                    } catch (_) {}
-                    setPixCopied(true);
-                    setTimeout(() => setPixCopied(false), 3000);
-                  }
-                }}
+                onClick={() => copiarPix()}
                 title="Clique para copiar o código Pix"
                 style={{
                   width: '100%',
@@ -273,11 +273,7 @@ export default function PlaybackAddonCard({ orderId, order }) {
             </div>
             <button
               type="button"
-              onClick={() => {
-                navigator.clipboard.writeText(pixInfo.qrCode);
-                setPixCopied(true);
-                setTimeout(() => setPixCopied(false), 3000);
-              }}
+              onClick={() => copiarPix()}
               className="btn btn-primary"
               style={{ width: '100%', padding: '12px', borderRadius: '10px', fontWeight: 'bold', border: 'none', cursor: 'pointer', background: 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)', color: '#ffffff' }}
             >
