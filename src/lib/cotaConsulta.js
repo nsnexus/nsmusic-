@@ -11,7 +11,9 @@
 
 import { generatePhoneVariants } from './orderLookup.js';
 
-const COLUNAS = 'id, order_number, payment_status, created_at, is_second_generation, paid_sku';
+// isSecondGeneration e paidSku vivem no `extras` (não existem colunas is_second_generation/paid_sku:
+// pedi-las fazia o banco responder 400 e a trava contava 0 desde sempre — achado em 23/11/2026).
+const COLUNAS = 'id,order_number,payment_status,created_at,is_second_generation:extras->isSecondGeneration,paid_sku:extras->>paidSku';
 
 /** Variações só de dígitos: com/sem 55 e com/sem o 9º dígito. */
 export function variantesDigitos(phone) {

@@ -49,7 +49,7 @@ export async function isBlockedByIpLimit(ip, env = {}) {
     const desde = new Date(Date.now() - JANELA_IP_HORAS * 3600 * 1000).toISOString();
     const { data, error } = await supabase
       .from('orders')
-      .select('order_number, payment_status, created_at, is_second_generation, paid_sku')
+      .select('order_number,payment_status,created_at,is_second_generation:extras->isSecondGeneration,paid_sku:extras->>paidSku')
       .is('deleted_at', null)
       .filter('extras->>clientIp', 'eq', ipNorm)
       .gte('created_at', desde)
