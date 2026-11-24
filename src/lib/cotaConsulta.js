@@ -28,9 +28,18 @@ export async function buscarPedidosDaPessoa(supabase, { phone = '', email = '' }
   const consultas = [];
 
   if (digitos.length > 0) {
-    consultas.push(
-      supabase.from('orders').select(COLUNAS).is('deleted_at', null).in('customer_phone_digits', digitos).limit(500)
-    );
+    consultas.push((async () => {
+      const r = await supabase.from('orders').select(COLUNAS).is('deleted_at', null).in('customer_phone_digits', digitos).limit(500);
+      if (!r?.error) return r;
+      // Plano B: a coluna customer_phone_digits pode não existir no banco (supabase/correcoes.sql
+      // não aplicado). Mesma busca que o robô do WhatsApp usa e que funciona em produção
+      // (orderLookup.findOrdersByPhone): customer_phone em todas as variações, sem or().
+      const variantes = generatePhoneVariants(phone);
+      const r2 = await supabase.from('orders').select(COLUNAS).is('deleted_at', null).in('customer_phone', variantes).limit(500);
+      return r2?.error
+        ? { data: null, error: { message: `digitos: ${r.error.message} | telefone: ${r2.error.message}` } }
+        : { ...r2, planoB: true };
+    })());
   }
   if (emailNorm.includes('@')) {
     consultas.push(
@@ -41,6 +50,7 @@ export async function buscarPedidosDaPessoa(supabase, { phone = '', email = '' }
 
   const resultados = await Promise.all(consultas);
   const erro = resultados.find((r) => r?.error)?.error?.message || null;
+  const planoB = resultados.some((r) => r?.planoB);
   const vistos = new Map();
   for (const r of resultados) {
     for (const row of Array.isArray(r?.data) ? r.data : []) {
@@ -53,5 +63,5 @@ export async function buscarPedidosDaPessoa(supabase, { phone = '', email = '' }
     .filter((o) => !o.is_second_generation && o.paid_sku !== 'segunda_geracao_bonus')
     .map((o) => ({ orderNumber: o.order_number, paymentStatus: o.payment_status, createdAt: o.created_at }));
 
-  return { pedidos, erro };
+  return { pedidos, erro, planoB };
 }

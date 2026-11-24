@@ -54,6 +54,7 @@ export async function GET(req) {
     // 2. Consulta pedidos no Supabase para calcular a cota real
     const supabase = getSupabaseEdge(env);
     let matches = [];
+    let consulta = 'sem_banco';
 
     if (supabase) {
       const resultado = await buscarPedidosDaPessoa(supabase, {
@@ -61,6 +62,11 @@ export async function GET(req) {
         email: hasValidEmail ? email : '',
       });
       matches = resultado.pedidos;
+      // Só o código HTTP (sem mensagem do banco nem dado de cliente): mostra se a trava está
+      // consultando de verdade. Em 23/11/2026 ela contava 0 para todo mundo sem dar sinal.
+      consulta = resultado.erro
+        ? `erro_${(String(resultado.erro).match(/HTTP (\d{3})/) || [])[1] || 'rede'}`
+        : (resultado.planoB ? 'ok_plano_b' : 'ok');
       if (resultado.erro) {
         console.warn('[check-limit] Erro ao consultar pedidos no Supabase:', resultado.erro);
       }
@@ -77,6 +83,7 @@ export async function GET(req) {
       restantes: cota.restantes,
       manualBlock: false,
       reason: cota.bloqueado ? 'cota_excedida' : null,
+      consulta,
     });
   } catch (error) {
     console.error('[check-limit] Falha ao verificar cota:', error.message);

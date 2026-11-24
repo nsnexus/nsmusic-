@@ -5,12 +5,15 @@
 // (23/11/2026). Este fake lê a URL de verdade e entende só os filtros usados pela cota.
 // Filtro que ele não conhece => 400, como o servidor real faria com algo malformado.
 
-export function criarFakePostgrest(getRows) {
+export function criarFakePostgrest(getRows, { semColunaDigitos = false } = {}) {
   return async (input) => {
     const url = new URL(typeof input === 'string' ? input : input.url);
     let rows = [...getRows()];
     for (const [col, expr] of url.searchParams.entries()) {
       if (['select', 'limit', 'order', 'offset'].includes(col)) continue;
+      if (semColunaDigitos && col === 'customer_phone_digits') {
+        return new Response(JSON.stringify({ message: 'column orders.customer_phone_digits does not exist' }), { status: 400 });
+      }
       if (col === 'or') {
         return new Response(JSON.stringify({ message: 'failed to parse logic tree' }), { status: 400 });
       }
