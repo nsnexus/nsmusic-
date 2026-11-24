@@ -98,13 +98,33 @@ export async function POST(req) {
           throw new Error('Efí está em homologação no domínio público. Recusando QR não pagável.');
         }
 
-        const existing = await getChargeStatus(intent.txid, env);
+        // PIX novo (reserva sem QR salvo): vai direto criar, sem consultar antes. A consulta extra
+        // era uma ida a mais à Efí em todo PIX novo e, com a Efí lenta, empurrava o tempo para perto
+        // do limite de 8 s do Worker de mTLS (clientes relatando falha ao gerar o PIX, 23/11/2026).
+        // Se a criação falhar porque a cobrança já existe (tentativa anterior criou e não salvou),
+        // a consulta abaixo recupera.
+        let existing = null;
+        if (!intent.qr_code) {
+          try {
+            const nova = await createPixCharge({
+              orderId: existingOrderData.id, amount,
+              description: `Pedido NS Music ${existingOrderData.id}`,
+              txid: intent.txid,
+            }, env);
+            if (nova?.pixCopiaECola && nova.status === 'ATIVA') charge = nova;
+          } catch (erroCriacao) {
+            console.warn('[payments/create] Criação direta falhou; consultando a cobrança:', erroCriacao.message);
+          }
+        }
+        if (!charge) existing = await getChargeStatus(intent.txid, env);
         if (existing?.status === 'CONCLUIDA') {
           return NextResponse.json({
             error: 'Já existe um pagamento concluído para este pedido. Atualize a página para verificar a liberação.',
           }, { status: 409 });
         }
-        if (existing) {
+        if (charge) {
+          // Criada agora, direto.
+        } else if (existing) {
           // status ATIVA sozinho NÃO garante que o QR ainda é pagável:
           // calendario.criacao + expiracao pode ter vencido.
           if (!cobrancaEfiAindaPagavel(existing)) {

@@ -39,7 +39,9 @@ export function calcularCotaPorIp(pedidos) {
  * true se este IP já gerou pedidos demais sem pagar nas últimas 24 h.
  * Falha aberta (false) em erro de consulta, igual à cota por contato: não derruba a venda por falha técnica.
  */
-export async function isBlockedByIpLimit(ip, env = {}) {
+// `opcoes.ignorarPedido` (número do pedido): na geração da música o pedido já existe e não pode
+// contar contra ele mesmo — senão o último pedido permitido era criado e a música falhava.
+export async function isBlockedByIpLimit(ip, env = {}, opcoes = {}) {
   const ipNorm = normalizarIp(ip);
   if (!ipNorm) return false;
   const supabase = getSupabaseEdge(env);
@@ -61,6 +63,7 @@ export async function isBlockedByIpLimit(ip, env = {}) {
     }
     const pedidos = (Array.isArray(data) ? data : [])
       .filter((o) => !o.is_second_generation && o.paid_sku !== 'segunda_geracao_bonus')
+      .filter((o) => !opcoes.ignorarPedido || o.order_number !== opcoes.ignorarPedido)
       .map((o) => ({ paymentStatus: o.payment_status }));
     return calcularCotaPorIp(pedidos).bloqueado;
   } catch (e) {

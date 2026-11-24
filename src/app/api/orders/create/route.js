@@ -18,7 +18,9 @@ export { generateUniqueOrderNumber };
 // Cota de gerações por telefone/e-mail: 5 músicas grátis. A cada compra paga, acrescenta mais 5 à cota
 // (ver src/lib/cotaGeracoes.js). Se o cliente gerou 5 músicas e não pagou nenhuma, o bloqueio automático
 // é acionado para impedir abuso e custos desnecessários com a API Suno/Kie.ai.
-export async function isBlockedByFreeLimit(phone, email, env = {}) {
+// `opcoes.ignorarPedido` (número do pedido): usado na geração da música, quando o pedido já existe
+// e não pode contar contra ele mesmo (ver suno/generate).
+export async function isBlockedByFreeLimit(phone, email, env = {}, opcoes = {}) {
   const digits = phone ? phone.replace(/\D/g, '') : '';
   const hasEmail = Boolean(email && email.includes('@'));
 
@@ -37,7 +39,8 @@ export async function isBlockedByFreeLimit(phone, email, env = {}) {
       if (pedidos.length === 0) return false;
     }
     const resetAt = phone ? await lerResetDeCota(phone, env) : '';
-    return Boolean(calcularCota(pedidos, { resetAt }).bloqueado);
+    const contados = opcoes.ignorarPedido ? pedidos.filter((p) => p.orderNumber !== opcoes.ignorarPedido) : pedidos;
+    return Boolean(calcularCota(contados, { resetAt }).bloqueado);
   } catch (e) {
     console.warn('[isBlockedByFreeLimit] Exceção ao verificar cota:', e.message);
   }

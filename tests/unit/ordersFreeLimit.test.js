@@ -86,6 +86,12 @@ describe('isBlockedByFreeLimit', () => {
     expect(await isBlockedByFreeLimit('89981232236', '')).toBe(true);
   });
 
+  it('na geração da música, o próprio pedido não conta contra ele (5º pedido grátis gera)', async () => {
+    rows = Array.from({ length: 5 }, (_, i) => linhaPedido({ n: `NS-${i}`, phone: '(11) 99999-9999' }));
+    expect(await isBlockedByFreeLimit('11999999999', '')).toBe(true); // criar o 6º: bloqueia
+    expect(await isBlockedByFreeLimit('11999999999', '', {}, { ignorarPedido: 'NS-4' })).toBe(false); // gerar o 5º: libera
+  });
+
   it('não conta a 2ª geração (bônus) de pedido pago', async () => {
     rows = [
       ...Array.from({ length: 4 }, (_, i) => linhaPedido({ n: i, phone: '(11) 99999-9999' })),

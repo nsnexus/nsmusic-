@@ -1,13 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-const state = vi.hoisted(() => ({ orders:{}, intents:[], records:[], reserveError:false, nextId:0, provider:vi.fn(), charges:{}, efiFails:false, infinitepayFails:false, efiMode:'production' }));
+const state = vi.hoisted(() => ({ orders:{}, intents:[], records:[], reserveError:false, nextId:0, provider:vi.fn(), charges:{}, efiFails:false, infinitepayFails:false, efiMode:'production', statusCalls:0, jaExiste:false }));
 vi.mock('@/lib/supabaseDb',()=>({ getOrder:async id=>state.orders[id]||null,updateOrder:async()=>true }));
 vi.mock('@/lib/efi',()=>({
   generateTxid:()=> 'A'.repeat(26),
   getEfiMode:()=> state.efiMode,
-  getChargeStatus:async txid=>state.charges[txid] || null,
+  getChargeStatus:async txid=>{ state.statusCalls++; return state.charges[txid] || null; },
   createPixCharge:async args=>{
     state.provider(args);
     if (state.efiFails) throw new Error('Efí indisponível');
+    if (state.jaExiste) { state.jaExiste=false; throw new Error('txid já utilizado'); }
     const charge = { txid:args.txid, pixCopiaECola:'code-'+args.txid,status:'ATIVA' };
     state.charges[args.txid] = {
       ...charge, calendario: { criacao: new Date().toISOString(), expiracao:3600 },
@@ -40,13 +41,30 @@ vi.mock('@/lib/supabase-edge',()=>({getSupabaseEdge:()=>({
 })}));
 const {POST}=await import('@/app/api/payments/create/route');
 const request=body=>({json:async()=>body});
-beforeEach(()=>{state.orders={order1:{id:'order1'}};state.intents=[];state.records=[];state.nextId=0;state.reserveError=false;state.charges={};state.efiFails=false;state.infinitepayFails=false;state.efiMode='production';state.provider.mockClear();});
+beforeEach(()=>{state.orders={order1:{id:'order1'}};state.intents=[];state.records=[];state.nextId=0;state.reserveError=false;state.charges={};state.efiFails=false;state.infinitepayFails=false;state.efiMode='production';state.statusCalls=0;state.jaExiste=false;state.provider.mockClear();});
 describe('PIX com reserva persistida',()=>{
   it('deriva preço do catálogo e registra o vínculo ao pedido',async()=>{
     const res=await POST(request({orderId:'order1',sku:'audio_only',totalAmount:0.01}));
     expect(res.status).toBe(200);
     expect(state.provider).toHaveBeenCalledWith(expect.objectContaining({amount:9.99,orderId:'order1'}));
     expect(state.records[0]).toMatchObject({p_order_id:'order1',p_sku:'audio_only',p_amount:9.99});
+  });
+  it('PIX novo vai direto criar, sem consultar a Efí antes (uma ida a menos)',async()=>{
+    const res=await POST(request({orderId:'order1',sku:'combo'}));
+    expect(res.status).toBe(200);
+    expect((await res.json()).provider).toBe('efi');
+    expect(state.statusCalls).toBe(0);
+    expect(state.provider).toHaveBeenCalledTimes(1);
+  });
+  it('se a criação falha porque a cobrança já existe, recupera pela consulta',async()=>{
+    state.charges['A'.repeat(25)+'1']={ txid:'A'.repeat(25)+'1', pixCopiaECola:'code-existente', status:'ATIVA', calendario:{ criacao:new Date().toISOString(), expiracao:3600 } };
+    state.jaExiste=true;
+    const res=await POST(request({orderId:'order1',sku:'audio_only'}));
+    const data=await res.json();
+    expect(res.status).toBe(200);
+    expect(data.provider).toBe('efi');
+    expect(data.qrCode).toBe('code-existente');
+    expect(state.statusCalls).toBe(1);
   });
   it('reutiliza a cobrança ao repetir o clique',async()=>{
     const a=await POST(request({orderId:'order1',sku:'audio_only'}));
