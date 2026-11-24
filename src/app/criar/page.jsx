@@ -28,6 +28,7 @@ import { normalizeBrazilPhoneDigits, formatarTelefoneBr } from '@/lib/telefoneBr
 import PacotesCompactos from '@/components/delivery/PacotesCompactos';
 import { deliveryPackages, formatBrl } from '@/lib/deliveryPackages';
 import { Zap, Copy, CheckCircle2, CreditCard, Loader2 } from 'lucide-react';
+import { copiarTexto, selecionarCampo } from '@/lib/copiarTexto';
 
 // Tempo na tela de produção depois do qual o cliente sempre ganha uma saída (conferir de novo,
 // recomeçar ou chamar no WhatsApp). Maior que o corte de 6 min do polling de propósito: só entra
@@ -1884,43 +1885,6 @@ export default function CriarMusica() {
     return 'Músicas prontas! Carregando suas prévias exclusivas...';
   };
 
-  const copyPixAction = (targetEl) => {
-    if (!pixInfo?.qrCode) return;
-    try {
-      if (targetEl && typeof targetEl.select === 'function') {
-        targetEl.select();
-      }
-    } catch (_) {}
-
-    let copiedOk = false;
-    try {
-      if (navigator?.clipboard?.writeText) {
-        navigator.clipboard.writeText(pixInfo.qrCode);
-        copiedOk = true;
-      }
-    } catch (_) {}
-
-    if (!copiedOk) {
-      try {
-        const tempArea = document.createElement('textarea');
-        tempArea.value = pixInfo.qrCode;
-        tempArea.setAttribute('readonly', '');
-        tempArea.style.position = 'absolute';
-        tempArea.style.left = '-9999px';
-        document.body.appendChild(tempArea);
-        tempArea.select();
-        document.execCommand('copy');
-        document.body.removeChild(tempArea);
-        copiedOk = true;
-      } catch (_) {}
-    }
-
-    if (copiedOk) {
-      setPixCopied(true);
-      setTimeout(() => setPixCopied(false), 3000);
-    }
-  };
-
   const handleSelectPackage = (sku) => {
     setSelectedPackageSku(sku);
     setFormData(prev => ({ ...prev, selectedPackage: sku }));
@@ -2672,44 +2636,22 @@ export default function CriarMusica() {
                         </div>
 
                         {(() => {
-                          const copyPixAction = (targetEl) => {
+                          const copyPixAction = async () => {
                             if (!pixInfo?.qrCode) return;
-                            try {
-                              if (targetEl && typeof targetEl.select === 'function') {
-                                targetEl.select();
-                              }
-                            } catch (_) {}
-
-                            let copiedOk = false;
-                            try {
-                              if (navigator?.clipboard?.writeText) {
-                                navigator.clipboard.writeText(pixInfo.qrCode);
-                                copiedOk = true;
-                              }
-                            } catch (_) {}
-
-                            if (!copiedOk) {
-                              try {
-                                const tempArea = document.createElement('textarea');
-                                tempArea.value = pixInfo.qrCode;
-                                tempArea.setAttribute('readonly', '');
-                                tempArea.style.position = 'absolute';
-                                tempArea.style.left = '-9999px';
-                                document.body.appendChild(tempArea);
-                                tempArea.select();
-                                document.execCommand('copy');
-                                document.body.removeChild(tempArea);
-                              } catch (_) {}
-                            }
-
-                            setPixCopied(true);
-                            setTimeout(() => setPixCopied(false), 3000);
+                            // Registra a intenção mesmo se a cópia falhar: o cliente tentou pagar.
                             if (orderId) {
                               fetch('/api/payments/pix-copied', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ orderId }),
                               }).catch(() => {});
+                            }
+                            const ok = await copiarTexto(pixInfo.qrCode);
+                            if (ok) {
+                              setPixCopied(true);
+                              setTimeout(() => setPixCopied(false), 3000);
+                            } else {
+                              selecionarCampo(document.getElementById('pix-copia-cola-criar'));
                             }
                           };
 
@@ -2726,7 +2668,7 @@ export default function CriarMusica() {
                                   id="pix-copia-cola-criar"
                                   readOnly
                                   value={pixInfo.qrCode || ''}
-                                  onClick={(e) => copyPixAction(e.target)}
+                                  onClick={() => copyPixAction()}
                                   title="Clique para copiar o código Pix"
                                   style={{
                                     width: '100%',
@@ -2748,7 +2690,7 @@ export default function CriarMusica() {
 
                               <button
                                 type="button"
-                                onClick={(e) => copyPixAction(e.currentTarget)}
+                                onClick={() => copyPixAction()}
                                 style={{
                                   width: '100%',
                                   padding: '14px',

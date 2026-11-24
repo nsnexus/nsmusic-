@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { requestPixCharge } from '@/lib/pixCheckout';
 import PixQrCode from './PixQrCode';
+import { copiarTexto, selecionarCampo } from '@/lib/copiarTexto';
 import { useWhatsappSuporte, linkWhatsapp } from '@/lib/useWhatsappSuporte';
 import { buildAudioProxySrc } from '@/lib/audioProxy';
 
@@ -18,6 +19,18 @@ export default function KaraokeAddonCard({ orderId, order }) {
   const [unlocked, setUnlocked] = useState(false);
   const [pollingTimedOut, setPollingTimedOut] = useState(false);
   const [pixCopied, setPixCopied] = useState(false);
+
+  // Só mostra "Copiado!" se copiou mesmo (ver src/lib/copiarTexto.js).
+  const copiarPix = async () => {
+    if (!pixInfo?.qrCode) return;
+    const ok = await copiarTexto(pixInfo.qrCode);
+    if (ok) {
+      setPixCopied(true);
+      setTimeout(() => setPixCopied(false), 3000);
+    } else {
+      selecionarCampo(document.getElementById(''));
+    }
+  };
 
   // Estados locais da renderização do karaokê
   const [localKaraokeStatus, setLocalKaraokeStatus] = useState(order?.karaokeStatus || null);
@@ -353,11 +366,7 @@ export default function KaraokeAddonCard({ orderId, order }) {
               <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
                 <button
                   type="button"
-                  onClick={() => {
-                    navigator.clipboard.writeText(pixInfo.qrCode);
-                    setPixCopied(true);
-                    setTimeout(() => setPixCopied(false), 3000);
-                  }}
+                  onClick={() => copiarPix()}
                   className="btn btn-secondary"
                   style={{ fontSize: '0.85rem', padding: '8px 16px' }}
                 >

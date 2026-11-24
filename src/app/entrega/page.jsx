@@ -39,6 +39,7 @@ import { seloRedes, SeloRedesEstilo } from '@/lib/deliveryPackages';
 import OfertaLivroInfantil from '@/components/delivery/OfertaLivroInfantil';
 import DeliveryExperience from '@/components/delivery/DeliveryExperience';
 import InAppBrowserBanner from '@/components/delivery/InAppBrowserBanner';
+import { copiarTexto, selecionarCampo } from '@/lib/copiarTexto';
 
 // Otimização de bundle: carregamento sob demanda dos editores e modais pesados
 const VideoEditor = dynamic(() => import('@/components/delivery/VideoEditor'), { ssr: false });
@@ -950,6 +951,20 @@ function EntregaContent() {
   // trava o cliente sem saída.
   // Carimba a intenção de pagar (ver api/payments/pix-copied) — nunca bloqueia a cópia em si: se a
   // rota falhar, o cliente já copiou o código do mesmo jeito.
+  // Só mostra "Copiado!" se copiou de verdade (no navegador do WhatsApp a cópia antiga falhava
+  // em silêncio e o cliente colava nada no banco). Se falhar, deixa o código selecionado na caixa.
+  const copiarPixMusica = async () => {
+    if (!pixInfo?.qrCode) return;
+    marcarPixCopiado(orderId);
+    const ok = await copiarTexto(pixInfo.qrCode);
+    if (ok) {
+      setPixCopied(true);
+      setTimeout(() => setPixCopied(false), 3000);
+    } else {
+      selecionarCampo(document.getElementById('pix-copia-cola-musica'));
+    }
+  };
+
   const marcarPixCopiado = (targetOrderId) => {
     if (!targetOrderId) return;
     fetch('/api/payments/pix-copied', {
@@ -3647,19 +3662,7 @@ function EntregaContent() {
                                   id="pix-copia-cola-musica"
                                   readOnly
                                   value={pixInfo.qrCode}
-                                  onClick={(e) => {
-                                    try { e.target?.select?.(); } catch (_) {}
-                                    if (pixInfo?.qrCode) {
-                                      try {
-                                        if (navigator?.clipboard?.writeText) {
-                                          navigator.clipboard.writeText(pixInfo.qrCode).catch(() => {});
-                                        }
-                                      } catch (_) {}
-                                      setPixCopied(true);
-                                      marcarPixCopiado(orderId);
-                                      setTimeout(() => setPixCopied(false), 3000);
-                                    }
-                                  }}
+                                  onClick={() => copiarPixMusica()}
                                   title="Clique para copiar o código Pix"
                                   style={{
                                     width: '100%',
@@ -3681,12 +3684,7 @@ function EntregaContent() {
                               <div style={{ display: 'flex', gap: '10px', width: '100%', flexWrap: 'wrap' }}>
                                 <button
                                   type="button"
-                                  onClick={() => {
-                                    navigator.clipboard.writeText(pixInfo.qrCode);
-                                    setPixCopied(true);
-                                    marcarPixCopiado(orderId);
-                                    setTimeout(() => setPixCopied(false), 3000);
-                                  }}
+                                  onClick={() => copiarPixMusica()}
                                   style={{
                                     flex: '1 1 140px',
                                     padding: '14px',
