@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-const state = vi.hoisted(() => ({ orders:{}, intents:[], records:[], reserveError:false, nextId:0, provider:vi.fn(), charges:{}, efiFails:false, infinitepayFails:false, efiMode:'production', statusCalls:0, jaExiste:false }));
+const state = vi.hoisted(() => ({ orders:{}, intents:[], records:[], reserveError:false, nextId:0, provider:vi.fn(), charges:{}, efiFails:false, infinitepayFails:false, efiMode:'production', statusCalls:0, jaExiste:false, avisos:[] }));
+vi.mock('@/lib/avisoPixEstatico',()=>({ avisarDonoPixEstatico:async(pedido,info)=>{ state.avisos.push({pedido:pedido.id,...info}); return true; } }));
 vi.mock('@/lib/supabaseDb',()=>({ getOrder:async id=>state.orders[id]||null,updateOrder:async()=>true }));
 vi.mock('@/lib/efi',()=>({
   generateTxid:()=> 'A'.repeat(26),
@@ -41,7 +42,7 @@ vi.mock('@/lib/supabase-edge',()=>({getSupabaseEdge:()=>({
 })}));
 const {POST}=await import('@/app/api/payments/create/route');
 const request=body=>({json:async()=>body});
-beforeEach(()=>{state.orders={order1:{id:'order1'}};state.intents=[];state.records=[];state.nextId=0;state.reserveError=false;state.charges={};state.efiFails=false;state.infinitepayFails=false;state.efiMode='production';state.statusCalls=0;state.jaExiste=false;state.provider.mockClear();});
+beforeEach(()=>{state.orders={order1:{id:'order1'}};state.intents=[];state.records=[];state.nextId=0;state.reserveError=false;state.charges={};state.efiFails=false;state.infinitepayFails=false;state.efiMode='production';state.statusCalls=0;state.jaExiste=false;state.avisos=[];state.provider.mockClear();});
 describe('PIX com reserva persistida',()=>{
   it('deriva preço do catálogo e registra o vínculo ao pedido',async()=>{
     const res=await POST(request({orderId:'order1',sku:'audio_only',totalAmount:0.01}));
@@ -65,6 +66,15 @@ describe('PIX com reserva persistida',()=>{
     expect(data.provider).toBe('efi');
     expect(data.qrCode).toBe('code-existente');
     expect(state.statusCalls).toBe(1);
+  });
+  it('PIX estático avisa o dono no WhatsApp uma vez só por cobrança',async()=>{
+    state.efiFails=true; state.infinitepayFails=true;
+    const a=await POST(request({orderId:'order1',sku:'audio_only'}));
+    expect(a.status).toBe(200);
+    expect((await a.json()).provider).toBe('static');
+    expect(state.avisos).toEqual([{pedido:'order1',sku:'audio_only',valor:9.99}]);
+    await POST(request({orderId:'order1',sku:'audio_only'}));
+    expect(state.avisos).toHaveLength(1);
   });
   it('reutiliza a cobrança ao repetir o clique',async()=>{
     const a=await POST(request({orderId:'order1',sku:'audio_only'}));
