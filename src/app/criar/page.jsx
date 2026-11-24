@@ -1096,7 +1096,7 @@ export default function CriarMusica() {
       return;
     }
     if (!formData.customerPhone || !isPhoneValid(formData.customerPhone)) {
-      setCreationError('Por favor, informe um WhatsApp válido com DDD na Etapa 4 para receber o link da sua música.');
+      setCreationError('Por favor, informe um WhatsApp válido com DDD na Etapa 4 — é com ele que você acha sua música depois.');
       setStep(4);
       return;
     }

@@ -126,7 +126,7 @@ export default function LoginPage() {
 
     if (isSignUp) {
       if (!phone.trim() || !isPhoneValid(phone)) {
-        setError('Por favor, informe seu WhatsApp com DDD (ex: 11 98888-7777). O número é obrigatório para você receber o link da sua música gravada.');
+        setError('Por favor, informe seu WhatsApp com DDD (ex: 11 98888-7777). O número é obrigatório: é com ele que você acha suas músicas depois.');
         return;
       }
     }

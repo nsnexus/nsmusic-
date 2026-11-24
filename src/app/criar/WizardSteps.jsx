@@ -736,7 +736,7 @@ export default function WizardSteps({
         <div style={{ maxWidth: '860px', margin: '0 auto' }}>
           <h1 style={styles.stepTitle}>Resumo da Composição & Envio 🎶</h1>
           <p style={styles.stepSubtitle}>
-            Confira como ficou seu pedido, adicione a foto de capa e informe seu WhatsApp para receber o link.
+            Confira como ficou seu pedido, adicione a foto de capa e informe seu WhatsApp (é com ele que você acha sua música depois).
           </p>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
@@ -1079,7 +1079,7 @@ export default function WizardSteps({
                 >
                   <span style={{ fontSize: '1.25rem', flexShrink: 0, marginTop: '1px' }}>ℹ️</span>
                   <p style={{ margin: 0, fontSize: '0.82rem', color: '#166534', lineHeight: '1.45' }}>
-                    <strong>Como funciona o envio:</strong> Você poderá ouvir a prévia completa no próximo passo, e também enviaremos o <strong>link de acompanhamento e download</strong> diretamente no seu WhatsApp!
+                    <strong>Como funciona o envio:</strong> Você ouve a prévia completa no próximo passo. Depois, é só entrar em <strong>Minhas músicas</strong> com o seu WhatsApp para ouvir e baixar quando quiser.
                   </p>
                 </div>
 
