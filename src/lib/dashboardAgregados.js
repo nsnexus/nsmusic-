@@ -18,11 +18,14 @@ export const PRODUTOS_VENDAS = [
   { chave: 'playbacks', label: '🎧 Playback', sku: 'playback_addon' },
   { chave: 'cartas', label: '💌 Cartas', sku: 'carta_addon' },
   { chave: 'retrospectivas', label: '📖 Retrospectivas', sku: 'retrospectiva_addon' },
+  // Voz clonada: add-on avulso (custom_voice_addon) ou junto no pacote (combo_voz).
+  { chave: 'vozes', label: '🎤 Voz clonada', sku: 'custom_voice_addon' },
+  { chave: 'familias', label: '👨‍👩‍👧 Pacote Família', sku: 'combo_familia' },
 ];
 
 export const linhaVendasVazia = (dia) => ({
   dia,
-  musicas: 0, videos: 0, playbacks: 0, cartas: 0, retrospectivas: 0,
+  musicas: 0, videos: 0, playbacks: 0, cartas: 0, retrospectivas: 0, vozes: 0, familias: 0,
   geracoes: 0, pedidosCriados: 0, pedidosComMusica: 0, pedidosPagos: 0,
   faturamento: 0,
 });
@@ -54,6 +57,7 @@ export function calcularVendasPorDia(pedidos, ano, mesNum) {
   const precoPlaybackPadrao = getPriceForSku('playback_addon') || 4.99;
   const precoCartaPadrao = getPriceForSku('carta_addon') || 4.99;
   const precoRetroPadrao = getPriceForSku('retrospectiva_addon') || 14.90;
+  const precoVozPadrao = getPriceForSku('custom_voice_addon') || 14.90;
 
   for (const o of pedidos || []) {
     if (!o) continue;
@@ -116,6 +120,23 @@ export function calcularVendasPorDia(pedidos, ano, mesNum) {
         if (isStripePayment(o.retrospectivaPaymentId)) valor = Math.max(0, valor - calculateStripeFee(valor));
         somarFaturamento(o.retrospectivaPaidAt || o.paidAt || o.createdAt, valor);
       }
+    }
+
+    // Voz clonada: conta quem tem a voz liberada (avulsa ou no pacote combo_voz). Só a compra
+    // AVULSA entra no faturamento aqui; no pacote, o valor já está no da música (paidAmount).
+    if (o.customVoiceAddonPaid || o.hasCustomVoiceAccess) {
+      somar('vozes', o.customVoicePaidAt || o.paidAt);
+      if (o.customVoicePaymentId) {
+        const v = Number(o.customVoicePaidAmount);
+        let valor = (Number.isFinite(v) && v > 0) ? v : precoVozPadrao;
+        if (isStripePayment(o.customVoicePaymentId)) valor = Math.max(0, valor - calculateStripeFee(valor));
+        somarFaturamento(o.customVoicePaidAt || o.paidAt || o.createdAt, valor);
+      }
+    }
+
+    // Pacote Família: é a compra principal (paidSku), o valor já está no da música.
+    if (musicaPaga && (o.paidSku === 'combo_familia' || o.paymentIntentSku === 'combo_familia')) {
+      somar('familias', o.paidAt || o.createdAt);
     }
 
     // 3. Gerações e conversão por data de CRIAÇÃO do pedido

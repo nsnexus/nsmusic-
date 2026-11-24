@@ -46,7 +46,8 @@ export default function VendasPorDiaTable({
 
     const KIE_COST_PER_GENERATION = 0.30;
     const totaisCalc = porDiaList.reduce((acc, linha) => {
-      for (const { chave } of PRODUTOS) acc[chave] += linha[chave];
+      // Dias guardados antes das colunas Voz clonada / Pacote Família não têm esses campos.
+      for (const { chave } of PRODUTOS) acc[chave] += Number(linha[chave]) || 0;
       acc.geracoes += linha.geracoes;
       acc.geracoesBot = (acc.geracoesBot || 0) + (linha.geracoesBot || 0);
       acc.geracoesKie = (acc.geracoesKie || 0) + (linha.geracoesKie || 0);
@@ -57,7 +58,7 @@ export default function VendasPorDiaTable({
       acc.gasto += (linha.geracoesKie || 0) * KIE_COST_PER_GENERATION;
       acc.economiaBot = (acc.economiaBot || 0) + ((linha.geracoesBot || 0) * KIE_COST_PER_GENERATION);
       return acc;
-    }, { musicas: 0, videos: 0, playbacks: 0, cartas: 0, retrospectivas: 0, geracoes: 0, geracoesBot: 0, geracoesKie: 0, pedidosCriados: 0, pedidosComMusica: 0, pedidosPagos: 0, faturamento: 0, gasto: 0, economiaBot: 0 });
+    }, { musicas: 0, videos: 0, playbacks: 0, cartas: 0, retrospectivas: 0, vozes: 0, familias: 0, geracoes: 0, geracoesBot: 0, geracoesKie: 0, pedidosCriados: 0, pedidosComMusica: 0, pedidosPagos: 0, faturamento: 0, gasto: 0, economiaBot: 0 });
 
     totaisCalc.faturamento = Math.round(totaisCalc.faturamento * 100) / 100;
 
@@ -123,7 +124,7 @@ export default function VendasPorDiaTable({
             </thead>
             <tbody>
               {linhasVisiveis.map((linha) => {
-                const totalDia = PRODUTOS.reduce((s, p) => s + linha[p.chave], 0);
+                const totalDia = PRODUTOS.filter((p) => p.chave !== 'familias').reduce((s, p) => s + (Number(linha[p.chave]) || 0), 0);
                 const conv = conversaoDia(linha);
                 return (
                   <tr key={linha.dia} style={{ borderBottom: '1px solid #f1f5f9' }}>
@@ -158,7 +159,8 @@ export default function VendasPorDiaTable({
                   </td>
                 ))}
                 <td style={{ textAlign: 'right', padding: '9px 10px', fontWeight: '800', color: '#059669' }}>
-                  {Object.values({ musicas: totais.musicas, videos: totais.videos, playbacks: totais.playbacks, cartas: totais.cartas, retrospectivas: totais.retrospectivas }).reduce((a, b) => a + b, 0)}
+                  {/* Pacote Família não soma de novo: já é a música daquela venda. */}
+                  {PRODUTOS.filter((p) => p.chave !== 'familias').reduce((a, p) => a + (totais[p.chave] || 0), 0)}
                 </td>
                 <td style={{ textAlign: 'right', padding: '9px 10px', fontWeight: '800', color: '#059669' }}>
                   {fmtMoeda(totais.faturamento)}

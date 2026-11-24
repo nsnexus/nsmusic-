@@ -12,6 +12,7 @@ import KieCreditsBadge from '@/components/admin/KieCreditsBadge';
 import UnificallyCreditsBadge from '@/components/admin/UnificallyCreditsBadge';
 import WhatsAppUsageBadge from '@/components/admin/WhatsAppUsageBadge';
 import ComoEstaODia from '@/components/admin/ComoEstaODia';
+import RoasCard from '@/components/admin/RoasCard';
 import { Package, BarChart3, Megaphone, Mail, LogOut } from 'lucide-react';
 
 // Componentes pesados carregados sob demanda (code-splitting) para reduzir First Load JS
@@ -192,6 +193,11 @@ export default function AdminDashboard() {
           </div>
 
           {periodo === 'hoje' && <ComoEstaODia />}
+          {periodo !== 'ritmo' && (
+            <div style={{ marginBottom: '24px' }}>
+              <RoasCard mes={periodo === 'mes' ? monthValue : diaSp().slice(0, 7)} />
+            </div>
+          )}
 
           {resumo?.dia && (
             <time dateTime={resumo.dia} style={{ display: 'block', color: '#475569', marginBottom: '12px' }}>
