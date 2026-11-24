@@ -14,9 +14,11 @@ const IMPACTO_MAX_AMOUNT = 1000;
 export async function POST(req) {
   try {
     let env = {};
+    let emSegundoPlano = (p) => p;
     try {
       const ctx = getRequestContext();
       if (ctx?.env) env = ctx.env;
+      if (ctx?.ctx?.waitUntil) emSegundoPlano = (p) => ctx.ctx.waitUntil(p);
     } catch (e) {}
 
     const body = await req.json();
@@ -171,6 +173,11 @@ export async function POST(req) {
           // o comportamento do checkout principal neste reparo do vídeo.
           charge = generateStaticPixPayload(amount, existingOrderData.id, undefined, intent.txid);
           provider = 'static';
+          // Avisa o dono (só na 1ª vez desta cobrança): PIX estático não é confirmado sozinho.
+          if (intent.provider !== 'static') {
+            const { avisarDonoPixEstatico } = await import('@/lib/avisoPixEstatico');
+            emSegundoPlano(avisarDonoPixEstatico(existingOrderData, { sku, valor: amount }, env));
+          }
         }
       }
       if (!charge?.pixCopiaECola && !charge?.checkoutUrl) {
