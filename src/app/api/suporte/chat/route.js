@@ -8,6 +8,7 @@ import {
   acaoMusicaNovaPronta, dadosDoCliente, reescreverLetra, listaDePedidos, transcricaoValida, gruposDoNumero, contextoDoPedido,
 } from '@/lib/suporteChat';
 import { extrairDadosDaHistoria } from '@/lib/suporteNovaMusica';
+import { registrarConversa } from '@/lib/suporteHistorico';
 
 export const runtime = 'edge';
 
@@ -19,6 +20,8 @@ const ACOES = new Set([
   'identificar', 'inicio', 'opcao', 'texto', 'audio', 'comprovante', 'pago', 'ajuste_pago', 'nova_versao',
   // Música nova pelo chat (roteiro em src/lib/novaMusicaChat.js):
   'nova_extrair', 'nova_ajustar_letra', 'transcrever', 'nova_dados', 'musica_pronta',
+  // Histórico para a aba Atendimentos do painel (src/lib/suporteHistorico.js):
+  'registrar',
 ]);
 const MAX_AUDIO_BASE64 = 3 * 1024 * 1024;
 
@@ -64,6 +67,12 @@ export async function POST(req) {
         return json({ ok: true, mensagens: [lista], escolherPedido: lista.opcoes });
       }
       return json({ ok: true, orderId: pedido.id, mensagens: saudacao(pedido, await contextoDoPedido(pedido, env)) });
+    }
+
+    if (acao === 'registrar') {
+      const orderIdLog = orderIdValido(String(body.orderId || '')) ? String(body.orderId) : '';
+      const r = await registrarConversa({ conversaId: body.conversaId, orderId: orderIdLog, mensagens: body.mensagens, marcas: body.marcas }, env);
+      return json({ ok: r.ok });
     }
 
     // Sem pedido: cliente novo criando música pelo chat.

@@ -7,6 +7,7 @@ import { useWhatsappSuporte, linkWhatsapp } from '@/lib/useWhatsappSuporte';
 import { pareceTelefone } from '@/lib/novaMusicaChat';
 import { useNovaMusica } from './useNovaMusica';
 import { FUNDO_CHAT } from './papelDeParede';
+import { useHistorico } from './useHistorico';
 
 // Chat de suporte do site (/suporte), com cara de WhatsApp. Toda decisão fica no servidor
 // (/api/suporte/chat); aqui só desenhamos as mensagens, guardamos o "modo" da conversa e
@@ -51,6 +52,7 @@ export default function ChatSuporte({ pedidoInicial }) {
   const fimRef = useRef(null);
   const montado = useRef(true);
   const numeroSuporte = useWhatsappSuporte();
+  const historico = useHistorico(orderId);
 
   useEffect(() => () => { montado.current = false; }, []);
   useEffect(() => { fimRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, [mensagens, digitando]);
@@ -58,10 +60,11 @@ export default function ChatSuporte({ pedidoInicial }) {
   const adicionar = useCallback((lista, de = 'bot') => {
     const novas = lista.map((m) => ({ ...m, de, id: ++contador.current, hora: agora() }));
     setMensagens((atual) => [...atual, ...novas]);
+    historico.registrar(novas);
     const comOpcoes = [...novas].reverse().find((m) => Array.isArray(m.opcoes) && m.opcoes.length);
     if (de === 'bot' && comOpcoes) setOpcoesDe(comOpcoes.id);
     if (de === 'eu') setOpcoesDe(null);
-  }, []);
+  }, [historico]);
 
   const mostrarRespostas = useCallback(async (lista) => {
     for (const m of lista) {
@@ -74,11 +77,12 @@ export default function ChatSuporte({ pedidoInicial }) {
   }, [adicionar]);
 
   const aoCriarPedido = useCallback((id, { gravando }) => {
+    historico.marcar('pedido_criado');
     setOrderId(id);
     salvarPedido(id);
     setModo(null);
     if (gravando) setAguardar({ tipo: 'musica_nova' });
-  }, []);
+  }, [historico]);
   const nova = useNovaMusica({ mostrarRespostas, setDigitando, orderId, aoCriarPedido });
 
   const gerarPixDoPedido = useCallback(async (id, sku) => {
@@ -119,14 +123,17 @@ export default function ChatSuporte({ pedidoInicial }) {
       }
       await mostrarRespostas(lista);
       if (data.gerarPix?.sku) await gerarPixDoPedido(data.orderId || id, data.gerarPix.sku);
-      if (data.aguardar) setAguardar(data.aguardar);
+      if (data.aguardar) {
+        if (data.aguardar.tipo === 'pagamento' && data.aguardar.kind === 'ajuste') historico.marcar('ajuste_pix');
+        setAguardar(data.aguardar);
+      }
       return data;
     } catch (_) {
       setDigitando(false);
       await mostrarRespostas([{ tipo: 'texto', texto: 'Sem conexão no momento. Confere sua internet e tenta de novo.' }]);
       return null;
     }
-  }, [orderId, adicionar, mostrarRespostas, gerarPixDoPedido]);
+  }, [orderId, adicionar, mostrarRespostas, gerarPixDoPedido, historico]);
 
   // Começo da conversa: pedido do link, ou o último usado neste aparelho, ou pergunta o WhatsApp.
   useEffect(() => {
@@ -161,6 +168,7 @@ export default function ChatSuporte({ pedidoInicial }) {
           if (!ativo) return;
           if (r.status === 'approved') {
             setAguardar(null);
+            historico.marcar(aguardar.kind === 'ajuste' ? 'ajuste_pago' : 'pedido_pago');
             chamar(aguardar.kind === 'ajuste' ? { acao: 'ajuste_pago', txid: aguardar.txid } : { acao: 'pago' });
             return;
           }
@@ -196,10 +204,13 @@ export default function ChatSuporte({ pedidoInicial }) {
     };
     timer = setTimeout(passo, aguardar.tipo === 'musica' ? INTERVALO_MUSICA_MS : INTERVALO_PAGAMENTO_MS);
     return () => { ativo = false; clearTimeout(timer); };
-  }, [aguardar, orderId, chamar, mostrarRespostas]);
+  }, [aguardar, orderId, chamar, mostrarRespostas, historico]);
 
   const escolher = (opcao) => {
     adicionar([{ tipo: 'texto', texto: opcao.label }], 'eu');
+    const marca = { criar_nova: 'musica_nova', humano_sem_pedido: 'humano' }[opcao.id]
+      || (['ritmo', 'letra', 'baixar', 'pagamento', 'criar', 'humano', 'ja_paguei'].includes(opcao.id) ? opcao.id : null);
+    historico.marcar(marca);
     if (opcao.id === 'tem_pedido') {
       nova.cancelar();
       setModo('telefone');
