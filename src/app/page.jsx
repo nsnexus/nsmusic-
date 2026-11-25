@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import HeroVideoBackground from '@/components/HeroVideoBackground';
 import Image from 'next/image';
-import { Sparkles, Gift, Headphones, Star, Clock, ShieldCheck, Music, Flame, Check, ChevronDown, Heart, BookOpen, Mail, ChevronRight } from 'lucide-react';
+import { Sparkles, Gift, Headphones, Star, Clock, ShieldCheck, Music, Flame, Check, ChevronDown, Heart } from 'lucide-react';
 import { faqJsonLd, howToJsonLd } from '@/lib/structuredData';
 import { ocasioes } from '@/lib/ocasioes';
 
@@ -286,36 +286,36 @@ export default function Home() {
             </Link>
           </div>
 
-          {/* Outros produtos (24/11/2026): Minhas músicas, Livros e Convites, abaixo do botão principal.
-              Linhas cheias estilo app (ícone + título + descrição + seta), no vidro escuro do hero. */}
-          <div className="hero-rise" style={{ display: 'grid', gap: '10px', width: '100%', maxWidth: '460px', marginTop: '16px', animationDelay: '0.4s' }}>
+          {/* Outros produtos (24/11/2026): cards com a imagem de cada produto, no estilo dos próprios
+              sites (Coruja Lulu e ns.convites) — imagem cheia, degradê escuro, título e "Abrir". */}
+          <div className="hero-rise" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '10px', width: '100%', maxWidth: '480px', marginTop: '18px', animationDelay: '0.4s' }}>
             {[
-              { href: '/conta', Icone: Headphones, titulo: 'Minhas músicas', texto: 'Ouça e baixe pelo seu WhatsApp', cor: '#38BDF8', externo: false },
-              { href: 'https://corujalulu.com.br', Icone: BookOpen, titulo: 'Livros infantis', texto: 'Histórias da Coruja Lulu', cor: '#A855F7', externo: true },
-              { href: 'https://convites.nsnexus.com.br', Icone: Mail, titulo: 'Convites digitais', texto: 'Aniversário, casamento e mais', cor: '#EC4899', externo: true },
-            ].map(({ href, Icone, titulo, texto, cor, externo }) => {
+              { href: '/conta', img: '/experiencia/familia.webp', selo: 'Suas', titulo: 'Minhas músicas', externo: false },
+              { href: 'https://corujalulu.com.br', img: 'https://corujalulu.com.br/images/exemplo-floresta.webp', selo: 'Coruja Lulu', titulo: 'Livros infantis', externo: true },
+              { href: 'https://convites.nsnexus.com.br', img: 'https://convites.nsnexus.com.br/modelos/c9803844.jpg', selo: 'Novo', titulo: 'Convites digitais', externo: true },
+            ].map(({ href, img, selo, titulo, externo }) => {
               const estilo = {
-                display: 'flex', alignItems: 'center', gap: '14px', padding: '12px 14px', borderRadius: '16px',
-                textDecoration: 'none', color: '#F4F1FF', textAlign: 'left',
-                background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.16)',
-                backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
+                position: 'relative', display: 'block', aspectRatio: '3 / 4', borderRadius: '18px', overflow: 'hidden',
+                textDecoration: 'none', color: '#fff', textAlign: 'left',
+                border: '2px solid rgba(255,255,255,0.22)', boxShadow: '0 10px 24px rgba(0,0,0,0.35)',
+                background: '#1b1530',
               };
               const conteudo = (
                 <>
-                  <span aria-hidden="true" style={{ flexShrink: 0, width: '42px', height: '42px', borderRadius: '12px', display: 'grid', placeItems: 'center', background: `${cor}26`, border: `1px solid ${cor}66` }}>
-                    <Icone size={20} color={cor} />
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={img} alt="" loading="lazy" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <span aria-hidden="true" style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(10,6,25,0.05) 30%, rgba(10,6,25,0.88) 100%)' }} />
+                  <span style={{ position: 'absolute', top: '8px', left: '8px', padding: '3px 8px', borderRadius: '999px', background: 'rgba(255,255,255,0.9)', color: '#4c2a85', fontSize: '0.62rem', fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase' }}>{selo}</span>
+                  <span style={{ position: 'absolute', left: '9px', right: '9px', bottom: '9px' }}>
+                    <strong style={{ display: 'block', fontSize: '0.86rem', lineHeight: 1.15, textShadow: '0 1px 6px rgba(0,0,0,0.6)' }}>{titulo}</strong>
+                    <span style={{ display: 'inline-block', marginTop: '6px', padding: '4px 10px', borderRadius: '999px', background: '#F6C343', color: '#29232d', fontSize: '0.72rem', fontWeight: 800 }}>Abrir →</span>
                   </span>
-                  <span style={{ flex: 1, minWidth: 0 }}>
-                    <strong style={{ display: 'block', fontSize: '0.98rem', lineHeight: 1.25 }}>{titulo}</strong>
-                    <span style={{ display: 'block', fontSize: '0.8rem', color: '#ADA3D9', lineHeight: 1.3 }}>{texto}</span>
-                  </span>
-                  <ChevronRight size={18} color="#ADA3D9" aria-hidden="true" />
                 </>
               );
               return externo ? (
-                <a key={titulo} href={href} target="_blank" rel="noopener" style={estilo}>{conteudo}</a>
+                <a key={titulo} href={href} target="_blank" rel="noopener" style={estilo} aria-label={titulo}>{conteudo}</a>
               ) : (
-                <Link key={titulo} href={href} style={estilo}>{conteudo}</Link>
+                <Link key={titulo} href={href} style={estilo} aria-label={titulo}>{conteudo}</Link>
               );
             })}
           </div>
