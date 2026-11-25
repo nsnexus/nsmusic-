@@ -46,6 +46,7 @@ export default function ChatSuporte({ pedidoInicial }) {
   const [aguardar, setAguardar] = useState(null);
   const [opcoesDe, setOpcoesDe] = useState(null);
   const contador = useRef(0);
+  const pedidosDoNumero = useRef([]);
   const fimRef = useRef(null);
   const montado = useRef(true);
   const numeroSuporte = useWhatsappSuporte();
@@ -108,7 +109,14 @@ export default function ChatSuporte({ pedidoInicial }) {
       if (data.orderId && data.orderId !== id) { setOrderId(data.orderId); salvarPedido(data.orderId); }
       setModo(data.modo || null);
       if (data.transcricao) adicionar([{ tipo: 'texto', texto: `🎤 “${data.transcricao}”` }], 'eu');
-      await mostrarRespostas(data.mensagens || []);
+      if (Array.isArray(data.escolherPedido)) pedidosDoNumero.current = data.escolherPedido;
+      let lista = data.mensagens || [];
+      // Número com vários pedidos: a saudação ganha a opção de voltar à lista.
+      if (payload.acao === 'inicio' && pedidosDoNumero.current.length > 1 && lista.length) {
+        const ultima = lista[lista.length - 1];
+        lista = [...lista.slice(0, -1), { ...ultima, opcoes: [...(ultima.opcoes || []), { id: 'trocar_pedido', label: 'Escolher outro pedido' }] }];
+      }
+      await mostrarRespostas(lista);
       if (data.gerarPix?.sku) await gerarPixDoPedido(data.orderId || id, data.gerarPix.sku);
       if (data.aguardar) setAguardar(data.aguardar);
       return data;
@@ -196,6 +204,19 @@ export default function ChatSuporte({ pedidoInicial }) {
       return;
     }
     if (opcao.id === 'criar_nova') { setModo(null); nova.iniciar(); return; }
+    if (opcao.id.startsWith('pedido:')) {
+      const id = opcao.id.slice(7);
+      setAguardar(null);
+      setOrderId(id);
+      salvarPedido(id);
+      setModo(null);
+      chamar({ acao: 'inicio' }, id);
+      return;
+    }
+    if (opcao.id === 'trocar_pedido') {
+      mostrarRespostas([{ tipo: 'texto', texto: 'Sobre qual pedido você quer falar?', opcoes: pedidosDoNumero.current }]);
+      return;
+    }
     if (nova.ativa && opcao.id.startsWith('nova')) { nova.responderOpcao(opcao); return; }
     if (opcao.id === 'humano_sem_pedido' || (opcao.id === 'humano' && !orderId)) {
       mostrarRespostas([{ tipo: 'whatsapp', url: linkWhatsapp(numeroSuporte, 'Olá! Vim do chat de suporte do site e não achei meu pedido.'), titulo: 'Falar com atendente no WhatsApp' }]);

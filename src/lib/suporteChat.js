@@ -15,7 +15,8 @@ import { criarCobrancaAjuste, SKU_AJUSTE, limparEstilo, assinaturaAudio } from '
 
 export { assinaturaAudio };
 import { findOrdersByPhone } from './orderLookup.js';
-import { pedidoLiberado, pedidosPagosComAudio, agruparComBonus } from './whatsappAdm.js';
+import { pedidoLiberado, pedidosPagosComAudio, agruparComBonus, dataHoraBr } from './whatsappAdm.js';
+import { isBonusOrder } from './trafficSource.js';
 import { bonusDisponivel } from './bonusAutomatico.js';
 import { getPriceForSku, skuApprovesMusic } from './pricing.js';
 import { getOrder, updateOrder } from './supabaseDb.js';
@@ -74,6 +75,20 @@ async function linkAtendente(pedido, env) {
   return `https://wa.me/${numero}?text=${encodeURIComponent(msg)}`;
 }
 
+/**
+ * Número com mais de um pedido: o cliente escolhe sobre qual quer falar antes de qualquer coisa
+ * (senão "mudar o ritmo" cairia no pedido errado).
+ */
+export function listaDePedidos(pedidos) {
+  const opcoes = pedidos.slice(0, 9).map((p) => {
+    const quando = dataHoraBr(p.createdAt).split(' às ')[0];
+    const situacao = pedidoEstaPago(p) ? 'paga' : isBonusOrder(p) ? 'bônus' : temAudio(p) ? 'aguardando pagamento' : 'em produção';
+    const nome = p.honoreeName ? `Música de ${String(p.honoreeName).slice(0, 30)}` : `Pedido ${p.orderNumber || ''}`.trim();
+    return { id: `pedido:${p.id}`, label: `${nome} · ${quando} · ${situacao}` };
+  });
+  return texto(`Achei ${pedidos.length} pedidos nesse número. Sobre qual deles você quer falar?`, opcoes);
+}
+
 export function saudacao(pedido) {
   const nome = primeiroNome(pedido.customerName);
   const de = pedido.honoreeName ? ` da música de *${pedido.honoreeName}*` : '';
@@ -105,9 +120,9 @@ async function acaoBaixar(pedido, env, { comPagamento = true } = {}) {
     mensagens: [
       texto(alvo.length > 1 ? `Achei ${alvo.length} músicas pagas suas. Aqui estão:` : 'Aqui está sua música, pode ouvir e baixar por aqui mesmo:'),
       ...alvo.flatMap((p) => arquivosDoPedido(p, assinaturaAudio(p))),
-      texto('Toque no arquivo pra salvar no celular. Se preferir, eu mando direto no seu WhatsApp.', [
-        { id: 'enviar_whatsapp', label: 'Mandar no meu WhatsApp' },
+      texto('Toque no arquivo pra salvar no celular. Se não baixar, toque nos três pontinhos (⋮) lá em cima e escolha *Abrir no navegador*, depois tente de novo.', [
         { id: 'menu', label: 'Consegui, obrigado!' },
+        MENU[5],
       ]),
     ],
   };
@@ -363,15 +378,6 @@ async function acaoHumano(pedido, env, motivo = '') {
   };
 }
 
-async function acaoEnviarWhatsapp(pedido, env, emSegundoPlano) {
-  if (!pedido.customerPhone) return acaoHumano(pedido, env);
-  const { enviarMusicasPeloChat } = await import('./whatsappAdm.js');
-  const envio = enviarMusicasPeloChat(pedido.customerPhone, env);
-  emSegundoPlano(envio);
-  const final = String(pedido.customerPhone).replace(/\D/g, '').slice(-4);
-  return { mensagens: [texto(`Pronto! Estou mandando suas músicas no seu WhatsApp (final ${final}), em MP3 e em áudio. Chegam em alguns instantes. 💚`), MAIS_ALGO] };
-}
-
 // ---------- Texto livre ----------
 
 async function interpretarTexto(pedido, mensagem, modo, env) {
@@ -400,7 +406,7 @@ async function interpretarTexto(pedido, mensagem, modo, env) {
  * Despacha uma ação do chat. `entrada`: { acao, opcao?, texto?, modo? }.
  * @returns {Promise<{mensagens: object[], modo?: string, aguardar?: object, gerarPix?: object}>}
  */
-export async function responderChat(pedido, entrada, env = {}, { emSegundoPlano = (p) => p } = {}) {
+export async function responderChat(pedido, entrada, env = {}) {
   const { acao, opcao } = entrada || {};
   if (acao === 'inicio') return { mensagens: saudacao(pedido) };
   if (acao === 'texto') return interpretarTexto(pedido, entrada.texto, entrada.modo, env);
@@ -416,7 +422,6 @@ export async function responderChat(pedido, entrada, env = {}, { emSegundoPlano 
     case 'letra': return acaoLetra(pedido);
     case 'letra_ok': return acaoLetraOk(pedido, env);
     case 'baixar': return acaoBaixar(pedido, env);
-    case 'enviar_whatsapp': return acaoEnviarWhatsapp(pedido, env, emSegundoPlano);
     case 'pagamento': return acaoPagamento(pedido, env);
     case 'ja_paguei': return acaoJaPaguei(pedido, env);
     case 'criar': return acaoCriar(pedido);

@@ -5,7 +5,7 @@ import { findOrdersByPhone } from '@/lib/orderLookup';
 import { transcribeAudioWithFailover } from '@/lib/transcribeAudio';
 import {
   responderChat, saudacao, acaoPago, acaoAjustePago, acaoNovaVersao, orderIdValido,
-  acaoMusicaNovaPronta, dadosDoCliente, reescreverLetra,
+  acaoMusicaNovaPronta, dadosDoCliente, reescreverLetra, listaDePedidos,
 } from '@/lib/suporteChat';
 import { extrairDadosDaHistoria } from '@/lib/suporteNovaMusica';
 
@@ -24,19 +24,17 @@ const MAX_AUDIO_BASE64 = 3 * 1024 * 1024;
 
 function lerAmbiente() {
   let env = {};
-  let emSegundoPlano = (p) => p;
   try {
     const ctx = getRequestContext();
     if (ctx?.env) env = ctx.env;
-    if (ctx?.ctx?.waitUntil) emSegundoPlano = (p) => ctx.ctx.waitUntil(p);
   } catch (e) { /* fora do runtime da Cloudflare (dev/testes) */ }
-  return { env, emSegundoPlano };
+  return { env };
 }
 
 const json = (data, status = 200) => NextResponse.json(data, { status, headers: { 'Cache-Control': 'no-store' } });
 
 export async function POST(req) {
-  const { env, emSegundoPlano } = lerAmbiente();
+  const { env } = lerAmbiente();
   let body;
   try {
     body = await req.json();
@@ -51,14 +49,10 @@ export async function POST(req) {
       const digitos = String(body.telefone || '').replace(/\D/g, '');
       if (digitos.length < 10 || digitos.length > 13) return json({ error: 'Digite o WhatsApp com DDD, só números.' }, 400);
       const pedidos = await findOrdersByPhone(digitos, env, 10);
-      const pedido = pedidos.find((p) => p.paymentStatus === 'PAGAMENTO_APROVADO' || p.paymentStatus === 'PAGO') || pedidos[0];
-      if (!pedido) {
-        return json({
-          ok: true,
-          mensagens: [
-            { tipo: 'texto', texto: 'Não encontrei nenhum pedido com esse número. 😕 Confere se é o mesmo WhatsApp que você usou no site. Se quiser, fala com uma pessoa da equipe:', opcoes: [{ id: 'humano_sem_pedido', label: 'Falar com atendente' }] },
-          ],
-        });
+      const pedido = pedidos[0];
+      if (pedidos.length > 1) {
+        const lista = listaDePedidos(pedidos);
+        return json({ ok: true, mensagens: [lista], escolherPedido: lista.opcoes });
       }
       return json({ ok: true, orderId: pedido.id, mensagens: saudacao(pedido) });
     }
@@ -112,7 +106,7 @@ export async function POST(req) {
       if (!transcrito) {
         return json({ ok: true, orderId, mensagens: [{ tipo: 'texto', texto: 'Não consegui ouvir direito o seu áudio. 😕 Pode escrever pra mim?' }], modo: body.modo || null });
       }
-      const r = await responderChat(pedido, { acao: 'texto', texto: transcrito, modo: body.modo }, env, { emSegundoPlano });
+      const r = await responderChat(pedido, { acao: 'texto', texto: transcrito, modo: body.modo }, env);
       return json({ ok: true, orderId, transcricao: transcrito, ...r });
     }
 
@@ -122,7 +116,7 @@ export async function POST(req) {
       texto: typeof body.texto === 'string' ? body.texto.slice(0, 1000) : undefined,
       modo: ['letra', 'ritmo'].includes(body.modo) ? body.modo : null,
     };
-    const r = await responderChat(pedido, entrada, env, { emSegundoPlano });
+    const r = await responderChat(pedido, entrada, env);
     return json({ ok: true, orderId, ...r });
   } catch (err) {
     console.warn('[suporte/chat] Falha ao responder:', err?.message);

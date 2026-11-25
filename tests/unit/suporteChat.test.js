@@ -11,7 +11,7 @@ vi.mock('@/lib/ajustePago', async (orig) => ({
   criarCobrancaAjuste: vi.fn(async () => ({ ok: true, txid: 'A'.repeat(30), pixCopiaECola: '000201PIX', valor: 1 })),
 }));
 
-const { orderIdValido, responderChat, saudacao, assinaturaAudio, MENU } = await import('@/lib/suporteChat');
+const { orderIdValido, responderChat, saudacao, assinaturaAudio, listaDePedidos, MENU } = await import('@/lib/suporteChat');
 const { criarCobrancaAjuste } = await import('@/lib/ajustePago');
 
 const pago = { id: 'abcdefghijklmnopqrst', paymentStatus: 'PAGAMENTO_APROVADO', audioFiles: ['https://x/1.mp3'], lyrics: 'letra', customerName: 'Maria Silva', honoreeName: 'João' };
@@ -57,5 +57,24 @@ describe('assinaturaAudio', () => {
   it('muda quando o áudio muda e é vazia sem áudio', () => {
     expect(assinaturaAudio({})).toBe('');
     expect(assinaturaAudio({ audioFiles: ['a'] })).not.toBe(assinaturaAudio({ audioFiles: ['b'] }));
+  });
+});
+
+describe('listaDePedidos', () => {
+  it('lista os pedidos do número para o cliente escolher, com nome, data e situação', () => {
+    const msg = listaDePedidos([
+      { ...pago, createdAt: '2026-11-24T21:14:00.000Z' },
+      { id: 'zyxwvutsrqponmlkjihg', honoreeName: 'Ana', paymentStatus: 'AGUARDANDO_PAGAMENTO', audioFiles: ['x'], createdAt: '2026-11-20T12:00:00.000Z' },
+    ]);
+    expect(msg.texto).toMatch(/Achei 2 pedidos/);
+    expect(msg.opcoes[0]).toEqual({ id: 'pedido:abcdefghijklmnopqrst', label: 'Música de João · 24/11/2026 · paga' });
+    expect(msg.opcoes[1].label).toBe('Música de Ana · 20/11/2026 · aguardando pagamento');
+  });
+});
+
+describe('baixar', () => {
+  it('não oferece mais envio pelo WhatsApp', async () => {
+    const r = await responderChat(pago, { acao: 'opcao', opcao: 'enviar_whatsapp' });
+    expect(JSON.stringify(r)).not.toMatch(/WhatsApp \(final/);
   });
 });
