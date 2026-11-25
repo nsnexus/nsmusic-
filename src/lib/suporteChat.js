@@ -33,6 +33,22 @@ export const MENU = [
 ];
 
 const ESTILOS = ['Sertanejo', 'Pagode', 'Gospel', 'Forró', 'Funk', 'MPB', 'Arrocha', 'Piseiro'];
+export const INSTAGRAM_URL = 'https://www.instagram.com/_nsmusic';
+const CONVITE_INDICACAO = 'Fiz uma música personalizada na NS Music e ficou linda! Faz a sua também: https://nsmusic.ia.br';
+
+/**
+ * Fecho de atendimento bem-sucedido (cliente confirmou que deu certo): agradece, pede indicação e
+ * convida para o Instagram. Pedido do dono do estúdio em 25/11/2026.
+ */
+export function agradecimento() {
+  return [
+    texto('Obrigado por confiar na NS Music! Se puder, indica a gente pra alguém que você gosta, isso ajuda muito nosso trabalho. E segue a gente no Instagram pra acompanhar as novidades:'),
+    { tipo: 'link', url: INSTAGRAM_URL, titulo: 'Seguir @_nsmusic no Instagram' },
+    { tipo: 'whatsapp', url: `https://wa.me/?text=${encodeURIComponent(CONVITE_INDICACAO)}`, titulo: 'Indicar para um amigo' },
+    texto('Precisando de algo, é só chamar aqui. 🎶'),
+  ];
+}
+
 const MAIS_ALGO = { tipo: 'texto', texto: 'Posso te ajudar em mais alguma coisa?', opcoes: MENU };
 const VALIDADE_PROPOSTA_MS = 60 * 60 * 1000;
 
@@ -148,7 +164,7 @@ async function acaoBaixar(pedido, env, { comPagamento = true, ctx = null } = {})
       texto(alvo.length > 1 ? 'Aqui estão a música principal e a bônus, pode ouvir e baixar por aqui mesmo:' : 'Aqui está sua música, pode ouvir e baixar por aqui mesmo:'),
       ...alvo.flatMap((p) => arquivosDoPedido(p, assinaturaAudio(p))),
       texto('Toque no arquivo pra salvar no celular. Se não baixar, toque nos três pontinhos (⋮) lá em cima e escolha *Abrir no navegador*, depois tente de novo.', [
-        { id: 'menu', label: 'Consegui, obrigado!' },
+        { id: 'deu_certo', label: 'Consegui, obrigado!' },
         MENU[5],
       ]),
     ],
@@ -528,7 +544,8 @@ export async function responderChat(pedido, entrada, env = {}) {
     case 'ja_paguei': return acaoJaPaguei(pedido, env, ctx);
     case 'criar': return acaoCriar(pedido);
     case 'humano': return acaoHumano(pedido, env);
-    case 'gostei': return { mensagens: [texto('Que bom! 💚 Qualquer coisa é só chamar por aqui.'), MAIS_ALGO] };
+    case 'gostei': return { mensagens: [texto('Que bom que ficou do jeito que você queria! 💚'), ...agradecimento()] };
+    case 'deu_certo': return { mensagens: [texto('Que bom que deu tudo certo! 💚'), ...agradecimento()] };
     case 'menu': return { mensagens: [MAIS_ALGO] };
     default: return { mensagens: [texto('Não entendi. Escolhe uma opção:', MENU)] };
   }
@@ -613,6 +630,7 @@ export async function executarFerramenta(nome, args = {}, { pedido = null, ctx =
         { tipo: 'whatsapp', url: await linkAtendente(null, env), titulo: 'Falar com atendente no WhatsApp' },
       ] };
     }
+    case 'agradecer_cliente': return { mensagens: agradecimento() };
     case 'mostrar_menu': return { mensagens: [texto(String(a.texto || 'Como posso te ajudar?').slice(0, 300), MENU)] };
     default: return { erro: 'ferramenta_desconhecida' };
   }

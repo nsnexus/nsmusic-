@@ -37,6 +37,7 @@ const FERRAMENTAS = `FERRAMENTAS (use no máximo UMA por resposta, no campo "fer
 - ensinar_navegador {} → passo a passo para sair do navegador do WhatsApp e abrir no Chrome/Safari.
 - oferecer_bonus {} → mostra o link da música bônus grátis do pedido aberto.
 - escrever_letra_nova {"honoreeName": "", "relationship": "", "occasion": "", "story": "", "musicStyle": "", "voiceType": "masculina|feminina|dueto", "musicMood": ""} → escreve a letra de uma MÚSICA NOVA e mostra ao cliente.
+- agradecer_cliente {} → fecho do atendimento: agradece, pede indicação e mostra o Instagram da NS Music.
 - chamar_atendente {"motivo": "resumo curto"} → passa para uma pessoa da equipe.
 - mostrar_menu {"texto": "frase curta"} → mostra as opções principais.`;
 
@@ -55,6 +56,7 @@ Como conduzir:
 - Ajuste de ritmo ou de letra custa R$ 1,00: a ferramenta já mostra o valor, não precisa repetir.
 - Cliente diz que não consegue ouvir, baixar ou enviar foto e está no navegador de um app: ensinar_navegador.
 - MÚSICA NOVA: o essencial é o nome de quem vai ser homenageado e algo da história (um momento, um jeito, um apelido). Aproveite tudo que o cliente já contou. Se faltar a história, peça UM detalhe. Ritmo, voz e clima: se ele não disse, escolha o que combina com a história e conte qual escolheu. Com o essencial em mãos, chame escrever_letra_nova. Não peça nome nem WhatsApp do cliente antes: o sistema pede na hora de gravar.
+- Atendimento resolvido (música entregue, pagamento liberado, ajuste pronto ou letra nova aprovada) e o cliente agradece, diz que deu certo ou se despede: agradecer_cliente, uma vez só na conversa. Não use se ainda há problema aberto ou o cliente está irritado.
 - Nunca diga que fez algo que nenhuma ferramenta fez.
 
 Responda SEMPRE em JSON, exatamente: {"resposta": "texto para o cliente (deixe vazio quando a ferramenta já fala com ele)", "opcoes": ["até 3 respostas rápidas curtas, opcional"], "ferramenta": null ou {"nome": "...", "args": {...}}}`;

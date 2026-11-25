@@ -187,3 +187,27 @@ describe('ensinar a sair do navegador do WhatsApp', () => {
     expect(await executarFerramenta('enviar_musicas', {}, {})).toEqual({ erro: 'sem_pedido_aberto' });
   });
 });
+
+describe('fecho de atendimento bem-sucedido', () => {
+  it('"Consegui, obrigado!" depois da entrega agradece, pede indicação e mostra o Instagram', async () => {
+    const entrega = await responderChat(pago, { acao: 'opcao', opcao: 'baixar' });
+    const botoes = entrega.mensagens.at(-1).opcoes.map((o) => o.id);
+    expect(botoes).toContain('deu_certo');
+
+    const r = await responderChat(pago, { acao: 'opcao', opcao: 'deu_certo' });
+    expect(r.mensagens.find((m) => m.tipo === 'link').url).toBe('https://www.instagram.com/_nsmusic');
+    expect(r.mensagens.find((m) => m.tipo === 'whatsapp').url).toMatch(/^https:\/\/wa\.me\/\?text=/);
+    expect(r.mensagens.map((m) => m.texto || '').join(' ')).toMatch(/indica/i);
+  });
+
+  it('"Ficou perfeita!" depois de um ajuste também fecha com o agradecimento', async () => {
+    const r = await responderChat(pago, { acao: 'opcao', opcao: 'gostei' });
+    expect(r.mensagens.some((m) => m.url === 'https://www.instagram.com/_nsmusic')).toBe(true);
+  });
+
+  it('a IA pode fechar o atendimento mesmo sem pedido aberto', async () => {
+    const { executarFerramenta } = await import('@/lib/suporteChat');
+    const r = await executarFerramenta('agradecer_cliente', {}, {});
+    expect(r.mensagens.some((m) => m.url === 'https://www.instagram.com/_nsmusic')).toBe(true);
+  });
+});
