@@ -232,6 +232,21 @@ export async function acaoPago(orderId, env) {
   return { mensagens: [texto('Pagamento confirmado! 🎉 Seu pedido está liberado.'), ...b.mensagens, ...bonus] };
 }
 
+/**
+ * Vídeo da homenagem: é gerado pelo próprio cliente, na página do pedido (escolhe as fotos e o vídeo
+ * sai lá, com a música). O bot só manda o link certo, como o dono do estúdio faz no WhatsApp
+ * (pedido de 25/11/2026). Se o vídeo ainda não estiver liberado, a própria página mostra como liberar.
+ */
+export function acaoVideo(pedido) {
+  return {
+    mensagens: [
+      texto('O vídeo você faz direto na plataforma, na página do seu pedido. Lá você escolhe as fotos e o vídeo é gerado na hora, já com a sua música. 🎬 Pra trocar uma foto é o mesmo caminho: escolhe de novo e gera outra vez.'),
+      { tipo: 'link', url: `/entrega?orderId=${encodeURIComponent(pedido.id)}`, titulo: 'Acessar meu pedido e fazer o vídeo' },
+      texto('Se abrir dentro do WhatsApp e não deixar escolher as fotos, toque nos três pontinhos (⋮) e em *Abrir no navegador*.', [MENU[5], { id: 'menu', label: 'Voltar ao menu' }]),
+    ],
+  };
+}
+
 function exigeMusicaPaga(pedido, ctx) {
   if (!temAudio(pedido)) return [texto('Sua música ainda está sendo finalizada. Assim que ela ficar pronta, dá pra pedir ajuste por aqui.', MENU)];
   if (!(ctx ? ctx.liberado : pedidoEstaPago(pedido))) return [texto('O ajuste é pra música já paga, e seu pedido ainda está aguardando o pagamento. Quer resolver o pagamento primeiro?', [MENU[3], MENU[5]])];
@@ -486,17 +501,9 @@ async function interpretarTexto(pedido, mensagem, modo, env, aguardando, ctx) {
   if (modo === 'letra') return proporLetra(pedido, msg, env, ctx);
   if (modo === 'ritmo') return acaoEstilo(pedido, msg, env, ctx);
 
-  // Foto ou vídeo errado: quem troca é o próprio cliente, na página da música (achado 25/11/2026:
+  // Vídeo e fotos: quem faz é o próprio cliente, na página do pedido (achado 25/11/2026:
   // "só quero tirar uma foto que ficou errado" virava pedido de música nova).
-  if (/\b(foto|fotos|v[ií]deo|capa|imagem|imagens)\b/i.test(msg)) {
-    return {
-      mensagens: [
-        texto('As fotos do vídeo você troca na página da sua música: abre o link abaixo, vai na parte do *vídeo* e escolhe as fotos de novo. Se abrir dentro do WhatsApp e não deixar escolher, toque nos três pontinhos (⋮) e em *Abrir no navegador*.'),
-        { tipo: 'link', url: `/entrega?orderId=${encodeURIComponent(pedido.id)}`, titulo: 'Abrir a página da minha música' },
-        texto('Se não der certo, uma pessoa da equipe te ajuda:', [MENU[5], { id: 'menu', label: 'Voltar ao menu' }]),
-      ],
-    };
-  }
+  if (/\b(foto|fotos|v[ií]deo|v[ií]deos|capa|imagem|imagens|slide|slideshow)\b/i.test(msg)) return acaoVideo(pedido);
 
   const { intencao, detalhe } = await classificarIntencao(msg, {
     numero: pedido.orderNumber, orderId: pedido.id, pago: pedidoEstaPago(pedido), temMusica: temAudio(pedido), estilo: pedido.musicStyle,
@@ -598,7 +605,7 @@ export function ensinarNavegador({ dispositivo = '', urlAtual = '' } = {}) {
 
 export const FERRAMENTAS_COM_PEDIDO = new Set([
   'enviar_musicas', 'conferir_pagamento', 'pagar_pedido', 'trocar_ritmo', 'ajustar_letra',
-  'gravar_letra_ajustada', 'link_fotos', 'oferecer_bonus',
+  'gravar_letra_ajustada', 'fazer_video', 'link_fotos', 'oferecer_bonus',
 ]);
 
 /**
@@ -613,11 +620,8 @@ export async function executarFerramenta(nome, args = {}, { pedido = null, ctx =
     case 'enviar_musicas': return acaoBaixar(pedido, env, { ctx });
     case 'conferir_pagamento': return acaoJaPaguei(pedido, env, ctx);
     case 'pagar_pedido': return acaoPagamento(pedido, env, ctx);
-    case 'link_fotos':
-      return { mensagens: [
-        texto('As fotos do vídeo você troca na página da sua música: abre o link abaixo, vai na parte do *vídeo* e escolhe as fotos de novo.'),
-        { tipo: 'link', url: `/entrega?orderId=${encodeURIComponent(pedido.id)}`, titulo: 'Abrir a página da minha música' },
-      ] };
+    case 'fazer_video':
+    case 'link_fotos': return acaoVideo(pedido);
     case 'oferecer_bonus': return acaoCriar(pedido);
     case 'trocar_ritmo':
     case 'ajustar_letra':

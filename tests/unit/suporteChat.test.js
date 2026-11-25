@@ -165,6 +165,21 @@ describe('foto ou vídeo', () => {
     const r = await responderChat(pago, { acao: 'texto', texto: 'só quero tirar uma foto que ficou errado' });
     expect(r.mensagens.some((m) => m.tipo === 'link' && m.url.includes('/entrega?orderId='))).toBe(true);
   });
+
+  it('"e o vídeo?" manda o link do pedido e diz que o vídeo é gerado na plataforma', async () => {
+    const r = await responderChat(pago, { acao: 'texto', texto: 'e o vídeo? quero o vídeo com as fotos' });
+    expect(r.mensagens.find((m) => m.tipo === 'link').url).toBe(`/entrega?orderId=${pago.id}`);
+    expect(r.mensagens[0].texto).toMatch(/plataforma/);
+  });
+
+  it('a IA usa a mesma resposta (fazer_video) e o nome antigo link_fotos continua valendo', async () => {
+    const { executarFerramenta } = await import('@/lib/suporteChat');
+    const novo = await executarFerramenta('fazer_video', {}, { pedido: pago });
+    const antigo = await executarFerramenta('link_fotos', {}, { pedido: pago });
+    expect(novo.mensagens.find((m) => m.tipo === 'link').url).toBe(`/entrega?orderId=${pago.id}`);
+    expect(antigo).toEqual(novo);
+    expect(await executarFerramenta('fazer_video', {}, {})).toEqual({ erro: 'sem_pedido_aberto' });
+  });
 });
 
 describe('ensinar a sair do navegador do WhatsApp', () => {
