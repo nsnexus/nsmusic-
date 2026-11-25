@@ -6,6 +6,7 @@ import BarraEnvio from './BarraEnvio';
 import { useWhatsappSuporte, linkWhatsapp } from '@/lib/useWhatsappSuporte';
 import { pareceTelefone } from '@/lib/novaMusicaChat';
 import { useNovaMusica } from './useNovaMusica';
+import { FUNDO_CHAT } from './papelDeParede';
 
 // Chat de suporte do site (/suporte), com cara de WhatsApp. Toda decisão fica no servidor
 // (/api/suporte/chat); aqui só desenhamos as mensagens, guardamos o "modo" da conversa e
@@ -281,7 +282,7 @@ export default function ChatSuporte({ pedidoInicial }) {
 
   return (
     <div style={{ position: 'fixed', inset: 0, display: 'flex', justifyContent: 'center', background: '#D1D7DB', fontFamily: 'var(--font-family-body, system-ui, sans-serif)', color: CORES.texto }}>
-      <style>{'@keyframes supPisca{0%,80%,100%{opacity:.25}40%{opacity:1}}.sup-dot{animation:supPisca 1.2s infinite}.sup-dot:nth-child(2){animation-delay:.2s}.sup-dot:nth-child(3){animation-delay:.4s}@keyframes supPulso{50%{opacity:.3}}.sup-rec{animation:supPulso 1s infinite}.sup-fundo{background-color:#EFE7DD;background-image:radial-gradient(rgba(60,40,20,.07) 1px,transparent 1px);background-size:16px 16px}'}</style>
+      <style>{'@keyframes supPisca{0%,80%,100%{opacity:.25}40%{opacity:1}}.sup-dot{animation:supPisca 1.2s infinite}.sup-dot:nth-child(2){animation-delay:.2s}.sup-dot:nth-child(3){animation-delay:.4s}@keyframes supPulso{50%{opacity:.3}}.sup-rec{animation:supPulso 1s infinite}'}</style>
       <div style={{ width: '100%', maxWidth: 560, height: '100%', display: 'flex', flexDirection: 'column', background: CORES.fundo }}>
         <header style={{ display: 'flex', alignItems: 'center', gap: 6, padding: 'calc(8px + env(safe-area-inset-top)) 12px 8px 4px', background: CORES.topo, color: '#fff', flexShrink: 0, minHeight: 60, boxSizing: 'border-box' }}>
           <a href="/" aria-label="Voltar para o site" style={{ width: 36, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
@@ -295,7 +296,7 @@ export default function ChatSuporte({ pedidoInicial }) {
           </div>
         </header>
 
-        <main className="sup-fundo" style={{ flex: 1, overflowY: 'auto', padding: '12px 10px 14px', display: 'flex', flexDirection: 'column', gap: 6 }} aria-live="polite">
+        <main style={{ ...FUNDO_CHAT, flex: 1, overflowY: 'auto', padding: '12px 16px 14px', display: 'flex', flexDirection: 'column', gap: 6 }} aria-live="polite">
           <div style={{ alignSelf: 'center', background: '#FFF3C4', color: '#54656F', fontSize: 12, padding: '6px 12px', borderRadius: 8, textAlign: 'center', maxWidth: 300, marginBottom: 6 }}>
             Atendimento automático da NS Music. Se precisar, uma pessoa da equipe assume a conversa.
           </div>
