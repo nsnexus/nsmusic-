@@ -6,12 +6,15 @@ vi.mock('@/lib/supabaseDb', () => ({
   getOrder: vi.fn(async () => null),
   updateOrder: vi.fn(async () => ({ success: true })),
 }));
+vi.mock('@/lib/agentSuporte', () => ({
+  classificarIntencao: vi.fn(async () => ({ intencao: 'CADE_MINHA_MUSICA', detalhe: '' })),
+}));
 vi.mock('@/lib/ajustePago', async (orig) => ({
   ...(await orig()),
   criarCobrancaAjuste: vi.fn(async () => ({ ok: true, txid: 'A'.repeat(30), pixCopiaECola: '000201PIX', valor: 1 })),
 }));
 
-const { orderIdValido, responderChat, saudacao, assinaturaAudio, listaDePedidos, MENU } = await import('@/lib/suporteChat');
+const { orderIdValido, responderChat, saudacao, assinaturaAudio, listaDePedidos, transcricaoValida, MENU } = await import('@/lib/suporteChat');
 const { criarCobrancaAjuste } = await import('@/lib/ajustePago');
 
 const pago = { id: 'abcdefghijklmnopqrst', paymentStatus: 'PAGAMENTO_APROVADO', audioFiles: ['https://x/1.mp3'], lyrics: 'letra', customerName: 'Maria Silva', honoreeName: 'João' };
@@ -76,5 +79,26 @@ describe('baixar', () => {
   it('não oferece mais envio pelo WhatsApp', async () => {
     const r = await responderChat(pago, { acao: 'opcao', opcao: 'enviar_whatsapp' });
     expect(JSON.stringify(r)).not.toMatch(/WhatsApp \(final/);
+  });
+});
+
+describe('enquanto espera', () => {
+  it('"cadê?" durante a gravação do ajuste responde sobre a gravação, não lista músicas antigas', async () => {
+    const r = await responderChat({ ...pago, musicStyle: 'Pagode' }, { acao: 'texto', texto: 'cade pedi pra mudar o ritmo', aguardando: { tipo: 'musica', kind: 'pedido' } });
+    expect(r.mensagens[0].texto).toMatch(/gravando sua nova versão em \*Pagode\*/);
+    expect(r.mensagens.some((m) => m.tipo === 'audio')).toBe(false);
+  });
+
+  it('esperando o Pix do ajuste: avisa que está esperando o pagamento', async () => {
+    const r = await responderChat(pago, { acao: 'texto', texto: 'e aí?', aguardando: { tipo: 'pagamento', kind: 'ajuste' } });
+    expect(r.mensagens[0].texto).toMatch(/esperando o Pix de R\$ 1,00/);
+  });
+});
+
+describe('transcricaoValida', () => {
+  it('descarta frase fantasma do Whisper em áudio mudo', () => {
+    expect(transcricaoValida('Legendas pela comunidade do Amara.org')).toBe(false);
+    expect(transcricaoValida('...')).toBe(false);
+    expect(transcricaoValida('quero mudar o ritmo pra pagode')).toBe(true);
   });
 });

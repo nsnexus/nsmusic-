@@ -380,7 +380,38 @@ async function acaoHumano(pedido, env, motivo = '') {
 
 // ---------- Texto livre ----------
 
-async function interpretarTexto(pedido, mensagem, modo, env) {
+// O Whisper "ouve" frases de legenda de vídeo em áudio mudo ou curtinho (achado 25/11/2026: um
+// áudio de 2 s virou "Legendas pela comunidade do Amara.org"). Isso não é o cliente falando.
+const ALUCINACOES = /amara\.org|legendas? pela comunidade|legenda(do)? por|obrigad[oa] por assistir|inscreva-se|ative o sininho|tchau,? tchau/i;
+
+export function transcricaoValida(texto) {
+  const t = String(texto || '').trim();
+  return t.replace(/[^\p{L}\p{N}]/gu, '').length >= 2 && !ALUCINACOES.test(t);
+}
+
+/**
+ * O chat está esperando algo (Pix cair, música gravando) e o cliente escreve: a resposta é sobre
+ * ISSO, não um menu do zero (achado 25/11/2026: "cadê, pedi pra mudar o ritmo" listou as músicas
+ * antigas enquanto a nova ainda gravava).
+ */
+function respostaEnquantoEspera(pedido, aguardando, intencao) {
+  if (intencao === 'FALAR_HUMANO') return null;
+  if (aguardando.tipo === 'musica' || aguardando.tipo === 'musica_nova') {
+    const estilo = aguardando.tipo === 'musica' && pedido.musicStyle ? ` em *${pedido.musicStyle}*` : '';
+    const qual = aguardando.tipo === 'musica' ? `sua nova versão${estilo}` : 'sua música';
+    return { mensagens: [texto(`Já tá gravando ${qual}! 🎙️ Costuma levar de 2 a 3 minutinhos. Assim que ficar pronta, ela aparece aqui sozinha, não precisa fazer nada.`, [MENU[5]])] };
+  }
+  if (aguardando.tipo === 'pagamento') {
+    if (aguardando.kind === 'ajuste') {
+      return { mensagens: [texto(`Ainda estou esperando o Pix de ${reais(getPriceForSku(SKU_AJUSTE))} cair. Assim que o banco confirmar, eu começo a gravar sozinho. Se já pagou, é só aguardar uns instantes aqui.`, [MENU[5]])] };
+    }
+    if (intencao === 'PAGUEI_NAO_LIBEROU') return null;
+    return { mensagens: [texto('Ainda estou esperando o pagamento do Pix cair. Assim que o banco confirmar, eu libero sua música aqui.', [{ id: 'ja_paguei', label: 'Já paguei' }, MENU[5]])] };
+  }
+  return null;
+}
+
+async function interpretarTexto(pedido, mensagem, modo, env, aguardando = null) {
   const msg = String(mensagem || '').trim().slice(0, 1000);
   if (!msg) return { mensagens: [] };
   if (modo === 'letra') return proporLetra(pedido, msg, env);
@@ -389,6 +420,11 @@ async function interpretarTexto(pedido, mensagem, modo, env) {
   const { intencao, detalhe } = await classificarIntencao(msg, {
     numero: pedido.orderNumber, orderId: pedido.id, pago: pedidoEstaPago(pedido), temMusica: temAudio(pedido), estilo: pedido.musicStyle,
   }, env);
+
+  if (aguardando) {
+    const r = respostaEnquantoEspera(pedido, aguardando, intencao);
+    if (r) return r;
+  }
 
   switch (intencao) {
     case 'CADE_MINHA_MUSICA': return acaoBaixar(pedido, env);
@@ -409,7 +445,7 @@ async function interpretarTexto(pedido, mensagem, modo, env) {
 export async function responderChat(pedido, entrada, env = {}) {
   const { acao, opcao } = entrada || {};
   if (acao === 'inicio') return { mensagens: saudacao(pedido) };
-  if (acao === 'texto') return interpretarTexto(pedido, entrada.texto, entrada.modo, env);
+  if (acao === 'texto') return interpretarTexto(pedido, entrada.texto, entrada.modo, env, entrada.aguardando || null);
   if (acao === 'comprovante') return pedidoEstaPago(pedido)
     ? { mensagens: [texto('Recebi a imagem! Se ela é pra o vídeo da homenagem, as fotos são enviadas na página da sua música:'), { tipo: 'link', url: `/entrega/${encodeURIComponent(pedido.id)}`, titulo: 'Abrir a página da minha música' }, MAIS_ALGO] }
     : acaoJaPaguei(pedido, env);

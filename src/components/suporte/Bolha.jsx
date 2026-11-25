@@ -7,11 +7,11 @@ import { copiarTexto } from '@/lib/copiarTexto';
 // Uma mensagem do chat de suporte. Os tipos vêm prontos de /api/suporte/chat (src/lib/suporteChat.js).
 
 export const CORES = {
-  topo: '#0E3A3B',
+  topo: '#008069',
   fundo: '#EFE7DD',
   minha: '#D9FDD3',
   dele: '#FFFFFF',
-  acao: '#0F7B6C',
+  acao: '#008069',
   link: '#0B6F8F',
   texto: '#111B21',
   suave: '#667781',
@@ -59,7 +59,7 @@ function Audio({ url, titulo }) {
         onTimeUpdate={(e) => setProgresso(e.currentTarget.duration ? e.currentTarget.currentTime / e.currentTarget.duration : 0)}
         onError={() => setErro(true)}
       />
-      <button type="button" onClick={alternar} aria-label={tocando ? 'Pausar' : 'Tocar'} style={{ width: 40, height: 40, borderRadius: '50%', border: 0, background: CORES.topo, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+      <button type="button" onClick={alternar} aria-label={tocando ? 'Pausar' : 'Tocar'} style={{ width: 40, height: 40, borderRadius: '50%', border: 0, background: CORES.acao, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
         {tocando
           ? <svg viewBox="0 0 24 24" {...ICONE}><rect x="6" y="4" width="4" height="16" rx="1" /><rect x="14" y="4" width="4" height="16" rx="1" /></svg>
           : <svg viewBox="0 0 24 24" {...ICONE}><path d="M7 4l13 8-13 8z" /></svg>}
