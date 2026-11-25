@@ -35,6 +35,10 @@ export async function GET(req) {
 
 export async function POST(req) {
   const { env, waitUntil } = lerContexto();
+  // Se a Meta mandar para cá também as mensagens do número OFICIAL, elas recebem o botão de suporte.
+  const { processarWebhookNumeroOficial } = await import('@/lib/suporteBotaoCloud');
+  const oficial = await processarWebhookNumeroOficial(await req.clone().text(), req.headers.get('x-hub-signature-256'), env, waitUntil);
+  if (oficial) return NextResponse.json(oficial.json, { status: oficial.status });
   const r = await processarRequisicaoCloudAdm(req, env, waitUntil);
   // Corpo que não é do número ADM: nada a fazer aqui.
   if (!r) return NextResponse.json({ ok: true, ignored: 'nao_e_do_adm' });
