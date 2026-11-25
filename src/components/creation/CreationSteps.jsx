@@ -736,7 +736,7 @@ export default function CreationSteps({
             Seu WhatsApp *
           </label>
           <span style={{ display: 'block', fontSize: '0.78rem', color: '#857D80', marginBottom: '8px' }}>
-            É com ele que você acha sua música depois em Minhas músicas, para ouvir e baixar quando quiser.
+            É com ele que você acha sua música depois em Minha conta, para ouvir e baixar quando quiser.
           </span>
           <input
             type="tel"

@@ -1079,7 +1079,7 @@ export default function WizardSteps({
                 >
                   <span style={{ fontSize: '1.25rem', flexShrink: 0, marginTop: '1px' }}>ℹ️</span>
                   <p style={{ margin: 0, fontSize: '0.82rem', color: '#166534', lineHeight: '1.45' }}>
-                    <strong>Como funciona o envio:</strong> Você ouve a prévia completa no próximo passo. Depois, é só entrar em <strong>Minhas músicas</strong> com o seu WhatsApp para ouvir e baixar quando quiser.
+                    <strong>Como funciona o envio:</strong> Você ouve a prévia completa no próximo passo. Depois, é só tocar em <strong>Minha conta</strong> e digitar o seu WhatsApp para ouvir e baixar quando quiser.
                   </p>
                 </div>
 
