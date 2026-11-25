@@ -210,19 +210,11 @@ function acaoLetra(pedido) {
   };
 }
 
-async function proporLetra(pedido, instrucao, env) {
-  const bloqueio = exigeMusicaPaga(pedido);
-  if (bloqueio) return { mensagens: bloqueio };
-  const proposta = pedido.ajusteLetraProposta;
-  const recente = proposta?.letra && Date.now() - Date.parse(proposta.criadoEm || 0) < VALIDADE_PROPOSTA_MS;
-  const base = recente ? proposta.letra : pedido.lyrics;
-  const pedidoTexto = String(instrucao || '').slice(0, 800);
+/** Reescreve uma letra aplicando o pedido do cliente. Devolve '' se a IA falhar. */
+export async function reescreverLetra(base, instrucao, homenageado, env = {}) {
+  const prompt = `Você é o compositor do estúdio. Abaixo está a letra atual de uma homenagem para ${homenageado || 'alguém especial'}.
 
-  let letra = '';
-  try {
-    const prompt = `Você é o compositor do estúdio. Abaixo está a letra atual de uma homenagem para ${pedido.honoreeName || 'alguém especial'}.
-
-O cliente pediu este ajuste: "${pedidoTexto}"
+O cliente pediu este ajuste: "${String(instrucao || '').slice(0, 800)}"
 
 Reescreva a letra aplicando o pedido dele. Regras:
 - Mantenha a estrutura de marcações ([Verse], [Chorus], etc.) e o idioma português do Brasil.
@@ -231,11 +223,24 @@ Reescreva a letra aplicando o pedido dele. Regras:
 - Responda APENAS com a letra final, sem comentários.
 
 LETRA ATUAL:
-${base}`;
-    letra = String((await runGeminiWithFailover(prompt, env)) || '').trim();
+${String(base || '').slice(0, 6000)}`;
+  try {
+    return String((await runGeminiWithFailover(prompt, env)) || '').trim();
   } catch (err) {
-    console.warn('[suporteChat] Falha ao ajustar a letra:', err?.message);
+    console.warn('[suporteChat] Falha ao reescrever a letra:', err?.message);
+    return '';
   }
+}
+
+async function proporLetra(pedido, instrucao, env) {
+  const bloqueio = exigeMusicaPaga(pedido);
+  if (bloqueio) return { mensagens: bloqueio };
+  const proposta = pedido.ajusteLetraProposta;
+  const recente = proposta?.letra && Date.now() - Date.parse(proposta.criadoEm || 0) < VALIDADE_PROPOSTA_MS;
+  const base = recente ? proposta.letra : pedido.lyrics;
+  const pedidoTexto = String(instrucao || '').slice(0, 800);
+
+  const letra = await reescreverLetra(base, pedidoTexto, pedido.honoreeName, env);
   if (letra.length < 40) {
     return { mensagens: [texto('Não consegui ajustar a letra agora. Tenta escrever de outro jeito, ou fala com uma pessoa da equipe:', [MENU[5]])], modo: 'letra' };
   }
@@ -296,15 +301,44 @@ export async function acaoNovaVersao(orderId, assinatura, env) {
 function acaoCriar(pedido) {
   const msgs = [];
   if (bonusDisponivel(pedido)) {
-    msgs.push(texto('Boa notícia: você ainda tem 1 música bônus grátis nesse pedido. Usa ela por aqui pra não pagar de novo:'));
-    msgs.push({ tipo: 'link', url: `/criar?novo=1&origem=segunda_geracao&orderRef=${encodeURIComponent(pedido.id)}`, titulo: 'Criar minha música bônus' });
-    msgs.push(texto('Se quiser uma música totalmente nova, separada desse pedido, é por aqui:'));
+    msgs.push(texto('Boa notícia: você ainda tem 1 música bônus grátis nesse pedido. Dá pra criar aqui mesmo pelo chat, ou pelo site:'));
+    msgs.push({ tipo: 'link', url: `/criar?novo=1&origem=segunda_geracao&orderRef=${encodeURIComponent(pedido.id)}`, titulo: 'Criar minha música bônus pelo site' });
+    msgs.push(texto('Quer criar por aqui? É rapidinho, eu te faço umas perguntas:', [{ id: 'criar_nova', label: 'Criar aqui pelo chat' }, { id: 'menu', label: 'Voltar ao menu' }]));
   } else {
-    msgs.push(texto('É só tocar aqui pra criar uma música nova:'));
+    msgs.push(texto('Bora fazer uma música nova! Eu te faço umas perguntas rapidinho por aqui:', [{ id: 'criar_nova', label: 'Criar aqui pelo chat' }, { id: 'menu', label: 'Voltar ao menu' }]));
   }
-  msgs.push({ tipo: 'link', url: '/criar?novo=1', titulo: 'Criar nova música' });
-  msgs.push(MAIS_ALGO);
   return { mensagens: msgs };
+}
+
+/**
+ * Polling da música nova criada pelo chat. Paga (bônus automático, Pacote Família) → entrega
+ * completa; não paga → prévia na página da música (mesmo funil do site) + Pix aqui no chat.
+ */
+export async function acaoMusicaNovaPronta(orderId, env) {
+  const pedido = await getOrder(orderId, env);
+  if (!pedido || !temAudio(pedido)) return { pronto: false };
+  if (String(pedido.productionStatus || '').toUpperCase().includes('GERANDO')) return { pronto: false };
+  if (pedidoEstaPago(pedido)) {
+    const b = await acaoBaixar(pedido, env, { comPagamento: false });
+    return { pronto: true, mensagens: [texto('Sua música ficou pronta! 🎶'), ...b.mensagens] };
+  }
+  const sku = 'audio_only';
+  return {
+    pronto: true,
+    mensagens: [
+      texto(`Sua música${pedido.honoreeName ? ` pra *${pedido.honoreeName}*` : ''} ficou pronta! 🎶 Ouve a prévia aqui:`),
+      { tipo: 'link', url: `/entrega?orderId=${encodeURIComponent(pedido.id)}`, titulo: 'Ouvir minha música' },
+      texto(`Gostou? Pra liberar as 2 versões completas em MP3 é só pagar ${reais(getPriceForSku(sku))} no Pix. Pode ser por aqui mesmo:`, [
+        { id: 'pagamento', label: 'Pagar com Pix aqui' },
+        { id: 'humano', label: 'Falar com atendente' },
+      ]),
+    ],
+  };
+}
+
+/** Nome e WhatsApp do pedido atual, para quem já é cliente não precisar digitar de novo. */
+export function dadosDoCliente(pedido) {
+  return { customerName: pedido?.customerName || '', customerPhone: String(pedido?.customerPhone || '').replace(/\D/g, '') };
 }
 
 async function acaoHumano(pedido, env, motivo = '') {

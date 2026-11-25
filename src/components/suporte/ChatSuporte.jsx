@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Bolha, { CORES } from './Bolha';
 import BarraEnvio from './BarraEnvio';
 import { useWhatsappSuporte, linkWhatsapp } from '@/lib/useWhatsappSuporte';
+import { pareceTelefone } from '@/lib/novaMusicaChat';
+import { useNovaMusica } from './useNovaMusica';
 
 // Chat de suporte do site (/suporte), com cara de WhatsApp. Toda decisão fica no servidor
 // (/api/suporte/chat); aqui só desenhamos as mensagens, guardamos o "modo" da conversa e
@@ -69,6 +71,14 @@ export default function ChatSuporte({ pedidoInicial }) {
     }
   }, [adicionar]);
 
+  const aoCriarPedido = useCallback((id, { gravando }) => {
+    setOrderId(id);
+    salvarPedido(id);
+    setModo(null);
+    if (gravando) setAguardar({ tipo: 'musica_nova' });
+  }, []);
+  const nova = useNovaMusica({ mostrarRespostas, setDigitando, orderId, aoCriarPedido });
+
   const gerarPixDoPedido = useCallback(async (id, sku) => {
     try {
       const res = await fetch('/api/payments/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orderId: id, sku }) });
@@ -116,8 +126,8 @@ export default function ChatSuporte({ pedidoInicial }) {
       setOrderId(id);
       chamar({ acao: 'inicio' }, id);
     } else {
-      setModo('telefone');
-      mostrarRespostas([{ tipo: 'texto', texto: 'Oi! Aqui é o suporte da NS Music. 👋 Pra eu achar seu pedido, me manda o número de WhatsApp que você usou no site, com DDD.' }]);
+      setModo('inicio');
+      mostrarRespostas([{ tipo: 'texto', texto: 'Oi! Aqui é a NS Music. 👋 Você já fez um pedido com a gente ou quer criar uma música nova? Se quiser, já pode me contar a história.', opcoes: [{ id: 'tem_pedido', label: 'Já tenho um pedido' }, { id: 'criar_nova', label: 'Quero criar uma música' }] }]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -149,8 +159,9 @@ export default function ChatSuporte({ pedidoInicial }) {
             return;
           }
           timer = setTimeout(passo, INTERVALO_PAGAMENTO_MS);
-        } else if (aguardar.tipo === 'musica') {
-          const res = await fetch('/api/suporte/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ acao: 'nova_versao', orderId, assinatura: aguardar.assinatura }) });
+        } else if (aguardar.tipo === 'musica' || aguardar.tipo === 'musica_nova') {
+          const corpo = aguardar.tipo === 'musica' ? { acao: 'nova_versao', orderId, assinatura: aguardar.assinatura } : { acao: 'musica_pronta', orderId };
+          const res = await fetch('/api/suporte/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) });
           const r = await res.json().catch(() => ({}));
           if (!ativo) return;
           if (r.pronto) {
@@ -161,8 +172,8 @@ export default function ChatSuporte({ pedidoInicial }) {
           if (tentativas >= TENTATIVAS_MUSICA) {
             setAguardar(null);
             mostrarRespostas([
-              { tipo: 'texto', texto: 'Está demorando um pouquinho mais que o normal. Assim que ficar pronta, sua nova versão aparece na página da sua música:' },
-              { tipo: 'link', url: `/entrega/${encodeURIComponent(orderId)}`, titulo: 'Abrir a página da minha música' },
+              { tipo: 'texto', texto: 'Está demorando um pouquinho mais que o normal. Assim que ficar pronta, ela aparece na página da sua música:' },
+              { tipo: 'link', url: `/entrega?orderId=${encodeURIComponent(orderId)}`, titulo: 'Abrir a página da minha música' },
             ]);
             return;
           }
@@ -178,7 +189,15 @@ export default function ChatSuporte({ pedidoInicial }) {
 
   const escolher = (opcao) => {
     adicionar([{ tipo: 'texto', texto: opcao.label }], 'eu');
-    if (opcao.id === 'humano_sem_pedido') {
+    if (opcao.id === 'tem_pedido') {
+      nova.cancelar();
+      setModo('telefone');
+      mostrarRespostas([{ tipo: 'texto', texto: 'Me manda o número de WhatsApp que você usou no site, com DDD, que eu acho seu pedido.' }]);
+      return;
+    }
+    if (opcao.id === 'criar_nova') { setModo(null); nova.iniciar(); return; }
+    if (nova.ativa && opcao.id.startsWith('nova')) { nova.responderOpcao(opcao); return; }
+    if (opcao.id === 'humano_sem_pedido' || (opcao.id === 'humano' && !orderId)) {
       mostrarRespostas([{ tipo: 'whatsapp', url: linkWhatsapp(numeroSuporte, 'Olá! Vim do chat de suporte do site e não achei meu pedido.'), titulo: 'Falar com atendente no WhatsApp' }]);
       return;
     }
@@ -188,13 +207,19 @@ export default function ChatSuporte({ pedidoInicial }) {
 
   const enviarTexto = (t) => {
     adicionar([{ tipo: 'texto', texto: t }], 'eu');
-    if (modo === 'telefone' || !orderId) chamar({ acao: 'identificar', telefone: t });
-    else chamar({ acao: 'texto', texto: t, modo });
+    if (nova.ativa) { nova.responderTexto(t); return; }
+    if (modo === 'telefone' || (!orderId && pareceTelefone(t))) { chamar({ acao: 'identificar', telefone: t }); return; }
+    if (!orderId) { setModo(null); nova.iniciar(t); return; }
+    chamar({ acao: 'texto', texto: t, modo });
   };
 
   const enviarArquivo = (arquivo) => {
     const imagem = arquivo.type.startsWith('image/');
     adicionar([imagem ? { tipo: 'imagem', url: URL.createObjectURL(arquivo), nome: arquivo.name } : { tipo: 'arquivo', url: '#', nome: arquivo.name, extensao: (arquivo.name.split('.').pop() || 'ARQ').slice(0, 4).toUpperCase() }], 'eu');
+    if (nova.ativa) {
+      mostrarRespostas([{ tipo: 'texto', texto: 'Recebi! As fotos você manda depois, na página da música (pro vídeo). Agora me responde por texto ou áudio, tá? 😊' }]);
+      return;
+    }
     if (!orderId) {
       mostrarRespostas([{ tipo: 'texto', texto: 'Antes, me manda o número de WhatsApp que você usou no site, com DDD, pra eu achar seu pedido.' }]);
       return;
@@ -204,12 +229,21 @@ export default function ChatSuporte({ pedidoInicial }) {
 
   const enviarAudio = async (blob) => {
     adicionar([{ tipo: 'audio', url: URL.createObjectURL(blob), titulo: 'Seu áudio' }], 'eu');
-    if (!orderId) {
-      mostrarRespostas([{ tipo: 'texto', texto: 'Antes, me manda por escrito o número de WhatsApp que você usou no site, com DDD.' }]);
-      return;
-    }
     try {
       const base64 = await blobParaBase64(blob);
+      if (nova.ativa || !orderId) {
+        setDigitando(true);
+        const res = await fetch('/api/suporte/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ acao: 'transcrever', audio: { base64, mimeType: blob.type || 'audio/webm' } }) });
+        const data = await res.json().catch(() => ({}));
+        setDigitando(false);
+        const t = String(data.texto || '').trim();
+        if (!t) { mostrarRespostas([{ tipo: 'texto', texto: data.error || 'Não consegui ouvir direito o seu áudio. 😕 Pode escrever pra mim?' }]); return; }
+        adicionar([{ tipo: 'texto', texto: `🎤 “${t}”` }], 'eu');
+        if (nova.ativa) nova.responderTexto(t);
+        else if (modo === 'telefone' || pareceTelefone(t)) chamar({ acao: 'identificar', telefone: t });
+        else { setModo(null); nova.iniciar(t); }
+        return;
+      }
       chamar({ acao: 'audio', audio: { base64, mimeType: blob.type || 'audio/webm' }, modo });
     } catch (_) {
       mostrarRespostas([{ tipo: 'texto', texto: 'Não consegui enviar o áudio. Pode escrever?' }]);
@@ -247,8 +281,8 @@ export default function ChatSuporte({ pedidoInicial }) {
 
         <BarraEnvio
           onTexto={enviarTexto} onArquivo={enviarArquivo} onAudio={enviarAudio}
-          teclado={modo === 'telefone' ? 'tel' : 'text'}
-          placeholder={modo === 'telefone' ? 'Seu WhatsApp com DDD' : modo === 'letra' ? 'O que mudar na letra?' : modo === 'ritmo' ? 'Qual ritmo?' : 'Mensagem'}
+          teclado={nova.ativa ? nova.teclado : modo === 'telefone' ? 'tel' : 'text'}
+          placeholder={nova.ativa ? nova.placeholder : modo === 'telefone' ? 'Seu WhatsApp com DDD' : modo === 'inicio' ? 'Conte a história ou seu WhatsApp' : modo === 'letra' ? 'O que mudar na letra?' : modo === 'ritmo' ? 'Qual ritmo?' : 'Mensagem'}
         />
       </div>
     </div>

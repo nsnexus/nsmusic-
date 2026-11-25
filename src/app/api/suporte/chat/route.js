@@ -5,7 +5,9 @@ import { findOrdersByPhone } from '@/lib/orderLookup';
 import { transcribeAudioWithFailover } from '@/lib/transcribeAudio';
 import {
   responderChat, saudacao, acaoPago, acaoAjustePago, acaoNovaVersao, orderIdValido,
+  acaoMusicaNovaPronta, dadosDoCliente, reescreverLetra,
 } from '@/lib/suporteChat';
+import { extrairDadosDaHistoria } from '@/lib/suporteNovaMusica';
 
 export const runtime = 'edge';
 
@@ -13,7 +15,11 @@ export const runtime = 'edge';
 // para desenhar. Toda decisão (preço, pagamento, liberação) acontece no servidor — ver
 // src/lib/suporteChat.js e src/lib/ajustePago.js.
 
-const ACOES = new Set(['identificar', 'inicio', 'opcao', 'texto', 'audio', 'comprovante', 'pago', 'ajuste_pago', 'nova_versao']);
+const ACOES = new Set([
+  'identificar', 'inicio', 'opcao', 'texto', 'audio', 'comprovante', 'pago', 'ajuste_pago', 'nova_versao',
+  // Música nova pelo chat (roteiro em src/lib/novaMusicaChat.js):
+  'nova_extrair', 'nova_ajustar_letra', 'transcrever', 'nova_dados', 'musica_pronta',
+]);
 const MAX_AUDIO_BASE64 = 3 * 1024 * 1024;
 
 function lerAmbiente() {
@@ -57,8 +63,31 @@ export async function POST(req) {
       return json({ ok: true, orderId: pedido.id, mensagens: saudacao(pedido) });
     }
 
+    // Sem pedido: cliente novo criando música pelo chat.
+    if (acao === 'nova_extrair') {
+      const texto = String(body.texto || '').slice(0, 3000);
+      return json({ ok: true, extraidos: await extrairDadosDaHistoria(texto, env) });
+    }
+    if (acao === 'nova_ajustar_letra') {
+      const letra = String(body.letra || '');
+      const instrucao = String(body.instrucao || '').trim();
+      if (letra.length < 40 || letra.length > 8000 || !instrucao) return json({ error: 'Faltou dizer o que mudar na letra.' }, 400);
+      const nova = await reescreverLetra(letra, instrucao, String(body.homenageado || '').slice(0, 60), env);
+      if (nova.length < 40) return json({ error: 'Não consegui ajustar a letra agora. Tenta escrever de outro jeito.' }, 502);
+      return json({ ok: true, letra: nova });
+    }
+    if (acao === 'transcrever') {
+      const base64 = String(body.audio?.base64 || '');
+      if (!base64 || base64.length > MAX_AUDIO_BASE64) return json({ error: 'Áudio muito longo. Grave até 1 minuto.' }, 400);
+      const mimeType = String(body.audio?.mimeType || 'audio/webm').slice(0, 60);
+      const texto = String(await transcribeAudioWithFailover({ type: 'base64', value: base64, mimeType }, env) || '').trim();
+      return json({ ok: true, texto });
+    }
+
     const orderId = String(body.orderId || '');
     if (!orderIdValido(orderId)) return json({ error: 'Pedido inválido.' }, 400);
+
+    if (acao === 'musica_pronta') return json({ ok: true, orderId, ...(await acaoMusicaNovaPronta(orderId, env)) });
 
     if (acao === 'pago') return json({ ok: true, orderId, ...(await acaoPago(orderId, env)) });
     if (acao === 'ajuste_pago') {
@@ -72,6 +101,8 @@ export async function POST(req) {
 
     const pedido = await getOrder(orderId, env);
     if (!pedido || pedido.deletedAt) return json({ error: 'Pedido não encontrado.' }, 404);
+
+    if (acao === 'nova_dados') return json({ ok: true, orderId, cliente: dadosDoCliente(pedido) });
 
     if (acao === 'audio') {
       const base64 = String(body.audio?.base64 || '');
