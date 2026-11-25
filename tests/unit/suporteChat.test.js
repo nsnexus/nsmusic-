@@ -159,3 +159,10 @@ describe('início com vários pedidos no número', () => {
     expect(r.escolherPedido).toHaveLength(2);
   });
 });
+
+describe('foto ou vídeo', () => {
+  it('manda para a página da música trocar as fotos', async () => {
+    const r = await responderChat(pago, { acao: 'texto', texto: 'só quero tirar uma foto que ficou errado' });
+    expect(r.mensagens.some((m) => m.tipo === 'link' && m.url.includes('/entrega?orderId='))).toBe(true);
+  });
+});

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Bolha, { CORES } from './Bolha';
 import BarraEnvio from './BarraEnvio';
 import { useWhatsappSuporte, linkWhatsapp } from '@/lib/useWhatsappSuporte';
-import { pareceTelefone } from '@/lib/novaMusicaChat';
+import { pareceTelefone, classificarInicio, escolherPedidoPorTexto } from '@/lib/novaMusicaChat';
 import { useNovaMusica } from './useNovaMusica';
 import { FUNDO_CHAT } from './papelDeParede';
 import { useHistorico } from './useHistorico';
@@ -83,7 +83,9 @@ export default function ChatSuporte({ pedidoInicial }) {
     setModo(null);
     if (gravando) setAguardar({ tipo: 'musica_nova' });
   }, [historico]);
-  const nova = useNovaMusica({ mostrarRespostas, setDigitando, orderId, aoCriarPedido });
+  const aoDesistirRef = useRef(null);
+  const aoDesistir = useCallback((t) => aoDesistirRef.current?.(t), []);
+  const nova = useNovaMusica({ mostrarRespostas, setDigitando, orderId, aoCriarPedido, aoDesistir });
 
   const gerarPixDoPedido = useCallback(async (id, sku) => {
     try {
@@ -102,6 +104,7 @@ export default function ChatSuporte({ pedidoInicial }) {
 
   const chamar = useCallback(async (payload, idForcado) => {
     const id = idForcado ?? orderId;
+    if (payload.acao === 'identificar') historico.definirTelefone(payload.telefone);
     setDigitando(true);
     try {
       const res = await fetch('/api/suporte/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...payload, orderId: id || undefined }) });
@@ -206,27 +209,52 @@ export default function ChatSuporte({ pedidoInicial }) {
     return () => { ativo = false; clearTimeout(timer); };
   }, [aguardar, orderId, chamar, mostrarRespostas, historico]);
 
+  const abrirPedido = (id) => {
+    setAguardar(null);
+    setOrderId(id);
+    salvarPedido(id);
+    setModo(null);
+    chamar({ acao: 'inicio' }, id);
+  };
+
+  const pedirTelefone = (texto) => {
+    nova.cancelar();
+    setModo('telefone');
+    mostrarRespostas([{ tipo: 'texto', texto: texto || 'Entendi! Pra eu achar seu pedido, me manda o número de WhatsApp que você usou no site, com DDD.' }]);
+  };
+
+  // Quem ainda não tem pedido aberto no chat escreveu algo (em vez de tocar numa opção).
+  const tratarSemPedido = (t) => {
+    // Lista de pedidos na tela: tenta achar pelo nome do homenageado; senão, mostra a lista de novo.
+    if (pedidosDoNumero.current.length) {
+      const achado = escolherPedidoPorTexto(t, pedidosDoNumero.current);
+      if (achado) { abrirPedido(achado.id.slice(7)); return; }
+      if (/\b(nova|outra|criar)\b/i.test(t) && classificarInicio(t) === 'nova') { setModo(null); nova.iniciar(t); return; }
+      mostrarRespostas([{ tipo: 'texto', texto: 'Toque no pedido que você quer, aqui embaixo 👇', opcoes: pedidosDoNumero.current }]);
+      return;
+    }
+    if (modo === 'telefone' || pareceTelefone(t)) { chamar({ acao: 'identificar', telefone: t }); return; }
+    const tipo = classificarInicio(t);
+    if (tipo === 'pedido') { pedirTelefone(); return; }
+    if (tipo === 'nova') { setModo(null); nova.iniciar(t); return; }
+    mostrarRespostas([{ tipo: 'texto', texto: 'Me conta: você já fez um pedido com a gente ou quer criar uma música nova?', opcoes: [{ id: 'tem_pedido', label: 'Já tenho um pedido' }, { id: 'criar_nova', label: 'Quero criar uma música' }] }]);
+  };
+  aoDesistirRef.current = (t) => {
+    if (orderId) chamar({ acao: 'texto', texto: t, modo: null });
+    else tratarSemPedido(t);
+  };
+
   const escolher = (opcao) => {
     adicionar([{ tipo: 'texto', texto: opcao.label }], 'eu');
     const marca = { criar_nova: 'musica_nova', humano_sem_pedido: 'humano' }[opcao.id]
       || (['ritmo', 'letra', 'baixar', 'pagamento', 'criar', 'humano', 'ja_paguei'].includes(opcao.id) ? opcao.id : null);
     historico.marcar(marca);
     if (opcao.id === 'tem_pedido') {
-      nova.cancelar();
-      setModo('telefone');
-      mostrarRespostas([{ tipo: 'texto', texto: 'Me manda o número de WhatsApp que você usou no site, com DDD, que eu acho seu pedido.' }]);
+      pedirTelefone('Me manda o número de WhatsApp que você usou no site, com DDD, que eu acho seu pedido.');
       return;
     }
     if (opcao.id === 'criar_nova') { setModo(null); nova.iniciar(); return; }
-    if (opcao.id.startsWith('pedido:')) {
-      const id = opcao.id.slice(7);
-      setAguardar(null);
-      setOrderId(id);
-      salvarPedido(id);
-      setModo(null);
-      chamar({ acao: 'inicio' }, id);
-      return;
-    }
+    if (opcao.id.startsWith('pedido:')) { abrirPedido(opcao.id.slice(7)); return; }
     // Pedido com música bônus: o cliente escolheu em qual música fazer a ação.
     if (opcao.id.startsWith('alvo:')) {
       const [, id, ...resto] = opcao.id.split(':');
@@ -251,8 +279,7 @@ export default function ChatSuporte({ pedidoInicial }) {
   const enviarTexto = (t) => {
     adicionar([{ tipo: 'texto', texto: t }], 'eu');
     if (nova.ativa) { nova.responderTexto(t); return; }
-    if (modo === 'telefone' || (!orderId && pareceTelefone(t))) { chamar({ acao: 'identificar', telefone: t }); return; }
-    if (!orderId) { setModo(null); nova.iniciar(t); return; }
+    if (!orderId) { tratarSemPedido(t); return; }
     chamar({ acao: 'texto', texto: t, modo, aguardando: aguardar });
   };
 
@@ -283,8 +310,7 @@ export default function ChatSuporte({ pedidoInicial }) {
         if (!t) { mostrarRespostas([{ tipo: 'texto', texto: data.error || 'Não consegui ouvir direito o seu áudio. 😕 Pode escrever pra mim?' }]); return; }
         adicionar([{ tipo: 'texto', texto: `🎤 “${t}”` }], 'eu');
         if (nova.ativa) nova.responderTexto(t);
-        else if (modo === 'telefone' || pareceTelefone(t)) chamar({ acao: 'identificar', telefone: t });
-        else { setModo(null); nova.iniciar(t); }
+        else tratarSemPedido(t);
         return;
       }
       chamar({ acao: 'audio', audio: { base64, mimeType: blob.type || 'audio/webm' }, modo, aguardando: aguardar });

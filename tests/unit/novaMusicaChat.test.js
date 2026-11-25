@@ -73,3 +73,37 @@ describe('pareceTelefone', () => {
     expect(pareceTelefone('minha mãe faz 60 anos dia 12/12/2026')).toBe(false);
   });
 });
+
+import { classificarInicio, desistiuDaMusicaNova, nomeDeQuemEscreve, escolherPedidoPorTexto } from '@/lib/novaMusicaChat';
+
+describe('entender quem chega sem pedido (conversas reais de 25/11/2026)', () => {
+  it('"Ja paguei", "Eu já tenho" e foto errada são de quem já tem pedido', () => {
+    expect(classificarInicio('Ja paguei')).toBe('pedido');
+    expect(classificarInicio('Eu já tenho')).toBe('pedido');
+    expect(classificarInicio('Mas eu já fiz um só quero tirar uma foto que ficou errado')).toBe('pedido');
+  });
+
+  it('pedido de música nova e cumprimento', () => {
+    expect(classificarInicio('quero uma música pra minha mãe')).toBe('nova');
+    expect(classificarInicio('oi')).toBe('indefinido');
+  });
+
+  it('durante a música nova, "eu já tenho" desiste do roteiro', () => {
+    expect(desistiuDaMusicaNova('Eu já tenho')).toBe(true);
+    expect(desistiuDaMusicaNova('Fabiana')).toBe(false);
+  });
+
+  it('"Meu nome jorge" é o nome de quem escreve, não o homenageado', () => {
+    expect(nomeDeQuemEscreve('Meu nome jorge')).toBe('Jorge');
+    const r = aplicarResposta('honoreeName', 'Meu nome jorge', CAMPOS_VAZIOS);
+    expect(r.campos.honoreeName).toBe('');
+    expect(r.campos.customerName).toBe('Jorge');
+    expect(r.erro).toMatch(/pra quem é a música/);
+  });
+
+  it('escrever o nome do homenageado escolhe o pedido da lista', () => {
+    const ops = [{ id: 'pedido:a', label: 'Música de Giovanna Cristina · 22/11/2026 · paga' }, { id: 'pedido:b', label: 'Música de Cicero · 22/11/2026 · paga' }];
+    expect(escolherPedidoPorTexto('a do cicero', ops)?.id).toBe('pedido:b');
+    expect(escolherPedidoPorTexto('Música com amigos', ops)).toBeNull();
+  });
+});

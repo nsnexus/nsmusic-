@@ -71,10 +71,14 @@ export function aplicarResposta(etapa, resposta, campos) {
   const c = { ...campos };
 
   switch (etapa) {
-    case 'honoreeName':
-      if (valor.length < 2 || valor.length > 60) return { campos, erro: 'Me fala só o nome da pessoa, tá?' };
+    case 'honoreeName': {
+      // "Meu nome é Jorge": é o nome de quem escreve, não de quem vai ser homenageado.
+      const proprio = nomeDeQuemEscreve(valor);
+      if (proprio) return { campos: { ...c, customerName: proprio }, erro: `Prazer, ${proprio}! 😊 E pra quem é a música? Me fala o nome da pessoa que vai ser homenageada.` };
+      if (valor.length < 2 || valor.length > 60 || valor.split(/\s+/).length > 6) return { campos, erro: 'Me fala só o nome da pessoa que vai ser homenageada, tá?' };
       c.honoreeName = valor.replace(/\s+/g, ' ');
       return { campos: c };
+    }
     case 'relationship':
     case 'occasion':
     case 'musicMood':
@@ -129,4 +133,47 @@ export function pareceTelefone(texto) {
   const t = String(texto || '').trim();
   const d = t.replace(/\D/g, '');
   return d.length >= 10 && d.length <= 13 && d.length >= t.replace(/\s/g, '').length - 4;
+}
+
+// ---------- Entender a primeira mensagem de quem chega sem pedido ----------
+//
+// Achado 25/11/2026 nas conversas reais: "Ja paguei", "Eu já tenho", "quero tirar uma foto" caíam no
+// roteiro de música nova. Quem fala de pedido, pagamento, download ou ajuste já é cliente.
+
+const SEM_ACENTO = (t) => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
+const SINAIS_DE_PEDIDO = /\bja (paguei|pago|tenho|fiz|comprei|fiz o pedido)\b|\bpaguei\b|\bpagamento\b|\bpix\b|comprovante|\bmeu pedido\b|\bminha musica\b|\bminhas musicas\b|\bbaixar\b|\bdownload\b|\bnao (chegou|recebi|veio|consigo)\b|\bcade\b|\bliberar\b|\bliberou\b|\bajust|\bmudar\b|\btrocar\b|\bcorrigir\b|\berrad|\bfoto\b|\bfotos\b|\bvideo\b|\bcapa\b|\bsuporte\b|\bjá tenho\b/;
+const SINAIS_DE_MUSICA_NOVA = /\b(quero|queria|gostaria|fazer|criar|encomendar)\b.*\b(musica|homenagem|cancao)\b|\b(outra|nova) musica\b|\baniversario\b|\bhomenagem\b|\bdia das maes\b|\bcasamento\b|\bnamorad[oa]\b|\bdeclaracao\b/;
+
+/** 'pedido' (já é cliente), 'nova' (quer criar) ou 'indefinido' (ex.: "oi", "boa tarde"). */
+export function classificarInicio(texto) {
+  const t = SEM_ACENTO(texto);
+  if (!t.trim()) return 'indefinido';
+  if (SINAIS_DE_PEDIDO.test(t)) return 'pedido';
+  if (SINAIS_DE_MUSICA_NOVA.test(t) || t.length >= 60) return 'nova';
+  return 'indefinido';
+}
+
+/** Durante a música nova: o cliente deixou claro que já tem pedido ("já paguei", "eu já tenho"…). */
+export function desistiuDaMusicaNova(texto) {
+  const t = SEM_ACENTO(texto);
+  return /\bja (paguei|tenho|fiz|comprei)\b|\bmeu pedido\b|\bminha musica\b|comprovante|\bnao (chegou|recebi|consigo baixar)\b|\bcade\b|\bfoto\b|\bja tenho\b/.test(t);
+}
+
+/** "meu nome é Jorge", "me chamo Jorge" → "Jorge" (nome de quem escreve, não do homenageado). */
+export function nomeDeQuemEscreve(texto) {
+  const m = String(texto || '').trim().match(/^(?:meu nome(?:\s+[eé])?|me chamo|eu sou(?: [oa])?|sou [oa])\s+(.{2,40})$/i);
+  if (!m) return '';
+  return m[1].replace(/[.!,]+$/, '').trim().replace(/(^|\s)\p{L}/gu, (x) => x.toUpperCase());
+}
+
+/** Na lista de pedidos, o cliente escreveu em vez de tocar: acha a opção pelo nome do homenageado. */
+export function escolherPedidoPorTexto(texto, opcoes) {
+  const t = SEM_ACENTO(texto);
+  if (!t || !Array.isArray(opcoes)) return null;
+  const achados = opcoes.filter((o) => {
+    const nome = SEM_ACENTO(String(o.label || '').replace(/^Música de /, '').split(' · ')[0]).trim();
+    return nome.length >= 3 && (t.includes(nome) || nome.split(/\s+/).some((p) => p.length >= 4 && t.split(/\s+/).includes(p)));
+  });
+  return achados.length === 1 ? achados[0] : null;
 }

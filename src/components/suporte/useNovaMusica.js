@@ -3,7 +3,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { buildSunoPayload } from '@/lib/sunoPayload';
 import { getStoredTrafficSource } from '@/lib/trafficSource';
-import { CAMPOS_VAZIOS, proximaEtapa, aplicarResposta, mesclarExtraidos } from '@/lib/novaMusicaChat';
+import { CAMPOS_VAZIOS, proximaEtapa, aplicarResposta, mesclarExtraidos, desistiuDaMusicaNova } from '@/lib/novaMusicaChat';
 
 // "Criar uma música nova" dentro do chat de suporte. Pergunta o essencial (roteiro em
 // src/lib/novaMusicaChat.js), escreve a letra com o MESMO gerador do site, e na aprovação cria o
@@ -19,7 +19,7 @@ async function postar(url, corpo) {
   return { ok: res.ok, status: res.status, data };
 }
 
-export function useNovaMusica({ mostrarRespostas, setDigitando, orderId, aoCriarPedido }) {
+export function useNovaMusica({ mostrarRespostas, setDigitando, orderId, aoCriarPedido, aoDesistir }) {
   const [ativa, setAtiva] = useState(false);
   const [etapa, setEtapa] = useState(null);
   const [fase, setFase] = useState('perguntas'); // perguntas | letra | mudando_letra | gravando
@@ -96,7 +96,10 @@ export function useNovaMusica({ mostrarRespostas, setDigitando, orderId, aoCriar
     if (!criado.ok || !criado.data?.orderId) {
       setDigitando(false);
       setFase('letra');
-      await mostrarRespostas([{ tipo: 'texto', texto: criado.data?.error || 'Não consegui registrar seu pedido agora. Tenta de novo?', opcoes: [{ id: 'nova_gravar', label: 'Tentar de novo' }, { id: 'humano', label: 'Falar com atendente' }] }]);
+      // 403 traz um motivo escrito para o cliente (bloqueio, limite de músicas grátis). Qualquer
+      // outro erro é técnico ("HTTP 504…") e não vai para a tela.
+      const motivo = criado.status === 403 && criado.data?.error ? criado.data.error : 'Deu uma instabilidade aqui pra registrar seu pedido. Tenta de novo em alguns segundos?';
+      await mostrarRespostas([{ tipo: 'texto', texto: motivo, opcoes: [{ id: 'nova_gravar', label: 'Tentar de novo' }, { id: 'humano', label: 'Falar com atendente' }] }]);
       return;
     }
     const novoId = criado.data.orderId;
@@ -106,7 +109,8 @@ export function useNovaMusica({ mostrarRespostas, setDigitando, orderId, aoCriar
     setEtapa(null);
     if (!gerou.ok) {
       aoCriarPedido(novoId, { gravando: false });
-      await mostrarRespostas([{ tipo: 'texto', texto: gerou.data?.error || 'Seu pedido foi registrado, mas tive um problema pra começar a gravação agora.', opcoes: [{ id: 'humano', label: 'Falar com atendente' }] }]);
+      const motivo = gerou.status === 403 && gerou.data?.error ? gerou.data.error : 'Seu pedido foi registrado, mas tive um problema pra começar a gravação agora. Uma pessoa da equipe resolve com você:';
+      await mostrarRespostas([{ tipo: 'texto', texto: motivo, opcoes: [{ id: 'humano', label: 'Falar com atendente' }] }]);
       return;
     }
     aoCriarPedido(novoId, { gravando: true });
@@ -135,6 +139,13 @@ export function useNovaMusica({ mostrarRespostas, setDigitando, orderId, aoCriar
   const responderTexto = useCallback(async (texto) => {
     if (fase === 'gravando') return;
     if (fase === 'letra' || fase === 'mudando_letra') { await ajustarLetra(texto); return; }
+    // "Já paguei", "eu já tenho", "quero trocar uma foto"…: é cliente com pedido, não música nova.
+    if (['honoreeName', 'relationship', 'occasion'].includes(etapa) && desistiuDaMusicaNova(texto) && aoDesistir) {
+      setAtiva(false);
+      setEtapa(null);
+      aoDesistir(texto);
+      return;
+    }
     if (!etapa) { await perguntar(); return; }
     let base = campos.current;
     // História longa pode já trazer o ritmo, a ocasião, a voz… — aproveita para não perguntar de novo.
@@ -143,7 +154,7 @@ export function useNovaMusica({ mostrarRespostas, setDigitando, orderId, aoCriar
     campos.current = r.campos;
     if (r.erro) { await mostrarRespostas([{ tipo: 'texto', texto: r.erro }]); return; }
     await perguntar();
-  }, [fase, etapa, ajustarLetra, perguntar, lerHistoria, mostrarRespostas]);
+  }, [fase, etapa, ajustarLetra, perguntar, lerHistoria, mostrarRespostas, aoDesistir]);
 
   const responderOpcao = useCallback(async (opcao) => {
     if (opcao.id === 'nova_gravar') return gravar();

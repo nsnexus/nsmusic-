@@ -123,7 +123,7 @@ export default function AbaAtendimentos({ authUser }) {
           {conversas.map((c) => (
             <button key={c.id} type="button" onClick={() => abrir(c.id)} style={{ textAlign: 'left', background: aberta?.id === c.id ? '#ECFDF5' : '#fff', border: `1px solid ${aberta?.id === c.id ? '#10B981' : '#E5E7EB'}`, borderRadius: 10, padding: '10px 12px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 6 }}>
               <span style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                <strong style={{ fontSize: 14, color: '#111827' }}>{c.customer_name || 'Sem pedido identificado'}</strong>
+                <strong style={{ fontSize: 14, color: '#111827' }}>{c.customer_name || (c.customer_phone ? 'Cliente (pedido não escolhido)' : 'Sem pedido identificado')}</strong>
                 <span style={{ fontSize: 12, color: '#6B7280', whiteSpace: 'nowrap' }}>{quando(c.atualizado_em)}</span>
               </span>
               <span style={{ fontSize: 12.5, color: '#4B5563' }}>{c.customer_phone ? telefone(c.customer_phone) : 'WhatsApp não informado'} · {c.total_mensagens} mensagens</span>

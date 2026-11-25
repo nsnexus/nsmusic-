@@ -71,7 +71,7 @@ export async function POST(req) {
 
     if (acao === 'registrar') {
       const orderIdLog = orderIdValido(String(body.orderId || '')) ? String(body.orderId) : '';
-      const r = await registrarConversa({ conversaId: body.conversaId, orderId: orderIdLog, mensagens: body.mensagens, marcas: body.marcas }, env);
+      const r = await registrarConversa({ conversaId: body.conversaId, orderId: orderIdLog, mensagens: body.mensagens, marcas: body.marcas, telefone: String(body.telefone || '').replace(/\D/g, '').slice(0, 13) }, env);
       return json({ ok: r.ok });
     }
 

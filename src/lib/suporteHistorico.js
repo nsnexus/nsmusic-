@@ -35,7 +35,7 @@ export function limparLote(lista) {
     });
 }
 
-export async function registrarConversa({ conversaId, orderId, mensagens, marcas }, env = {}) {
+export async function registrarConversa({ conversaId, orderId, mensagens, marcas, telefone }, env = {}) {
   if (!UUID.test(String(conversaId || ''))) return { ok: false, motivo: 'conversa_invalida' };
   const lote = limparLote(mensagens);
   const marcasValidas = (Array.isArray(marcas) ? marcas : []).filter((m) => MARCAS.has(m)).slice(0, 12);
@@ -50,7 +50,10 @@ export async function registrarConversa({ conversaId, orderId, mensagens, marcas
   const { error } = await supabase.rpc('suporte_registrar', {
     p_id: conversaId,
     p_order_id: pedido?.id || '',
-    p_phone: pedido?.customerPhone ? String(pedido.customerPhone).replace(/\D/g, '') : '',
+    // Sem pedido aberto, guarda o WhatsApp que o cliente digitou no chat (só para achar a conversa).
+    p_phone: pedido?.customerPhone
+      ? String(pedido.customerPhone).replace(/\D/g, '')
+      : (/^\d{10,13}$/.test(String(telefone || '')) ? String(telefone) : ''),
     p_nome: pedido?.customerName || '',
     p_mensagens: lote,
     p_marcas: marcasValidas,
@@ -68,6 +71,8 @@ export async function listarConversas({ telefone = '', antes = '', limite = 40 }
   if (!supabase) return { ok: false, motivo: 'sem_banco' };
   let q = supabase.from('suporte_conversas')
     .select('id,order_id,customer_phone,customer_name,total_mensagens,marcas,criado_em,atualizado_em')
+    // Conversa com só a saudação do bot (abriu e saiu) não é atendimento.
+    .gt('total_mensagens', 1)
     .order('atualizado_em', { ascending: false })
     .limit(Math.min(Math.max(Number(limite) || 40, 1), 100));
   const variantes = telefone ? generatePhoneVariants(telefone).map((v) => String(v).replace(/\D/g, '')) : [];
