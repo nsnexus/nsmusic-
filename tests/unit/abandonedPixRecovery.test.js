@@ -27,6 +27,7 @@ vi.mock('@/lib/configSite.js', () => ({
 }));
 
 vi.mock('@/lib/whatsappCloudApi.js', () => ({
+  linkSuporteDoPedido: (id) => `https://nsmusic.ia.br/suporte?pedido=${id}`,
   enviarRecuperacaoCarrinhoCloud: vi.fn().mockResolvedValue({
     success: true,
     provider: 'cloud_api',
@@ -220,6 +221,7 @@ describe('Recuperação de PIX Abandonado — Regras de Negócio', () => {
         expect.objectContaining({
           cliente: 'Carlos',
           homenageado: 'Ana',
+          linkSuporte: 'https://nsmusic.ia.br/suporte?pedido=ord-1',
         }),
         expect.any(Object)
       );

@@ -592,6 +592,16 @@ export async function POST(req) {
     const isDirectOrderRequest = hasOrderReference;
     const isExplicitPreviewRequest = isDirectOrderRequest;
 
+    // Número oficial (Cloud API): quem escreve aqui recebe o botão "Continuar conversa" para o chat
+    // de suporte do site (25/11/2026), no lugar do silêncio de quando o robô está desligado. Mensagem
+    // com o ID do pedido segue o fluxo de entrega abaixo. Uma vez a cada 6 h por número.
+    const viaApiOficial = Array.isArray(body?.entry) || body?.object === 'whatsapp_business_account';
+    if (viaApiOficial && !isDirectOrderRequest) {
+      const { enviarBotaoSuporteParaCliente } = await import('@/lib/suporteBotaoCloud');
+      const r = await enviarBotaoSuporteParaCliente(senderPhone, envVars);
+      return NextResponse.json({ success: true, action: r.enviado ? 'botao_suporte' : (r.motivo || 'botao_suporte_ignorado') }, { status: 200 });
+    }
+
     // A. Master switch: se o robô conversacional estiver desativado no Admin (Atendimento 100% Humano),
     // qualquer mensagem que não traga o ID do pedido fica em silêncio absoluto.
     const isGloballyActive = await isWhatsAppAgentGloballyEnabled(envVars);
