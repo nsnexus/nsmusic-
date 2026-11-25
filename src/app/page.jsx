@@ -3,12 +3,11 @@ import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import HeroVideoBackground from '@/components/HeroVideoBackground';
 import Image from 'next/image';
-import { Sparkles, Gift, Headphones, Star, Clock, ShieldCheck, Music, Flame, Check, ChevronDown, Heart } from 'lucide-react';
+import { Sparkles, Gift, Headphones, Star, Clock, ShieldCheck, Music, Flame, Check, ChevronDown, Lock } from 'lucide-react';
 import { faqJsonLd, howToJsonLd } from '@/lib/structuredData';
 import { ocasioes } from '@/lib/ocasioes';
 
 // Milhar com ponto, padrão brasileiro (1924 -> 1.924).
-const formatarNumero = (n) => Number(n || 0).toLocaleString('pt-BR');
 
 export default function Home() {
   const [playingId, setPlayingId] = useState(null);
@@ -20,28 +19,6 @@ export default function Home() {
   const audioRef = useRef(null);
   const examplesSectionRef = useRef(null);
 
-  // Prova social com número real (stats/_live, uma leitura só — ver src/lib/liveStats.js).
-  // Começa com os números conhecidos no dia em que isso entrou no ar: assim a home nunca pisca
-  // "+0 músicas" enquanto a consulta não volta, nem some se a consulta falhar.
-  // A base guarda GERAÇÕES; cada geração entrega 2 versões, então as músicas exibidas são x2.
-  // Os valores iniciais são os reais medidos no dia em que isso entrou no ar: a home nunca pisca
-  // "+0 músicas" enquanto a consulta não volta, nem some se a consulta falhar.
-  const [stats, setStats] = useState({ generations: 2423, sales: 962 });
-
-  useEffect(() => {
-    let ativo = true;
-    fetch('/api/stats/public')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        // Só sobrescreve com número maior que zero: contador ainda não semeado devolveria 0 e faria
-        // a vitrine anunciar menos do que o estúdio realmente entregou.
-        if (ativo && d && (d.generations > 0 || d.sales > 0)) {
-          setStats({ generations: d.generations || 0, sales: d.sales || 0 });
-        }
-      })
-      .catch(() => {});
-    return () => { ativo = false; };
-  }, []);
 
   const examples = [
     {
@@ -328,25 +305,20 @@ export default function Home() {
             {/* Cada item: ícone + valor em destaque + rótulo embaixo, como no mockup. Em grid (e não
                 em linha que quebra sozinha) porque com 4 itens a quebra deixava um sobrando
                 desalinhado no meio da caixa. */}
+            {/* 25/11/2026: sem contadores de músicas/clientes — no lugar, os motivos que mais pesam na
+                decisão de compra. Números só se forem reais. */}
             <span className="hero-prova-item">
-              <Heart size={17} aria-hidden="true" />
+              <Headphones size={17} aria-hidden="true" />
               <span>
-                <strong>+{formatarNumero(stats.generations * 2)}</strong>
-                músicas produzidas
-              </span>
-            </span>
-            <span className="hero-prova-item">
-              <Star size={17} aria-hidden="true" />
-              <span>
-                <strong>+{formatarNumero(stats.sales)}</strong>
-                clientes satisfeitos
+                <strong>Ouça a prévia</strong>
+                antes de pagar
               </span>
             </span>
             <span className="hero-prova-item">
               <Clock size={17} aria-hidden="true" />
               <span>
-                <strong>Entrega</strong>
-                rápida
+                <strong>Pronta em</strong>
+                poucos minutos
               </span>
             </span>
             <span className="hero-prova-item">
@@ -354,6 +326,13 @@ export default function Home() {
               <span>
                 <strong>Garantia</strong>
                 de aprovação
+              </span>
+            </span>
+            <span className="hero-prova-item">
+              <Lock size={17} aria-hidden="true" />
+              <span>
+                <strong>Pagamento seguro</strong>
+                via Pix
               </span>
             </span>
           </div>
