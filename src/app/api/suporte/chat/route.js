@@ -5,7 +5,7 @@ import { findOrdersByPhone } from '@/lib/orderLookup';
 import { transcribeAudioWithFailover } from '@/lib/transcribeAudio';
 import {
   responderChat, saudacao, acaoPago, acaoAjustePago, acaoNovaVersao, orderIdValido,
-  acaoMusicaNovaPronta, dadosDoCliente, reescreverLetra, listaDePedidos, transcricaoValida,
+  acaoMusicaNovaPronta, dadosDoCliente, reescreverLetra, listaDePedidos, transcricaoValida, gruposDoNumero, contextoDoPedido,
 } from '@/lib/suporteChat';
 import { extrairDadosDaHistoria } from '@/lib/suporteNovaMusica';
 
@@ -56,13 +56,14 @@ export async function POST(req) {
     if (acao === 'identificar') {
       const digitos = String(body.telefone || '').replace(/\D/g, '');
       if (digitos.length < 10 || digitos.length > 13) return json({ error: 'Digite o WhatsApp com DDD, só números.' }, 400);
-      const pedidos = await findOrdersByPhone(digitos, env, 10);
-      const pedido = pedidos[0];
-      if (pedidos.length > 1) {
+      const pedidos = await findOrdersByPhone(digitos, env, 20);
+      const grupos = gruposDoNumero(pedidos);
+      const pedido = grupos[0]?.principal;
+      if (grupos.length > 1) {
         const lista = listaDePedidos(pedidos);
         return json({ ok: true, mensagens: [lista], escolherPedido: lista.opcoes });
       }
-      return json({ ok: true, orderId: pedido.id, mensagens: saudacao(pedido) });
+      return json({ ok: true, orderId: pedido.id, mensagens: saudacao(pedido, await contextoDoPedido(pedido, env)) });
     }
 
     // Sem pedido: cliente novo criando música pelo chat.
@@ -124,6 +125,7 @@ export async function POST(req) {
       texto: typeof body.texto === 'string' ? body.texto.slice(0, 1000) : undefined,
       modo: ['letra', 'ritmo'].includes(body.modo) ? body.modo : null,
       aguardando: lerAguardando(body.aguardando),
+      escolhido: body.escolhido === true,
     };
     const r = await responderChat(pedido, entrada, env);
     return json({ ok: true, orderId, ...r });

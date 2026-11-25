@@ -213,6 +213,14 @@ export default function ChatSuporte({ pedidoInicial }) {
       chamar({ acao: 'inicio' }, id);
       return;
     }
+    // Pedido com música bônus: o cliente escolheu em qual música fazer a ação.
+    if (opcao.id.startsWith('alvo:')) {
+      const [, id, ...resto] = opcao.id.split(':');
+      setOrderId(id);
+      setModo(null);
+      chamar({ acao: 'opcao', opcao: resto.join(':'), escolhido: true }, id);
+      return;
+    }
     if (opcao.id === 'trocar_pedido') {
       mostrarRespostas([{ tipo: 'texto', texto: 'Sobre qual pedido você quer falar?', opcoes: pedidosDoNumero.current }]);
       return;
