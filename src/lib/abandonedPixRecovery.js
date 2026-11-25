@@ -1,7 +1,7 @@
 import { getSupabaseEdge } from './supabase-edge.js';
 import { updateOrder } from './supabaseDb.js';
 import { lerConfigSite, normalizarNumeroWhatsapp, WHATSAPP_SUPORTE_PADRAO } from './configSite.js';
-import { enviarRecuperacaoCarrinhoCloud } from './whatsappCloudApi.js';
+import { enviarRecuperacaoCarrinhoCloud, linkSuporteDoPedido } from './whatsappCloudApi.js';
 import { formatToWhatsAppNumber } from './whatsappTemplates.js';
 import { resolverSiteUrl } from './siteUrl.js';
 import { hasOrderGeneratedPix } from './pixCheckout.js';
@@ -107,8 +107,6 @@ export async function runAbandonedPixRecovery({ env = {}, maxBatch = 15, force =
 
   const batchLimit = Math.max(1, Math.min(50, Number(cfgSite?.abandonedPixRecoveryMaxPerHour) || maxBatch || 15));
   const baseUrl = resolverSiteUrl(env?.NEXT_PUBLIC_SITE_URL);
-  const numSuporte = normalizarNumeroWhatsapp(cfgSite?.whatsappSuporte) || WHATSAPP_SUPORTE_PADRAO;
-  const linkSuporte = `https://wa.me/${numSuporte}`;
 
   // Janela de busca: pedidos criados entre 1 hora atrás e 24 horas atrás
   const agora = Date.now();
@@ -223,7 +221,8 @@ export async function runAbandonedPixRecovery({ env = {}, maxBatch = 15, force =
           cliente: primeiroNome,
           homenageado,
           link: linkPedido,
-          linkSuporte,
+          // Suporte pelo chat do site, já no pedido (id longo: o número NS- não identifica lá).
+          linkSuporte: linkSuporteDoPedido(order.id, env),
         },
         env
       );

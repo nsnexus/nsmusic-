@@ -3,6 +3,23 @@ import { formatToWhatsAppNumber } from './whatsappTemplates.js';
 import { lerConfigSite, normalizarNumeroWhatsapp, WHATSAPP_SUPORTE_PADRAO } from './configSite.js';
 import { resolverSiteUrl } from './siteUrl.js';
 
+/** id do pedido dentro de um link de entrega (".../entrega?orderId=X"). */
+export function orderIdDoLink(link) {
+  const m = String(link || '').match(/[?&]orderId=([^&#]+)/);
+  return m ? decodeURIComponent(m[1]) : '';
+}
+
+/**
+ * Link de suporte das mensagens oficiais: o chat do site (/suporte), já no pedido do cliente.
+ * Antes era o wa.me do número de suporte (troca pedida pelo dono do estúdio em 25/11/2026). Número
+ * "NS-…" não identifica no chat (é adivinhável), então vai sem o pedido e o chat pede o WhatsApp.
+ */
+export function linkSuporteDoPedido(orderId, env = {}) {
+  const base = resolverSiteUrl(env?.NEXT_PUBLIC_SITE_URL);
+  const id = String(orderId || '').trim();
+  return id && !/^NS-/i.test(id) ? `${base}/suporte?pedido=${encodeURIComponent(id)}` : `${base}/suporte`;
+}
+
 // WhatsApp Cloud API (API oficial da Meta) — usada só como RESERVA de envio.
 //
 // Escopo definido pelo dono do estúdio em 27/09/2026: ela existe para garantir as duas mensagens
@@ -154,9 +171,7 @@ export async function sendCloudApiTemplate(phone, templateName, variaveis = [], 
     }
     // Se enviamos 3 variáveis e o template exige 4 (incluindo link dinâmico de suporte):
     if (!res.ok && variaveis.length === 3 && (data?.error?.message?.includes('parameters') || data?.error?.message?.includes('localizable_params'))) {
-      const cfgSite = await lerConfigSite(env).catch(() => ({}));
-      const numSuporte = normalizarNumeroWhatsapp(cfgSite?.whatsappSuporte) || WHATSAPP_SUPORTE_PADRAO;
-      const linkSuporte = `https://wa.me/${numSuporte}`;
+      const linkSuporte = linkSuporteDoPedido(orderIdDoLink(variaveis[2]), env);
       console.warn('[CloudAPI] Template exige 4 variáveis. Tentando com link dinâmico de suporte...', data?.error?.message);
       return sendCloudApiTemplate(phone, templateName, [...variaveis, linkSuporte], {}, env);
     }
@@ -177,9 +192,7 @@ export async function sendCloudApiTemplate(phone, templateName, variaveis = [], 
  */
 export async function enviarMusicaProntaCloud(phone, { cliente, homenageado, link }, env = {}) {
   const config = getCloudApiConfig(env);
-  const cfgSite = await lerConfigSite(env);
-  const numSuporte = normalizarNumeroWhatsapp(cfgSite?.whatsappSuporte) || WHATSAPP_SUPORTE_PADRAO;
-  const linkSuporte = `https://wa.me/${numSuporte}`;
+  const linkSuporte = linkSuporteDoPedido(orderIdDoLink(link), env);
 
   const templateToUse = config.templateMusicaPronta || 'aviso_musica_pronta';
   const variaveis = [cliente, homenageado, link, linkSuporte];
@@ -216,12 +229,9 @@ export async function enviarMusicaProntaUsCloud(phone, { cliente, homenageado, l
  */
 export async function enviarPagamentoConfirmadoCloud(phone, { cliente, homenageado, link, orderId, audio1, audio2 }, env = {}) {
   const config = getCloudApiConfig(env);
-  const cfgSite = await lerConfigSite(env);
-  const numSuporte = normalizarNumeroWhatsapp(cfgSite?.whatsappSuporte) || WHATSAPP_SUPORTE_PADRAO;
-  const linkSuporte = `https://wa.me/${numSuporte}`;
-
   const baseUrl = resolverSiteUrl(env?.NEXT_PUBLIC_SITE_URL);
   const resolvedOrderId = orderId || (link ? link.match(/orderId=([^&]+)/)?.[1] : '') || '';
+  const linkSuporte = linkSuporteDoPedido(resolvedOrderId, env);
   const nomeCliente = cliente || 'Cliente';
   const nomeHomenageado = homenageado || 'alguém especial';
   const resolvedLink = link || (resolvedOrderId ? `${baseUrl}/entrega?orderId=${resolvedOrderId}` : baseUrl);
@@ -274,13 +284,11 @@ export async function enviarPagamentoConfirmadoCloud(phone, { cliente, homenagea
  *   {{1}}: Primeiro nome do cliente
  *   {{2}}: Nome do homenageado
  *   {{3}}: Link do pedido / entrega
- *   {{4}}: Link do WhatsApp do suporte administrativo para dúvidas
+ *   {{4}}: Link de suporte — o chat do site (/suporte) no pedido do cliente
  */
 export async function enviarRecuperacaoCarrinhoCloud(phone, { cliente, homenageado, link, linkSuporte }, env = {}) {
   const config = getCloudApiConfig(env);
-  const cfgSite = await lerConfigSite(env).catch(() => ({}));
-  const numSuporte = normalizarNumeroWhatsapp(cfgSite?.whatsappSuporte) || WHATSAPP_SUPORTE_PADRAO;
-  const resolvedLinkSuporte = linkSuporte || `https://wa.me/${numSuporte}`;
+  const resolvedLinkSuporte = linkSuporte || linkSuporteDoPedido(orderIdDoLink(link), env);
 
   const templateToUse = config.templateRecuperacao || 'recuperacao_pedido_24h';
   const nomeCliente = cliente || 'Cliente';
@@ -292,3 +300,46 @@ export async function enviarRecuperacaoCarrinhoCloud(phone, { cliente, homenagea
   return sendCloudApiTemplate(phone, templateToUse, variaveis, {}, env);
 }
 
+
+/**
+ * Mensagem com botão "Continuar conversa" (cta_url) que leva ao chat de suporte do site.
+ *
+ * Mensagem interativa livre, sem template: a Meta só aceita dentro da janela de 24 h aberta pelo
+ * cliente — quem chama garante isso (só responde a quem acabou de escrever).
+ */
+export async function enviarBotaoSuporteCloud(phone, { orderId = '' } = {}, env = {}) {
+  const config = getCloudApiConfig(env);
+  if (!config.enabled) return { success: false, error: 'Cloud API não configurada.' };
+
+  const corpo = {
+    messaging_product: 'whatsapp',
+    to: formatToWhatsAppNumber(phone),
+    type: 'interactive',
+    interactive: {
+      type: 'cta_url',
+      body: { text: 'Oi! 👋 Para continuar seu atendimento, toque no botão abaixo. A conversa segue pelo nosso atendimento no site, onde você baixa sua música, ajusta, resolve o pagamento ou cria uma nova. 🎵' },
+      footer: { text: 'NS Music · Atendimento' },
+      action: {
+        name: 'cta_url',
+        parameters: { display_text: 'Continuar conversa', url: linkSuporteDoPedido(orderId, env) },
+      },
+    },
+  };
+
+  try {
+    const res = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${config.phoneNumberId}/messages`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${config.token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(corpo),
+      signal: AbortSignal.timeout(10000),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data?.messages?.length) return { success: true };
+    const motivo = data?.error?.message || `HTTP ${res.status}`;
+    console.warn('[CloudAPI] Falha ao enviar o botão de suporte:', motivo);
+    return { success: false, error: motivo };
+  } catch (err) {
+    console.warn('[CloudAPI] Erro de rede ao enviar o botão de suporte:', err.message);
+    return { success: false, error: err.message };
+  }
+}
