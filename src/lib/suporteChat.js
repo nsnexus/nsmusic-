@@ -487,7 +487,17 @@ export async function responderChat(pedido, entrada, env = {}) {
   // `escolhido`: a página já perguntou em qual música (principal ou bônus) e mudou para ela.
   const escolhido = Boolean(entrada?.escolhido);
   const ctx = await contextoDoPedido(pedido, env);
-  if (acao === 'inicio') return { mensagens: saudacao(pedido, ctx) };
+  if (acao === 'inicio') {
+    // Mais de um pedido no número: quem volta pelo navegador (pedido lembrado, sem link) escolhe de
+    // novo sobre qual quer falar; quem veio pelo link do pedido vê a saudação com a opção de trocar.
+    const grupos = gruposDoNumero(ctx.lista);
+    if (grupos.length > 1) {
+      const lista = listaDePedidos(ctx.lista);
+      if (entrada.listar) return { mensagens: [texto(`Oi${primeiroNome(pedido.customerName) ? `, ${primeiroNome(pedido.customerName)}` : ''}! Aqui é o suporte da NS Music.`), lista], escolherPedido: lista.opcoes };
+      return { mensagens: saudacao(pedido, ctx), escolherPedido: lista.opcoes };
+    }
+    return { mensagens: saudacao(pedido, ctx) };
+  }
   if (acao === 'texto') return interpretarTexto(pedido, entrada.texto, entrada.modo, env, entrada.aguardando || null, ctx);
   if (acao === 'comprovante') return ctx.liberado
     ? { mensagens: [texto('Recebi a imagem! Se ela é pra o vídeo da homenagem, as fotos são enviadas na página da sua música:'), { tipo: 'link', url: `/entrega?orderId=${encodeURIComponent(pedido.id)}`, titulo: 'Abrir a página da minha música' }, MAIS_ALGO] }

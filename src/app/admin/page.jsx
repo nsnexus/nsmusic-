@@ -23,12 +23,13 @@ import TabelaTimbresClientes from '@/components/admin/TabelaTimbresClientes';
 import AbaFinanceiro from '@/components/admin/AbaFinanceiro';
 import AbaRemixCover from '@/components/admin/AbaRemixCover';
 import AbaContas from '@/components/admin/AbaContas';
+import AbaAtendimentos from '@/components/admin/AbaAtendimentos';
 import AbandonedPixRecoveryPanel from '@/components/admin/AbandonedPixRecoveryPanel';
 import FunilStatusCards from '@/components/admin/FunilStatusCards';
 import { hasOrderGeneratedPix } from '@/lib/pixCheckout';
 import { isStripePayment, calculateStripeFee, calculateStripeNet, getPayoutStatus } from '@/lib/paymentFees';
 import { isUSOrder } from '@/lib/country';
-import { Search, RefreshCw, LogOut, Trash2, Package, Wallet, MessageCircle, BarChart3, Megaphone, Bot, UserRound, SearchCheck, Mic, SlidersHorizontal, Mail, Gauge, Settings, MoreHorizontal, Globe } from 'lucide-react';
+import { Search, RefreshCw, LogOut, Trash2, Package, Wallet, MessageCircle, BarChart3, Megaphone, Bot, UserRound, SearchCheck, Mic, SlidersHorizontal, Mail, Gauge, Settings, MoreHorizontal, Globe, MessagesSquare } from 'lucide-react';
 
 const getSavedAdminFilter = (key, fallback) => {
   if (typeof window === 'undefined') return fallback;
@@ -1141,6 +1142,7 @@ export default function AdminDashboard() {
     { id: 'ORDERS', label: `Pedidos (${activeOrdersCount})`, Icon: Package },
     { id: 'FINANCEIRO', label: 'Financeiro', Icon: Wallet },
     { id: 'RECUPERACAO', label: 'Recuperação PIX', Icon: MessageCircle },
+    { id: 'ATENDIMENTOS', label: 'Atendimentos', Icon: MessagesSquare },
     { id: 'DASHBOARD', label: 'Dashboard', Icon: BarChart3, isLink: true, href: '/admin/dashboard' },
     { id: 'ANUNCIOS', label: 'Anúncios', Icon: Megaphone, isLink: true, href: '/admin/anuncios' },
     { id: 'AUTOMACAO', label: 'Automação', Icon: Bot, isLink: true, href: '/admin/automacao' },
@@ -1321,6 +1323,8 @@ export default function AdminDashboard() {
           
           {activeTab === 'RECUPERACAO' ? (
             <AbandonedPixRecoveryPanel />
+          ) : activeTab === 'ATENDIMENTOS' ? (
+            <AbaAtendimentos authUser={user} />
           ) : activeTab === 'CONTAS' ? (
             <AbaContas authUser={user} />
           ) : activeTab === 'FINANCEIRO' ? (
