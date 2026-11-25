@@ -140,3 +140,22 @@ describe('pedido com música bônus', () => {
     expect(audios.some((u) => u.includes('bonusbonus'))).toBe(true);
   });
 });
+
+describe('início com vários pedidos no número', () => {
+  const p1 = { ...pago, customerPhone: '94991234567', createdAt: '2026-11-24T21:14:00.000Z' };
+  const p2 = { id: 'outroPedido123456789', customerPhone: '94991234567', honoreeName: 'Ana', paymentStatus: 'PAGO', audioFiles: ['y'], createdAt: '2026-11-20T12:00:00.000Z' };
+
+  it('voltando pelo navegador (sem link) lista os pedidos antes', async () => {
+    pedidosDoTelefone = [p1, p2];
+    const r = await responderChat(p1, { acao: 'inicio', listar: true });
+    expect(r.mensagens[1].texto).toMatch(/Achei 2 pedidos/);
+    expect(r.escolherPedido).toHaveLength(2);
+  });
+
+  it('pelo link do pedido: saúda esse pedido e manda a lista para trocar', async () => {
+    pedidosDoTelefone = [p1, p2];
+    const r = await responderChat(p1, { acao: 'inicio' });
+    expect(r.mensagens[0].texto).toMatch(/Já encontrei seu pedido/);
+    expect(r.escolherPedido).toHaveLength(2);
+  });
+});

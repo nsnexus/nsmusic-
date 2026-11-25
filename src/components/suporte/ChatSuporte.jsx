@@ -113,7 +113,7 @@ export default function ChatSuporte({ pedidoInicial }) {
       if (Array.isArray(data.escolherPedido)) pedidosDoNumero.current = data.escolherPedido;
       let lista = data.mensagens || [];
       // Número com vários pedidos: a saudação ganha a opção de voltar à lista.
-      if (payload.acao === 'inicio' && pedidosDoNumero.current.length > 1 && lista.length) {
+      if (payload.acao === 'inicio' && !payload.listar && pedidosDoNumero.current.length > 1 && lista.length) {
         const ultima = lista[lista.length - 1];
         lista = [...lista.slice(0, -1), { ...ultima, opcoes: [...(ultima.opcoes || []), { id: 'trocar_pedido', label: 'Escolher outro pedido' }] }];
       }
@@ -130,10 +130,12 @@ export default function ChatSuporte({ pedidoInicial }) {
 
   // Começo da conversa: pedido do link, ou o último usado neste aparelho, ou pergunta o WhatsApp.
   useEffect(() => {
-    const id = ID_VALIDO.test(pedidoInicial || '') && !/^NS-/i.test(pedidoInicial) ? pedidoInicial : lerPedidoSalvo();
+    const doLink = ID_VALIDO.test(pedidoInicial || '') && !/^NS-/i.test(pedidoInicial) ? pedidoInicial : '';
+    const id = doLink || lerPedidoSalvo();
     if (id && ID_VALIDO.test(id)) {
       setOrderId(id);
-      chamar({ acao: 'inicio' }, id);
+      // Sem link (pedido lembrado neste aparelho): se o número tiver vários pedidos, lista antes.
+      chamar({ acao: 'inicio', listar: !doLink }, id);
     } else {
       setModo('inicio');
       mostrarRespostas([{ tipo: 'texto', texto: 'Oi! Aqui é a NS Music. 👋 Você já fez um pedido com a gente ou quer criar uma música nova? Se quiser, já pode me contar a história.', opcoes: [{ id: 'tem_pedido', label: 'Já tenho um pedido' }, { id: 'criar_nova', label: 'Quero criar uma música' }] }]);

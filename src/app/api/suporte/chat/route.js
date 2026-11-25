@@ -126,6 +126,7 @@ export async function POST(req) {
       modo: ['letra', 'ritmo'].includes(body.modo) ? body.modo : null,
       aguardando: lerAguardando(body.aguardando),
       escolhido: body.escolhido === true,
+      listar: body.listar === true,
     };
     const r = await responderChat(pedido, entrada, env);
     return json({ ok: true, orderId, ...r });
