@@ -693,3 +693,32 @@ export async function conectarInstancia(ctx, webhookUrl) {
   }
   return { ok: true, estado, qr, webhookOk: wh.ok };
 }
+
+// ---------- Chat de suporte do site (/suporte) ----------
+
+/**
+ * "Manda no meu WhatsApp": o chat de suporte pede o envio das músicas PAGAS do telefone pelo número
+ * ADM, no mesmo formato da opção 3 (MP3 + áudio). Respeita o intervalo de reenvio e o teto por hora.
+ * Nunca lança.
+ */
+export async function enviarMusicasPeloChat(telefone, env = {}) {
+  try {
+    const ctx = await carregarAdm(env);
+    if (!ctx.supabase || !ctx.evolution || !ctx.config.ligada) return { ok: false, motivo: 'adm_desligado' };
+    const digitos = String(telefone || '').replace(/\D/g, '');
+    if (digitos.length < 10) return { ok: false, motivo: 'sem_telefone' };
+    const destino = digitos.startsWith('55') && digitos.length >= 12 ? digitos : `55${digitos}`;
+
+    const pagos = pedidosPagosComAudio(await findOrdersByPhone(telefone, env, 20));
+    if (pagos.length === 0) return { ok: false, motivo: 'sem_pedido_pago' };
+    if (await jaMarcado(ctx.supabase, `adm_envio_${destino}`, INTERVALO_REENVIO_MS)) return { ok: true, motivo: 'ja_enviado' };
+
+    const pedidos = agruparComBonus(pagos).slice(0, 3).flatMap((g) => g.pedidos);
+    const r = await enviarPedidos(ctx, destino, pedidos, 'Oi! Aqui estão as suas músicas, como você pediu no chat de suporte, em arquivo MP3 e em áudio 🎵', pagos);
+    await registrarAcao(ctx, { opcao: 'chat', final: destino.slice(-4), resultado: `Chat de suporte: ${r.enviados} de ${r.total} arquivo(s) enviados` });
+    return { ok: r.enviados > 0 || Boolean(r.limiteHora), ...r };
+  } catch (err) {
+    console.warn('[whatsapp-adm] Erro no envio pedido pelo chat:', err?.name);
+    return { ok: false, motivo: 'erro' };
+  }
+}

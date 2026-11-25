@@ -5,7 +5,8 @@ import { lerConfigSite, WHATSAPP_SUPORTE_PADRAO, normalizarNumeroWhatsapp } from
 export const runtime = 'edge';
 
 /**
- * Link inteligente e dinâmico de Suporte (/suporte).
+ * Link direto para o WhatsApp de suporte (/suporte/whatsapp). O /suporte virou o chat do site
+ * (src/app/suporte/page.jsx); este redirect fica para quem quiser ir direto ao WhatsApp.
  * Redireciona o cliente diretamente para o número oficial de suporte configurado
  * no Painel Administrativo em tempo real, sem precisar de deploy ou alterar modelos da Meta.
  */

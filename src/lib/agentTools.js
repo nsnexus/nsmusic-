@@ -274,11 +274,13 @@ export const MAX_REGERACOES_PELO_BOT = 2;
 /**
  * Regera a música — por mudança de estilo, ou depois de a letra ser ajustada e aprovada.
  */
-export async function regerarMusica(pedido, { novoEstilo = null } = {}, env = {}) {
+export async function regerarMusica(pedido, { novoEstilo = null, pago = false } = {}, env = {}) {
   if (!pedido?.id) return { ok: false, motivo: 'sem_pedido' };
 
+  // `pago`: ajuste cobrado (R$ 1, chat de suporte). O teto existe para regeração de graça; a paga
+  // já cobre o custo da geração e não consome o limite.
   const jaRegerou = Number(pedido.regeracoesPeloBot) || 0;
-  if (jaRegerou >= MAX_REGERACOES_PELO_BOT) {
+  if (!pago && jaRegerou >= MAX_REGERACOES_PELO_BOT) {
     return { ok: false, motivo: 'limite_de_regeracoes' };
   }
 
@@ -303,7 +305,7 @@ export async function regerarMusica(pedido, { novoEstilo = null } = {}, env = {}
     if (!resultado.ok) return { ok: false, motivo: 'falha_na_geracao' };
 
     await updateOrder(pedido.id, {
-      regeracoesPeloBot: jaRegerou + 1,
+      regeracoesPeloBot: pago ? jaRegerou : jaRegerou + 1,
       productionStatus: 'GERANDO_AUDIO',
       updatedAt: new Date().toISOString(),
     }, env);

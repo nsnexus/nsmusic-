@@ -32,6 +32,10 @@ export const SKU_PRICES = {
   // músicas (novas letras e estilos). As gerações extras ficam no pedido pago (geracoesExtras) e são
   // consumidas por telefone na hora de gerar — ver src/lib/geracoesExtras.js.
   combo_familia: 39.90,
+  // Ajuste de música já paga pelo chat de suporte (/suporte): trocar o ritmo ou gravar a letra
+  // ajustada. Preço definido pelo dono do estúdio em 25/11/2026. Não aprova música nem libera
+  // add-on: só dispara a regeração pendente gravada no pedido (ver src/lib/ajustePago.js).
+  ajuste_musica: 1.00,
 };
 
 // Cada pagamento principal inclui 2 gerações: a inicial e a segunda de bônus.
