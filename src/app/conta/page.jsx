@@ -6,6 +6,7 @@ import Link from 'next/link';
 import ListaPedidos from '@/components/conta/ListaPedidos';
 import { auth, onAuthStateChanged, signOut } from '@/lib/authClient';
 import { supabase } from '@/lib/supabase';
+import BuscarPorWhatsApp from '@/components/conta/BuscarPorWhatsApp';
 
 export default function ContaPage() {
   const [user, setUser] = useState(null);
@@ -149,13 +150,12 @@ export default function ContaPage() {
             <Image src="/experiencia/familia.webp" alt="" width={640} height={426} sizes="(max-width: 640px) 85vw, 420px" />
             <span className="nx-eyebrow">Seu lugar de guardar emoções</span>
             <h1>Suas músicas.<br />Suas próximas histórias.</h1>
-            <p>Entre com Google ou e-mail para acompanhar e acessar suas músicas guardadas na sua conta.</p>
-            <Link className="nx-button nx-primary" href="/login?redirect=%2Fconta">
-              Entrar ou criar minha conta
+            <p>Digite o WhatsApp que você usou no pedido para achar suas músicas, ou entre na sua conta.</p>
+            <BuscarPorWhatsApp />
+            <p className="nx-helper" style={{ margin: '20px 0 10px' }}>Tem conta com e-mail ou Google?</p>
+            <Link className="nx-button" href="/login?redirect=%2Fconta">
+              Entrar na minha conta
             </Link>
-            <p className="nx-helper">
-              Você continua podendo criar, ouvir a prévia e pagar sem cadastro. Para associar uma compra de visitante à sua conta, abra o link do pedido ou fale com nosso suporte.
-            </p>
           </section>
         ) : (
           <>
