@@ -41,3 +41,54 @@ export async function enviarBotaoSuporteParaCliente(phone, env = {}, deps = {}) 
   }
   return { enviado: true };
 }
+
+/** Remetentes das mensagens de clientes ao NÚMERO OFICIAL (o de disparo), num webhook da Meta. */
+export function remetentesDoNumeroOficial(body, phoneNumberId) {
+  if (!phoneNumberId || body?.object !== 'whatsapp_business_account') return [];
+  const lista = [];
+  for (const entry of body.entry || []) {
+    for (const change of entry?.changes || []) {
+      const value = change?.value;
+      if (String(value?.metadata?.phone_number_id || '') !== String(phoneNumberId)) continue;
+      for (const m of value?.messages || []) {
+        const de = String(m?.from || '').replace(/\D/g, '');
+        if (de && !lista.includes(de)) lista.push(de);
+      }
+    }
+  }
+  return lista;
+}
+
+/**
+ * Webhook da Meta para o número oficial. Devolve null quando o corpo não é desse número (quem
+ * chama segue o fluxo dele). Status de entrega/leitura não têm `messages` e não geram envio.
+ *
+ * Antes, as mensagens que chegavam ao número oficial caíam no fluxo da Evolution, que não lê o
+ * formato da Meta, e morriam em silêncio (achado 25/11/2026).
+ */
+export async function processarWebhookNumeroOficial(corpoBruto, assinatura, env = {}, waitUntil = null) {
+  const { getCloudApiConfig } = await import('./whatsappCloudApi.js');
+  const config = getCloudApiConfig(env);
+  if (!config.enabled) return null;
+
+  let body;
+  try { body = JSON.parse(corpoBruto); } catch (e) { return null; }
+  if (body?.object !== 'whatsapp_business_account') return null;
+  const ehDoOficial = (body.entry || []).some((e) => (e?.changes || []).some((c) => String(c?.value?.metadata?.phone_number_id || '') === String(config.phoneNumberId)));
+  if (!ehDoOficial) return null;
+
+  const segredo = String((env && env.WHATSAPP_APP_SECRET) || process.env.WHATSAPP_APP_SECRET || '').trim();
+  if (segredo) {
+    const { assinaturaValida } = await import('./whatsappAdmCloud.js');
+    if (!(await assinaturaValida(corpoBruto, assinatura, segredo))) return { status: 401, json: { error: 'Assinatura inválida.' } };
+  }
+
+  const remetentes = remetentesDoNumeroOficial(body, config.phoneNumberId);
+  if (remetentes.length === 0) return { status: 200, json: { ok: true, ignored: 'sem_mensagem' } };
+
+  const trabalho = Promise.all(remetentes.map((tel) => enviarBotaoSuporteParaCliente(tel, env)))
+    .catch((err) => console.warn('[suporteBotaoCloud] Erro ao responder o número oficial:', err?.message));
+  if (waitUntil) waitUntil(trabalho);
+  else await trabalho;
+  return { status: 200, json: { ok: true, action: 'botao_suporte' } };
+}
