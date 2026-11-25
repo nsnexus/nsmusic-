@@ -149,7 +149,7 @@ function Conteudo({ m }) {
       );
     }
     case 'link':
-      return <Cartao href={m.url} titulo={m.titulo} sub={m.url.startsWith('/') ? `nsmusic.ia.br${m.url.split('?')[0]}` : m.url} />;
+      return <Cartao href={m.url} titulo={m.titulo} sub={m.url.startsWith('intent:') ? 'Abre esta página no Chrome' : m.url.startsWith('/') ? `nsmusic.ia.br${m.url.split('?')[0]}` : m.url} />;
     case 'whatsapp':
       return <Cartao href={m.url} titulo={m.titulo} externo cor="#1FA855" />;
     case 'pix':

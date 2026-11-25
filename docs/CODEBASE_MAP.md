@@ -86,6 +86,7 @@ Lote 7, para o raciocínio completo).
 | `/login` | `src/app/login/page.jsx` | Pública |
 | `/suporte` | `src/app/suporte/page.jsx` + `src/components/suporte/` | Pública por `?pedido=<id>` (id longo; número NS- não identifica) ou pelo WhatsApp digitado — chat de suporte estilo WhatsApp; lógica em `src/lib/suporteChat.js`, API `POST /api/suporte/chat`. Música nova pelo chat: roteiro em `src/lib/novaMusicaChat.js` + `components/suporte/useNovaMusica.js`, usando as mesmas rotas do /criar (`lyrics/generate`, `orders/create`, `suno/generate`) |
 | `/admin` → aba Atendimentos | `src/components/admin/AbaAtendimentos.jsx` + `GET /api/admin/atendimentos` | Admin — histórico do chat de suporte (tabela `suporte_conversas`, ver `supabase/migrations/20261125_suporte_conversas.sql`; gravação em `src/lib/suporteHistorico.js`) |
+| `/suporte` → atendente com IA | `src/lib/atendenteIA.js` (decide) + `suporteChat.js:executarFerramenta` (faz) + `atendenteConhecimento.js` (conhecimento e liga/desliga, tabela `config` chave `atendente_ia`, editado em Painel → Atendimentos via `/api/admin/atendente`) | IA desligada ou fora do ar → chat volta às regras |
 | `/suporte/whatsapp` | `src/app/suporte/whatsapp/route.js` | Redirect para o WhatsApp de suporte (era o antigo `/suporte`) |
 | `/admin` | `src/app/admin/page.jsx` | Firebase Auth + checagem de e-mail no browser (só UX — autorização real é no servidor desde o Lote 1); listagem paginada (M-09) |
 | `/admin/login` | `src/app/admin/login/page.jsx` | Pública |

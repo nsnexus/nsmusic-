@@ -166,3 +166,24 @@ describe('foto ou vídeo', () => {
     expect(r.mensagens.some((m) => m.tipo === 'link' && m.url.includes('/entrega?orderId='))).toBe(true);
   });
 });
+
+describe('ensinar a sair do navegador do WhatsApp', () => {
+  it('Android: passo a passo e botão "Abrir no Chrome" com a mesma página', async () => {
+    const { executarFerramenta } = await import('@/lib/suporteChat');
+    const r = await executarFerramenta('ensinar_navegador', {}, { dispositivo: 'android', urlAtual: 'https://nsmusic.ia.br/suporte?pedido=abc' });
+    expect(r.mensagens[0].texto).toMatch(/Abrir no Chrome/);
+    expect(r.mensagens.find((m) => m.tipo === 'link').url).toMatch(/^intent:\/\/nsmusic\.ia\.br\/suporte\?pedido=abc#Intent;scheme=https;/);
+  });
+
+  it('iPhone: manda abrir no Safari, sem link intent', async () => {
+    const { executarFerramenta } = await import('@/lib/suporteChat');
+    const r = await executarFerramenta('ensinar_navegador', {}, { dispositivo: 'ios' });
+    expect(r.mensagens[0].texto).toMatch(/Safari/);
+    expect(r.mensagens.some((m) => m.tipo === 'link')).toBe(false);
+  });
+
+  it('ferramenta que precisa de pedido não roda sem pedido aberto', async () => {
+    const { executarFerramenta } = await import('@/lib/suporteChat');
+    expect(await executarFerramenta('enviar_musicas', {}, {})).toEqual({ erro: 'sem_pedido_aberto' });
+  });
+});
