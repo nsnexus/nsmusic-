@@ -91,6 +91,15 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
         console.warn(`[payments] txid sem SKU registrado e diferente do intent atual — SKU inferido por valor: ${sku}`);
       }
 
+      // Ajuste pago pelo chat de suporte (R$ 1): não mexe em paymentStatus nem em add-on — só
+      // executa o ajuste que ficou pendente no pedido. Fluxo isolado em ajustePago.js para não
+      // misturar com a escada de SKUs acima (e sem disparar Purchase de Meta/TikTok).
+      if (sku === 'ajuste_musica') {
+        const { aplicarAjustePago } = await import('./ajustePago.js');
+        txResult = await aplicarAjustePago(orderData, String(paymentId), payment, env);
+        return txResult;
+      }
+
       const isVideoOnly = sku === 'video_addon';
       const isPlaybackOnly = sku === 'playback_addon';
       const isCartaOnly = sku === 'carta_addon';

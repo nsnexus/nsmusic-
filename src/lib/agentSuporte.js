@@ -50,7 +50,7 @@ Intenções possíveis:
 Em "detalhe", quando for AJUSTAR_LETRA ou TROCAR_ESTILO, coloque exatamente o que o cliente pediu
 (o ajuste desejado, ou o nome do estilo). Nos outros casos, use string vazia.`;
 
-async function classificarIntencao(mensagem, resumo, envVars) {
+export async function classificarIntencao(mensagem, resumo, envVars) {
   const contexto = resumo
     ? `Contexto do cliente: pedido ${resumo.numero || resumo.orderId}, pago=${resumo.pago}, música pronta=${resumo.temMusica}, estilo=${resumo.estilo || '—'}.`
     : 'Contexto: este telefone não tem pedido registrado.';

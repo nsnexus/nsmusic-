@@ -84,6 +84,8 @@ Lote 7, para o raciocínio completo).
 | `/minhas-musicas` | `src/app/minhas-musicas/page.jsx` | Firebase Auth (cliente) ou busca por telefone/e-mail (`where` exato, não mais varredura completa — C-08) |
 | `/conta` | `src/app/conta/page.jsx` | Supabase Auth — carteira de créditos, PIX de recarga e link de indicação |
 | `/login` | `src/app/login/page.jsx` | Pública |
+| `/suporte` | `src/app/suporte/page.jsx` + `src/components/suporte/` | Pública por `?pedido=<id>` (id longo; número NS- não identifica) ou pelo WhatsApp digitado — chat de suporte estilo WhatsApp; lógica em `src/lib/suporteChat.js`, API `POST /api/suporte/chat`. Música nova pelo chat: roteiro em `src/lib/novaMusicaChat.js` + `components/suporte/useNovaMusica.js`, usando as mesmas rotas do /criar (`lyrics/generate`, `orders/create`, `suno/generate`) |
+| `/suporte/whatsapp` | `src/app/suporte/whatsapp/route.js` | Redirect para o WhatsApp de suporte (era o antigo `/suporte`) |
 | `/admin` | `src/app/admin/page.jsx` | Firebase Auth + checagem de e-mail no browser (só UX — autorização real é no servidor desde o Lote 1); listagem paginada (M-09) |
 | `/admin/login` | `src/app/admin/login/page.jsx` | Pública |
 | `/admin/pedidos/[id]` | `src/app/admin/pedidos/[id]/page.jsx` | Idem `/admin` |
