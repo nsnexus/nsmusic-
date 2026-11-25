@@ -36,6 +36,7 @@ export function useHistorico(orderId) {
   const fila = useRef([]);
   const marcas = useRef(new Set());
   const timer = useRef(null);
+  const telefone = useRef('');
   const pedido = useRef(orderId);
   pedido.current = orderId;
 
@@ -48,6 +49,7 @@ export function useHistorico(orderId) {
       acao: 'registrar',
       conversaId: conversaId.current,
       orderId: pedido.current || undefined,
+      telefone: telefone.current || undefined,
       mensagens: fila.current.splice(0, 40),
       marcas: Array.from(marcas.current),
     });
@@ -86,6 +88,11 @@ export function useHistorico(orderId) {
     };
   }, [enviar]);
 
+  const definirTelefone = useCallback((t) => {
+    const d = String(t || '').replace(/\D/g, '');
+    if (d.length >= 10 && d.length <= 13) telefone.current = d;
+  }, []);
+
   // Mesmo objeto entre renderizações: quem depende dele em useCallback/useEffect não reinicia.
-  return useMemo(() => ({ registrar, marcar }), [registrar, marcar]);
+  return useMemo(() => ({ registrar, marcar, definirTelefone }), [registrar, marcar, definirTelefone]);
 }

@@ -456,6 +456,18 @@ async function interpretarTexto(pedido, mensagem, modo, env, aguardando, ctx) {
   if (modo === 'letra') return proporLetra(pedido, msg, env, ctx);
   if (modo === 'ritmo') return acaoEstilo(pedido, msg, env, ctx);
 
+  // Foto ou vídeo errado: quem troca é o próprio cliente, na página da música (achado 25/11/2026:
+  // "só quero tirar uma foto que ficou errado" virava pedido de música nova).
+  if (/\b(foto|fotos|v[ií]deo|capa|imagem|imagens)\b/i.test(msg)) {
+    return {
+      mensagens: [
+        texto('As fotos do vídeo você troca na página da sua música: abre o link abaixo, vai na parte do *vídeo* e escolhe as fotos de novo. Se abrir dentro do WhatsApp e não deixar escolher, toque nos três pontinhos (⋮) e em *Abrir no navegador*.'),
+        { tipo: 'link', url: `/entrega?orderId=${encodeURIComponent(pedido.id)}`, titulo: 'Abrir a página da minha música' },
+        texto('Se não der certo, uma pessoa da equipe te ajuda:', [MENU[5], { id: 'menu', label: 'Voltar ao menu' }]),
+      ],
+    };
+  }
+
   const { intencao, detalhe } = await classificarIntencao(msg, {
     numero: pedido.orderNumber, orderId: pedido.id, pago: pedidoEstaPago(pedido), temMusica: temAudio(pedido), estilo: pedido.musicStyle,
   }, env);
