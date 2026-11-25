@@ -9,6 +9,8 @@ import {
 } from '@/lib/suporteChat';
 import { extrairDadosDaHistoria } from '@/lib/suporteNovaMusica';
 import { registrarConversa } from '@/lib/suporteHistorico';
+import { responderComIA } from '@/lib/atendenteIA';
+import { DOMINIO_CANONICO } from '@/lib/siteUrl';
 
 export const runtime = 'edge';
 
@@ -22,6 +24,8 @@ const ACOES = new Set([
   'nova_extrair', 'nova_ajustar_letra', 'transcrever', 'nova_dados', 'musica_pronta',
   // Histórico para a aba Atendimentos do painel (src/lib/suporteHistorico.js):
   'registrar',
+  // Atendente com IA (src/lib/atendenteIA.js):
+  'ia',
 ]);
 const MAX_AUDIO_BASE64 = 3 * 1024 * 1024;
 
@@ -67,6 +71,35 @@ export async function POST(req) {
         return json({ ok: true, mensagens: [lista], escolherPedido: lista.opcoes });
       }
       return json({ ok: true, orderId: pedido.id, mensagens: saudacao(pedido, await contextoDoPedido(pedido, env)) });
+    }
+
+    if (acao === 'ia') {
+      const orderIdIA = orderIdValido(String(body.orderId || '')) ? String(body.orderId) : '';
+      const pedido = orderIdIA ? await getOrder(orderIdIA, env) : null;
+      const texto = String(body.texto || '').trim().slice(0, 1500);
+      if (!texto) return json({ error: 'Mensagem vazia.' }, 400);
+      const historico = (Array.isArray(body.historico) ? body.historico : []).slice(-20)
+        .map((m) => ({ de: m?.de === 'eu' ? 'eu' : 'bot', texto: String(m?.texto || '').slice(0, 600) }))
+        .filter((m) => m.texto);
+      const urlAtual = typeof body.urlAtual === 'string' && body.urlAtual.startsWith(`${DOMINIO_CANONICO}/suporte`) ? body.urlAtual.slice(0, 300) : '';
+      const aguardando = lerAguardando(body.aguardando);
+      const r = await responderComIA({
+        pedido: pedido && !pedido.deletedAt ? pedido : null,
+        telefone: String(body.telefone || '').replace(/\D/g, '').slice(0, 13),
+        historico, aguardando, mensagem: texto,
+        dispositivo: ['android', 'ios'].includes(body.dispositivo) ? body.dispositivo : '',
+        dentroDeApp: body.dentroDeApp === true,
+        urlAtual,
+      }, env);
+      if (r.falhou) {
+        // IA desligada ou fora do ar: segue o atendimento por regras de antes.
+        if (pedido && !pedido.deletedAt) {
+          const rr = await responderChat(pedido, { acao: 'texto', texto, modo: null, aguardando }, env);
+          return json({ ok: true, orderId: pedido.id, ...rr });
+        }
+        return json({ ok: true, fallback: true });
+      }
+      return json({ ok: true, ...r, orderId: r.orderId || orderIdIA || undefined });
     }
 
     if (acao === 'registrar') {

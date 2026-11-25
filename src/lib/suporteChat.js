@@ -33,6 +33,22 @@ export const MENU = [
 ];
 
 const ESTILOS = ['Sertanejo', 'Pagode', 'Gospel', 'Forró', 'Funk', 'MPB', 'Arrocha', 'Piseiro'];
+export const INSTAGRAM_URL = 'https://www.instagram.com/_nsmusic';
+const CONVITE_INDICACAO = 'Fiz uma música personalizada na NS Music e ficou linda! Faz a sua também: https://nsmusic.ia.br';
+
+/**
+ * Fecho de atendimento bem-sucedido (cliente confirmou que deu certo): agradece, pede indicação e
+ * convida para o Instagram. Pedido do dono do estúdio em 25/11/2026.
+ */
+export function agradecimento() {
+  return [
+    texto('Obrigado por confiar na NS Music! Se puder, indica a gente pra alguém que você gosta, isso ajuda muito nosso trabalho. E segue a gente no Instagram pra acompanhar as novidades:'),
+    { tipo: 'link', url: INSTAGRAM_URL, titulo: 'Seguir @_nsmusic no Instagram' },
+    { tipo: 'whatsapp', url: `https://wa.me/?text=${encodeURIComponent(CONVITE_INDICACAO)}`, titulo: 'Indicar para um amigo' },
+    texto('Precisando de algo, é só chamar aqui. 🎶'),
+  ];
+}
+
 const MAIS_ALGO = { tipo: 'texto', texto: 'Posso te ajudar em mais alguma coisa?', opcoes: MENU };
 const VALIDADE_PROPOSTA_MS = 60 * 60 * 1000;
 
@@ -148,7 +164,7 @@ async function acaoBaixar(pedido, env, { comPagamento = true, ctx = null } = {})
       texto(alvo.length > 1 ? 'Aqui estão a música principal e a bônus, pode ouvir e baixar por aqui mesmo:' : 'Aqui está sua música, pode ouvir e baixar por aqui mesmo:'),
       ...alvo.flatMap((p) => arquivosDoPedido(p, assinaturaAudio(p))),
       texto('Toque no arquivo pra salvar no celular. Se não baixar, toque nos três pontinhos (⋮) lá em cima e escolha *Abrir no navegador*, depois tente de novo.', [
-        { id: 'menu', label: 'Consegui, obrigado!' },
+        { id: 'deu_certo', label: 'Consegui, obrigado!' },
         MENU[5],
       ]),
     ],
@@ -528,8 +544,107 @@ export async function responderChat(pedido, entrada, env = {}) {
     case 'ja_paguei': return acaoJaPaguei(pedido, env, ctx);
     case 'criar': return acaoCriar(pedido);
     case 'humano': return acaoHumano(pedido, env);
-    case 'gostei': return { mensagens: [texto('Que bom! 💚 Qualquer coisa é só chamar por aqui.'), MAIS_ALGO] };
+    case 'gostei': return { mensagens: [texto('Que bom que ficou do jeito que você queria! 💚'), ...agradecimento()] };
+    case 'deu_certo': return { mensagens: [texto('Que bom que deu tudo certo! 💚'), ...agradecimento()] };
     case 'menu': return { mensagens: [MAIS_ALGO] };
     default: return { mensagens: [texto('Não entendi. Escolhe uma opção:', MENU)] };
   }
+}
+
+// ---------- Ferramentas do atendente com IA (src/lib/atendenteIA.js) ----------
+//
+// A IA escolhe O QUE fazer; quem faz são estas funções, as mesmas dos botões. Cobrança, conferência
+// de pagamento e liberação continuam nelas — a IA não tem como pular nenhuma regra.
+
+/** "principal" ou "bonus" → o pedido certo do grupo (só músicas com áudio). */
+function musicaDoGrupo(ctx, qual) {
+  const musicas = (ctx?.grupo || []).filter(temAudio);
+  if (qual === 'bonus' && musicas.length > 1) return musicas[1];
+  return musicas[0] || null;
+}
+
+/** Passo a passo para sair do navegador do WhatsApp, conforme o celular do cliente. */
+export function ensinarNavegador({ dispositivo = '', urlAtual = '' } = {}) {
+  if (dispositivo === 'ios') {
+    return [
+      texto('Isso acontece porque o link abriu dentro do WhatsApp, que às vezes não deixa ouvir nem baixar. No iPhone é rapidinho:\n\n1️⃣ Toque nos três pontinhos *⋯* (ou no ícone de compartilhar) no canto da tela\n2️⃣ Escolha *Abrir no Safari* (ou "Abrir no navegador")\n3️⃣ A página abre no Safari e aí é só tocar na música de novo'),
+      texto('Conseguiu? Se não der certo, uma pessoa da equipe te ajuda.', [{ id: 'txt:Consegui!', label: 'Consegui!' }, MENU[5]]),
+    ];
+  }
+  const msgs = [
+    texto('Isso acontece porque o link abriu dentro do WhatsApp, que às vezes não deixa ouvir nem baixar. É só abrir no Chrome:\n\n1️⃣ Toque nos três pontinhos *⋮* no canto de cima da tela\n2️⃣ Escolha *Abrir no Chrome* (ou "Abrir no navegador")\n3️⃣ A página abre no Chrome e aí é só tocar na música de novo'),
+  ];
+  // Android: o link intent:// pede para o sistema abrir esta mesma página no navegador de verdade.
+  if (/^https:\/\//.test(urlAtual)) {
+    msgs.push({ tipo: 'link', url: `intent://${urlAtual.replace(/^https:\/\//, '')}#Intent;scheme=https;S.browser_fallback_url=${encodeURIComponent(urlAtual)};end`, titulo: 'Abrir no Chrome' });
+  }
+  msgs.push(texto('Conseguiu? Se não der certo, uma pessoa da equipe te ajuda.', [{ id: 'txt:Consegui!', label: 'Consegui!' }, MENU[5]]));
+  return msgs;
+}
+
+export const FERRAMENTAS_COM_PEDIDO = new Set([
+  'enviar_musicas', 'conferir_pagamento', 'pagar_pedido', 'trocar_ritmo', 'ajustar_letra',
+  'gravar_letra_ajustada', 'link_fotos', 'oferecer_bonus',
+]);
+
+/**
+ * Executa uma ferramenta de AÇÃO e devolve o que mostrar ao cliente (mesmo formato de responderChat).
+ * @returns {Promise<{mensagens: object[], modo?, aguardar?, gerarPix?, orderId?}|{erro: string}>}
+ */
+export async function executarFerramenta(nome, args = {}, { pedido = null, ctx = null, dispositivo = '', urlAtual = '' } = {}, env = {}) {
+  if (FERRAMENTAS_COM_PEDIDO.has(nome) && !pedido) return { erro: 'sem_pedido_aberto' };
+  const a = args && typeof args === 'object' ? args : {};
+
+  switch (nome) {
+    case 'enviar_musicas': return acaoBaixar(pedido, env, { ctx });
+    case 'conferir_pagamento': return acaoJaPaguei(pedido, env, ctx);
+    case 'pagar_pedido': return acaoPagamento(pedido, env, ctx);
+    case 'link_fotos':
+      return { mensagens: [
+        texto('As fotos do vídeo você troca na página da sua música: abre o link abaixo, vai na parte do *vídeo* e escolhe as fotos de novo.'),
+        { tipo: 'link', url: `/entrega?orderId=${encodeURIComponent(pedido.id)}`, titulo: 'Abrir a página da minha música' },
+      ] };
+    case 'oferecer_bonus': return acaoCriar(pedido);
+    case 'trocar_ritmo':
+    case 'ajustar_letra':
+    case 'gravar_letra_ajustada': {
+      const alvo = musicaDoGrupo(ctx, a.musica === 'bonus' ? 'bonus' : 'principal') || pedido;
+      const ctxAlvo = alvo.id === pedido.id ? ctx : await contextoDoPedido(alvo, env);
+      let r;
+      if (nome === 'trocar_ritmo') {
+        const estilo = limparEstilo(a.estilo);
+        r = estilo.length >= 3 ? await acaoEstilo(alvo, estilo, env, ctxAlvo) : acaoRitmo(alvo, ctxAlvo, true);
+      } else if (nome === 'ajustar_letra') {
+        const instrucao = String(a.instrucao || '').trim();
+        r = instrucao ? await proporLetra(alvo, instrucao, env, ctxAlvo) : acaoLetra(alvo, ctxAlvo, true);
+      } else {
+        r = await acaoLetraOk(alvo, env, ctxAlvo);
+      }
+      return { ...r, orderId: alvo.id };
+    }
+    case 'ensinar_navegador': return { mensagens: ensinarNavegador({ dispositivo, urlAtual }) };
+    case 'chamar_atendente': {
+      if (pedido) return acaoHumano(pedido, env, String(a.motivo || '').slice(0, 300));
+      return { mensagens: [
+        texto('Claro! Toca no botão abaixo pra falar com uma pessoa da equipe.'),
+        { tipo: 'whatsapp', url: await linkAtendente(null, env), titulo: 'Falar com atendente no WhatsApp' },
+      ] };
+    }
+    case 'agradecer_cliente': return { mensagens: agradecimento() };
+    case 'mostrar_menu': return { mensagens: [texto(String(a.texto || 'Como posso te ajudar?').slice(0, 300), MENU)] };
+    default: return { erro: 'ferramenta_desconhecida' };
+  }
+}
+
+/** Resumo do pedido aberto para a IA (sem telefone nem e-mail). */
+export function resumoParaIA(pedido, ctx) {
+  if (!pedido) return 'Nenhum pedido aberto nesta conversa.';
+  const musicas = (ctx?.grupo || [pedido]).filter(temAudio);
+  const linhas = [
+    `Pedido aberto: ${pedido.orderNumber || pedido.id} · cliente: ${pedido.customerName || '—'} · homenageado(a): ${pedido.honoreeName || '—'}`,
+    `Situação: ${ctx?.liberado ?? pedidoEstaPago(pedido) ? 'PAGO (liberado)' : temAudio(pedido) ? 'música pronta, AGUARDANDO PAGAMENTO' : 'música EM PRODUÇÃO'}`,
+    `Músicas prontas neste pedido: ${musicas.length === 0 ? 'nenhuma ainda' : musicas.map((m, i) => `${i === 0 ? 'principal' : 'bônus'} (${m.musicStyle || 'estilo não informado'}${m.honoreeName ? `, para ${m.honoreeName}` : ''})`).join(' e ')}`,
+    `Tem letra: ${pedido.lyrics ? 'sim' : 'não'} · música bônus ainda disponível: ${bonusDisponivel(pedido) ? 'sim' : 'não'}`,
+  ];
+  return linhas.join('\n');
 }

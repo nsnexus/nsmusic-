@@ -8,6 +8,8 @@ import { pareceTelefone, classificarInicio, escolherPedidoPorTexto } from '@/lib
 import { useNovaMusica } from './useNovaMusica';
 import { FUNDO_CHAT } from './papelDeParede';
 import { useHistorico } from './useHistorico';
+import { useAguardar } from './useAguardar';
+import { isInAppBrowser } from '@/lib/inAppBrowser';
 
 // Chat de suporte do site (/suporte), com cara de WhatsApp. Toda decisão fica no servidor
 // (/api/suporte/chat); aqui só desenhamos as mensagens, guardamos o "modo" da conversa e
@@ -16,10 +18,6 @@ import { useHistorico } from './useHistorico';
 
 const CHAVE_PEDIDO = 'nsmusic_suporte_pedido';
 const ID_VALIDO = /^[A-Za-z0-9_-]{12,64}$/;
-const INTERVALO_PAGAMENTO_MS = 5000;
-const TENTATIVAS_PAGAMENTO = 72; // 6 minutos
-const INTERVALO_MUSICA_MS = 10000;
-const TENTATIVAS_MUSICA = 48; // 8 minutos
 
 const agora = () => new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -49,12 +47,26 @@ export default function ChatSuporte({ pedidoInicial }) {
   const [opcoesDe, setOpcoesDe] = useState(null);
   const contador = useRef(0);
   const pedidosDoNumero = useRef([]);
+  const telefoneInformado = useRef('');
+  const mensagensRef = useRef([]);
+  const aparelho = useRef({ dispositivo: '', dentroDeApp: false });
   const fimRef = useRef(null);
   const montado = useRef(true);
   const numeroSuporte = useWhatsappSuporte();
   const historico = useHistorico(orderId);
 
   useEffect(() => () => { montado.current = false; }, []);
+  useEffect(() => { mensagensRef.current = mensagens; }, [mensagens]);
+  // Celular e navegador do cliente: a IA usa para ensinar a sair do navegador do WhatsApp.
+  useEffect(() => {
+    try {
+      const ua = navigator.userAgent || '';
+      aparelho.current = {
+        dispositivo: /android/i.test(ua) ? 'android' : /iphone|ipad|ipod/i.test(ua) ? 'ios' : '',
+        dentroDeApp: isInAppBrowser(),
+      };
+    } catch (_) { /* segue sem a informação */ }
+  }, []);
   useEffect(() => { fimRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, [mensagens, digitando]);
 
   const adicionar = useCallback((lista, de = 'bot') => {
@@ -86,6 +98,9 @@ export default function ChatSuporte({ pedidoInicial }) {
   const aoDesistirRef = useRef(null);
   const aoDesistir = useCallback((t) => aoDesistirRef.current?.(t), []);
   const nova = useNovaMusica({ mostrarRespostas, setDigitando, orderId, aoCriarPedido, aoDesistir });
+  // Ref para o `chamar` usar o hook sem se recriar a cada render (o acompanhamento depende dele).
+  const novaRef = useRef(nova);
+  novaRef.current = nova;
 
   const gerarPixDoPedido = useCallback(async (id, sku) => {
     try {
@@ -104,7 +119,10 @@ export default function ChatSuporte({ pedidoInicial }) {
 
   const chamar = useCallback(async (payload, idForcado) => {
     const id = idForcado ?? orderId;
-    if (payload.acao === 'identificar') historico.definirTelefone(payload.telefone);
+    if (payload.acao === 'identificar') {
+      historico.definirTelefone(payload.telefone);
+      telefoneInformado.current = String(payload.telefone || '').replace(/\D/g, '');
+    }
     setDigitando(true);
     try {
       const res = await fetch('/api/suporte/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...payload, orderId: id || undefined }) });
@@ -114,7 +132,9 @@ export default function ChatSuporte({ pedidoInicial }) {
         await mostrarRespostas([{ tipo: 'texto', texto: data.error || 'Tive um probleminha aqui. Tenta de novo em instantes.' }]);
         return null;
       }
+      if (data.fallback) return data;
       if (data.orderId && data.orderId !== id) { setOrderId(data.orderId); salvarPedido(data.orderId); }
+      if (data.telefone) { telefoneInformado.current = data.telefone; historico.definirTelefone(data.telefone); }
       setModo(data.modo || null);
       if (data.transcricao) adicionar([{ tipo: 'texto', texto: `🎤 “${data.transcricao}”` }], 'eu');
       if (Array.isArray(data.escolherPedido)) pedidosDoNumero.current = data.escolherPedido;
@@ -125,6 +145,7 @@ export default function ChatSuporte({ pedidoInicial }) {
         lista = [...lista.slice(0, -1), { ...ultima, opcoes: [...(ultima.opcoes || []), { id: 'trocar_pedido', label: 'Escolher outro pedido' }] }];
       }
       await mostrarRespostas(lista);
+      if (data.rascunho) novaRef.current?.receberRascunho(data.rascunho, { telefone: telefoneInformado.current });
       if (data.gerarPix?.sku) await gerarPixDoPedido(data.orderId || id, data.gerarPix.sku);
       if (data.aguardar) {
         if (data.aguardar.tipo === 'pagamento' && data.aguardar.kind === 'ajuste') historico.marcar('ajuste_pix');
@@ -153,61 +174,7 @@ export default function ChatSuporte({ pedidoInicial }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Acompanha o pagamento (pedido ou ajuste) e, depois de um ajuste pago, a nova versão.
-  useEffect(() => {
-    if (!aguardar || !orderId) return undefined;
-    let ativo = true;
-    let tentativas = 0;
-    let timer = null;
-
-    const passo = async () => {
-      if (!ativo) return;
-      tentativas++;
-      try {
-        if (aguardar.tipo === 'pagamento') {
-          const qs = new URLSearchParams({ orderId });
-          if (aguardar.txid) qs.set('paymentId', aguardar.txid);
-          const r = await fetch(`/api/payments/status?${qs}`, { cache: 'no-store' }).then((x) => x.json()).catch(() => ({}));
-          if (!ativo) return;
-          if (r.status === 'approved') {
-            setAguardar(null);
-            historico.marcar(aguardar.kind === 'ajuste' ? 'ajuste_pago' : 'pedido_pago');
-            chamar(aguardar.kind === 'ajuste' ? { acao: 'ajuste_pago', txid: aguardar.txid } : { acao: 'pago' });
-            return;
-          }
-          if (tentativas >= TENTATIVAS_PAGAMENTO) {
-            setAguardar(null);
-            mostrarRespostas([{ tipo: 'texto', texto: 'Ainda não vi o pagamento cair. Se você já pagou, toca em "Já paguei" que eu confiro de novo no banco.', opcoes: [{ id: aguardar.kind === 'ajuste' ? 'menu' : 'ja_paguei', label: aguardar.kind === 'ajuste' ? 'Voltar ao menu' : 'Já paguei' }, { id: 'humano', label: 'Falar com atendente' }] }]);
-            return;
-          }
-          timer = setTimeout(passo, INTERVALO_PAGAMENTO_MS);
-        } else if (aguardar.tipo === 'musica' || aguardar.tipo === 'musica_nova') {
-          const corpo = aguardar.tipo === 'musica' ? { acao: 'nova_versao', orderId, assinatura: aguardar.assinatura } : { acao: 'musica_pronta', orderId };
-          const res = await fetch('/api/suporte/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) });
-          const r = await res.json().catch(() => ({}));
-          if (!ativo) return;
-          if (r.pronto) {
-            setAguardar(null);
-            mostrarRespostas(r.mensagens || []);
-            return;
-          }
-          if (tentativas >= TENTATIVAS_MUSICA) {
-            setAguardar(null);
-            mostrarRespostas([
-              { tipo: 'texto', texto: 'Está demorando um pouquinho mais que o normal. Assim que ficar pronta, ela aparece na página da sua música:' },
-              { tipo: 'link', url: `/entrega?orderId=${encodeURIComponent(orderId)}`, titulo: 'Abrir a página da minha música' },
-            ]);
-            return;
-          }
-          timer = setTimeout(passo, INTERVALO_MUSICA_MS);
-        }
-      } catch (_) {
-        if (ativo) timer = setTimeout(passo, INTERVALO_PAGAMENTO_MS * 2);
-      }
-    };
-    timer = setTimeout(passo, aguardar.tipo === 'musica' ? INTERVALO_MUSICA_MS : INTERVALO_PAGAMENTO_MS);
-    return () => { ativo = false; clearTimeout(timer); };
-  }, [aguardar, orderId, chamar, mostrarRespostas, historico]);
+  useAguardar({ aguardar, setAguardar, orderId, chamar, mostrarRespostas, historico });
 
   const abrirPedido = (id) => {
     setAguardar(null);
@@ -253,7 +220,8 @@ export default function ChatSuporte({ pedidoInicial }) {
       pedirTelefone('Me manda o número de WhatsApp que você usou no site, com DDD, que eu acho seu pedido.');
       return;
     }
-    if (opcao.id === 'criar_nova') { setModo(null); nova.iniciar(); return; }
+    if (opcao.id.startsWith('txt:')) { chamarIA(opcao.label); return; }
+    if (opcao.id === 'criar_nova') { setModo(null); chamarIA('Quero criar uma música nova', () => nova.iniciar()); return; }
     if (opcao.id.startsWith('pedido:')) { abrirPedido(opcao.id.slice(7)); return; }
     // Pedido com música bônus: o cliente escolheu em qual música fazer a ação.
     if (opcao.id.startsWith('alvo:')) {
@@ -276,11 +244,32 @@ export default function ChatSuporte({ pedidoInicial }) {
     chamar({ acao: 'opcao', opcao: opcao.id });
   };
 
+  // Atendente com IA: texto livre vai para ele. Se estiver desligado ou fora do ar, o servidor
+  // responde `fallback` e o chat segue com as regras de antes.
+  const chamarIA = async (t, aoFalhar = null) => {
+    const historicoIA = mensagensRef.current.slice(-20).map((m) => ({
+      de: m.de,
+      texto: m.tipo === 'texto' ? m.texto : m.tipo === 'letra' ? `[letra] ${String(m.texto || '').slice(0, 300)}` : `[${m.tipo}${m.titulo ? `: ${m.titulo}` : ''}]`,
+    }));
+    const data = await chamar({
+      acao: 'ia', texto: t, aguardando: aguardar, historico: historicoIA, telefone: telefoneInformado.current || undefined,
+      dispositivo: aparelho.current.dispositivo, dentroDeApp: aparelho.current.dentroDeApp,
+      urlAtual: typeof window !== 'undefined' ? window.location.href : '',
+    });
+    if (data?.fallback) {
+      if (aoFalhar) aoFalhar();
+      else if (orderId) chamar({ acao: 'texto', texto: t, modo, aguardando: aguardar });
+      else tratarSemPedido(t);
+    }
+  };
+
   const enviarTexto = (t) => {
     adicionar([{ tipo: 'texto', texto: t }], 'eu');
     if (nova.ativa) { nova.responderTexto(t); return; }
-    if (!orderId) { tratarSemPedido(t); return; }
-    chamar({ acao: 'texto', texto: t, modo, aguardando: aguardar });
+    // Sub-fluxos dos botões (escrever o ritmo, dizer o que mudar na letra) seguem como estão.
+    if (orderId && (modo === 'letra' || modo === 'ritmo')) { chamar({ acao: 'texto', texto: t, modo, aguardando: aguardar }); return; }
+    if (modo === 'telefone' && pareceTelefone(t)) { chamar({ acao: 'identificar', telefone: t }); return; }
+    chamarIA(t);
   };
 
   const enviarArquivo = (arquivo) => {
@@ -301,7 +290,7 @@ export default function ChatSuporte({ pedidoInicial }) {
     adicionar([{ tipo: 'audio', url: URL.createObjectURL(blob), titulo: 'Seu áudio' }], 'eu');
     try {
       const base64 = await blobParaBase64(blob);
-      if (nova.ativa || !orderId) {
+      if (nova.ativa || !orderId || !(modo === 'letra' || modo === 'ritmo')) {
         setDigitando(true);
         const res = await fetch('/api/suporte/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ acao: 'transcrever', audio: { base64, mimeType: blob.type || 'audio/webm' } }) });
         const data = await res.json().catch(() => ({}));
@@ -310,7 +299,7 @@ export default function ChatSuporte({ pedidoInicial }) {
         if (!t) { mostrarRespostas([{ tipo: 'texto', texto: data.error || 'Não consegui ouvir direito o seu áudio. 😕 Pode escrever pra mim?' }]); return; }
         adicionar([{ tipo: 'texto', texto: `🎤 “${t}”` }], 'eu');
         if (nova.ativa) nova.responderTexto(t);
-        else tratarSemPedido(t);
+        else chamarIA(t);
         return;
       }
       chamar({ acao: 'audio', audio: { base64, mimeType: blob.type || 'audio/webm' }, modo, aguardando: aguardar });

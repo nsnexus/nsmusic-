@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import ConfigAtendenteIA from './ConfigAtendenteIA';
 
 // Aba "Atendimentos" do painel: histórico do chat de suporte do site (/suporte).
 // Lista as conversas (mais recentes primeiro) e mostra a conversa completa ao clicar.
@@ -110,6 +111,8 @@ export default function AbaAtendimentos({ authUser }) {
   };
 
   return (
+    <>
+    <ConfigAtendenteIA authUser={authUser} />
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 20, alignItems: 'flex-start' }}>
       <section style={{ flex: '1 1 380px', minWidth: 0 }}>
         <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
@@ -154,5 +157,6 @@ export default function AbaAtendimentos({ authUser }) {
         )}
       </section>
     </div>
+    </>
   );
 }

@@ -54,8 +54,11 @@ export function useNovaMusica({ mostrarRespostas, setDigitando, orderId, aoCriar
     ]);
   }, [mostrarRespostas, setDigitando]);
 
+  const gravarRef = useRef(null);
   const perguntar = useCallback(async () => {
     const p = proximaEtapa(campos.current);
+    // Letra já aprovada (veio do atendente com IA): faltava só nome/WhatsApp → grava.
+    if (!p && letra.current && gravarRef.current) { await gravarRef.current(); return; }
     if (!p) { await escreverLetra(); return; }
     setEtapa(p.etapa);
     await mostrarRespostas([p.opcoes ? { tipo: 'texto', texto: p.texto, opcoes: p.opcoes } : { tipo: 'texto', texto: p.texto }]);
@@ -88,6 +91,14 @@ export function useNovaMusica({ mostrarRespostas, setDigitando, orderId, aoCriar
   }, [orderId, lerHistoria, mostrarRespostas, perguntar]);
 
   const gravar = useCallback(async () => {
+    // Faltando nome ou WhatsApp de quem encomenda: pergunta antes de criar o pedido.
+    const falta = proximaEtapa(campos.current);
+    if (falta) {
+      setFase('perguntas');
+      setEtapa(falta.etapa);
+      await mostrarRespostas([{ tipo: 'texto', texto: falta.texto }]);
+      return;
+    }
     setFase('gravando');
     setDigitando(true);
     const c = campos.current;
@@ -118,6 +129,26 @@ export function useNovaMusica({ mostrarRespostas, setDigitando, orderId, aoCriar
       ? 'Mandei pro estúdio gravar! 🎧 E essa sai por conta do seu pedido pago. Leva de 1 a 3 minutinhos, fica aqui que eu te mostro assim que ficar pronta.'
       : 'Mandei pro estúdio gravar suas 2 versões! 🎧 Leva de 1 a 3 minutinhos, fica aqui que eu te mostro assim que ficar pronta.' }]);
   }, [aoCriarPedido, mostrarRespostas, setDigitando]);
+
+  gravarRef.current = gravar;
+
+  /** Letra escrita pelo atendente com IA: entra direto na fase de aprovar/gravar. */
+  const receberRascunho = useCallback(async ({ campos: dados, letra: texto } = {}, { telefone = '' } = {}) => {
+    if (!dados || !texto) return;
+    campos.current = { ...CAMPOS_VAZIOS, ...campos.current, ...dados };
+    if (telefone && !campos.current.customerPhone) campos.current.customerPhone = telefone;
+    if (orderId && (!campos.current.customerName || !campos.current.customerPhone)) {
+      const r = await postar('/api/suporte/chat', { acao: 'nova_dados', orderId }).catch(() => ({ ok: false, data: {} }));
+      if (r.ok && r.data?.cliente) {
+        campos.current.customerName = campos.current.customerName || r.data.cliente.customerName;
+        campos.current.customerPhone = campos.current.customerPhone || r.data.cliente.customerPhone;
+      }
+    }
+    letra.current = texto;
+    setEtapa(null);
+    setFase('letra');
+    setAtiva(true);
+  }, [orderId]);
 
   const ajustarLetra = useCallback(async (instrucao) => {
     setDigitando(true);
@@ -176,5 +207,5 @@ export function useNovaMusica({ mostrarRespostas, setDigitando, orderId, aoCriar
   const placeholder = fase === 'letra' || fase === 'mudando_letra' ? 'O que mudar na letra?'
     : etapa === 'story' ? 'Conte a história…' : etapa === 'customerPhone' ? 'Seu WhatsApp com DDD' : 'Mensagem';
 
-  return { ativa, iniciar, responderTexto, responderOpcao, cancelar, teclado, placeholder };
+  return { ativa, iniciar, responderTexto, responderOpcao, cancelar, receberRascunho, teclado, placeholder };
 }
