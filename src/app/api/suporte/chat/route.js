@@ -5,7 +5,7 @@ import { findOrdersByPhone } from '@/lib/orderLookup';
 import { transcribeAudioWithFailover } from '@/lib/transcribeAudio';
 import {
   responderChat, saudacao, acaoPago, acaoAjustePago, acaoNovaVersao, orderIdValido,
-  acaoMusicaNovaPronta, dadosDoCliente, reescreverLetra, listaDePedidos,
+  acaoMusicaNovaPronta, dadosDoCliente, reescreverLetra, listaDePedidos, transcricaoValida, gruposDoNumero, contextoDoPedido,
 } from '@/lib/suporteChat';
 import { extrairDadosDaHistoria } from '@/lib/suporteNovaMusica';
 
@@ -31,6 +31,14 @@ function lerAmbiente() {
   return { env };
 }
 
+// O que a página está esperando (só para escolher a resposta; não libera nada).
+function lerAguardando(a) {
+  if (!a || typeof a !== 'object') return null;
+  const tipo = ['pagamento', 'musica', 'musica_nova'].includes(a.tipo) ? a.tipo : null;
+  if (!tipo) return null;
+  return { tipo, kind: a.kind === 'ajuste' ? 'ajuste' : 'pedido' };
+}
+
 const json = (data, status = 200) => NextResponse.json(data, { status, headers: { 'Cache-Control': 'no-store' } });
 
 export async function POST(req) {
@@ -48,13 +56,14 @@ export async function POST(req) {
     if (acao === 'identificar') {
       const digitos = String(body.telefone || '').replace(/\D/g, '');
       if (digitos.length < 10 || digitos.length > 13) return json({ error: 'Digite o WhatsApp com DDD, só números.' }, 400);
-      const pedidos = await findOrdersByPhone(digitos, env, 10);
-      const pedido = pedidos[0];
-      if (pedidos.length > 1) {
+      const pedidos = await findOrdersByPhone(digitos, env, 20);
+      const grupos = gruposDoNumero(pedidos);
+      const pedido = grupos[0]?.principal;
+      if (grupos.length > 1) {
         const lista = listaDePedidos(pedidos);
         return json({ ok: true, mensagens: [lista], escolherPedido: lista.opcoes });
       }
-      return json({ ok: true, orderId: pedido.id, mensagens: saudacao(pedido) });
+      return json({ ok: true, orderId: pedido.id, mensagens: saudacao(pedido, await contextoDoPedido(pedido, env)) });
     }
 
     // Sem pedido: cliente novo criando música pelo chat.
@@ -75,7 +84,7 @@ export async function POST(req) {
       if (!base64 || base64.length > MAX_AUDIO_BASE64) return json({ error: 'Áudio muito longo. Grave até 1 minuto.' }, 400);
       const mimeType = String(body.audio?.mimeType || 'audio/webm').slice(0, 60);
       const texto = String(await transcribeAudioWithFailover({ type: 'base64', value: base64, mimeType }, env) || '').trim();
-      return json({ ok: true, texto });
+      return json({ ok: true, texto: transcricaoValida(texto) ? texto : '' });
     }
 
     const orderId = String(body.orderId || '');
@@ -103,10 +112,10 @@ export async function POST(req) {
       const mimeType = String(body.audio?.mimeType || 'audio/webm').slice(0, 60);
       if (!base64 || base64.length > MAX_AUDIO_BASE64) return json({ error: 'Áudio muito longo. Grave até 1 minuto.' }, 400);
       const transcrito = String(await transcribeAudioWithFailover({ type: 'base64', value: base64, mimeType }, env) || '').trim();
-      if (!transcrito) {
+      if (!transcricaoValida(transcrito)) {
         return json({ ok: true, orderId, mensagens: [{ tipo: 'texto', texto: 'Não consegui ouvir direito o seu áudio. 😕 Pode escrever pra mim?' }], modo: body.modo || null });
       }
-      const r = await responderChat(pedido, { acao: 'texto', texto: transcrito, modo: body.modo }, env);
+      const r = await responderChat(pedido, { acao: 'texto', texto: transcrito, modo: body.modo, aguardando: lerAguardando(body.aguardando) }, env);
       return json({ ok: true, orderId, transcricao: transcrito, ...r });
     }
 
@@ -115,6 +124,8 @@ export async function POST(req) {
       opcao: typeof body.opcao === 'string' ? body.opcao.slice(0, 60) : undefined,
       texto: typeof body.texto === 'string' ? body.texto.slice(0, 1000) : undefined,
       modo: ['letra', 'ritmo'].includes(body.modo) ? body.modo : null,
+      aguardando: lerAguardando(body.aguardando),
+      escolhido: body.escolhido === true,
     };
     const r = await responderChat(pedido, entrada, env);
     return json({ ok: true, orderId, ...r });

@@ -69,9 +69,11 @@ async function avisarDono(texto, env) {
  * @param {{tipo: 'ritmo'|'letra', estilo?: string}} ajuste
  * @returns {Promise<{ok: true, txid: string, pixCopiaECola: string, valor: number} | {ok: false, motivo: string}>}
  */
-export async function criarCobrancaAjuste(pedido, ajuste, env = {}) {
+export async function criarCobrancaAjuste(pedido, ajuste, env = {}, { liberado = false } = {}) {
   if (!pedido?.id) return { ok: false, motivo: 'sem_pedido' };
-  if (!pedidoPago(pedido)) return { ok: false, motivo: 'pedido_nao_pago' };
+  // `liberado`: música bônus cujo pedido principal está pago (conferido pelo servidor em
+  // suporteChat.contextoDoPedido, nunca vindo do cliente).
+  if (!pedidoPago(pedido) && !liberado) return { ok: false, motivo: 'pedido_nao_pago' };
   if (!TIPOS_AJUSTE.has(ajuste?.tipo)) return { ok: false, motivo: 'tipo_invalido' };
 
   const pendente = { tipo: ajuste.tipo, criadoEm: new Date().toISOString() };

@@ -6,12 +6,22 @@ vi.mock('@/lib/supabaseDb', () => ({
   getOrder: vi.fn(async () => null),
   updateOrder: vi.fn(async () => ({ success: true })),
 }));
+let pedidosDoTelefone = [];
+vi.mock('@/lib/orderLookup', async (orig) => ({
+  ...(await orig()),
+  findOrdersByPhone: vi.fn(async () => pedidosDoTelefone),
+}));
+vi.mock('@/lib/agentSuporte', () => ({
+  classificarIntencao: vi.fn(async () => ({ intencao: 'CADE_MINHA_MUSICA', detalhe: '' })),
+}));
 vi.mock('@/lib/ajustePago', async (orig) => ({
   ...(await orig()),
   criarCobrancaAjuste: vi.fn(async () => ({ ok: true, txid: 'A'.repeat(30), pixCopiaECola: '000201PIX', valor: 1 })),
 }));
 
-const { orderIdValido, responderChat, saudacao, assinaturaAudio, listaDePedidos, MENU } = await import('@/lib/suporteChat');
+const { orderIdValido, responderChat, saudacao, assinaturaAudio, listaDePedidos, transcricaoValida, MENU } = await import('@/lib/suporteChat');
+import { beforeEach } from 'vitest';
+beforeEach(() => { pedidosDoTelefone = []; });
 const { criarCobrancaAjuste } = await import('@/lib/ajustePago');
 
 const pago = { id: 'abcdefghijklmnopqrst', paymentStatus: 'PAGAMENTO_APROVADO', audioFiles: ['https://x/1.mp3'], lyrics: 'letra', customerName: 'Maria Silva', honoreeName: 'João' };
@@ -42,7 +52,7 @@ describe('ajustes', () => {
 
   it('troca de ritmo em pedido pago gera o Pix de R$ 1 e espera o pagamento', async () => {
     const r = await responderChat(pago, { acao: 'opcao', opcao: 'estilo:Pagode' });
-    expect(criarCobrancaAjuste).toHaveBeenCalledWith(pago, { tipo: 'ritmo', estilo: 'Pagode' }, {});
+    expect(criarCobrancaAjuste).toHaveBeenCalledWith(pago, { tipo: 'ritmo', estilo: 'Pagode' }, {}, { liberado: true });
     expect(r.mensagens.find((m) => m.tipo === 'pix')).toMatchObject({ valor: 1 });
     expect(r.aguardar).toEqual({ tipo: 'pagamento', txid: 'A'.repeat(30), kind: 'ajuste' });
   });
@@ -76,5 +86,57 @@ describe('baixar', () => {
   it('não oferece mais envio pelo WhatsApp', async () => {
     const r = await responderChat(pago, { acao: 'opcao', opcao: 'enviar_whatsapp' });
     expect(JSON.stringify(r)).not.toMatch(/WhatsApp \(final/);
+  });
+});
+
+describe('enquanto espera', () => {
+  it('"cadê?" durante a gravação do ajuste responde sobre a gravação, não lista músicas antigas', async () => {
+    const r = await responderChat({ ...pago, musicStyle: 'Pagode' }, { acao: 'texto', texto: 'cade pedi pra mudar o ritmo', aguardando: { tipo: 'musica', kind: 'pedido' } });
+    expect(r.mensagens[0].texto).toMatch(/gravando sua nova versão em \*Pagode\*/);
+    expect(r.mensagens.some((m) => m.tipo === 'audio')).toBe(false);
+  });
+
+  it('esperando o Pix do ajuste: avisa que está esperando o pagamento', async () => {
+    const r = await responderChat(pago, { acao: 'texto', texto: 'e aí?', aguardando: { tipo: 'pagamento', kind: 'ajuste' } });
+    expect(r.mensagens[0].texto).toMatch(/esperando o Pix de R\$ 1,00/);
+  });
+});
+
+describe('transcricaoValida', () => {
+  it('descarta frase fantasma do Whisper em áudio mudo', () => {
+    expect(transcricaoValida('Legendas pela comunidade do Amara.org')).toBe(false);
+    expect(transcricaoValida('...')).toBe(false);
+    expect(transcricaoValida('quero mudar o ritmo pra pagode')).toBe(true);
+  });
+});
+
+describe('pedido com música bônus', () => {
+  const principal = { ...pago, customerPhone: '94991234567', musicStyle: 'Sertanejo', createdAt: '2026-11-24T21:14:00.000Z' };
+  const bonus = { id: 'bonusbonusbonus12345', customerPhone: '94991234567', honoreeName: 'João', musicStyle: 'Pagode', isSecondGeneration: true, parentOrderId: pago.id, paymentStatus: 'PAGAMENTO_APROVADO', audioFiles: ['https://x/b.mp3'], lyrics: 'l', createdAt: '2026-11-24T22:00:00.000Z' };
+
+  it('a lista mostra o principal com a bônus junto, não como pedido separado', () => {
+    const msg = listaDePedidos([principal, bonus, { id: 'outroPedido123456789', honoreeName: 'Ana', paymentStatus: 'PAGO', audioFiles: ['y'], createdAt: '2026-11-20T12:00:00.000Z' }]);
+    expect(msg.texto).toMatch(/Achei 2 pedidos/);
+    expect(msg.opcoes[0].label).toMatch(/com bônus$/);
+  });
+
+  it('"Mudar o ritmo" pergunta qual das duas músicas', async () => {
+    pedidosDoTelefone = [principal, bonus];
+    const r = await responderChat(principal, { acao: 'opcao', opcao: 'ritmo' });
+    expect(r.mensagens[0].opcoes.map((o) => o.id)).toEqual([`alvo:${pago.id}:ritmo`, 'alvo:bonusbonusbonus12345:ritmo']);
+  });
+
+  it('depois de escolher, mostra os ritmos sem perguntar de novo', async () => {
+    pedidosDoTelefone = [principal, bonus];
+    const r = await responderChat(bonus, { acao: 'opcao', opcao: 'ritmo', escolhido: true });
+    expect(r.mensagens[0].opcoes.some((o) => o.id === 'estilo:Pagode')).toBe(true);
+  });
+
+  it('baixar entrega só as músicas desse pedido (principal + bônus)', async () => {
+    pedidosDoTelefone = [principal, bonus, { id: 'outroPedido123456789', customerPhone: '94991234567', honoreeName: 'Ana', paymentStatus: 'PAGO', audioFiles: ['y'] }];
+    const r = await responderChat(principal, { acao: 'opcao', opcao: 'baixar' });
+    const audios = r.mensagens.filter((m) => m.tipo === 'audio').map((m) => m.url);
+    expect(audios.some((u) => u.includes('outroPedido'))).toBe(false);
+    expect(audios.some((u) => u.includes('bonusbonus'))).toBe(true);
   });
 });

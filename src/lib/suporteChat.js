@@ -79,22 +79,50 @@ async function linkAtendente(pedido, env) {
  * Número com mais de um pedido: o cliente escolhe sobre qual quer falar antes de qualquer coisa
  * (senão "mudar o ritmo" cairia no pedido errado).
  */
-export function listaDePedidos(pedidos) {
-  const opcoes = pedidos.slice(0, 9).map((p) => {
-    const quando = dataHoraBr(p.createdAt).split(' às ')[0];
-    const situacao = pedidoEstaPago(p) ? 'paga' : isBonusOrder(p) ? 'bônus' : temAudio(p) ? 'aguardando pagamento' : 'em produção';
-    const nome = p.honoreeName ? `Música de ${String(p.honoreeName).slice(0, 30)}` : `Pedido ${p.orderNumber || ''}`.trim();
-    return { id: `pedido:${p.id}`, label: `${nome} · ${quando} · ${situacao}` };
-  });
-  return texto(`Achei ${pedidos.length} pedidos nesse número. Sobre qual deles você quer falar?`, opcoes);
+export function gruposDoNumero(pedidos) {
+  return agruparComBonus(pedidos || []);
 }
 
-export function saudacao(pedido) {
+export function listaDePedidos(pedidos) {
+  const grupos = gruposDoNumero(pedidos).slice(0, 9);
+  const opcoes = grupos.map(({ principal: p, pedidos: doGrupo }) => {
+    const quando = dataHoraBr(p.createdAt).split(' às ')[0];
+    const situacao = pedidoLiberado(p, pedidos) ? 'paga' : temAudio(p) ? 'aguardando pagamento' : 'em produção';
+    const nome = p.honoreeName ? `Música de ${String(p.honoreeName).slice(0, 30)}` : `Pedido ${p.orderNumber || ''}`.trim();
+    const bonus = doGrupo.length > 1 ? ' · com bônus' : '';
+    return { id: `pedido:${p.id}`, label: `${nome} · ${quando} · ${situacao}${bonus}` };
+  });
+  return texto(`Achei ${grupos.length} pedidos nesse número. Sobre qual deles você quer falar?`, opcoes);
+}
+
+/** Os pedidos do mesmo telefone, o grupo (principal + bônus) deste pedido e se ele está liberado. */
+export async function contextoDoPedido(pedido, env = {}) {
+  const todos = pedido.customerPhone ? await findOrdersByPhone(pedido.customerPhone, env, 20) : [];
+  const lista = todos.some((p) => p.id === pedido.id) ? todos : [pedido, ...todos];
+  const grupo = gruposDoNumero(lista).find((g) => g.pedidos.some((p) => p.id === pedido.id))?.pedidos || [pedido];
+  return { lista, grupo, liberado: pedidoLiberado(pedido, lista) };
+}
+
+/** Pedido com música bônus: pergunta em qual das músicas fazer a ação. */
+function escolherMusica(ctx, acao, pergunta) {
+  const musicas = ctx.grupo.filter(temAudio);
+  if (musicas.length < 2) return null;
+  return {
+    mensagens: [texto(pergunta, musicas.map((p, i) => ({
+      id: `alvo:${p.id}:${acao}`,
+      label: `${i === 0 ? 'Música principal' : 'Música bônus'}${p.musicStyle ? ` · ${String(p.musicStyle).slice(0, 25)}` : ''}${p.honoreeName ? ` (${String(p.honoreeName).slice(0, 20)})` : ''}`,
+    })))],
+  };
+}
+
+export function saudacao(pedido, ctx = null) {
   const nome = primeiroNome(pedido.customerName);
-  const de = pedido.honoreeName ? ` da música de *${pedido.honoreeName}*` : '';
+  const comBonus = ctx && ctx.grupo.filter(temAudio).length > 1 ? ' (com a música bônus)' : '';
+  const de = pedido.honoreeName ? ` da música de *${pedido.honoreeName}*${comBonus}` : comBonus;
+  const liberado = ctx ? ctx.liberado : pedidoEstaPago(pedido);
   const situacao = !temAudio(pedido)
     ? ' Ela ainda está sendo finalizada no estúdio.'
-    : (pedidoEstaPago(pedido) ? '' : ' Ele ainda está aguardando o pagamento.');
+    : (liberado ? '' : ' Ele ainda está aguardando o pagamento.');
   return [
     texto(`Oi${nome ? `, ${nome}` : ''}! Aqui é o suporte da NS Music. Já encontrei seu pedido${de}.${situacao}`),
     texto('Como posso te ajudar? Toque numa opção ou, se preferir, escreva ou mande um áudio.', MENU),
@@ -103,22 +131,21 @@ export function saudacao(pedido) {
 
 // ---------- Ações ----------
 
-async function acaoBaixar(pedido, env, { comPagamento = true } = {}) {
+async function acaoBaixar(pedido, env, { comPagamento = true, ctx = null } = {}) {
   if (!temAudio(pedido)) {
     return { mensagens: [texto('Sua música ainda está sendo finalizada no estúdio. 🎵 Assim que ficar pronta, ela aparece aqui e em "Minhas músicas".', [MENU[5]])] };
   }
-  const todos = pedido.customerPhone ? await findOrdersByPhone(pedido.customerPhone, env, 20) : [];
-  const lista = todos.some((p) => p.id === pedido.id) ? todos : [pedido, ...todos];
-  if (!pedidoLiberado(pedido, lista)) {
+  const { lista, grupo, liberado } = ctx || await contextoDoPedido(pedido, env);
+  if (!liberado) {
     if (!comPagamento) return { mensagens: [texto('O download libera assim que o pagamento for confirmado.')] };
-    const pag = await acaoPagamento(pedido, env);
+    const pag = await acaoPagamento(pedido, env, ctx || { liberado });
     return { ...pag, mensagens: [texto('Sua música está prontinha! O download libera assim que o pagamento for confirmado.'), ...pag.mensagens] };
   }
-  const pedidos = agruparComBonus(pedidosPagosComAudio(lista)).slice(0, 3).flatMap((g) => g.pedidos);
+  const pedidos = pedidosPagosComAudio(grupo).filter((p) => pedidoLiberado(p, lista));
   const alvo = pedidos.length ? pedidos : [pedido];
   return {
     mensagens: [
-      texto(alvo.length > 1 ? `Achei ${alvo.length} músicas pagas suas. Aqui estão:` : 'Aqui está sua música, pode ouvir e baixar por aqui mesmo:'),
+      texto(alvo.length > 1 ? 'Aqui estão a música principal e a bônus, pode ouvir e baixar por aqui mesmo:' : 'Aqui está sua música, pode ouvir e baixar por aqui mesmo:'),
       ...alvo.flatMap((p) => arquivosDoPedido(p, assinaturaAudio(p))),
       texto('Toque no arquivo pra salvar no celular. Se não baixar, toque nos três pontinhos (⋮) lá em cima e escolha *Abrir no navegador*, depois tente de novo.', [
         { id: 'menu', label: 'Consegui, obrigado!' },
@@ -128,9 +155,9 @@ async function acaoBaixar(pedido, env, { comPagamento = true } = {}) {
   };
 }
 
-async function acaoPagamento(pedido, env) {
-  if (pedidoEstaPago(pedido)) {
-    const b = await acaoBaixar(pedido, env, { comPagamento: false });
+async function acaoPagamento(pedido, env, ctx = null) {
+  if (ctx ? ctx.liberado : pedidoEstaPago(pedido)) {
+    const b = await acaoBaixar(pedido, env, { comPagamento: false, ctx });
     return { mensagens: [texto('Seu pagamento já está confirmado. ✅'), ...b.mensagens] };
   }
   // Já existe Pix? Confere na Efí antes de gerar outro: muita gente pagou e só não liberou.
@@ -146,8 +173,8 @@ async function acaoPagamento(pedido, env) {
   };
 }
 
-async function acaoJaPaguei(pedido, env) {
-  if (pedidoEstaPago(pedido)) return acaoPagamento(pedido, env);
+async function acaoJaPaguei(pedido, env, ctx = null) {
+  if (ctx ? ctx.liberado : pedidoEstaPago(pedido)) return acaoPagamento(pedido, env, ctx);
   const conf = await conferirPagamento(pedido, env);
   if (conf.ok && (conf.estado === 'liberado_agora' || conf.estado === 'ja_estava_pago')) return acaoPago(pedido.id, env);
   if (!conf.ok) {
@@ -175,15 +202,19 @@ export async function acaoPago(orderId, env) {
   return { mensagens: [texto('Pagamento confirmado! 🎉 Seu pedido está liberado.'), ...b.mensagens, ...bonus] };
 }
 
-function exigeMusicaPaga(pedido) {
+function exigeMusicaPaga(pedido, ctx) {
   if (!temAudio(pedido)) return [texto('Sua música ainda está sendo finalizada. Assim que ela ficar pronta, dá pra pedir ajuste por aqui.', MENU)];
-  if (!pedidoEstaPago(pedido)) return [texto('O ajuste é pra música já paga, e seu pedido ainda está aguardando o pagamento. Quer resolver o pagamento primeiro?', [MENU[3], MENU[5]])];
+  if (!(ctx ? ctx.liberado : pedidoEstaPago(pedido))) return [texto('O ajuste é pra música já paga, e seu pedido ainda está aguardando o pagamento. Quer resolver o pagamento primeiro?', [MENU[3], MENU[5]])];
   if (!pedido.lyrics) return [texto('Esse pedido precisa de um ajuste feito pela equipe. Toca aqui que eu te passo pra uma pessoa:', [MENU[5]])];
   return null;
 }
 
-function acaoRitmo(pedido) {
-  const bloqueio = exigeMusicaPaga(pedido);
+function acaoRitmo(pedido, ctx, escolhido) {
+  if (!escolhido) {
+    const qual = escolherMusica(ctx, 'ritmo', 'Esse pedido tem duas músicas. Qual delas você quer mudar o ritmo?');
+    if (qual) return qual;
+  }
+  const bloqueio = exigeMusicaPaga(pedido, ctx);
   if (bloqueio) return { mensagens: bloqueio };
   return {
     mensagens: [texto(`Bora! Pra qual ritmo você quer mudar? Cada ajuste custa ${reais(getPriceForSku(SKU_AJUSTE))} e a letra continua a mesma.`, [
@@ -193,8 +224,8 @@ function acaoRitmo(pedido) {
   };
 }
 
-async function cobrarAjuste(pedido, ajuste, env, abertura) {
-  const r = await criarCobrancaAjuste(pedido, ajuste, env);
+async function cobrarAjuste(pedido, ajuste, env, abertura, ctx) {
+  const r = await criarCobrancaAjuste(pedido, ajuste, env, { liberado: ctx?.liberado });
   if (!r.ok) {
     if (r.motivo === 'estilo_invalido') return { mensagens: [texto('Não entendi o ritmo. Escreve só o nome dele, tipo "sertanejo" ou "pagode".')], modo: 'ritmo' };
     return { mensagens: [texto('Tive um problema pra gerar o Pix do ajuste agora. Toca aqui que uma pessoa da equipe resolve com você:', [MENU[5]])] };
@@ -209,15 +240,23 @@ async function cobrarAjuste(pedido, ajuste, env, abertura) {
   };
 }
 
-function acaoEstilo(pedido, estiloBruto, env) {
-  const bloqueio = exigeMusicaPaga(pedido);
-  if (bloqueio) return { mensagens: bloqueio };
+function acaoEstilo(pedido, estiloBruto, env, ctx, perguntar = false) {
   const estilo = limparEstilo(estiloBruto);
-  return cobrarAjuste(pedido, { tipo: 'ritmo', estilo }, env, `Fechado: vou gravar sua música em *${estilo}*, com a mesma letra.`);
+  if (perguntar) {
+    const qual = escolherMusica(ctx, `estilo:${estilo}`, `Qual das duas músicas você quer em ${estilo}?`);
+    if (qual) return qual;
+  }
+  const bloqueio = exigeMusicaPaga(pedido, ctx);
+  if (bloqueio) return { mensagens: bloqueio };
+  return cobrarAjuste(pedido, { tipo: 'ritmo', estilo }, env, `Fechado: vou gravar sua música em *${estilo}*, com a mesma letra.`, ctx);
 }
 
-function acaoLetra(pedido) {
-  const bloqueio = exigeMusicaPaga(pedido);
+function acaoLetra(pedido, ctx, escolhido) {
+  if (!escolhido) {
+    const qual = escolherMusica(ctx, 'letra', 'Esse pedido tem duas músicas. Qual letra você quer ajustar?');
+    if (qual) return qual;
+  }
+  const bloqueio = exigeMusicaPaga(pedido, ctx);
   if (bloqueio) return { mensagens: bloqueio };
   return {
     mensagens: [texto('Beleza! Me conta o que você quer mudar na letra. Pode escrever ou mandar um áudio. Ex.: "troca Ana por Aninha" ou "fala que ele é o melhor pai do mundo".')],
@@ -247,8 +286,8 @@ ${String(base || '').slice(0, 6000)}`;
   }
 }
 
-async function proporLetra(pedido, instrucao, env) {
-  const bloqueio = exigeMusicaPaga(pedido);
+async function proporLetra(pedido, instrucao, env, ctx) {
+  const bloqueio = exigeMusicaPaga(pedido, ctx);
   if (bloqueio) return { mensagens: bloqueio };
   const proposta = pedido.ajusteLetraProposta;
   const recente = proposta?.letra && Date.now() - Date.parse(proposta.criadoEm || 0) < VALIDADE_PROPOSTA_MS;
@@ -267,17 +306,17 @@ async function proporLetra(pedido, instrucao, env) {
       { tipo: 'letra', texto: letra.replace(/^\[[^\]]+\]\s*$/gm, '').replace(/\n{3,}/g, '\n\n').trim() },
       texto(`Se gostou, eu gravo a música nova com essa letra por ${reais(getPriceForSku(SKU_AJUSTE))}.`, [
         { id: 'letra_ok', label: `Pode gravar (${reais(getPriceForSku(SKU_AJUSTE))})` },
-        { id: 'letra', label: 'Quero mudar mais' },
+        { id: 'letra_mais', label: 'Quero mudar mais' },
         { id: 'menu', label: 'Deixa como está' },
       ]),
     ],
   };
 }
 
-function acaoLetraOk(pedido, env) {
-  const bloqueio = exigeMusicaPaga(pedido);
+function acaoLetraOk(pedido, env, ctx) {
+  const bloqueio = exigeMusicaPaga(pedido, ctx);
   if (bloqueio) return { mensagens: bloqueio };
-  return cobrarAjuste(pedido, { tipo: 'letra' }, env, 'Perfeito, vou gravar com a letra nova.');
+  return cobrarAjuste(pedido, { tipo: 'letra' }, env, 'Perfeito, vou gravar com a letra nova.', ctx);
 }
 
 /** Depois que a página viu o Pix do ajuste aprovado. */
@@ -380,21 +419,58 @@ async function acaoHumano(pedido, env, motivo = '') {
 
 // ---------- Texto livre ----------
 
-async function interpretarTexto(pedido, mensagem, modo, env) {
+// O Whisper "ouve" frases de legenda de vídeo em áudio mudo ou curtinho (achado 25/11/2026: um
+// áudio de 2 s virou "Legendas pela comunidade do Amara.org"). Isso não é o cliente falando.
+const ALUCINACOES = /amara\.org|legendas? pela comunidade|legenda(do)? por|obrigad[oa] por assistir|inscreva-se|ative o sininho|tchau,? tchau/i;
+
+export function transcricaoValida(texto) {
+  const t = String(texto || '').trim();
+  return t.replace(/[^\p{L}\p{N}]/gu, '').length >= 2 && !ALUCINACOES.test(t);
+}
+
+/**
+ * O chat está esperando algo (Pix cair, música gravando) e o cliente escreve: a resposta é sobre
+ * ISSO, não um menu do zero (achado 25/11/2026: "cadê, pedi pra mudar o ritmo" listou as músicas
+ * antigas enquanto a nova ainda gravava).
+ */
+function respostaEnquantoEspera(pedido, aguardando, intencao) {
+  if (intencao === 'FALAR_HUMANO') return null;
+  if (aguardando.tipo === 'musica' || aguardando.tipo === 'musica_nova') {
+    const estilo = aguardando.tipo === 'musica' && pedido.musicStyle ? ` em *${pedido.musicStyle}*` : '';
+    const qual = aguardando.tipo === 'musica' ? `sua nova versão${estilo}` : 'sua música';
+    return { mensagens: [texto(`Já tá gravando ${qual}! 🎙️ Costuma levar de 2 a 3 minutinhos. Assim que ficar pronta, ela aparece aqui sozinha, não precisa fazer nada.`, [MENU[5]])] };
+  }
+  if (aguardando.tipo === 'pagamento') {
+    if (aguardando.kind === 'ajuste') {
+      return { mensagens: [texto(`Ainda estou esperando o Pix de ${reais(getPriceForSku(SKU_AJUSTE))} cair. Assim que o banco confirmar, eu começo a gravar sozinho. Se já pagou, é só aguardar uns instantes aqui.`, [MENU[5]])] };
+    }
+    if (intencao === 'PAGUEI_NAO_LIBEROU') return null;
+    return { mensagens: [texto('Ainda estou esperando o pagamento do Pix cair. Assim que o banco confirmar, eu libero sua música aqui.', [{ id: 'ja_paguei', label: 'Já paguei' }, MENU[5]])] };
+  }
+  return null;
+}
+
+async function interpretarTexto(pedido, mensagem, modo, env, aguardando, ctx) {
   const msg = String(mensagem || '').trim().slice(0, 1000);
   if (!msg) return { mensagens: [] };
-  if (modo === 'letra') return proporLetra(pedido, msg, env);
-  if (modo === 'ritmo') return acaoEstilo(pedido, msg, env);
+  if (modo === 'letra') return proporLetra(pedido, msg, env, ctx);
+  if (modo === 'ritmo') return acaoEstilo(pedido, msg, env, ctx);
 
   const { intencao, detalhe } = await classificarIntencao(msg, {
     numero: pedido.orderNumber, orderId: pedido.id, pago: pedidoEstaPago(pedido), temMusica: temAudio(pedido), estilo: pedido.musicStyle,
   }, env);
 
+  if (aguardando) {
+    const r = respostaEnquantoEspera(pedido, aguardando, intencao);
+    if (r) return r;
+  }
+
   switch (intencao) {
-    case 'CADE_MINHA_MUSICA': return acaoBaixar(pedido, env);
-    case 'PAGUEI_NAO_LIBEROU': return acaoJaPaguei(pedido, env);
-    case 'AJUSTAR_LETRA': return detalhe ? proporLetra(pedido, detalhe, env) : acaoLetra(pedido);
-    case 'TROCAR_ESTILO': return detalhe ? acaoEstilo(pedido, detalhe, env) : acaoRitmo(pedido);
+    case 'CADE_MINHA_MUSICA': return acaoBaixar(pedido, env, { ctx });
+    case 'PAGUEI_NAO_LIBEROU': return acaoJaPaguei(pedido, env, ctx);
+    // Pedido com bônus: pergunta antes em qual música (a instrução de letra é repetida depois).
+    case 'AJUSTAR_LETRA': return (detalhe && ctx.grupo.filter(temAudio).length < 2) ? proporLetra(pedido, detalhe, env, ctx) : acaoLetra(pedido, ctx, false);
+    case 'TROCAR_ESTILO': return detalhe ? acaoEstilo(pedido, detalhe, env, ctx, true) : acaoRitmo(pedido, ctx, false);
     case 'NOVO_PEDIDO': return acaoCriar(pedido);
     case 'FALAR_HUMANO': return acaoHumano(pedido, env, msg);
     case 'SAUDACAO': return { mensagens: [texto(`Oi${primeiroNome(pedido.customerName) ? `, ${primeiroNome(pedido.customerName)}` : ''}! Como posso te ajudar?`, MENU)] };
@@ -408,22 +484,26 @@ async function interpretarTexto(pedido, mensagem, modo, env) {
  */
 export async function responderChat(pedido, entrada, env = {}) {
   const { acao, opcao } = entrada || {};
-  if (acao === 'inicio') return { mensagens: saudacao(pedido) };
-  if (acao === 'texto') return interpretarTexto(pedido, entrada.texto, entrada.modo, env);
-  if (acao === 'comprovante') return pedidoEstaPago(pedido)
-    ? { mensagens: [texto('Recebi a imagem! Se ela é pra o vídeo da homenagem, as fotos são enviadas na página da sua música:'), { tipo: 'link', url: `/entrega/${encodeURIComponent(pedido.id)}`, titulo: 'Abrir a página da minha música' }, MAIS_ALGO] }
-    : acaoJaPaguei(pedido, env);
+  // `escolhido`: a página já perguntou em qual música (principal ou bônus) e mudou para ela.
+  const escolhido = Boolean(entrada?.escolhido);
+  const ctx = await contextoDoPedido(pedido, env);
+  if (acao === 'inicio') return { mensagens: saudacao(pedido, ctx) };
+  if (acao === 'texto') return interpretarTexto(pedido, entrada.texto, entrada.modo, env, entrada.aguardando || null, ctx);
+  if (acao === 'comprovante') return ctx.liberado
+    ? { mensagens: [texto('Recebi a imagem! Se ela é pra o vídeo da homenagem, as fotos são enviadas na página da sua música:'), { tipo: 'link', url: `/entrega?orderId=${encodeURIComponent(pedido.id)}`, titulo: 'Abrir a página da minha música' }, MAIS_ALGO] }
+    : acaoJaPaguei(pedido, env, ctx);
   if (acao !== 'opcao') return { mensagens: [texto('Não entendi. Escolhe uma opção:', MENU)] };
 
-  if (typeof opcao === 'string' && opcao.startsWith('estilo:')) return acaoEstilo(pedido, opcao.slice(7), env);
+  if (typeof opcao === 'string' && opcao.startsWith('estilo:')) return acaoEstilo(pedido, opcao.slice(7), env, ctx);
   switch (opcao) {
-    case 'ritmo': return acaoRitmo(pedido);
+    case 'ritmo': return acaoRitmo(pedido, ctx, escolhido);
     case 'ritmo_outro': return { mensagens: [texto('Escreve aqui o ritmo que você quer (ex.: MPB, rock, reggae, bachata…).')], modo: 'ritmo' };
-    case 'letra': return acaoLetra(pedido);
-    case 'letra_ok': return acaoLetraOk(pedido, env);
-    case 'baixar': return acaoBaixar(pedido, env);
-    case 'pagamento': return acaoPagamento(pedido, env);
-    case 'ja_paguei': return acaoJaPaguei(pedido, env);
+    case 'letra': return acaoLetra(pedido, ctx, escolhido);
+    case 'letra_mais': return acaoLetra(pedido, ctx, true);
+    case 'letra_ok': return acaoLetraOk(pedido, env, ctx);
+    case 'baixar': return acaoBaixar(pedido, env, { ctx });
+    case 'pagamento': return acaoPagamento(pedido, env, ctx);
+    case 'ja_paguei': return acaoJaPaguei(pedido, env, ctx);
     case 'criar': return acaoCriar(pedido);
     case 'humano': return acaoHumano(pedido, env);
     case 'gostei': return { mensagens: [texto('Que bom! 💚 Qualquer coisa é só chamar por aqui.'), MAIS_ALGO] };

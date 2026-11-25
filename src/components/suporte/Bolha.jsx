@@ -7,11 +7,11 @@ import { copiarTexto } from '@/lib/copiarTexto';
 // Uma mensagem do chat de suporte. Os tipos vêm prontos de /api/suporte/chat (src/lib/suporteChat.js).
 
 export const CORES = {
-  topo: '#0E3A3B',
-  fundo: '#EFE7DD',
+  topo: '#008069',
+  fundo: '#EFEAE2',
   minha: '#D9FDD3',
   dele: '#FFFFFF',
-  acao: '#0F7B6C',
+  acao: '#008069',
   link: '#0B6F8F',
   texto: '#111B21',
   suave: '#667781',
@@ -51,7 +51,7 @@ function Audio({ url, titulo }) {
   };
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: 240, padding: '4px 2px' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: 260, padding: '4px 2px 0' }}>
       <audio
         ref={ref} src={url} preload="none" data-chat-audio
         onPlay={() => setTocando(true)} onPause={() => setTocando(false)} onEnded={() => { setTocando(false); setProgresso(0); }}
@@ -59,17 +59,21 @@ function Audio({ url, titulo }) {
         onTimeUpdate={(e) => setProgresso(e.currentTarget.duration ? e.currentTarget.currentTime / e.currentTarget.duration : 0)}
         onError={() => setErro(true)}
       />
-      <button type="button" onClick={alternar} aria-label={tocando ? 'Pausar' : 'Tocar'} style={{ width: 40, height: 40, borderRadius: '50%', border: 0, background: CORES.topo, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+      <span aria-hidden="true" style={{ width: 46, height: 46, borderRadius: '50%', background: '#FFAD1F', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 17v-4a8 8 0 0 1 16 0v4" /><rect x="3" y="15" width="5" height="6" rx="1.5" fill="currentColor" /><rect x="16" y="15" width="5" height="6" rx="1.5" fill="currentColor" /></svg>
+      </span>
+      <button type="button" onClick={alternar} aria-label={tocando ? 'Pausar' : 'Tocar'} style={{ width: 36, height: 44, border: 0, background: 'none', color: '#54656F', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, padding: 0 }}>
         {tocando
-          ? <svg viewBox="0 0 24 24" {...ICONE}><rect x="6" y="4" width="4" height="16" rx="1" /><rect x="14" y="4" width="4" height="16" rx="1" /></svg>
-          : <svg viewBox="0 0 24 24" {...ICONE}><path d="M7 4l13 8-13 8z" /></svg>}
+          ? <svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor" aria-hidden="true"><rect x="6" y="4" width="4" height="16" rx="1" /><rect x="14" y="4" width="4" height="16" rx="1" /></svg>
+          : <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor" aria-hidden="true"><path d="M7 4.5l13 7.5-13 7.5z" /></svg>}
       </button>
-      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <div style={{ height: 4, borderRadius: 2, background: '#D1D7DB', overflow: 'hidden' }}>
-          <div style={{ width: `${Math.round(progresso * 100)}%`, height: '100%', background: CORES.acao }} />
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 10 }}>
+        <div style={{ position: 'relative', height: 4, borderRadius: 2, background: '#D1D7DB' }}>
+          <div style={{ width: `${Math.round(progresso * 100)}%`, height: '100%', borderRadius: 2, background: '#8696A0' }} />
+          <span style={{ position: 'absolute', top: -4, left: `calc(${Math.round(progresso * 100)}% - 6px)`, width: 12, height: 12, borderRadius: '50%', background: tocando ? '#4FB6EC' : '#8696A0' }} />
         </div>
         <span style={{ fontSize: 11.5, color: CORES.suave, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {erro ? 'Não deu pra tocar aqui — use o arquivo abaixo' : `${titulo ? `${titulo} · ` : ''}${fmtTempo(duracao)}`}
+          {erro ? 'Não tocou aqui, use o arquivo' : (duracao ? fmtTempo(duracao) : (titulo || 'Áudio'))}
         </span>
       </div>
     </div>
@@ -125,14 +129,25 @@ function Conteudo({ m }) {
       return <div style={{ fontSize: 13.5, lineHeight: 1.5, whiteSpace: 'pre-wrap', maxHeight: 320, overflowY: 'auto', padding: '4px 4px', background: 'rgba(0,0,0,.03)', borderRadius: 6 }}>{m.texto}</div>;
     case 'audio':
       return <Audio url={m.url} titulo={m.titulo} />;
-    case 'arquivo':
+    case 'arquivo': {
+      const ext = (m.extensao || String(m.nome || '').split('.').pop() || 'MP3').slice(0, 4).toUpperCase();
       return (
-        <a href={m.url} download={m.nome} style={{ display: 'flex', alignItems: 'center', gap: 10, width: 240, background: 'rgba(0,0,0,.04)', borderRadius: 7, padding: 10, textDecoration: 'none', color: CORES.texto, boxSizing: 'border-box' }}>
-          <span style={{ width: 34, height: 40, borderRadius: 4, background: '#E8505B', color: '#fff', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', paddingBottom: 5, boxSizing: 'border-box', flexShrink: 0 }}>{m.extensao || 'MP3'}</span>
-          <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.nome}</span>
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#54656F" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" role="img" aria-label="Baixar"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" /></svg>
+        <a href={m.url} download={m.nome} style={{ display: 'flex', alignItems: 'center', gap: 10, width: 260, background: 'rgba(0,0,0,.05)', borderRadius: 6, padding: '12px 10px', textDecoration: 'none', color: CORES.texto, boxSizing: 'border-box' }}>
+          <svg viewBox="0 0 26 32" width="26" height="32" aria-hidden="true" style={{ flexShrink: 0 }}>
+            <path d="M3 0h14l9 9v20a3 3 0 0 1-3 3H3a3 3 0 0 1-3-3V3a3 3 0 0 1 3-3z" fill="#79909B" />
+            <path d="M17 0v6a3 3 0 0 0 3 3h6z" fill="#B2C1C8" />
+            <text x="13" y="24" textAnchor="middle" fontSize="7" fontWeight="700" fill="#fff" fontFamily="Arial, sans-serif">{ext}</text>
+          </svg>
+          <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <span style={{ fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.nome}</span>
+            <span style={{ fontSize: 12, color: CORES.suave }}>{ext} · Toque para baixar</span>
+          </span>
+          <span style={{ width: 34, height: 34, borderRadius: '50%', border: '1.5px solid #8696A0', color: '#8696A0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" role="img" aria-label="Baixar"><path d="M12 5v11M7 11l5 5 5-5M6 20h12" /></svg>
+          </span>
         </a>
       );
+    }
     case 'link':
       return <Cartao href={m.url} titulo={m.titulo} sub={m.url.startsWith('/') ? `nsmusic.ia.br${m.url.split('?')[0]}` : m.url} />;
     case 'whatsapp':
@@ -151,9 +166,15 @@ export default function Bolha({ m, onOpcao, opcoesAtivas }) {
   const minha = m.de === 'eu';
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: minha ? 'flex-end' : 'flex-start' }}>
-      <div style={{ maxWidth: '82%', padding: '6px 8px 5px', background: minha ? CORES.minha : CORES.dele, borderRadius: minha ? '10px 2px 10px 10px' : '2px 10px 10px 10px', boxShadow: '0 1px 1px rgba(0,0,0,.1)', display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <div style={{ position: 'relative', maxWidth: '82%', padding: '6px 8px 5px', background: minha ? CORES.minha : CORES.dele, borderRadius: minha ? '8px 0 8px 8px' : '0 8px 8px 8px', boxShadow: '0 1px .5px rgba(11,20,26,.13)', display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <svg viewBox="0 0 8 13" width="8" height="13" aria-hidden="true" style={{ position: 'absolute', top: 0, [minha ? 'right' : 'left']: -8 }}>
+          <path d={minha ? 'M0 0h8L1 9.5C.5 10.2 0 10 0 9z' : 'M8 0H0l7 9.5c.5.7 1 .5 1-.5z'} fill={minha ? CORES.minha : CORES.dele} />
+        </svg>
         <Conteudo m={m} />
-        <span style={{ alignSelf: 'flex-end', fontSize: 11, color: CORES.suave, marginTop: -2 }}>{m.hora}</span>
+        <span style={{ alignSelf: 'flex-end', display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, color: CORES.suave, marginTop: -2 }}>
+          {m.hora}
+          {minha ? <svg viewBox="0 0 16 11" width="16" height="11" role="img" aria-label="Lida"><path d="M1 6l3 3 6-7M6 9l1 1 6-8" fill="none" stroke="#53BDEB" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg> : null}
+        </span>
       </div>
       {opcoesAtivas && Array.isArray(m.opcoes) && m.opcoes.length > 0 ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4, width: '82%' }}>
