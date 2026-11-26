@@ -82,6 +82,38 @@ function arquivosDoPedido(p, versao) {
   });
 }
 
+export const PREVIA_SEGUNDOS = 60;
+
+/**
+ * Pedido ainda não pago: prévia de 60 s de cada versão (o mesmo corte da página do pedido), a
+ * pergunta "gostou?" e os dois caminhos para pagar — Pix aqui ou a página do pedido (cartão).
+ * Pedido do dono do estúdio em 26/11/2026: ninguém paga sem ouvir.
+ */
+export function acaoPrevia(pedido, { pronta = false } = {}) {
+  const faixas = Array.isArray(pedido.audioFiles) && pedido.audioFiles.some(Boolean) ? pedido.audioFiles.filter(Boolean) : [pedido.audioUrl].filter(Boolean);
+  const versao = assinaturaAudio(pedido);
+  const previas = faixas.slice(0, 2).map((_, i) => ({
+    tipo: 'audio',
+    previa: PREVIA_SEGUNDOS,
+    url: `/api/audio/proxy?orderId=${encodeURIComponent(pedido.id)}&faixa=${i}&v=${versao}`,
+    titulo: `Prévia · versão ${i + 1}`,
+  }));
+  const sku = pedido.paymentIntentSku && getPriceForSku(pedido.paymentIntentSku) ? pedido.paymentIntentSku : 'audio_only';
+  const para = pedido.honoreeName ? ` pra *${pedido.honoreeName}*` : '';
+  const versoes = previas.length > 1 ? `as ${previas.length} versões` : 'a música';
+  return {
+    mensagens: [
+      texto(`${pronta ? `Sua música${para} ficou pronta!` : `Sua música${para} está prontinha!`} 🎶 Ouve a prévia de ${PREVIA_SEGUNDOS} segundos${previas.length > 1 ? ' de cada versão' : ''}:`),
+      ...previas,
+      texto(`Gostou? Pra liberar ${versoes} completa${previas.length > 1 ? 's' : ''} em MP3 HD é só pagar ${reais(getPriceForSku(sku))}. Pode ser no Pix aqui mesmo ou no cartão, pela página do seu pedido.`, [
+        { id: 'quero_completas', label: 'Amei! Quero pagar no Pix' },
+        MENU[5],
+      ]),
+      { tipo: 'link', url: `/entrega?orderId=${encodeURIComponent(pedido.id)}`, titulo: 'Abrir a página do meu pedido' },
+    ],
+  };
+}
+
 async function linkAtendente(pedido, env) {
   let numero = WHATSAPP_SUPORTE_PADRAO;
   try {
@@ -168,8 +200,7 @@ async function acaoBaixar(pedido, env, { comPagamento = true, ctx = null } = {})
   const { lista, grupo, liberado } = ctx || await contextoDoPedido(pedido, env);
   if (!liberado) {
     if (!comPagamento) return { mensagens: [texto('O download libera assim que o pagamento for confirmado.')] };
-    const pag = await acaoPagamento(pedido, env, ctx || { liberado });
-    return { ...pag, mensagens: [texto('Sua música está prontinha! O download libera assim que o pagamento for confirmado.'), ...pag.mensagens] };
+    return acaoPrevia(pedido);
   }
   const pedidos = pedidosPagosComAudio(grupo).filter((p) => pedidoLiberado(p, lista));
   const alvo = pedidos.length ? pedidos : [pedido];
@@ -421,18 +452,7 @@ export async function acaoMusicaNovaPronta(orderId, env) {
     const b = await acaoBaixar(pedido, env, { comPagamento: false });
     return { pronto: true, mensagens: [texto('Sua música ficou pronta! 🎶'), ...b.mensagens] };
   }
-  const sku = 'audio_only';
-  return {
-    pronto: true,
-    mensagens: [
-      texto(`Sua música${pedido.honoreeName ? ` pra *${pedido.honoreeName}*` : ''} ficou pronta! 🎶 Ouve a prévia aqui:`),
-      { tipo: 'link', url: `/entrega?orderId=${encodeURIComponent(pedido.id)}`, titulo: 'Ouvir minha música' },
-      texto(`Gostou? Pra liberar as 2 versões completas em MP3 é só pagar ${reais(getPriceForSku(sku))} no Pix. Pode ser por aqui mesmo:`, [
-        { id: 'pagamento', label: 'Pagar com Pix aqui' },
-        { id: 'humano', label: 'Falar com atendente' },
-      ]),
-    ],
-  };
+  return { pronto: true, ...acaoPrevia(pedido, { pronta: true }) };
 }
 
 /** Nome e WhatsApp do pedido atual, para quem já é cliente não precisar digitar de novo. */
@@ -562,6 +582,7 @@ export async function responderChat(pedido, entrada, env = {}) {
     case 'letra_ok': return acaoLetraOk(pedido, env, ctx);
     case 'baixar': return acaoBaixar(pedido, env, { ctx });
     case 'pagamento': return acaoPagamento(pedido, env, ctx);
+    case 'quero_completas': return acaoPagamento(pedido, env, ctx);
     case 'ja_paguei': return acaoJaPaguei(pedido, env, ctx);
     case 'criar': return acaoCriar(pedido);
     case 'humano': return acaoHumano(pedido, env);

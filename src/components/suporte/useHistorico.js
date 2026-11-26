@@ -70,6 +70,12 @@ export function useHistorico(orderId) {
     agendar();
   }, [agendar]);
 
+  /** Id desta conversa (o servidor usa para não repetir ela no histórico anterior do cliente). */
+  const idDaConversa = useCallback(() => {
+    if (!conversaId.current) conversaId.current = novoId();
+    return conversaId.current;
+  }, []);
+
   const marcar = useCallback((marca) => {
     if (!marca) return;
     marcas.current.add(marca);
@@ -94,5 +100,5 @@ export function useHistorico(orderId) {
   }, []);
 
   // Mesmo objeto entre renderizações: quem depende dele em useCallback/useEffect não reinicia.
-  return useMemo(() => ({ registrar, marcar, definirTelefone }), [registrar, marcar, definirTelefone]);
+  return useMemo(() => ({ registrar, marcar, definirTelefone, idDaConversa }), [registrar, marcar, definirTelefone, idDaConversa]);
 }

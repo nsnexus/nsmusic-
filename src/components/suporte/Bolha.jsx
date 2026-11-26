@@ -32,12 +32,27 @@ function fmtTempo(s) {
   return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 }
 
-function Audio({ url, titulo }) {
+// `previa` (segundos): pedido não pago — para no mesmo corte da página do pedido.
+function Audio({ url, titulo, previa = 0 }) {
   const ref = useRef(null);
   const [tocando, setTocando] = useState(false);
   const [progresso, setProgresso] = useState(0);
   const [duracao, setDuracao] = useState(0);
   const [erro, setErro] = useState(false);
+  const [fimDaPrevia, setFimDaPrevia] = useState(false);
+  const limite = previa > 0 ? (duracao ? Math.min(previa, duracao) : previa) : duracao;
+
+  const aoAvancar = (e) => {
+    const a = e.currentTarget;
+    if (previa > 0 && a.currentTime >= previa) {
+      a.pause();
+      a.currentTime = 0;
+      setProgresso(0);
+      setFimDaPrevia(true);
+      return;
+    }
+    setProgresso(limite ? Math.min(1, a.currentTime / limite) : 0);
+  };
 
   useEffect(() => () => { try { ref.current?.pause(); } catch (_) {} }, []);
 
@@ -45,6 +60,7 @@ function Audio({ url, titulo }) {
     const a = ref.current;
     if (!a) return;
     if (a.paused) {
+      setFimDaPrevia(false);
       document.querySelectorAll('audio[data-chat-audio]').forEach((o) => { if (o !== a) o.pause(); });
       a.play().catch(() => setErro(true));
     } else a.pause();
@@ -56,7 +72,7 @@ function Audio({ url, titulo }) {
         ref={ref} src={url} preload="none" data-chat-audio
         onPlay={() => setTocando(true)} onPause={() => setTocando(false)} onEnded={() => { setTocando(false); setProgresso(0); }}
         onLoadedMetadata={(e) => setDuracao(e.currentTarget.duration)}
-        onTimeUpdate={(e) => setProgresso(e.currentTarget.duration ? e.currentTarget.currentTime / e.currentTarget.duration : 0)}
+        onTimeUpdate={aoAvancar}
         onError={() => setErro(true)}
       />
       <span aria-hidden="true" style={{ width: 46, height: 46, borderRadius: '50%', background: '#FFAD1F', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -73,7 +89,10 @@ function Audio({ url, titulo }) {
           <span style={{ position: 'absolute', top: -4, left: `calc(${Math.round(progresso * 100)}% - 6px)`, width: 12, height: 12, borderRadius: '50%', background: tocando ? '#4FB6EC' : '#8696A0' }} />
         </div>
         <span style={{ fontSize: 11.5, color: CORES.suave, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {erro ? 'Não tocou aqui, use o arquivo' : (duracao ? fmtTempo(duracao) : (titulo || 'Áudio'))}
+          {erro ? (previa ? 'Não tocou aqui, abra a página do pedido' : 'Não tocou aqui, use o arquivo')
+            : fimDaPrevia ? `Fim da prévia de ${previa}s`
+            : previa ? `${titulo || 'Prévia'} · ${previa}s`
+            : (duracao ? fmtTempo(duracao) : (titulo || 'Áudio'))}
         </span>
       </div>
     </div>
@@ -128,7 +147,7 @@ function Conteudo({ m }) {
     case 'letra':
       return <div style={{ fontSize: 13.5, lineHeight: 1.5, whiteSpace: 'pre-wrap', maxHeight: 320, overflowY: 'auto', padding: '4px 4px', background: 'rgba(0,0,0,.03)', borderRadius: 6 }}>{m.texto}</div>;
     case 'audio':
-      return <Audio url={m.url} titulo={m.titulo} />;
+      return <Audio url={m.url} titulo={m.titulo} previa={Number(m.previa) || 0} />;
     case 'arquivo': {
       const ext = (m.extensao || String(m.nome || '').split('.').pop() || 'MP3').slice(0, 4).toUpperCase();
       return (
