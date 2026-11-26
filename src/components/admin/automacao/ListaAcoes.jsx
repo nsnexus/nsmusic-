@@ -6,6 +6,7 @@ import { formatarData, estilos } from './apiAutomacao';
 const ROTULOS = {
   responder: { texto: 'Respondeu', cor: '#34d399' },
   ocultar: { texto: 'Ocultou', cor: '#fbbf24' },
+  responder_e_ocultar: { texto: 'Respondeu e ocultou', cor: '#fb923c' },
   ignorar: { texto: 'Deixou passar', cor: '#94a3b8' },
   erro: { texto: 'Falhou', cor: '#f87171' },
 };
@@ -19,7 +20,7 @@ export default function ListaAcoes({ acoes, simulacao = false, vazio }) {
       {acoes.map((a, i) => {
         const rotulo = a.ok === false ? ROTULOS.erro : (ROTULOS[a.acao] || ROTULOS.ignorar);
         const verbo = simulacao && a.ok !== false
-          ? { responder: 'Responderia', ocultar: 'Ocultaria', ignorar: 'Deixaria passar' }[a.acao] || rotulo.texto
+          ? { responder: 'Responderia', responder_e_ocultar: 'Responderia e ocultaria', ocultar: 'Ocultaria', ignorar: 'Deixaria passar' }[a.acao] || rotulo.texto
           : rotulo.texto;
         return (
           <div key={`${a.commentId}-${i}`} style={{ ...estilos.cartao, padding: '10px 12px' }}>

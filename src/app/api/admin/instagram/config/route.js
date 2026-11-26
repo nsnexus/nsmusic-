@@ -94,6 +94,7 @@ export async function POST(req) {
     }
     if (body?.instrucoes !== undefined) nova.instrucoes = String(body.instrucoes || '');
     if (body?.ocultarOfensivos !== undefined) nova.ocultarOfensivos = Boolean(body.ocultarOfensivos);
+    if (body?.ocultarReclamacoes !== undefined) nova.ocultarReclamacoes = Boolean(body.ocultarReclamacoes);
     if (body?.incluirAnuncios !== undefined) nova.incluirAnuncios = Boolean(body.incluirAnuncios);
     if (body?.maxPorExecucao !== undefined) nova.maxPorExecucao = Number(body.maxPorExecucao);
 

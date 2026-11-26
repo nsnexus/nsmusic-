@@ -28,6 +28,7 @@ vi.mock('../../src/lib/gemini.js', () => ({
 
 import {
   selecionarPendentes,
+  selecionarParaRevisao,
   normalizarDecisao,
   normalizarConfig,
   podarTratados,
@@ -231,5 +232,63 @@ describe('executarAutomacao', () => {
     expect(r.resumo.falhas).toBe(1);
     expect(r.acoes[0].motivo).toMatch(/expirou/);
     expect(store[CHAVE_ESTADO].tratados['900001']).toBeUndefined();
+  });
+
+  it('reclamação: responde primeiro e depois oculta', async () => {
+    decisoes.push({ acao: 'responder_e_ocultar', resposta: 'Poxa, desculpa! Chama a gente em nsmusic.ia.br/suporte que resolvemos na hora.' }, { acao: 'ocultar' });
+    const r = await executarAutomacao({});
+    expect(r.resumo).toMatchObject({ responderEOcultar: 1, ocultar: 1, falhas: 0 });
+    expect(posts().filter((x) => x.path.includes('900001'))).toEqual([
+      { method: 'POST', path: '/v21.0/900001/replies', body: { message: 'Poxa, desculpa! Chama a gente em nsmusic.ia.br/suporte que resolvemos na hora.' } },
+      { method: 'POST', path: '/v21.0/900001', body: { hide: 'true' } },
+    ]);
+  });
+
+  it('revisão: reclamação já respondida e visível é ocultada uma vez, sem nova resposta', async () => {
+    comentariosDaMidia['111111'].push({
+      id: '900004', text: 'paguei e não recebi nada, golpe', username: 'ana', timestamp: '2026-11-12T11:00:00Z', hidden: false,
+      replies: { data: [{ id: '1', text: 'Desculpa! Chama no suporte.', username: '_nsmusic', timestamp: '2026-11-12T12:00:00Z' }] },
+    });
+    store[CHAVE_ESTADO] = { tratados: { 900001: 'x', 900002: 'x' }, contagens: { 111111: 4 } };
+    // 900002 ("lixo de perfil", já tratado) também entra na revisão: a IA decide deixar.
+    decisoes.push({ acao: 'ignorar' }, { acao: 'responder_e_ocultar', resposta: 'oi' });
+    const r = await executarAutomacao({});
+    expect(r.resumo.ocultadasNaRevisao).toBe(1);
+    expect(posts()).toEqual([{ method: 'POST', path: '/v21.0/900004', body: { hide: 'true' } }]);
+    expect(store[CHAVE_ESTADO].revisados['900004']).toBeTruthy();
+    expect(store[CHAVE_ESTADO].ultimaRevisao).toBeTruthy();
+
+    chamadas.length = 0;
+    await executarAutomacao({});
+    expect(posts()).toEqual([]);
+    comentariosDaMidia['111111'].pop();
+  });
+
+  it('com a opção desligada, reclamação só recebe resposta', async () => {
+    store[CHAVE_CONFIG].ocultarReclamacoes = false;
+    decisoes.push({ acao: 'responder_e_ocultar', resposta: 'Desculpa! Chama no suporte.' }, { acao: 'ignorar' });
+    const r = await executarAutomacao({});
+    expect(r.resumo).toMatchObject({ responder: 1, responderEOcultar: 0 });
+    expect(posts()).toEqual([{ method: 'POST', path: '/v21.0/900001/replies', body: { message: 'Desculpa! Chama no suporte.' } }]);
+  });
+});
+
+describe('reclamações', () => {
+  it('normalizarDecisao: responder_e_ocultar exige resposta; sem ela vira ocultar', () => {
+    expect(normalizarDecisao({ acao: 'responder_e_ocultar', resposta: 'oi' }).acao).toBe('responder_e_ocultar');
+    expect(normalizarDecisao({ acao: 'responder_e_ocultar' }).acao).toBe('ocultar');
+    expect(normalizarDecisao({ acao: 'responder_e_ocultar', resposta: 'oi' }, { ocultarReclamacoes: false }).acao).toBe('responder');
+  });
+
+  it('selecionarParaRevisao: só reclamação visível que já tem resposta', () => {
+    const resp = [{ usuario: '_nsmusic' }];
+    const lista = [
+      c('1', { texto: 'não recebi minha música', respostas: resp }),
+      c('2', { texto: 'não recebi minha música' }),
+      c('3', { texto: 'que linda!', respostas: resp }),
+      c('4', { texto: 'golpe!!', respostas: resp, oculto: true }),
+      c('5', { texto: 'cadê minha música?', respostas: resp }),
+    ];
+    expect(selecionarParaRevisao(lista, { proprioUsuario: '_nsmusic', revisados: { 5: 'x' } }).map((x) => x.id)).toEqual(['1']);
   });
 });
