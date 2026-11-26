@@ -46,6 +46,7 @@ const GENERO_CARDS = [
   { id: 'Gospel / Adoração', label: 'Gospel / Louvor', icon: '⛪', sub: 'Fé e inspiração' },
   { id: 'MPB / Bossa Nova', label: 'MPB / Acústico', icon: '☕', sub: 'Voz e violão intimista' },
   { id: 'Forró / Baião', label: 'Forró / Piseiro', icon: '🪗', sub: 'Ritmo dançante' },
+  { id: 'Carimbó', label: 'Carimbó', icon: '🪘', sub: 'Ritmo paraense, tambor e roda' },
   { id: 'Trap / Rap', label: 'Trap / Rap', icon: '🎙️', sub: 'Batidas modernas' },
   { id: 'Trap Acústico', label: 'Trap Acústico', icon: '🎸', sub: 'Violão e batidas trap' },
   { id: 'Rock', label: 'Rock', icon: '🎸', sub: 'Marcante com guitarras' },

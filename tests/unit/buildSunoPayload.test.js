@@ -108,3 +108,11 @@ describe('buildSunoPayload', () => {
     expect(typeof payload.tags).toBe('string');
   });
 });
+
+describe('Carimbó', () => {
+  it('vira descrição musical em inglês (sem nome de artista) no estilo enviado à Suno', async () => {
+    const { buildSunoPayload } = await import('@/lib/sunoPayload');
+    const p = buildSunoPayload({ musicStyle: 'Carimbó', mood: 'Alegre', voiceGender: 'feminina', lyrics: 'letra' });
+    expect(JSON.stringify(p)).toMatch(/carimbó, amazonian folk rhythm from pará/);
+  });
+});

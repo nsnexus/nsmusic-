@@ -32,7 +32,7 @@ export const MENU = [
   { id: 'humano', label: 'Falar com atendente' },
 ];
 
-const ESTILOS = ['Sertanejo', 'Pagode', 'Gospel', 'Forró', 'Funk', 'MPB', 'Arrocha', 'Piseiro'];
+const ESTILOS = ['Sertanejo', 'Pagode', 'Gospel', 'Forró', 'Funk', 'MPB', 'Arrocha', 'Piseiro', 'Carimbó'];
 export const INSTAGRAM_URL = 'https://www.instagram.com/_nsmusic';
 const CONVITE_INDICACAO = 'Fiz uma música personalizada na NS Music e ficou linda! Faz a sua também: https://nsmusic.ia.br';
 
