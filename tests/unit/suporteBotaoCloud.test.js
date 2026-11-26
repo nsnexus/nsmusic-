@@ -30,6 +30,37 @@ describe('enviarBotaoSuporteParaCliente', () => {
     expect(sb.upsert).toHaveBeenCalled();
   });
 
+  it('cliente com pedido pago: logo abaixo vai o botão "Quero minhas músicas"', async () => {
+    const sb = supabaseCom(null);
+    const mensagem = vi.fn(async () => ({ success: true }));
+    const pago = { id: 'abcdefghijklmnopqrst', honoreeName: 'João Silva', paymentStatus: 'PAGAMENTO_APROVADO', audioFiles: ['a'], createdAt: '2026-11-20T10:00:00Z' };
+    const naoPago = { id: 'zzzzzzzzzzzzzzzzzzzz', honoreeName: 'Ana', paymentStatus: 'AGUARDANDO_PAGAMENTO', audioFiles: ['a'], createdAt: '2026-11-21T10:00:00Z' };
+    await enviarBotaoSuporteParaCliente('5594991234567', {}, {
+      getSupabaseEdge: () => sb.cliente,
+      findRecentOrderByPhone: async () => pago,
+      enviarBotaoSuporteCloud: vi.fn(async () => ({ success: true })),
+      findOrdersByPhone: async () => [naoPago, pago],
+      enviarMensagemCloud: mensagem,
+    });
+    const conteudo = mensagem.mock.calls[0][1];
+    expect(conteudo.interactive.type).toBe('button');
+    expect(conteudo.interactive.body.text).toMatch(/João Silva/);
+    expect(conteudo.interactive.action.buttons).toEqual([{ type: 'reply', reply: { id: 'receber_musicas:abcdefghijklmnopqrst', title: 'Quero minhas músicas' } }]);
+  });
+
+  it('sem pedido pago, só vai o botão do suporte', async () => {
+    const sb = supabaseCom(null);
+    const mensagem = vi.fn(async () => ({ success: true }));
+    await enviarBotaoSuporteParaCliente('5594991234567', {}, {
+      getSupabaseEdge: () => sb.cliente,
+      findRecentOrderByPhone: async () => null,
+      enviarBotaoSuporteCloud: vi.fn(async () => ({ success: true })),
+      findOrdersByPhone: async () => [{ id: 'zzzzzzzzzzzzzzzzzzzz', paymentStatus: 'AGUARDANDO_PAGAMENTO', audioFiles: ['a'] }],
+      enviarMensagemCloud: mensagem,
+    });
+    expect(mensagem).not.toHaveBeenCalled();
+  });
+
   it('não repete o botão dentro de 6 horas', async () => {
     const sb = supabaseCom(new Date(Date.now() - 60 * 60 * 1000).toISOString());
     const enviar = vi.fn(async () => ({ success: true }));
@@ -72,5 +103,15 @@ describe('processarWebhookNumeroOficial', () => {
   it('status de entrega (sem mensagem) não gera envio', async () => {
     const r = await processarWebhookNumeroOficial(JSON.stringify(webhookMeta('111', null)), null, env);
     expect(r.json.ignored).toBe('sem_mensagem');
+  });
+});
+
+describe('botoesDeEntrega', () => {
+  it('um botão por pedido pago (até 3), título com no máximo 20 caracteres', async () => {
+    const { botoesDeEntrega } = await import('@/lib/suporteChat');
+    const p = (id, nome, dia) => ({ id: id.repeat(20), honoreeName: nome, paymentStatus: 'PAGO', audioFiles: ['a'], createdAt: `2026-11-${dia}T10:00:00Z` });
+    const b = botoesDeEntrega([p('a', 'Maximiliano Souza', 20), p('b', 'Ana', 21), p('c', 'Rui', 22), p('d', 'Bia', 23)]);
+    expect(b).toHaveLength(3);
+    expect(b.every((x) => x.titulo.length <= 20 && x.id.startsWith('receber_musicas:'))).toBe(true);
   });
 });

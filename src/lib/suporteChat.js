@@ -143,6 +143,24 @@ export function listaDePedidos(pedidos) {
   return texto(`Achei ${grupos.length} pedidos nesse número. Sobre qual deles você quer falar?`, opcoes);
 }
 
+/**
+ * Botões de resposta "receber as músicas aqui" para quem chama no WhatsApp oficial: um por pedido
+ * pago com música (o bônus vai junto com o principal), no máximo 3 (limite da Meta). Título até 20.
+ */
+export function botoesDeEntrega(pedidos) {
+  const lista = pedidos || [];
+  const pagos = gruposDoNumero(lista)
+    .map((g) => g.principal)
+    .filter((p) => p?.id && temAudio(p) && pedidoLiberado(p, lista))
+    .slice(0, 3);
+  if (pagos.length === 1) return [{ id: `receber_musicas:${pagos[0].id}`, titulo: 'Quero minhas músicas', homenageado: pagos[0].honoreeName || '' }];
+  return pagos.map((p) => ({
+    id: `receber_musicas:${p.id}`,
+    titulo: (p.honoreeName ? `Músicas: ${primeiroNome(p.honoreeName)}` : `Pedido ${p.orderNumber || ''}`).trim().slice(0, 20),
+    homenageado: p.honoreeName || '',
+  }));
+}
+
 /** Os pedidos do mesmo telefone, o grupo (principal + bônus) deste pedido e se ele está liberado. */
 export async function contextoDoPedido(pedido, env = {}) {
   const todos = pedido.customerPhone ? await findOrdersByPhone(pedido.customerPhone, env, 20) : [];

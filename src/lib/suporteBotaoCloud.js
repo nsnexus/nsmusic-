@@ -6,8 +6,9 @@
 // mesmo botão várias vezes.
 
 import { getSupabaseEdge } from './supabase-edge.js';
-import { findRecentOrderByPhone } from './orderLookup.js';
-import { enviarBotaoSuporteCloud } from './whatsappCloudApi.js';
+import { findRecentOrderByPhone, findOrdersByPhone } from './orderLookup.js';
+import { enviarBotaoSuporteCloud, enviarMensagemCloud } from './whatsappCloudApi.js';
+import { botoesDeEntrega } from './suporteChat.js';
 import { pedidoDoPayload, entregarMusicasNoWhatsapp } from './entregaMusicasWhatsapp.js';
 
 export const INTERVALO_BOTAO_MS = 6 * 60 * 60 * 1000;
@@ -35,6 +36,30 @@ export async function enviarBotaoSuporteParaCliente(phone, env = {}, deps = {}) 
   const pedido = await (deps.findRecentOrderByPhone || findRecentOrderByPhone)(digitos, env).catch(() => null);
   const r = await (deps.enviarBotaoSuporteCloud || enviarBotaoSuporteCloud)(digitos, { orderId: pedido?.id || '' }, env);
   if (!r.success) return { enviado: false, motivo: 'falha_no_envio' };
+
+  // Cliente com pedido pago: logo abaixo, o botão para receber as músicas em áudio aqui mesmo
+  // (o toque volta pelo webhook como `receber_musicas:<id>` e cai em entregarMusicasNoWhatsapp).
+  // Vai numa segunda mensagem porque o WhatsApp não junta botão de link e botão de resposta.
+  try {
+    const pedidos = await (deps.findOrdersByPhone || findOrdersByPhone)(digitos, env, 20);
+    const botoes = botoesDeEntrega(pedidos);
+    if (botoes.length > 0) {
+      const so = botoes.length === 1 ? botoes[0] : null;
+      const texto = so
+        ? `Se preferir, toque no botão abaixo que eu te mando as músicas${so.homenageado ? ` de *${so.homenageado}*` : ''} aqui mesmo, em áudio. 🎶`
+        : 'Se preferir, escolha abaixo e eu te mando as músicas aqui mesmo, em áudio. 🎶';
+      await (deps.enviarMensagemCloud || enviarMensagemCloud)(digitos, {
+        type: 'interactive',
+        interactive: {
+          type: 'button',
+          body: { text: texto },
+          action: { buttons: botoes.map((b) => ({ type: 'reply', reply: { id: b.id, title: b.titulo } })) },
+        },
+      }, env);
+    }
+  } catch (err) {
+    console.warn('[suporteBotaoCloud] Falha ao oferecer as músicas:', err?.message);
+  }
 
   if (supabase) {
     const { error } = await supabase.from('config').upsert({ chave, valor: { at: new Date().toISOString() }, updated_at: new Date().toISOString() });
