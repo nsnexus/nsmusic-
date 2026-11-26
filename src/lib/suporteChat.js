@@ -418,6 +418,12 @@ export async function acaoNovaVersao(orderId, assinatura, env) {
   const atual = assinaturaAudio(pedido);
   const gerando = String(pedido.productionStatus || '').toUpperCase().includes('GERANDO');
   if (!atual || atual === assinatura || gerando) return { pronto: false };
+  // Só é "nova versão" se o áudio do pedido veio da gravação que ESTE ajuste pediu. Áudio que mudou
+  // por outro motivo (arquivamento, outra tarefa) não pode ser mostrado como a versão ajustada
+  // (26/11/2026: o cliente ouviu a música antiga como se fosse a nova).
+  const ajuste = (Array.isArray(pedido.ajustesAplicados) ? pedido.ajustesAplicados : [])
+    .slice().reverse().find((a) => a?.ok && a.assinaturaAntes === assinatura);
+  if (ajuste?.taskId && pedido.sunoTaskId && pedido.sunoTaskId !== ajuste.taskId) return { pronto: false };
   return {
     pronto: true,
     mensagens: [

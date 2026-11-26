@@ -69,7 +69,15 @@ export const updateTaskResult = async (taskId, result, overrideOrderId = null, e
       // Só pode ser considerada tarefa defasada se o pedido JÁ POSSUI áudio ativo gravado
       const jaTemAudioAtivo = Boolean(orderData.audioUrl || (Array.isArray(orderData.audioFiles) && orderData.audioFiles.length > 0));
 
-      if (historyHasTask && jaTemAudioAtivo) {
+      // Gravação pedida por um ajuste pago (chat de suporte) é sempre a versão que o cliente quer:
+      // nunca é "tarefa defasada", mesmo que outra tarefa tenha sido registrada no pedido depois
+      // (26/11/2026: a versão ajustada ficava só no histórico e o pedido seguia com a antiga).
+      const ehGravacaoDeAjuste = (Array.isArray(orderData.ajustesAplicados) ? orderData.ajustesAplicados : [])
+        .some((a) => a?.taskId && a.taskId === taskId);
+
+      if (ehGravacaoDeAjuste) {
+        isOlderTask = false;
+      } else if (historyHasTask && jaTemAudioAtivo) {
         isOlderTask = true;
       } else if (orderData.sunoTaskId && orderData.sunoTaskId !== taskId && jaTemAudioAtivo) {
         if (orderData.productionStatus === 'GERANDO_AUDIO') {
@@ -122,7 +130,7 @@ export const updateTaskResult = async (taskId, result, overrideOrderId = null, e
       const wasArchivedFromStream = Boolean(orderData.audioArchivedFromStream || orderData.extras?.audioArchivedFromStream);
       const shouldUpgradeFromStream = Boolean(wasArchivedFromStream && incomingIsFinalizedNonStream);
 
-      const isRegeracao = isAguardandoNovaGeracao || isNovoTrack || isNovaTarefa || shouldUpgradeFromStream;
+      const isRegeracao = ehGravacaoDeAjuste || isAguardandoNovaGeracao || isNovoTrack || isNovaTarefa || shouldUpgradeFromStream;
       const isMesmaMusicaJaArquivada = orderTemAudioNosso && !isRegeracao;
 
       const { appendAudioHistory } = await import('./audioHistory.js');

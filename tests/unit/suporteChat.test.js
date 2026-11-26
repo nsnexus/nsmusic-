@@ -253,3 +253,19 @@ describe('prévia de 60 s antes de pagar', () => {
     expect(r.mensagens.find((m) => m.tipo === 'link').url).toBe(`/entrega?orderId=${naoPago.id}`);
   });
 });
+
+describe('nova versão depois do ajuste pago', () => {
+  it('só mostra como nova versão o áudio da gravação que o ajuste pediu', async () => {
+    const { acaoNovaVersao, assinaturaAudio } = await import('@/lib/suporteChat');
+    const supa = await import('@/lib/supabaseDb');
+    const antes = { ...pago, audioFiles: ['https://x/antiga.mp3'] };
+    const assinatura = assinaturaAudio(antes);
+    const base = { ...pago, productionStatus: 'AUDIO_GERADO', ajustesAplicados: [{ ok: true, taskId: 'task_ajuste', assinaturaAntes: assinatura }] };
+
+    supa.getOrder.mockResolvedValueOnce({ ...base, audioFiles: ['https://x/arquivada-antiga.mp3'], sunoTaskId: 'task_outra' });
+    expect((await acaoNovaVersao(pago.id, assinatura, {})).pronto).toBe(false);
+
+    supa.getOrder.mockResolvedValueOnce({ ...base, audioFiles: ['https://x/nova.mp3'], sunoTaskId: 'task_ajuste' });
+    expect((await acaoNovaVersao(pago.id, assinatura, {})).pronto).toBe(true);
+  });
+});
