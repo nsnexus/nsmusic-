@@ -10,6 +10,7 @@ import { auth } from '@/lib/authClient';
 import { requestPixCharge } from '@/lib/pixCheckout';
 import { deliveryPackages, formatBrl } from '@/lib/deliveryPackages';
 import { getPriceForSku } from '@/lib/pricing';
+import CartaoStripe from '@/components/pagamento/CartaoStripe';
 
 const MAX_AGE = 55 * 60 * 1000;
 
@@ -25,6 +26,7 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
   const [pixCopied, setPixCopied] = useState(false);
   const [checking, setChecking] = useState(false);
   const [payingCard, setPayingCard] = useState(false);
+  const [cartaoAberto, setCartaoAberto] = useState(false);
   const busyRef = useRef(false);
   const panel = useRef(null);
   const summary = useRef(null);
@@ -121,8 +123,15 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
     }
   };
 
-  const payWithCard = async () => {
+  // Cartão dentro do site (Stripe). Se não abrir, cai no checkout hospedado da Stripe.
+  const payWithCard = () => {
     if (busyRef.current || payingCard) return;
+    setError('');
+    setCartaoAberto(true);
+  };
+
+  const abrirCheckoutHospedado = async () => {
+    if (busyRef.current) return;
     busyRef.current = true;
     setPayingCard(true);
     setError('');
@@ -133,6 +142,7 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
         body: JSON.stringify({
           orderId,
           sku: pack.sku,
+          forceProvider: 'stripe',
           successUrl: typeof window !== 'undefined' ? window.location.origin + '/entrega?orderId=' + encodeURIComponent(orderId) + '&session_id={CHECKOUT_SESSION_ID}&paid=stripe' : undefined,
           cancelUrl: typeof window !== 'undefined' ? window.location.origin + '/entrega?orderId=' + encodeURIComponent(orderId) + '&cancel=stripe' : undefined,
         }),
@@ -540,6 +550,15 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
           </p>
         </div>
       )}
+      {cartaoAberto ? (
+        <CartaoStripe
+          orderId={orderId}
+          sku={pack.sku}
+          onPago={() => { setCartaoAberto(false); onApproved(); }}
+          onFechar={() => setCartaoAberto(false)}
+          onFalhaAoAbrir={() => { setCartaoAberto(false); abrirCheckoutHospedado(); }}
+        />
+      ) : null}
     </section>
   );
 }

@@ -86,6 +86,34 @@ export async function GET(req) {
       return jsonNoCache({ status: "pending", error: "Missing parameters" }, 400);
     }
 
+    // Cartão dentro do site (Payment Element): PaymentIntent pi_..., reconsultado na Stripe.
+    if (String(txid).startsWith('pi_')) {
+      if (!orderId) return jsonNoCache({ status: "pending" });
+      try {
+        const { consultarPaymentIntent, avaliarPaymentIntent } = await import('@/lib/stripe');
+        const pi = await consultarPaymentIntent(txid, env);
+        const pedidoReal = orderData?.id || orderId;
+        const r = avaliarPaymentIntent(pi, pedidoReal);
+        if (!r.aprova) {
+          if (r.motivo === 'pedido_diferente' || r.motivo === 'outro_canal') {
+            console.warn(`[PaymentStatus] PaymentIntent ${pi?.id} recusado para o pedido: ${r.motivo}`);
+          }
+          return jsonNoCache({ status: "pending" });
+        }
+        await applyPaymentApproval(pedidoReal, pi.id, {
+          status: 'approved',
+          transaction_amount: r.valor,
+          method: 'stripe',
+          gateway: 'stripe',
+          sku: r.sku,
+        }, env);
+        return jsonNoCache({ status: "approved" });
+      } catch (err) {
+        console.warn("[PaymentStatus] Erro ao consultar o PaymentIntent na Stripe:", err?.code || err?.status || err?.name);
+        return jsonNoCache({ status: "pending" });
+      }
+    }
+
     // Verificação de cobrança via Stripe Checkout (sessões começam com cs_)
     if (String(txid).startsWith('cs_')) {
       try {
