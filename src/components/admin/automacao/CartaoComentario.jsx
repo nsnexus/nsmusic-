@@ -38,7 +38,7 @@ export default function CartaoComentario({ comentario, midia, proprioUsuario, on
       origem: midia.origem,
     });
     if (!data) return;
-    if (data.decisao?.acao === 'responder') {
+    if (data.decisao?.acao === 'responder' || data.decisao?.acao === 'responder_e_ocultar') {
       setTexto(data.decisao.resposta);
     } else {
       setErro(

@@ -146,7 +146,15 @@ export default function AbaAutomacao() {
           disabled={salvando === 'ocultar'}
           onChange={(v) => salvar({ ocultarOfensivos: v }, 'ocultar')}
           rotulo="Ocultar comentários ofensivos e spam"
-          descricao="Palavrão, ofensa, golpe e divulgação de outro perfil. Crítica e reclamação não são ocultadas — recebem resposta."
+          descricao="Palavrão, ofensa, golpe e divulgação de outro perfil."
+        />
+        <Interruptor
+          id="auto-reclamacoes"
+          marcado={config.ocultarReclamacoes !== false}
+          disabled={salvando === 'reclamacoes'}
+          onChange={(v) => salvar({ ocultarReclamacoes: v }, 'reclamacoes')}
+          rotulo="Responder e ocultar reclamações"
+          descricao="“Não recebi”, “é golpe”, “não comprem”: a pessoa recebe a resposta com o caminho do suporte e o comentário some para o público. A cada 6 h, reclamações antigas já respondidas também são ocultadas."
         />
         <Interruptor
           id="auto-anuncios"
