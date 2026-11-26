@@ -39,6 +39,59 @@ export function linkSuporteDoPedido(orderId, env = {}) {
 
 const GRAPH_VERSION = 'v21.0';
 
+// Aviso de pagamento aprovado com os botões "Receber minhas músicas" (resposta rápida, payload com o
+// id do pedido) e "Acessar meu pedido" (URL). Ver src/lib/entregaMusicasWhatsapp.js.
+export const TEMPLATE_ENTREGA = 'entrega_musicas_nsmusic';
+export const PREFIXO_RECEBER_MUSICAS = 'receber_musicas:';
+
+/** Modelo do aviso de entrega, no formato da API de criação de modelos da Meta. */
+export function modeloEntregaParaMeta(nome = TEMPLATE_ENTREGA, siteUrl = 'https://nsmusic.ia.br') {
+  return {
+    name: nome,
+    category: 'UTILITY',
+    language: 'pt_BR',
+    components: [
+      { type: 'HEADER', format: 'TEXT', text: 'Suas músicas estão prontas!' },
+      {
+        type: 'BODY',
+        text: 'Olá, {{1}}! 🎵 Seu pagamento foi aprovado e as versões da sua música personalizada já estão disponíveis.\n\nToque em *Receber minhas músicas* para receber os arquivos de áudio aqui no WhatsApp. Para fazer o vídeo com fotos, toque em *Acessar meu pedido*.\n\nObrigado por escolher a NS Music! ❤️',
+        example: { body_text: [['Maria']] },
+      },
+      {
+        type: 'BUTTONS',
+        buttons: [
+          { type: 'QUICK_REPLY', text: 'Receber minhas músicas' },
+          { type: 'URL', text: 'Acessar meu pedido', url: `${siteUrl}/entrega?orderId={{1}}`, example: [`${siteUrl}/entrega?orderId=AbCdEf1234567890`] },
+        ],
+      },
+    ],
+  };
+}
+
+/** Mensagem livre (texto, áudio, interativa) — só entrega dentro da janela de 24 h do cliente. */
+export async function enviarMensagemCloud(phone, conteudo, env = {}) {
+  const config = getCloudApiConfig(env);
+  if (!config.enabled) return { success: false, error: 'Cloud API não configurada.' };
+  const numero = formatToWhatsAppNumber(phone);
+  if (!numero) return { success: false, error: 'Telefone inválido.' };
+  try {
+    const res = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${config.phoneNumberId}/messages`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${config.token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messaging_product: 'whatsapp', to: numero, ...conteudo }),
+      signal: AbortSignal.timeout(15000),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data?.messages?.length) return { success: true };
+    const motivo = data?.error?.message || `HTTP ${res.status}`;
+    console.warn(`[CloudAPI] Falha ao enviar mensagem (${conteudo?.type}):`, motivo);
+    return { success: false, error: motivo };
+  } catch (err) {
+    console.warn(`[CloudAPI] Erro de rede ao enviar mensagem (${conteudo?.type}):`, err.message);
+    return { success: false, error: err.message };
+  }
+}
+
 export function getCloudApiConfig(env = {}) {
   let ctxEnv = {};
   try {
@@ -68,6 +121,7 @@ export function getCloudApiConfig(env = {}) {
     templatePagamentoDownloads: ler('WHATSAPP_TEMPLATE_PAGAMENTO_DOWNLOADS') || 'confirmacao_pagamento_downloads',
     templatePagamentoV2: ler('WHATSAPP_TEMPLATE_PAGAMENTO_V2') || 'confirmacao_pagamento_v2',
     templateRecuperacao: ler('WHATSAPP_TEMPLATE_RECOVERY') || 'recuperacao_pedido_24h',
+    templateEntrega: ler('WHATSAPP_TEMPLATE_ENTREGA') || TEMPLATE_ENTREGA,
     enabled: Boolean(token && phoneNumberId),
   };
 }
@@ -81,7 +135,7 @@ export function getCloudApiConfig(env = {}) {
  * @param {{ buttonParam?: string }} opcoes opções extras como parâmetro de botão dinâmico
  * @returns {Promise<{success: boolean, provider?: string, error?: string}>}
  */
-export async function sendCloudApiTemplate(phone, templateName, variaveis = [], { buttonParam, buttonParams, headerVideoUrl, headerImageUrl, languageCode = 'pt_BR' } = {}, env = {}) {
+export async function sendCloudApiTemplate(phone, templateName, variaveis = [], { buttonParam, buttonParams, botoes, headerVideoUrl, headerImageUrl, languageCode = 'pt_BR' } = {}, env = {}) {
   const config = getCloudApiConfig(env);
   if (!config.enabled) {
     return { success: false, error: 'Cloud API não configurada (WHATSAPP_ACCESS_TOKEN/WHATSAPP_PHONE_NUMBER_ID).' };
@@ -111,7 +165,16 @@ export async function sendCloudApiTemplate(phone, templateName, variaveis = [], 
     });
   }
 
-  if (Array.isArray(buttonParams) && buttonParams.length > 0) {
+  if (Array.isArray(botoes) && botoes.length > 0) {
+    // Botões na ordem do modelo: { tipo: 'quick_reply', payload } ou { tipo: 'url', parametro }.
+    botoes.forEach((b, idx) => {
+      if (b?.tipo === 'quick_reply') {
+        components.push({ type: 'button', sub_type: 'quick_reply', index: String(idx), parameters: [{ type: 'payload', payload: String(b.payload || '') }] });
+      } else if (b?.tipo === 'url' && b.parametro) {
+        components.push({ type: 'button', sub_type: 'url', index: String(idx), parameters: [{ type: 'text', text: String(b.parametro) }] });
+      }
+    });
+  } else if (Array.isArray(buttonParams) && buttonParams.length > 0) {
     buttonParams.forEach((param, idx) => {
       components.push({
         type: 'button',
@@ -235,6 +298,20 @@ export async function enviarPagamentoConfirmadoCloud(phone, { cliente, homenagea
   const nomeCliente = cliente || 'Cliente';
   const nomeHomenageado = homenageado || 'alguém especial';
   const resolvedLink = link || (resolvedOrderId ? `${baseUrl}/entrega?orderId=${resolvedOrderId}` : baseUrl);
+
+  // 0. Modelo com "Receber minhas músicas" (as músicas chegam em áudio aqui no WhatsApp) e "Acessar
+  // meu pedido". Enquanto a Meta não aprovar, a chamada falha e segue para os modelos de sempre.
+  if (resolvedOrderId && !/^NS-/i.test(resolvedOrderId)) {
+    const resEntrega = await sendCloudApiTemplate(
+      phone,
+      config.templateEntrega,
+      [nomeCliente],
+      { botoes: [{ tipo: 'quick_reply', payload: `${PREFIXO_RECEBER_MUSICAS}${resolvedOrderId}` }, { tipo: 'url', parametro: resolvedOrderId }] },
+      env
+    );
+    if (resEntrega.success) return { ...resEntrega, template: 'entrega' };
+    console.warn('[CloudAPI] Modelo de entrega indisponível, usando o aviso de pagamento de sempre:', resEntrega.error);
+  }
 
   // 1. Modelo oficial confirmacao_pagamento_v2 (Banner oficial no header + botões de download direto)
   if (resolvedOrderId) {

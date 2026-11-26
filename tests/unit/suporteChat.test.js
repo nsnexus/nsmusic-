@@ -211,3 +211,14 @@ describe('fecho de atendimento bem-sucedido', () => {
     expect(r.mensagens.some((m) => m.url === 'https://www.instagram.com/_nsmusic')).toBe(true);
   });
 });
+
+describe('faixasParaEntregar (músicas pelo WhatsApp)', () => {
+  it('pedido pago devolve os MP3 do proxy; não pago não devolve nada', async () => {
+    const { faixasParaEntregar } = await import('@/lib/suporteChat');
+    const ok = await faixasParaEntregar(pago);
+    expect(ok.liberado).toBe(true);
+    expect(ok.faixas[0].url).toMatch(/^\/api\/audio\/proxy\?orderId=abcdefghijklmnopqrst&faixa=0&.*download=/);
+    const nao = await faixasParaEntregar({ ...pago, paymentStatus: 'AGUARDANDO_PAGAMENTO' });
+    expect(nao).toEqual({ liberado: false, faixas: [] });
+  });
+});

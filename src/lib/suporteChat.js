@@ -119,6 +119,20 @@ export async function contextoDoPedido(pedido, env = {}) {
   return { lista, grupo, liberado: pedidoLiberado(pedido, lista) };
 }
 
+/**
+ * Arquivos das músicas liberadas do pedido (principal + bônus do mesmo grupo), para entregar fora do
+ * chat (botão "Receber minhas músicas" do WhatsApp oficial). URLs relativas ao site, do proxy de áudio.
+ */
+export async function faixasParaEntregar(pedido, env = {}) {
+  if (!pedido || !temAudio(pedido)) return { liberado: false, faixas: [] };
+  const { lista, grupo, liberado } = await contextoDoPedido(pedido, env);
+  if (!liberado) return { liberado: false, faixas: [] };
+  const pagos = pedidosPagosComAudio(grupo).filter((p) => pedidoLiberado(p, lista));
+  const faixas = (pagos.length ? pagos : [pedido])
+    .flatMap((p) => arquivosDoPedido(p, assinaturaAudio(p)).filter((m) => m.tipo === 'arquivo').map((m) => ({ url: m.url, nome: m.nome })));
+  return { liberado: true, faixas };
+}
+
 /** Pedido com música bônus: pergunta em qual das músicas fazer a ação. */
 function escolherMusica(ctx, acao, pergunta) {
   const musicas = ctx.grupo.filter(temAudio);
