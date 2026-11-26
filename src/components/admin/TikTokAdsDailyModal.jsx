@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { getOrderPlatform, dataCorrespondeAoDia, calcularFaturamentoPedido } from '@/lib/trafficSource';
+import { useAdsSpend } from '@/lib/useAdsSpend';
+import { useResumoMes } from '@/lib/useResumoMes';
 
 function formatMoney(val) {
   return `R$ ${Number(val || 0).toFixed(2).replace('.', ',')}`;
@@ -14,10 +16,20 @@ export default function TikTokAdsDailyModal({
   onClose,
   mesAtivo,
   pedidos = [],
-  adsSpend,
-  onSaveDaily,
+  onSalvo,
   diaFoco = null,
 }) {
+  // O painel carrega só o dia selecionado (PR #113) e não tem pedidos no navegador: esta janela é
+  // do MÊS inteiro, então busca o próprio gasto e o próprio resumo do mês quando abre. Antes ela
+  // usava os dados do dia e mostrava zero em todos os outros dias (25/11/2026).
+  const gastoMes = useAdsSpend(isOpen ? mesAtivo : null);
+  const adsSpend = gastoMes.adsSpend;
+  const { resumo: resumoMes, loading: carregandoResumo } = useResumoMes(isOpen && mesAtivo ? 'mes' : null, mesAtivo);
+  const onSaveDaily = async (dados) => {
+    const r = await gastoMes.saveManualSpend(dados);
+    if (r?.ok) onSalvo?.();
+    return r;
+  };
   const [ano, mesNum] = useMemo(() => {
     const d = new Date();
     if (!mesAtivo) return [d.getFullYear(), d.getMonth() + 1];
@@ -70,6 +82,19 @@ export default function TikTokAdsDailyModal({
       };
     }
 
+    // Resumo do mês guardado no servidor (o mesmo dos cards do painel).
+    if (resumoMes?.mes === mesAtivo && resumoMes.plataformasPorDia) {
+      for (let d = 1; d <= diasNoMes; d++) {
+        const tt = (resumoMes.plataformasPorDia[d] || []).find((x) => x.key === 'tiktok_ads');
+        if (tt) {
+          mapa[d].pedidosPagos = Number(tt.pedidosPagos) || 0;
+          mapa[d].pedidosCriados = Math.max(0, (Number(tt.pedidosCriados) || 0) - (Number(tt.pedidosPagos) || 0));
+          mapa[d].faturamento = Number(tt.faturamento) || 0;
+        }
+      }
+      return mapa;
+    }
+
     if (Array.isArray(pedidos)) {
       for (const p of pedidos) {
         const plat = getOrderPlatform(p, pedidos);
@@ -93,7 +118,7 @@ export default function TikTokAdsDailyModal({
       }
     }
     return mapa;
-  }, [pedidos, diasNoMes, ano, mesNum, mesAtivo]);
+  }, [pedidos, resumoMes, diasNoMes, ano, mesNum, mesAtivo]);
 
   // Lista de dias em ordem decrescente (hoje no topo) para facilitar o acesso
   const listaDias = useMemo(() => {
@@ -254,6 +279,9 @@ export default function TikTokAdsDailyModal({
             <p style={{ fontSize: '0.82rem', color: '#94a3b8', margin: '6px 0 0 0' }}>
               Informe quanto investiu em anúncios no TikTok a cada dia. O faturamento, lucro e ROAS diários são calculados em tempo real.
             </p>
+            {(gastoMes.loadingAds || carregandoResumo) ? (
+              <p role="status" style={{ margin: '6px 0 0', fontSize: '0.85rem', color: '#fbbf24', fontWeight: 600 }}>Carregando os valores do mês…</p>
+            ) : null}
           </div>
           <button
             type="button"

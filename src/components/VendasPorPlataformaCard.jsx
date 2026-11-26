@@ -85,7 +85,7 @@ export default function VendasPorPlataformaCard({ monthValue, pedidos: pedidosPr
   const { pedidos: pedidosHook, loading: loadingHook, erro } = usePedidosDoMes(pedidosProp ? null : mesAtivo);
   const pedidos = pedidosProp !== null ? pedidosProp : pedidosHook;
   const loading = loadingProp !== null ? loadingProp : loadingHook;
-  const { adsSpend, loadingAds, saveManualSpend } = useAdsSpend(mesAtivo, dataSelecionada);
+  const { adsSpend, loadingAds, saveManualSpend, refetch: recarregarGastos } = useAdsSpend(mesAtivo, dataSelecionada);
 
   const { plataformas, totais } = useMemo(() => {
     // Resumo pronto do servidor (metricas_diarias): um dia = as métricas guardadas daquele dia;
@@ -998,8 +998,7 @@ export default function VendasPorPlataformaCard({ monthValue, pedidos: pedidosPr
         onClose={() => setModalTikTokAberto(false)}
         mesAtivo={mesAtivo}
         pedidos={pedidos}
-        adsSpend={adsSpend}
-        onSaveDaily={saveManualSpend}
+        onSalvo={() => recarregarGastos()}
         diaFoco={diaSelecionado}
       />
     </div>
