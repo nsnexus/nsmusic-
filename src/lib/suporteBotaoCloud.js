@@ -8,6 +8,7 @@
 import { getSupabaseEdge } from './supabase-edge.js';
 import { findRecentOrderByPhone } from './orderLookup.js';
 import { enviarBotaoSuporteCloud } from './whatsappCloudApi.js';
+import { pedidoDoPayload, entregarMusicasNoWhatsapp } from './entregaMusicasWhatsapp.js';
 
 export const INTERVALO_BOTAO_MS = 6 * 60 * 60 * 1000;
 
@@ -40,6 +41,27 @@ export async function enviarBotaoSuporteParaCliente(phone, env = {}, deps = {}) 
     if (error) console.warn('[suporteBotaoCloud] Falha ao registrar o envio:', error.message);
   }
   return { enviado: true };
+}
+
+/**
+ * Toques em "Receber minhas músicas" (resposta rápida do modelo de entrega) no webhook da Meta:
+ * [{ de, orderId }]. O payload vem do modelo que nós enviamos, com o id do pedido.
+ */
+export function pedidosDeEntrega(body, phoneNumberId) {
+  if (!phoneNumberId || body?.object !== 'whatsapp_business_account') return [];
+  const lista = [];
+  for (const entry of body.entry || []) {
+    for (const change of entry?.changes || []) {
+      const value = change?.value;
+      if (String(value?.metadata?.phone_number_id || '') !== String(phoneNumberId)) continue;
+      for (const m of value?.messages || []) {
+        const de = String(m?.from || '').replace(/\D/g, '');
+        const orderId = pedidoDoPayload(m?.button?.payload || m?.interactive?.button_reply?.id);
+        if (de && orderId && !lista.some((x) => x.de === de && x.orderId === orderId)) lista.push({ de, orderId });
+      }
+    }
+  }
+  return lista;
 }
 
 /** Remetentes das mensagens de clientes ao NÚMERO OFICIAL (o de disparo), num webhook da Meta. */
@@ -83,12 +105,16 @@ export async function processarWebhookNumeroOficial(corpoBruto, assinatura, env 
     if (!(await assinaturaValida(corpoBruto, assinatura, segredo))) return { status: 401, json: { error: 'Assinatura inválida.' } };
   }
 
-  const remetentes = remetentesDoNumeroOficial(body, config.phoneNumberId);
-  if (remetentes.length === 0) return { status: 200, json: { ok: true, ignored: 'sem_mensagem' } };
+  const entregas = pedidosDeEntrega(body, config.phoneNumberId);
+  const remetentes = remetentesDoNumeroOficial(body, config.phoneNumberId).filter((tel) => !entregas.some((e) => e.de === tel));
+  if (remetentes.length === 0 && entregas.length === 0) return { status: 200, json: { ok: true, ignored: 'sem_mensagem' } };
 
-  const trabalho = Promise.all(remetentes.map((tel) => enviarBotaoSuporteParaCliente(tel, env)))
+  const trabalho = Promise.all([
+    ...entregas.map((e) => entregarMusicasNoWhatsapp(e.de, e.orderId, env)),
+    ...remetentes.map((tel) => enviarBotaoSuporteParaCliente(tel, env)),
+  ])
     .catch((err) => console.warn('[suporteBotaoCloud] Erro ao responder o número oficial:', err?.message));
   if (waitUntil) waitUntil(trabalho);
   else await trabalho;
-  return { status: 200, json: { ok: true, action: 'botao_suporte' } };
+  return { status: 200, json: { ok: true, action: entregas.length ? 'entrega_musicas' : 'botao_suporte' } };
 }
