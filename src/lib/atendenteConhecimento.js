@@ -39,7 +39,8 @@ DOWNLOAD E NAVEGADOR
 - Quem abre o link pelo WhatsApp fica no navegador do próprio WhatsApp, que às vezes não deixa baixar, ouvir ou enviar fotos. A solução é abrir no navegador de verdade (Chrome no Android, Safari no iPhone).
 
 VÍDEO E FOTOS
-- As fotos do vídeo são escolhidas e trocadas pelo próprio cliente na página da música.
+- O vídeo é gerado pelo próprio cliente, dentro da plataforma, na página do pedido: ele escolhe as fotos e o vídeo sai lá, já com a música. A equipe não monta nem envia vídeo.
+- Para trocar uma foto é o mesmo caminho: escolhe de novo e gera outra vez.
 
 JEITO DE FALAR
 - Como gente no WhatsApp: frases curtas, informal, sem textão.
