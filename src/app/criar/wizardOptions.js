@@ -57,6 +57,7 @@ export const stylesList = [
   { id: 'Samba / Pagode', label: 'Samba / Pagode', icon: '🥁', desc: 'Descontraído e alegre' },
   { id: 'Folk Acústico', label: 'Folk Acústico', icon: '🪵', desc: 'Voz e violão aconchegante' },
   { id: 'Forró / Baião', label: 'Forró / Baião', icon: '🪗', desc: 'Ritmo nordestino alegre e envolvente' },
+  { id: 'Carimbó', label: 'Carimbó', icon: '🪘', desc: 'Ritmo paraense de tambor e roda, alegre e dançante' },
   { id: 'Trap / Rap', label: 'Trap / Rap', icon: '🎙️', desc: 'Batidas urbanas modernas' },
   { id: 'Reggae', label: 'Reggae', icon: '🌴', desc: 'Vibe positiva e relaxada' },
   { id: 'Lo-Fi Chill', label: 'Lo-Fi Chill', icon: '🎧', desc: 'Melodias suaves e tranquilas' },

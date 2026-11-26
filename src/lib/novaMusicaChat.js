@@ -18,7 +18,7 @@ const op = (lista, ids) => ids.map((id) => {
 
 const RELACOES = op(recipients, ['Mãe', 'Pai', 'Esposa', 'Marido', 'Namorada', 'Namorado', 'Filha', 'Filho', 'Vó', 'Vô', 'Irmã', 'Irmão', 'Amiga', 'Amigo', 'Outro']);
 const OCASIOES = op(occasions, ['Aniversário', 'Aniv. de Casamento', 'Dia das Mães', 'Declaração de Amor', 'Pedido de Namoro', 'Homenagem', 'Surpresa', 'Formatura', 'Outro']);
-const RITMOS = op(stylesList, ['Sertanejo Universitário', 'Sertanejo Raiz', 'Samba / Pagode', 'Gospel / Adoração', 'Forró / Baião', 'Piseiro', 'Funk', 'MPB / Bossa Nova', 'Pop', 'Romântica', 'Rock']);
+const RITMOS = op(stylesList, ['Sertanejo Universitário', 'Sertanejo Raiz', 'Samba / Pagode', 'Gospel / Adoração', 'Forró / Baião', 'Piseiro', 'Carimbó', 'Funk', 'MPB / Bossa Nova', 'Pop', 'Romântica', 'Rock']);
 const CLIMAS = op(moods, ['Emocionante', 'Alegre', 'Romântica', 'Festiva', 'Nostálgica', 'Calma']);
 const VOZES = [{ id: 'nova:masculina', label: 'Masculina' }, { id: 'nova:feminina', label: 'Feminina' }, { id: 'nova:dueto', label: 'Dueto (as duas)' }];
 

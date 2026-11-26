@@ -36,6 +36,9 @@ const STYLE_TAGS = {
   'Funk': 'brazilian funk, heavy beat, punchy bass, danceable groove',
   'Eletrônica': 'electronic, synth layers, four-on-the-floor beat, modern dance production',
   'Piseiro': 'piseiro, brazilian northeastern electronic accordion, danceable beat, festive',
+  // Carimbó: ritmo do Pará (pedido do dono do estúdio em 26/11/2026). Só descrição musical, sem nome
+  // de artista — a Suno recusa a geração quando reconhece nome de artista ou banda no estilo.
+  'Carimbó': 'carimbó, amazonian folk rhythm from pará brazil, curimbó hand drums, maracas, banjo, saxophone and flute, swaying circle dance groove, festive',
   'Axé': 'axé, bahian carnival groove, brass section, percussion, energetic',
   'Jazz / Blues': 'jazz blues, brushed drums, upright bass, saxophone, swing feel',
   'Infantil': "children's song, playful melody, light instrumentation, simple singalong chorus",
