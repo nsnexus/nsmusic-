@@ -237,3 +237,19 @@ describe('faixasParaEntregar (músicas pelo WhatsApp)', () => {
     expect(nao).toEqual({ liberado: false, faixas: [] });
   });
 });
+
+describe('prévia de 60 s antes de pagar', () => {
+  const naoPago = { ...pago, paymentStatus: 'AGUARDANDO_PAGAMENTO', audioFiles: ['https://x/1.mp3', 'https://x/2.mp3'], honoreeName: 'Maria Vitória' };
+
+  it('"quero ouvir" num pedido não pago mostra a prévia das 2 versões, pergunta se gostou e dá os caminhos para pagar', async () => {
+    const r = await responderChat(naoPago, { acao: 'opcao', opcao: 'baixar' });
+    const audios = r.mensagens.filter((m) => m.tipo === 'audio');
+    expect(audios).toHaveLength(2);
+    expect(audios.every((a) => a.previa === 60 && a.url.startsWith(`/api/audio/proxy?orderId=${naoPago.id}&faixa=`))).toBe(true);
+    expect(r.mensagens.some((m) => m.tipo === 'arquivo')).toBe(false);
+    expect(r.mensagens.some((m) => m.tipo === 'pix')).toBe(false);
+    const pergunta = r.mensagens.find((m) => /Gostou\?/.test(m.texto || ''));
+    expect(pergunta.opcoes.map((o) => o.id)).toContain('quero_completas');
+    expect(r.mensagens.find((m) => m.tipo === 'link').url).toBe(`/entrega?orderId=${naoPago.id}`);
+  });
+});

@@ -43,3 +43,33 @@ describe('registrarConversa', () => {
     }));
   });
 });
+
+describe('historicoDoCliente (a IA não começa do zero)', () => {
+  it('junta as conversas anteriores do mesmo WhatsApp em ordem, sem a atual', async () => {
+    const { historicoDoCliente, variacoesDoTelefone } = await import('@/lib/suporteHistorico');
+    expect(variacoesDoTelefone('(44) 99859-7192')).toEqual(['44998597192', '5544998597192']);
+    const filtros = [];
+    const consulta = {
+      select() { return this; },
+      in(c, v) { filtros.push([c, v]); return this; },
+      gt() { return this; },
+      order() { return this; },
+      async limit() {
+        return { data: [
+          { id: 'atual', mensagens: [{ de: 'eu', tipo: 'texto', texto: 'agora' }] },
+          { id: 'b', mensagens: [{ de: 'eu', tipo: 'texto', texto: 'quero ouvir a da minha filha' }] },
+          { id: 'a', mensagens: [{ de: 'bot', tipo: 'letra', texto: 'Maria Vitória, minha princesa' }, { de: 'eu', tipo: 'texto', texto: 'Pode gravar!' }, { de: 'bot', tipo: 'audio', titulo: 'x' }] },
+        ], error: null };
+      },
+    };
+    const r = await historicoDoCliente('44998597192', { excetoConversa: 'atual' }, {}, { getSupabaseEdge: () => ({ from: () => consulta }) });
+    expect(filtros[0]).toEqual(['customer_phone', ['44998597192', '5544998597192']]);
+    expect(r.map((m) => m.texto)).toEqual(['[letra] Maria Vitória, minha princesa', 'Pode gravar!', 'quero ouvir a da minha filha']);
+  });
+
+  it('sem telefone ou sem banco devolve vazio', async () => {
+    const { historicoDoCliente } = await import('@/lib/suporteHistorico');
+    expect(await historicoDoCliente('', {}, {})).toEqual([]);
+    expect(await historicoDoCliente('44998597192', {}, {}, { getSupabaseEdge: () => null })).toEqual([]);
+  });
+});

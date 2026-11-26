@@ -8,7 +8,7 @@ import {
   acaoMusicaNovaPronta, dadosDoCliente, reescreverLetra, listaDePedidos, transcricaoValida, gruposDoNumero, contextoDoPedido,
 } from '@/lib/suporteChat';
 import { extrairDadosDaHistoria } from '@/lib/suporteNovaMusica';
-import { registrarConversa } from '@/lib/suporteHistorico';
+import { registrarConversa, historicoDoCliente } from '@/lib/suporteHistorico';
 import { responderComIA } from '@/lib/atendenteIA';
 import { DOMINIO_CANONICO } from '@/lib/siteUrl';
 
@@ -83,10 +83,18 @@ export async function POST(req) {
         .filter((m) => m.texto);
       const urlAtual = typeof body.urlAtual === 'string' && body.urlAtual.startsWith(`${DOMINIO_CANONICO}/suporte`) ? body.urlAtual.slice(0, 300) : '';
       const aguardando = lerAguardando(body.aguardando);
+      const pedidoValido = pedido && !pedido.deletedAt ? pedido : null;
+      const telefoneIA = String(body.telefone || '').replace(/\D/g, '').slice(0, 13);
+      // Conversas anteriores do mesmo WhatsApp: a IA continua de onde o cliente parou.
+      const historicoAnterior = await historicoDoCliente(
+        pedidoValido?.customerPhone || telefoneIA,
+        { excetoConversa: typeof body.conversaId === 'string' ? body.conversaId.slice(0, 40) : '' },
+        env
+      );
       const r = await responderComIA({
-        pedido: pedido && !pedido.deletedAt ? pedido : null,
-        telefone: String(body.telefone || '').replace(/\D/g, '').slice(0, 13),
-        historico, aguardando, mensagem: texto,
+        pedido: pedidoValido,
+        telefone: telefoneIA,
+        historico, historicoAnterior, aguardando, mensagem: texto,
         dispositivo: ['android', 'ios'].includes(body.dispositivo) ? body.dispositivo : '',
         dentroDeApp: body.dentroDeApp === true,
         urlAtual,

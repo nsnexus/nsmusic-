@@ -253,6 +253,7 @@ export default function ChatSuporte({ pedidoInicial }) {
     }));
     const data = await chamar({
       acao: 'ia', texto: t, aguardando: aguardar, historico: historicoIA, telefone: telefoneInformado.current || undefined,
+      conversaId: historico.idDaConversa(),
       dispositivo: aparelho.current.dispositivo, dentroDeApp: aparelho.current.dentroDeApp,
       urlAtual: typeof window !== 'undefined' ? window.location.href : '',
     });

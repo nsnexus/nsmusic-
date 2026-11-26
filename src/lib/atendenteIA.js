@@ -27,7 +27,7 @@ const MAX_HISTORICO = 16;
 const FERRAMENTAS = `FERRAMENTAS (use no máximo UMA por resposta, no campo "ferramenta"):
 - buscar_pedidos {"telefone": "só números com DDD"} → acha os pedidos do cliente pelo WhatsApp que ele usou no site.
 - abrir_pedido {"pedido_id": "id da lista"} → abre um dos pedidos encontrados (só ids da lista de pedidos do número).
-- enviar_musicas {} → mostra as músicas do pedido aberto para ouvir e baixar (se estiver pago).
+- enviar_musicas {} → pedido pago: mostra as músicas para ouvir e baixar. Pedido NÃO pago: mostra a prévia de 60 segundos de cada versão e pergunta se o cliente gostou (com o caminho para pagar).
 - conferir_pagamento {} → confere no banco o Pix do pedido aberto; libera sozinho se caiu.
 - pagar_pedido {} → mostra o Pix para pagar o pedido aberto.
 - trocar_ritmo {"estilo": "nome do ritmo", "musica": "principal" | "bonus"} → gera o Pix de R$ 1,00 do ajuste; grava sozinho quando pagar. Sem estilo, mostra as opções de ritmo.
@@ -58,6 +58,8 @@ Como conduzir:
 - Cliente diz que não consegue ouvir, baixar ou enviar foto e está no navegador de um app: ensinar_navegador.
 - MÚSICA NOVA: o essencial é o nome de quem vai ser homenageado e algo da história (um momento, um jeito, um apelido). Aproveite tudo que o cliente já contou. Se faltar a história, peça UM detalhe. Ritmo, voz e clima: se ele não disse, escolha o que combina com a história e conte qual escolheu. Com o essencial em mãos, chame escrever_letra_nova. Não peça nome nem WhatsApp do cliente antes: o sistema pede na hora de gravar.
 - Atendimento resolvido (música entregue, pagamento liberado, ajuste pronto ou letra nova aprovada) e o cliente agradece, diz que deu certo ou se despede: agradecer_cliente, uma vez só na conversa. Não use se ainda há problema aberto ou o cliente está irritado.
+- Pedido ainda não pago e o cliente quer ouvir, baixar ou saber da música: enviar_musicas (prévia de 60 s) ANTES de falar em pagamento. Só use pagar_pedido quando ele disser que gostou ou que quer pagar.
+- Se há CONVERSAS ANTERIORES, você já conhece esse cliente: retome o assunto (ex.: "a música da Maria Vitória ficou pronta, quer ouvir a prévia?") em vez de começar do zero.
 - Nunca diga que fez algo que nenhuma ferramenta fez.
 
 Responda SEMPRE em JSON, exatamente: {"resposta": "texto para o cliente (deixe vazio quando a ferramenta já fala com ele)", "opcoes": ["até 3 respostas rápidas curtas, opcional"], "ferramenta": null ou {"nome": "...", "args": {...}}}`;
@@ -128,7 +130,7 @@ async function escreverLetraNova(args, env) {
  * Um turno do atendente. Devolve o mesmo formato do chat (mensagens, orderId, aguardar…) ou
  * `{ falhou: true }` quando a IA não respondeu (a rota cai no atendimento por regras).
  */
-export async function responderComIA({ pedido = null, telefone = '', historico = [], aguardando = null, mensagem = '', dispositivo = '', dentroDeApp = false, urlAtual = '' }, env = {}, deps = {}) {
+export async function responderComIA({ pedido = null, telefone = '', historico = [], historicoAnterior = [], aguardando = null, mensagem = '', dispositivo = '', dentroDeApp = false, urlAtual = '' }, env = {}, deps = {}) {
   const ia = deps.runJsonCompletion || runJsonCompletion;
   const config = deps.config || await lerConfigAtendente(env);
   if (!config.ligado) return { falhou: true, motivo: 'desligado' };
@@ -140,6 +142,8 @@ export async function responderComIA({ pedido = null, telefone = '', historico =
   const resultados = [];
   const extra = {};
 
+  const anteriores = textoDoHistorico(historicoAnterior);
+
   for (let passo = 0; passo < MAX_PASSOS; passo++) {
     const situacao = [
       `Celular do cliente: ${dispositivo || 'desconhecido'} · ${dentroDeApp ? 'está DENTRO do navegador do WhatsApp/app' : 'navegador normal'}`,
@@ -147,7 +151,7 @@ export async function responderComIA({ pedido = null, telefone = '', historico =
       resumoParaIA(pedidoAtual, ctx),
       `Pedidos do WhatsApp informado:\n${listaParaIA(pedidosDoNumero)}`,
     ].join('\n');
-    const usuario = `CONHECIMENTO:\n${config.texto}\n\nSITUAÇÃO:\n${situacao}\n\nCONVERSA ATÉ AGORA:\n${textoDoHistorico(historico) || '(começo da conversa)'}\n\n${resultados.length ? `RESULTADO DAS FERRAMENTAS NESTE TURNO:\n${resultados.join('\n')}\n\n` : ''}MENSAGEM NOVA DO CLIENTE: ${String(mensagem).slice(0, 1500)}`;
+    const usuario = `CONHECIMENTO:\n${config.texto}\n\nSITUAÇÃO:\n${situacao}\n\n${anteriores ? `CONVERSAS ANTERIORES DESTE CLIENTE (mesmo WhatsApp, dias/horas atrás — continue de onde parou, não repita perguntas já respondidas):\n${anteriores}\n\n` : ''}CONVERSA ATÉ AGORA:\n${textoDoHistorico(historico) || '(começo da conversa)'}\n\n${resultados.length ? `RESULTADO DAS FERRAMENTAS NESTE TURNO:\n${resultados.join('\n')}\n\n` : ''}MENSAGEM NOVA DO CLIENTE: ${String(mensagem).slice(0, 1500)}`;
 
     let saida;
     try {

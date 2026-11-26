@@ -92,3 +92,44 @@ export async function lerConversa(id, env = {}) {
   if (!data) return { ok: false, motivo: 'nao_encontrada' };
   return { ok: true, conversa: data };
 }
+
+/** Variações do mesmo WhatsApp como ficam gravadas (com e sem o 55 do Brasil). */
+export function variacoesDoTelefone(tel) {
+  const d = String(tel || '').replace(/\D/g, '');
+  if (d.length < 10) return [];
+  const sem55 = d.startsWith('55') && d.length >= 12 ? d.slice(2) : d;
+  return [...new Set([d, sem55, `55${sem55}`])];
+}
+
+/**
+ * Conversas ANTERIORES do mesmo cliente (pelo WhatsApp), para a IA não começar do zero quando ele
+ * volta ao chat (pedido do dono do estúdio em 26/11/2026). Só texto, em ordem cronológica, das
+ * últimas `dias`, sem a conversa atual. Nunca lança: sem banco ou com erro devolve [].
+ * @returns {Promise<Array<{de: 'eu'|'bot', texto: string, em: string}>>}
+ */
+export async function historicoDoCliente(telefone, { excetoConversa = '', dias = 7, max = 30 } = {}, env = {}, deps = {}) {
+  const variacoes = variacoesDoTelefone(telefone);
+  if (variacoes.length === 0) return [];
+  const supabase = (deps.getSupabaseEdge || getSupabaseEdge)(env);
+  if (!supabase) return [];
+  try {
+    const desde = new Date(Date.now() - dias * 86400000).toISOString();
+    const { data, error } = await supabase.from('suporte_conversas')
+      .select('id,mensagens,atualizado_em')
+      .in('customer_phone', variacoes)
+      .gt('atualizado_em', desde)
+      .order('atualizado_em', { ascending: false })
+      .limit(6);
+    if (error || !Array.isArray(data)) return [];
+    return data
+      .filter((c) => c.id !== excetoConversa)
+      .reverse()
+      .flatMap((c) => (Array.isArray(c.mensagens) ? c.mensagens : []))
+      .filter((m) => (m?.de === 'eu' || m?.de === 'bot') && typeof m.texto === 'string' && m.texto.trim())
+      .map((m) => ({ de: m.de, texto: (m.tipo === 'letra' ? `[letra] ${m.texto}` : m.texto).slice(0, 400), em: String(m.em || '') }))
+      .slice(-max);
+  } catch (err) {
+    console.warn('[suporteHistorico] Falha ao ler as conversas anteriores:', err?.message);
+    return [];
+  }
+}

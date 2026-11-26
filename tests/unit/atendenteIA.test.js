@@ -109,3 +109,15 @@ describe('dadosDaMusicaNova', () => {
     expect(d.story).toHaveLength(3000);
   });
 });
+
+describe('memória entre conversas', () => {
+  it('as conversas anteriores do cliente entram no pedido à IA', async () => {
+    const ia = iaEmFila({ resposta: 'A música da Maria Vitória ficou pronta! Quer ouvir a prévia?', ferramenta: null });
+    const deps = base({ runJsonCompletion: ia });
+    await responderComIA({ mensagem: 'oi', historicoAnterior: [{ de: 'eu', texto: 'faz uma música pra minha filha Maria Vitória' }] }, {}, deps);
+    const prompt = JSON.stringify(ia.mock.calls[0]);
+    expect(prompt).toMatch(/CONVERSAS ANTERIORES DESTE CLIENTE/);
+    expect(prompt).toMatch(/Maria Vitória/);
+  });
+});
+
