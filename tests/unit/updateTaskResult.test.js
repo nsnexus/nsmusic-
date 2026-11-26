@@ -216,3 +216,27 @@ describe('updateTaskResult — regeração e substituição de áudio', () => {
     expect(store['order_corrida'].audioHistory.some(h => h.taskId === 'task_antiga_atrasada' && !h.active)).toBe(true);
   });
 });
+
+describe('updateTaskResult — gravação de ajuste pago (26/11/2026)', () => {
+  it('a gravação pedida pelo ajuste substitui a música do pedido mesmo com outra tarefa registrada depois', async () => {
+    store['task_ajuste'] = { orderId: 'order_ajuste' };
+    store['order_ajuste'] = {
+      customerPhone: '5511999999999',
+      productionStatus: 'GERANDO_AUDIO',
+      sunoTaskId: 'task_outra',
+      audioUrl: 'https://pub-r2.dev/audios/order_ajuste/antiga-v1.mp3',
+      audioFiles: ['https://pub-r2.dev/audios/order_ajuste/antiga-v1.mp3', 'https://pub-r2.dev/audios/order_ajuste/antiga-v2.mp3'],
+      audioIds: ['track_antigo_1', 'track_antigo_2'],
+      ajustesAplicados: [{ txid: 'TX1', ok: true, taskId: 'task_ajuste', assinaturaAntes: 'x' }],
+    };
+    await updateTaskResult('task_ajuste', { data: [
+      { id: 'track_ajustado_1', audio_url: 'https://tempfile.aiquickdraw.com/r/track_ajustado_1.mp3' },
+      { id: 'track_ajustado_2', audio_url: 'https://tempfile.aiquickdraw.com/r/track_ajustado_2.mp3' },
+    ] });
+    expect(store['order_ajuste'].audioFiles).toEqual([
+      'https://tempfile.aiquickdraw.com/r/track_ajustado_1.mp3',
+      'https://tempfile.aiquickdraw.com/r/track_ajustado_2.mp3',
+    ]);
+    expect(store['order_ajuste'].sunoTaskId).toBe('task_ajuste');
+  });
+});
