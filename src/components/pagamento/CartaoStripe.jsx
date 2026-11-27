@@ -108,9 +108,15 @@ function Formulario({ orderId, paymentIntentId, valor, onPago }) {
  * @param {{ orderId: string, sku: string, amount?: number, onPago: (paymentIntentId: string) => void,
  *   onFechar: () => void, onFalhaAoAbrir?: (mensagem: string) => void }} props
  */
-export default function CartaoStripe({ orderId, sku, amount, onPago, onFechar, onFalhaAoAbrir }) {
+export default function CartaoStripe({ orderId, sku, amount, onPago, onFechar, onFalhaAoAbrir, embutido = false }) {
   const [sessao, setSessao] = useState(null);
   const [erro, setErro] = useState('');
+  const raiz = useRef(null);
+
+  // Embutido: leva a tela até o formulário, que abre abaixo do botão tocado.
+  useEffect(() => {
+    if (embutido) raiz.current?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+  }, [embutido]);
   const callbacks = useRef({ onPago, onFalhaAoAbrir });
   callbacks.current = { onPago, onFalhaAoAbrir };
 
@@ -150,17 +156,34 @@ export default function CartaoStripe({ orderId, sku, amount, onPago, onFechar, o
     },
   } : null;
 
+  // Embutido (padrão das telas de pagamento desde 27/11/2026): o formulário aparece no corpo da
+  // página, logo abaixo do botão de cartão, sem janela por cima. O modo janela fica para quem chamar
+  // sem `embutido`.
+  const caixa = embutido
+    ? { width: '100%', boxSizing: 'border-box', marginTop: 12, background: '#fff', border: '1.5px solid #f0d5df', borderRadius: 16, padding: '16px 14px 18px', textAlign: 'left' }
+    : { width: '100%', maxWidth: 480, maxHeight: '92vh', overflowY: 'auto', background: '#fff', borderRadius: '20px 20px 0 0', padding: '20px 18px 28px', boxShadow: '0 -8px 30px rgba(0,0,0,0.18)' };
+  const Externo = embutido ? 'section' : 'div';
+  const propsExterno = embutido
+    ? { 'aria-labelledby': 'cartao-titulo', style: { width: '100%' } }
+    : { role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'cartao-titulo', style: { position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(20, 12, 24, 0.55)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' } };
+
   return (
-    <div role="dialog" aria-modal="true" aria-labelledby="cartao-titulo" style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(20, 12, 24, 0.55)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-      <div style={{ width: '100%', maxWidth: 480, maxHeight: '92vh', overflowY: 'auto', background: '#fff', borderRadius: '20px 20px 0 0', padding: '20px 18px 28px', boxShadow: '0 -8px 30px rgba(0,0,0,0.18)' }}>
+    <Externo ref={raiz} {...propsExterno}>
+      <div style={caixa}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
           <div>
-            <h2 id="cartao-titulo" style={{ margin: 0, fontSize: '1.15rem', fontFamily: 'var(--font-family-title)' }}>Pagar com cartão</h2>
+            <h2 id="cartao-titulo" style={{ margin: 0, fontSize: '1.15rem', fontFamily: 'var(--font-family-title)', color: '#1f1a24' }}>Pagar com cartão</h2>
             {sessao ? <span style={{ color: '#6b7280', fontSize: '0.9rem' }}>{reais(sessao.amount)} · libera na hora</span> : null}
           </div>
-          <button type="button" onClick={onFechar} aria-label="Fechar" style={{ border: 'none', background: '#f3f4f6', borderRadius: 999, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-            <X size={18} aria-hidden="true" />
-          </button>
+          {embutido ? (
+            <button type="button" onClick={onFechar} style={{ border: 'none', background: 'none', color: '#6b7280', fontSize: '0.88rem', textDecoration: 'underline', cursor: 'pointer', padding: 4 }}>
+              Escolher outra forma
+            </button>
+          ) : (
+            <button type="button" onClick={onFechar} aria-label="Fechar" style={{ border: 'none', background: '#f3f4f6', borderRadius: 999, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+              <X size={18} aria-hidden="true" />
+            </button>
+          )}
         </div>
         {erro ? <p role="alert" style={{ margin: 0, padding: '10px 12px', borderRadius: 10, background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b' }}>{erro}</p> : null}
         {!sessao && !erro ? (
@@ -172,6 +195,6 @@ export default function CartaoStripe({ orderId, sku, amount, onPago, onFechar, o
           </Elements>
         ) : null}
       </div>
-    </div>
+    </Externo>
   );
 }
