@@ -73,3 +73,17 @@ describe('historicoDoCliente (a IA não começa do zero)', () => {
     expect(await historicoDoCliente('44998597192', {}, {}, { getSupabaseEdge: () => null })).toEqual([]);
   });
 });
+
+describe('agruparPorCliente (um atendimento por cliente no painel)', () => {
+  it('junta as conversas do mesmo WhatsApp (com e sem 55) e soma as mensagens', async () => {
+    const { agruparPorCliente } = await import('@/lib/suporteHistorico');
+    const r = agruparPorCliente([
+      { id: 'c3', customer_phone: '51993001148', customer_name: 'MARTA', total_mensagens: 11, marcas: ['criar'], atualizado_em: '2026-11-26T23:45:00Z', criado_em: '2026-11-26T23:40:00Z' },
+      { id: 'c9', customer_phone: '5511988887777', total_mensagens: 2, marcas: [], atualizado_em: '2026-11-26T23:40:00Z', criado_em: '2026-11-26T23:39:00Z' },
+      { id: 'c2', customer_phone: '5551993001148', customer_name: 'MARTA', total_mensagens: 18, marcas: ['criou_musica', 'criar'], atualizado_em: '2026-11-26T23:28:00Z', criado_em: '2026-11-26T23:10:00Z' },
+      { id: 'sem', customer_phone: null, total_mensagens: 3, marcas: [] },
+    ]);
+    expect(r.map((c) => c.id)).toEqual(['c3', 'c9', 'sem']);
+    expect(r[0]).toMatchObject({ conversas: 2, total_mensagens: 29, criado_em: '2026-11-26T23:10:00Z', marcas: ['criar', 'criou_musica'] });
+  });
+});

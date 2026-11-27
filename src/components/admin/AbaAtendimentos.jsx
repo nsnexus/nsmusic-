@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import ConfigAtendenteIA from './ConfigAtendenteIA';
 import ModeloEntregaWhatsApp from './ModeloEntregaWhatsApp';
 
@@ -43,6 +43,13 @@ function Marcas({ lista }) {
 }
 
 function Mensagem({ m }) {
+  if (m.tipo === 'separador') {
+    return (
+      <div role="separator" style={{ alignSelf: 'center', margin: '6px 0', padding: '3px 10px', borderRadius: 8, background: '#E1F2FB', color: '#3B4A54', fontSize: 12 }}>
+        {m.texto} · {quando(m.em)}
+      </div>
+    );
+  }
   const minha = m.de === 'eu';
   const rotulo = { audio: '🎧 ', arquivo: '📎 ', link: '🔗 ', whatsapp: '💬 ', pix: '💠 ', imagem: '🖼️ ' }[m.tipo] || '';
   const corpo = m.tipo === 'texto' || m.tipo === 'letra' ? m.texto : [m.titulo || m.nome, m.texto].filter(Boolean).join(' · ');
@@ -75,17 +82,21 @@ export default function AbaAtendimentos({ authUser }) {
     return data;
   }, [authUser]);
 
+  const proxima = useRef(null);
   const carregar = useCallback(async ({ mais = false } = {}) => {
     setCarregando(true);
     setErro('');
     try {
       const params = { limite: '40' };
       if (busca.replace(/\D/g, '').length >= 8) params.telefone = busca.replace(/\D/g, '');
-      if (mais && conversas.length) params.antes = conversas[conversas.length - 1].atualizado_em;
+      if (mais && proxima.current) params.antes = proxima.current;
       const data = await buscar(params);
       const lista = data.conversas || [];
-      setConversas((atual) => (mais ? [...atual, ...lista] : lista));
-      setTemMais(lista.length === 40);
+      proxima.current = data.proximaPagina || null;
+      // Um item por cliente: na página seguinte, cliente que já está na lista não repete.
+      const chave = (c) => (String(c.customer_phone || '').replace(/\D/g, '').slice(-10) || c.id);
+      setConversas((atual) => (mais ? [...atual, ...lista.filter((c) => !atual.some((a) => chave(a) === chave(c)))] : lista));
+      setTemMais(Boolean(data.temMais));
     } catch (e) {
       setErro(e.message);
     } finally {
@@ -131,7 +142,7 @@ export default function AbaAtendimentos({ authUser }) {
                 <strong style={{ fontSize: 14, color: '#111827' }}>{c.customer_name || (c.customer_phone ? 'Cliente (pedido não escolhido)' : 'Sem pedido identificado')}</strong>
                 <span style={{ fontSize: 12, color: '#6B7280', whiteSpace: 'nowrap' }}>{quando(c.atualizado_em)}</span>
               </span>
-              <span style={{ fontSize: 12.5, color: '#4B5563' }}>{c.customer_phone ? telefone(c.customer_phone) : 'WhatsApp não informado'} · {c.total_mensagens} mensagens</span>
+              <span style={{ fontSize: 12.5, color: '#4B5563' }}>{c.customer_phone ? telefone(c.customer_phone) : 'WhatsApp não informado'} · {c.conversas > 1 ? `${c.conversas} conversas · ` : ''}{c.total_mensagens} mensagens</span>
               <Marcas lista={c.marcas} />
             </button>
           ))}
