@@ -311,7 +311,7 @@ describe('applyPaymentApproval', () => {
 
   // Desde 24/11/2026 o WhatsApp de pagamento aprovado é adiado: sai pelo cron
   // (src/lib/avisosAtrasados.js) só se o cliente não abrir a entrega em 10 min.
-  it('NÃO notifica via WhatsApp na hora da aprovação do pagamento (aviso adiado)', async () => {
+  it('notifica via WhatsApp NA HORA da aprovação do pagamento, uma vez só (27/11/2026)', async () => {
     store['order12_on'] = {
       paymentIntentSku: 'audio_only',
       customerPhone: '5511999999999',
@@ -323,9 +323,11 @@ describe('applyPaymentApproval', () => {
     };
 
     await applyPaymentApproval('order12_on', '1212_on', { status: 'approved', transaction_amount: 9.99 });
+    // Webhook e polling chegando juntos: a mesma aprovação não manda a mensagem duas vezes.
+    await applyPaymentApproval('order12_on', '1212_on', { status: 'approved', transaction_amount: 9.99 });
 
-    expect(sendPaymentApprovedTemplateMock).not.toHaveBeenCalled();
-    expect(store['order12_on'].paymentWhatsappSent).toBeFalsy();
+    expect(sendPaymentApprovedTemplateMock).toHaveBeenCalledTimes(1);
+    expect(store['order12_on'].paymentWhatsappSent).toBe(true);
   });
 
   it('NÃO notifica via WhatsApp no pagamento isolado do add-on de vídeo', async () => {

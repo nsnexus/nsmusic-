@@ -9,6 +9,14 @@ let store;
 
 vi.mock('@/lib/whatsapp', () => ({ sendMusicReadyTemplate: vi.fn().mockResolvedValue({ success: true }) }));
 
+// Reserva de envio único como o banco faz (INSERT em chave única: só o primeiro passa).
+const reservas = new Set();
+vi.mock('@/lib/envioUnico', () => ({
+  reservarEnvioUnico: vi.fn(async (chave) => (reservas.has(chave) ? false : (reservas.add(chave), true))),
+  confirmarEnvioUnico: vi.fn(async () => {}),
+  liberarEnvioUnico: vi.fn(async (chave) => { reservas.delete(chave); }),
+}));
+
 vi.mock('@/lib/supabaseDb', () => ({
   getOrder: vi.fn(async (id) => (store[id] ? { id, ...store[id] } : null)),
   updateOrder: vi.fn(async (id, updates) => {
@@ -24,14 +32,17 @@ vi.mock('@/lib/supabaseDb', () => ({
 
 const { updateTaskResult, saveTask } = await import('@/lib/db');
 
-beforeEach(() => {
+beforeEach(async () => {
   store = {};
+  reservas.clear();
+  const { sendMusicReadyTemplate } = await import('@/lib/whatsapp');
+  sendMusicReadyTemplate.mockClear();
 });
 
 describe('updateTaskResult — idempotência do envio de WhatsApp', () => {
-  // Desde 24/11/2026 o WhatsApp de música pronta é adiado (src/lib/avisosAtrasados.js): aqui só
-  // grava quando ficou pronta.
-  it('não envia WhatsApp na hora em que a música fica pronta; grava musicReadyAt', async () => {
+  // Desde 27/11/2026 o WhatsApp de música pronta volta a sair na hora (o adiamento de 24/11 foi
+  // desfeito); webhook e polling chegando juntos não podem mandar duas mensagens.
+  it('envia o WhatsApp de música pronta na hora, uma vez só, e grava musicReadyAt', async () => {
     store['task1'] = { orderId: 'order1' };
     store['order1'] = { customerPhone: '5511999999999', whatsappRequested: true, customerName: 'Cliente', honoreeName: 'Alguém' };
 
@@ -42,7 +53,9 @@ describe('updateTaskResult — idempotência do envio de WhatsApp', () => {
       updateTaskResult('task1', result),
     ]);
 
-    expect(store['order1'].whatsappSent).toBeFalsy();
+    const { sendMusicReadyTemplate } = await import('@/lib/whatsapp');
+    expect(sendMusicReadyTemplate).toHaveBeenCalledTimes(1);
+    expect(store['order1'].whatsappSent).toBe(true);
     expect(store['order1'].musicReadyAt).toBeTruthy();
   });
 
