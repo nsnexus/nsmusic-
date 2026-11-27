@@ -2946,7 +2946,11 @@ export default function CriarMusica() {
                         if (isNextDisabled()) {
                           setShowValidation(true);
                           setTimeout(() => {
-                            const el = document.querySelector('[data-missing="true"]');
+                            // O campo que falta mesmo: o bloco "Quem vai receber" inteiro também
+                            // marca falta quando só o Esposa/Marido não foi escolhido, então vai no
+                            // primeiro que não tem outro faltando dentro (27/11/2026).
+                            const faltando = [...document.querySelectorAll('[data-missing="true"]')];
+                            const el = faltando.find((f) => !f.querySelector('[data-missing="true"]')) || faltando[0];
                             if (el) {
                               el.scrollIntoView({ behavior: 'smooth', block: 'center' });
                               const input = el.querySelector('input, select, textarea');
