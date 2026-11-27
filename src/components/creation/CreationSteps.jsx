@@ -149,6 +149,19 @@ export default function CreationSteps({
 
   const activeCardId = getActiveCardId();
 
+  // Âncoras (pedido do Narciso em 27/11/2026): depois de cada escolha, a tela desce até a próxima
+  // pergunta, como Esposa/Marido logo abaixo dos cards. Só rola se o alvo não estiver bem visível.
+  const rolarAte = (id) => {
+    if (typeof window === 'undefined') return;
+    setTimeout(() => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const visivel = r.top >= 70 && r.bottom <= window.innerHeight - 110;
+      if (!visivel) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 80);
+  };
+
   const handleCardClick = (card) => {
     setChosenCardId(card.id);
 
@@ -184,6 +197,7 @@ export default function CreationSteps({
           updateField('recipientType', card.relations[0]);
         }
       }
+      rolarAte(card.relations.length > 1 && !card.relations.includes(data.relationship) ? 'wz-escolha-relacao' : 'wz-bloco-homenageado');
       return;
     }
 
@@ -245,7 +259,7 @@ export default function CreationSteps({
 
           {/* Sub-pills se a categoria tem mais de uma variação (ex: Namorada vs Namorado, Mãe vs Pai) */}
           {activeCardObj && activeCardObj.relations && activeCardObj.relations.length > 1 && (
-            <div data-missing={!data.relationship ? 'true' : undefined} style={{
+            <div id="wz-escolha-relacao" data-missing={!data.relationship ? 'true' : undefined} style={{
               margin: '-4px 0 16px',
               padding: '10px 14px',
               borderRadius: '14px',
@@ -270,6 +284,7 @@ export default function CreationSteps({
                       onClick={() => {
                         updateField('relationship', rel);
                         updateField('recipientType', rel);
+                        rolarAte('wz-bloco-homenageado');
                       }}
                       style={{
                         padding: '8px 18px',
@@ -314,7 +329,7 @@ export default function CreationSteps({
                 A <b>pessoa homenageada</b>: o nome ou apelido dela aparece na letra <b>exatamente como você escrever</b>.
               </div>
 
-              <div data-missing={isHonoreeMissing ? "true" : undefined} style={{ marginBottom: '14px' }}>
+              <div id="wz-bloco-homenageado" data-missing={isHonoreeMissing ? "true" : undefined} style={{ marginBottom: '14px' }}>
                 <label htmlFor="wz-nome-homenageado" style={{ display: 'block', fontSize: '0.88rem', fontWeight: 700, color: '#1E1418', marginBottom: '6px' }}>
                   Nome de quem recebe o presente *
                 </label>
@@ -568,7 +583,7 @@ export default function CreationSteps({
                   key={g.id}
                   type="button"
                   aria-pressed={isSelected}
-                  onClick={() => updateField('musicStyle', g.id)}
+                  onClick={() => { updateField('musicStyle', g.id); rolarAte('wz-bloco-clima'); }}
                   className={`card2 ${isSelected ? 'on' : ''}`}
                 >
                   {g.destaque && !isSelected && <span className="c2-selo">⭐ Mais pedido</span>}
@@ -600,7 +615,7 @@ export default function CreationSteps({
                       key={s.id}
                       type="button"
                       aria-pressed={isSelected}
-                      onClick={() => updateField('musicStyle', s.id)}
+                      onClick={() => { updateField('musicStyle', s.id); rolarAte('wz-bloco-clima'); }}
                       className={`card2 ${isSelected ? 'on' : ''}`}
                     >
                       <Icone3D emoji={s.icon || '🎵'} />
@@ -614,7 +629,7 @@ export default function CreationSteps({
         </div>
 
         {/* 2. CLIMA DA MÚSICA */}
-        <div data-missing={isMoodMissing ? "true" : undefined} style={{ marginTop: '1.1rem' }}>
+        <div id="wz-bloco-clima" data-missing={isMoodMissing ? "true" : undefined} style={{ marginTop: '1.1rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
             <div className="wz-t" style={{ margin: 0 }}>Clima da música</div>
             {isMoodMissing && (
@@ -633,7 +648,7 @@ export default function CreationSteps({
                   key={c.id}
                   type="button"
                   aria-pressed={isSelected}
-                  onClick={() => updateField('musicMood', c.id)}
+                  onClick={() => { updateField('musicMood', c.id); rolarAte('wz-bloco-voz'); }}
                   className={`card2 ${isSelected ? 'on' : ''}`}
                 >
                   <Icone3D emoji={c.icon} />
@@ -646,7 +661,7 @@ export default function CreationSteps({
         </div>
 
         {/* 3. TIPO DE VOZ */}
-        <div data-missing={isVoiceMissing ? "true" : undefined} style={{ marginTop: '1.1rem' }}>
+        <div id="wz-bloco-voz" data-missing={isVoiceMissing ? "true" : undefined} style={{ marginTop: '1.1rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
             <div className="wz-t" style={{ margin: 0 }}>Tipo de voz</div>
             {isVoiceMissing && (
