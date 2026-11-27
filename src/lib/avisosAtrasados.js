@@ -1,4 +1,8 @@
-// WhatsApp só para quem sumiu (decisão do Narciso, 24/11/2026).
+// ATUALIZAÇÃO 27/11/2026: "música pronta" e "pagamento aprovado" voltaram a sair NA HORA
+// (updateTaskResult e applyPaymentApproval). Este cron ficou como nova tentativa para os envios que
+// falharam — as travas whatsappSent / paymentWhatsappSent impedem mensagem repetida.
+//
+// Histórico — WhatsApp só para quem sumiu (decisão do Narciso, 24/11/2026).
 //
 // Antes: "música pronta" saía na hora em que a Kie.ai terminava, e "pagamento aprovado" na hora do
 // PIX — mesmo para quem estava com o site aberto, ouvindo a prévia ou já vendo a música. Era

@@ -498,8 +498,15 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
           console.warn('[payments] Falha ao conceder crédito de indicação:', referralError.message);
         }
       }
-      // O WhatsApp de "pagamento aprovado" NÃO sai mais aqui (24/11/2026): só 10 min depois, se o
-      // cliente não abriu a página de entrega — ver src/lib/avisosAtrasados.js (cron do reconcile).
+      // WhatsApp de "pagamento aprovado" volta a sair NA HORA para todo pagamento (decisão do
+      // Narciso em 27/11/2026, desfazendo o adiamento de 24/11): é ele que leva o botão "Receber
+      // minhas músicas". Envio único garantido em notifyPaymentApproved; o cron de
+      // src/lib/avisosAtrasados.js fica só como nova tentativa se este envio falhar.
+      try {
+        await notifyPaymentApproved(orderId, txResult.orderData, {}, env);
+      } catch (notifyErr) {
+        console.warn('[payments] Falha ao notificar aprovação de pagamento via WhatsApp:', notifyErr?.message);
+      }
 
       // Contador de vendas da vitrine da home (stats/_live)
       try {
@@ -735,38 +742,14 @@ export async function notifyPaymentApproved(orderRefOrId, orderData, opts = {}, 
       return;
     }
 
-    // Trava distribuída na tabela config do Supabase
-    let supabase = null;
-    try {
-      const { getSupabaseEdge } = await import('./supabase-edge.js');
-      supabase = getSupabaseEdge(env);
-    } catch {}
-
-    const lockKey = `lock_payment_notify_${orderId}`;
-    if (supabase) {
-      try {
-        const { data: lockRow } = await supabase
-          .from('config')
-          .select('valor')
-          .eq('chave', lockKey)
-          .maybeSingle();
-
-        if (lockRow?.valor?.at) {
-          const lockAt = Date.parse(lockRow.valor.at);
-          if (!Number.isNaN(lockAt) && (now - lockAt < debounceWindowMs)) {
-            console.log(`[payments] Trava ativa no banco (config) para ${orderId}. Ignorando envio concorrente.`);
-            return;
-          }
-        }
-
-        // Grava a trava no banco ANTES de chamar a API
-        await supabase.from('config').upsert({
-          chave: lockKey,
-          valor: { at: new Date().toISOString(), status: 'sending' },
-          updated_at: new Date().toISOString()
-        });
-      } catch (lockErr) {
-        console.warn('[payments] Erro ao verificar/gravar trava distribuída em config:', lockErr.message);
+    // Reserva atômica (INSERT na config): webhook e polling juntos não mandam duas mensagens.
+    // O reenvio manual do painel (force) não passa por aqui.
+    const chaveEnvio = `envio_pagamento_${orderId}`;
+    if (!opts.force) {
+      const { reservarEnvioUnico } = await import('./envioUnico.js');
+      if (!(await reservarEnvioUnico(chaveEnvio, env))) {
+        console.log(`[payments] Envio do pagamento aprovado já reservado para ${orderId}. Ignorando envio concorrente.`);
+        return;
       }
     }
 
@@ -798,14 +781,23 @@ export async function notifyPaymentApproved(orderRefOrId, orderData, opts = {}, 
       paymentWhatsappSending: false,
     }, env).catch(() => {});
 
-    if (sendResult?.success) {
-      console.log(`[payments] ✅ Mensagem de pagamento aprovado enviada com sucesso para ${targetPhone} (pedido #${orderId})`);
+    const envio = await import('./envioUnico.js');
+    if (sendResult?.success && !sendResult?.ignored) {
+      if (!opts.force) await envio.confirmarEnvioUnico(chaveEnvio, env);
+      console.log(`[payments] ✅ Mensagem de pagamento aprovado enviada com sucesso (pedido #${orderId})`);
     } else {
-      console.warn(`[payments] ⚠️ Falha ao enviar WhatsApp (pagamento aprovado) para ${targetPhone} — pedido ${orderId}:`, sendResult?.error);
+      // Não saiu: desfaz a marca otimista e libera a reserva para o cron (avisosAtrasados) tentar de novo.
+      await updateOrder(orderId, { paymentWhatsappSent: false, paymentWhatsappSentAt: null }, env).catch(() => {});
+      if (!opts.force) await envio.liberarEnvioUnico(chaveEnvio, env);
+      console.warn(`[payments] ⚠️ Mensagem de pagamento aprovado não saiu — pedido ${orderId}:`, sendResult?.ignored || sendResult?.error);
     }
   } catch (err) {
     console.error('[payments] Erro geral no envio de WhatsApp:', err.message);
-    await updateOrder(orderId, { paymentWhatsappSending: false }, env).catch(() => {});
+    await updateOrder(orderId, { paymentWhatsappSending: false, paymentWhatsappSent: false }, env).catch(() => {});
+    if (!opts.force) {
+      const { liberarEnvioUnico } = await import('./envioUnico.js');
+      await liberarEnvioUnico(`envio_pagamento_${orderId}`, env);
+    }
   }
 }
 

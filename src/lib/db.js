@@ -1,3 +1,4 @@
+import { reservarEnvioUnico, confirmarEnvioUnico, liberarEnvioUnico } from './envioUnico.js';
 import { getOrder, updateOrder, getSunoTask, saveSunoTask } from './supabaseDb.js';
 import { sendMusicReadyTemplate } from './whatsapp.js';
 import { resolveDeliveryUrl } from './whatsappTemplates.js';
@@ -225,10 +226,17 @@ export const updateTaskResult = async (taskId, result, overrideOrderId = null, e
       if (!jaTinhaAudio) {
         const { addGeneration } = await import('./liveStats.js');
         await addGeneration();
-        // O WhatsApp de "música pronta" NÃO sai mais aqui (24/11/2026): só 15 min depois, se o
-        // cliente não ouviu a prévia — ver src/lib/avisosAtrasados.js. Guarda quando ficou pronta.
         await updateOrder(orderId, { musicReadyAt: new Date().toISOString() }, env)
           .catch((e) => console.warn('[db] Falha ao gravar musicReadyAt:', e?.message));
+      }
+
+      // WhatsApp de "música pronta" (prévia) volta a sair NA HORA (decisão do Narciso em 27/11/2026,
+      // desfazendo o adiamento de 24/11). Envio único pelas travas de notifyMusicReady; o cron de
+      // src/lib/avisosAtrasados.js fica só como nova tentativa. Falha aqui não desfaz o áudio gravado.
+      try {
+        await notifyMusicReady(orderId, null, orderId, {}, env);
+      } catch (notifyErr) {
+        console.warn('[db] Falha ao avisar música pronta no WhatsApp:', notifyErr?.message);
       }
     }
   } catch (err) {
@@ -251,7 +259,10 @@ export const notifyMusicReady = async (orderRefOrId, orderData, orderIdParam, op
 
   let shouldSend = force;
   let freshData = null;
+  const chaveEnvio = `envio_musica_pronta_${orderId}`;
   if (!force) {
+    // Reserva atômica: webhook e polling chegando juntos não mandam duas mensagens.
+    if (!(await reservarEnvioUnico(chaveEnvio, env))) return { sent: false, reason: 'already_sending' };
     try {
       freshData = await getOrder(orderId, env);
       if (freshData) {
@@ -276,7 +287,10 @@ export const notifyMusicReady = async (orderRefOrId, orderData, orderIdParam, op
     }
   }
 
-  if (!shouldSend) return { sent: false, reason: 'already_sending' };
+  if (!shouldSend) {
+    if (!force) await liberarEnvioUnico(chaveEnvio, env);
+    return { sent: false, reason: 'already_sending' };
+  }
 
   const finalOrder = freshData || currentOrder;
   const deliveryUrl = resolveDeliveryUrl(orderId);
@@ -290,6 +304,7 @@ export const notifyMusicReady = async (orderRefOrId, orderData, orderIdParam, op
   }, env);
 
   if (sendResult.ignored) {
+    if (!force) await liberarEnvioUnico(chaveEnvio, env);
     await updateOrder(orderId, { whatsappSending: false, readyTemplateSending: false }, env).catch(() => {});
     console.log(`Mensagem do WhatsApp (música pronta) ignorada pela trava (${sendResult.ignored}) — pedido ${orderId}`);
     return { sent: false, reason: sendResult.ignored };
@@ -304,10 +319,12 @@ export const notifyMusicReady = async (orderRefOrId, orderData, orderIdParam, op
       whatsappSending: false,
       readyTemplateSending: false,
     }, env).catch(e => console.warn("Erro ao atualizar whatsappSent:", e));
+    if (!force) await confirmarEnvioUnico(chaveEnvio, env);
     console.log(`Mensagem do WhatsApp (música pronta) enviada com sucesso — pedido ${orderId}`);
     return { sent: true };
   }
 
+  if (!force) await liberarEnvioUnico(chaveEnvio, env);
   await updateOrder(orderId, { whatsappSending: false, readyTemplateSending: false }, env).catch(e => console.warn(e));
   console.warn(`Falha ao enviar WhatsApp (música pronta) — pedido ${orderId}`);
   return { sent: false, reason: sendResult.error || 'send_failed' };
