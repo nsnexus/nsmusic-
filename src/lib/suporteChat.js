@@ -99,7 +99,7 @@ export function acaoPrevia(pedido, { pronta = false } = {}) {
     titulo: `Prévia · versão ${i + 1}`,
   }));
   const sku = pedido.paymentIntentSku && getPriceForSku(pedido.paymentIntentSku) ? pedido.paymentIntentSku : 'audio_only';
-  const para = pedido.honoreeName ? ` pra *${pedido.honoreeName}*` : '';
+  const para = pedido.honoreeName ? ` pra *${String(pedido.honoreeName).trim()}*` : '';
   const versoes = previas.length > 1 ? `as ${previas.length} versões` : 'a música';
   return {
     mensagens: [
@@ -114,12 +114,12 @@ export function acaoPrevia(pedido, { pronta = false } = {}) {
   };
 }
 
-async function linkAtendente(pedido, env) {
+async function linkAtendente(pedido, env, mensagem = '') {
   let numero = WHATSAPP_SUPORTE_PADRAO;
   try {
     numero = normalizarNumeroWhatsapp((await lerConfigSite(env))?.whatsappSuporte) || numero;
   } catch { /* fica o padrão */ }
-  const msg = `Olá! Vim do chat de suporte do site. Pedido ${pedido?.orderNumber || ''}`.trim();
+  const msg = (mensagem || `Olá! Vim do chat de suporte do site. Pedido ${pedido?.orderNumber || ''}`).trim();
   return `https://wa.me/${numero}?text=${encodeURIComponent(msg)}`;
 }
 
@@ -180,7 +180,7 @@ function escolherMusica(ctx, acao, pergunta) {
 export function saudacao(pedido, ctx = null) {
   const nome = primeiroNome(pedido.customerName);
   const comBonus = ctx && ctx.grupo.filter(temAudio).length > 1 ? ' (com a música bônus)' : '';
-  const de = pedido.honoreeName ? ` da música de *${pedido.honoreeName}*${comBonus}` : comBonus;
+  const de = pedido.honoreeName ? ` da música de *${String(pedido.honoreeName).trim()}*${comBonus}` : comBonus;
   const liberado = ctx ? ctx.liberado : pedidoEstaPago(pedido);
   const situacao = !temAudio(pedido)
     ? ' Ela ainda está sendo finalizada no estúdio.'
@@ -238,14 +238,32 @@ async function acaoJaPaguei(pedido, env, ctx = null) {
   if (ctx ? ctx.liberado : pedidoEstaPago(pedido)) return acaoPagamento(pedido, env, ctx);
   const conf = await conferirPagamento(pedido, env);
   if (conf.ok && (conf.estado === 'liberado_agora' || conf.estado === 'ja_estava_pago')) return acaoPago(pedido.id, env);
+  // Cliente diz que pagou e o banco não mostra: além de seguir conferindo sozinho, já entrega o
+  // WhatsApp do atendente com o pedido na mensagem, para mandar o comprovante (pedido do dono do
+  // estúdio em 27/11/2026). O comprovante não libera nada sozinho: quem libera é a Efí ou a equipe.
+  const contato = {
+    tipo: 'whatsapp',
+    url: await linkAtendente(pedido, env, `Olá! Já paguei o pedido ${pedido.orderNumber || pedido.id} e ainda não liberou. Vou mandar o comprovante.`),
+    titulo: 'Falar com o atendente no WhatsApp',
+  };
   if (!conf.ok) {
-    return { mensagens: [texto('Não consegui falar com o banco agora. Vou continuar conferindo aqui sozinho e libero assim que confirmar.')], aguardar: { tipo: 'pagamento', txid: pedido.paymentIntentId || null, kind: 'pedido' } };
+    return {
+      mensagens: [
+        texto('Não consegui falar com o banco agora. Vou continuar conferindo aqui sozinho e libero assim que confirmar. Se preferir, fala direto com o atendente e manda o comprovante por lá:'),
+        contato,
+      ],
+      aguardar: { tipo: 'pagamento', txid: pedido.paymentIntentId || null, kind: 'pedido' },
+    };
   }
   if (conf.estado === 'sem_cobranca') return acaoPagamento(pedido, env);
   const { avisarDono } = await import('./agentTools.js');
   await avisarDono(pedido, 'cliente diz que pagou (chat de suporte)', env).catch(() => {});
   return {
-    mensagens: [texto('Conferi agora direto no banco e o pagamento ainda não apareceu. 😕 Se você pagou há pouco, pode levar alguns minutinhos. Fica tranquilo(a): vou continuar conferindo aqui e libero sozinho assim que cair. Já avisei a equipe também.')],
+    mensagens: [
+      texto('Conferi agora direto no banco e o pagamento ainda não apareceu. 😕 Se você pagou há pouco, pode levar alguns minutinhos, e eu continuo conferindo aqui e libero sozinho assim que cair.'),
+      texto('Pra resolver mais rápido, fala com o atendente no WhatsApp e manda o comprovante. Seu pedido já vai junto na mensagem:'),
+      contato,
+    ],
     aguardar: { tipo: 'pagamento', txid: pedido.paymentIntentId, kind: 'pedido' },
   };
 }
