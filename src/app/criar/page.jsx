@@ -24,6 +24,7 @@ import { StudioLyricsAnimation, StudioAudioAnimation } from '@/components/Studio
 import { IconeCelularWhatsApp } from '@/components/AppIcons';
 import { readReferralCode } from '@/lib/referralTracking';
 import { getPriceForSku, geracoesExtrasDoSku } from '@/lib/pricing';
+import CartaoStripe from '@/components/pagamento/CartaoStripe';
 import { normalizeBrazilPhoneDigits, formatarTelefoneBr } from '@/lib/telefoneBr';
 import PacotesCompactos from '@/components/delivery/PacotesCompactos';
 import { deliveryPackages, formatBrl } from '@/lib/deliveryPackages';
@@ -342,16 +343,6 @@ export default function CriarMusica() {
       const cancelUrl = typeof window !== 'undefined'
         ? `${window.location.origin}/criar?orderId=${encodeURIComponent(orderId)}&step=7`
         : undefined;
-      const res = await fetch('/api/payments/stripe/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId, sku, cancelUrl }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.checkoutUrl) {
-        throw new Error(data?.error || 'Não foi possível iniciar o pagamento com cartão.');
-      }
-
       if (typeof window !== 'undefined' && window.fbq) {
         pushAdvancedMatching(formData.customerPhone, formData.customerEmail);
         window.fbq('track', 'InitiateCheckout', { value: getTotalPrice(), currency: 'BRL' });
@@ -370,9 +361,28 @@ export default function CriarMusica() {
         currency: 'BRL',
       });
 
-      window.location.href = data.checkoutUrl;
+      // Cartão dentro do site (Stripe); se não abrir, cai no checkout hospedado (abrirCheckoutHospedado).
+      setCartaoCriar({ sku, cancelUrl });
+      setIsPayingCard(false);
     } catch (err) {
       console.error(err);
+      setPaymentErrorMessage(err?.message || 'Falha ao conectar com o serviço de cartão. Tente novamente.');
+      setIsPayingCard(false);
+    }
+  };
+  const [cartaoCriar, setCartaoCriar] = useState(null);
+  const abrirCheckoutHospedado = async ({ sku, cancelUrl }) => {
+    setIsPayingCard(true);
+    try {
+      const res = await fetch('/api/payments/stripe/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId, sku, cancelUrl, forceProvider: 'stripe' }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.checkoutUrl) throw new Error(data?.error || 'Não foi possível iniciar o pagamento com cartão.');
+      window.location.href = data.checkoutUrl;
+    } catch (err) {
       setPaymentErrorMessage(err?.message || 'Falha ao conectar com o serviço de cartão. Tente novamente.');
       setIsPayingCard(false);
     }
@@ -2811,6 +2821,15 @@ export default function CriarMusica() {
 
   return (
     <div className="nx-experience nx-creation" style={{ ...styles.wrapper, backgroundColor: '#faf8f5' }}>
+      {cartaoCriar && orderId ? (
+        <CartaoStripe
+          orderId={orderId}
+          sku={cartaoCriar.sku}
+          onPago={() => { window.location.href = `/entrega?orderId=${encodeURIComponent(orderId)}&paid=stripe`; }}
+          onFechar={() => setCartaoCriar(null)}
+          onFalhaAoAbrir={() => { const c = cartaoCriar; setCartaoCriar(null); abrirCheckoutHospedado(c); }}
+        />
+      ) : null}
       <header className="nx-header"><div className="nx-header-inner">
         <Link href="/" className="nx-brand"><Image src="/logo.png" alt="NS Music" width={44} height={44} priority /><span>Histórias que viram música.</span></Link>
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>

@@ -39,6 +39,7 @@ import { seloRedes, SeloRedesEstilo } from '@/lib/deliveryPackages';
 import OfertaLivroInfantil from '@/components/delivery/OfertaLivroInfantil';
 import DeliveryExperience from '@/components/delivery/DeliveryExperience';
 import InAppBrowserBanner from '@/components/delivery/InAppBrowserBanner';
+import CartaoStripe from '@/components/pagamento/CartaoStripe';
 import { copiarTexto, selecionarCampo } from '@/lib/copiarTexto';
 
 // Otimização de bundle: carregamento sob demanda dos editores e modais pesados
@@ -85,13 +86,14 @@ function EntregaContent() {
   const searchParams = useSearchParams();
   const orderId = searchParams.get('orderId') || searchParams.get('id');
   const promo = searchParams.get('promo');
-  const stripeSessionId = searchParams.get('session_id');
+  const stripeSessionId = searchParams.get('session_id') || searchParams.get('payment_intent');
   const paidParam = searchParams.get('paid');
   const infinitePaySlug = searchParams.get('slug') || searchParams.get('invoice_slug');
   const infinitePayTransactionNsu = searchParams.get('transaction_nsu');
   const infinitePayOrderNsu = searchParams.get('order_nsu');
   const [isPayingCard, setIsPayingCard] = useState(false);
   const [cardError, setCardError] = useState('');
+  const [cartaoSku, setCartaoSku] = useState(null);
 
   const [loading, setLoading] = useState(true);
   // 'lento': a consulta passou de alguns segundos; 'falhou': esgotou as tentativas sem resposta do
@@ -1084,7 +1086,14 @@ function EntregaContent() {
   // combo_carta/combo_retrospectiva — dois SKUs novos não tinham como cair nesse `if` de valor
   // fixo). Quem chama agora diz o SKU direto; sem ele, cai no comportamento de sempre
   // (promoção de recuperação, ou audio_only).
-    const handlePayWithCard = async () => {
+  // Cartão dentro do site (Stripe); se não abrir, cai no checkout hospedado da Stripe.
+  const handlePayWithCard = () => {
+    if (!orderId) return;
+    setCardError('');
+    setCartaoSku(selectedPackage || 'combo');
+  };
+
+  const abrirCheckoutHospedado = async () => {
     if (!orderId) return;
     setCardError('');
     setIsPayingCard(true);
@@ -1100,7 +1109,8 @@ function EntregaContent() {
         orderId,
         sku,
         cancelUrl,
-        successUrl: typeof window !== 'undefined' ? `${window.location.origin}/entrega?orderId=${encodeURIComponent(orderId)}&paid=infinitepay` : undefined,
+        forceProvider: 'stripe',
+        successUrl: typeof window !== 'undefined' ? `${window.location.origin}/entrega?orderId=${encodeURIComponent(orderId)}&session_id={CHECKOUT_SESSION_ID}&paid=stripe` : undefined,
       }),
       });
       const data = await res.json().catch(() => ({}));
@@ -2191,6 +2201,15 @@ function EntregaContent() {
   return (
     <div className={`nx-legacy-${abaProduto}`} style={isPaid ? { ...styles.wrapper, backgroundColor: '#07030d' } : styles.wrapper}>
       <InAppBrowserBanner />
+      {cartaoSku ? (
+        <CartaoStripe
+          orderId={orderId}
+          sku={cartaoSku}
+          onPago={() => { setCartaoSku(null); setIsPaidState(true); setOrder((prev) => (prev ? { ...prev, paymentStatus: 'PAGAMENTO_APROVADO' } : prev)); }}
+          onFechar={() => setCartaoSku(null)}
+          onFalhaAoAbrir={() => { setCartaoSku(null); abrirCheckoutHospedado(); }}
+        />
+      ) : null}
       <IosInAppDownloadModal
         isOpen={iosDownloadModalData.isOpen}
         onClose={() => setIosDownloadModalData({ isOpen: false, downloadUrl: '', filename: '' })}

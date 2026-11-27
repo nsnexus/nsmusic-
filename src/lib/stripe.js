@@ -223,3 +223,93 @@ export async function verifyStripeWebhookSignature(rawPayload, sigHeader, secret
     return false;
   }
 }
+
+// ---------------------------------------------------------------------------------------------
+// Cartão dentro do site (Payment Element): PaymentIntent criado aqui, confirmado no navegador pelo
+// Stripe.js, e a aprovação só acontece depois de reconsultar o PaymentIntent na API da Stripe
+// (webhook `payment_intent.succeeded` e polling de /api/payments/status com `pi_...`).
+// ---------------------------------------------------------------------------------------------
+
+/** Marca nos metadados que separa o PaymentIntent do site dos que a Stripe Checkout cria. */
+export const CANAL_CARTAO_SITE = 'site';
+const VALOR_MAXIMO_IMPACTO = 1000;
+
+/**
+ * Valor do cartão SEMPRE pelo catálogo do servidor. Só o SKU 'impacto' (pague quanto quiser) aceita
+ * valor escolhido, com piso no preço normal e teto fixo.
+ * @returns {{ valor: number } | { erro: string }}
+ */
+export function valorDoCartao(sku, valorPedido) {
+  if (sku === 'impacto') {
+    const piso = getPriceForSku('audio_only');
+    const pedido = Number(valorPedido);
+    if (!Number.isFinite(pedido)) return { valor: piso };
+    if (pedido < piso) return { erro: `O valor mínimo é R$ ${piso.toFixed(2)}.` };
+    if (pedido > VALOR_MAXIMO_IMPACTO) return { erro: `Valor muito alto. Máximo R$ ${VALOR_MAXIMO_IMPACTO.toFixed(2)}.` };
+    return { valor: Math.round(pedido * 100) / 100 };
+  }
+  const valor = getPriceForSku(sku);
+  if (valor === null || !(valor > 0)) return { erro: `SKU de produto inválido: ${sku}` };
+  return { valor };
+}
+
+async function chamarStripe(caminho, { metodo = 'GET', form, idempotencia } = {}, env = {}) {
+  const { secretKey } = getStripeConfig(env);
+  if (!secretKey) throw new Error('STRIPE_SECRET_KEY não configurada no servidor.');
+  const headers = { Authorization: `Bearer ${secretKey}` };
+  if (form) headers['Content-Type'] = 'application/x-www-form-urlencoded';
+  if (idempotencia) headers['Idempotency-Key'] = idempotencia;
+  const res = await fetch(`https://api.stripe.com/v1/${caminho}`, {
+    method: metodo,
+    headers,
+    body: form ? form.toString() : undefined,
+    signal: AbortSignal.timeout(15000),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const erro = new Error(data?.error?.message || `Stripe ${res.status}`);
+    erro.status = res.status;
+    erro.code = data?.error?.code;
+    throw erro;
+  }
+  return data;
+}
+
+/**
+ * PaymentIntent de cartão (inclui Google Pay / Apple Pay, que são carteiras de cartão).
+ * A chave de idempotência faz o mesmo pedido + SKU + valor reaproveitar o mesmo PaymentIntent por
+ * 24 h — clicar duas vezes em "Pagar com cartão" não cria duas cobranças.
+ */
+export async function criarPaymentIntentCartao({ orderId, sku, valor, customerEmail, descricao }, env = {}) {
+  const centavos = Math.round(Number(valor) * 100);
+  if (!orderId || !sku || !(centavos > 0)) throw new Error('Dados insuficientes para a cobrança no cartão.');
+  const form = new URLSearchParams();
+  form.append('amount', String(centavos));
+  form.append('currency', 'brl');
+  form.append('payment_method_types[0]', 'card');
+  form.append('description', String(descricao || 'Música Personalizada - NS Music').slice(0, 200));
+  form.append('statement_descriptor_suffix', 'NSMUSIC');
+  form.append('metadata[orderId]', orderId);
+  form.append('metadata[sku]', sku);
+  form.append('metadata[canal]', CANAL_CARTAO_SITE);
+  if (customerEmail && String(customerEmail).includes('@')) form.append('receipt_email', String(customerEmail).trim());
+  return chamarStripe('payment_intents', { metodo: 'POST', form, idempotencia: `nsm-cartao-${orderId}-${sku}-${centavos}` }, env);
+}
+
+export async function consultarPaymentIntent(id, env = {}) {
+  if (!/^pi_[A-Za-z0-9]+$/.test(String(id || ''))) throw new Error('PaymentIntent inválido.');
+  return chamarStripe(`payment_intents/${encodeURIComponent(id)}`, {}, env);
+}
+
+/**
+ * Lê um PaymentIntent JÁ CONSULTADO na API e diz se ele aprova o pedido `orderId`.
+ * @returns {{ aprova: boolean, motivo?: string, valor?: number, sku?: string }}
+ */
+export function avaliarPaymentIntent(pi, orderId) {
+  if (!pi || pi.object !== 'payment_intent') return { aprova: false, motivo: 'nao_e_payment_intent' };
+  if (pi.metadata?.canal !== CANAL_CARTAO_SITE) return { aprova: false, motivo: 'outro_canal' };
+  if (!orderId || pi.metadata?.orderId !== orderId) return { aprova: false, motivo: 'pedido_diferente' };
+  if (pi.status !== 'succeeded') return { aprova: false, motivo: `status_${pi.status}` };
+  if (String(pi.currency).toLowerCase() !== 'brl') return { aprova: false, motivo: 'moeda' };
+  return { aprova: true, valor: (Number(pi.amount_received) || 0) / 100, sku: pi.metadata?.sku || '' };
+}

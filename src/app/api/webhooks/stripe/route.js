@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
 import { applyPaymentApproval } from '@/lib/payments';
-import { verifyStripeWebhookSignature, retrieveStripeCheckoutSession, getStripeConfig } from '@/lib/stripe';
+import { verifyStripeWebhookSignature, retrieveStripeCheckoutSession, getStripeConfig, consultarPaymentIntent, avaliarPaymentIntent, CANAL_CARTAO_SITE } from '@/lib/stripe';
 
 export const runtime = 'edge';
 
@@ -101,13 +101,47 @@ export async function POST(req) {
       );
       console.log(`[stripe-webhook] Resultado applyPaymentApproval:`, result?.applied, result?.reason || 'ok');
     } else if (eventType === 'payment_intent.succeeded') {
-      console.log(`[stripe-webhook] payment_intent.succeeded recebido para ${event.data?.object?.id}`);
+      // Só o cartão dentro do site (metadata.canal = 'site'). Os PaymentIntents da Stripe Checkout
+      // já são aprovados pelo checkout.session.completed acima — aprovar de novo duplicaria.
+      const evento = event.data?.object;
+      if (evento?.metadata?.canal === CANAL_CARTAO_SITE && evento?.metadata?.orderId) {
+        const pi = await consultarPaymentIntent(evento.id, env);
+        const r = avaliarPaymentIntent(pi, evento.metadata.orderId);
+        if (r.aprova) {
+          const result = await applyPaymentApproval(evento.metadata.orderId, pi.id, {
+            status: 'approved',
+            transaction_amount: r.valor,
+            method: 'stripe',
+            gateway: 'stripe',
+            sku: r.sku,
+          }, env);
+          console.log('[stripe-webhook] Cartão no site aprovado:', result?.applied, result?.reason || 'ok');
+        } else {
+          console.warn(`[stripe-webhook] PaymentIntent ${evento.id} não aprovado: ${r.motivo}`);
+        }
+      }
+    } else if (eventType === 'charge.refunded') {
+      // Estorno total de um pagamento do cartão no site: revoga o acesso pelo mesmo caminho central.
+      const charge = event.data?.object;
+      if (charge?.refunded === true && charge?.payment_intent) {
+        const pi = await consultarPaymentIntent(String(charge.payment_intent), env);
+        if (pi?.metadata?.canal === CANAL_CARTAO_SITE && pi?.metadata?.orderId) {
+          const result = await applyPaymentApproval(pi.metadata.orderId, pi.id, {
+            status: 'refunded',
+            transaction_amount: (Number(pi.amount_received) || 0) / 100,
+            method: 'stripe',
+            gateway: 'stripe',
+            sku: pi.metadata?.sku,
+          }, env);
+          console.log('[stripe-webhook] Estorno do cartão no site:', result?.applied, result?.reason || 'ok');
+        }
+      }
     }
 
     return NextResponse.json({ received: true }, { status: 200 });
   } catch (err) {
     console.error('[stripe-webhook] Erro ao processar evento:', err);
     // Sempre retornar 200 para evitar retentativas infinitas se for erro interno de processamento
-    return NextResponse.json({ received: true, error: err?.message }, { status: 200 });
+    return NextResponse.json({ received: true }, { status: 200 });
   }
 }
