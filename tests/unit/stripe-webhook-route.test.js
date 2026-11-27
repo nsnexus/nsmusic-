@@ -120,7 +120,7 @@ describe('POST /api/webhooks/stripe (S07)', () => {
         transaction_amount: 9.99,
         method: 'stripe',
       }),
-      expect.any(Object)
+      expect.any(Object), expect.anything()
     );
   });
 });

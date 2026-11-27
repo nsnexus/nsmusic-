@@ -85,7 +85,7 @@ describe('webhook da Stripe: payment_intent.succeeded', () => {
   it('aprova o cartão do site depois de reconsultar o PaymentIntent', async () => {
     const res = await chamar({ id: 'evt_1', type: 'payment_intent.succeeded', data: { object: pi() } }, pi());
     expect(res.status).toBe(200);
-    expect(aprovar).toHaveBeenCalledWith(ORDER, 'pi_123', expect.objectContaining({ status: 'approved', transaction_amount: 9.99, sku: 'audio_only' }), expect.anything());
+    expect(aprovar).toHaveBeenCalledWith(ORDER, 'pi_123', expect.objectContaining({ status: 'approved', transaction_amount: 9.99, sku: 'audio_only' }), expect.anything(), expect.anything());
   });
 
   it('ignora PaymentIntent da Stripe Checkout (sem canal do site): quem aprova é o checkout.session.completed', async () => {
@@ -101,6 +101,6 @@ describe('webhook da Stripe: payment_intent.succeeded', () => {
 
   it('estorno total revoga pelo caminho central', async () => {
     await chamar({ id: 'evt_4', type: 'charge.refunded', data: { object: { object: 'charge', refunded: true, payment_intent: 'pi_123' } } }, pi());
-    expect(aprovar).toHaveBeenCalledWith(ORDER, 'pi_123', expect.objectContaining({ status: 'refunded' }), expect.anything());
+    expect(aprovar).toHaveBeenCalledWith(ORDER, 'pi_123', expect.objectContaining({ status: 'refunded' }), expect.anything(), expect.anything());
   });
 });

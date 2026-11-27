@@ -11,7 +11,7 @@
 
 import { dispararSeparacaoVps, resolverEndpointSeparacao } from './playbackVps.js';
 import { getOrder, updateOrder } from './supabaseDb.js';
-import { skuApprovesMusic, skuGrantsVideoAccess, skuGrantsCartaAccess, skuGrantsRetrospectivaAccess, skuGrantsCustomVoiceAccess, getPriceForSku, brindesPorValorPago, geracoesExtrasDoSku } from './pricing.js';
+import { SKU_PRICES, skuApprovesMusic, skuGrantsVideoAccess, skuGrantsCartaAccess, skuGrantsRetrospectivaAccess, skuGrantsCustomVoiceAccess, getPriceForSku, brindesPorValorPago, geracoesExtrasDoSku } from './pricing.js';
 import { resolveDeliveryUrl } from './whatsappTemplates.js';
 import { sendMetaPurchaseEvent } from './metaCapi.js';
 import { sendTikTokPurchaseEvent } from './tiktokCapi.js';
@@ -34,7 +34,7 @@ const activePaymentApprovals = new Set();
  *   simplesmente não é enviado (log de aviso, nunca falha a aprovação em si).
  * @returns {Promise<{applied: boolean, reason?: string, revoked?: boolean, sku?: string}>}
  */
-export async function applyPaymentApproval(orderId, paymentId, payment, env = {}) {
+export async function applyPaymentApproval(orderId, paymentId, payment, env = {}, opcoes = {}) {
   if (!orderId || !paymentId || !payment) {
     return { applied: false, reason: 'missing_arguments' };
   }
@@ -82,7 +82,18 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
         : [];
       const skuPeloValor = skusPeloValor.length === 1 ? skusPeloValor[0] : null;
 
+      // Cartão da Stripe: o SKU vem da metadata do PaymentIntent/sessão, que só o NOSSO servidor
+      // grava (chave secreta). Serve quando o registro do txid no pedido ainda não chegou ao banco
+      // (a rota do intent grava em segundo plano) — sem isto um Google Pay rápido caía no SKU de
+      // outra cobrança do pedido. Só vale se o SKU existe no catálogo e o valor pago bate com ele.
+      const skuStripe = String(payment?.sku || '').trim();
+      const skuDaStripe = isStripePayment(paymentId) && payment?.gateway === 'stripe'
+        && Object.prototype.hasOwnProperty.call(SKU_PRICES, skuStripe)
+        && (skuStripe === 'impacto' || Math.abs(Number(getPriceForSku(skuStripe)) - valorRecebido) < 0.01)
+        ? skuStripe : null;
+
       const sku = skuForThisTxid
+        || skuDaStripe
         || (isCurrentIntent ? orderData.paymentIntentSku : null)
         || skuPeloValor
         || (Math.abs(valorRecebido - 6.90) < 0.01 ? 'video_addon' : 'audio_only');
@@ -321,6 +332,28 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
   }
 
   if (txResult.applied) {
+    // Efeitos depois da aprovação (CAPI, WhatsApp, arquivamento do áudio, playback...). Com
+    // `opcoes.emSegundoPlano` (ctx.waitUntil da rota) eles rodam DEPOIS da resposta: a tela do
+    // cliente libera na hora e, principalmente, o trabalho não morre se quem chamou desconectar
+    // (Stripe tem timeout curto no webhook; o navegador pode trocar de página). Antes tudo rodava
+    // dentro da requisição e o WhatsApp de pagamento chegava a ser cortado no meio.
+    const efeitos = (async () => {
+    // WhatsApp de pagamento aprovado sai PRIMEIRO: antes ele esperava Meta + TikTok + indicação
+    // (várias leituras lentas do banco) e era o primeiro a ser cortado quando a requisição caía.
+    // Sequencial de propósito, não em paralelo com o CAPI: as flags *Sending/*Sent dos dois ficam
+    // em `extras`, que updateOrder grava com ler-e-escrever — em paralelo uma apagaria a outra.
+    const ehCompraPrincipal = !txResult.isVideoOnly && !txResult.isPlaybackOnly && !txResult.isCartaOnly
+      && !txResult.isRetroOnly && !txResult.isKaraokeOnly && !txResult.isVoiceOnly && !txResult.isSecondSongOnly;
+    if (ehCompraPrincipal) {
+      // Decisão do Narciso em 27/11/2026: sai NA HORA para todo pagamento (leva o botão "Receber
+      // minhas músicas"). Envio único garantido em notifyPaymentApproved; o cron de
+      // src/lib/avisosAtrasados.js fica só como nova tentativa se este envio falhar.
+      try {
+        await notifyPaymentApproved(orderId, txResult.orderData, {}, env);
+      } catch (notifyErr) {
+        console.warn('[payments] Falha ao notificar aprovação de pagamento via WhatsApp:', notifyErr?.message);
+      }
+    }
     // ── 1. Disparo prioritário de Conversões CAPI (Meta & TikTok) ──
     // Executado com prioridade máxima logo após a aprovação para que nenhuma operação demorada
     // posterior (como envio de WhatsApp ou upload de arquivos para o R2) impeça o envio do Purchase.
@@ -497,15 +530,6 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
         } catch (referralError) {
           console.warn('[payments] Falha ao conceder crédito de indicação:', referralError.message);
         }
-      }
-      // WhatsApp de "pagamento aprovado" volta a sair NA HORA para todo pagamento (decisão do
-      // Narciso em 27/11/2026, desfazendo o adiamento de 24/11): é ele que leva o botão "Receber
-      // minhas músicas". Envio único garantido em notifyPaymentApproved; o cron de
-      // src/lib/avisosAtrasados.js fica só como nova tentativa se este envio falhar.
-      try {
-        await notifyPaymentApproved(orderId, txResult.orderData, {}, env);
-      } catch (notifyErr) {
-        console.warn('[payments] Falha ao notificar aprovação de pagamento via WhatsApp:', notifyErr?.message);
       }
 
       // Contador de vendas da vitrine da home (stats/_live)
@@ -684,6 +708,12 @@ export async function applyPaymentApproval(orderId, paymentId, payment, env = {}
       } catch (err) {
         console.warn('[payments] Erro ao iniciar geração de karaokê:', err.message);
       }
+    }
+    })();
+    if (typeof opcoes.emSegundoPlano === 'function') {
+      opcoes.emSegundoPlano(efeitos.catch((e) => console.warn('[payments] Falha nos efeitos pós-aprovação:', e?.message)));
+    } else {
+      await efeitos;
     }
   }
 

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
+import { opcoesDeAprovacao } from '@/lib/segundoPlano';
 import { applyPaymentApproval } from '@/lib/payments';
 import { applyGatewayPaymentApproval } from '@/lib/gateway';
 import { getChargeStatus } from '@/lib/efi';
@@ -114,7 +115,7 @@ async function processPixItem(item, env) {
   }
 
   if (orderId) {
-    await applyPaymentApproval(orderId, txid, { status: 'approved', transaction_amount: transactionAmount }, env);
+    await applyPaymentApproval(orderId, txid, { status: 'approved', transaction_amount: transactionAmount }, env, opcoesDeAprovacao());
     return;
   }
 

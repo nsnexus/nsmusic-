@@ -330,6 +330,56 @@ describe('applyPaymentApproval', () => {
     expect(store['order12_on'].paymentWhatsappSent).toBe(true);
   });
 
+  it('com emSegundoPlano: grava a aprovação, responde na hora e entrega o WhatsApp ao waitUntil', async () => {
+    store['order_bg'] = {
+      paymentIntentSku: 'audio_only',
+      customerPhone: '5511999999999',
+      whatsappRequested: true,
+      paymentId: null,
+    };
+    const tarefas = [];
+
+    const result = await applyPaymentApproval('order_bg', 'bg_1', { status: 'approved', transaction_amount: 9.99 }, {}, {
+      emSegundoPlano: (p) => tarefas.push(p),
+    });
+
+    expect(result.applied).toBe(true);
+    expect(store['order_bg'].paymentStatus).toBe('PAGAMENTO_APROVADO');
+    expect(tarefas).toHaveLength(1);
+    await Promise.all(tarefas);
+    expect(sendPaymentApprovedTemplateMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('cartão da Stripe sem o txid registrado ainda: usa o SKU da metadata do PaymentIntent', async () => {
+    // Pedido com um Pix anterior (intent atual é outro) e sem registro do pi_ — o registro é gravado
+    // em segundo plano e pode chegar depois da aprovação.
+    store['order_gpay'] = {
+      paymentIntentId: 'TXID-PIX-ANTIGO',
+      paymentIntentSku: 'audio_only',
+      customerPhone: '',
+      paymentId: null,
+    };
+
+    const result = await applyPaymentApproval('order_gpay', 'pi_gpay', {
+      status: 'approved', transaction_amount: 16.9, method: 'stripe', gateway: 'stripe', sku: 'combo',
+    });
+
+    expect(result.applied).toBe(true);
+    expect(result.sku).toBe('combo');
+    expect(store['order_gpay'].hasVideoAccess).toBe(true);
+  });
+
+  it('SKU da metadata da Stripe com valor que não bate com o catálogo é ignorado', async () => {
+    store['order_gpay2'] = { paymentIntentId: 'TXID-PIX-ANTIGO', paymentIntentSku: 'audio_only', customerPhone: '', paymentId: null };
+
+    const result = await applyPaymentApproval('order_gpay2', 'pi_gpay2', {
+      status: 'approved', transaction_amount: 9.99, method: 'stripe', gateway: 'stripe', sku: 'combo',
+    });
+
+    expect(result.sku).not.toBe('combo');
+    expect(store['order_gpay2'].hasVideoAccess).toBeUndefined();
+  });
+
   it('NÃO notifica via WhatsApp no pagamento isolado do add-on de vídeo', async () => {
     store['order13'] = { paymentIntentSku: 'video_addon', customerPhone: '5511999999999', videoPaymentId: null };
 

@@ -3,6 +3,7 @@ import { getRequestContext } from '@cloudflare/next-on-pages';
 import { getOrder } from '@/lib/supabaseDb';
 import { getPriceForSku } from '@/lib/pricing';
 import { extractReceiptData, isValidE2eIdFormat } from '@/lib/receiptVerification';
+import { opcoesDeAprovacao } from '@/lib/segundoPlano';
 import { applyPaymentApproval } from '@/lib/payments';
 
 export const runtime = 'edge';
@@ -118,7 +119,7 @@ export async function POST(req) {
       const result = await applyPaymentApproval(orderId, txid, {
         status: 'approved',
         transaction_amount: extracted.valor,
-      }, env);
+      }, env, opcoesDeAprovacao());
 
       if (result.applied || result.reason === 'already_processed') {
         return NextResponse.json({ approved: true });

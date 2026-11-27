@@ -96,6 +96,6 @@ describe('POST /api/payments/verify-receipt', () => {
     // Aprova pelo txid confirmado na Efí (é ele que carrega o SKU da cobrança), não pelo e2eId do comprovante.
     expect(applyPaymentApproval).toHaveBeenCalledWith('ord-1', 'txid-123', expect.objectContaining({
       status: 'approved'
-    }), expect.any(Object));
+    }), expect.any(Object), expect.anything());
   });
 });
