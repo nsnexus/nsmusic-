@@ -83,6 +83,71 @@ export async function listarConversas({ telefone = '', antes = '', limite = 40 }
   return { ok: true, conversas: Array.isArray(data) ? data : [] };
 }
 
+const chaveDoCliente = (c) => {
+  const d = String(c?.customer_phone || '').replace(/\D/g, '');
+  if (d.length < 10) return `conversa:${c?.id}`;
+  return d.startsWith('55') && d.length >= 12 ? d.slice(2) : d;
+};
+
+/**
+ * Um item por CLIENTE (mesmo WhatsApp) na lista do painel, somando as vezes que ele abriu o chat
+ * (pedido do dono do estúdio em 27/11/2026). Conversa sem telefone fica sozinha. Função pura;
+ * a ordem de entrada (mais recente primeiro) é mantida.
+ */
+export function agruparPorCliente(conversas) {
+  const grupos = new Map();
+  for (const c of conversas || []) {
+    const chave = chaveDoCliente(c);
+    const g = grupos.get(chave);
+    if (!g) {
+      grupos.set(chave, { ...c, conversas: 1, marcas: Array.isArray(c.marcas) ? [...c.marcas] : [] });
+      continue;
+    }
+    g.conversas += 1;
+    g.total_mensagens = (Number(g.total_mensagens) || 0) + (Number(c.total_mensagens) || 0);
+    if (!g.customer_name && c.customer_name) g.customer_name = c.customer_name;
+    if (!g.order_id && c.order_id) g.order_id = c.order_id;
+    if (c.criado_em && (!g.criado_em || c.criado_em < g.criado_em)) g.criado_em = c.criado_em;
+    for (const m of Array.isArray(c.marcas) ? c.marcas : []) if (!g.marcas.includes(m)) g.marcas.push(m);
+  }
+  return [...grupos.values()];
+}
+
+/**
+ * Atendimento completo do cliente da conversa `id`: todas as conversas do mesmo WhatsApp (até 30),
+ * em ordem, com um separador entre elas. Sem telefone, só a própria conversa.
+ */
+export async function lerAtendimentoDoCliente(id, env = {}) {
+  const base = await lerConversa(id, env);
+  if (!base.ok) return base;
+  const variacoes = variacoesDoTelefone(base.conversa.customer_phone);
+  if (variacoes.length === 0) return base;
+  const supabase = getSupabaseEdge(env);
+  const { data, error } = await supabase.from('suporte_conversas')
+    .select('*')
+    .in('customer_phone', variacoes)
+    .order('criado_em', { ascending: false })
+    .limit(30);
+  if (error || !Array.isArray(data) || data.length < 2) return base;
+  const ordem = data.slice().reverse();
+  const mensagens = ordem.flatMap((c, i) => [
+    ...(i > 0 ? [{ de: 'sistema', tipo: 'separador', texto: 'Cliente voltou ao chat', em: c.criado_em }] : []),
+    ...(Array.isArray(c.mensagens) ? c.mensagens : []),
+  ]);
+  const ultima = ordem[ordem.length - 1];
+  return {
+    ok: true,
+    conversa: {
+      ...ultima,
+      id: base.conversa.id,
+      customer_name: ordem.map((c) => c.customer_name).filter(Boolean).pop() || null,
+      order_id: ordem.map((c) => c.order_id).filter(Boolean).pop() || null,
+      mensagens,
+      conversas: ordem.length,
+    },
+  };
+}
+
 export async function lerConversa(id, env = {}) {
   if (!UUID.test(String(id || ''))) return { ok: false, motivo: 'conversa_invalida' };
   const supabase = getSupabaseEdge(env);
