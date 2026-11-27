@@ -102,7 +102,7 @@ export default function AbaAtendimentos({ authUser }) {
     } finally {
       setCarregando(false);
     }
-  }, [busca, conversas, buscar]);
+  }, [busca, buscar]);
 
   useEffect(() => {
     if (authUser) carregar();
