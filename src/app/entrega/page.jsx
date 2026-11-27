@@ -1087,11 +1087,23 @@ function EntregaContent() {
   // fixo). Quem chama agora diz o SKU direto; sem ele, cai no comportamento de sempre
   // (promoção de recuperação, ou audio_only).
   // Cartão dentro do site (Stripe); se não abrir, cai no checkout hospedado da Stripe.
-  const handlePayWithCard = () => {
+  const handlePayWithCard = (origem = 'o1') => {
     if (!orderId) return;
     setCardError('');
-    setCartaoSku(selectedPackage || 'combo');
+    setCartaoSku({ sku: selectedPackage || 'combo', origem });
   };
+
+  // Formulário do cartão no corpo da página, no lugar do botão que o cliente tocou (27/11/2026).
+  const cartaoEmbutido = (origem) => (cartaoSku && cartaoSku.origem === origem ? (
+    <CartaoStripe
+      embutido
+      orderId={orderId}
+      sku={cartaoSku.sku}
+      onPago={() => { setCartaoSku(null); setIsPaidState(true); setOrder((prev) => (prev ? { ...prev, paymentStatus: 'PAGAMENTO_APROVADO' } : prev)); }}
+      onFechar={() => setCartaoSku(null)}
+      onFalhaAoAbrir={() => { setCartaoSku(null); abrirCheckoutHospedado(); }}
+    />
+  ) : null);
 
   const abrirCheckoutHospedado = async () => {
     if (!orderId) return;
@@ -2201,15 +2213,6 @@ function EntregaContent() {
   return (
     <div className={`nx-legacy-${abaProduto}`} style={isPaid ? { ...styles.wrapper, backgroundColor: '#07030d' } : styles.wrapper}>
       <InAppBrowserBanner />
-      {cartaoSku ? (
-        <CartaoStripe
-          orderId={orderId}
-          sku={cartaoSku}
-          onPago={() => { setCartaoSku(null); setIsPaidState(true); setOrder((prev) => (prev ? { ...prev, paymentStatus: 'PAGAMENTO_APROVADO' } : prev)); }}
-          onFechar={() => setCartaoSku(null)}
-          onFalhaAoAbrir={() => { setCartaoSku(null); abrirCheckoutHospedado(); }}
-        />
-      ) : null}
       <IosInAppDownloadModal
         isOpen={iosDownloadModalData.isOpen}
         onClose={() => setIosDownloadModalData({ isOpen: false, downloadUrl: '', filename: '' })}
@@ -3574,9 +3577,10 @@ function EntregaContent() {
                             >
                               <RefreshCw size={16} aria-hidden="true" style={{ display: 'inline', verticalAlign: '-2px', marginRight: 6 }} /> Tentar gerar o PIX novamente
                             </button>
-                            <button
+                            {cartaoEmbutido('o1') || (
+<button
                               type="button"
-                              onClick={handlePayWithCard}
+                              onClick={() => handlePayWithCard('o1')}
                               disabled={isPayingCard}
                               style={{
                                 padding: '14px',
@@ -3595,7 +3599,7 @@ function EntregaContent() {
                               }}
                             >
                               {isPayingCard ? '⏳ Abrindo Checkout Seguro...' : `💳 Pagar com Cartão de Crédito (R$ ${valorCobrado.toFixed(2).replace('.', ',')})`}
-                            </button>
+                            </button>)}
 {cardError && <p role="alert" style={{ margin: '10px 0 0', padding: '10px 12px', borderRadius: '10px', background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b', fontSize: '0.9rem', lineHeight: 1.4 }}>{cardError}</p>}
                           </div>
                             </div>
@@ -3628,10 +3632,11 @@ function EntregaContent() {
                                 {pixLoading ? '⏳ Gerando PIX...' : `⚡ Pagar com PIX (R$ ${valorCobrado.toFixed(2).replace('.', ',')})`}
                               </button>
 
-                              <button
+                              {cartaoEmbutido('o2') || (
+<button
                                 type="button"
                                 disabled={pixLoading || isPayingCard}
-                                onClick={handlePayWithCard}
+                                onClick={() => handlePayWithCard('o2')}
                                 style={{
                                   padding: '16px',
                                   fontSize: '1.05rem',
@@ -3650,7 +3655,7 @@ function EntregaContent() {
                                 }}
                               >
                                 {isPayingCard ? '⏳ Abrindo Checkout Seguro...' : `💳 Pagar com Cartão de Crédito (R$ ${valorCobrado.toFixed(2).replace('.', ',')})`}
-                              </button>
+                              </button>)}
 {cardError && <p role="alert" style={{ margin: '10px 0 0', padding: '10px 12px', borderRadius: '10px', background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b', fontSize: '0.9rem', lineHeight: 1.4 }}>{cardError}</p>}
                             </div>
                           ) : (
@@ -3764,9 +3769,10 @@ function EntregaContent() {
 
                               <div style={{ textAlign: 'center', marginTop: '10px', paddingTop: '10px', borderTop: '1px dashed #cbd5e1', width: '100%' }}>
                                 <span style={{ fontSize: '0.84rem', color: '#64748b' }}>Prefere pagar no Cartão de Crédito? </span>
-                                <button
+                                {cartaoEmbutido('o3') || (
+<button
                                   type="button"
-                                  onClick={handlePayWithCard}
+                                  onClick={() => handlePayWithCard('o3')}
                                   disabled={isPayingCard}
                                   style={{
                                     background: 'none',
@@ -3780,7 +3786,7 @@ function EntregaContent() {
                                   }}
                                 >
                                   {isPayingCard ? 'Abrindo Cartão...' : 'Pagar no Cartão 💳'}
-                                </button>
+                                </button>)}
                               </div>
 
                               {/* Botão para trocar de pacote caso o cliente queira mudar */}

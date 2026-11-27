@@ -318,7 +318,7 @@ export default function CriarMusica() {
 
   const [paymentErrorMessage, setPaymentErrorMessage] = useState('');
 
-  const handlePayWithCard = async () => {
+  const handlePayWithCard = async (origem = 'o1') => {
     if (isPayingCard || isGeneratingPix) return;
     setIsPayingCard(true);
     setPaymentErrorMessage('');
@@ -362,7 +362,7 @@ export default function CriarMusica() {
       });
 
       // Cartão dentro do site (Stripe); se não abrir, cai no checkout hospedado (abrirCheckoutHospedado).
-      setCartaoCriar({ sku, cancelUrl });
+      setCartaoCriar({ sku, cancelUrl, origem });
       setIsPayingCard(false);
     } catch (err) {
       console.error(err);
@@ -371,6 +371,17 @@ export default function CriarMusica() {
     }
   };
   const [cartaoCriar, setCartaoCriar] = useState(null);
+  // Formulário do cartão no corpo da página, no lugar do botão que o cliente tocou (27/11/2026).
+  const cartaoEmbutido = (origem) => (cartaoCriar && orderId && cartaoCriar.origem === origem ? (
+    <CartaoStripe
+      embutido
+      orderId={orderId}
+      sku={cartaoCriar.sku}
+      onPago={() => { window.location.href = `/entrega?orderId=${encodeURIComponent(orderId)}&paid=stripe`; }}
+      onFechar={() => setCartaoCriar(null)}
+      onFalhaAoAbrir={() => { const c = cartaoCriar; setCartaoCriar(null); abrirCheckoutHospedado(c); }}
+    />
+  ) : null);
   const abrirCheckoutHospedado = async ({ sku, cancelUrl }) => {
     setIsPayingCard(true);
     try {
@@ -2592,10 +2603,11 @@ export default function CriarMusica() {
                         {isGeneratingPix ? (<><Loader2 size={18} aria-hidden="true" /><span>Preparando seu PIX…</span></>) : (<><Zap size={18} aria-hidden="true" /><span>Pagar com PIX ({formatBrl(getTotalPrice())})</span></>)}
                       </button>
 
-                      <button
+                      {cartaoEmbutido('o1') || (
+<button
                         type="button"
                         disabled={isGeneratingPix || isPayingCard}
-                        onClick={handlePayWithCard}
+                        onClick={() => handlePayWithCard('o1')}
                         style={{
                           width: '100%',
                           maxWidth: '100%',
@@ -2617,7 +2629,7 @@ export default function CriarMusica() {
                         }}
                       >
                         {isPayingCard ? (<><Loader2 size={18} aria-hidden="true" /><span>Abrindo checkout seguro…</span></>) : (<><CreditCard size={18} aria-hidden="true" /><span>Pagar com Cartão de Crédito</span></>)}
-                      </button>
+                      </button>)}
                     </div>
                   ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', padding: '4px 0 0', maxWidth: '100%' }}>
@@ -2768,9 +2780,10 @@ export default function CriarMusica() {
 
                         <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #e2e8f0', width: '100%', textAlign: 'center' }}>
                           <span style={{ fontSize: '0.84rem', color: '#64748b' }}>Prefere o cartão? </span>
-                          <button
+                          {cartaoEmbutido('o2') || (
+<button
                             type="button"
-                            onClick={handlePayWithCard}
+                            onClick={() => handlePayWithCard('o2')}
                             disabled={isPayingCard}
                             style={{
                               background: 'none',
@@ -2784,7 +2797,7 @@ export default function CriarMusica() {
                             }}
                           >
                             {isPayingCard ? 'Abrindo Cartão...' : 'Prefere pagar no cartão de crédito?'}
-                          </button>
+                          </button>)}
                         </div>
 
                         <p style={{ fontSize: '0.84rem', color: '#64748b', marginTop: '6px', textAlign: 'center', lineHeight: 1.4 }}>
@@ -2821,15 +2834,6 @@ export default function CriarMusica() {
 
   return (
     <div className="nx-experience nx-creation" style={{ ...styles.wrapper, backgroundColor: '#faf8f5' }}>
-      {cartaoCriar && orderId ? (
-        <CartaoStripe
-          orderId={orderId}
-          sku={cartaoCriar.sku}
-          onPago={() => { window.location.href = `/entrega?orderId=${encodeURIComponent(orderId)}&paid=stripe`; }}
-          onFechar={() => setCartaoCriar(null)}
-          onFalhaAoAbrir={() => { const c = cartaoCriar; setCartaoCriar(null); abrirCheckoutHospedado(c); }}
-        />
-      ) : null}
       <header className="nx-header"><div className="nx-header-inner">
         <Link href="/" className="nx-brand"><Image src="/logo.png" alt="NS Music" width={44} height={44} priority /><span>Histórias que viram música.</span></Link>
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>

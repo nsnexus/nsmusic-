@@ -124,11 +124,23 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
   };
 
   // Cartão dentro do site (Stripe). Se não abrir, cai no checkout hospedado da Stripe.
-  const payWithCard = () => {
+  const payWithCard = (origem = 'o1') => {
     if (busyRef.current || payingCard) return;
     setError('');
-    setCartaoAberto(true);
+    setCartaoAberto(origem);
   };
+
+  // Formulário do cartão no corpo da página, no lugar do botão que o cliente tocou (27/11/2026).
+  const cartaoEmbutido = (origem) => (cartaoAberto === origem ? (
+    <CartaoStripe
+      embutido
+      orderId={orderId}
+      sku={pack.sku}
+      onPago={() => { setCartaoAberto(false); onApproved(); }}
+      onFechar={() => setCartaoAberto(false)}
+      onFalhaAoAbrir={() => { setCartaoAberto(false); abrirCheckoutHospedado(); }}
+    />
+  ) : null);
 
   const abrirCheckoutHospedado = async () => {
     if (busyRef.current) return;
@@ -206,16 +218,17 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
       {/* Fora da oferta de recuperação, a lista já é a escolha e o pagamento (tocar = PIX): o card
           "Seu pacote" repetia o pacote e o botão. Ficou só o atalho para cartão. */}
       {!recovery && (
-        <button
+        cartaoEmbutido('o1') || (
+<button
           type="button"
-          onClick={payWithCard}
+          onClick={() => payWithCard('o1')}
           disabled={busy || payingCard}
           style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', width: '100%', margin: '10px 0 0', padding: '8px', background: 'transparent', border: 'none', color: 'var(--nx-muted, #4e4653)', fontSize: '0.84rem', fontWeight: 600, textDecoration: 'underline', cursor: (busy || payingCard) ? 'default' : 'pointer' }}
         >
           {payingCard
             ? (<><Loader2 size={15} aria-hidden="true" /> Abrindo checkout seguro…</>)
             : (<><CreditCard size={15} aria-hidden="true" /> Prefere cartão de crédito? Pagar {formatBrl(pack.price)} no cartão</>)}
-        </button>
+        </button>)
       )}
 
       {/* Barra de Resumo e Ação de Compra (só na oferta de recuperação, que não mostra a lista) */}
@@ -284,11 +297,12 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
             {busy ? (<><Loader2 size={18} aria-hidden="true" /><span>Preparando seu PIX…</span></>) : (<><Zap size={18} aria-hidden="true" /><span>Pagar Agora com PIX ({formatBrl(pack.price)})</span><ArrowRight size={18} aria-hidden="true" /></>)}
           </button>
 
-          <button
+          {cartaoEmbutido('o2') || (
+<button
             type="button"
             className="nx-button"
             disabled={busy || payingCard}
-            onClick={payWithCard}
+            onClick={() => payWithCard('o2')}
             style={{
               width: '100%',
               maxWidth: '100%',
@@ -310,7 +324,7 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
             }}
           >
             {payingCard ? (<><Loader2 size={18} aria-hidden="true" /><span>Abrindo checkout seguro…</span></>) : (<><CreditCard size={18} aria-hidden="true" /><span>Pagar com Cartão de Crédito</span></>)}
-          </button>
+          </button>)}
         </div>
       </div>
       )}
@@ -496,9 +510,10 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
 
               <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px solid #e7d5df', textAlign: 'center' }}>
                 <span style={{ fontSize: '0.84rem', color: 'var(--nx-soft, #6c636f)' }}>Prefere pagar com Cartão de Crédito? </span>
-                <button
+                {cartaoEmbutido('o3') || (
+<button
                   type="button"
-                  onClick={payWithCard}
+                  onClick={() => payWithCard('o3')}
                   disabled={payingCard || busy}
                   style={{
                     background: 'none',
@@ -512,7 +527,7 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
                   }}
                 >
                   {payingCard ? 'Abrindo Cartão…' : 'Prefere pagar no cartão de crédito?'}
-                </button>
+                </button>)}
               </div>
 
               {pix.provider === 'static' && (
@@ -550,15 +565,6 @@ export default function PurchaseCheckout({ orderId, promo, onCharge, receiptStat
           </p>
         </div>
       )}
-      {cartaoAberto ? (
-        <CartaoStripe
-          orderId={orderId}
-          sku={pack.sku}
-          onPago={() => { setCartaoAberto(false); onApproved(); }}
-          onFechar={() => setCartaoAberto(false)}
-          onFalhaAoAbrir={() => { setCartaoAberto(false); abrirCheckoutHospedado(); }}
-        />
-      ) : null}
     </section>
   );
 }
