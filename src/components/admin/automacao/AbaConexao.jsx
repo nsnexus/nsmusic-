@@ -55,9 +55,12 @@ export default function AbaConexao() {
     );
   }
 
-  const { config, diagnostico, permissoesNecessarias } = dados;
+  const { config, diagnostico, permissoesNecessarias, permissoesFacebook = [] } = dados;
   const faltando = diagnostico?.faltando || [];
   const contas = diagnostico?.contas || [];
+  const faltandoFacebook = diagnostico?.faltandoFacebook || permissoesFacebook;
+  const paginas = diagnostico?.paginas || [];
+  const paginaAtual = config.fbPageId || paginas[0]?.pageId || '';
 
   return (
     <div style={{ display: 'grid', gap: '16px', maxWidth: '860px' }}>
@@ -89,6 +92,41 @@ export default function AbaConexao() {
             );
           })}
         </ul>
+
+        <h3 style={{ fontSize: '14px', margin: '6px 0 0 0' }}>Facebook (comentários da Página)</h3>
+        <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '13px', lineHeight: 1.7 }}>
+          {permissoesFacebook.map((p) => {
+            const ok = config.temToken && diagnostico?.motivo !== 'meta_erro' && !faltandoFacebook.includes(p);
+            return (
+              <li key={p} style={{ color: ok ? '#6ee7b7' : '#fcd34d' }}>
+                <code>{p}</code> — {ok ? 'concedida' : 'faltando'}
+                {p === 'pages_manage_engagement' && <span style={{ color: '#94a3b8' }}> (responder e ocultar)</span>}
+                {p === 'pages_read_user_content' && <span style={{ color: '#94a3b8' }}> (ler os comentários)</span>}
+              </li>
+            );
+          })}
+        </ul>
+        <p style={{ ...estilos.mudo, margin: 0 }}>
+          {paginas.length === 0
+            ? 'O token ainda não enxerga nenhuma Página do Facebook.'
+            : `Página usada: ${paginas.find((p) => p.pageId === paginaAtual)?.nome || config.fbPageName || paginas[0].nome}.`}
+        </p>
+        {paginas.length > 1 && (
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            {paginas.map((p) => (
+              <button
+                key={p.pageId}
+                type="button"
+                disabled={salvando}
+                aria-pressed={paginaAtual === p.pageId}
+                onClick={() => salvar({ fbPageId: p.pageId, fbPageName: p.nome })}
+                style={{ ...estilos.botao, background: paginaAtual === p.pageId ? '#2563eb' : '#1e293b' }}
+              >
+                {p.nome}
+              </button>
+            ))}
+          </div>
+        )}
 
         {contas.length > 1 && (
           <div>
@@ -159,7 +197,7 @@ export default function AbaConexao() {
           <li>O Instagram precisa ser conta profissional e estar ligado à Página do Facebook da NS Music.</li>
           <li>No Gerenciador de Negócios da Meta: Configurações do negócio → Usuários → Usuários do sistema. Use o usuário do sistema que já existe (o do token de anúncios) ou crie um como Admin.</li>
           <li>Em “Atribuir ativos”, dê a esse usuário controle total da Página, da conta do Instagram e da conta de anúncios.</li>
-          <li>Clique em “Gerar token”, escolha o seu app, validade “Nunca” e marque as permissões da lista acima.</li>
+          <li>Clique em “Gerar token”, escolha o seu app, validade “Nunca” e marque as permissões da lista acima (as do Instagram e as do Facebook).</li>
           <li>Cole o token no campo acima e toque em “Conferir de novo”: a lista mostra o que ainda falta.</li>
         </ol>
       </section>

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { abrirRotaAdmin } from '@/lib/adminRoute';
 import { carregarContexto, salvarConfig, lerEstado, normalizarConfig } from '@/lib/instagramAutomacao';
 import { verificarPermissoes, listarContasInstagram, explicarErroMeta, PERMISSOES_COMENTARIOS, PERMISSAO_ANUNCIOS, PERMISSAO_PUBLICAR } from '@/lib/instagramGraph';
+import { listarPaginas, PERMISSOES_FACEBOOK } from '@/lib/facebookGraph';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
@@ -18,15 +19,19 @@ function configPublica(ctx) {
 }
 
 async function diagnosticar(ctx) {
-  if (!ctx.token) return { ok: false, motivo: 'sem_token', faltando: PERMISSOES_COMENTARIOS, contas: [] };
+  if (!ctx.token) return { ok: false, motivo: 'sem_token', faltando: PERMISSOES_COMENTARIOS, faltandoFacebook: PERMISSOES_FACEBOOK, contas: [], paginas: [] };
   try {
-    const [perms, contas] = await Promise.all([
+    const [perms, contas, paginas] = await Promise.all([
       verificarPermissoes(ctx.token),
       listarContasInstagram(ctx.token).catch(() => []),
+      // O token de cada Página nunca sai daqui: o painel só recebe ID e nome.
+      listarPaginas(ctx.token).then((lista) => lista.map(({ pageId, nome }) => ({ pageId, nome }))).catch(() => []),
     ]);
     return {
       ok: perms.faltando.length === 0 && contas.length > 0,
       faltando: perms.faltando,
+      faltandoFacebook: PERMISSOES_FACEBOOK.filter((p) => !perms.concedidas.includes(p)),
+      paginas,
       temAnuncios: perms.temAnuncios,
       temPublicar: perms.temPublicar,
       contas,
@@ -34,7 +39,7 @@ async function diagnosticar(ctx) {
     };
   } catch (err) {
     console.warn('[admin/instagram/config] Diagnóstico falhou:', err.code || err.name);
-    return { ok: false, motivo: 'meta_erro', aviso: explicarErroMeta(err), faltando: [], contas: [] };
+    return { ok: false, motivo: 'meta_erro', aviso: explicarErroMeta(err), faltando: [], faltandoFacebook: [], contas: [], paginas: [] };
   }
 }
 
@@ -57,6 +62,7 @@ export async function GET(req) {
       config: configPublica(ctx),
       diagnostico,
       permissoesNecessarias: [...PERMISSOES_COMENTARIOS, PERMISSAO_ANUNCIOS, PERMISSAO_PUBLICAR],
+      permissoesFacebook: PERMISSOES_FACEBOOK,
       historico: estado.historico,
       ultimaExecucao: estado.ultimaExecucao,
     });
@@ -87,6 +93,12 @@ export async function POST(req) {
       // Token novo pode ser de outra conta: a conta é redescoberta na próxima leitura.
       nova.igUserId = '';
       nova.igUsername = '';
+      nova.fbPageId = '';
+      nova.fbPageName = '';
+    }
+    if (body?.fbPageId !== undefined) {
+      nova.fbPageId = String(body.fbPageId || '');
+      nova.fbPageName = String(body.fbPageName || '');
     }
     if (body?.igUserId !== undefined) {
       nova.igUserId = String(body.igUserId || '');
@@ -106,8 +118,15 @@ export async function POST(req) {
       nova.ligada = ligar;
     }
 
+    if (body?.facebookLigado !== undefined) {
+      const ligarFb = Boolean(body.facebookLigado);
+      // Mesmo relógio do Instagram: comentário anterior ao momento em que ligou fica como está.
+      if (ligarFb && !ctx.config.facebookLigado) nova.facebookLigadoEm = new Date().toISOString();
+      nova.facebookLigado = ligarFb;
+    }
+
     const normalizada = normalizarConfig(nova);
-    if (normalizada.ligada && !(normalizada.accessToken || ctx.token)) {
+    if ((normalizada.ligada || normalizada.facebookLigado) && !(normalizada.accessToken || ctx.token)) {
       return NextResponse.json({ error: 'Conecte o token da Meta antes de ligar a automação.' }, { status: 400 });
     }
 

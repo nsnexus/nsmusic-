@@ -101,6 +101,8 @@ export default function AbaAutomacao() {
     );
   }
 
+  const algumaLigada = config.ligada || config.facebookLigado === true;
+
   return (
     <div style={{ display: 'grid', gap: '16px', maxWidth: '860px' }}>
       <section style={estilos.cartao}>
@@ -109,11 +111,24 @@ export default function AbaAutomacao() {
           marcado={config.ligada}
           disabled={salvando === 'ligada'}
           onChange={(v) => salvar({ ligada: v }, 'ligada')}
-          rotulo={config.ligada ? 'Automação ligada' : 'Automação desligada'}
+          rotulo={config.ligada ? 'Instagram: automação ligada' : 'Instagram: automação desligada'}
           descricao={
             config.ligada
               ? `A IA responde sozinha os comentários feitos desde ${formatarData(config.ligadaEm)}. Roda a cada 15 minutos.`
               : 'Ao ligar, a IA passa a responder só os comentários novos — os antigos ficam como estão.'
+          }
+        />
+        <div style={{ height: '14px' }} />
+        <Interruptor
+          id="auto-facebook"
+          marcado={config.facebookLigado === true}
+          disabled={salvando === 'facebook'}
+          onChange={(v) => salvar({ facebookLigado: v }, 'facebook')}
+          rotulo={config.facebookLigado ? 'Facebook: automação ligada' : 'Facebook: automação desligada'}
+          descricao={
+            config.facebookLigado
+              ? `Responde os comentários da Página${config.fbPageName ? ` “${config.fbPageName}”` : ''} (posts e anúncios) feitos desde ${formatarData(config.facebookLigadoEm)}. Mesmas instruções e regras do Instagram.`
+              : 'Ao ligar, a IA passa a responder e ocultar os comentários novos da Página do Facebook, inclusive dos anúncios. Precisa das permissões do Facebook na aba Conexão.'
           }
         />
         {ultimaExecucao && (
@@ -197,7 +212,7 @@ export default function AbaAutomacao() {
         <div>
           <h2 style={{ fontSize: '15px', margin: '0 0 4px 0' }}>Testar antes de ligar</h2>
           <p style={{ ...estilos.mudo, margin: 0 }}>
-            O teste mostra o que a IA faria com os comentários sem resposta dos últimos 7 dias, sem publicar nada.
+            O teste mostra o que a IA faria com os comentários sem resposta dos últimos 7 dias (Instagram e Facebook), sem publicar nada.
           </p>
         </div>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
@@ -207,9 +222,9 @@ export default function AbaAutomacao() {
           <button
             type="button"
             onClick={() => rodar(false)}
-            disabled={Boolean(rodando) || !config.ligada}
-            title={config.ligada ? undefined : 'Ligue a automação para rodar de verdade'}
-            style={{ ...estilos.botao, opacity: rodando || !config.ligada ? 0.6 : 1, cursor: config.ligada ? 'pointer' : 'not-allowed' }}
+            disabled={Boolean(rodando) || !algumaLigada}
+            title={algumaLigada ? undefined : 'Ligue a automação para rodar de verdade'}
+            style={{ ...estilos.botao, opacity: rodando || !algumaLigada ? 0.6 : 1, cursor: algumaLigada ? 'pointer' : 'not-allowed' }}
           >
             {rodando === 'real' ? 'Rodando...' : 'Rodar agora'}
           </button>
@@ -221,6 +236,8 @@ export default function AbaAutomacao() {
         )}
         {resultado?.ok && resultado.motivo === 'desligada' && <div style={estilos.aviso}>{MOTIVOS_EXECUCAO.desligada}</div>}
         {resultado?.avisoAnuncios && <div style={estilos.aviso}>Anúncios não foram lidos: {resultado.avisoAnuncios}</div>}
+        {resultado?.avisoInstagram && <div style={estilos.aviso}>Instagram não foi lido: {resultado.avisoInstagram}</div>}
+        {resultado?.avisoFacebook && <div style={estilos.aviso}>Facebook não foi lido: {resultado.avisoFacebook}</div>}
         {resultado?.ok && resultado.resumo && (
           <>
             <div style={estilos.sucesso}>

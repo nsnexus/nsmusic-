@@ -292,3 +292,87 @@ describe('reclamações', () => {
     expect(selecionarParaRevisao(lista, { proprioUsuario: '_nsmusic', revisados: { 5: 'x' } }).map((x) => x.id)).toEqual(['1']);
   });
 });
+
+describe('Facebook', () => {
+  const PAGINA = '444444';
+  const POST = `${PAGINA}_123456`;
+  let chamadas;
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(AGORA);
+    for (const k of Object.keys(store)) delete store[k];
+    decisoes.length = 0;
+    chamadas = [];
+    store[CHAVE_CONFIG] = {
+      accessToken: 'T'.repeat(60), igUserId: '555555', igUsername: '_nsmusic',
+      ligada: false, facebookLigado: true, facebookLigadoEm: '2026-11-16T10:00:00Z', incluirAnuncios: false, maxPorExecucao: 8,
+    };
+    vi.stubGlobal('fetch', vi.fn(async (url, init = {}) => {
+      const u = new URL(url);
+      chamadas.push({ method: init.method || 'GET', path: u.pathname, token: init.headers?.Authorization, body: init.body ? Object.fromEntries(init.body) : null });
+      const json = (data) => ({ ok: true, status: 200, json: async () => data });
+      if (u.pathname.endsWith('/me/accounts')) {
+        return json({ data: [{ id: PAGINA, name: 'NS Music', access_token: 'P'.repeat(60), instagram_business_account: { id: '555555' } }] });
+      }
+      if (u.pathname.endsWith(`/${PAGINA}/published_posts`)) {
+        return json({ data: [{ id: POST, message: 'Música pra mãe', comments: { summary: { total_count: 3 } } }] });
+      }
+      if (u.pathname.endsWith(`/${POST}/comments`) && (init.method || 'GET') === 'GET') {
+        return json({ data: [
+          { id: '123456_700001', message: 'Quanto custa?', from: { id: '9001', name: 'Maria' }, created_time: '2026-11-16T11:00:00+0000', is_hidden: false },
+          { id: '123456_700002', message: 'Já respondido', from: { id: '9002', name: 'João' }, created_time: '2026-11-16T11:00:00+0000', is_hidden: false,
+            comments: { data: [{ id: '123456_700003', message: 'oi', from: { id: PAGINA, name: 'NS Music' } }] } },
+          { id: '123456_700004', message: 'antigo', from: { id: '9003', name: 'Ana' }, created_time: '2026-11-10T11:00:00+0000', is_hidden: false },
+        ] });
+      }
+      if (init.method === 'POST') return json({ id: '123456_700099', success: true });
+      return json({});
+    }));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it('com o Instagram desligado, responde na Página com o token DA PÁGINA e não abre o Instagram', async () => {
+    decisoes.push({ acao: 'responder', resposta: 'Os valores estão em nsmusic.ia.br 💛' });
+    const r = await executarAutomacao({});
+
+    expect(r.ok).toBe(true);
+    expect(r.resumo).toMatchObject({ responder: 1, falhas: 0 });
+    const escritas = chamadas.filter((x) => x.method === 'POST');
+    expect(escritas).toEqual([{
+      method: 'POST', path: '/v21.0/123456_700001/comments', token: `Bearer ${'P'.repeat(60)}`, body: { message: 'Os valores estão em nsmusic.ia.br 💛' },
+    }]);
+    expect(chamadas.some((x) => x.path.endsWith('/555555/media'))).toBe(false);
+    expect(store[CHAVE_ESTADO].historico[0]).toMatchObject({ rede: 'facebook', usuario: 'Maria' });
+    expect(store[CHAVE_CONFIG].fbPageId).toBe(PAGINA);
+  });
+
+  it('ocultar no Facebook usa is_hidden', async () => {
+    decisoes.push({ acao: 'ocultar' });
+    await executarAutomacao({});
+    expect(chamadas.filter((x) => x.method === 'POST')).toEqual([
+      expect.objectContaining({ path: '/v21.0/123456_700001', body: { is_hidden: 'true' } }),
+    ]);
+  });
+
+  it('selecionarPendentes reconhece a resposta da Página pelo ID', () => {
+    const lista = [
+      c('1', { usuario: 'Maria', usuarioId: '9001' }),
+      c('2', { usuario: 'João', usuarioId: '9002', respostas: [{ usuario: 'NS Music', usuarioId: PAGINA }] }),
+      c('3', { usuario: 'NS Music', usuarioId: PAGINA }),
+    ];
+    const r = selecionarPendentes(lista, { proprioId: PAGINA, desdeIso: '2026-11-16T10:00:00Z', agora: AGORA });
+    expect(r.map((x) => x.id)).toEqual(['1']);
+  });
+
+  it('Página inacessível com o Facebook ligado e o Instagram desligado: erro claro, nada publicado', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 400, json: async () => ({ error: { code: 200, message: 'perm' } }) })));
+    const r = await executarAutomacao({});
+    expect(r.ok).toBe(false);
+    expect(r.erro).toMatch(/permissão/);
+  });
+});
