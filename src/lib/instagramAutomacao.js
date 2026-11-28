@@ -1,4 +1,4 @@
-// Automação de comentários do Instagram: a IA lê cada comentário novo e decide entre responder em
+// Automação de comentários do Instagram e da Página do Facebook (28/11/2026): a IA lê cada comentário novo e decide entre responder em
 // público, ocultar (ofensa/spam), responder e ocultar (reclamação que queima a publicação: a pessoa
 // recebe a resposta com o caminho do suporte, e o comentário some para o público) ou deixar passar.
 //
@@ -22,13 +22,23 @@ import { runJsonCompletion } from './gemini.js';
 import { DOMINIO_CANONICO } from './siteUrl.js';
 import {
   listarMidias,
-  listarMidiasDeAnuncios,
+  listarAnunciosAtivos,
+  midiasInstagramDosAnuncios,
   listarComentarios,
   responderComentario,
   ocultarComentario,
   listarContasInstagram,
   explicarErroMeta,
 } from './instagramGraph.js';
+import {
+  listarPaginas,
+  escolherPagina,
+  listarPostsDaPagina,
+  postsFacebookDosAnuncios,
+  listarComentariosFacebook,
+  responderComentarioFacebook,
+  ocultarComentarioFacebook,
+} from './facebookGraph.js';
 
 export const CHAVE_CONFIG = 'instagram_automation';
 export const CHAVE_ESTADO = 'instagram_automation_state';
@@ -63,6 +73,11 @@ export function configPadrao() {
     ocultarReclamacoes: true,
     incluirAnuncios: true,
     maxPorExecucao: 8,
+    // Página do Facebook: liga/desliga separado do Instagram, mesmas instruções e travas.
+    facebookLigado: false,
+    facebookLigadoEm: null,
+    fbPageId: '',
+    fbPageName: '',
   };
 }
 
@@ -81,6 +96,10 @@ export function normalizarConfig(valor) {
     ocultarReclamacoes: v.ocultarReclamacoes !== false,
     incluirAnuncios: v.incluirAnuncios !== false,
     maxPorExecucao: Math.max(1, Math.min(20, Number(v.maxPorExecucao) || base.maxPorExecucao)),
+    facebookLigado: v.facebookLigado === true,
+    facebookLigadoEm: typeof v.facebookLigadoEm === 'string' ? v.facebookLigadoEm : null,
+    fbPageId: /^\d{5,40}$/.test(String(v.fbPageId || '')) ? String(v.fbPageId) : '',
+    fbPageName: String(v.fbPageName || '').trim().slice(0, 120),
   };
 }
 
@@ -168,22 +187,33 @@ export function podarTratados(tratados, max = MAX_TRATADOS) {
  * Quais comentários de uma mídia ainda esperam uma decisão.
  * Função pura — é aqui que moram as travas, então é aqui que os testes batem.
  */
-export function selecionarPendentes(comentarios, { proprioUsuario = '', desdeIso = null, tratados = {}, agora = Date.now() } = {}) {
+/**
+ * "É nosso?" — no Instagram compara o @; no Facebook compara o ID da Página (`proprioId`), porque o
+ * nome do autor pode nem vir (sem pages_read_user_content) e não é único.
+ */
+function quemSomos({ proprioUsuario = '', proprioId = '' } = {}) {
   const proprio = String(proprioUsuario || '').toLowerCase();
+  const id = String(proprioId || '');
+  return {
+    conhecido: Boolean(proprio || id),
+    eh: (x) => Boolean((id && String(x?.usuarioId || '') === id) || (proprio && String(x?.usuario || '').toLowerCase() === proprio)),
+  };
+}
+
+export function selecionarPendentes(comentarios, { proprioUsuario = '', proprioId = '', desdeIso = null, tratados = {}, agora = Date.now() } = {}) {
+  const nos = quemSomos({ proprioUsuario, proprioId });
   const desde = desdeIso ? Date.parse(desdeIso) : NaN;
 
   return (comentarios || []).filter((c) => {
     if (!c?.id || !String(c.texto || '').trim()) return false;
     if (c.oculto) return false;
     if (tratados[c.id]) return false;
-    if (proprio && String(c.usuario || '').toLowerCase() === proprio) return false;
+    if (nos.eh(c)) return false;
 
     const respostas = c.respostas || [];
-    // Sem saber o nosso @, qualquer resposta existente conta como "já atendido": melhor deixar um
+    // Sem saber quem somos, qualquer resposta existente conta como "já atendido": melhor deixar um
     // comentário sem resposta do que responder duas vezes.
-    const jaRespondido = proprio
-      ? respostas.some((r) => String(r.usuario || '').toLowerCase() === proprio)
-      : respostas.length > 0;
+    const jaRespondido = nos.conhecido ? respostas.some(nos.eh) : respostas.length > 0;
     if (jaRespondido) return false;
 
     const quando = c.data ? Date.parse(c.data) : NaN;
@@ -198,15 +228,13 @@ export function selecionarPendentes(comentarios, { proprioUsuario = '', desdeIso
  * Reclamações que já receberam resposta (nossa ou da automação) e continuam visíveis: candidatas a
  * ocultar na revisão. Função pura.
  */
-export function selecionarParaRevisao(comentarios, { proprioUsuario = '', tratados = {}, revisados = {} } = {}) {
-  const proprio = String(proprioUsuario || '').toLowerCase();
+export function selecionarParaRevisao(comentarios, { proprioUsuario = '', proprioId = '', tratados = {}, revisados = {} } = {}) {
+  const nos = quemSomos({ proprioUsuario, proprioId });
   return (comentarios || []).filter((c) => {
     if (!c?.id || c.oculto || revisados[c.id]) return false;
-    if (proprio && String(c.usuario || '').toLowerCase() === proprio) return false;
+    if (nos.eh(c)) return false;
     if (!PARECE_RECLAMACAO.test(String(c.texto || ''))) return false;
-    const respondido = proprio
-      ? (c.respostas || []).some((r) => String(r.usuario || '').toLowerCase() === proprio)
-      : (c.respostas || []).length > 0;
+    const respondido = nos.conhecido ? (c.respostas || []).some(nos.eh) : (c.respostas || []).length > 0;
     return respondido || Boolean(tratados[c.id]);
   });
 }
@@ -233,8 +261,11 @@ export function normalizarDecisao(bruto, { ocultarOfensivos = true, ocultarRecla
   return { acao: 'ignorar', resposta: '', motivo };
 }
 
-function montarPromptSistema(config) {
-  return `Você responde comentários no Instagram da NS Music (@${config.igUsername || 'nsmusic'}), como se fosse o dono do estúdio escrevendo do celular.
+function montarPromptSistema(config, rede = 'instagram') {
+  const onde = rede === 'facebook'
+    ? `na Página do Facebook da NS Music${config.fbPageName ? ` (${config.fbPageName})` : ''}`
+    : `no Instagram da NS Music (@${config.igUsername || 'nsmusic'})`;
+  return `Você responde comentários ${onde}, como se fosse o dono do estúdio escrevendo do celular.
 
 O que você sabe sobre o negócio (use só isto, não invente nada além):
 ${config.instrucoes}
@@ -250,6 +281,8 @@ Como escrever a resposta (as instruções do dono, acima, valem mais que estas r
 - Português do Brasil, informal, 1 ou 2 frases curtas. No máximo um emoji.
 - Reaja ao que a pessoa escreveu de verdade; nada de "Que legal!" genérico.
 - Se as instruções acima trouxerem um link para quem quer pedir, escreva o link na resposta, do jeito que está escrito lá. Só aponte para o "link na bio" se as instruções não derem link nenhum.
+${rede === 'facebook' ? `- Isto é Facebook: aqui não existe "link na bio". Quando for mandar a pessoa pedir, escreva o link do site (${DOMINIO_CANONICO.replace(/^https?:\/\//, '')}) ou o link das instruções.
+` : ''}
 - Reclamação sobre pedido: peça desculpa em uma frase e encaminhe para o contato de suporte das instruções; se não houver, para ${LINK_SUPORTE} (atendimento na hora, onde a pessoa recebe a música). Nunca discuta nem peça dado pessoal em público.
 - Nunca prometa preço, prazo, desconto ou reembolso que não esteja escrito acima.
 
@@ -259,14 +292,15 @@ Responda em JSON: {"acao":"responder${config.ocultarReclamacoes ? '|responder_e_
 }
 
 /** Pede à IA a decisão para um comentário. Também usada pelo botão "Sugerir resposta" do painel. */
-export async function decidirComentario({ comentario, usuario, legenda, origem }, config, env = {}) {
+export async function decidirComentario({ comentario, usuario, legenda, origem, rede = 'instagram' }, config, env = {}) {
   const userPrompt = JSON.stringify({
+    rede: rede === 'facebook' ? 'Facebook' : 'Instagram',
     onde: origem === 'anuncio' ? 'comentário em um anúncio' : 'comentário em um post',
     legenda_do_post: String(legenda || '').slice(0, 600),
     autor: usuario || '',
     comentario: String(comentario || '').slice(0, 1000),
   });
-  const bruto = await runJsonCompletion(montarPromptSistema(config), userPrompt, env);
+  const bruto = await runJsonCompletion(montarPromptSistema(config, rede), userPrompt, env);
   return normalizarDecisao(bruto, { ocultarOfensivos: config.ocultarOfensivos, ocultarReclamacoes: config.ocultarReclamacoes });
 }
 
@@ -293,46 +327,118 @@ export async function executarAutomacao({ env = {}, simular = false, prazoMs = 4
   const limiteEm = Date.now() + prazoMs;
   const ctx = await carregarContexto(env);
   if (!ctx.supabase) return { ok: false, motivo: 'supabase_ausente', acoes: [] };
-  if (!ctx.config.ligada && !simular) return { ok: true, motivo: 'desligada', acoes: [] };
+  const fbLigado = ctx.config.facebookLigado === true;
+  if (!ctx.config.ligada && !fbLigado && !simular) return { ok: true, motivo: 'desligada', acoes: [] };
   if (!ctx.token) return { ok: false, motivo: 'sem_token', acoes: [] };
 
-  let config;
-  try {
-    config = await garantirContaInstagram(ctx);
-  } catch (err) {
-    console.warn('[instagram] Falha ao descobrir a conta:', err.code || err.name);
-    return { ok: false, motivo: 'meta_erro', erro: explicarErroMeta(err), acoes: [] };
+  // Instagram roda se estiver ligado (ou no teste). Facebook idem; no teste ele entra se a Página
+  // for alcançável, e um problema nele só vira aviso — nunca derruba o Instagram (e vice-versa,
+  // quando o Facebook está ligado).
+  const igAtivo = simular || ctx.config.ligada;
+  const fbAtivo = simular || fbLigado;
+  let config = ctx.config;
+  let avisoInstagram = null;
+  let avisoFacebook = null;
+
+  if (igAtivo) {
+    try {
+      config = await garantirContaInstagram(ctx);
+    } catch (err) {
+      console.warn('[instagram] Falha ao descobrir a conta:', err.code || err.name);
+      if (!fbLigado) return { ok: false, motivo: 'meta_erro', erro: explicarErroMeta(err), acoes: [] };
+      avisoInstagram = explicarErroMeta(err);
+    }
+    if (!config.igUserId && !avisoInstagram) {
+      if (!fbLigado) return { ok: false, motivo: 'sem_conta_instagram', acoes: [] };
+      avisoInstagram = 'O token não enxerga a conta do Instagram.';
+    }
   }
-  if (!config.igUserId) return { ok: false, motivo: 'sem_conta_instagram', acoes: [] };
+  const igPronto = igAtivo && Boolean(config.igUserId) && !avisoInstagram;
+
+  // Página do Facebook: o token dela sai do `me/accounts` a cada passada (fica só em memória).
+  let pagina = null;
+  if (fbAtivo) {
+    try {
+      pagina = escolherPagina(await listarPaginas(ctx.token), { pageId: config.fbPageId, igUserId: config.igUserId });
+      if (!pagina && fbLigado) avisoFacebook = 'O token não enxerga nenhuma Página do Facebook (aba Conexão).';
+      if (pagina && !simular && (pagina.pageId !== config.fbPageId || pagina.nome !== config.fbPageName)) {
+        config = { ...config, fbPageId: pagina.pageId, fbPageName: pagina.nome };
+        ctx.config = config;
+        await salvarConfig(ctx.supabase, config);
+      }
+    } catch (err) {
+      console.warn('[facebook] Falha ao listar as Páginas:', err.code || err.name);
+      pagina = null;
+      if (fbLigado) avisoFacebook = explicarErroMeta(err);
+    }
+  }
+  if (!igPronto && !pagina) {
+    return { ok: false, motivo: 'meta_erro', erro: avisoFacebook || avisoInstagram || 'Nenhuma conta disponível.', acoes: [] };
+  }
 
   const estado = await lerEstado(ctx.supabase);
   const agora = Date.now();
-  const desdeIso = config.ligada && config.ligadaEm
-    ? config.ligadaEm
-    : new Date(agora - 7 * 24 * 3600 * 1000).toISOString();
+  const seteDiasAtras = new Date(agora - 7 * 24 * 3600 * 1000).toISOString();
+  const desdePorRede = {
+    instagram: config.ligada && config.ligadaEm ? config.ligadaEm : seteDiasAtras,
+    facebook: fbLigado && config.facebookLigadoEm ? config.facebookLigadoEm : seteDiasAtras,
+  };
+
+  // Cada rede com o seu token e as suas chamadas — o resto da passada não precisa saber qual é.
+  const redes = {
+    instagram: {
+      listarComentarios: (id) => listarComentarios(ctx.token, id, 50),
+      responder: (id, texto) => responderComentario(ctx.token, id, texto),
+      ocultar: (id) => ocultarComentario(ctx.token, id, true),
+      quemSomos: { proprioUsuario: config.igUsername },
+    },
+    facebook: pagina && {
+      listarComentarios: (id) => listarComentariosFacebook(pagina.token, id, 50),
+      responder: (id, texto) => responderComentarioFacebook(pagina.token, id, texto),
+      ocultar: (id) => ocultarComentarioFacebook(pagina.token, id, true),
+      quemSomos: { proprioId: pagina.pageId },
+    },
+  };
+  const redeDe = (midia) => redes[midia.rede === 'facebook' ? 'facebook' : 'instagram'];
 
   // 1. Quais mídias olhar: posts cuja contagem de comentários mudou + mídias dos anúncios ativos.
   // Revisão das reclamações já respondidas e ainda visíveis: a cada 6 h abre todos os posts recentes.
   const revisarAgora = !simular && config.ocultarReclamacoes
     && (!estado.ultimaRevisao || agora - Date.parse(estado.ultimaRevisao) > INTERVALO_REVISAO_MS);
+  const mudou = (m) => m.comentarios > 0 && (simular || revisarAgora || estado.contagens[m.id] !== m.comentarios);
+  const tetoPosts = revisarAgora ? MAX_POSTS_NA_REVISAO : MAX_POSTS_POR_EXECUCAO;
 
   let midias = [];
-  try {
-    const posts = await listarMidias(ctx.token, config.igUserId, 25);
-    midias = posts
-      .filter((m) => m.comentarios > 0 && (simular || revisarAgora || estado.contagens[m.id] !== m.comentarios))
-      .slice(0, revisarAgora ? MAX_POSTS_NA_REVISAO : MAX_POSTS_POR_EXECUCAO);
-  } catch (err) {
-    console.warn('[instagram] Falha ao listar posts:', err.code || err.name);
-    return { ok: false, motivo: 'meta_erro', erro: explicarErroMeta(err), acoes: [] };
+  if (igPronto) {
+    try {
+      const posts = await listarMidias(ctx.token, config.igUserId, 25);
+      midias = posts.filter(mudou).slice(0, tetoPosts).map((m) => ({ ...m, rede: 'instagram' }));
+    } catch (err) {
+      console.warn('[instagram] Falha ao listar posts:', err.code || err.name);
+      if (!pagina) return { ok: false, motivo: 'meta_erro', erro: explicarErroMeta(err), acoes: [] };
+      avisoInstagram = explicarErroMeta(err);
+    }
+  }
+  if (pagina) {
+    try {
+      const postsFb = await listarPostsDaPagina(pagina.token, pagina.pageId, 25);
+      midias.push(...postsFb.filter(mudou).slice(0, tetoPosts));
+    } catch (err) {
+      console.warn('[facebook] Falha ao listar posts da Página:', err.code || err.name);
+      avisoFacebook = explicarErroMeta(err);
+    }
   }
 
   let avisoAnuncios = null;
   if (config.incluirAnuncios && ctx.adAccountId) {
     try {
-      const anuncios = await listarMidiasDeAnuncios(ctx.tokensAnuncios, ctx.adAccountId);
+      const anuncios = await listarAnunciosAtivos(ctx.tokensAnuncios, ctx.adAccountId);
       const jaListadas = new Set(midias.map((m) => m.id));
-      midias.push(...anuncios.filter((a) => !jaListadas.has(a.id)).slice(0, MAX_ANUNCIOS_POR_EXECUCAO));
+      const dosAnuncios = [
+        ...(igPronto ? midiasInstagramDosAnuncios(anuncios).map((m) => ({ ...m, rede: 'instagram' })) : []),
+        ...(pagina ? postsFacebookDosAnuncios(anuncios) : []),
+      ];
+      midias.push(...dosAnuncios.filter((a) => !jaListadas.has(a.id)).slice(0, MAX_ANUNCIOS_POR_EXECUCAO * (pagina && igPronto ? 2 : 1)));
     } catch (err) {
       // Anúncio é um extra: sem ads_read os posts continuam sendo atendidos.
       console.warn('[instagram] Falha ao listar anúncios:', err.code || err.name);
@@ -342,20 +448,21 @@ export async function executarAutomacao({ env = {}, simular = false, prazoMs = 4
 
   // 2. Comentários pendentes de cada mídia.
   const porMidia = await emLotes(midias, 5, async (midia) => {
+    const rede = redeDe(midia);
     try {
-      const comentarios = await listarComentarios(ctx.token, midia.id, 50);
+      const comentarios = await rede.listarComentarios(midia.id);
       const pendentes = selecionarPendentes(comentarios, {
-        proprioUsuario: config.igUsername,
-        desdeIso,
+        ...rede.quemSomos,
+        desdeIso: desdePorRede[midia.rede === 'facebook' ? 'facebook' : 'instagram'],
         tratados: estado.tratados,
         agora,
       });
       const revisar = revisarAgora
-        ? selecionarParaRevisao(comentarios, { proprioUsuario: config.igUsername, tratados: estado.tratados, revisados: estado.revisados })
+        ? selecionarParaRevisao(comentarios, { ...rede.quemSomos, tratados: estado.tratados, revisados: estado.revisados })
         : [];
       return { midia, pendentes, revisar, erro: false };
     } catch (err) {
-      console.warn('[instagram] Falha ao ler comentários de uma mídia:', err.code || err.name);
+      console.warn(`[${midia.rede || 'instagram'}] Falha ao ler comentários de uma mídia:`, err.code || err.name);
       return { midia, pendentes: [], revisar: [], erro: true };
     }
   });
@@ -373,6 +480,7 @@ export async function executarAutomacao({ env = {}, simular = false, prazoMs = 4
       em: new Date().toISOString(),
       commentId: c.id,
       mediaId: midia.id,
+      rede: midia.rede || 'instagram',
       origem: midia.origem,
       link: midia.link || '',
       usuario: c.usuario,
@@ -386,7 +494,7 @@ export async function executarAutomacao({ env = {}, simular = false, prazoMs = 4
     let decisao;
     try {
       decisao = await decidirComentario(
-        { comentario: c.texto, usuario: c.usuario, legenda: midia.legenda, origem: midia.origem },
+        { comentario: c.texto, usuario: c.usuario, legenda: midia.legenda, origem: midia.origem, rede: midia.rede },
         config,
         env,
       );
@@ -401,8 +509,9 @@ export async function executarAutomacao({ env = {}, simular = false, prazoMs = 4
 
     try {
       // Responde ANTES de ocultar: comentário oculto não aceita resposta.
-      if (decisao.acao === 'responder' || decisao.acao === 'responder_e_ocultar') await responderComentario(ctx.token, c.id, decisao.resposta);
-      if (decisao.acao === 'ocultar' || decisao.acao === 'responder_e_ocultar') await ocultarComentario(ctx.token, c.id, true);
+      const rede = redeDe(midia);
+      if (decisao.acao === 'responder' || decisao.acao === 'responder_e_ocultar') await rede.responder(c.id, decisao.resposta);
+      if (decisao.acao === 'ocultar' || decisao.acao === 'responder_e_ocultar') await rede.ocultar(c.id);
     } catch (err) {
       console.warn('[instagram] Meta recusou uma ação:', err.code || err.name);
       // Erro de limite/token é passageiro: tenta de novo depois. Recusa definitiva (ex.: comentário
@@ -423,19 +532,19 @@ export async function executarAutomacao({ env = {}, simular = false, prazoMs = 4
   const loteRevisao = filaRevisao.slice(0, config.maxPorExecucao);
   const revisoes = await emLotes(loteRevisao, 3, async ({ midia, c }) => {
     const registro = {
-      em: new Date().toISOString(), commentId: c.id, mediaId: midia.id, origem: midia.origem, link: midia.link || '',
+      em: new Date().toISOString(), commentId: c.id, mediaId: midia.id, rede: midia.rede || 'instagram', origem: midia.origem, link: midia.link || '',
       usuario: c.usuario, comentario: c.texto.slice(0, 240), acao: 'ignorar', resposta: '', motivo: '', ok: true, revisao: true,
     };
     let decisao;
     try {
-      decisao = await decidirComentario({ comentario: c.texto, usuario: c.usuario, legenda: midia.legenda, origem: midia.origem }, config, env);
+      decisao = await decidirComentario({ comentario: c.texto, usuario: c.usuario, legenda: midia.legenda, origem: midia.origem, rede: midia.rede }, config, env);
     } catch (err) {
       console.warn('[instagram] IA não respondeu na revisão:', err.name);
       return { ...registro, acao: 'erro', ok: false, motivo: 'A IA não respondeu.', tentarDeNovo: true };
     }
     if (decisao.acao !== 'ocultar' && decisao.acao !== 'responder_e_ocultar') return { ...registro, motivo: decisao.motivo };
     try {
-      await ocultarComentario(ctx.token, c.id, true);
+      await redeDe(midia).ocultar(c.id);
     } catch (err) {
       console.warn('[instagram] Meta recusou ocultar na revisão:', err.code || err.name);
       const passageiro = [4, 17, 32, 613, 190].includes(Number(err.code)) || !err.code;
@@ -495,9 +604,9 @@ export async function executarAutomacao({ env = {}, simular = false, prazoMs = 4
       await gravarChave(ctx.supabase, CHAVE_ESTADO, novoEstado);
     } catch (err) {
       console.error('[instagram] Falha ao gravar o estado da automação:', err.message);
-      return { ok: false, motivo: 'estado_nao_gravado', acoes: acoesVisiveis, resumo, avisoAnuncios };
+      return { ok: false, motivo: 'estado_nao_gravado', acoes: acoesVisiveis, resumo, avisoAnuncios, avisoInstagram, avisoFacebook };
     }
   }
 
-  return { ok: true, simular, acoes: acoesVisiveis.map(({ tentarDeNovo, ...resto }) => resto), resumo, avisoAnuncios };
+  return { ok: true, simular, acoes: acoesVisiveis.map(({ tentarDeNovo, ...resto }) => resto), resumo, avisoAnuncios, avisoInstagram, avisoFacebook };
 }

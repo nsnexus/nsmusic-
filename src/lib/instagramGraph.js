@@ -58,7 +58,7 @@ export function explicarErroMeta(err) {
   return 'Não foi possível falar com a Meta agora.';
 }
 
-async function graphFetch(path, { token, method = 'GET', params = {} } = {}) {
+export async function graphFetch(path, { token, method = 'GET', params = {} } = {}) {
   if (!token) throw new MetaApiError('Token da Meta ausente.', { code: 190 });
   const url = new URL(path.startsWith('http') ? path : `${GRAPH_BASE}/${path.replace(/^\//, '')}`);
   const init = { method, signal: AbortSignal.timeout(TIMEOUT_MS), headers: { Authorization: `Bearer ${token}` } };
@@ -159,7 +159,8 @@ async function listarAnunciosDeUmaConta(token, conta, limit) {
   const json = await graphFetch(`act_${conta}/ads`, {
     token,
     params: {
-      fields: 'name,campaign{name},creative{effective_instagram_media_id,instagram_permalink_url,thumbnail_url,body}',
+      // effective_object_story_id = post da Página do Facebook que o anúncio gerou (comentários do FB).
+      fields: 'name,campaign{name},creative{effective_instagram_media_id,effective_object_story_id,instagram_permalink_url,thumbnail_url,body}',
       effective_status: JSON.stringify(['ACTIVE']),
       limit: Math.max(1, Math.min(100, limit)),
     },
@@ -168,11 +169,12 @@ async function listarAnunciosDeUmaConta(token, conta, limit) {
 }
 
 /**
- * Mídias do Instagram dos anúncios ativos. Aceita várias contas ("act_1,act_2") e vários tokens:
- * cada conta é lida com o primeiro token que tiver acesso a ela (o painel de Anúncios usa um token
- * por conta). Só lança erro se nenhuma conta puder ser lida.
+ * Anúncios ativos (crus) de todas as contas — base das mídias do Instagram e dos posts do Facebook.
+ * Aceita várias contas ("act_1,act_2") e vários tokens: cada conta é lida com o primeiro token que
+ * tiver acesso a ela (o painel de Anúncios usa um token por conta). Só lança erro se nenhuma conta
+ * puder ser lida.
  */
-export async function listarMidiasDeAnuncios(tokens, contasDeAnuncio, limit = 60) {
+export async function listarAnunciosAtivos(tokens, contasDeAnuncio, limit = 60) {
   const listaTokens = [...new Set((Array.isArray(tokens) ? tokens : [tokens]).map((t) => String(t || '').trim()).filter(Boolean))];
   const contas = separarContasDeAnuncio(contasDeAnuncio);
   if (contas.length === 0 || listaTokens.length === 0) return [];
@@ -192,7 +194,11 @@ export async function listarMidiasDeAnuncios(tokens, contasDeAnuncio, limit = 60
     }
   }));
   if (!algumaLida && primeiroErro) throw primeiroErro;
+  return anuncios;
+}
 
+/** Mídias do Instagram dos anúncios, deduplicadas por mídia. */
+export function midiasInstagramDosAnuncios(anuncios) {
   const porMidia = new Map();
   for (const ad of anuncios) {
     const mediaId = ad.creative?.effective_instagram_media_id;
@@ -212,6 +218,10 @@ export async function listarMidiasDeAnuncios(tokens, contasDeAnuncio, limit = 60
     });
   }
   return [...porMidia.values()];
+}
+
+export async function listarMidiasDeAnuncios(tokens, contasDeAnuncio, limit = 60) {
+  return midiasInstagramDosAnuncios(await listarAnunciosAtivos(tokens, contasDeAnuncio, limit));
 }
 
 function normalizarComentario(c) {

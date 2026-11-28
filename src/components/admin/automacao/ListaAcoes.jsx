@@ -27,7 +27,10 @@ export default function ListaAcoes({ acoes, simulacao = false, vazio }) {
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap', fontSize: '12px', marginBottom: '4px' }}>
               <span>
                 <strong style={{ color: rotulo.cor }}>{verbo}</strong>
-                <span style={{ color: '#94a3b8' }}> · @{a.usuario || 'usuário'} · {a.origem === 'anuncio' ? 'anúncio' : 'post'}</span>
+                <span style={{ color: '#94a3b8' }}>
+                  {' · '}{a.rede === 'facebook' ? (a.usuario || 'usuário') : `@${a.usuario || 'usuário'}`}
+                  {' · '}{a.rede === 'facebook' ? 'Facebook' : 'Instagram'} {a.origem === 'anuncio' ? 'anúncio' : 'post'}
+                </span>
               </span>
               <span style={{ color: '#94a3b8' }}>
                 {formatarData(a.em)}
