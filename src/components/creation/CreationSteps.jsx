@@ -90,6 +90,7 @@ export default function CreationSteps({
   handleImageUpload,
   handlePhoneChange,
   phoneVerifyStatus,
+  whatsappDoTelefone = 'idle',
   phoneVerifyMessage,
   recognizedVoice,
   checkingVoice,
@@ -763,7 +764,7 @@ export default function CreationSteps({
             onChange={e => handlePhoneChange(e.target.value)}
             placeholder="(11) 99999-9999"
           />
-          {phoneVerifyMessage && (
+          {phoneVerifyMessage && !(phoneVerifyStatus === 'valid' && whatsappDoTelefone !== 'idle' && whatsappDoTelefone !== 'desconhecido') && (
             <p style={{
               fontSize: '0.8rem',
               fontWeight: 600,
@@ -772,6 +773,25 @@ export default function CreationSteps({
             }}>
               {phoneVerifyMessage.replace('❌ ', '')}
             </p>
+          )}
+          {phoneVerifyStatus === 'valid' && whatsappDoTelefone === 'checking' && (
+            <p role="status" style={{ fontSize: '0.8rem', fontWeight: 600, marginTop: '6px', color: '#857D80' }}>
+              Conferindo se o número tem WhatsApp...
+            </p>
+          )}
+          {phoneVerifyStatus === 'valid' && whatsappDoTelefone === 'tem' && (
+            <p role="status" style={{ fontSize: '0.8rem', fontWeight: 600, marginTop: '6px', color: '#16a34a' }}>
+              ✓ WhatsApp encontrado
+            </p>
+          )}
+          {phoneVerifyStatus === 'valid' && whatsappDoTelefone === 'nao_tem' && (
+            <div role="alert" style={{
+              marginTop: '8px', padding: '10px 12px', borderRadius: '10px',
+              backgroundColor: '#fff7ed', border: '1px solid #fdba74', color: '#9a3412',
+              fontSize: '0.82rem', lineHeight: 1.45,
+            }}>
+              <strong>Esse número não tem WhatsApp.</strong> Confere se digitou certo, com o DDD e o 9 na frente: é por ele que você recebe a sua música.
+            </div>
           )}
         </div>
 

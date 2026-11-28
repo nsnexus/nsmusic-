@@ -26,6 +26,7 @@ import { readReferralCode } from '@/lib/referralTracking';
 import { getPriceForSku, geracoesExtrasDoSku } from '@/lib/pricing';
 import CartaoStripe from '@/components/pagamento/CartaoStripe';
 import { normalizeBrazilPhoneDigits, formatarTelefoneBr } from '@/lib/telefoneBr';
+import { useVerificaWhatsapp } from '@/lib/useVerificaWhatsapp';
 import PacotesCompactos from '@/components/delivery/PacotesCompactos';
 import { deliveryPackages, formatBrl } from '@/lib/deliveryPackages';
 import { Zap, Copy, CheckCircle2, CreditCard, Loader2 } from 'lucide-react';
@@ -400,12 +401,13 @@ export default function CriarMusica() {
   };
   const [phoneVerifyStatus, setPhoneVerifyStatus] = useState('idle'); // 'idle' | 'valid' | 'invalid'
   const [phoneVerifyMessage, setPhoneVerifyMessage] = useState('');
+  const whatsappDoTelefone = useVerificaWhatsapp(formData.customerPhone, phoneVerifyStatus === 'valid');
   const [recognizedVoice, setRecognizedVoice] = useState(null);
   const [checkingVoice, setCheckingVoice] = useState(false);
 
-  // Validação de formato do telefone. Não existe mais checagem em tempo real de conta ativa no
-  // WhatsApp — a API oficial da Meta (que substituiu o provedor não oficial W-API, banido repetidas
-  // vezes) não expõe esse tipo de consulta. Só confere DDD + quantidade de dígitos.
+  // Validação de formato do telefone (DDD + quantidade de dígitos). Se o formato estiver certo, o
+  // useVerificaWhatsapp acima pergunta à Evolution se o número tem WhatsApp, só para avisar o
+  // cliente — nunca bloqueia (a API oficial da Meta não tem essa consulta).
   useEffect(() => {
     const phone = formData.customerPhone || '';
     const clean = normalizeBrazilPhoneDigits(phone);
@@ -1886,6 +1888,7 @@ export default function CriarMusica() {
       handlePhoneChange={handlePhoneChange}
       phoneVerifyStatus={phoneVerifyStatus}
       phoneVerifyMessage={phoneVerifyMessage}
+      whatsappDoTelefone={whatsappDoTelefone}
       recognizedVoice={recognizedVoice}
       checkingVoice={checkingVoice}
       isSelfTribute={isSelfTribute}
