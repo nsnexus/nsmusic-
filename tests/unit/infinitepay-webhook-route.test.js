@@ -94,7 +94,7 @@ describe('POST /api/webhooks/infinitepay', () => {
         method: 'credit_card',
         gateway: 'infinitepay',
       }),
-      expect.any(Object)
+      expect.any(Object), expect.anything()
     );
   });
 });

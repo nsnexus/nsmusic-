@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
 import { findOrderByIdOrNumber } from '@/lib/orderLookup';
+import { opcoesDeAprovacao } from '@/lib/segundoPlano';
 import { applyPaymentApproval } from '@/lib/payments';
 import { getChargeStatus } from '@/lib/efi';
 
@@ -100,14 +101,21 @@ export async function GET(req) {
           }
           return jsonNoCache({ status: "pending" });
         }
-        await applyPaymentApproval(pedidoReal, pi.id, {
+        const resultado = await applyPaymentApproval(pedidoReal, pi.id, {
           status: 'approved',
           transaction_amount: r.valor,
           method: 'stripe',
           gateway: 'stripe',
           sku: r.sku,
-        }, env);
-        return jsonNoCache({ status: "approved" });
+        }, env, opcoesDeAprovacao());
+        // Só diz "aprovado" se a aprovação foi gravada agora ou já estava gravada antes. Falha de
+        // gravação (ou outra aprovação do mesmo pagamento ainda em andamento) volta "pending" e a
+        // tela tenta de novo — antes devolvia "approved" mesmo sem nada gravado no pedido.
+        if (resultado?.applied || resultado?.reason === 'already_processed') {
+          return jsonNoCache({ status: "approved" });
+        }
+        console.warn(`[PaymentStatus] PaymentIntent ${pi.id} pago mas aprovação não gravada: ${resultado?.reason}`);
+        return jsonNoCache({ status: "pending" });
       } catch (err) {
         console.warn("[PaymentStatus] Erro ao consultar o PaymentIntent na Stripe:", err?.code || err?.status || err?.name);
         return jsonNoCache({ status: "pending" });
@@ -131,7 +139,7 @@ export async function GET(req) {
             transaction_amount: transactionAmount,
             method: 'stripe',
             gateway: 'stripe',
-          }, env);
+          }, env, opcoesDeAprovacao());
           return jsonNoCache({ status: "approved" });
         }
         return jsonNoCache({ status: "pending" });
@@ -202,7 +210,7 @@ export async function GET(req) {
               gateway: 'infinitepay',
               clientIp,
               clientUserAgent,
-            }, env);
+            }, env, opcoesDeAprovacao());
             return jsonNoCache({ status: "approved" });
           }
         }
@@ -284,7 +292,7 @@ export async function GET(req) {
         transaction_amount: transactionAmount,
         clientIp,
         clientUserAgent,
-      }, env);
+      }, env, opcoesDeAprovacao());
       return jsonNoCache({ status: "approved" });
     }
     if (charge?.status === 'CONCLUIDA' && orderId && !txidBelongsToOrder) {

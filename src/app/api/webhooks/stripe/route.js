@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
+import { opcoesDeAprovacao } from '@/lib/segundoPlano';
 import { applyPaymentApproval } from '@/lib/payments';
 import { verifyStripeWebhookSignature, retrieveStripeCheckoutSession, getStripeConfig, consultarPaymentIntent, avaliarPaymentIntent, CANAL_CARTAO_SITE } from '@/lib/stripe';
 
@@ -97,7 +98,8 @@ export async function POST(req) {
           gateway: 'stripe',
           sku: sku || confirmedSession.metadata?.sku,
         },
-        env
+        env,
+        opcoesDeAprovacao()
       );
       console.log(`[stripe-webhook] Resultado applyPaymentApproval:`, result?.applied, result?.reason || 'ok');
     } else if (eventType === 'payment_intent.succeeded') {
@@ -114,7 +116,7 @@ export async function POST(req) {
             method: 'stripe',
             gateway: 'stripe',
             sku: r.sku,
-          }, env);
+          }, env, opcoesDeAprovacao());
           console.log('[stripe-webhook] Cartão no site aprovado:', result?.applied, result?.reason || 'ok');
         } else {
           console.warn(`[stripe-webhook] PaymentIntent ${evento.id} não aprovado: ${r.motivo}`);
@@ -132,7 +134,7 @@ export async function POST(req) {
             method: 'stripe',
             gateway: 'stripe',
             sku: pi.metadata?.sku,
-          }, env);
+          }, env, opcoesDeAprovacao());
           console.log('[stripe-webhook] Estorno do cartão no site:', result?.applied, result?.reason || 'ok');
         }
       }

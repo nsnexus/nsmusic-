@@ -132,7 +132,7 @@ describe('POST /api/webhooks/efi', () => {
       'order-1',
       'TXID1',
       { status: 'approved', transaction_amount: 9.99 },
-      expect.anything()
+      expect.anything(), expect.anything()
     );
   });
 
@@ -173,7 +173,7 @@ describe('POST /api/webhooks/efi', () => {
       'order-2',
       'TXID-ANTIGO',
       { status: 'approved', transaction_amount: 9.99 },
-      expect.anything()
+      expect.anything(), expect.anything()
     );
   });
 

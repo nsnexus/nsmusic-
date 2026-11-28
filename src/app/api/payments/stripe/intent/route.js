@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
 import { getOrder, updateOrder } from '@/lib/supabaseDb';
 import { getSupabaseEdge } from '@/lib/supabase-edge';
-import { getStripeConfig, valorDoCartao, criarPaymentIntentCartao } from '@/lib/stripe';
+import { getStripeConfig, valorDoCartao, criarPaymentIntentCartao, cancelarPaymentIntent } from '@/lib/stripe';
 import { isUSOrder } from '@/lib/country';
 
 export const runtime = 'edge';
@@ -20,9 +20,11 @@ const NOMES = {
 
 export async function POST(req) {
   let env = {};
+  let emSegundoPlano = (p) => p.catch(() => {});
   try {
     const ctx = getRequestContext();
     if (ctx?.env) env = ctx.env;
+    if (ctx?.ctx?.waitUntil) emSegundoPlano = (p) => ctx.ctx.waitUntil(p.catch(() => {}));
   } catch { /* fora da Cloudflare */ }
 
   const { secretKey, publishableKey } = getStripeConfig(env);
@@ -44,36 +46,33 @@ export async function POST(req) {
   if (preco.erro) return NextResponse.json({ error: preco.erro }, { status: 400 });
 
   try {
-    const pedido = await getOrder(orderId, env);
-    if (!pedido) return NextResponse.json({ error: 'Pedido não encontrado.' }, { status: 404 });
-    // Pedido dos EUA continua no checkout hospedado de sempre (o cliente cai nele por onFalhaAoAbrir).
-    if (isUSOrder(pedido)) return NextResponse.json({ error: 'Pedido internacional usa o checkout hospedado.' }, { status: 409 });
-
-    const pi = await criarPaymentIntentCartao({
-      orderId: pedido.id,
-      sku,
-      valor: preco.valor,
-      customerEmail: pedido.customerEmail,
-      descricao: NOMES[sku] || 'Música Personalizada - NS Music',
-    }, env);
-
-    // Registra o intent (SKU por txid) para applyPaymentApproval saber o que liberar.
-    try {
-      const supabase = getSupabaseEdge(env);
-      if (supabase) {
-        await supabase.rpc('record_order_payment_intent', { p_order_id: pedido.id, p_txid: pi.id, p_sku: sku, p_amount: preco.valor });
-      }
-    } catch (dbErr) {
-      console.warn('[cartao/intent] Aviso ao registrar o intent:', dbErr?.message);
+    // Leitura do pedido e criação da cobrança EM PARALELO: o banco às vezes leva segundos
+    // (medido em 27/11/2026: 1,7–8 s por leitura). Pedido inexistente ou dos EUA cancela a cobrança.
+    const [pedido, pi] = await Promise.all([
+      getOrder(orderId, env),
+      criarPaymentIntentCartao({ orderId, sku, valor: preco.valor, descricao: NOMES[sku] || 'Música Personalizada - NS Music' }, env),
+    ]);
+    if (!pedido || isUSOrder(pedido)) {
+      if (pi?.status !== 'succeeded') emSegundoPlano(cancelarPaymentIntent(pi.id, env));
+      return pedido
+        ? NextResponse.json({ error: 'Pedido internacional usa o checkout hospedado.' }, { status: 409 })
+        : NextResponse.json({ error: 'Pedido não encontrado.' }, { status: 404 });
     }
 
+    // Gravações que não precisam ser esperadas (a aprovação só acontece depois do pagamento,
+    // e reconsulta tudo): intent registrado (SKU por txid) e carimbo no pedido.
+    const supabase = getSupabaseEdge(env);
+    if (supabase) {
+      emSegundoPlano(supabase.rpc('record_order_payment_intent', { p_order_id: pedido.id, p_txid: pi.id, p_sku: sku, p_amount: preco.valor })
+        .then((r) => { if (r?.error) console.warn('[cartao/intent] Aviso ao registrar o intent:', r.error.message); }));
+    }
     const jaPago = pedido.paymentStatus === 'PAGO' || pedido.paymentStatus === 'PAGAMENTO_APROVADO';
-    await updateOrder(pedido.id, {
+    emSegundoPlano(updateOrder(pedido.id, {
       paymentIntentId: pi.id,
       paymentIntentSku: sku,
       stripeCheckoutAt: new Date().toISOString(),
       ...(jaPago ? {} : { paymentStatus: 'AGUARDANDO_PAGAMENTO' }),
-    }, env).catch((e) => console.warn('[cartao/intent] Aviso ao carimbar o pedido:', e?.message));
+    }, env));
 
     return NextResponse.json({
       paymentIntentId: pi.id,

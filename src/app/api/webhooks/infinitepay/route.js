@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
 import { findOrderByIdOrNumber } from '@/lib/orderLookup';
+import { opcoesDeAprovacao } from '@/lib/segundoPlano';
 import { applyPaymentApproval } from '@/lib/payments';
 import { checkInfinitePayPayment } from '@/lib/infinitepay';
 
@@ -122,7 +123,8 @@ export async function POST(req) {
           method: verifiedMethod,
           gateway: 'infinitepay',
         },
-        env
+        env,
+        opcoesDeAprovacao()
       );
 
       console.log(`[webhook/infinitepay] Pagamento aprovado para pedido ${order.id}:`, approvalResult);

@@ -296,6 +296,11 @@ export async function criarPaymentIntentCartao({ orderId, sku, valor, customerEm
   return chamarStripe('payment_intents', { metodo: 'POST', form, idempotencia: `nsm-cartao-${orderId}-${sku}-${centavos}` }, env);
 }
 
+export async function cancelarPaymentIntent(id, env = {}) {
+  if (!/^pi_[A-Za-z0-9]+$/.test(String(id || ''))) return null;
+  return chamarStripe(`payment_intents/${encodeURIComponent(id)}/cancel`, { metodo: 'POST', form: new URLSearchParams() }, env);
+}
+
 export async function consultarPaymentIntent(id, env = {}) {
   if (!/^pi_[A-Za-z0-9]+$/.test(String(id || ''))) throw new Error('PaymentIntent inválido.');
   return chamarStripe(`payment_intents/${encodeURIComponent(id)}`, {}, env);
